@@ -20,7 +20,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.Handler.DelegatingHandler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -47,7 +47,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
 import static io.fluxzero.sdk.web.DefaultWebRequestContext.getWebRequestContext;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
@@ -142,12 +141,12 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return SocketSession.class.isAssignableFrom(parameter.getType())
-               && ReflectionUtils.isOrHas(methodAnnotation, HandleWeb.class);
+               && JvmComponentIntrospector.getInstance().isOrHas(methodAnnotation, HandleWeb.class);
     }
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        if (!ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class)) {
+        if (!JvmComponentIntrospector.getInstance().isMethodAnnotationPresent(method, HandleWeb.class)) {
             return false;
         }
         for (Parameter parameter : method.getParameters()) {
@@ -214,7 +213,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
     protected List<SocketPattern> socketPatterns(Handler<DeserializingMessage> handler) {
         Class<?> type = handler.getTargetClass();
-        return concat(getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
+        return concat(JvmComponentIntrospector.getInstance().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .flatMap(m -> WebUtils.getWebPatterns(type, null, m).stream()
                         .filter(p -> isWebsocket(p.getMethod()))
                         .map(p -> new SocketPattern(m, p))).toList();

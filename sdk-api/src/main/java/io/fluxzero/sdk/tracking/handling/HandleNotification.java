@@ -71,6 +71,17 @@ public @interface HandleNotification {
     boolean disabled() default false;
 
     /**
+     * If {@code true}, this handler is considered passive and will not emit a result message.
+     */
+    boolean passive() default false;
+
+    /**
+     * If {@code true}, indexed request messages whose effective timeout has already expired may be skipped before this
+     * handler is invoked.
+     */
+    boolean skipExpiredRequests() default false;
+
+    /**
      * Restricts which payload types this handler may be invoked for.
      */
     Class<?>[] allowedClasses() default {};

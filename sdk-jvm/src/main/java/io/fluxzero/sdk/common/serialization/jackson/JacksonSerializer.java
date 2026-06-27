@@ -22,7 +22,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.search.SerializedDocument;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.search.Inverter;
 import io.fluxzero.common.search.JacksonInverter;
 import io.fluxzero.common.serialization.JsonUtils;
@@ -265,6 +265,6 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
      */
     @Override
     public Object doClone(Object value) {
-        return ReflectionUtils.copyFields(value, doConvert(objectMapper.createObjectNode(), value.getClass()));
+        return JvmComponentIntrospector.getInstance().copyFields(value, doConvert(objectMapper.createObjectNode(), value.getClass()));
     }
 }

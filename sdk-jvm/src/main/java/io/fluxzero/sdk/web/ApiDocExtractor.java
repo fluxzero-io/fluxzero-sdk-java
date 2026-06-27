@@ -17,7 +17,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.reflection.ParameterRegistry;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -40,8 +40,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
 import static io.fluxzero.sdk.web.WebUtils.getWebPatterns;
 import static java.util.Arrays.stream;
 import static java.util.stream.Stream.concat;
@@ -71,7 +69,7 @@ public final class ApiDocExtractor {
      * the given instance.
      */
     public static ApiDocCatalog extract(Object handler) {
-        return extract(ReflectionUtils.asClass(handler), handler instanceof Class<?> ? null : handler);
+        return extract(JvmComponentIntrospector.getInstance().asClass(handler), handler instanceof Class<?> ? null : handler);
     }
 
     /**
@@ -80,7 +78,7 @@ public final class ApiDocExtractor {
     public static ApiDocCatalog extract(Class<?> handlerType, Object handler) {
         List<ApiDocEndpoint> endpoints = new ArrayList<>();
         for (Executable executable : handlerExecutables(handlerType).toList()) {
-            if (!ReflectionUtils.isMethodAnnotationPresent(executable, HandleWeb.class)
+            if (!JvmComponentIntrospector.getInstance().isMethodAnnotationPresent(executable, HandleWeb.class)
                 || isExcluded(handlerType, executable)
                 || !isDocumented(handlerType, executable)) {
                 continue;
@@ -95,7 +93,7 @@ public final class ApiDocExtractor {
     }
 
     private static Stream<Executable> handlerExecutables(Class<?> handlerType) {
-        return concat(getAllMethods(handlerType).stream(), stream(handlerType.getDeclaredConstructors()));
+        return concat(JvmComponentIntrospector.getInstance().getAllMethods(handlerType).stream(), stream(handlerType.getDeclaredConstructors()));
     }
 
     private static ApiDocEndpoint endpoint(Class<?> handlerType, Executable executable, WebPattern pattern,
@@ -197,7 +195,7 @@ public final class ApiDocExtractor {
     }
 
     private static Stream<Package> packages(Class<?> handlerType) {
-        return getPackageAndParentPackages(handlerType.getPackage()).reversed().stream();
+        return JvmComponentIntrospector.getInstance().getPackageAndParentPackages(handlerType.getPackage()).reversed().stream();
     }
 
     private static Set<String> extractPathParameterNames(String path) {

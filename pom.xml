@@ -29,6 +29,7 @@
         <module>common</module>
         <module>sdk-api</module>
         <module>sdk-browser</module>
+        <module>sdk-browser-generator</module>
         <module>sdk-jvm</module>
         <module>sdk</module>
         <module>test-server</module>
@@ -449,6 +450,13 @@
     </reporting>
 
     <profiles>
+        <profile>
+            <id>browser-conformance</id>
+            <modules>
+                <module>browser-conformance</module>
+            </modules>
+        </profile>
+
         <profile>
             <id>deploy</id>
             <build>

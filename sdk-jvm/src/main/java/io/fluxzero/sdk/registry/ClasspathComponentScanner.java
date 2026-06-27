@@ -19,7 +19,7 @@ import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -152,7 +152,7 @@ public class ClasspathComponentScanner {
     }
 
     private ComponentDescriptor componentDescriptor(Class<?> type, List<String> allTypeNames) {
-        List<AnnotationDescriptor> annotations = annotationDescriptors(ReflectionUtils.getTypeAnnotations(type));
+        List<AnnotationDescriptor> annotations = annotationDescriptors(JvmComponentIntrospector.getInstance().getTypeAnnotations(type));
         List<RegisteredTypeDescriptor> registeredTypes =
                 registeredTypes(annotations, typeName(type), allTypeNames);
         ConsumerDescriptor consumer = consumerDescriptor(annotations)
@@ -205,7 +205,7 @@ public class ClasspathComponentScanner {
                 .sorted(Comparator.comparing(Field::getName))
                 .forEach(field -> properties.putIfAbsent(field.getName(), new PropertyDescriptor(
                         field.getName(), typeName(field.getType()), field.getGenericType().getTypeName(),
-                        annotationDescriptors(ReflectionUtils.getAnnotations(field)))));
+                        annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(field)))));
         if (type.isRecord()) {
             Arrays.stream(type.getRecordComponents())
                     .sorted(Comparator.comparing(RecordComponent::getName))
@@ -260,12 +260,12 @@ public class ClasspathComponentScanner {
                         parameter.getName(), typeName(parameter.getType()), annotationDescriptors(parameter.getAnnotations())))
                 .toList();
         return new ExecutableDescriptor(kind, executable.getName(), returnType, parameters,
-                                        annotationDescriptors(ReflectionUtils.getAnnotations(executable)));
+                                        annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable)));
     }
 
     private List<Annotation> handlerAnnotations(Executable executable) {
         List<Annotation> result = new ArrayList<>();
-        for (Annotation annotation : ReflectionUtils.getAnnotations(executable)) {
+        for (Annotation annotation : JvmComponentIntrospector.getInstance().getAnnotations(executable)) {
             if (HANDLERS.containsKey(annotation.annotationType())) {
                 result.add(annotation);
             }
@@ -276,8 +276,8 @@ public class ClasspathComponentScanner {
     private List<WebRouteDescriptor> webRoutes(Annotation annotation, HandlerSpec spec, Class<?> type,
                                                Executable executable) {
         String packagePath = pathValue(packageAnnotations(type.getPackage())).orElse("");
-        String typePath = pathValue(annotationDescriptors(ReflectionUtils.getTypeAnnotations(type))).orElse("");
-        String methodPath = pathValue(annotationDescriptors(ReflectionUtils.getAnnotations(executable))).orElse("");
+        String typePath = pathValue(annotationDescriptors(JvmComponentIntrospector.getInstance().getTypeAnnotations(type))).orElse("");
+        String methodPath = pathValue(annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable))).orElse("");
         List<String> handlerPaths = stringArrayAttribute(annotation, "value");
         if (handlerPaths.isEmpty()) {
             handlerPaths = methodPath.isBlank() ? List.of("") : List.of(methodPath);
@@ -300,7 +300,7 @@ public class ClasspathComponentScanner {
     }
 
     private static boolean requiresPayloadInstance(Class<?> type) {
-        return type.isRecord() || ReflectionUtils.getDefaultConstructor(type).isEmpty();
+        return type.isRecord() || JvmComponentIntrospector.getInstance().getDefaultConstructor(type).isEmpty();
     }
 
     private static boolean hasTrackSelf(List<AnnotationDescriptor> annotations) {
@@ -454,11 +454,11 @@ public class ClasspathComponentScanner {
     }
 
     private static List<AnnotationDescriptor> directPackageAnnotations(Package p) {
-        return annotationDescriptors(ReflectionUtils.getPackageAnnotations(p, false));
+        return annotationDescriptors(JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false));
     }
 
     private static List<AnnotationDescriptor> packageAnnotations(Package p) {
-        return annotationDescriptors(ReflectionUtils.getPackageAnnotations(p));
+        return annotationDescriptors(JvmComponentIntrospector.getInstance().getPackageAnnotations(p));
     }
 
     private static List<AnnotationDescriptor> annotationDescriptors(Collection<? extends Annotation> annotations) {

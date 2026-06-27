@@ -20,7 +20,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.web.WebRequest;
@@ -165,7 +165,7 @@ public class ChunkedDeserializingMessage extends DeserializingMessage {
         if (InputStream.class.getName().equals(representativeChunk.getType())) {
             return InputStream.class;
         }
-        return ReflectionUtils.classForName(serializer.upcastType(representativeChunk.getType()), Void.class);
+        return JvmComponentIntrospector.getInstance().classForName(serializer.upcastType(representativeChunk.getType()), Void.class);
     }
 
     @Override

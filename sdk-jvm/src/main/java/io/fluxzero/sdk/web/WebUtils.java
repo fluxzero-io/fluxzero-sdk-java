@@ -16,7 +16,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import jakarta.annotation.Nullable;
@@ -48,10 +48,6 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.concat;
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
 /**
@@ -147,8 +143,8 @@ public class WebUtils {
      */
     public static List<WebPattern> getWebPatterns(Class<?> targetClass, @Nullable Object handler, Executable method) {
         String root = getHandlerPath(targetClass, handler, method);
-        return ReflectionUtils.getMethodAnnotations(method, HandleWeb.class)
-                .stream().flatMap(a -> ReflectionUtils.getAnnotationAs(a, HandleWeb.class, WebParameters.class)
+        return JvmComponentIntrospector.getInstance().getMethodAnnotations(method, HandleWeb.class)
+                .stream().flatMap(a -> JvmComponentIntrospector.getInstance().getAnnotationAs(a, HandleWeb.class, WebParameters.class)
                         .stream().flatMap(webParameters -> webParameters.getWebPatterns(root))).toList();
     }
 
@@ -169,24 +165,24 @@ public class WebUtils {
     public static String getHandlerPath(Class<?> targetClass, @Nullable Object handler, @Nullable Executable method) {
         var mapper = pathValues();
         List<String> hierarchy = concat(
-                getPackageAndParentPackages(targetClass.getPackage()).reversed().stream().flatMap(mapper),
+                JvmComponentIntrospector.getInstance().getPackageAndParentPackages(targetClass.getPackage()).reversed().stream().flatMap(mapper),
                 Stream.of(targetClass).flatMap(mapper),
-                getAnnotatedProperty(handler, Path.class).stream()
-                        .filter(p -> getAnnotation(p, Path.class).map(Path::value)
-                                             .filter(String::isBlank).isPresent() && getAnnotation(p,
+                JvmComponentIntrospector.getInstance().getAnnotatedProperty(handler, Path.class).stream()
+                        .filter(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Path.class).map(Path::value)
+                                             .filter(String::isBlank).isPresent() && JvmComponentIntrospector.getInstance().getAnnotation(p,
                                                                                                    HandleWeb.class).isEmpty())
-                        .flatMap(a -> getAnnotatedPropertyValue(handler, Path.class).map(Object::toString).stream()),
+                        .flatMap(a -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(handler, Path.class).map(Object::toString).stream()),
                 Optional.ofNullable(method).stream().flatMap(mapper)).toList();
         return hierarchy.stream().reduce((a, b) -> isAbsolutePathOrUrl(b) ? b : concatenateUrlParts(a, b)).orElse("");
     }
 
     static Function<AnnotatedElement, Stream<String>> pathValues() {
-        return element -> getAnnotation(element, Path.class).stream().map(Path::value).map(s -> {
+        return element -> JvmComponentIntrospector.getInstance().getAnnotation(element, Path.class).stream().map(Path::value).map(s -> {
             if (s.isBlank()) {
                 return switch (element) {
-                    case Class<?> c -> ReflectionUtils.getSimpleName(c.getPackage());
-                    case Package p -> ReflectionUtils.getSimpleName(p);
-                    case Executable m -> ReflectionUtils.getSimpleName(m.getDeclaringClass());
+                    case Class<?> c -> JvmComponentIntrospector.getInstance().getSimpleName(c.getPackage());
+                    case Package p -> JvmComponentIntrospector.getInstance().getSimpleName(p);
+                    case Executable m -> JvmComponentIntrospector.getInstance().getSimpleName(m.getDeclaringClass());
                     default -> null;
                 };
             }

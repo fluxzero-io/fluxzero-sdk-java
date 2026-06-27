@@ -36,7 +36,12 @@ public @interface HandleCustom {
     /**
      * Specifies the topic name.
      */
-    String value();
+    String value() default "";
+
+    /**
+     * Alias for {@link #value()} for source scanners and generators that prefer named attributes.
+     */
+    String topic() default "";
 
     /**
      * If {@code true}, disables this handler during discovery.
@@ -48,6 +53,12 @@ public @interface HandleCustom {
      * is for side effects only.
      */
     boolean passive() default false;
+
+    /**
+     * If {@code true}, indexed request messages whose effective timeout has already expired may be skipped before this
+     * handler is invoked.
+     */
+    boolean skipExpiredRequests() default false;
 
     /**
      * Restricts which payload types this handler may be invoked for.

@@ -15,14 +15,6 @@
 
 package io.fluxzero.common.search;
 
-import io.fluxzero.common.api.search.constraints.BetweenConstraint;
-import io.fluxzero.common.api.search.constraints.ContainsConstraint;
-import io.fluxzero.common.api.search.constraints.ExistsConstraint;
-import io.fluxzero.common.api.search.constraints.FacetConstraint;
-import io.fluxzero.common.api.search.constraints.LookAheadConstraint;
-import io.fluxzero.common.api.search.constraints.MatchConstraint;
-import io.fluxzero.common.api.search.constraints.QueryConstraint;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -34,10 +26,8 @@ import java.lang.annotation.Target;
  * Marker annotation that indicates that a property is to be ignored when indexing a document for text search.
  * <p>
  * When a property is ignored, the document can't be matched using this property. More specifically, the property is
- * ignored by {@link MatchConstraint}, {@link LookAheadConstraint}, {@link ContainsConstraint}, and
- * {@link QueryConstraint}. I.e. if the property is also marked with {@link Facet @Facet}, it can still be matched using
- * a {@link FacetConstraint}. Matching using {@link BetweenConstraint} or {@link ExistsConstraint} is also not
- * affected.
+ * ignored by text and look-ahead constraints. I.e. if the property is also marked with {@code @Facet}, it can still be
+ * matched using a facet constraint. Matching using range or existence constraints is also not affected.
  * <p>
  * When this annotation is present on a type, all properties of the class will be ignored when indexing, unless they are
  * individually annotated with {@link SearchExclude SearchExclude(false)} or {@link SearchInclude}.

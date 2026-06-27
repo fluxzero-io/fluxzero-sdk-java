@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fluxzero.common.Leaf;
 import io.fluxzero.common.api.HasId;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.Getter;
 import lombok.NonNull;
@@ -163,7 +163,7 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
      */
     public Id(@NonNull String functionalId, @NonNull String prefix, boolean caseSensitive) {
         this.functionalId = functionalId;
-        this.type = ReflectionUtils.getFirstTypeArgument(this.getClass().getGenericSuperclass());
+        this.type = JvmComponentIntrospector.getInstance().getFirstTypeArgument(this.getClass().getGenericSuperclass());
         this.repositoryId = caseSensitive ? prefix + this.functionalId : prefix + this.functionalId.toLowerCase();
     }
 
@@ -285,7 +285,7 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
                 functionalId = functionalIdNode.asText();
             }
             try {
-                return (Id<?>) ReflectionUtils.getTypeMetadata(targetType)
+                return (Id<?>) JvmComponentIntrospector.getInstance().getTypeMetadata(targetType)
                         .invoker(targetType.getDeclaredConstructor(String.class), true)
                         .invoke(null, functionalId);
             } catch (NoSuchMethodException e) {

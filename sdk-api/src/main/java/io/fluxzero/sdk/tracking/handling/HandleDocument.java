@@ -81,6 +81,11 @@ public @interface HandleDocument {
     String value() default "";
 
     /**
+     * Alias for {@link #value()} for source scanners and generators that prefer named attributes.
+     */
+    String collection() default "";
+
+    /**
      * Optional class of the documents to handle. If annotated with the Fluxzero searchable annotation, it defines the
      * collection; otherwise the class name is used.
      * <p>
@@ -101,4 +106,14 @@ public @interface HandleDocument {
      * If {@code true}, disables this handler during discovery.
      */
     boolean disabled() default false;
+
+    /**
+     * If {@code true}, this handler is considered passive and will not emit a result message.
+     */
+    boolean passive() default false;
+
+    /**
+     * Restricts which document payload types this handler may be invoked for.
+     */
+    Class<?>[] allowedClasses() default {};
 }

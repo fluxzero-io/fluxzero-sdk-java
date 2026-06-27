@@ -19,7 +19,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -62,7 +62,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -163,7 +162,8 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return Optional.empty();
         }
         var alwaysMatch = matchingMethods.stream().anyMatch(handlerAssociations::alwaysAssociate);
-        var alwaysInvoke = alwaysMatch && matchingMethods.stream().allMatch(ReflectionUtils::isStatic);
+        var alwaysInvoke = alwaysMatch && matchingMethods.stream()
+                .allMatch(method -> JvmComponentIntrospector.getInstance().isStatic(method));
         var memberAlwaysMatch = memberCandidates.stream().anyMatch(StatefulMemberCandidate::alwaysAssociate);
         Map<Object, String> associations = handlerAssociations.associations(message, matchingMethods.stream());
         Map<Object, String> repositoryAssociations = new LinkedHashMap<>(associations);
@@ -178,8 +178,8 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                         if (alreadyFiltered(i)) {
                             return true;
                         }
-                        String routingKey = ReflectionUtils.getAnnotatedProperty(targetClass, EntityId.class)
-                                .map(ReflectionUtils::getPropertyName)
+                        String routingKey = JvmComponentIntrospector.getInstance().getAnnotatedProperty(targetClass, EntityId.class)
+                                .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property))
                                 .flatMap(propertyName -> message.getRoutingKey(propertyName, false))
                                 .orElseGet(message::getMessageId);
                         return canTrackerHandle(message, routingKey);
@@ -239,13 +239,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return List.of();
         }
         List<StatefulMember> result = new ArrayList<>();
-        for (AccessibleObject location : ReflectionUtils.getAnnotatedProperties(ownerType, Member.class)) {
-            Class<?> memberType = ReflectionUtils.getCollectionElementType(location)
-                    .orElse(ReflectionUtils.getPropertyType(location));
+        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class)) {
+            Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
+                    .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
             if (Object.class.equals(memberType)) {
                 continue;
             }
-            String propertyName = ReflectionUtils.getPropertyName(location);
+            String propertyName = JvmComponentIntrospector.getInstance().getPropertyName(location);
             String memberPath = ownerPath.isBlank() ? propertyName : ownerPath + "/" + propertyName;
             List<ParameterResolver<? super DeserializingMessage>> memberResolvers =
                     memberParameterResolvers(ownerType, memberType);
@@ -255,7 +255,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                     new HandlerAssociations(memberType, memberResolvers, methodAnnotationProvider);
             AnnotatedEntityHolder holder =
                     AnnotatedEntityHolder.getEntityHolder(ownerType, location, entityHelper, serializer);
-            boolean mapHolder = Map.class.isAssignableFrom(ReflectionUtils.getPropertyType(location));
+            boolean mapHolder = Map.class.isAssignableFrom(JvmComponentIntrospector.getInstance().getPropertyType(location));
             result.add(new StatefulMember(ownerType, memberPath, memberType, mapHolder, holder, memberMatcher,
                                           memberAssociations));
             result.addAll(discoverStatefulMembers(memberType, memberPath, new HashSet<>(visitedTypes)));
@@ -273,8 +273,8 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private ImmutableEntity<?> rootEntity(Entry<?> entry) {
         Object value = entry.getValue();
-        String idProperty = ReflectionUtils.getAnnotatedProperty(value.getClass(), EntityId.class)
-                .map(ReflectionUtils::getPropertyName).orElse(null);
+        String idProperty = JvmComponentIntrospector.getInstance().getAnnotatedProperty(value.getClass(), EntityId.class)
+                .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)).orElse(null);
         return ImmutableEntity.builder()
                 .id(computeId(value, entry, null))
                 .type((Class) value.getClass())
@@ -286,13 +286,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     }
 
     private Object computeId(Object handler, Entry<?> currentEntry, DeserializingMessage message) {
-        return getAnnotatedPropertyValue(handler, EntityId.class)
+        return JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(handler, EntityId.class)
                 .or(() -> ofNullable(currentEntry).map(Entry::getId))
                 .orElseGet(() -> message == null ? null : message.getMessageId());
     }
 
     protected boolean alreadyFiltered(HandlerInvoker i) {
-        return ReflectionUtils.getMethodAnnotation(i.getMethod(), RoutingKey.class).isPresent();
+        return JvmComponentIntrospector.getInstance().getMethodAnnotation(i.getMethod(), RoutingKey.class).isPresent();
     }
 
     protected Boolean canTrackerHandle(DeserializingMessage message, String routingKey) {
@@ -859,7 +859,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         private Object computeMemberId(Entity<?> target, Object value) {
-            return getAnnotatedPropertyValue(value, EntityId.class).orElse(target.id());
+            return JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(value, EntityId.class).orElse(target.id());
         }
     }
 

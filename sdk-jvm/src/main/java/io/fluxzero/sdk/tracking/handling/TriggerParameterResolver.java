@@ -19,7 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -121,7 +121,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
-        return ReflectionUtils.has(Trigger.class, parameter);
+        return JvmComponentIntrospector.getInstance().has(Trigger.class, parameter);
     }
 
     /**
@@ -228,7 +228,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     static Optional<Class<?>> getTriggerClass(HasMessage message,
                                               DefaultCorrelationDataProvider correlationDataProvider) {
         return ofNullable(message.getMetadata().get(correlationDataProvider.getTriggerKey()))
-                .flatMap(s -> Optional.ofNullable(ReflectionUtils.classForName(s, null)));
+                .flatMap(s -> Optional.ofNullable(JvmComponentIntrospector.getInstance().classForName(s, null)));
     }
 
     private static final class TriggerMetadata {
@@ -261,7 +261,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
             if (cached != null) {
                 return cached;
             }
-            Optional<Trigger> computed = ReflectionUtils.getAnnotation(executable, Trigger.class);
+            Optional<Trigger> computed = JvmComponentIntrospector.getInstance().getAnnotation(executable, Trigger.class);
             Optional<Trigger> existing = trigger.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
         }
@@ -304,7 +304,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
-            if (ReflectionUtils.has(Trigger.class, parameter)) {
+            if (JvmComponentIntrospector.getInstance().has(Trigger.class, parameter)) {
                 return true;
             }
         }

@@ -24,7 +24,7 @@ import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.SearchParameters;
@@ -69,11 +69,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedMethods;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static java.time.temporal.ChronoUnit.DAYS;
 
 /**
@@ -180,16 +175,16 @@ public class ClientUtils {
 
     private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target,
                                                                         java.lang.reflect.Executable method) {
-        return getAnnotation(method, LocalHandler.class)
-                .or(() -> Optional.ofNullable(getTypeAnnotation(target, LocalHandler.class)))
-                .or(() -> getPackageAnnotation(target.getPackage(), LocalHandler.class))
+        return JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
+                .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), LocalHandler.class))
                 .filter(LocalHandler::value);
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, Executable method) {
-        return getAnnotation(method, TrackSelf.class)
-                .or(() -> Optional.ofNullable(getTypeAnnotation(target, TrackSelf.class)))
-                .or(() -> getPackageAnnotation(target.getPackage(), TrackSelf.class));
+        return JvmComponentIntrospector.getInstance().getAnnotation(method, TrackSelf.class)
+                .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), TrackSelf.class));
     }
 
     private static class LocalHandlerAnnotationCache {
@@ -285,13 +280,13 @@ public class ClientUtils {
     }
 
     private static int computeOrder(Class<?> type) {
-        return Optional.ofNullable(ReflectionUtils.<Order>getTypeAnnotation(type, Order.class))
+        return JvmComponentIntrospector.getInstance().typeAnnotation(type, Order.class)
                 .map(Order::value)
                 .or(() -> springOrderOf(type)).orElse(0);
     }
 
     private static Optional<Integer> springOrderOf(Class<?> type) {
-        return ReflectionUtils.getTypeAnnotations(type).stream()
+        return JvmComponentIntrospector.getInstance().getTypeAnnotations(type).stream()
                 .filter(annotation -> annotation.annotationType().getName()
                         .equals("org.springframework.core.annotation.Order"))
                 .findFirst()
@@ -364,7 +359,7 @@ public class ClientUtils {
      * type.
      */
     public static String determineSearchCollection(@NonNull Object c) {
-        return ReflectionUtils.ifClass(c) instanceof Class<?> type
+        return JvmComponentIntrospector.getInstance().ifClass(c) instanceof Class<?> type
                 ? getSearchParameters(type).getCollection() : c.toString();
     }
 
@@ -373,7 +368,7 @@ public class ClientUtils {
      * Defaults to a collection name matching the class’s simple name if not explicitly set.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
-        return getAnnotationAs(type, Searchable.class, SearchParameters.class)
+        return JvmComponentIntrospector.getInstance().getAnnotationAs(type, Searchable.class, SearchParameters.class)
                 .map(SearchParameters::substituteProperties)
                 .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
                 .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
@@ -390,7 +385,7 @@ public class ClientUtils {
      * @return a set of topic names associated with the handler and message type
      */
     public static Set<String> getTopics(MessageType messageType, Object handler) {
-        return getTopics(messageType, Collections.singleton(ReflectionUtils.asClass(handler)));
+        return getTopics(messageType, Collections.singleton(JvmComponentIntrospector.getInstance().asClass(handler)));
     }
 
     /**
@@ -403,14 +398,14 @@ public class ClientUtils {
     public static Set<String> getTopics(MessageType messageType, Collection<Class<?>> handlerClasses) {
         return switch (messageType) {
             case DOCUMENT -> handlerClasses.stream()
-                    .flatMap(handlerClass -> getAnnotatedMethods(handlerClass, HandleDocument.class).stream())
-                    .flatMap(m -> ReflectionUtils.<HandleDocument>getMethodAnnotation(m, HandleDocument.class)
+                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAnnotatedMethods(handlerClass, HandleDocument.class).stream())
+                    .flatMap(m -> JvmComponentIntrospector.getInstance().<HandleDocument>getMethodAnnotation(m, HandleDocument.class)
                             .map(a -> getTopic(a, m)).stream()).collect(Collectors.toSet());
             case CUSTOM -> handlerClasses.stream()
-                    .flatMap(handlerClass -> getAnnotatedMethods(handlerClass, HandleCustom.class).stream()).map(m -> {
-                        var handleDocument = ReflectionUtils.<HandleCustom>getMethodAnnotation(
+                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAnnotatedMethods(handlerClass, HandleCustom.class).stream()).map(m -> {
+                        var handleDocument = JvmComponentIntrospector.getInstance().<HandleCustom>getMethodAnnotation(
                                 m, HandleCustom.class).filter(h -> !h.disabled());
-                        return handleDocument.map(HandleCustom::value).orElse(null);
+                        return handleDocument.map(ClientUtils::getTopic).orElse(null);
                     }).filter(Objects::nonNull).collect(Collectors.toSet());
             default -> Collections.emptySet();
         };
@@ -432,11 +427,17 @@ public class ClientUtils {
         return Optional.ofNullable(handleDocument)
                 .filter(h -> !h.disabled())
                 .flatMap(h -> Optional.ofNullable(h.value()).filter(s -> !s.isBlank())
+                        .or(() -> Optional.ofNullable(h.collection()).filter(s -> !s.isBlank()))
                         .or(() -> Void.class.equals(h.documentClass()) ? Optional.empty() :
                                 Optional.of(ClientUtils.determineSearchCollection(h.documentClass()))))
                 .or(() -> Arrays.stream(executable.getParameters()).findFirst().map(Parameter::getType).map(
                         ClientUtils::determineSearchCollection))
                 .filter(s -> !s.isBlank()).orElse(null);
+    }
+
+    private static String getTopic(HandleCustom handleCustom) {
+        String topic = handleCustom.value().isBlank() ? handleCustom.topic() : handleCustom.value();
+        return topic.isBlank() ? null : topic;
     }
 
     /**

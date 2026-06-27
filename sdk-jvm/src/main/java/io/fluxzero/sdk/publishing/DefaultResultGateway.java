@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.MessageType.RESULT;
-import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Default implementation of the {@link ResultGateway} interface for sending response messages.
@@ -75,7 +75,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             serializedMessage.setRequestId(requestId);
             return getGatewayClient().append(guarantee, serializedMessage);
         } catch (Exception e) {
-            String responseDescription = Objects.toString(payload != null && ifClass(payload) == null
+            String responseDescription = Objects.toString(payload != null && JvmComponentIntrospector.getInstance().ifClass(payload) == null
                     ? payload.getClass() : payload);
             throw new GatewayException(FluxzeroErrors.responseDispatchFailed(
                     responseDescription, target, requestId, e), e);

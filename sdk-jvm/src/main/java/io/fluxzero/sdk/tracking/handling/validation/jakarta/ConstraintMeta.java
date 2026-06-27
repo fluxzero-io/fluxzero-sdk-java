@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintTarget;
 import jakarta.validation.ConstraintValidator;
@@ -45,10 +45,10 @@ record ConstraintMeta(Annotation annotation, String messageTemplate, boolean cus
                            Set<Class<? extends Payload>> payload, ConstraintTarget validationAppliesTo) {
         this(annotation, ValidationAnnotationUtils.messageTemplate(annotation),
              ValidationAnnotationUtils.customMessage(annotation), groups, payload,
-             (List) Arrays.asList(ReflectionUtils.getAnnotation(annotation.annotationType(), Constraint.class)
+             (List) Arrays.asList(JvmComponentIntrospector.getInstance().getAnnotation(annotation.annotationType(), Constraint.class)
                                           .orElseThrow().validatedBy()),
              composingConstraints(annotation, groups, payload, validationAppliesTo),
-             ReflectionUtils.getAnnotation(annotation.annotationType(), ReportAsSingleViolation.class).isPresent(),
+             JvmComponentIntrospector.getInstance().getAnnotation(annotation.annotationType(), ReportAsSingleViolation.class).isPresent(),
              attributes(annotation), validationAppliesTo);
     }
 
@@ -72,7 +72,7 @@ record ConstraintMeta(Annotation annotation, String messageTemplate, boolean cus
     private static List<ConstraintMeta> composingConstraints(Annotation annotation, Set<Class<?>> groups,
                                                             Set<Class<? extends Payload>> payload,
                                                             ConstraintTarget validationAppliesTo) {
-        return ValidationAnnotationUtils.constraintAnnotations(ReflectionUtils.getAnnotations(annotation.annotationType()))
+        return ValidationAnnotationUtils.constraintAnnotations(JvmComponentIntrospector.getInstance().getAnnotations(annotation.annotationType()))
                 .stream()
                 .filter(a -> !a.annotationType().equals(annotation.annotationType()))
                 .map(a -> new ConstraintMeta(a, groups, payload, validationAppliesTo))
@@ -80,6 +80,6 @@ record ConstraintMeta(Annotation annotation, String messageTemplate, boolean cus
     }
 
     private static Map<String, Object> attributes(Annotation annotation) {
-        return ReflectionUtils.getAnnotationAttributes(annotation);
+        return JvmComponentIntrospector.getInstance().getAnnotationAttributes(annotation);
     }
 }

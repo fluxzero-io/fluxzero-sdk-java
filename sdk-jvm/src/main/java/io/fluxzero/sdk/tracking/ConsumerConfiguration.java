@@ -16,12 +16,12 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
 import lombok.Builder.Default;
@@ -45,9 +45,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
-import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
-
 /**
  * Configuration class that defines how a message consumer behaves during message tracking and handler invocation.
  * <p>
@@ -64,6 +61,8 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
 @Value
 @Builder(builderClassName = "Builder", toBuilder = true)
 public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
+    private static final JvmComponentIntrospector INTROSPECTOR = JvmComponentIntrospector.getInstance();
+
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
      * <p>
@@ -462,21 +461,21 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     public static Stream<ConsumerConfiguration> configurations(Collection<Class<?>> handlerClasses) {
         return Stream.concat(handlerClasses.stream().flatMap(ConsumerConfiguration::classConfigurations),
                              handlerClasses.stream().map(Class::getPackage).distinct().flatMap(
-                                             p -> ReflectionUtils.getPackageAndParentPackages(p).stream()).distinct()
+                                             p -> INTROSPECTOR.packageAndParentPackages(p).stream()).distinct()
                                      .sorted(Comparator.comparing(Package::getName).reversed()).flatMap(
                                              ConsumerConfiguration::packageConfigurations));
     }
 
     private static Stream<ConsumerConfiguration> classConfigurations(Class<?> type) {
-        return Optional.ofNullable(ReflectionUtils.<Consumer>getTypeAnnotation(type, Consumer.class))
-                .map(c -> getConfiguration(c, h -> asClass(h).equals(type))).stream();
+        return INTROSPECTOR.typeAnnotation(type, Consumer.class)
+                .map(c -> getConfiguration(c, h -> INTROSPECTOR.typeOf(h).equals(type))).stream();
     }
 
     private static Stream<ConsumerConfiguration> packageConfigurations(Package p) {
-        return ReflectionUtils.getPackageAnnotation(p, Consumer.class)
+        return INTROSPECTOR.packageAnnotation(p, Consumer.class)
                 .map(c -> getConfiguration(
                         c, h -> {
-                            Class<?> type = asClass(h);
+                            Class<?> type = INTROSPECTOR.typeOf(h);
                             return type.getPackage().equals(p)
                                    || type.getPackage().getName().startsWith(p.getName() + ".");
                         })).stream();
@@ -486,18 +485,18 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
         return ConsumerConfiguration.builder()
                 .name(consumer.name())
                 .handlerFilter(handlerFilter)
-                .errorHandler(asInstance(consumer.errorHandler()))
-                .flowRegulator(asInstance(consumer.flowRegulator()))
+                .errorHandler(errorHandler(consumer.errorHandler()))
+                .flowRegulator(flowRegulator(consumer.flowRegulator()))
                 .threads(consumer.threads())
                 .maxFetchSize(consumer.maxFetchSize())
                 .maxFetchBytes(consumer.maxFetchBytes())
                 .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
                 .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(
-                        ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))
+                        type -> INTROSPECTOR.<BatchInterceptor>instantiate(type)).collect(Collectors.toList()))
                 .handlerInterceptors(Arrays.stream(consumer.handlerInterceptors()).map(
-                        ReflectionUtils::<HandlerInterceptor>asInstance).collect(Collectors.toList()))
+                        type -> INTROSPECTOR.<HandlerInterceptor>instantiate(type)).collect(Collectors.toList()))
                 .dispatchInterceptors(Arrays.stream(consumer.dispatchInterceptors()).map(
-                        ReflectionUtils::<DispatchInterceptor>asInstance).collect(Collectors.toList()))
+                        type -> INTROSPECTOR.<DispatchInterceptor>instantiate(type)).collect(Collectors.toList()))
                 .filterMessageTarget(consumer.filterMessageTarget())
                 .ignoreSegment(consumer.ignoreSegment())
                 .clientControlledIndex(consumer.clientControlledIndex())
@@ -515,5 +514,13 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .typeFilter(consumer.typeFilter().isBlank() ? null : consumer.typeFilter())
                 .namespace(consumer.namespace().isBlank() ? null : consumer.namespace())
                 .build().ordered();
+    }
+
+    private static ErrorHandler errorHandler(Class<?> type) {
+        return Object.class.equals(type) ? new LoggingErrorHandler() : INTROSPECTOR.instantiate(type);
+    }
+
+    private static FlowRegulator flowRegulator(Class<?> type) {
+        return Object.class.equals(type) ? NoOpFlowRegulator.getInstance() : INTROSPECTOR.instantiate(type);
     }
 }

@@ -21,7 +21,7 @@ import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -46,10 +46,6 @@ import java.util.stream.Stream;
 import static io.fluxzero.common.ObjectUtils.asStream;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.handling.HandlerInspector.inspect;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValues;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static java.util.stream.Collectors.joining;
 
 /**
@@ -83,7 +79,7 @@ public class DefaultEntityHelper implements EntityHelper {
      */
     public static Aggregate getRootAnnotation(Class<?> type) {
         return Object.class.equals(type) ? unknownAggregateAnnotation : Optional.<Aggregate>ofNullable(
-                ReflectionUtils.getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation);
+                JvmComponentIntrospector.getInstance().getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation);
     }
 
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;
@@ -116,7 +112,7 @@ public class DefaultEntityHelper implements EntityHelper {
                 .invokeMultipleMethods(true)
                 .samePriorityMethodComparator(DefaultEntityHelper::compareAssertLegalMethods)
                 .messageFilter((message, executable, handlerAnnotation, targetClass) ->
-                        getAnnotation(executable, AssertLegal.class)
+                        JvmComponentIntrospector.getInstance().getAnnotation(executable, AssertLegal.class)
                                 .map(assertLegal -> assertLegal.afterHandler() == message.isAfterHandler())
                                 .orElse(false))
                 .build();
@@ -174,7 +170,7 @@ public class DefaultEntityHelper implements EntityHelper {
         if (payload == null || entityId == null || !hasSelfReferentialMember(entity.type())) {
             return false;
         }
-        Object routingKey = getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
+        Object routingKey = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
                 .orElse(null);
         if (routingKey != null) {
             if (entityId.equals(routingKey) || entity.aliases().stream().anyMatch(routingKey::equals)) {
@@ -186,7 +182,7 @@ public class DefaultEntityHelper implements EntityHelper {
         if (idProperty == null) {
             return false;
         }
-        return readProperty(idProperty, payload).filter(candidate -> !entityId.equals(candidate)).isPresent();
+        return JvmComponentIntrospector.getInstance().readProperty(idProperty, payload).filter(candidate -> !entityId.equals(candidate)).isPresent();
     }
 
     private static boolean hasSelfReferentialMember(Class<?> entityType) {
@@ -325,7 +321,7 @@ public class DefaultEntityHelper implements EntityHelper {
             return;
         }
         MessageWithEntity message = new MessageWithEntity(value, entity, afterHandler);
-        Collection<Object> additionalProperties = new HashSet<>(getAnnotatedPropertyValues(target, AssertLegal.class));
+        Collection<Object> additionalProperties = new HashSet<>(JvmComponentIntrospector.getInstance().getAnnotatedPropertyValues(target, AssertLegal.class));
         assertLegalMatchers.apply(targetType).getInvoker(target, message)
                 .ifPresent(s -> {
                     Object additionalObject = s.invoke((first, second) -> Stream.concat(

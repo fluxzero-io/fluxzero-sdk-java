@@ -61,7 +61,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
 import static io.fluxzero.sdk.web.HttpRequestMethod.DELETE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
@@ -71,6 +70,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
 import static io.fluxzero.sdk.web.HttpRequestMethod.TRACE;
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Renders a generic {@link ApiDocCatalog} as an OpenAPI JSON document.
@@ -182,7 +182,7 @@ public final class OpenApiRenderer {
         if (leaf == null || leaf.getName().isBlank()) {
             return List.of();
         }
-        return getPackageAndParentPackages(leaf).reversed();
+        return JvmComponentIntrospector.getInstance().getPackageAndParentPackages(leaf).reversed();
     }
 
     private static ObjectNode info(DocumentInfo documentInfo) {

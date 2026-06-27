@@ -16,7 +16,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.handling.PreparedParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
 
 /**
  * Resolves handler method parameters that reference an {@link Entity} or the entity's value.
@@ -80,7 +79,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        return ReflectionUtils.getMethodAnnotation(method, HandleMessage.class)
+        return JvmComponentIntrospector.getInstance().getMethodAnnotation(method, HandleMessage.class)
                 .map(EntityParameterResolver::supportsMessageEntityInjection)
                 .orElse(true);
     }
@@ -253,7 +252,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         Class<?> eType = entity.type();
         Class<?> pType = getEntityParameterType(parameter);
         return entity.get() == null
-                ? (!checkCompatibility || isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
+                ? (!checkCompatibility || JvmComponentIntrospector.getInstance().isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
                   && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
                 : pType.isAssignableFrom(eType);
     }

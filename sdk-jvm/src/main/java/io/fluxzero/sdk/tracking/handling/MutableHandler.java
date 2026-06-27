@@ -19,7 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -90,7 +90,7 @@ public class MutableHandler<M> implements Handler<M> {
     }
 
     public MutableHandler<M> instantiateTarget() {
-        target = ReflectionUtils.asInstance(targetClass);
+        target = JvmComponentIntrospector.getInstance().asInstance(targetClass);
         return this;
     }
 

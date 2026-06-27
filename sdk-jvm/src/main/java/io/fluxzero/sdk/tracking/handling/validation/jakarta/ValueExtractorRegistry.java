@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.annotation.Nullable;
 import jakarta.validation.valueextraction.ExtractedValue;
 import jakarta.validation.valueextraction.ValueExtractor;
@@ -63,7 +63,7 @@ final class ValueExtractorRegistry {
                 .filter(extractor -> extractor.typeArgumentIndex() == typeArgumentIndex)
                 .filter(extractor -> extractor.containerClass().isAssignableFrom(containerType))
                 .min(Comparator.comparing(ValueExtractorDescriptor::containerClass,
-                                          ReflectionUtils.getClassSpecificityComparator()));
+                                          JvmComponentIntrospector.getInstance().getClassSpecificityComparator()));
     }
 
 record ValueExtractorDescriptor(ValueExtractor<?> extractor, Class<?> containerClass, int typeArgumentIndex) {
@@ -72,7 +72,7 @@ record ValueExtractorDescriptor(ValueExtractor<?> extractor, Class<?> containerC
                 () -> new ValueExtractorDefinitionException("Could not determine extracted type for "
                                                             + extractor.getClass().getName()));
         Type containerType = extractedType.getType();
-        Class<?> containerClass = ReflectionUtils.rawClass(containerType);
+        Class<?> containerClass = JvmComponentIntrospector.getInstance().rawClass(containerType);
         int index = extractedValueIndex(extractedType);
         return new ValueExtractorDescriptor(extractor, containerClass, index);
     }
@@ -107,7 +107,7 @@ record ValueExtractorDescriptor(ValueExtractor<?> extractor, Class<?> containerC
             && type instanceof AnnotatedParameterizedType parameterized) {
             return Optional.of(parameterized.getAnnotatedActualTypeArguments()[0]);
         }
-        Class<?> rawClass = ReflectionUtils.rawClass(type.getType());
+        Class<?> rawClass = JvmComponentIntrospector.getInstance().rawClass(type.getType());
         return rawClass == Object.class ? Optional.empty() : valueExtractorType(rawClass);
     }
 
@@ -115,12 +115,12 @@ record ValueExtractorDescriptor(ValueExtractor<?> extractor, Class<?> containerC
         if (extractedType instanceof AnnotatedParameterizedType parameterizedType) {
             AnnotatedType[] arguments = parameterizedType.getAnnotatedActualTypeArguments();
             for (int i = 0; i < arguments.length; i++) {
-                if (ReflectionUtils.getAnnotation(arguments[i], ExtractedValue.class).isPresent()) {
+                if (JvmComponentIntrospector.getInstance().getAnnotation(arguments[i], ExtractedValue.class).isPresent()) {
                     return i;
                 }
             }
         }
-        if (ReflectionUtils.getAnnotation(extractedType, ExtractedValue.class).isPresent()) {
+        if (JvmComponentIntrospector.getInstance().getAnnotation(extractedType, ExtractedValue.class).isPresent()) {
             return 0;
         }
         throw new ValueExtractorDefinitionException("ValueExtractor must mark one extracted value with @ExtractedValue");

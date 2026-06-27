@@ -16,14 +16,15 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.MessageFilter;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.Value;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -50,11 +51,20 @@ import java.util.Optional;
  * the method.
  *
  * @see HasMessage#getPayloadClass()
- * @see ReflectionUtils#getClassSpecificityComparator()
+ * @see JvmComponentIntrospector#typeSpecificityComparator()
  */
 public class PayloadFilter implements MessageFilter<HasMessage> {
 
     private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
+    private final JvmComponentIntrospector introspector;
+
+    public PayloadFilter() {
+        this(JvmComponentIntrospector.getInstance());
+    }
+
+    PayloadFilter(JvmComponentIntrospector introspector) {
+        this.introspector = Objects.requireNonNull(introspector, "introspector");
+    }
 
     @Override
     public MessageFilter<? super HasMessage> prepare(Executable executable,
@@ -66,7 +76,7 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
         }
         Class<?>[] allowedClasses = annotation.getAllowedClasses().toArray(Class[]::new);
         Class<?> leastSpecificAllowedClass = Arrays.stream(allowedClasses)
-                .max(ReflectionUtils.getClassSpecificityComparator()).orElse(null);
+                .max(introspector.typeSpecificityComparator()).orElse(null);
         return new PreparedPayloadFilter(allowedClasses, leastSpecificAllowedClass);
     }
 
@@ -85,12 +95,12 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
                                                            Class<? extends Annotation> handlerAnnotation) {
         return Optional.ofNullable(lookupHandleAnnotation(executable, handlerAnnotation))
                 .flatMap(a -> a.getAllowedClasses().stream()
-                        .max(ReflectionUtils.getClassSpecificityComparator()));
+                        .max(introspector.typeSpecificityComparator()));
     }
 
-    private static HandleAnnotation lookupHandleAnnotation(Executable executable,
-                                                           Class<? extends Annotation> handlerAnnotation) {
-        return ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+    private HandleAnnotation lookupHandleAnnotation(Executable executable,
+                                                    Class<? extends Annotation> handlerAnnotation) {
+        return introspector.executableAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
                 .orElse(null);
     }
 

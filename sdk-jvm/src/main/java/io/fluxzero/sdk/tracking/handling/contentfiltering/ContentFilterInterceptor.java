@@ -16,7 +16,7 @@
 package io.fluxzero.sdk.tracking.handling.contentfiltering;
 
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -63,9 +63,9 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
             if (cached != null) {
                 return cached;
             }
-            Optional<FilterContent> computed = ReflectionUtils.getAnnotation(executable, FilterContent.class)
-                    .or(() -> Optional.ofNullable(ReflectionUtils.getTypeAnnotation(targetClass, FilterContent.class)))
-                    .or(() -> ReflectionUtils.getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
+            Optional<FilterContent> computed = JvmComponentIntrospector.getInstance().getAnnotation(executable, FilterContent.class)
+                    .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, FilterContent.class)))
+                    .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
             Optional<FilterContent> existing = filterContent.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
         }

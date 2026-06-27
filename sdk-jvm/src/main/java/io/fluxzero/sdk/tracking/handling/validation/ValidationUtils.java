@@ -16,13 +16,17 @@
 package io.fluxzero.sdk.tracking.handling.validation;
 
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole;
 import io.fluxzero.sdk.tracking.handling.authentication.ForbidsUser;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
+import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationDecision;
+import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailure;
+import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationPolicy;
+import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationRule;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -32,7 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -46,10 +49,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotations;
-import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotations;
-import static java.lang.String.format;
 import static java.util.stream.Stream.concat;
 
 /**
@@ -313,7 +312,7 @@ public class ValidationUtils {
         if (customGroups.length > 0 || object == null) {
             return customGroups;
         }
-        ValidateWith annotation = ReflectionUtils.getTypeAnnotation(object.getClass(), ValidateWith.class);
+        ValidateWith annotation = JvmComponentIntrospector.getInstance().getTypeAnnotation(object.getClass(), ValidateWith.class);
         return annotation == null ? new Class<?>[0] : annotation.value();
     }
 
@@ -322,14 +321,14 @@ public class ValidationUtils {
      */
 
     private static final Function<Class<?>, RequiredRole[]> requiredRolesCache = memoize(
-            payloadClass -> Optional.ofNullable(getRequiredRoles(getTypeAnnotations(payloadClass)))
-                    .orElseGet(() -> getRequiredRoles(getPackageAnnotations(payloadClass.getPackage()))));
+            payloadClass -> Optional.ofNullable(getRequiredRoles(JvmComponentIntrospector.getInstance().getTypeAnnotations(payloadClass)))
+                    .orElseGet(() -> getRequiredRoles(JvmComponentIntrospector.getInstance().getPackageAnnotations(payloadClass.getPackage()))));
 
     private static final BiFunction<Class<?>, Executable, RequiredRole[]> requiredRolesForMethodCache = memoize(
             (target, executable) -> Optional.ofNullable(getRequiredRoles(Arrays.asList(executable.getAnnotations())))
-                    .or(() -> Optional.ofNullable(getRequiredRoles(getTypeAnnotations(target))))
-                    .orElseGet(() -> getPackageAndParentPackages(target.getPackage()).stream()
-                            .map(p -> ReflectionUtils.getPackageAnnotations(p, false))
+                    .or(() -> Optional.ofNullable(getRequiredRoles(JvmComponentIntrospector.getInstance().getTypeAnnotations(target))))
+                    .orElseGet(() -> JvmComponentIntrospector.getInstance().getPackageAndParentPackages(target.getPackage()).stream()
+                            .map(p -> JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false))
                             .map(ValidationUtils::getRequiredRoles)
                             .filter(Objects::nonNull).findFirst().orElse(null)));
 
@@ -418,64 +417,27 @@ public class ValidationUtils {
     }
 
     protected static boolean assertAuthorized(String action, @Nullable User user, RequiredRole[] requiredRoles) {
-        if (requiredRoles == null || Arrays.asList(requiredRoles).contains(noUserRequired)) {
+        AuthorizationDecision decision = AuthorizationPolicy.evaluate(action, user, authorizationRules(requiredRoles));
+        if (decision.allowed()) {
             return true;
         }
-        Optional<RequiredRole> forbidsUser = Arrays.stream(requiredRoles).filter(RequiredRole::forbidsUser).findFirst();
-        if (forbidsUser.isPresent()) {
-            if (user != null) {
-                if (forbidsUser.get().throwIfUnauthorized()) {
-                    throw new UnauthorizedException("Not allowed for authenticated users");
-                }
-                return false;
-            }
-            return true;
+        if (decision.failure() == AuthorizationFailure.UNAUTHENTICATED) {
+            throw new UnauthenticatedException(decision.message());
         }
-        if (user == null) {
-            if (Arrays.stream(requiredRoles).anyMatch(RequiredRole::throwIfUnauthorized)) {
-                throw new UnauthenticatedException(format("%s requires authentication", action));
-            }
-            return false;
+        if (decision.failure() == AuthorizationFailure.UNAUTHORIZED) {
+            throw new UnauthorizedException(decision.message());
         }
-        if (requiredRoles.length == 0) {
-            return true;
+        return false;
+    }
+
+    private static List<AuthorizationRule> authorizationRules(RequiredRole[] requiredRoles) {
+        if (requiredRoles == null) {
+            return null;
         }
-        List<RequiredRole> remainingRoles = new ArrayList<>();
-        List<RequiredRole> forbiddenRoles = Arrays.stream(requiredRoles).filter(r -> {
-            if (r.value() != null) {
-                if (r.value().startsWith("!")) {
-                    return true;
-                }
-                remainingRoles.add(r);
-            }
-            return false;
-        }).toList();
-        for (RequiredRole r : forbiddenRoles) {
-            if (r.value() != null && user.hasRole(r.value().substring(1))) {
-                if (r.throwIfUnauthorized()) {
-                    throw new UnauthorizedException(
-                            format("User %s is unauthorized to execute %s", user.getName(), action));
-                }
-                return false;
-            }
-        }
-        if (!remainingRoles.isEmpty()) {
-            boolean throwIfUnauthorized = false;
-            for (RequiredRole remainingRole : remainingRoles) {
-                if (user.hasRole(remainingRole.value())) {
-                    return true;
-                }
-                if (remainingRole.throwIfUnauthorized()) {
-                    throwIfUnauthorized = true;
-                }
-            }
-            if (throwIfUnauthorized) {
-                throw new UnauthorizedException(
-                        format("User %s is unauthorized to execute %s", user.getName(), action));
-            }
-            return false;
-        }
-        return true;
+        return Arrays.stream(requiredRoles)
+                .map(role -> new AuthorizationRule(
+                        role.value(), role.throwIfUnauthorized(), role.requiresUser(), role.forbidsUser()))
+                .toList();
     }
 
     protected static RequiredRole[] getRequiredRoles(Collection<? extends Annotation> annotations) {
@@ -507,7 +469,7 @@ public class ValidationUtils {
             boolean throwIfUnauthorized
                     = throwIfUnauthorized(annotation).orElseGet(a::throwIfUnauthorized);
 
-            for (Method method : ReflectionUtils.getAllMethods(annotation.annotationType())) {
+            for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(annotation.annotationType())) {
                 if (method.getName().equalsIgnoreCase("value")) {
                     Object[] result = (Object[]) DefaultMemberInvoker.asInvoker(method).invoke(annotation);
                     return Arrays.stream(result).map(Object::toString)
@@ -531,7 +493,7 @@ public class ValidationUtils {
             boolean throwIfUnauthorized
                     = throwIfUnauthorized(annotation).orElseGet(a::throwIfUnauthorized);
 
-            for (Method method : ReflectionUtils.getAllMethods(annotation.annotationType())) {
+            for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(annotation.annotationType())) {
                 if (method.getName().equalsIgnoreCase("value")) {
                     Object[] result = (Object[]) DefaultMemberInvoker.asInvoker(method).invoke(annotation);
                     return Arrays.stream(result).map(Object::toString).map(s -> "!" + s)
@@ -545,7 +507,7 @@ public class ValidationUtils {
     }
 
     static Optional<Boolean> throwIfUnauthorized(Annotation holder) {
-        return ReflectionUtils.getMethod(holder.annotationType(), "throwIfUnauthorized")
+        return JvmComponentIntrospector.getInstance().getMethod(holder.annotationType(), "throwIfUnauthorized")
                 .map(DefaultMemberInvoker::asInvoker)
                 .map(m -> (boolean) m.invoke(holder));
     }

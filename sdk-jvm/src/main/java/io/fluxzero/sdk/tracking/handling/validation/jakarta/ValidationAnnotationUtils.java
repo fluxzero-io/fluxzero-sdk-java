@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintDefinitionException;
 import jakarta.validation.ConstraintTarget;
@@ -51,10 +51,10 @@ final class ValidationAnnotationUtils {
     }
 
     static boolean hasValidationAnnotations(AnnotatedElement element) {
-        return !constraintAnnotations(ReflectionUtils.getAnnotations(element)).isEmpty()
-               || ReflectionUtils.getAnnotation(element, Valid.class).isPresent()
-               || ReflectionUtils.getAnnotation(element, ConvertGroup.class).isPresent()
-               || ReflectionUtils.getAnnotation(element, ConvertGroup.List.class).isPresent();
+        return !constraintAnnotations(JvmComponentIntrospector.getInstance().getAnnotations(element)).isEmpty()
+               || JvmComponentIntrospector.getInstance().getAnnotation(element, Valid.class).isPresent()
+               || JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.class).isPresent()
+               || JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.List.class).isPresent();
     }
 
     static boolean hasValidationAnnotations(AnnotatedType type) {
@@ -67,7 +67,7 @@ final class ValidationAnnotationUtils {
     }
 
     static List<ConstraintMeta> constraintMetas(AnnotatedElement element) {
-        return constraintAnnotations(ReflectionUtils.getAnnotations(element)).stream().map(ConstraintMeta::new)
+        return constraintAnnotations(JvmComponentIntrospector.getInstance().getAnnotations(element)).stream().map(ConstraintMeta::new)
                 .toList();
     }
 
@@ -80,21 +80,21 @@ final class ValidationAnnotationUtils {
     }
 
     private static void addConstraintAnnotation(Annotation annotation, List<Annotation> result) {
-        if (ReflectionUtils.getAnnotation(annotation.annotationType(), Constraint.class).isPresent()) {
+        if (JvmComponentIntrospector.getInstance().getAnnotation(annotation.annotationType(), Constraint.class).isPresent()) {
             result.add(annotation);
             return;
         }
-        Optional<Method> valueMethod = ReflectionUtils.getTypeMetadata(annotation.annotationType()).method("value")
+        Optional<Method> valueMethod = JvmComponentIntrospector.getInstance().getTypeMetadata(annotation.annotationType()).method("value")
                 .filter(method -> method.getParameterCount() == 0);
         if (valueMethod.isEmpty()) {
             return;
         }
         Class<?> returnType = valueMethod.get().getReturnType();
         if (!returnType.isArray() || !returnType.getComponentType().isAnnotation()
-            || ReflectionUtils.getAnnotation(returnType.getComponentType(), Constraint.class).isEmpty()) {
+            || JvmComponentIntrospector.getInstance().getAnnotation(returnType.getComponentType(), Constraint.class).isEmpty()) {
             return;
         }
-        Object value = ReflectionUtils.getAnnotationAttribute(annotation, valueMethod.get().getName(), Object.class)
+        Object value = JvmComponentIntrospector.getInstance().getAnnotationAttribute(annotation, valueMethod.get().getName(), Object.class)
                 .orElse(null);
         for (int i = 0; value != null && i < Array.getLength(value); i++) {
             result.add((Annotation) Array.get(value, i));
@@ -126,7 +126,7 @@ final class ValidationAnnotationUtils {
     }
 
     static boolean customMessage(Annotation annotation) {
-        return ReflectionUtils.hasNonDefaultAnnotationAttribute(annotation, "message");
+        return JvmComponentIntrospector.getInstance().hasNonDefaultAnnotationAttribute(annotation, "message");
     }
 
     static Optional<ConstraintTarget> validationAppliesTo(Annotation annotation) {
@@ -135,7 +135,7 @@ final class ValidationAnnotationUtils {
 
     @SuppressWarnings("unchecked")
     static <T> Optional<T> annotationValue(Annotation annotation, String name, Class<T> expectedType) {
-        return ReflectionUtils.getAnnotationAttribute(annotation, name, expectedType);
+        return JvmComponentIntrospector.getInstance().getAnnotationAttribute(annotation, name, expectedType);
     }
 
     static boolean appliesToGroup(ConstraintMeta meta, Class<?> requestedGroup) {
@@ -149,12 +149,12 @@ final class ValidationAnnotationUtils {
 
     static Class<?>[] validationGroups(Class<?> group, Class<?> beanType) {
         if (group == Default.class) {
-            GroupSequence sequence = ReflectionUtils.getAnnotation(beanType, GroupSequence.class).orElse(null);
+            GroupSequence sequence = JvmComponentIntrospector.getInstance().getAnnotation(beanType, GroupSequence.class).orElse(null);
             if (sequence != null) {
                 return sequence.value();
             }
         }
-        GroupSequence sequence = ReflectionUtils.getAnnotation(group, GroupSequence.class).orElse(null);
+        GroupSequence sequence = JvmComponentIntrospector.getInstance().getAnnotation(group, GroupSequence.class).orElse(null);
         return sequence == null ? new Class<?>[]{group} : sequence.value();
     }
 
@@ -189,11 +189,11 @@ final class ValidationAnnotationUtils {
 
     static List<GroupConversion> groupConversions(AnnotatedElement element) {
         List<GroupConversion> result = new ArrayList<>();
-        ConvertGroup single = ReflectionUtils.getAnnotation(element, ConvertGroup.class).orElse(null);
+        ConvertGroup single = JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.class).orElse(null);
         if (single != null) {
             result.add(new GroupConversion(single.from(), single.to()));
         }
-        ConvertGroup.List list = ReflectionUtils.getAnnotation(element, ConvertGroup.List.class).orElse(null);
+        ConvertGroup.List list = JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.List.class).orElse(null);
         if (list != null) {
             for (ConvertGroup conversion : list.value()) {
                 result.add(new GroupConversion(conversion.from(), conversion.to()));

@@ -25,7 +25,6 @@ import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.ClientUtils;
@@ -39,6 +38,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
@@ -132,6 +132,7 @@ import static java.util.stream.Collectors.toMap;
 public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
     private static final CompletionStage<Void> completedReport = CompletableFuture.completedFuture(null);
+    private static final JvmComponentIntrospector INTROSPECTOR = JvmComponentIntrospector.getInstance();
 
     private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
             .map(LocalHandler::allowExternalMessages).orElse(true);
@@ -245,7 +246,7 @@ public class DefaultTracking implements Tracking {
 
     private Stream<ConsumerConfiguration> explicitConfigurations(List<?> handlers) {
         return Stream.concat(
-                ConsumerConfiguration.configurations(handlers.stream().map(ReflectionUtils::asClass).collect(toList())),
+                ConsumerConfiguration.configurations(handlers.stream().map(INTROSPECTOR::typeOf).collect(toList())),
                 customConfigurations.stream()).map(this::resolveDefaultHandlingMode);
     }
 
@@ -375,7 +376,7 @@ public class DefaultTracking implements Tracking {
             return Stream.empty();
         }
         ConsumerConfiguration template = defaultConfigurations.getFirst();
-        List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().toList();
+        List<Class<?>> handlerTypes = handlers.stream().map(INTROSPECTOR::typeOf).distinct().toList();
         Map<String, Integer> simpleNameCounts = new HashMap<>();
         handlerTypes.stream().map(DefaultTracking::consumerSimpleName)
                 .forEach(name -> simpleNameCounts.merge(name, 1, Integer::sum));
@@ -386,7 +387,7 @@ public class DefaultTracking implements Tracking {
 
     private static ConsumerConfiguration defaultConsumerConfiguration(
             String applicationName, ConsumerConfiguration template, Class<?> handlerType, boolean includePackageName) {
-        Predicate<Object> handlerFilter = h -> ReflectionUtils.asClass(h).equals(handlerType);
+        Predicate<Object> handlerFilter = h -> INTROSPECTOR.typeOf(h).equals(handlerType);
         return template.toBuilder()
                 .name(defaultConsumerName(applicationName, handlerType, includePackageName))
                 .handlerFilter(template.getHandlerFilter().and(handlerFilter))

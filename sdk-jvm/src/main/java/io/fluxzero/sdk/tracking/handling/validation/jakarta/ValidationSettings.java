@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.validation.DefaultValidator;
 import jakarta.validation.ClockProvider;
 import jakarta.validation.ConstraintValidatorFactory;
@@ -98,7 +99,7 @@ record ValidationSettings(ClockProvider clockProvider, MessageInterpolator messa
     public <T extends jakarta.validation.ConstraintValidator<?, ?>> T getInstance(Class<T> key) {
         try {
             Constructor<T> constructor = key.getDeclaredConstructor();
-            io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible(constructor);
+            JvmComponentIntrospector.getInstance().ensureAccessible(constructor);
             return constructor.newInstance();
         } catch (ReflectiveOperationException e) {
             throw new jakarta.validation.ValidationException(

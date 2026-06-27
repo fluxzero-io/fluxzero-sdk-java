@@ -40,9 +40,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 import static java.util.Collections.singletonList;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Interface for storing, updating, and querying documents in the Fluxzero Runtime.
@@ -167,7 +167,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * Indexes a collection of objects into a named collection, using {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> index(Collection<?> objects, Object collection) {
-        return index(objects, collection, v -> getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
+        return index(objects, collection, v -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
                 .orElseGet(() -> currentIdentityProvider().nextTechnicalId()));
     }
 
@@ -276,7 +276,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      */
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection) {
         return indexIfNotExists(objects, collection,
-                                v -> getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
+                                v -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
                                         .orElseGet(() -> currentIdentityProvider().nextTechnicalId()));
     }
 

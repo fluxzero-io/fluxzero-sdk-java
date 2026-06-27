@@ -26,10 +26,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Interface for objects that expose a backing {@link Message} instance.
@@ -131,13 +129,13 @@ public interface HasMessage extends HasMetadata {
         Message m = toMessage();
         String routingValue = null;
         Class<?> payloadType = m.getPayloadClass();
-        RoutingKey typeAnnotation = getAnnotation(payloadType, RoutingKey.class)
+        RoutingKey typeAnnotation = JvmComponentIntrospector.getInstance().getAnnotation(payloadType, RoutingKey.class)
                 .filter(a -> !a.value().isBlank()).orElse(null);
         if (typeAnnotation != null) {
             return getRoutingKey(typeAnnotation.value());
         }
         if (m.getPayload() != null) {
-            routingValue = getAnnotatedPropertyValue(
+            routingValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(
                     m.getPayload(), RoutingKey.class).map(Object::toString).orElse(null);
         }
         if (routingValue == null && m instanceof Schedule) {
@@ -171,7 +169,7 @@ public interface HasMessage extends HasMetadata {
     default Optional<String> getRoutingKey(String propertyName, boolean warnIfMissing) {
         String result = getMetadata().get(propertyName);
         if (result == null) {
-            result = readProperty(propertyName, getPayload())
+            result = JvmComponentIntrospector.getInstance().readProperty(propertyName, getPayload())
                     .map(Object::toString).orElse(null);
         }
         if (result == null && warnIfMissing && warnedAboutMissingProperty.apply(getPayloadClass(), propertyName)

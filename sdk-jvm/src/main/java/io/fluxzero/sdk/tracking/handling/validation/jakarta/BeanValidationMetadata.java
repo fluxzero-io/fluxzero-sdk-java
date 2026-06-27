@@ -17,7 +17,7 @@ package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
 import io.fluxzero.common.reflection.KotlinReflectionUtils;
 import io.fluxzero.common.reflection.MemberInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 
@@ -88,7 +88,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
             addClassConstraints(current, result);
         }
-        for (Class<?> interfaceType : ReflectionUtils.getAllInterfaces(type)) {
+        for (Class<?> interfaceType : JvmComponentIntrospector.getInstance().getAllInterfaces(type)) {
             addClassConstraints(interfaceType, result);
         }
         return List.copyOf(result.values());
@@ -103,7 +103,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
     private static List<MemberMetadata> members(Class<?> type) {
         List<MemberMetadata> result = new ArrayList<>();
         Map<String, MemberMetadata> fieldMembers = new HashMap<>();
-        for (Field field : ReflectionUtils.getTypeMetadata(type).fields()) {
+        for (Field field : JvmComponentIntrospector.getInstance().getTypeMetadata(type).fields()) {
             if (MemberMetadata.fieldHasValidation(field)) {
                 MemberMetadata metadata = MemberMetadata.field(field);
                 result.add(metadata);
@@ -116,7 +116,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
                 fieldMembers.putIfAbsent(metadata.propertyName(), metadata);
             }
         }
-        for (Method method : ReflectionUtils.getAllMethods(type)) {
+        for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(type)) {
             if (isConstrainedMethodCandidate(method) && MemberMetadata.methodHasValidation(method)) {
                 MemberMetadata metadata = MemberMetadata.method(method);
                 if (!metadata.duplicates(fieldMembers.get(metadata.propertyName()))) {
@@ -128,7 +128,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
     }
 
     private static boolean isConstrainedMethodCandidate(Method method) {
-        return ReflectionUtils.hasReturnType(method)
+        return JvmComponentIntrospector.getInstance().hasReturnType(method)
                && !Modifier.isStatic(method.getModifiers())
                && !method.getDeclaringClass().isAssignableFrom(method.getReturnType());
     }
@@ -145,7 +145,7 @@ static final class KotlinSupport {
     }
 
     static List<MemberMetadata> constructorParameterMembers(Class<?> type) {
-        if (!ReflectionUtils.isKotlinReflectionSupported() || !isKotlinType(type)) {
+        if (!JvmComponentIntrospector.getInstance().isKotlinReflectionSupported() || !isKotlinType(type)) {
             return List.of();
         }
         Constructor<?> constructor = primaryConstructor(type);
@@ -169,7 +169,7 @@ static final class KotlinSupport {
     }
 
     private static boolean isKotlinType(Class<?> type) {
-        for (Annotation annotation : ReflectionUtils.getTypeMetadata(type).typeAnnotations()) {
+        for (Annotation annotation : JvmComponentIntrospector.getInstance().getTypeMetadata(type).typeAnnotations()) {
             if (annotation.annotationType().getName().equals(KOTLIN_METADATA)) {
                 return true;
             }
@@ -197,17 +197,17 @@ static final class KotlinSupport {
     }
 
     private static Optional<MemberInvoker> propertyInvoker(Class<?> type, String propertyName) {
-        Optional<Field> field = ReflectionUtils.getTypeMetadata(type).field(propertyName)
+        Optional<Field> field = JvmComponentIntrospector.getInstance().getTypeMetadata(type).field(propertyName)
                 .filter(f -> !Modifier.isStatic(f.getModifiers()));
         if (field.isPresent()) {
-            return field.map(f -> ReflectionUtils.getTypeMetadata(f.getDeclaringClass()).invoker(f, true));
+            return field.map(f -> JvmComponentIntrospector.getInstance().getTypeMetadata(f.getDeclaringClass()).invoker(f, true));
         }
-        for (Method method : ReflectionUtils.getAllMethods(type)) {
+        for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(type)) {
             if (!Modifier.isStatic(method.getModifiers())
                 && method.getParameterCount() == 0
-                && ReflectionUtils.hasReturnType(method)
-                && propertyName.equals(ReflectionUtils.getPropertyName(method))) {
-                return Optional.of(ReflectionUtils.getTypeMetadata(method.getDeclaringClass())
+                && JvmComponentIntrospector.getInstance().hasReturnType(method)
+                && propertyName.equals(JvmComponentIntrospector.getInstance().getPropertyName(method))) {
+                return Optional.of(JvmComponentIntrospector.getInstance().getTypeMetadata(method.getDeclaringClass())
                                            .invoker(method, true));
             }
         }
@@ -226,10 +226,10 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
 
     static MemberMetadata field(Field field) {
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(field);
-        boolean cascaded = ReflectionUtils.getAnnotation(field, Valid.class).isPresent();
+        boolean cascaded = JvmComponentIntrospector.getInstance().getAnnotation(field, Valid.class).isPresent();
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(field);
         return new MemberMetadata(field.getName(), field,
-                                  ReflectionUtils.getTypeMetadata(field.getDeclaringClass()).invoker(field, true),
+                                  JvmComponentIntrospector.getInstance().getTypeMetadata(field.getDeclaringClass()).invoker(field, true),
                                   false, false, constraints,
                                   TypeUseValidationMetadata.of(field.getAnnotatedType(), constraints, cascaded, conversions),
                                   cascaded, conversions);
@@ -242,7 +242,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
 
     static MemberMetadata parameter(String propertyName, Parameter parameter, MemberInvoker invoker) {
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(parameter);
-        boolean cascaded = ReflectionUtils.getAnnotation(parameter, Valid.class).isPresent();
+        boolean cascaded = JvmComponentIntrospector.getInstance().getAnnotation(parameter, Valid.class).isPresent();
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(parameter);
         return new MemberMetadata(propertyName, parameter, invoker, false, false, constraints,
                                   TypeUseValidationMetadata.of(parameter.getAnnotatedType(), constraints, cascaded, conversions),
@@ -250,23 +250,23 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
     }
 
     static boolean methodHasValidation(Method method) {
-        return ReflectionUtils.getMethodOverrideHierarchy(method)
+        return JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
                        .anyMatch(ValidationAnnotationUtils::hasValidationAnnotations)
                || ValidationAnnotationUtils.hasValidationAnnotations(method.getAnnotatedReturnType());
     }
 
     static MemberMetadata method(Method method) {
-        List<ConstraintMeta> constraints = ReflectionUtils.getMethodOverrideHierarchy(method)
+        List<ConstraintMeta> constraints = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
                 .flatMap(m -> ValidationAnnotationUtils.constraintMetas(m).stream())
                 .distinct()
                 .toList();
-        boolean cascaded = ReflectionUtils.getMethodOverrideHierarchy(method)
-                .anyMatch(m -> ReflectionUtils.getAnnotation(m, Valid.class).isPresent());
-        List<ValidationAnnotationUtils.GroupConversion> conversions = ReflectionUtils.getMethodOverrideHierarchy(method)
+        boolean cascaded = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
+                .anyMatch(m -> JvmComponentIntrospector.getInstance().getAnnotation(m, Valid.class).isPresent());
+        List<ValidationAnnotationUtils.GroupConversion> conversions = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
                 .flatMap(m -> ValidationAnnotationUtils.groupConversions(m).stream())
                 .toList();
         return new MemberMetadata(propertyName(method), method,
-                                  ReflectionUtils.getTypeMetadata(method.getDeclaringClass()).invoker(method, true),
+                                  JvmComponentIntrospector.getInstance().getTypeMetadata(method.getDeclaringClass()).invoker(method, true),
                                   true, hasBeanPropertyName(method), constraints,
                                   TypeUseValidationMetadata.of(method.getAnnotatedReturnType(), constraints, cascaded,
                                                      conversions),
@@ -284,7 +284,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (isBooleanType(method.getReturnType()) && hasPrefixedPropertyName(name, "has")) {
             return decapitalize(name, 3);
         }
-        return ReflectionUtils.getPropertyName(method);
+        return JvmComponentIntrospector.getInstance().getPropertyName(method);
     }
 
     private static boolean hasBeanPropertyName(Method method) {

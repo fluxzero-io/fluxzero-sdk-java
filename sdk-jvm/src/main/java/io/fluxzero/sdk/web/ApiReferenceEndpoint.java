@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Automatic endpoint that serves an HTML API reference page for an {@link ApiDocInfo} scope.
@@ -62,7 +62,7 @@ public final class ApiReferenceEndpoint {
         List<ApiReferenceEndpoint> endpoints = new ArrayList<>();
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
-        for (Package currentPackage : getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
+        for (Package currentPackage : JvmComponentIntrospector.getInstance().getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
             path = appendPath(path, pathValues.apply(currentPackage).toList());
             addIfEnabled(endpoints, currentPackage.getAnnotation(ApiDocInfo.class), path);
         }

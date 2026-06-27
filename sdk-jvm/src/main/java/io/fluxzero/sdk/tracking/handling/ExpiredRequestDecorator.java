@@ -16,10 +16,10 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.RequestHandler;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent;
@@ -32,6 +32,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
@@ -41,10 +42,17 @@ class ExpiredRequestDecorator implements HandlerDecorator {
     private static final Duration REQUEST_TIMEOUT_GRACE = Duration.ofSeconds(30);
     private final boolean publishMetrics;
     private final Class<? extends Annotation> handlerAnnotation;
+    private final JvmComponentIntrospector introspector;
 
     ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation) {
+        this(publishMetrics, handlerAnnotation, JvmComponentIntrospector.getInstance());
+    }
+
+    ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation,
+                            JvmComponentIntrospector introspector) {
         this.publishMetrics = publishMetrics;
-        this.handlerAnnotation = handlerAnnotation;
+        this.handlerAnnotation = Objects.requireNonNull(handlerAnnotation, "handlerAnnotation");
+        this.introspector = Objects.requireNonNull(introspector, "introspector");
     }
 
     @Override
@@ -83,7 +91,7 @@ class ExpiredRequestDecorator implements HandlerDecorator {
     }
 
     private boolean skipExpiredRequests(Executable executable) {
-        return ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+        return introspector.executableAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
                 .map(HandleAnnotation::isSkipExpiredRequests).orElse(false);
     }
 

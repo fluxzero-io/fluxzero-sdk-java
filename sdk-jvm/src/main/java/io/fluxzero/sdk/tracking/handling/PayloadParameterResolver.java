@@ -17,7 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.handling.PreparedParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -76,7 +76,7 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
         }
         Object payload = getPayloadIfAvailable(value);
         if (payload != UNRESOLVED_PAYLOAD) {
-            return payload != null || ReflectionUtils.isNullable(parameter) ? ignored -> payload : null;
+            return payload != null || JvmComponentIntrospector.getInstance().isNullable(parameter) ? ignored -> payload : null;
         }
         return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
     }
@@ -84,13 +84,13 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
     @Override
     public boolean test(HasMessage message, Parameter parameter) {
         if (message instanceof ChunkedDeserializingMessage) {
-            return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
+            return message.getPayloadClass() != Void.class || JvmComponentIntrospector.getInstance().isNullable(parameter);
         }
         Object payload = getPayloadIfAvailable(message);
         if (payload != UNRESOLVED_PAYLOAD) {
-            return payload != null || ReflectionUtils.isNullable(parameter);
+            return payload != null || JvmComponentIntrospector.getInstance().isNullable(parameter);
         }
-        return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
+        return message.getPayloadClass() != Void.class || JvmComponentIntrospector.getInstance().isNullable(parameter);
     }
 
     private Object getPayloadIfAvailable(HasMessage message) {

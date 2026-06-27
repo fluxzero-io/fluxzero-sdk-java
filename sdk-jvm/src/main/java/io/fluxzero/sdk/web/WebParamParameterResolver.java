@@ -18,7 +18,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ParameterRegistry;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.AllArgsConstructor;
@@ -76,7 +76,7 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> {
             WebRequestContext context = getWebRequestContext((DeserializingMessage) m);
-            Optional<ParamField> field = ReflectionUtils.getAnnotationAs(p, WebParam.class, ParamField.class);
+            Optional<ParamField> field = JvmComponentIntrospector.getInstance().getAnnotationAs(p, WebParam.class, ParamField.class);
             return field.map(f -> {
                         String value = f.getValue();
                         String name;
@@ -113,13 +113,13 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return value instanceof DeserializingMessage m && m.getMessageType() == MessageType.WEBREQUEST
-               && ReflectionUtils.isAnnotationPresent(parameter, WebParam.class);
+               && JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class);
     }
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
-            if (ReflectionUtils.isAnnotationPresent(parameter, WebParam.class)) {
+            if (JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class)) {
                 return true;
             }
         }

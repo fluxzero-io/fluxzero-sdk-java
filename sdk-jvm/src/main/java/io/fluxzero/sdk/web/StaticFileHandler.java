@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.web;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.annotation.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -64,8 +64,8 @@ public class StaticFileHandler implements Closeable {
     public static final String filePrefix = "file:";
 
     public static List<StaticFileHandler> forTargetClass(Class<?> targetClass) {
-        ServeStatic serveStatic = ReflectionUtils.getAnnotation(targetClass, ServeStatic.class)
-                .or(() -> ReflectionUtils.getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
+        ServeStatic serveStatic = JvmComponentIntrospector.getInstance().getAnnotation(targetClass, ServeStatic.class)
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
                 .orElse(null);
         if (serveStatic == null) {
             return List.of();
@@ -85,8 +85,8 @@ public class StaticFileHandler implements Closeable {
     }
 
     public static boolean isHandler(Class<?> targetClass) {
-        return ReflectionUtils.getAnnotation(targetClass, ServeStatic.class)
-                .or(() -> ReflectionUtils.getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
+        return JvmComponentIntrospector.getInstance().getAnnotation(targetClass, ServeStatic.class)
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
                 .isPresent();
     }
 

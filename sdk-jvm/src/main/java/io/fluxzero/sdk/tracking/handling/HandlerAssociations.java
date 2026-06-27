@@ -17,7 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ParameterRegistry;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.Id;
@@ -118,7 +118,7 @@ public class HandlerAssociations {
                     Stream<Map.Entry<Object, String>> propertyAssociations = getAssociationProperties().entrySet()
                             .stream()
                             .filter(entry -> includedPayload(payload, entry.getValue()))
-                            .flatMap(entry -> ReflectionUtils.readProperty(entry.getKey(), payload)
+                            .flatMap(entry -> JvmComponentIntrospector.getInstance().readProperty(entry.getKey(), payload)
                                     .or(() -> entry.getValue().isExcludeMetadata() ? empty()
                                             : ofNullable(message.getMetadata().get(entry.getKey())))
                                     .map(this::normalizeAssociationValue)
@@ -134,7 +134,7 @@ public class HandlerAssociations {
      */
     public boolean matchesTarget(Object target, Map<Object, String> associations) {
         return !associations.isEmpty() && associations.entrySet().stream()
-                .anyMatch(entry -> matchesValue(ReflectionUtils.readProperty(entry.getValue(), target).orElse(null),
+                .anyMatch(entry -> matchesValue(JvmComponentIntrospector.getInstance().readProperty(entry.getValue(), target).orElse(null),
                                                 entry.getKey()));
     }
 
@@ -200,7 +200,7 @@ public class HandlerAssociations {
     @Builder(toBuilder = true)
     public static class AssociationValue {
         static AssociationValue valueOf(Association association) {
-            return ReflectionUtils.convertAnnotation(association, AssociationValue.class);
+            return JvmComponentIntrospector.getInstance().convertAnnotation(association, AssociationValue.class);
         }
 
         List<String> value;
@@ -241,7 +241,7 @@ public class HandlerAssociations {
                 return message.computeRoutingKey().map(v -> v);
             }
             Object source = parameterValueResolver == null ? payload : parameterValueResolver.apply(message);
-            return ofNullable(source).flatMap(resolvedValue -> ReflectionUtils.readProperty(propertyName, resolvedValue)
+            return ofNullable(source).flatMap(resolvedValue -> JvmComponentIntrospector.getInstance().readProperty(propertyName, resolvedValue)
                             .or(() -> associationValue.isExcludeMetadata() ? empty()
                                     : ofNullable(message.getMetadata().get(propertyName))))
                     .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v);
@@ -283,17 +283,17 @@ public class HandlerAssociations {
 
         private boolean alwaysAssociate(Executable executable) {
             return getOrCompute(alwaysAssociate, executable,
-                                key -> ReflectionUtils.getAnnotation(key, Association.class)
+                                key -> JvmComponentIntrospector.getInstance().getAnnotation(key, Association.class)
                                         .filter(Association::always)
                                         .isPresent());
         }
 
         private Map<String, AssociationValue> computeAssociationProperties(Class<?> targetClass) {
-            return ReflectionUtils.getAnnotatedProperties(targetClass, Association.class).stream()
-                    .flatMap(member -> ReflectionUtils.getAnnotationAs(member, Association.class, AssociationValue.class)
+            return JvmComponentIntrospector.getInstance().getAnnotatedProperties(targetClass, Association.class).stream()
+                    .flatMap(member -> JvmComponentIntrospector.getInstance().getAnnotationAs(member, Association.class, AssociationValue.class)
                             .stream()
                             .flatMap(associationValue -> {
-                                String propertyName = ReflectionUtils.getPropertyName(member);
+                                String propertyName = JvmComponentIntrospector.getInstance().getPropertyName(member);
                                 AssociationValue mappedValue = associationValue.getPath().isBlank()
                                         ? associationValue.toBuilder().path(propertyName).build()
                                         : associationValue;
@@ -305,7 +305,7 @@ public class HandlerAssociations {
         }
 
         private List<MethodAssociationProperty> computeExecutableAssociationProperties(Executable executable) {
-            return ReflectionUtils.getAnnotationAs(executable, Association.class, AssociationValue.class)
+            return JvmComponentIntrospector.getInstance().getAnnotationAs(executable, Association.class, AssociationValue.class)
                     .map(associationValue -> {
                         List<String> aliases = associationValue.getValue();
                         if (aliases != null && !aliases.isEmpty()) {
@@ -313,7 +313,7 @@ public class HandlerAssociations {
                                     .map(name -> MethodAssociationProperty.forProperty(name, associationValue))
                                     .toList();
                         }
-                        return ReflectionUtils.getAnnotation(executable, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
+                        return JvmComponentIntrospector.getInstance().getAnnotation(executable, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
                                 .map(io.fluxzero.sdk.publishing.routing.RoutingKey::value)
                                 .filter(value -> !value.isBlank())
                                 .map(value -> List.of(MethodAssociationProperty.forProperty(value, associationValue)))
@@ -325,7 +325,7 @@ public class HandlerAssociations {
 
         private List<ParameterAssociationTemplate> computeParameterAssociationProperties(Executable executable) {
             return Arrays.stream(executable.getParameters())
-                    .flatMap(parameter -> ReflectionUtils.getAnnotationAs(parameter, Association.class, AssociationValue.class)
+                    .flatMap(parameter -> JvmComponentIntrospector.getInstance().getAnnotationAs(parameter, Association.class, AssociationValue.class)
                             .stream()
                             .flatMap(associationValue -> propertyNames(parameter, associationValue).map(
                                     propertyName -> new ParameterAssociationTemplate(parameter, propertyName,

@@ -95,11 +95,11 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static java.util.Arrays.stream;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * High-level entry point for all interactions with the Fluxzero Runtime.
@@ -197,7 +197,7 @@ public interface Fluxzero extends AutoCloseable {
      * class, evicting it after the given lifespan.
      */
     static void memoize(Object key, Object value, Duration lifespan) {
-        get().memoization().put(getScopedMemoizationKey(getCallerClass(), key), value, lifespan);
+        get().memoization().put(getScopedMemoizationKey(JvmComponentIntrospector.getInstance().getCallerClass(), key), value, lifespan);
     }
 
     /**
@@ -228,7 +228,7 @@ public interface Fluxzero extends AutoCloseable {
      */
     static <K, V> V memoize(K key, BiFunction<K, V, V> supplier, Duration lifespan) {
         return get().memoization()
-                .compute(getScopedMemoizationKey(getCallerClass(), key), key, supplier, lifespan);
+                .compute(getScopedMemoizationKey(JvmComponentIntrospector.getInstance().getCallerClass(), key), key, supplier, lifespan);
     }
 
     /**
@@ -261,7 +261,7 @@ public interface Fluxzero extends AutoCloseable {
      */
     static <K, V> V memoizeIfAbsent(K key, Function<K, V> supplier, Duration lifespan) {
         return get().memoization()
-                .computeIfAbsent(getScopedMemoizationKey(getCallerClass(), key), key, supplier, lifespan);
+                .computeIfAbsent(getScopedMemoizationKey(JvmComponentIntrospector.getInstance().getCallerClass(), key), key, supplier, lifespan);
     }
 
     /**
@@ -285,7 +285,7 @@ public interface Fluxzero extends AutoCloseable {
      * Returns the memoized value for the given key in the scope of the current calling class.
      */
     static <K, V> V getMemoized(K key) {
-        return get().memoization().get(getScopedMemoizationKey(getCallerClass(), key));
+        return get().memoization().get(getScopedMemoizationKey(JvmComponentIntrospector.getInstance().getCallerClass(), key));
     }
 
     /**

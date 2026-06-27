@@ -26,10 +26,9 @@ import java.lang.annotation.Target;
  * When a field is annotated with {@code @ProtectData}, Fluxzero does <strong>not</strong> always protect the entire
  * object graph rooted at that field. Instead, it applies the following rules:
  * <p>
- * 1) The field value is protected as a whole if the value is a leaf value as determined by
- * {@link io.fluxzero.common.reflection.ReflectionUtils#isLeafValue(Object)}, a
- * {@link com.fasterxml.jackson.databind.JsonNode}, a {@link io.fluxzero.common.api.Data}, an {@link Iterable}, a
- * {@link java.util.Map}, or a type annotated with {@code @ProtectData}.
+ * 1) The field value is protected as a whole if the value is a Fluxzero scalar value, a
+ * {@link com.fasterxml.jackson.databind.JsonNode}, a {@link io.fluxzero.common.api.Data}, an {@link Iterable},
+ * a {@link java.util.Map}, or a type annotated with {@code @ProtectData}.
  * <p>
  * 2) Otherwise, Fluxzero only traverses into nested properties that are themselves explicitly annotated with
  * {@code @ProtectData}.

@@ -16,7 +16,7 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -65,7 +65,7 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
 
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
-        return ReflectionUtils.has(Autowired.class, parameter);
+        return JvmComponentIntrospector.getInstance().has(Autowired.class, parameter);
     }
 
     protected UnaryOperator<Object> computeParameterResolver(Parameter p) {
@@ -103,7 +103,7 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
-            if (ReflectionUtils.has(Autowired.class, parameter)) {
+            if (JvmComponentIntrospector.getInstance().has(Autowired.class, parameter)) {
                 return true;
             }
         }

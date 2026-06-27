@@ -15,9 +15,6 @@
 
 package io.fluxzero.sdk.common.serialization;
 
-import io.fluxzero.sdk.Fluxzero;
-import io.fluxzero.sdk.tracking.handling.authentication.User;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

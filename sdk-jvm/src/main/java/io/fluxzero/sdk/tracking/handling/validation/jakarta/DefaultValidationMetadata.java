@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.validation.ClockProvider;
 import jakarta.validation.ConstraintTarget;
 import jakarta.validation.ConstraintValidator;
@@ -72,7 +72,7 @@ record DefaultValidationBeanDescriptor(Class<?> type, Set<ConstraintDescriptor<?
         Set<PropertyDescriptor> properties = metadata.members().stream()
                 .map(DefaultValidationPropertyDescriptor::new)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<MethodDescriptor> methods = ReflectionUtils.getAllMethods(type).stream()
+        Set<MethodDescriptor> methods = JvmComponentIntrospector.getInstance().getAllMethods(type).stream()
                 .filter(DefaultValidationBeanDescriptor::hasExecutableValidation)
                 .map(method -> new DefaultValidationMethodDescriptor(method, ExecutableValidationMetadata.of(method)))
                 .collect(Collectors.toCollection(LinkedHashSet::new));

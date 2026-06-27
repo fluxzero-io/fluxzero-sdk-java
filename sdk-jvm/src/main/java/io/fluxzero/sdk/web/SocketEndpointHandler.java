@@ -42,13 +42,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Stream.concat;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * A specialized {@link Handler} that manages lifecycle events and message dispatching for WebSocket endpoints annotated
@@ -86,7 +86,7 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
     HandlerAssociations associations;
 
     @Getter(lazy = true)
-    SocketEndpoint socketEndpoint = getTypeAnnotation(targetClass, SocketEndpoint.class);
+    SocketEndpoint socketEndpoint = JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, SocketEndpoint.class);
 
     public SocketEndpointHandler(Class<?> targetClass,
                                  HandlerMatcher<Object, DeserializingMessage> targetMatcher,

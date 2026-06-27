@@ -18,7 +18,7 @@ import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.constraints.AnyConstraint;
 import io.fluxzero.common.api.search.constraints.MatchConstraint;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
@@ -70,7 +70,7 @@ public class DefaultHandlerRepository implements HandlerRepository {
     public static Function<Class<?>, HandlerRepository> handlerRepositorySupplier(Supplier<DocumentStore> documentStore,
                                                                                   DocumentSerializer documentSerializer) {
         return memoize(type -> {
-            Stateful stateful = ReflectionUtils.getTypeAnnotation(type, Stateful.class);
+            Stateful stateful = JvmComponentIntrospector.getInstance().getTypeAnnotation(type, Stateful.class);
             var defaultRepo = new DefaultHandlerRepository(
                     documentStore.get(), ClientUtils.getSearchParameters(type).getCollection(), type, stateful);
             return ofNullable(stateful).filter(Stateful::commitInBatch)

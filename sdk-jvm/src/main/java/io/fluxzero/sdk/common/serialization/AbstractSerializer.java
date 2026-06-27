@@ -20,7 +20,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.Converter;
 import io.fluxzero.sdk.common.serialization.casting.CasterChain;
 import io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain;
@@ -52,7 +52,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumber;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -150,7 +149,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
     }
 
     private String formatValue(Object value) {
-        return value == null ? "null" : asClass(value).getName();
+        return value == null ? "null" : JvmComponentIntrospector.getInstance().asClass(value).getName();
     }
 
     /**
@@ -177,15 +176,15 @@ public abstract class AbstractSerializer<I> implements Serializer {
         }
         Class<?> type = object.getClass();
         if (Collection.class.isAssignableFrom(type)) {
-            List<Class<?>> children = ReflectionUtils.determineCommonAncestors((Collection<?>) object);
+            List<Class<?>> children = JvmComponentIntrospector.getInstance().determineCommonAncestors((Collection<?>) object);
             if (!children.isEmpty()) {
                 return TypeUtils.parameterize(type, children.getFirst());
             }
         } else if (Map.class.isAssignableFrom(type)) {
             Map<?, ?> map = (Map<?, ?>) object;
-            List<Class<?>> keys = ReflectionUtils.determineCommonAncestors(map.keySet());
+            List<Class<?>> keys = JvmComponentIntrospector.getInstance().determineCommonAncestors(map.keySet());
             if (!keys.isEmpty()) {
-                List<Class<?>> values = ReflectionUtils.determineCommonAncestors(map.values());
+                List<Class<?>> values = JvmComponentIntrospector.getInstance().determineCommonAncestors(map.values());
                 if (!values.isEmpty()) {
                     return TypeUtils.parameterize(type, keys.getFirst(), values.getFirst());
                 }
@@ -466,7 +465,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * Checks whether a given serialized type is recognized on the classpath.
      */
     protected boolean isKnownType(String type) {
-        return type != null && ReflectionUtils.classExists(type);
+        return type != null && JvmComponentIntrospector.getInstance().classExists(type);
     }
 
     /**

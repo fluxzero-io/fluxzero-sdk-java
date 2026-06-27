@@ -16,9 +16,9 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.MessageFilter;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -40,11 +40,12 @@ import java.util.Objects;
  * @see ClientUtils#getTopic(HandleDocument, Executable)
  */
 public class HandleDocumentFilter implements MessageFilter<DeserializingMessage> {
+    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return ReflectionUtils.getAnnotation(executable, HandleDocument.class).map(
+        return introspector.executableAnnotation(executable, HandleDocument.class).map(
                         handleDocument -> ClientUtils.getTopic(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);

@@ -14,7 +14,6 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.search.Searchable;
 

@@ -33,7 +33,7 @@ import java.util.concurrent.Callable;
  * @see UserProvider
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-public interface User extends Principal {
+public interface User extends Principal, AuthorizationSubject {
 
     /**
      * Thread-local reference to the current user. Typically managed by the Fluxzero Runtime and automatically

@@ -15,12 +15,6 @@
 
 package io.fluxzero.sdk.tracking;
 
-import io.fluxzero.common.MessageType;
-import io.fluxzero.sdk.configuration.FluxzeroBuilder;
-import io.fluxzero.sdk.configuration.client.Client;
-import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -37,9 +31,8 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  * A consumer represents an isolated group of handlers that independently track and process messages from one or more
  * message logs. It can be applied at the class or package level to group handlers together. Handlers that do not
  * explicitly declare a {@code Consumer} are assigned according to the application's configuration, as defined via
- * {@link FluxzeroBuilder#addConsumerConfiguration(ConsumerConfiguration, MessageType...)} )}. If no specific
- * configuration is provided, the default assignment is selected by
- * {@link ConsumerConfiguration#UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY} or by the active Fluxzero defaults version.
+ * the application's configuration. If no specific configuration is provided, the default assignment is selected by the
+ * active Fluxzero defaults version.
  * </p>
  *
  * <p>
@@ -97,11 +90,9 @@ public @interface Consumer {
     /**
      * Maximum serialized payload bytes to fetch in a batch.
      * <p>
-     * The default {@link ConsumerConfiguration#USE_DEFAULT_MAX_FETCH_BYTES} inherits
-     * {@link ConsumerConfiguration#MAX_FETCH_BYTES_PROPERTY} when configured, otherwise
-     * {@link ConsumerConfiguration#DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit.
+     * The default {@code -1} inherits the runtime default. A value of {@code 0} disables this limit.
      */
-    long maxFetchBytes() default ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES;
+    long maxFetchBytes() default -1L;
 
     /**
      * Maximum time to wait before fetching a new batch, when none are available. See {@link #durationUnit()} for the
@@ -117,42 +108,38 @@ public @interface Consumer {
     /**
      * Interceptors applied to individual handler method invocations.
      * <p>
-     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global
-     * handler interceptors configured via {@link FluxzeroBuilder} keep their existing position in the chain; consumer
-     * interceptors are only sorted relative to other interceptors declared on the same consumer.
+     * The JVM runtime expects these classes to implement its handler interceptor contract. Browser generators treat
+     * them as metadata and lower them to generated hook calls.
      */
-    Class<? extends HandlerInterceptor>[] handlerInterceptors() default {};
+    Class<?>[] handlerInterceptors() default {};
 
     /**
      * Interceptors applied at the batch level across all messages in a poll cycle.
      * <p>
-     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their
-     * relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative
-     * orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.
+     * The JVM runtime expects these classes to implement its batch interceptor contract. Browser generators treat them
+     * as metadata and lower them to generated hook calls.
      */
-    Class<? extends BatchInterceptor>[] batchInterceptors() default {};
+    Class<?>[] batchInterceptors() default {};
 
     /**
      * Dispatch interceptors that become active while this consumer is processing a batch or handler.
      * <p>
-     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are
-     * applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches
-     * performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are
-     * disabled globally, these consumer-scoped dispatch interceptors are inactive. Globally service-loaded dispatch
-     * interceptors remain part of the normal global dispatch chain.
+     * The JVM runtime expects these classes to implement its dispatch interceptor contract. Browser generators treat
+     * them as metadata and lower them to generated hook calls.
      */
-    Class<? extends DispatchInterceptor>[] dispatchInterceptors() default {};
+    Class<?>[] dispatchInterceptors() default {};
 
     /**
-     * Error handler invoked when a message processing error occurs. Default is {@link LoggingErrorHandler} which logs
-     * errors and allows message tracking and processing to continue.
+     * Error handler invoked when a message processing error occurs. The default {@link Object} marker tells the JVM
+     * runtime to use its standard logging error handler.
      */
-    Class<? extends ErrorHandler> errorHandler() default LoggingErrorHandler.class;
+    Class<?> errorHandler() default Object.class;
 
     /**
-     * Regulates message flow and backpressure behavior. Default is {@link NoOpFlowRegulator}.
+     * Regulates message flow and backpressure behavior. The default {@link Object} marker tells the JVM runtime to use
+     * its standard no-op flow regulator.
      */
-    Class<? extends FlowRegulator> flowRegulator() default NoOpFlowRegulator.class;
+    Class<?> flowRegulator() default Object.class;
 
     /**
      * If {@code true}, only messages explicitly targeted at this application instance will be processed. Typically used
@@ -365,7 +352,6 @@ public @interface Consumer {
      * @return The namespace under which the consumer tracks messages, or an empty string if the default client
      * namespace should be used.
      *
-     * @see Client#forNamespace(String)
      */
     String namespace() default "";
 }

@@ -17,7 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -81,7 +81,7 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
             return delegate.getInvoker(message)
                     .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
                                   && m.getReturnType().isAssignableFrom(message.getPayloadClass())
-                            ? ReflectionUtils.<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
+                            ? JvmComponentIntrospector.getInstance().<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
                                     .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
                             .map(topic -> new DocumentHandlerInvoker(i, topic, message)) : Optional.of(i));
         }

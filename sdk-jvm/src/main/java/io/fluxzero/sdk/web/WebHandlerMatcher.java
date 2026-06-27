@@ -21,7 +21,7 @@ import io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.MessageDescription;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
@@ -33,8 +33,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
 import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
@@ -97,7 +95,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
     public static WebHandlerMatcher create(
             Object handler, List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config) {
-        return create(handler, ReflectionUtils.asClass(handler), parameterResolvers, config);
+        return create(handler, JvmComponentIntrospector.getInstance().asClass(handler), parameterResolvers, config);
     }
 
     public static Object createRouteRegistry() {
@@ -117,14 +115,14 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
             throw new IllegalArgumentException(
                     "Route registry must be created by WebHandlerMatcher.createRouteRegistry()");
         }
-        return create(handler, ReflectionUtils.asClass(handler), parameterResolvers, config, webRouteRegistry);
+        return create(handler, JvmComponentIntrospector.getInstance().asClass(handler), parameterResolvers, config, webRouteRegistry);
     }
 
     protected static WebHandlerMatcher create(Object handler, Class<?> type,
                                               List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                               HandlerConfiguration<DeserializingMessage> config,
                                               WebRouteRegistry routeRegistry) {
-        var matchers = concat(getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
+        var matchers = concat(JvmComponentIntrospector.getInstance().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .filter(m -> config.methodMatches(type, m))
                 .flatMap(m -> Stream.of(new MethodHandlerMatcher<>(m, type, parameterResolvers, config))).toList();
         return new WebHandlerMatcher(handler, matchers, routeRegistry);
@@ -137,7 +135,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         boolean hasAnyHandlers = false;
         List<WebPattern> registeredPatterns = new ArrayList<>();
         for (MethodHandlerMatcher<DeserializingMessage> m : methodHandlerMatchers) {
-            List<WebPattern> webPatterns = getWebPatterns(asClass(handler), handler, m.getExecutable());
+            List<WebPattern> webPatterns = getWebPatterns(JvmComponentIntrospector.getInstance().asClass(handler), handler, m.getExecutable());
             registeredPatterns.addAll(webPatterns);
             for (WebPattern pattern : webPatterns) {
                 if (ANY.equals(pattern.getMethod())) {

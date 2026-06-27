@@ -16,7 +16,7 @@ package io.fluxzero.sdk.common.serialization;
 
 import io.fluxzero.common.MemoizingFunction;
 import io.fluxzero.common.api.SerializedObject;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.ToString;
@@ -138,7 +138,7 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
     }
 
     /**
-     * Attempts to resolve the declared payload class using {@link ReflectionUtils#classForName(String)} and throws an
+     * Attempts to resolve the declared payload class using {@link JvmComponentIntrospector#classForName(String)} and throws an
      * exception if the class cannot be found.
      *
      * @return the {@link Class} corresponding to the declared type, or {@code null} if not resolvable
@@ -153,7 +153,7 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
                 return resolved;
             }
         }
-        return type == null ? null : ReflectionUtils.classForName(type);
+        return type == null ? null : JvmComponentIntrospector.getInstance().classForName(type);
     }
 
     private static class PayloadMemoizingFunction implements MemoizingFunction<Type, Object> {

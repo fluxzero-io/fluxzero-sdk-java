@@ -18,7 +18,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 
 import java.lang.annotation.Annotation;
@@ -36,8 +36,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
 
 /**
  * Internal utility for inspecting and instantiating caster methods based on annotations such as {@link Upcast} or {@link Downcast}.
@@ -59,7 +57,7 @@ public class CastInspector {
      * @return true if at least one casting method is present, false otherwise
      */
     public static boolean hasCasterMethods(Class<?> type) {
-        return getAllMethods(type).stream().anyMatch(
+        return JvmComponentIntrospector.getInstance().getAllMethods(type).stream().anyMatch(
                 m -> m.getAnnotationsByType(Upcast.class).length > 0 || m.getAnnotationsByType(Downcast.class).length > 0);
     }
 
@@ -77,8 +75,8 @@ public class CastInspector {
                                                           Collection<?> candidateTargets, Class<T> dataType) {
         List<AnnotatedCaster<T>> result = new ArrayList<>();
         for (Object caster : candidateTargets) {
-            var casterInstance = ReflectionUtils.asInstance(caster);
-            getAllMethods(casterInstance.getClass()).forEach(
+            var casterInstance = JvmComponentIntrospector.getInstance().asInstance(caster);
+            JvmComponentIntrospector.getInstance().getAllMethods(casterInstance.getClass()).forEach(
                     m -> createCasters(casterInstance, m, dataType, castAnnotation)
                             .forEach(result::add));
         }
@@ -88,7 +86,7 @@ public class CastInspector {
     private static <T> Stream<AnnotatedCaster<T>> createCasters(Object target, Method m, Class<T> dataType,
                                                                 Class<? extends Annotation> castAnnotation) {
         return Arrays.stream(m.getAnnotationsByType(castAnnotation))
-                .map(annotation -> ReflectionUtils.getAnnotationAs(annotation, Cast.class, CastParameters.class)
+                .map(annotation -> JvmComponentIntrospector.getInstance().getAnnotationAs(annotation, Cast.class, CastParameters.class)
                         .map(params -> createCaster(params, m, target, dataType))
                         .orElseThrow(() -> new DeserializationException(
                                 "Caster annotation is missing @Cast metadata: " + annotation.annotationType())));
@@ -96,7 +94,7 @@ public class CastInspector {
 
     private static <T> AnnotatedCaster<T> createCaster(CastParameters castParameters, Method method, Object target,
                                                        Class<T> dataType) {
-        if (ensureAccessible(method).getReturnType().equals(void.class)) {
+        if (JvmComponentIntrospector.getInstance().ensureAccessible(method).getReturnType().equals(void.class)) {
             return new AnnotatedCaster<>(method, castParameters, i -> Stream.empty());
         }
         Function<SerializedObject<T>, Object> invokeFunction = invokeFunction(method, target, dataType);

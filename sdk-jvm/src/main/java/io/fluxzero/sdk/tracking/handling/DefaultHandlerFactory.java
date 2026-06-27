@@ -26,7 +26,7 @@ import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -56,8 +56,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.handling.HandlerInspector.hasHandlerMethods;
-import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
-import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 /**
@@ -150,7 +148,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     @Override
     public Optional<Handler<DeserializingMessage>> createHandler(Object target, HandlerFilter handlerFilter,
                                                                  List<HandlerInterceptor> extraInterceptors) {
-        Class<?> targetClass = asClass(target);
+        Class<?> targetClass = JvmComponentIntrospector.getInstance().asClass(target);
         HandlerDecorator handlerDecorator =
                 ObjectUtils.concat(extraInterceptors.stream(), Stream.of(defaultDecorator))
                         .reduce(HandlerDecorator::andThen).orElseThrow();
@@ -171,7 +169,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (hasHandlerMethods(targetClass, handlerConfiguration)) {
             return true;
         }
-        if (ReflectionUtils.getTypeAnnotation(targetClass, Stateful.class) != null
+        if (JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, Stateful.class) != null
             && hasMemberHandlerMethods(targetClass, handlerConfiguration, new HashSet<>())) {
             return true;
         }
@@ -183,9 +181,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (targetClass == null || Object.class.equals(targetClass) || !visitedTypes.add(targetClass)) {
             return false;
         }
-        for (AccessibleObject location : ReflectionUtils.getAnnotatedProperties(targetClass, Member.class)) {
-            Class<?> memberType = ReflectionUtils.getCollectionElementType(location)
-                    .orElse(ReflectionUtils.getPropertyType(location));
+        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(targetClass, Member.class)) {
+            Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
+                    .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
             if (hasHandlerMethods(memberType, handlerConfiguration)
                 || hasMemberHandlerMethods(memberType, handlerConfiguration, new HashSet<>(visitedTypes))) {
                 return true;
@@ -197,9 +195,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
     protected Handler<DeserializingMessage> buildHandler(@NonNull Object target,
                                                          HandlerConfiguration<DeserializingMessage> config) {
 
-        if (ifClass(target) instanceof Class<?> targetClass) {
+        if (JvmComponentIntrospector.getInstance().ifClass(target) instanceof Class<?> targetClass) {
             {
-                Stateful handler = ReflectionUtils.getTypeAnnotation(targetClass, Stateful.class);
+                Stateful handler = JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, Stateful.class);
                 if (handler != null) {
                     var statefulConfig = config;
                     return new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
@@ -213,7 +211,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
             }
 
             {
-                SocketEndpoint handler = ReflectionUtils.getTypeAnnotation(targetClass, SocketEndpoint.class);
+                SocketEndpoint handler = JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, SocketEndpoint.class);
                 if (handler != null) {
                     var socketConfig = config;
                     return new SocketEndpointHandler(
@@ -226,9 +224,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
             {
                 var trackSelf
-                        = Optional.ofNullable(ReflectionUtils.getTypeAnnotation(targetClass, TrackSelf.class))
+                        = Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, TrackSelf.class))
                         .or(() -> Optional.ofNullable(targetClass.getPackage())
-                                .flatMap(p -> ReflectionUtils.getPackageAnnotation(p, TrackSelf.class)));
+                                .flatMap(p -> JvmComponentIntrospector.getInstance().getPackageAnnotation(p, TrackSelf.class)));
                 if (trackSelf.isPresent()) {
                     MessageFilter<DeserializingMessage> selfFilter =
                             (message, method, handlerAnnotation, t) -> t.isAssignableFrom(
@@ -244,18 +242,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
     }
 
     protected Function<DeserializingMessage, ?> createTargetSupplier(Class<?> targetClass) {
-        if (ReflectionUtils.getDefaultConstructor(targetClass).isEmpty()) {
+        if (JvmComponentIntrospector.getInstance().getDefaultConstructor(targetClass).isEmpty()) {
             // Null makes instance methods ineligible for non-self payloads without trying to instantiate the class.
             return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : null;
         }
-        Supplier<Object> instanceSupplier = memoize(() -> ReflectionUtils.asInstance(targetClass));
+        Supplier<Object> instanceSupplier = memoize(() -> JvmComponentIntrospector.getInstance().asInstance(targetClass));
         return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : instanceSupplier.get();
     }
 
     protected Handler<DeserializingMessage> createDefaultHandler(
             Object target, Function<DeserializingMessage, ?> targetSupplier,
             HandlerConfiguration<DeserializingMessage> config) {
-        Class<?> targetClass = asClass(target);
+        Class<?> targetClass = JvmComponentIntrospector.getInstance().asClass(target);
         Handler<DeserializingMessage> handler
                 = target instanceof Class<?>
                   ? new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config))
@@ -317,7 +315,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         return switch (messageType) {
             case WEBREQUEST -> WebHandlerMatcher.create(target, parameterResolvers, config, webRouteRegistry);
-            default -> HandlerInspector.inspect(ReflectionUtils.asClass(target), parameterResolvers, config);
+            default -> HandlerInspector.inspect(JvmComponentIntrospector.getInstance().asClass(target), parameterResolvers, config);
         };
     }
 

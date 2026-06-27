@@ -17,7 +17,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.common.reflection.MemberInvoker;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -47,15 +47,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.call;
-import static io.fluxzero.common.reflection.ReflectionUtils.copyFields;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
-import static io.fluxzero.common.reflection.ReflectionUtils.getCollectionElementType;
-import static io.fluxzero.common.reflection.ReflectionUtils.getName;
-import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
-import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static java.beans.Introspector.decapitalize;
 
 /**
@@ -178,34 +169,34 @@ public class AnnotatedEntityHolder {
         this.entityHelper = entityHelper;
         this.serializer = serializer;
         this.location = location;
-        this.holderType = ReflectionUtils.getPropertyType(location);
+        this.holderType = JvmComponentIntrospector.getInstance().getPropertyType(location);
         this.collectionHolder = Collection.class.isAssignableFrom(holderType);
         this.mapHolder = Map.class.isAssignableFrom(holderType);
-        this.entityType = getCollectionElementType(location).orElse(holderType);
-        Member member = ReflectionUtils.getAnnotation(location, Member.class).orElseThrow();
+        this.entityType = JvmComponentIntrospector.getInstance().getCollectionElementType(location).orElse(holderType);
+        Member member = JvmComponentIntrospector.getInstance().getAnnotation(location, Member.class).orElseThrow();
         String pathToId = member.idProperty();
         this.idProvider = pathToId.isBlank() ?
                 v -> (v == null ? Optional.<MemberInvoker>empty()
-                                : ReflectionUtils.getAnnotatedPropertyInvoker(v.getClass(), EntityId.class)).map(
+                                : JvmComponentIntrospector.getInstance().getAnnotatedPropertyInvoker(v.getClass(), EntityId.class)).map(
                                 p -> new Id(p.invoke(v), p.getMember().getName()))
                         .orElseGet(() -> {
-                            if (ifClass(v) instanceof Class<?> c) {
-                                return new Id(null, getAnnotatedProperty(c, EntityId.class)
-                                        .map(ReflectionUtils::getName).orElse(null));
+                            if (JvmComponentIntrospector.getInstance().ifClass(v) instanceof Class<?> c) {
+                                return new Id(null, JvmComponentIntrospector.getInstance().getAnnotatedProperty(c, EntityId.class)
+                                        .map(property -> JvmComponentIntrospector.getInstance().getName(property)).orElse(null));
                             }
                             return new Id(null, null);
                         }) :
-                v -> new Id(readProperty(pathToId, v).orElse(null), pathToId);
+                v -> new Id(JvmComponentIntrospector.getInstance().readProperty(pathToId, v).orElse(null), pathToId);
         this.wither = computeWither(ownerType, location, serializer, member);
     }
 
     private static BiFunction<Object, Object, Object> computeWither(
             Class<?> ownerType, AccessibleObject location, Serializer serializer, Member member) {
-        String propertyName = decapitalize(Optional.of(getName(location)).map(name -> Optional.of(
+        String propertyName = decapitalize(Optional.of(JvmComponentIntrospector.getInstance().getName(location)).map(name -> Optional.of(
                         getterPattern.matcher(name)).map(matcher -> matcher.matches() ? matcher.group(2) : name)
                 .orElse(name)).orElseThrow());
-        Class<?>[] witherParams = new Class<?>[]{ReflectionUtils.getPropertyType(location)};
-        Stream<Method> witherCandidates = ReflectionUtils.getAllMethods(ownerType).stream().filter(
+        Class<?>[] witherParams = new Class<?>[]{JvmComponentIntrospector.getInstance().getPropertyType(location)};
+        Stream<Method> witherCandidates = JvmComponentIntrospector.getInstance().getAllMethods(ownerType).stream().filter(
                 m -> m.getReturnType().isAssignableFrom(ownerType) || m.getReturnType().equals(void.class));
         witherCandidates = member.wither().isBlank() ?
                 witherCandidates.filter(m -> Arrays.equals(witherParams, m.getParameterTypes())
@@ -213,14 +204,14 @@ public class AnnotatedEntityHolder {
                 witherCandidates.filter(m -> Objects.equals(member.wither(), m.getName()));
         Optional<BiFunction<Object, Object, Object>> wither =
                 witherCandidates.findFirst()
-                        .map(ReflectionUtils::ensureAccessible)
+                        .map(method -> JvmComponentIntrospector.getInstance().ensureAccessible(method))
                         .map(m -> (o, h) -> call(() -> m.invoke(o, h)));
         return wither
                 .or(() -> computeRecordWither(ownerType, propertyName))
                 .or(() -> computeCopyMethodWither(ownerType, propertyName))
                 .orElseGet(() -> {
                     AtomicBoolean warningIssued = new AtomicBoolean();
-                    MemberInvoker field = ReflectionUtils.getField(ownerType, propertyName)
+                    MemberInvoker field = JvmComponentIntrospector.getInstance().getField(ownerType, propertyName)
                             .map(DefaultMemberInvoker::asInvoker).orElse(null);
                     Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
                     return (o, h) -> {
@@ -253,7 +244,7 @@ public class AnnotatedEntityHolder {
         List<Field> fields = Arrays.stream(ownerType.getDeclaredFields())
                 .filter(field -> !Modifier.isStatic(field.getModifiers()))
                 .filter(field -> !field.isSynthetic())
-                .map(ReflectionUtils::ensureAccessible)
+                .map(method -> JvmComponentIntrospector.getInstance().ensureAccessible(method))
                 .toList();
         int memberIndex = -1;
         for (int i = 0; i < fields.size(); i++) {
@@ -266,12 +257,12 @@ public class AnnotatedEntityHolder {
             return Optional.empty();
         }
         int updateIndex = memberIndex;
-        return ReflectionUtils.getAllMethods(ownerType).stream()
+        return JvmComponentIntrospector.getInstance().getAllMethods(ownerType).stream()
                 .filter(method -> "copy".equals(method.getName()))
                 .filter(method -> ownerType.isAssignableFrom(method.getReturnType()))
                 .filter(method -> matchesCopyParameters(method, fields))
                 .findFirst()
-                .map(ReflectionUtils::ensureAccessible)
+                .map(method -> JvmComponentIntrospector.getInstance().ensureAccessible(method))
                 .map(method -> (owner, holder) -> call(() -> {
                     Object[] args = new Object[fields.size()];
                     for (int i = 0; i < fields.size(); i++) {
@@ -311,7 +302,7 @@ public class AnnotatedEntityHolder {
         Method[] accessors = new Method[components.length];
         for (int i = 0; i < components.length; i++) {
             constructorTypes[i] = components[i].getType();
-            accessors[i] = ReflectionUtils.ensureAccessible(components[i].getAccessor());
+            accessors[i] = JvmComponentIntrospector.getInstance().ensureAccessible(components[i].getAccessor());
             if (Objects.equals(components[i].getName(), propertyName)) {
                 memberIndex = i;
             }
@@ -321,7 +312,7 @@ public class AnnotatedEntityHolder {
         }
         int updateIndex = memberIndex;
         return call(() -> {
-            var constructor = ReflectionUtils.ensureAccessible(ownerType.getDeclaredConstructor(constructorTypes));
+            var constructor = JvmComponentIntrospector.getInstance().ensureAccessible(ownerType.getDeclaredConstructor(constructorTypes));
             return Optional.<BiFunction<Object, Object, Object>>of((owner, holder) -> call(() -> {
                 Object[] args = new Object[components.length];
                 for (int i = 0; i < components.length; i++) {
@@ -334,8 +325,8 @@ public class AnnotatedEntityHolder {
 
     private static Function<Object, Object> computeOwnerCloner(Class<?> ownerType, Serializer serializer) {
         try {
-            var constructor = ReflectionUtils.ensureAccessible(ownerType.getDeclaredConstructor());
-            return owner -> copyFields(owner, call(constructor::newInstance));
+            var constructor = JvmComponentIntrospector.getInstance().ensureAccessible(ownerType.getDeclaredConstructor());
+            return owner -> JvmComponentIntrospector.getInstance().copyFields(owner, call(constructor::newInstance));
         } catch (Exception ignored) {
             return serializer::clone;
         }
@@ -363,7 +354,7 @@ public class AnnotatedEntityHolder {
         if (parent.get() == null) {
             return List.of();
         }
-        Object holderValue = getValue(location, parent.get(), false);
+        Object holderValue = JvmComponentIntrospector.getInstance().getValue(location, parent.get(), false);
         ImmutableEntity<?> emptyEntity = getEmptyEntity().toBuilder().parent(parent).build();
         if (holderValue == null) {
             return List.of(emptyEntity);
@@ -401,7 +392,7 @@ public class AnnotatedEntityHolder {
         if (parent.get() == null) {
             return null;
         }
-        Object holderValue = getValue(location, parent.get(), false);
+        Object holderValue = JvmComponentIntrospector.getInstance().getValue(location, parent.get(), false);
         if (holderValue == null) {
             return null;
         }
@@ -464,12 +455,12 @@ public class AnnotatedEntityHolder {
         if (id.value() != null) {
             addRouteValue(results, id.value().toString());
         }
-        for (AccessibleObject aliasLocation : getAnnotatedProperties(member.getClass(), Alias.class)) {
-            Object aliasValue = getValue(aliasLocation, member, false);
+        for (AccessibleObject aliasLocation : JvmComponentIntrospector.getInstance().getAnnotatedProperties(member.getClass(), Alias.class)) {
+            Object aliasValue = JvmComponentIntrospector.getInstance().getValue(aliasLocation, member, false);
             if (aliasValue == null) {
                 continue;
             }
-            getAnnotationAs(aliasLocation, Alias.class, Alias.class).ifPresent(alias -> {
+            JvmComponentIntrospector.getInstance().getAnnotationAs(aliasLocation, Alias.class, Alias.class).ifPresent(alias -> {
                 if (aliasValue instanceof Collection<?> collection) {
                     for (Object item : collection) {
                         if (item != null) {
@@ -553,7 +544,7 @@ public class AnnotatedEntityHolder {
         if (updateList.isEmpty()) {
             return owner;
         }
-        Object holder = ReflectionUtils.getValue(location, owner);
+        Object holder = JvmComponentIntrospector.getInstance().getValue(location, owner);
         if (collectionHolder) {
             Collection<Object> collection = serializer.clone(holder);
             if (collection == null) {

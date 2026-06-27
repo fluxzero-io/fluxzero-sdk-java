@@ -18,7 +18,7 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.Relationship;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -45,9 +45,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
-import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.common.Message.asMessage;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 import static java.util.Collections.emptyList;
@@ -69,9 +66,9 @@ public interface Entity<T> {
     ClassValue<Boolean> selfReferentialMemberCache = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> entityType) {
-            for (var location : ReflectionUtils.getAnnotatedProperties(entityType, Member.class)) {
-                Class<?> childType = ReflectionUtils.getCollectionElementType(location)
-                        .orElse(ReflectionUtils.getPropertyType(location));
+            for (var location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(entityType, Member.class)) {
+                Class<?> childType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
+                        .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
                 if (Objects.equals(entityType, childType)) {
                     return true;
                 }
@@ -155,7 +152,7 @@ public interface Entity<T> {
     @Nullable
     static Class<?> getAggregateType(HasMetadata message) {
         return Optional.ofNullable(message.getMetadata().get(AGGREGATE_TYPE_METADATA_KEY))
-                .map(c -> ReflectionUtils.classForName(c, null)).orElse(null);
+                .map(c -> JvmComponentIntrospector.getInstance().classForName(c, null)).orElse(null);
     }
 
     /**
@@ -862,14 +859,14 @@ public interface Entity<T> {
         Object payload = message instanceof HasMessage hm ? hm.getPayload() : message;
         Object id = id();
         if (id == null) {
-            if (!(includeEmpty && isEmpty() && hasProperty(idProperty, payload))) {
+            if (!(includeEmpty && isEmpty() && JvmComponentIntrospector.getInstance().hasProperty(idProperty, payload))) {
                 return false;
             }
             Entity<?> parent = parent();
             Object routeValue = parent != null && parent.idProperty() != null
-                    ? readProperty(parent.idProperty(), payload).orElse(null) : null;
+                    ? JvmComponentIntrospector.getInstance().readProperty(parent.idProperty(), payload).orElse(null) : null;
             if (routeValue == null) {
-                routeValue = getAnnotatedPropertyValue(payload, RoutingKey.class).orElse(null);
+                routeValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, RoutingKey.class).orElse(null);
             }
             if (routeValue == null || parent == null || !hasSelfReferentialMember(parent.type())) {
                 return true;
@@ -879,8 +876,8 @@ public interface Entity<T> {
             }
             return matchesRoute(parent, routeValue);
         }
-        if (readProperty(idProperty, payload)
-                .or(() -> getAnnotatedPropertyValue(payload, RoutingKey.class)).map(id::equals).orElse(false)) {
+        if (JvmComponentIntrospector.getInstance().readProperty(idProperty, payload)
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, RoutingKey.class)).map(id::equals).orElse(false)) {
             return true;
         }
         if (isPresent() && shouldSearchDescendants(payload, idProperty)) {
@@ -894,13 +891,13 @@ public interface Entity<T> {
     }
 
     private boolean shouldSearchDescendants(Object payload, String idProperty) {
-        if (!hasProperty(idProperty, payload)) {
+        if (!JvmComponentIntrospector.getInstance().hasProperty(idProperty, payload)) {
             return true;
         }
         if (!hasSelfReferentialMember(type())) {
             return false;
         }
-        Object candidate = readProperty(idProperty, payload).orElse(null);
+        Object candidate = JvmComponentIntrospector.getInstance().readProperty(idProperty, payload).orElse(null);
         return candidate != null && !matchesRoute(this, candidate);
     }
 

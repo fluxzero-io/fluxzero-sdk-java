@@ -16,10 +16,10 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.MessageFilter;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -55,12 +55,13 @@ import java.lang.reflect.Executable;
  */
 public class SegmentFilter implements MessageFilter<HasMessage> {
     private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
+    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
 
     @Override
     public MessageFilter<? super HasMessage> prepare(Executable executable,
                                                      Class<? extends Annotation> handlerAnnotation,
                                                      Class<?> targetClass) {
-        RoutingKey routingKey = ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
+        RoutingKey routingKey = introspector.executableAnnotation(executable, RoutingKey.class)
                 .orElse(null);
         return routingKey == null ? ALLOW_ALL : new PreparedSegmentFilter(routingKey.value());
     }
@@ -74,7 +75,7 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
             || !tracker.getConfiguration().ignoreSegment()) {
             return true;
         }
-        RoutingKey routingKey = ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
+        RoutingKey routingKey = introspector.executableAnnotation(executable, RoutingKey.class)
                 .orElse(null);
         if (routingKey == null) {
             return true;

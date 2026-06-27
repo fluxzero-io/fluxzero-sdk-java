@@ -16,10 +16,10 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
@@ -54,6 +54,7 @@ import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.ignor
  */
 @AllArgsConstructor
 public class WebPayloadParameterResolver implements ParameterResolver<HasMessage> {
+    private static final JvmComponentIntrospector INTROSPECTOR = JvmComponentIntrospector.getInstance();
     private final boolean validatePayload;
     private final boolean authoriseUser;
 
@@ -107,12 +108,12 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
-        return ReflectionUtils.isOrHas(methodAnnotation, HandleWeb.class);
+        return INTROSPECTOR.isOrHas(methodAnnotation, HandleWeb.class);
     }
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
+        return INTROSPECTOR.isExecutableAnnotationPresent(method, HandleWeb.class);
     }
 
     Object resolvePayload(HasMessage message, Parameter parameter, Type type) {

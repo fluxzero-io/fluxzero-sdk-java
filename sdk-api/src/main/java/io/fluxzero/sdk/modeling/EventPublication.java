@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 
 /**
  * Controls whether an applied update should result in event publication.
@@ -28,7 +27,6 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
  *
  * @see Aggregate
  * @see Apply
- * @see InterceptApply
  * @see EventPublicationStrategy
  */
 public enum EventPublication {

@@ -37,13 +37,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyName;
-import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 import static io.fluxzero.sdk.common.ClientUtils.determineSearchCollection;
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
 import static io.fluxzero.sdk.modeling.SearchParameters.defaultSearchParameters;
 import static java.util.Optional.ofNullable;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Default implementation of the {@link IndexOperation} interface.
@@ -74,7 +73,7 @@ public class DefaultIndexOperation implements IndexOperation {
         Class<?> objectType = object instanceof Entity<?> e ? e.type() : object.getClass();
         var searchParams = ofNullable(getSearchParameters(objectType)).orElse(defaultSearchParameters);
         String collection = ofNullable(searchParams.getCollection()).orElseGet(objectType::getSimpleName);
-        String idPath = object instanceof Entity<?> e ? e.idProperty() : getAnnotatedPropertyName(object, EntityId.class).orElse(null);
+        String idPath = object instanceof Entity<?> e ? e.idProperty() : JvmComponentIntrospector.getInstance().getAnnotatedPropertyName(object, EntityId.class).orElse(null);
         return prepare(documentStore, object, collection, idPath,
                        searchParams.getTimestampPath(), searchParams.getEndPath());
     }
@@ -93,7 +92,7 @@ public class DefaultIndexOperation implements IndexOperation {
     public static DefaultIndexOperation prepare(DocumentStore documentStore, Object object, @NonNull Object collection,
                                                 String idPath, String beginPath, String endPath) {
         Function<Object, ?> idFunction = v -> idPath != null && !idPath.isBlank()
-                ? readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
+                ? JvmComponentIntrospector.getInstance().readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
                 "Could not determine the document id for path: %s".formatted(idPath)))
                 : currentIdentityProvider().nextTechnicalId();
         Function<Object, Instant> beginFunction = v -> parseTimeProperty(beginPath, v, false, () -> null);

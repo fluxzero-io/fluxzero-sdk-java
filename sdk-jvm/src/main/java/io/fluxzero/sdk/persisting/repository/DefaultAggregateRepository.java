@@ -20,7 +20,7 @@ import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -85,8 +85,6 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
-import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.sdk.modeling.ModifiableAggregateRoot.getActiveAggregatesFor;
 import static java.lang.String.format;
 import static java.util.function.Predicate.not;
@@ -215,7 +213,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
     }
 
     private static Optional<Class<?>> inferAggregateTypeFromApplyFactory(Class<?> eventType) {
-        return ReflectionUtils.getAnnotatedMethods(eventType, Apply.class).stream()
+        return JvmComponentIntrospector.getInstance().getAnnotatedMethods(eventType, Apply.class).stream()
                 .filter(method -> method.getParameterCount() == 0)
                 .map(Method::getReturnType)
                 .filter(returnType -> !void.class.equals(returnType)
@@ -260,7 +258,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
         LinkedHashMap<String, Class<?>> result = new LinkedHashMap<>(getActiveAggregatesFor(entityId));
         relationshipsCache.getAggregatesFor(
                         entityId, id -> eventStoreClient.getAggregatesFor(id)
-                                .entrySet().stream().collect(toMap(Map.Entry::getKey, e -> classForName(
+                                .entrySet().stream().collect(toMap(Map.Entry::getKey, e -> JvmComponentIntrospector.getInstance().classForName(
                                         serializer.upcastType(e.getValue()), Void.class), (a, b) -> b, LinkedHashMap::new)))
                 .entrySet().forEach(e -> result.putIfAbsent(e.getKey(), e.getValue()));
         return result;
@@ -342,7 +340,8 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.collection = Optional.of(annotation).map(Aggregate::collection)
                     .filter(s -> !s.isEmpty()).map(ApplicationProperties::substituteProperties)
                     .orElse(type.getSimpleName());
-            this.idProperty = getAnnotatedProperty(type, EntityId.class).map(ReflectionUtils::getName).orElse(null);
+            this.idProperty = JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
+                    .map(property -> JvmComponentIntrospector.getInstance().getName(property)).orElse(null);
             String timestampPath = Optional.of(annotation)
                     .map(Aggregate::timestampPath)
                     .filter(not(String::isBlank))
@@ -361,7 +360,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             return new SideEffectFreeEntity<>(ImmutableAggregateRoot
                                                       .<T>builder()
                                                       .idProperty(idProperty)
-                                                      .id(ReflectionUtils.readProperty(idProperty, value).orElse(null))
+                                                      .id(JvmComponentIntrospector.getInstance().readProperty(idProperty, value).orElse(null))
                                                       .value(value)
                                                       .type((Class<T>) (value != null ? value.getClass() :
                                                               Object.class))

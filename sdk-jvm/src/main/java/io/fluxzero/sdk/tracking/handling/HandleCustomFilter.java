@@ -16,8 +16,8 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.MessageFilter;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -34,12 +34,17 @@ import java.util.Objects;
  * @see DeserializingMessage
  */
 public class HandleCustomFilter implements MessageFilter<DeserializingMessage> {
+    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return ReflectionUtils.getAnnotation(executable, HandleCustom.class)
-                .map(c -> Objects.equals(c.value(), message.getTopic()))
+        return introspector.executableAnnotation(executable, HandleCustom.class)
+                .map(c -> Objects.equals(customTopic(c), message.getTopic()))
                 .orElse(false);
+    }
+
+    private static String customTopic(HandleCustom annotation) {
+        return annotation.value().isBlank() ? annotation.topic() : annotation.value();
     }
 }

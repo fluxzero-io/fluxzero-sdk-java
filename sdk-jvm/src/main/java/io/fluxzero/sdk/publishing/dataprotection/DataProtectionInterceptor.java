@@ -41,13 +41,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
-import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.isLeafValue;
-import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
 import static java.util.Optional.ofNullable;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data
@@ -216,7 +211,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
         try {
-            writeProperty(fieldName, payload, keyValueStore.get(key));
+            JvmComponentIntrospector.getInstance().writeProperty(fieldName, payload, keyValueStore.get(key));
         } catch (Exception e) {
             log.warn("Failed to set field {}", fieldName, e);
         }
@@ -228,11 +223,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     private Object sanitizePayload(Object payload, Map<String, String> protectedFields) {
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
-            protectedFields.forEach((name, key) -> writeProperty(name, payloadTree, null));
+            protectedFields.forEach((name, key) -> JvmComponentIntrospector.getInstance().writeProperty(name, payloadTree, null));
             return serializer.convert(payloadTree, payload.getClass());
         }
         Object payloadCopy = serializer.deserialize(serializer.serialize(payload));
-        protectedFields.forEach((name, key) -> writeProperty(name, payloadCopy, null));
+        protectedFields.forEach((name, key) -> JvmComponentIntrospector.getInstance().writeProperty(name, payloadCopy, null));
         return payloadCopy;
     }
 
@@ -241,8 +236,8 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             return Map.of();
         }
         Map<String, String> protectedFields = new LinkedHashMap<>();
-        getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
-                .flatMap(property -> ofNullable(getValue(property, value)).stream()
+        JvmComponentIntrospector.getInstance().getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
+                .flatMap(property -> ofNullable(JvmComponentIntrospector.getInstance().getValue(property, value)).stream()
                         .flatMap(propertyValue -> getProtectedFields(property, propertyValue)))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
@@ -253,13 +248,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (propertyValue == null) {
             return Stream.empty();
         }
-        String name = getPropertyName(holder);
-        if (isLeafValue(propertyValue)
+        String name = JvmComponentIntrospector.getInstance().getPropertyName(holder);
+        if (JvmComponentIntrospector.getInstance().isLeafValue(propertyValue)
             || propertyValue instanceof JsonNode
             || propertyValue instanceof Data<?>
             || propertyValue instanceof Iterable<?>
             || propertyValue instanceof Map<?, ?>
-            || getTypeAnnotation(propertyValue.getClass(), ProtectData.class) != null) {
+            || JvmComponentIntrospector.getInstance().getTypeAnnotation(propertyValue.getClass(), ProtectData.class) != null) {
             return Stream.of(Map.entry(name, storeProtectedValue(propertyValue)));
         }
         return getProtectedFields(propertyValue).entrySet().stream()

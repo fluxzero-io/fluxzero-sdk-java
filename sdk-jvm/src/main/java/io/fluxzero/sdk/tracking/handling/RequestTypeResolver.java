@@ -14,7 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -34,7 +34,7 @@ public final class RequestTypeResolver {
      * @return declared response type, or {@link Object} when it cannot be resolved
      */
     public static Type responseType(Request<?> request) {
-        Type genericType = ReflectionUtils.getGenericType(request.getClass(), Request.class);
+        Type genericType = JvmComponentIntrospector.getInstance().getGenericType(request.getClass(), Request.class);
         if (genericType instanceof ParameterizedType pt && pt.getActualTypeArguments().length == 1) {
             return pt.getActualTypeArguments()[0];
         }

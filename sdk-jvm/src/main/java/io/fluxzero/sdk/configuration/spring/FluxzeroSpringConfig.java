@@ -59,8 +59,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 
 /**
  * Spring configuration class for automatically wiring and initializing common Fluxzero components in a Spring
@@ -141,7 +141,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
      */
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-        if (ifClass(bean) == null) {
+        if (JvmComponentIntrospector.getInstance().ifClass(bean) == null) {
             springBeans.add(bean);
         }
         return bean;

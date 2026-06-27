@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>fluxzero-sdk-java</artifactId>
+        <groupId>io.fluxzero</groupId>
+        <version>0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>browser-conformance</artifactId>
+
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>Browser-native Fluxzero SDK conformance checks.</description>
+    <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
+
+    <properties>
+        <playwright.version>1.60.0</playwright.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>sdk-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>sdk-browser</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>sdk-browser-generator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>sdk-jvm</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <proc>none</proc>
+                    <annotationProcessorPaths combine.self="override"/>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

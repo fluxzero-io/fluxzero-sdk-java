@@ -16,11 +16,11 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -42,6 +42,7 @@ import java.util.function.Function;
  * @see ParameterResolver
  */
 public class TimestampParameterResolver implements ParameterResolver<Object> {
+    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
 
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
@@ -52,7 +53,7 @@ public class TimestampParameterResolver implements ParameterResolver<Object> {
             };
         }
         if (Clock.class.isAssignableFrom(p.getType())) {
-            if (ReflectionUtils.isOrHas(methodAnnotation, Apply.class)) {
+            if (introspector.isOrHas(methodAnnotation, Apply.class)) {
                 return m -> {
                     var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
                     return Clock.fixed(dm.getTimestamp(), ZoneOffset.UTC);

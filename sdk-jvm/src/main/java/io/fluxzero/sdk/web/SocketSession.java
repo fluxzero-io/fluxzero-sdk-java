@@ -15,7 +15,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.publishing.Timeout;
 import io.fluxzero.sdk.tracking.handling.Request;
 
@@ -71,7 +71,7 @@ public interface SocketSession {
      * @see SocketResponse for a description of the expected response.
      */
     default <R> CompletionStage<R> sendRequest(Request<R> request) {
-        Timeout timeout = ReflectionUtils.getTypeAnnotation(request.getClass(), Timeout.class);
+        Timeout timeout = JvmComponentIntrospector.getInstance().getTypeAnnotation(request.getClass(), Timeout.class);
         Duration duration = timeout == null ? Duration.ofSeconds(30)
                 : Duration.of(timeout.value(), timeout.timeUnit().toChronoUnit());
         return sendRequest(request, duration);

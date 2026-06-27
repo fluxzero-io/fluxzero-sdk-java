@@ -29,8 +29,8 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Automatic endpoint that serves the generated OpenAPI document for an {@link ApiDocInfo} scope.
@@ -52,7 +52,7 @@ public final class OpenApiDocumentEndpoint {
         List<OpenApiDocumentEndpoint> endpoints = new ArrayList<>();
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
-        for (Package currentPackage : getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
+        for (Package currentPackage : JvmComponentIntrospector.getInstance().getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
             path = appendPath(path, pathValues.apply(currentPackage).toList());
             addIfEnabled(endpoints, currentPackage.getAnnotation(ApiDocInfo.class), path, handlerType, handler);
         }

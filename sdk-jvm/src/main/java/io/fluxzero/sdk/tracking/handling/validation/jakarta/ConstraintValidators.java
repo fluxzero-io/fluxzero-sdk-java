@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.validation.ClockProvider;
 import jakarta.validation.ConstraintDefinitionException;
 import jakarta.validation.ConstraintValidator;
@@ -143,7 +143,7 @@ final class ConstraintValidators {
                 .filter(validator -> descriptor(validatorClass(validator.getClass())).supports(value))
                 .sorted(Comparator.comparing(
                         validator -> descriptor(validatorClass(validator.getClass())).validatedType(),
-                        ReflectionUtils.getClassSpecificityComparator()))
+                        JvmComponentIntrospector.getInstance().getClassSpecificityComparator()))
                 .toList();
         if (candidates.size() > 1) {
             Class<?> first = descriptor(validatorClass(candidates.get(0).getClass())).validatedType();
@@ -172,11 +172,11 @@ final class ConstraintValidators {
 
         boolean supports(Object value) {
             return value == null
-                   || ReflectionUtils.box(validatedType).isAssignableFrom(ReflectionUtils.box(value.getClass()));
+                   || JvmComponentIntrospector.getInstance().box(validatedType).isAssignableFrom(JvmComponentIntrospector.getInstance().box(value.getClass()));
         }
 
         private static boolean crossParameter(Class<? extends ConstraintValidator<?, ?>> validatorType) {
-            return ReflectionUtils.getTypeMetadata(validatorType).typeAnnotations().stream()
+            return JvmComponentIntrospector.getInstance().getTypeMetadata(validatorType).typeAnnotations().stream()
                     .filter(annotation -> annotation.annotationType().getName()
                             .equals("jakarta.validation.constraintvalidation.SupportedValidationTarget"))
                     .flatMap(annotation -> ValidationAnnotationUtils.annotationValue(annotation, "value", Object[].class)
@@ -198,7 +198,7 @@ final class ConstraintValidators {
                 && ConstraintValidator.class.isAssignableFrom(rawType)) {
                 Type[] arguments = parameterizedType.getActualTypeArguments();
                 if (rawType.equals(ConstraintValidator.class) && arguments.length == 2) {
-                    return Optional.of(ReflectionUtils.rawClass(arguments[1]));
+                    return Optional.of(JvmComponentIntrospector.getInstance().rawClass(arguments[1]));
                 }
             }
             Class<?> raw = switch (type) {

@@ -18,7 +18,7 @@ package io.fluxzero.sdk.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -178,7 +178,7 @@ public class DefaultWebRequestContext implements WebRequestContext {
                 case COOKIE -> new ParameterValue(cookieMap.get(name));
                 case FORM -> new ParameterValue(firstOrListObject(formParameterValues().get(name)));
                 case QUERY -> new ParameterValue(firstOrList(queryParameters.get(name)));
-                case BODY -> ReflectionUtils.readProperty(name, jsonBody())
+                case BODY -> JvmComponentIntrospector.getInstance().readProperty(name, jsonBody())
                         .map(ParameterValue::new).orElseGet(() -> new ParameterValue(null));
             };
             if (value.hasValue()) {

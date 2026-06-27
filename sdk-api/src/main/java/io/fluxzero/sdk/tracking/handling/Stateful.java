@@ -15,9 +15,6 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
-import io.fluxzero.sdk.modeling.EntityId;
-import io.fluxzero.sdk.modeling.HandlerRepository;
-import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.persisting.search.Searchable;
 
 import java.lang.annotation.Documented;

@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 
@@ -65,7 +65,7 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
                 .filter(conversion -> !ignoredConversions.contains(conversion))
                 .toList();
         return new TypeUseValidationMetadata(constraints,
-                                   !ignoreCascaded && ReflectionUtils.getAnnotation(type, Valid.class).isPresent(),
+                                   !ignoreCascaded && JvmComponentIntrospector.getInstance().getAnnotation(type, Valid.class).isPresent(),
                                    conversions, List.copyOf(typeArguments), component);
     }
 
