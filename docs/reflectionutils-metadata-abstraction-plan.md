@@ -308,7 +308,13 @@ Work:
     classpath registry resources.
   - [x] The manual comparison harness generated Maven apps use the same registry lifecycle wiring.
   - [x] Docs and Java agent rules describe lifecycle generation as the default path and manual generation as fallback.
-- [ ] Add a larger real-app parity corpus beyond the curated registry fixtures.
+- [x] Add a larger real-app parity corpus beyond the curated registry fixtures.
+  - [x] Added a checked-in mini app with package metadata, consumers, registered types, self-handling payloads,
+    modeling properties, all route families, web/socket routes, and infrastructure capabilities.
+  - [x] Source and classpath scanners now compare that mini app through the shared semantic parity assertions.
+  - [x] Parity assertions now fail per package/component, so future corpus failures point at the exact semantic drift.
+  - [x] Fixed source scanning so lower `package-info.java` files inherit ancestor `@Consumer` and `@LocalHandler`
+    semantics while still preserving lower package web-path metadata.
 - [ ] Rerun full `./mvnw -B install` after the current parity changes.
 
 ## Recent Verification
@@ -334,6 +340,7 @@ Work:
 - [x] Full `sdk-jvm`, `sdk-browser`, `sdk-browser-generator`, and `browser-conformance` suites passed under
   `-Pbrowser-conformance`, including Playwright/TeaVM E2E.
 - [x] Phase 3 registry lifecycle focused tests passed for `ComponentRegistryGeneratorTest` and `DownstreamProjectTest`.
+- [x] Phase 3 real-app registry corpus and focused registry cluster passed.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape

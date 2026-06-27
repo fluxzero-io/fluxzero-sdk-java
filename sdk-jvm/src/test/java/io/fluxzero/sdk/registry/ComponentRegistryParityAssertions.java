@@ -29,7 +29,15 @@ final class ComponentRegistryParityAssertions {
     }
 
     static void assertSemanticParity(ComponentRegistry expected, ComponentRegistry actual) {
-        assertEquals(snapshot(expected), snapshot(actual), "Fluxzero component registry semantic parity");
+        RegistrySnapshot expectedSnapshot = snapshot(expected);
+        RegistrySnapshot actualSnapshot = snapshot(actual);
+        assertEquals(expectedSnapshot.packages(), actualSnapshot.packages(),
+                     "Fluxzero component registry package semantic parity");
+        assertEquals(expectedSnapshot.components().keySet(), actualSnapshot.components().keySet(),
+                     "Fluxzero component registry component keys");
+        expectedSnapshot.components().forEach((name, component) ->
+                assertEquals(component, actualSnapshot.components().get(name),
+                             "Fluxzero component registry semantic parity for " + name));
     }
 
     private static RegistrySnapshot snapshot(ComponentRegistry registry) {

@@ -20,11 +20,25 @@ import io.fluxzero.sdk.registry.parity.ParityIdentityProvider;
 import io.fluxzero.sdk.registry.parity.ParityModel;
 import io.fluxzero.sdk.registry.parity.ParityResult;
 import io.fluxzero.sdk.registry.parity.ParitySelfQuery;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppCommand;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppHandlers;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppLine;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppLocalQuery;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppModel;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppResult;
+import io.fluxzero.sdk.registry.parity.realapp.RealAppSelfCommand;
+import io.fluxzero.sdk.registry.parity.realapp.infra.RealAppCache;
+import io.fluxzero.sdk.registry.parity.realapp.infra.RealAppIdentityProvider;
+import io.fluxzero.sdk.registry.parity.realapp.infra.RealAppPropertySource;
+import io.fluxzero.sdk.registry.parity.realapp.infra.RealAppScheduler;
+import io.fluxzero.sdk.registry.parity.realapp.web.RealAppEndpoint;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Stream;
 
 class SourceClasspathRegistryParityTest {
 
@@ -38,6 +52,45 @@ class SourceClasspathRegistryParityTest {
                 ParityResult.class, ParitySelfQuery.class).normalized();
 
         ComponentRegistryParityAssertions.assertSemanticParity(classpath, source);
+    }
+
+    @Test
+    void realAppSourceAndClasspathScannersProduceEquivalentFluxzeroSemantics() {
+        Path sourceRoot = realAppSourceRoot();
+
+        ComponentRegistry source = new SourceComponentScanner().scan(sourceRoot).normalized();
+        ComponentRegistry classpath = new ClasspathComponentScanner().scan(List.of(
+                ParityCommand.class,
+                ParityHandler.class,
+                ParityIdentityProvider.class,
+                ParityModel.class,
+                ParityResult.class,
+                ParitySelfQuery.class,
+                RealAppCache.class,
+                RealAppCommand.class,
+                RealAppEndpoint.class,
+                RealAppHandlers.class,
+                RealAppIdentityProvider.class,
+                RealAppLine.class,
+                RealAppLocalQuery.class,
+                RealAppModel.class,
+                RealAppPropertySource.class,
+                RealAppResult.class,
+                RealAppScheduler.class,
+                RealAppSelfCommand.class
+        )).normalized();
+
+        ComponentRegistryParityAssertions.assertSemanticParity(classpath, source);
+    }
+
+    private static Path realAppSourceRoot() {
+        String relative = "src/test/java/io/fluxzero/sdk/registry/parity";
+        Path workingDirectory = Path.of(System.getProperty("user.dir"));
+        return Stream.of(workingDirectory.resolve(relative), workingDirectory.resolve("sdk-jvm").resolve(relative))
+                .filter(Files::isDirectory)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Could not locate real-app parity source root from "
+                                                       + workingDirectory));
     }
 
     private static void writeParitySources(Path sourceRoot) throws Exception {

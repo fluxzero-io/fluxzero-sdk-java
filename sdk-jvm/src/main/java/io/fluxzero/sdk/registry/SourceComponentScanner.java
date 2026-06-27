@@ -389,7 +389,7 @@ public class SourceComponentScanner {
 
     private ComponentDescriptor componentDescriptor(ParsedSource source, TypeInfo type,
                                                    Map<String, PackageInfo> packageInfos, List<String> allTypeNames) {
-        PackageInfo packageInfo = packageInfo(source.packageName(), packageInfos);
+        PackageInfo packageInfo = effectivePackageInfo(source.packageName(), packageInfos);
         List<RegisteredTypeDescriptor> registeredTypes = registeredTypes(type.annotations(), type.fullClassName(), allTypeNames);
         ConsumerDescriptor consumer = consumerDescriptor(type.annotations())
                 .orElse(packageInfo == null ? null : packageInfo.consumer());
@@ -622,14 +622,32 @@ public class SourceComponentScanner {
         return lastDot < 0 ? Objects.requireNonNullElse(packageName, "") : packageName.substring(lastDot + 1);
     }
 
-    private static PackageInfo packageInfo(String packageName, Map<String, PackageInfo> packageInfos) {
+    private static PackageInfo effectivePackageInfo(String packageName, Map<String, PackageInfo> packageInfos) {
+        List<PackageInfo> lineage = new ArrayList<>();
         for (String current = packageName; current != null; current = parentPackage(current)) {
             PackageInfo packageInfo = packageInfos.get(current);
             if (packageInfo != null) {
-                return packageInfo;
+                lineage.add(0, packageInfo);
             }
         }
-        return null;
+        if (lineage.isEmpty()) {
+            return null;
+        }
+        List<AnnotationDescriptor> annotations = lineage.stream()
+                .flatMap(packageInfo -> packageInfo.annotations().stream())
+                .toList();
+        LocalHandlerConfig localHandler = null;
+        ConsumerDescriptor consumer = null;
+        for (PackageInfo packageInfo : lineage) {
+            if (packageInfo.localHandler() != null) {
+                localHandler = packageInfo.localHandler();
+            }
+            if (packageInfo.consumer() != null) {
+                consumer = packageInfo.consumer();
+            }
+        }
+        PackageInfo nearest = lineage.getLast();
+        return new PackageInfo(nearest.packageName(), nearest.sourceFile(), annotations, localHandler, consumer);
     }
 
     private static String parentPackage(String packageName) {
