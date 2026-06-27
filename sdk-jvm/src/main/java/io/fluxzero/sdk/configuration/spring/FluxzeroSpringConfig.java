@@ -35,7 +35,7 @@ import io.fluxzero.sdk.publishing.ErrorGateway;
 import io.fluxzero.sdk.publishing.EventGateway;
 import io.fluxzero.sdk.publishing.MetricsGateway;
 import io.fluxzero.sdk.publishing.ResultGateway;
-import io.fluxzero.sdk.registry.ClasspathComponentScanner;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
@@ -174,7 +174,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
                 .map(handler -> handler instanceof Class<?> type ? type : handler.getClass())
                 .distinct()
                 .toList();
-        ComponentRegistry registry = new ClasspathComponentScanner().scan(componentTypes);
+        ComponentRegistry registry = ComponentMetadataLookups.registryFor(componentTypes);
         return registry.isEmpty() ? Registration.noOp() : fluxzero.registerComponentRegistry(registry);
     }
 

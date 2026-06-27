@@ -21,6 +21,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -66,6 +67,24 @@ public final class ComponentMetadataLookups {
         return activeRegistryLookup(componentTypes)
                 .or(() -> generatedRegistryLookup(componentTypes))
                 .or(() -> jvmLookup(componentTypes));
+    }
+
+    /**
+     * Returns registry metadata for the supplied component types.
+     * <p>
+     * Generated registry resources win. JVM classpath scanning is used only in hybrid/compatibility mode.
+     */
+    public static ComponentRegistry registryFor(Collection<Class<?>> types) {
+        List<Class<?>> componentTypes = componentTypes(types).stream()
+                .filter(JvmComponentMetadataLookup::isScannable)
+                .toList();
+        if (componentTypes.isEmpty()) {
+            return ComponentRegistry.empty();
+        }
+        return generatedRegistryLookup(componentTypes)
+                .or(() -> jvmLookup(componentTypes))
+                .map(ComponentMetadataLookup::registry)
+                .orElseGet(ComponentRegistry::empty);
     }
 
     static Optional<ComponentMetadataLookup> lookup(ComponentRegistry registry, Class<?>... types) {
@@ -237,6 +256,11 @@ public final class ComponentMetadataLookups {
     private static List<Class<?>> componentTypes(Class<?>... types) {
         Objects.requireNonNull(types, "types");
         return Arrays.stream(types).filter(Objects::nonNull).distinct().toList();
+    }
+
+    private static List<Class<?>> componentTypes(Collection<Class<?>> types) {
+        Objects.requireNonNull(types, "types");
+        return types.stream().filter(Objects::nonNull).distinct().toList();
     }
 
     private static String typeName(Class<?> type) {

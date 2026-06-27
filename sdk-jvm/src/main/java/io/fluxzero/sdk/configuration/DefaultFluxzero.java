@@ -69,7 +69,7 @@ import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
 import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
-import io.fluxzero.sdk.registry.ClasspathComponentScanner;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ComponentRegistryBlueprint;
 import io.fluxzero.sdk.registry.ComponentRegistryGenerator;
@@ -292,7 +292,7 @@ public class DefaultFluxzero implements Fluxzero {
                 .map(handler -> handler instanceof Class<?> type ? type : handler.getClass())
                 .distinct()
                 .toList();
-        return componentTypes.isEmpty() ? ComponentRegistry.empty() : new ClasspathComponentScanner().scan(componentTypes);
+        return ComponentMetadataLookups.registryFor(componentTypes);
     }
 
     @Override

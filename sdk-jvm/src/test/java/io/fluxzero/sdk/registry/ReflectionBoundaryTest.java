@@ -32,9 +32,7 @@ class ReflectionBoundaryTest {
     private static final Pattern DIRECT_METADATA_SCAN = Pattern.compile(
             "\\bJvmComponentMetadataLookup\\s*\\.\\s*(scan|scanIfScannable)\\s*\\("
             + "|new\\s+ClasspathComponentScanner\\s*\\(\\s*\\)\\s*\\.\\s*scan\\s*\\(");
-    private static final Map<String, Long> KNOWN_DIRECT_METADATA_SCAN_SITES = new TreeMap<>(Map.ofEntries(
-            Map.entry("src/main/java/io/fluxzero/sdk/configuration/DefaultFluxzero.java", 1L),
-            Map.entry("src/main/java/io/fluxzero/sdk/configuration/spring/FluxzeroSpringConfig.java", 1L)));
+    private static final Map<String, Long> KNOWN_DIRECT_METADATA_SCAN_SITES = new TreeMap<>();
 
     @Test
     void sdkJvmMainOnlyUsesReflectionBackendInJvmComponentIntrospector() throws Exception {

@@ -134,6 +134,14 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
+    void registryProducerRefusesJvmFallbackInGeneratedOnlyMode() {
+        assertFalse(ComponentMetadataLookups.registryFor(Set.of(UnregisteredPlainComponent.class)).isEmpty());
+
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(ComponentMetadataLookups.registryFor(Set.of(UnregisteredPlainComponent.class)).isEmpty()));
+    }
+
+    @Test
     void resolverStillUsesRegistryMetadataInGeneratedOnlyMode() {
         ComponentRegistry registry = JvmComponentMetadataLookup.scan(LookupCommand.class).registry();
 
