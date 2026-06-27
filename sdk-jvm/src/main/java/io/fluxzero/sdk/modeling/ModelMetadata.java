@@ -16,16 +16,22 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.PropertyAccess;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,8 +50,9 @@ final class ModelMetadata {
             return List.of();
         }
         Map<String, AccessibleObject> result = new LinkedHashMap<>();
-        JvmComponentMetadataLookup.scanIfScannable(ownerType)
-                .ifPresent(lookup -> lookup.annotatedProperties(ownerType, annotationType)
+        ComponentMetadataLookups.lookup(ownerType)
+                .ifPresent(lookup -> lookup.properties(ownerType.getName()).stream()
+                        .filter(property -> annotation(property.annotations(), annotationType).isPresent())
                         .forEach(property -> annotatedPropertyLocation(ownerType, property.name(), annotationType)
                                 .ifPresent(location -> result.putIfAbsent(property.name(), location))));
         PROPERTIES.annotatedProperties(ownerType, annotationType)
@@ -59,8 +66,11 @@ final class ModelMetadata {
         if (ownerType == null) {
             return Optional.empty();
         }
-        return JvmComponentMetadataLookup.scanIfScannable(ownerType)
-                .flatMap(lookup -> lookup.annotatedPropertyName(ownerType, annotationType))
+        return ComponentMetadataLookups.lookup(ownerType)
+                .flatMap(lookup -> lookup.properties(ownerType.getName()).stream()
+                        .filter(property -> annotation(property.annotations(), annotationType).isPresent())
+                        .map(PropertyDescriptor::name)
+                        .findFirst())
                 .or(() -> PROPERTIES.annotatedPropertyName(ownerType, annotationType));
     }
 
@@ -134,8 +144,8 @@ final class ModelMetadata {
         if (executable == null) {
             return Optional.empty();
         }
-        return JvmComponentMetadataLookup.scanIfScannable(executable.getDeclaringClass())
-                .flatMap(lookup -> lookup.executable(executable))
+        return ComponentMetadataLookups.lookup(executable.getDeclaringClass())
+                .flatMap(lookup -> executable(lookup, executable))
                 .flatMap(descriptor -> annotation(descriptor, Apply.class))
                 .map(annotation -> new ApplyConfig(annotation.booleanValue("disableCompatibilityCheck", false)))
                 .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(executable, Apply.class)
@@ -146,8 +156,9 @@ final class ModelMetadata {
         if (ownerType == null) {
             return false;
         }
-        return JvmComponentMetadataLookup.scanIfScannable(ownerType)
-                       .map(lookup -> !lookup.annotatedProperties(ownerType, annotationType).isEmpty())
+        return ComponentMetadataLookups.lookup(ownerType)
+                       .map(lookup -> lookup.properties(ownerType.getName()).stream()
+                               .anyMatch(property -> annotation(property.annotations(), annotationType).isPresent()))
                        .orElse(false)
                || !PROPERTIES.annotatedProperties(ownerType, annotationType).isEmpty();
     }
@@ -161,9 +172,29 @@ final class ModelMetadata {
 
     private static Optional<AnnotationDescriptor> propertyMetadata(
             AccessibleObject property, Class<? extends Annotation> annotationType) {
-        return declaringClass(property).flatMap(ownerType -> JvmComponentMetadataLookup.scanIfScannable(ownerType)
-                .flatMap(lookup -> lookup.property(ownerType, PROPERTIES.propertyName(property))
+        return declaringClass(property).flatMap(ownerType -> ComponentMetadataLookups.lookup(ownerType)
+                .flatMap(lookup -> lookup.property(ownerType.getName(), PROPERTIES.propertyName(property))
                         .flatMap(descriptor -> annotation(descriptor.annotations(), annotationType))));
+    }
+
+    private static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, Executable executable) {
+        ExecutableKind kind = executable instanceof Constructor<?> ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
+        String name = executable.getName();
+        List<String> parameters = Arrays.stream(executable.getParameterTypes()).map(ModelMetadata::typeName).toList();
+        Optional<ExecutableDescriptor> result = lookup.executable(
+                executable.getDeclaringClass().getName(), kind, name, parameters);
+        if (result.isPresent() || executable instanceof Method) {
+            return result;
+        }
+        return lookup.executables(executable.getDeclaringClass().getName()).stream()
+                .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
+                .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
+                        .equals(parameters))
+                .findFirst();
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 
     private static Optional<AnnotationDescriptor> annotation(
@@ -174,7 +205,7 @@ final class ModelMetadata {
     private static Optional<AnnotationDescriptor> annotation(
             List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType) {
         return annotations.stream()
-                .filter(annotation -> annotation.qualifiedName().equals(annotationType.getName()))
+                .filter(annotation -> annotation.isOrHas(annotationType.getSimpleName(), annotationType.getName()))
                 .findFirst();
     }
 

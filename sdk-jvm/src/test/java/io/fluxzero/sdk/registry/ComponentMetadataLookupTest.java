@@ -27,16 +27,20 @@ import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Method;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -89,6 +93,35 @@ class ComponentMetadataLookupTest {
     void resolvesDeepNestedCanonicalNamesToJvmClasses() {
         assertSame(Deeply.Nested.Component.class, JvmComponentMetadataLookup.classForMetadataName(
                 Deeply.Nested.Component.class.getCanonicalName()).orElseThrow());
+    }
+
+    @Test
+    void resolverPrefersRegistryBackedMetadataWhenRegistryContainsTypes() {
+        ComponentRegistry registry = JvmComponentMetadataLookup.scan(LookupCommand.class).registry();
+
+        ComponentMetadataLookup lookup = ComponentMetadataLookups.lookup(registry, LookupCommand.class).orElseThrow();
+
+        assertInstanceOf(RegistryComponentMetadataLookup.class, lookup);
+        assertEquals("id", lookup.properties(LookupCommand.class.getName()).stream()
+                .filter(property -> property.annotations().stream()
+                        .anyMatch(annotation -> annotation.isOrHas("EntityId", EntityId.class.getName())))
+                .findFirst().orElseThrow().name());
+    }
+
+    @Test
+    void resolverLoadsGeneratedRegistryResources(@TempDir Path tempDir) throws Exception {
+        ComponentRegistry registry = JvmComponentMetadataLookup.scan(LookupCommand.class).registry();
+        ComponentRegistryJson.write(registry, tempDir.resolve(ComponentRegistryJson.DEFAULT_RESOURCE));
+
+        try (URLClassLoader classLoader =
+                     new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()},
+                                        ComponentMetadataLookupTest.class.getClassLoader())) {
+            ComponentMetadataLookup lookup =
+                    ComponentMetadataLookups.lookupGenerated(classLoader, LookupCommand.class).orElseThrow();
+
+            assertInstanceOf(RegistryComponentMetadataLookup.class, lookup);
+            assertEquals("id", lookup.property(LookupCommand.class.getName(), "id").orElseThrow().name());
+        }
     }
 
     @Test

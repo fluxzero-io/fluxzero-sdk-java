@@ -17,12 +17,14 @@ package io.fluxzero.sdk.browser.generator;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.RegisteredTypeDescriptor;
+import io.fluxzero.sdk.registry.RegistryComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationMetadata;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationRule;
 
@@ -44,15 +46,30 @@ public final class BrowserApplicationGenerator {
      * Generates a browser application using default package and class names.
      */
     public BrowserGenerationResult generate(ComponentRegistry registry) {
-        return generate(registry, BrowserGeneratorOptions.defaults());
+        return generate(RegistryComponentMetadataLookup.of(registry), BrowserGeneratorOptions.defaults());
+    }
+
+    /**
+     * Generates a browser application from the shared component metadata lookup facade.
+     */
+    public BrowserGenerationResult generate(ComponentMetadataLookup metadataLookup) {
+        return generate(metadataLookup, BrowserGeneratorOptions.defaults());
     }
 
     /**
      * Generates browser application sources and a JavaScript conformance manifest.
      */
     public BrowserGenerationResult generate(ComponentRegistry registry, BrowserGeneratorOptions options) {
-        Objects.requireNonNull(registry, "registry");
+        return generate(RegistryComponentMetadataLookup.of(registry), options);
+    }
+
+    /**
+     * Generates browser application sources and a JavaScript conformance manifest.
+     */
+    public BrowserGenerationResult generate(ComponentMetadataLookup metadataLookup, BrowserGeneratorOptions options) {
+        Objects.requireNonNull(metadataLookup, "metadataLookup");
         Objects.requireNonNull(options, "options");
+        ComponentRegistry registry = metadataLookup.registry();
         List<BrowserConformanceFeature> features = defaultConformanceFeatures();
         Map<String, Integer> counters = counters(registry);
         Map<String, Integer> metadataCounters = metadataCounters(registry);

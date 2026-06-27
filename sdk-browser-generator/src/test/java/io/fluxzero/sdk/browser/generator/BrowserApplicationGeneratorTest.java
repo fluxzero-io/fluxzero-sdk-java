@@ -24,6 +24,7 @@ import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.RegisteredTypeDescriptor;
+import io.fluxzero.sdk.registry.RegistryComponentMetadataLookup;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import org.junit.jupiter.api.Test;
 
@@ -94,6 +95,41 @@ class BrowserApplicationGeneratorTest {
         assertTrue(result.manifestJson().contains("\"window.fluxzeroConformance.runAll()\""));
         assertTrue(result.sources().getFirst().content().contains("BrowserExecutionCore"));
         assertTrue(result.sources().getFirst().content().contains("MessageType.COMMAND"));
+    }
+
+    @Test
+    void generatesFromSharedMetadataLookupFacade() {
+        ComponentRegistry registry = new ComponentRegistry(null, List.of(), List.of(new ComponentDescriptor(
+                null,
+                null,
+                ComponentKind.CLASS,
+                "example",
+                "LookupBackedHandler",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                Set.of(new HandlerRoute(
+                        MessageType.COMMAND,
+                        new AnnotationDescriptor("HandleCommand", "io.fluxzero.sdk.HandleCommand", Map.of()),
+                        null,
+                        false,
+                        false,
+                        false,
+                        true,
+                        true,
+                        Set.of("example.LookupCommand"),
+                        Set.of(),
+                        List.of())),
+                List.of(),
+                null,
+                Set.of(ComponentCapability.HANDLER))));
+
+        BrowserGenerationResult result = new BrowserApplicationGenerator().generate(
+                RegistryComponentMetadataLookup.of(registry));
+
+        assertEquals(1, result.counters().get("components"));
+        assertTrue(result.sources().getFirst().content().contains("LookupBackedHandler"));
     }
 
     @Test

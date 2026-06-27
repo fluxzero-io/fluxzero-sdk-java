@@ -222,7 +222,7 @@ Done when:
 
 ### Slice 5: Generated Registry Backend
 
-Status: [ ] planned.
+Status: [x] implemented for the current registry-backed metadata surface.
 
 Context: once the JVM runtime consumes the metadata lookup facade, a generated-registry backend can prove the same
 functional core no longer requires reflection for application semantics. This is the bridge from "metadata exists" to
@@ -233,14 +233,27 @@ possible.
 
 Work:
 
-- [ ] Implement lookup answers from `ComponentRegistry`, descriptors, generated property metadata, and generated
+- [x] Implement lookup answers from `ComponentRegistry`, descriptors, generated property metadata, and generated
   executable metadata.
-- [ ] Run relevant JVM tests against the registry-backed metadata backend.
-- [ ] Make browser execution consume the same backend shape.
+- [x] Run relevant JVM tests against the registry-backed metadata backend.
+- [x] Make browser generation consume the same backend shape.
+  - [x] `BrowserApplicationGenerator` accepts `ComponentMetadataLookup` directly.
+  - [x] Registry-backed lookup remains the dependency-free backend shared by generated/browser-oriented code.
+  - [ ] Full browser runtime parity remains Slice 6.
 
 Done when:
 
-- [ ] Reflection-backed and registry-backed JVM runs agree for the covered semantics.
+- [x] Reflection-backed and registry-backed JVM runs agree for the covered semantics.
+
+Acceptance evidence:
+
+- [x] JVM runtime metadata resolution prefers active/generated `ComponentRegistry` metadata and falls back to
+  reflection-backed classpath scanning only when registry metadata is unavailable.
+- [x] Generated registry resources are loadable through the metadata lookup resolver.
+- [x] Modeling metadata reads for annotated properties and `@Apply` executable metadata run through the shared lookup
+  resolver.
+- [x] Browser generation can start from the same `ComponentMetadataLookup` facade instead of directly owning a separate
+  metadata model.
 
 ### Slice 6: Browser Runtime Parity
 
