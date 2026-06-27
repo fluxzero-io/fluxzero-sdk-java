@@ -16,9 +16,12 @@ package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.publishing.Timeout;
 import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.registry.compiled.CompiledPackageHandler;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -224,6 +227,20 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
+    void typeAnnotationAsProjectsMetaAnnotationAttributesFromMetadata() {
+        ComponentMetadataLookup lookup = RegistryComponentMetadataLookup.of(
+                JvmComponentMetadataLookup.scan(RegisteredSearchableAggregate.class).registry());
+
+        SearchParameters parameters = ComponentMetadataLookups.typeAnnotationAs(
+                lookup, RegisteredSearchableAggregate.class, Searchable.class, SearchParameters.class).orElseThrow();
+
+        assertTrue(parameters.isSearchable());
+        assertEquals("registered-search", parameters.getCollection());
+        assertEquals("createdAt", parameters.getTimestampPath());
+        assertEquals("deletedAt", parameters.getEndPath());
+    }
+
+    @Test
     void metadataLookupMatchesMetaAnnotationsWithoutJvmFallback() throws Exception {
         JvmComponentMetadataLookup lookup = JvmComponentMetadataLookup.scan(MetaLookupHandler.class, LookupCommand.class);
         Method command = MetaLookupHandler.class.getDeclaredMethod("command", LookupCommand.class);
@@ -314,6 +331,10 @@ class ComponentMetadataLookupTest {
     @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(
             value = false, timeUnit = TimeUnit.MILLISECONDS, pingDelay = 7, pingTimeout = 3))
     static class RegisteredSocketEndpoint {
+    }
+
+    @Aggregate(searchable = true, collection = "registered-search", timestampPath = "createdAt", endPath = "deletedAt")
+    static class RegisteredSearchableAggregate {
     }
 
     private static String packageStrippedName(Class<?> type) {

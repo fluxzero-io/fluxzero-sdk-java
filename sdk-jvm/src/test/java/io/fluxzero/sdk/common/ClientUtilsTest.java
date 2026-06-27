@@ -16,6 +16,8 @@ package io.fluxzero.sdk.common;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.MemoizingSupplier;
+import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
@@ -128,6 +130,37 @@ class ClientUtilsTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForSearchParameters() {
+        GeneratedOnlyMetadataMode.run(() -> {
+            SearchParameters parameters = ClientUtils.getSearchParameters(UnregisteredGeneratedOnlySearchable.class);
+
+            assertTrue(parameters.isSearchable());
+            assertEquals(UnregisteredGeneratedOnlySearchable.class.getSimpleName(), parameters.getCollection());
+            assertEquals(null, parameters.getTimestampPath());
+        });
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredMetadataForSearchParameters() {
+        try {
+            TestFixture fixture = TestFixture.create();
+            fixture.getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlySearchable.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                SearchParameters parameters = ClientUtils.getSearchParameters(RegisteredGeneratedOnlySearchable.class);
+
+                assertTrue(parameters.isSearchable());
+                assertEquals("registered-search", parameters.getCollection());
+                assertEquals("createdAt", parameters.getTimestampPath());
+                assertEquals("deletedAt", parameters.getEndPath());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     @Nested
     class MemoizeTests {
         final TestFixture testFixture = TestFixture.create(new Object() {
@@ -226,5 +259,13 @@ class ClientUtilsTest {
         @HandleCustom(value = "disabled-topic", disabled = true)
         void handleDisabledCustom(Object payload) {
         }
+    }
+
+    @Aggregate(searchable = true, collection = "unregistered-search", timestampPath = "createdAt")
+    private static class UnregisteredGeneratedOnlySearchable {
+    }
+
+    @Aggregate(searchable = true, collection = "registered-search", timestampPath = "createdAt", endPath = "deletedAt")
+    private static class RegisteredGeneratedOnlySearchable {
     }
 }

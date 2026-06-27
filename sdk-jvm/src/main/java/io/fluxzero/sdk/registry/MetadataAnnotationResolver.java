@@ -14,12 +14,16 @@
 
 package io.fluxzero.sdk.registry;
 
+import io.fluxzero.common.serialization.JsonUtils;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 final class MetadataAnnotationResolver {
@@ -32,6 +36,14 @@ final class MetadataAnnotationResolver {
         return descriptors(annotations, annotationType).stream()
                 .findFirst()
                 .map(descriptor -> annotationView(annotationType, descriptor, declaringClass));
+    }
+
+    static <T> Optional<T> annotationAs(
+            List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType,
+            Class<T> projectionType, Class<?> declaringClass) {
+        return descriptors(annotations, annotationType).stream()
+                .findFirst()
+                .map(descriptor -> annotationAs(annotationType, projectionType, descriptor, declaringClass));
     }
 
     static List<AnnotationDescriptor> descriptors(
@@ -57,6 +69,23 @@ final class MetadataAnnotationResolver {
         };
         return annotationType.cast(Proxy.newProxyInstance(
                 annotationType.getClassLoader(), new Class<?>[]{annotationType}, handler));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T annotationAs(
+            Class<? extends Annotation> annotationType, Class<T> projectionType,
+            AnnotationDescriptor descriptor, Class<?> declaringClass) {
+        if (annotationType.equals(projectionType)) {
+            return (T) annotationView(annotationType, descriptor, declaringClass);
+        }
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        for (Method method : annotationType.getDeclaredMethods()) {
+            attributes.put(method.getName(), attributeValue(descriptor, annotationType, method, declaringClass));
+        }
+        if (Map.class.equals(projectionType)) {
+            return (T) attributes;
+        }
+        return JsonUtils.convertValue(attributes, projectionType);
     }
 
     private static Class<? extends Annotation> annotationType(

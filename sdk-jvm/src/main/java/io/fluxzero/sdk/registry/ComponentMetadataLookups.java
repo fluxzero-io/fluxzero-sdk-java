@@ -123,12 +123,36 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Projects type-level metadata annotation attributes to the supplied JVM projection type.
+     */
+    public static <A extends Annotation, R> Optional<R> typeAnnotationAs(
+            ComponentMetadataLookup lookup, Class<?> type, Class<A> annotationType, Class<R> projectionType) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Objects.requireNonNull(projectionType, "projectionType");
+        return MetadataAnnotationResolver.annotationAs(
+                lookup.typeAnnotations(type.getName()), annotationType, projectionType, type);
+    }
+
+    /**
      * Resolves a type-level annotation through the active metadata lookup.
      */
     public static <A extends Annotation> Optional<A> typeAnnotation(Class<?> type, Class<A> annotationType) {
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(annotationType, "annotationType");
         return lookup(type).flatMap(lookup -> typeAnnotation(lookup, type, annotationType));
+    }
+
+    /**
+     * Resolves and projects a type-level annotation through the active metadata lookup.
+     */
+    public static <A extends Annotation, R> Optional<R> typeAnnotationAs(
+            Class<?> type, Class<A> annotationType, Class<R> projectionType) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Objects.requireNonNull(projectionType, "projectionType");
+        return lookup(type).flatMap(lookup -> typeAnnotationAs(lookup, type, annotationType, projectionType));
     }
 
     /**

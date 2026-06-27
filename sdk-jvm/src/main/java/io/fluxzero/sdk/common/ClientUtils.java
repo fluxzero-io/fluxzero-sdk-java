@@ -445,7 +445,17 @@ public class ClientUtils {
      * Defaults to a collection name matching the class’s simple name if not explicitly set.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
-        return JvmComponentIntrospector.getInstance().getAnnotationAs(type, Searchable.class, SearchParameters.class)
+        Optional<SearchParameters> metadata = ComponentMetadataLookups.typeAnnotationAs(
+                type, Searchable.class, SearchParameters.class);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return searchParameters(type, metadata);
+        }
+        return searchParameters(type, JvmComponentIntrospector.getInstance().getAnnotationAs(
+                type, Searchable.class, SearchParameters.class));
+    }
+
+    private static SearchParameters searchParameters(Class<?> type, Optional<SearchParameters> annotation) {
+        return annotation
                 .map(SearchParameters::substituteProperties)
                 .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
                 .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
