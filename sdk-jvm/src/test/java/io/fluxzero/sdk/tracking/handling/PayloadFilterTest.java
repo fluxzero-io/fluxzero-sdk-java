@@ -18,6 +18,9 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Executable;
@@ -42,6 +45,45 @@ class PayloadFilterTest {
                                   Handler.class));
         assertEquals(Command.class, filter.getLeastSpecificAllowedClass(
                 executable, HandleCommand.class).orElseThrow());
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForAllowedClasses() throws Exception {
+        Executable executable = Handler.class.getDeclaredMethod("handle");
+        PayloadFilter filter = new PayloadFilter();
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            MessageFilter<? super HasMessage> prepared =
+                    filter.prepare(executable, HandleCommand.class, Handler.class);
+
+            assertTrue(prepared.test(new TestMessage(OtherCommand.class), executable, HandleCommand.class,
+                                     Handler.class));
+            assertTrue(filter.getLeastSpecificAllowedClass(executable, HandleCommand.class).isEmpty());
+        });
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForAllowedClasses() throws Exception {
+        Executable executable = Handler.class.getDeclaredMethod("handle");
+        PayloadFilter filter = new PayloadFilter();
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(Handler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                MessageFilter<? super HasMessage> prepared =
+                        filter.prepare(executable, HandleCommand.class, Handler.class);
+
+                assertTrue(prepared.test(new TestMessage(SpecialCommand.class), executable, HandleCommand.class,
+                                         Handler.class));
+                assertFalse(prepared.test(new TestMessage(OtherCommand.class), executable, HandleCommand.class,
+                                          Handler.class));
+                assertEquals(Command.class, filter.getLeastSpecificAllowedClass(
+                        executable, HandleCommand.class).orElseThrow());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     static class Handler {

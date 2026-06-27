@@ -86,6 +86,8 @@ Work slices:
     `AnnotationDescriptor` and refuses reflection fallback in generated-only mode.
   - [x] Prove generated-only handler discovery, disabled handlers, and passive handler metadata through registry
     metadata.
+  - [x] Route payload `allowedClasses` filtering through the same metadata-backed annotation resolver and prove
+    generated-only behavior with and without registry metadata.
   - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
   - [ ] Replace handler discovery/matching reflection with registry-shaped executable metadata where generated
     invocation plans are available.

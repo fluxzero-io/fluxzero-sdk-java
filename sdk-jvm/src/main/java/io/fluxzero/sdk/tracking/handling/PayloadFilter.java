@@ -15,9 +15,11 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.ExecutableAnnotationResolver;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import lombok.Value;
 
 import java.lang.annotation.Annotation;
@@ -57,13 +59,19 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
 
     private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
     private final JvmComponentIntrospector introspector;
+    private final ExecutableAnnotationResolver annotationResolver;
 
     public PayloadFilter() {
         this(JvmComponentIntrospector.getInstance());
     }
 
     PayloadFilter(JvmComponentIntrospector introspector) {
+        this(introspector, MetadataExecutableAnnotationResolver.create());
+    }
+
+    PayloadFilter(JvmComponentIntrospector introspector, ExecutableAnnotationResolver annotationResolver) {
         this.introspector = Objects.requireNonNull(introspector, "introspector");
+        this.annotationResolver = Objects.requireNonNull(annotationResolver, "annotationResolver");
     }
 
     @Override
@@ -100,7 +108,9 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
 
     private HandleAnnotation lookupHandleAnnotation(Executable executable,
                                                     Class<? extends Annotation> handlerAnnotation) {
-        return introspector.executableAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+        return annotationResolver.getAnnotation(executable, handlerAnnotation)
+                .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
+                                                                    HandleAnnotation.class))
                 .orElse(null);
     }
 
