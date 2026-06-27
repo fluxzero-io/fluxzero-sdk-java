@@ -15,7 +15,9 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.compiled.web.child.CompiledWebPathHandler;
+import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
@@ -54,6 +56,26 @@ class WebUtilsTest {
 
         GeneratedOnlyMetadataMode.run(() ->
                 assertTrue(WebUtils.getWebPatterns(DynamicPathHandler.class, handler, method).isEmpty()));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForDynamicHandlerPath() throws Exception {
+        var handler = new DynamicPathHandler("/tenant");
+        var method = DynamicPathHandler.class.getDeclaredMethod("get");
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(DynamicPathHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                var result = WebUtils.getWebPatterns(DynamicPathHandler.class, handler, method);
+
+                assertEquals(1, result.size());
+                assertEquals("/tenant/items", result.getFirst().getUri());
+                assertEquals(GET, result.getFirst().getMethod());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     private static class DynamicPathHandler {

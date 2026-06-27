@@ -131,9 +131,13 @@ class SourceComponentScannerTest {
         assertEquals(List.of("GET"), webRoute.methods());
         assertFalse(webRoute.autoHead());
         assertFalse(webRoute.autoOptions());
-        assertEquals("id", web.executableMetadata().orElseThrow().parameters().getFirst().name());
-        assertEquals("PathParam", web.executableMetadata().orElseThrow()
-                .parameters().getFirst().annotations().getFirst().name());
+        ParameterDescriptor webParameter = web.executableMetadata().orElseThrow().parameters().getFirst();
+        AnnotationDescriptor pathParam = webParameter.annotations().getFirst();
+        assertEquals("id", webParameter.name());
+        assertEquals("PathParam", pathParam.name());
+        assertTrue(pathParam.isOrHas("WebParam", "io.fluxzero.sdk.web.WebParam"));
+        assertEquals(List.of("PATH"), pathParam.find("WebParam", "io.fluxzero.sdk.web.WebParam")
+                .orElseThrow().values("type"));
     }
 
     @Test

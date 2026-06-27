@@ -19,9 +19,13 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.PackageDescriptor;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
@@ -161,9 +165,6 @@ public class WebUtils {
 
     private static Optional<List<WebPattern>> getMetadataWebPatterns(
             Class<?> targetClass, @Nullable Object handler, Executable method) {
-        if (hasDynamicHandlerPath(handler)) {
-            return Optional.empty();
-        }
         return ComponentMetadataLookups.lookup(targetClass).flatMap(lookup -> {
             Optional<ExecutableDescriptor> executable = ComponentMetadataLookups.executable(lookup, method);
             if (executable.isEmpty()) {
@@ -172,8 +173,12 @@ public class WebUtils {
             var routes = lookup.routes(targetClass.getName(), MessageType.WEBREQUEST).stream()
                     .filter(route -> route.executableMetadata().filter(executable.get()::equals).isPresent())
                     .toList();
-            List<WebPattern> result = routes.stream().flatMap(route -> route.webRoutes().stream())
-                    .flatMap(WebUtils::toWebPatterns)
+            boolean dynamicHandlerPath = hasDynamicHandlerPath(targetClass, handler);
+            String root = dynamicHandlerPath ? getHandlerPath(targetClass, handler, method) : "";
+            List<WebPattern> result = routes.stream()
+                    .flatMap(route -> dynamicHandlerPath
+                            ? route.webRoutes().stream().flatMap(webRoute -> toDynamicWebPatterns(route.annotation(), webRoute, root))
+                            : route.webRoutes().stream().flatMap(WebUtils::toWebPatterns))
                     .toList();
             return result.isEmpty() ? Optional.empty() : Optional.of(result);
         });
@@ -186,16 +191,32 @@ public class WebUtils {
                         .map(method -> new WebPattern(path, method, route.autoHead(), route.autoOptions())));
     }
 
+    private static Stream<WebPattern> toDynamicWebPatterns(
+            AnnotationDescriptor handlerAnnotation, WebRouteDescriptor route, String root) {
+        List<String> paths = handlerAnnotation == null || handlerAnnotation.values("value").isEmpty()
+                ? List.of("") : handlerAnnotation.values("value");
+        return paths.stream()
+                .map(WebUtils::substitutePathProperties)
+                .flatMap(path -> route.methods().stream()
+                        .map(method -> new WebPattern(
+                                concatenateUrlParts(root, path), method, route.autoHead(), route.autoOptions())));
+    }
+
     private static String substitutePathProperties(String path) {
         return path == null || path.isBlank() ? path : ApplicationProperties.substituteProperties(path);
     }
 
-    private static boolean hasDynamicHandlerPath(@Nullable Object handler) {
-        return handler != null && JvmComponentIntrospector.getInstance().getAnnotatedProperty(handler, Path.class)
-                .stream()
-                .anyMatch(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Path.class).map(Path::value)
-                        .filter(String::isBlank).isPresent()
-                               && JvmComponentIntrospector.getInstance().getAnnotation(p, HandleWeb.class).isEmpty());
+    private static boolean hasDynamicHandlerPath(Class<?> targetClass, @Nullable Object handler) {
+        if (handler == null) {
+            return false;
+        }
+        Optional<Boolean> metadataResult = ComponentMetadataLookups.lookup(targetClass)
+                .map(lookup -> hasMetadataDynamicPathProperty(lookup, targetClass));
+        if (metadataResult.isPresent()) {
+            return metadataResult.get() || !ComponentMetadataLookups.generatedOnlyMode()
+                                           && hasReflectionDynamicHandlerPath(handler);
+        }
+        return !ComponentMetadataLookups.generatedOnlyMode() && hasReflectionDynamicHandlerPath(handler);
     }
 
     /**
@@ -213,6 +234,13 @@ public class WebUtils {
      * the {@code @Path} values start with a slash or contain an absolute URL, the chain is reset.
      */
     public static String getHandlerPath(Class<?> targetClass, @Nullable Object handler, @Nullable Executable method) {
+        Optional<String> metadataPath = getMetadataHandlerPath(targetClass, handler, method);
+        if (metadataPath.isPresent()) {
+            return metadataPath.get();
+        }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return "";
+        }
         var mapper = pathValues();
         List<String> hierarchy = concat(
                 JvmComponentIntrospector.getInstance().getPackageAndParentPackages(targetClass.getPackage()).reversed().stream().flatMap(mapper),
@@ -227,17 +255,128 @@ public class WebUtils {
     }
 
     static Function<AnnotatedElement, Stream<String>> pathValues() {
-        return element -> JvmComponentIntrospector.getInstance().getAnnotation(element, Path.class).stream().map(Path::value).map(s -> {
-            if (s.isBlank()) {
-                return switch (element) {
-                    case Class<?> c -> JvmComponentIntrospector.getInstance().getSimpleName(c.getPackage());
-                    case Package p -> JvmComponentIntrospector.getInstance().getSimpleName(p);
-                    case Executable m -> JvmComponentIntrospector.getInstance().getSimpleName(m.getDeclaringClass());
-                    default -> null;
-                };
+        return element -> getMetadataPathValues(element).orElseGet(() -> ComponentMetadataLookups.generatedOnlyMode()
+                ? Stream.empty() : getReflectionPathValues(element));
+    }
+
+    private static Optional<String> getMetadataHandlerPath(
+            Class<?> targetClass, @Nullable Object handler, @Nullable Executable method) {
+        return ComponentMetadataLookups.lookup(targetClass).map(lookup -> {
+            if (handler != null && !ComponentMetadataLookups.generatedOnlyMode()
+                && !hasMetadataDynamicPathProperty(lookup, targetClass)
+                && hasReflectionDynamicHandlerPath(handler)) {
+                return null;
             }
-            return ApplicationProperties.substituteProperties(s);
+            Stream<String> packagePaths = lookup.packageMetadataChain(targetClass.getPackageName()).reversed()
+                    .stream().flatMap(WebUtils::pathValues);
+            Stream<String> typePaths = pathValues(
+                    lookup.typeAnnotations(targetClass.getName()), simplePackageName(targetClass.getPackageName()))
+                    .stream();
+            Stream<String> propertyPaths = getDynamicPathPropertyValue(lookup, targetClass, handler).stream();
+            Stream<String> methodPaths = Optional.ofNullable(method)
+                    .flatMap(executable -> ComponentMetadataLookups.executable(lookup, executable))
+                    .flatMap(executable -> pathValue(executable.annotations(),
+                                                     JvmComponentIntrospector.getInstance().getSimpleName(
+                                                             method.getDeclaringClass())))
+                    .stream();
+            return Stream.of(packagePaths, typePaths, propertyPaths, methodPaths)
+                    .flatMap(Function.identity())
+                    .reduce((a, b) -> isAbsolutePathOrUrl(b) ? b : concatenateUrlParts(a, b))
+                    .orElse("");
         }).filter(Objects::nonNull);
+    }
+
+    private static Optional<String> getDynamicPathPropertyValue(
+            ComponentMetadataLookup lookup, Class<?> targetClass, @Nullable Object handler) {
+        if (handler == null) {
+            return Optional.empty();
+        }
+        return ComponentMetadataLookups.annotatedProperties(lookup, targetClass, Path.class).stream()
+                .filter(WebUtils::isDynamicPathProperty)
+                .findFirst()
+                .flatMap(property -> JvmComponentIntrospector.getInstance().readProperty(property.name(), handler))
+                .map(Object::toString);
+    }
+
+    private static Optional<Stream<String>> getMetadataPathValues(AnnotatedElement element) {
+        return switch (element) {
+            case Class<?> type -> ComponentMetadataLookups.lookup(type)
+                    .map(lookup -> pathValues(
+                            lookup.typeAnnotations(type.getName()), simplePackageName(type.getPackageName()))
+                            .stream());
+            case Executable executable -> ComponentMetadataLookups.lookup(executable.getDeclaringClass())
+                    .flatMap(lookup -> ComponentMetadataLookups.executable(lookup, executable))
+                    .map(descriptor -> pathValues(
+                            descriptor.annotations(),
+                            JvmComponentIntrospector.getInstance().getSimpleName(executable.getDeclaringClass()))
+                            .stream());
+            default -> Optional.empty();
+        };
+    }
+
+    private static Stream<String> getReflectionPathValues(AnnotatedElement element) {
+        return JvmComponentIntrospector.getInstance().getAnnotation(element, Path.class).stream().map(Path::value)
+                .map(s -> {
+                    if (s.isBlank()) {
+                        return switch (element) {
+                            case Class<?> c -> JvmComponentIntrospector.getInstance().getSimpleName(c.getPackage());
+                            case Package p -> JvmComponentIntrospector.getInstance().getSimpleName(p);
+                            case Executable m -> JvmComponentIntrospector.getInstance().getSimpleName(m.getDeclaringClass());
+                            default -> null;
+                        };
+                    }
+                    return ApplicationProperties.substituteProperties(s);
+                }).filter(Objects::nonNull);
+    }
+
+    private static Stream<String> pathValues(PackageDescriptor descriptor) {
+        return pathValues(descriptor.annotations(), simplePackageName(descriptor.packageName())).stream();
+    }
+
+    private static Optional<String> pathValue(List<AnnotationDescriptor> annotations, String blankDefault) {
+        return annotations.stream()
+                .map(annotation -> annotation.find(Path.class.getSimpleName(), Path.class.getName()))
+                .flatMap(Optional::stream)
+                .reduce((first, second) -> second)
+                .map(annotation -> annotation.firstValue("value").orElse(""))
+                .map(value -> value.isBlank() ? blankDefault : substitutePathProperties(value));
+    }
+
+    private static List<String> pathValues(List<AnnotationDescriptor> annotations, String blankDefault) {
+        return pathValue(annotations, blankDefault).stream().toList();
+    }
+
+    private static boolean isDynamicPathProperty(PropertyDescriptor property) {
+        Optional<AnnotationDescriptor> path = property.annotations().stream()
+                .map(annotation -> annotation.find(Path.class.getSimpleName(), Path.class.getName()))
+                .flatMap(Optional::stream)
+                .findFirst();
+        return path.map(annotation -> annotation.firstValue("value").orElse("").isBlank()).orElse(false)
+               && property.annotations().stream()
+                       .noneMatch(annotation -> annotation.isOrHas(
+                               HandleWeb.class.getSimpleName(), HandleWeb.class.getName()));
+    }
+
+    private static boolean hasMetadataDynamicPathProperty(ComponentMetadataLookup lookup, Class<?> targetClass) {
+        return ComponentMetadataLookups.annotatedProperties(lookup, targetClass, Path.class)
+                .stream().anyMatch(WebUtils::isDynamicPathProperty);
+    }
+
+    private static boolean hasReflectionDynamicHandlerPath(Object handler) {
+        return JvmComponentIntrospector.getInstance().getAnnotatedProperty(handler, Path.class)
+                .stream()
+                .anyMatch(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Path.class)
+                        .map(Path::value).filter(String::isBlank).isPresent()
+                               && JvmComponentIntrospector.getInstance().getAnnotation(p,
+                                       HandleWeb.class).isEmpty());
+    }
+
+    private static String simplePackageName(String packageName) {
+        if (packageName == null || packageName.isBlank()) {
+            return "";
+        }
+        int index = packageName.lastIndexOf('.');
+        return index < 0 ? packageName : packageName.substring(index + 1);
     }
 
     /**

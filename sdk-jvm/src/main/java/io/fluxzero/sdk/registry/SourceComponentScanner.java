@@ -146,6 +146,19 @@ public class SourceComponentScanner {
             entry("NoUserRequired", "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired"),
             entry("ForbidsUser", "io.fluxzero.sdk.tracking.handling.authentication.ForbidsUser"),
             entry("ForbidsAnyRole", "io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole"));
+    private static final Map<String, AnnotationDescriptor> BUILT_IN_META_ANNOTATIONS = Map.ofEntries(
+            entry("PathParam", webParam("PATH")),
+            entry(KNOWN_ANNOTATIONS.get("PathParam"), webParam("PATH")),
+            entry("QueryParam", webParam("QUERY")),
+            entry(KNOWN_ANNOTATIONS.get("QueryParam"), webParam("QUERY")),
+            entry("HeaderParam", webParam("HEADER")),
+            entry(KNOWN_ANNOTATIONS.get("HeaderParam"), webParam("HEADER")),
+            entry("CookieParam", webParam("COOKIE")),
+            entry(KNOWN_ANNOTATIONS.get("CookieParam"), webParam("COOKIE")),
+            entry("FormParam", webParam("FORM")),
+            entry(KNOWN_ANNOTATIONS.get("FormParam"), webParam("FORM")),
+            entry("BodyParam", webParam("BODY")),
+            entry(KNOWN_ANNOTATIONS.get("BodyParam"), webParam("BODY")));
 
     private static final Map<String, String> KNOWN_TYPES = Map.ofEntries(
             entry("Cache", "io.fluxzero.common.caching.Cache"),
@@ -342,12 +355,20 @@ public class SourceComponentScanner {
         if (!visiting.add(key)) {
             return annotation;
         }
-        List<AnnotationDescriptor> meta = metaAnnotations.getOrDefault(key, List.of()).stream()
+        List<AnnotationDescriptor> meta = Stream.concat(
+                        metaAnnotations.getOrDefault(key, List.of()).stream(),
+                        Optional.ofNullable(BUILT_IN_META_ANNOTATIONS.get(key)).stream())
                 .map(metaAnnotation -> enrichAnnotation(metaAnnotation, metaAnnotations, new LinkedHashSet<>(visiting)))
                 .toList();
         return new AnnotationDescriptor(
                 annotation.name(), annotation.qualifiedName(), annotation.attributes(),
                 annotation.nestedAnnotations(), meta);
+    }
+
+    private static AnnotationDescriptor webParam(String source) {
+        return new AnnotationDescriptor(
+                "WebParam", KNOWN_ANNOTATIONS.get("WebParam"),
+                Map.of("type", List.of(source), "value", List.of("")));
     }
 
     private Map<String, PackageInfo> packageInfos(List<ParsedSource> sources) {

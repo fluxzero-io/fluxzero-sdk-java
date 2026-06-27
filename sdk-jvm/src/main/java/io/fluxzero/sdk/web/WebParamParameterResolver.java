@@ -18,9 +18,10 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ParameterRegistry;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 
@@ -76,7 +77,11 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> {
             WebRequestContext context = getWebRequestContext((DeserializingMessage) m);
-            Optional<ParamField> field = JvmComponentIntrospector.getInstance().getAnnotationAs(p, WebParam.class, ParamField.class);
+            Optional<ParamField> field = metadataField(p)
+                    .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                            ? Optional.empty()
+                            : JvmComponentIntrospector.getInstance().getAnnotationAs(
+                                    p, WebParam.class, ParamField.class));
             return field.map(f -> {
                         String value = f.getValue();
                         String name;
@@ -113,17 +118,36 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return value instanceof DeserializingMessage m && m.getMessageType() == MessageType.WEBREQUEST
-               && JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class);
+               && hasWebParam(parameter);
     }
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
-            if (JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class)) {
+            if (hasWebParam(parameter)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static Optional<ParamField> metadataField(Parameter parameter) {
+        return ComponentMetadataLookups.lookup(parameter.getDeclaringExecutable().getDeclaringClass())
+                .flatMap(lookup -> ComponentMetadataLookups.parameter(lookup, parameter))
+                .flatMap(descriptor -> ComponentMetadataLookups.annotationAs(
+                        descriptor.annotations(), WebParam.class, ParamField.class,
+                        parameter.getDeclaringExecutable().getDeclaringClass()));
+    }
+
+    private static boolean hasWebParam(Parameter parameter) {
+        Optional<Boolean> metadataResult = ComponentMetadataLookups.lookup(
+                        parameter.getDeclaringExecutable().getDeclaringClass())
+                .map(lookup -> ComponentMetadataLookups.hasParameterAnnotation(lookup, parameter, WebParam.class));
+        if (metadataResult.orElse(false)) {
+            return true;
+        }
+        return !ComponentMetadataLookups.generatedOnlyMode()
+               && JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class);
     }
 
     @Value

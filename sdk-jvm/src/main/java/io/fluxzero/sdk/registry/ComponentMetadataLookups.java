@@ -21,6 +21,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -156,6 +157,19 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Projects metadata annotation attributes to the supplied JVM projection type.
+     */
+    public static <A extends Annotation, R> Optional<R> annotationAs(
+            List<AnnotationDescriptor> annotations, Class<A> annotationType, Class<R> projectionType,
+            Class<?> declaringClass) {
+        Objects.requireNonNull(annotations, "annotations");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Objects.requireNonNull(projectionType, "projectionType");
+        Objects.requireNonNull(declaringClass, "declaringClass");
+        return MetadataAnnotationResolver.annotationAs(annotations, annotationType, projectionType, declaringClass);
+    }
+
+    /**
      * Projects package-level metadata annotations to a JVM annotation view, nearest package first.
      */
     public static <A extends Annotation> Optional<A> packageAnnotation(
@@ -210,6 +224,32 @@ public final class ComponentMetadataLookups {
                 .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
                         .equals(parameters))
                 .findFirst();
+    }
+
+    /**
+     * Finds parameter metadata matching the supplied JVM parameter.
+     */
+    public static Optional<ParameterDescriptor> parameter(ComponentMetadataLookup lookup, Parameter parameter) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(parameter, "parameter");
+        Executable executable = parameter.getDeclaringExecutable();
+        int index = parameterIndex(parameter);
+        if (index < 0) {
+            return Optional.empty();
+        }
+        return executable(lookup, executable)
+                .filter(descriptor -> descriptor.parameters().size() > index)
+                .map(descriptor -> descriptor.parameters().get(index));
+    }
+
+    /**
+     * Returns whether parameter metadata carries the supplied annotation.
+     */
+    public static boolean hasParameterAnnotation(
+            ComponentMetadataLookup lookup, Parameter parameter, Class<?> annotationType) {
+        return parameter(lookup, parameter)
+                .map(descriptor -> hasAnnotation(descriptor.annotations(), annotationType))
+                .orElse(false);
     }
 
     /**
@@ -346,5 +386,15 @@ public final class ComponentMetadataLookups {
 
     private static String typeName(Class<?> type) {
         return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
+    }
+
+    private static int parameterIndex(Parameter parameter) {
+        Parameter[] parameters = parameter.getDeclaringExecutable().getParameters();
+        for (int i = 0; i < parameters.length; i++) {
+            if (parameters[i].equals(parameter)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

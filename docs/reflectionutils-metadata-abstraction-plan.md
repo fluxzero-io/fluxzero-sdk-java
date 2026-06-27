@@ -92,6 +92,8 @@ Work slices:
       `@DropProtectedData`; generated-only mode no longer protects or drops data through JVM annotation fallback.
     - [x] Web route pattern metadata uses the central resolver; generated-only mode no longer derives web patterns
       through direct scanner fallback.
+    - [x] Dynamic web `@Path` roots and web parameter binding use metadata-backed property/parameter annotations;
+      generated-only mode no longer derives those web semantics through JVM annotation fallback.
     - [x] `SchedulingInterceptor` and `MessageScheduler` use metadata-backed `@Periodic` resolution for handler
       methods and payload types; generated-only mode no longer derives scheduling semantics through JVM annotation
       fallback.
