@@ -27,7 +27,6 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -42,7 +41,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-@Isolated
 class TestServerReadLimitsTest {
     private static final long TIMEOUT_SECONDS = 5L;
     private static Server server;

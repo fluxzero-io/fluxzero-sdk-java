@@ -17,12 +17,13 @@ package io.fluxzero.common.application;
 
 import io.fluxzero.common.encryption.DefaultEncryption;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 import static io.fluxzero.common.TestUtils.runWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@Isolated
+@ResourceLock(Resources.SYSTEM_PROPERTIES)
 class DecryptingPropertySourceTest {
     private final DefaultEncryption encryption = new DefaultEncryption();
 

@@ -18,7 +18,8 @@ package io.fluxzero.common.application;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ import static io.fluxzero.common.TestUtils.runWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Isolated
+@ResourceLock(Resources.SYSTEM_PROPERTIES)
 class DefaultPropertySourceTest {
     @TempDir
     Path tempDir;

@@ -27,7 +27,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.net.ServerSocket;
 import java.net.URI;
@@ -44,7 +44,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Isolated
+@ResourceLock("FLUXZERO_PROXY_PORT")
+@ResourceLock("PROXY_PORT")
+@ResourceLock("FLUXZERO_BASE_URL")
+@ResourceLock("FLUX_BASE_URL")
+@ResourceLock("FLUX_URL")
+@ResourceLock(ForwardProxyConsumer.METRICS_ENABLED_PROPERTY)
+@ResourceLock(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY)
 class ProxyServerLifecycleTest {
     private static final Duration FORWARDED_HEALTH_ATTEMPT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration FORWARDED_HEALTH_MAX_WAIT = Duration.ofSeconds(25);

@@ -25,7 +25,7 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.net.ServerSocket;
 import java.time.Duration;
@@ -45,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Isolated
 class TestServerLifecycleMetricsTest {
 
     private final JacksonSerializer serializer = new JacksonSerializer();
@@ -63,7 +62,7 @@ class TestServerLifecycleMetricsTest {
                 .build());
         try {
             client.getGatewayClient(EVENT).append(STORED, new Message("warmup").serialize(serializer)).get(5, SECONDS);
-            MessageStore metricsStore = TestServer.getMetricsMessageStore(namespace);
+            MessageStore metricsStore = TestServer.getMetricsMessageStore(server, namespace);
 
             assertLifecyclePhase(metricsStore, STARTED, port);
 
@@ -83,6 +82,9 @@ class TestServerLifecycleMetricsTest {
     }
 
     @Test
+    @ResourceLock("FLUXZERO_PORT")
+    @ResourceLock("FLUX_PORT")
+    @ResourceLock("port")
     void startServerWithoutPortReadsConfiguredPortWithoutShutdownHook() throws Exception {
         String previousFluxzeroPort = System.getProperty("FLUXZERO_PORT");
         String previousFluxPort = System.getProperty("FLUX_PORT");

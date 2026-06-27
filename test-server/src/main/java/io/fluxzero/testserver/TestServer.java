@@ -54,6 +54,7 @@ import org.eclipse.jetty.util.component.LifeCycle;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -93,6 +94,7 @@ public class TestServer {
     private static final String RUNTIME_NAME = "FluxzeroTestServer";
 
     private static volatile ServerState latestState = new ServerState();
+    private static final Map<Server, ServerState> serverStates = new ConcurrentHashMap<>();
 
     /**
      * Standalone process entry point.
@@ -213,6 +215,7 @@ public class TestServer {
 
         int localPort = getLocalPort(server, port);
         AtomicBoolean commandIdempotencyStoreClosed = new AtomicBoolean();
+        serverStates.put(server, state);
         registerRuntimeLifecycle(server, localPort, commandIdempotencyStore, commandIdempotencyStoreClosed,
                                  runtimeLifecycleMetrics);
 
@@ -264,6 +267,7 @@ public class TestServer {
 
             @Override
             public void lifeCycleStopped(LifeCycle lifecycle) {
+                serverStates.remove(server);
                 closeCommandIdempotencyStore(commandIdempotencyStore, commandIdempotencyStoreClosed);
             }
         });
@@ -298,6 +302,12 @@ public class TestServer {
 
     static MessageStore getMetricsMessageStore(String namespace) {
         return latestState.getMessageStore(namespace, METRICS);
+    }
+
+    static MessageStore getMetricsMessageStore(Server server, String namespace) {
+        ServerState state = ofNullable(serverStates.get(server))
+                .orElseThrow(() -> new IllegalStateException("Unknown Fluxzero test server"));
+        return state.getMessageStore(namespace, METRICS);
     }
 
     private static class ServerState {
