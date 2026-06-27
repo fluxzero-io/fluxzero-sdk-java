@@ -64,41 +64,50 @@ public final class AuthorizationMetadata {
     }
 
     private static Stream<AuthorizationRule> rules(AnnotationDescriptor annotation) {
-        if (matches(annotation, REQUIRES_ANY_ROLE, "RequiresAnyRole")) {
-            return annotation.values("value").stream()
-                    .map(role -> AuthorizationRule.requiresRole(
-                            role, annotation.booleanValue("throwIfUnauthorized", true)));
-        }
-        if (matches(annotation, NO_USER_REQUIRED, "NoUserRequired")) {
+        if (annotation.isOrHas("NoUserRequired", NO_USER_REQUIRED)) {
             return Stream.of(AuthorizationRule.NO_USER_REQUIRED);
         }
-        if (matches(annotation, FORBIDS_USER, "ForbidsUser")) {
-            return Stream.of(AuthorizationRule.forbidsUser(annotation.booleanValue("throwIfUnauthorized", true)));
+        Optional<AnnotationDescriptor> forbidsUser = annotation.find("ForbidsUser", FORBIDS_USER);
+        if (forbidsUser.isPresent()) {
+            return Stream.of(AuthorizationRule.forbidsUser(
+                    booleanValue(annotation, forbidsUser.get(), "throwIfUnauthorized", true)));
         }
-        if (matches(annotation, REQUIRES_USER, "RequiresUser")) {
-            return Stream.of(AuthorizationRule.requiresUser(annotation.booleanValue("throwIfUnauthorized", true)));
+        Optional<AnnotationDescriptor> requiresUser = annotation.find("RequiresUser", REQUIRES_USER);
+        if (requiresUser.isPresent()) {
+            return Stream.of(AuthorizationRule.requiresUser(
+                    booleanValue(annotation, requiresUser.get(), "throwIfUnauthorized", true)));
         }
-        if (matches(annotation, FORBIDS_ANY_ROLE, "ForbidsAnyRole")) {
-            return annotation.values("value").stream()
+        Optional<AnnotationDescriptor> requiresAnyRole = annotation.find("RequiresAnyRole", REQUIRES_ANY_ROLE);
+        if (requiresAnyRole.isPresent()) {
+            AnnotationDescriptor rule = requiresAnyRole.get();
+            List<String> values = rule.values("value").isEmpty() ? annotation.values("value") : rule.values("value");
+            return values.stream()
+                    .map(role -> AuthorizationRule.requiresRole(
+                            role, booleanValue(annotation, rule, "throwIfUnauthorized", true)));
+        }
+        Optional<AnnotationDescriptor> forbidsAnyRole = annotation.find("ForbidsAnyRole", FORBIDS_ANY_ROLE);
+        if (forbidsAnyRole.isPresent()) {
+            AnnotationDescriptor rule = forbidsAnyRole.get();
+            List<String> values = rule.values("value").isEmpty() ? annotation.values("value") : rule.values("value");
+            return values.stream()
                     .map(role -> AuthorizationRule.forbidsRole(
-                            role, annotation.booleanValue("throwIfUnauthorized", true)));
+                            role, booleanValue(annotation, rule, "throwIfUnauthorized", true)));
         }
         return Stream.empty();
     }
 
     private static boolean authAnnotation(AnnotationDescriptor annotation) {
-        return matches(annotation, REQUIRES_ANY_ROLE, "RequiresAnyRole")
-               || matches(annotation, REQUIRES_USER, "RequiresUser")
-               || matches(annotation, NO_USER_REQUIRED, "NoUserRequired")
-               || matches(annotation, FORBIDS_USER, "ForbidsUser")
-               || matches(annotation, FORBIDS_ANY_ROLE, "ForbidsAnyRole");
+        return annotation.isOrHas("RequiresAnyRole", REQUIRES_ANY_ROLE)
+               || annotation.isOrHas("RequiresUser", REQUIRES_USER)
+               || annotation.isOrHas("NoUserRequired", NO_USER_REQUIRED)
+               || annotation.isOrHas("ForbidsUser", FORBIDS_USER)
+               || annotation.isOrHas("ForbidsAnyRole", FORBIDS_ANY_ROLE);
     }
 
-    private static boolean matches(AnnotationDescriptor annotation, String qualifiedName, String simpleName) {
-        return annotation.qualifiedName().equals(qualifiedName)
-               || annotation.name().equals(simpleName)
-               || Optional.of(annotation.qualifiedName())
-                       .filter(name -> name.endsWith("." + simpleName))
-                       .isPresent();
+    private static boolean booleanValue(
+            AnnotationDescriptor annotation, AnnotationDescriptor metaAnnotation, String attribute, boolean defaultValue) {
+        return annotation.firstValue(attribute)
+                .map(Boolean::parseBoolean)
+                .orElseGet(() -> metaAnnotation.booleanValue(attribute, defaultValue));
     }
 }

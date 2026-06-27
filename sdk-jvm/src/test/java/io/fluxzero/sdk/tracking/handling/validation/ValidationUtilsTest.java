@@ -17,6 +17,11 @@ package io.fluxzero.sdk.tracking.handling.validation;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -33,6 +38,7 @@ import java.util.stream.Collectors;
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.isValid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,6 +57,40 @@ class ValidationUtilsTest {
         assertTrue(isValid(ValidateWithExample.builder().foo(new Foo("bar")).stringInGroup1("bla").build()));
         assertFalse(isValid(ValidateWithExample.builder().foo(new Foo("bar")).stringInGroup1("").build()));
         assertTrue(isValid(ValidateWithExample.builder().foo(new Foo("")).stringInGroup1("bla").build()));
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForValidateWith() {
+        GeneratedOnlyMetadataMode.run(() -> assertTrue(isValid(new UnregisteredGeneratedOnlyValidateWith(""))));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredValidateWithMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyValidateWith.class).registry());
+            GeneratedOnlyMetadataMode.run(() -> assertFalse(isValid(new RegisteredGeneratedOnlyValidateWith(""))));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForRequiresUser() {
+        GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(
+                () -> ValidationUtils.assertAuthorized(UnregisteredGeneratedOnlyRequiresUser.class, null)));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredRequiresUserMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyRequiresUser.class).registry());
+            GeneratedOnlyMetadataMode.run(() -> assertThrows(UnauthenticatedException.class,
+                    () -> ValidationUtils.assertAuthorized(RegisteredGeneratedOnlyRequiresUser.class, null)));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     @Test
@@ -129,5 +169,26 @@ class ValidationUtilsTest {
     }
 
     public interface Group1 {}
+
+    @ValidateWith(GeneratedOnlyGroup.class)
+    private record UnregisteredGeneratedOnlyValidateWith(
+            @NotBlank(groups = GeneratedOnlyGroup.class) String value) {
+    }
+
+    @ValidateWith(GeneratedOnlyGroup.class)
+    private record RegisteredGeneratedOnlyValidateWith(
+            @NotBlank(groups = GeneratedOnlyGroup.class) String value) {
+    }
+
+    @RequiresUser
+    private static class UnregisteredGeneratedOnlyRequiresUser {
+    }
+
+    @RequiresUser
+    private static class RegisteredGeneratedOnlyRequiresUser {
+    }
+
+    private interface GeneratedOnlyGroup {
+    }
 
 }

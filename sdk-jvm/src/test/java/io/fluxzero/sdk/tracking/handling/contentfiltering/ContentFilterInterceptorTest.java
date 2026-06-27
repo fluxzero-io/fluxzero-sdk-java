@@ -14,18 +14,15 @@
 
 package io.fluxzero.sdk.tracking.handling.contentfiltering;
 
-import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.ResourceLock;
-import org.junit.jupiter.api.parallel.Resources;
 
 import java.lang.reflect.Method;
 import java.util.function.Function;
@@ -41,7 +38,6 @@ import static org.mockito.Mockito.when;
 class ContentFilterInterceptorTest {
 
     @Test
-    @ResourceLock(Resources.SYSTEM_PROPERTIES)
     void generatedOnlyModeDoesNotUseReflectionFallback() throws Exception {
         Serializer serializer = mock(Serializer.class);
         ContentFilterInterceptor interceptor = new ContentFilterInterceptor(serializer);
@@ -49,16 +45,15 @@ class ContentFilterInterceptorTest {
                 UnregisteredGeneratedOnlyFilteredQuery.class,
                 handlerMethod(UnregisteredGeneratedOnlyFilteredQuery.class));
 
-        TestUtils.runWithSystemProperties(() -> {
+        GeneratedOnlyMetadataMode.run(() -> {
             Function<DeserializingMessage, Object> function = interceptor.interceptHandling(message -> "raw", invoker);
 
             assertEquals("raw", function.apply(null));
             verifyNoInteractions(serializer);
-        }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+        });
     }
 
     @Test
-    @ResourceLock(Resources.SYSTEM_PROPERTIES)
     void generatedOnlyModeUsesRegisteredMetadata() throws Exception {
         Serializer serializer = mock(Serializer.class);
         when(serializer.filterContent(same("raw"), isNull())).thenReturn("filtered");
@@ -70,13 +65,13 @@ class ContentFilterInterceptorTest {
         try {
             TestFixture.create().getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyFilteredQuery.class).registry());
-            TestUtils.runWithSystemProperties(() -> {
+            GeneratedOnlyMetadataMode.run(() -> {
                 Function<DeserializingMessage, Object> function = interceptor.interceptHandling(message -> "raw",
                                                                                                invoker);
 
                 assertEquals("filtered", function.apply(null));
                 verify(serializer).filterContent(same("raw"), isNull());
-            }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+            });
         } finally {
             TestFixture.shutDownActiveFixtures();
         }

@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.registry;
 
+import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.sdk.Fluxzero;
 
 import java.lang.reflect.Constructor;
@@ -49,6 +50,7 @@ public final class ComponentMetadataLookups {
     public static final String GENERATED_ONLY_MODE = "generated-only";
 
     private static final ConcurrentMap<ClassLoader, ComponentRegistry> generatedRegistries = new ConcurrentHashMap<>();
+    private static final ThreadLocal<Boolean> generatedOnlyModeOverride = new ThreadLocal<>();
 
     private ComponentMetadataLookups() {
     }
@@ -146,12 +148,29 @@ public final class ComponentMetadataLookups {
      * Returns whether the central metadata resolver is configured to refuse JVM classpath/reflection fallback.
      */
     public static boolean generatedOnlyMode() {
+        if (Boolean.TRUE.equals(generatedOnlyModeOverride.get())) {
+            return true;
+        }
         String configured = System.getProperty(METADATA_MODE_PROPERTY);
         if (configured == null || configured.isBlank()) {
             configured = System.getenv(METADATA_MODE_ENV);
         }
         return GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
                || "generatedOnly".equalsIgnoreCase(configured);
+    }
+
+    static void runInGeneratedOnlyMode(ThrowingRunnable runnable) throws Exception {
+        Boolean previous = generatedOnlyModeOverride.get();
+        generatedOnlyModeOverride.set(Boolean.TRUE);
+        try {
+            runnable.run();
+        } finally {
+            if (previous == null) {
+                generatedOnlyModeOverride.remove();
+            } else {
+                generatedOnlyModeOverride.set(previous);
+            }
+        }
     }
 
     private static boolean containsAll(ComponentRegistry registry, List<Class<?>> types) {

@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling.validation;
 
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationDecision;
@@ -318,20 +319,25 @@ public class ValidationUtils {
         if (metadataGroups.isPresent()) {
             return metadataGroups.get();
         }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return new Class<?>[0];
+        }
         ValidateWith annotation = JvmComponentIntrospector.getInstance().getTypeAnnotation(object.getClass(), ValidateWith.class);
         return annotation == null ? new Class<?>[0] : annotation.value();
     }
 
     private static Optional<Class<?>[]> getValidationGroupsFromMetadata(Class<?> targetClass) {
-        return JvmComponentMetadataLookup.scanIfScannable(targetClass)
-                .flatMap(lookup -> lookup.typeAnnotations(targetClass).stream()
+        return ComponentMetadataLookups.lookup(targetClass)
+                .map(lookup -> lookup.typeAnnotations(targetClass.getName()).stream()
                         .filter(annotation -> annotation.qualifiedName().equals(ValidateWith.class.getName())
                                               || annotation.name().equals(ValidateWith.class.getSimpleName()))
-                        .findFirst())
-                .map(annotation -> annotation.values("value").stream()
-                        .map(className -> JvmComponentMetadataLookup.classForMetadataName(className)
-                                .orElseGet(() -> JvmComponentIntrospector.getInstance().classForName(className)))
-                        .toArray(Class<?>[]::new));
+                        .findFirst()
+                        .map(annotation -> annotation.values("value").stream()
+                                .map(className -> JvmComponentMetadataLookup.classForMetadataName(className)
+                                        .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                                                .classForName(className)))
+                                .toArray(Class<?>[]::new))
+                        .orElseGet(() -> new Class<?>[0]));
     }
 
     /*
@@ -339,18 +345,10 @@ public class ValidationUtils {
      */
 
     private static final Function<Class<?>, RequiredRole[]> requiredRolesCache =
-            memoize(ValidationUtils::getRequiredRoles);
+            memoize((Function<Class<?>, RequiredRole[]>) ValidationUtils::getRequiredRoles);
 
     private static final BiFunction<Class<?>, Executable, RequiredRole[]> requiredRolesForMethodCache = memoize(
-            (target, executable) -> getRequiredRolesFromMetadata(target, executable)
-                    .orElseGet(() -> Optional.ofNullable(getRequiredRoles(Arrays.asList(executable.getAnnotations())))
-                            .or(() -> Optional.ofNullable(getRequiredRoles(
-                                    JvmComponentIntrospector.getInstance().getTypeAnnotations(target))))
-                            .orElseGet(() -> JvmComponentIntrospector.getInstance()
-                                    .getPackageAndParentPackages(target.getPackage()).stream()
-                                    .map(p -> JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false))
-                                    .map(ValidationUtils::getRequiredRoles)
-                                    .filter(Objects::nonNull).findFirst().orElse(null))));
+            (BiFunction<Class<?>, Executable, RequiredRole[]>) ValidationUtils::getRequiredRoles);
 
     /**
      * Verifies whether the given user is authorized to issue the given payload, based on roles declared via annotations
@@ -461,27 +459,48 @@ public class ValidationUtils {
     }
 
     private static RequiredRole[] getRequiredRoles(Class<?> payloadClass) {
-        return getRequiredRolesFromMetadata(payloadClass)
-                .orElseGet(() -> Optional.ofNullable(getRequiredRoles(
-                                JvmComponentIntrospector.getInstance().getTypeAnnotations(payloadClass)))
-                        .orElseGet(() -> getRequiredRoles(
-                                JvmComponentIntrospector.getInstance().getPackageAnnotations(payloadClass.getPackage()))));
+        Optional<RequiredRole[]> metadata = getRequiredRolesFromMetadata(payloadClass);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
+        return Optional.ofNullable(getRequiredRoles(JvmComponentIntrospector.getInstance().getTypeAnnotations(
+                        payloadClass)))
+                .orElseGet(() -> getRequiredRoles(
+                        JvmComponentIntrospector.getInstance().getPackageAnnotations(payloadClass.getPackage())));
     }
 
     private static Optional<RequiredRole[]> getRequiredRolesFromMetadata(Class<?> payloadClass) {
-        return JvmComponentMetadataLookup.scanIfScannable(payloadClass)
-                .flatMap(lookup -> AuthorizationMetadata.effectiveRules(
-                        lookup.typeAnnotations(payloadClass), lookup.packageAnnotations(payloadClass.getPackage())))
-                .map(ValidationUtils::requiredRoles);
+        return ComponentMetadataLookups.lookup(payloadClass)
+                .map(lookup -> AuthorizationMetadata.effectiveRules(
+                                lookup.typeAnnotations(payloadClass.getName()),
+                                lookup.packageAnnotations(payloadClass.getPackageName()))
+                        .map(ValidationUtils::requiredRoles)
+                        .orElseGet(() -> new RequiredRole[0]));
+    }
+
+    private static RequiredRole[] getRequiredRoles(Class<?> targetClass, Executable executable) {
+        Optional<RequiredRole[]> metadata = getRequiredRolesFromMetadata(targetClass, executable);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
+        return Optional.ofNullable(getRequiredRoles(Arrays.asList(executable.getAnnotations())))
+                .or(() -> Optional.ofNullable(getRequiredRoles(
+                        JvmComponentIntrospector.getInstance().getTypeAnnotations(targetClass))))
+                .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                        .getPackageAndParentPackages(targetClass.getPackage()).stream()
+                        .map(p -> JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false))
+                        .map(ValidationUtils::getRequiredRoles)
+                        .filter(Objects::nonNull).findFirst().orElse(null));
     }
 
     private static Optional<RequiredRole[]> getRequiredRolesFromMetadata(Class<?> targetClass, Executable executable) {
-        return JvmComponentMetadataLookup.scanIfScannable(targetClass)
-                .flatMap(lookup -> AuthorizationMetadata.effectiveRules(
-                        lookup.executableAnnotations(executable),
-                        lookup.typeAnnotations(targetClass),
-                        lookup.packageAnnotations(targetClass.getPackage())))
-                .map(ValidationUtils::requiredRoles);
+        return ComponentMetadataLookups.lookup(targetClass)
+                .map(lookup -> AuthorizationMetadata.effectiveRules(
+                                ComponentMetadataLookups.executableAnnotations(lookup, executable),
+                                lookup.typeAnnotations(targetClass.getName()),
+                                lookup.packageAnnotations(targetClass.getPackageName()))
+                        .map(ValidationUtils::requiredRoles)
+                        .orElseGet(() -> new RequiredRole[0]));
     }
 
     private static RequiredRole[] requiredRoles(List<AuthorizationRule> rules) {

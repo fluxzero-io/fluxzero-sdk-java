@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.TestUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
@@ -29,8 +28,6 @@ import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.api.parallel.ResourceLock;
-import org.junit.jupiter.api.parallel.Resources;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -128,28 +125,25 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
-    @ResourceLock(Resources.SYSTEM_PROPERTIES)
     void resolverRefusesJvmFallbackInGeneratedOnlyMode() {
         assertInstanceOf(JvmComponentMetadataLookup.class,
                          ComponentMetadataLookups.lookup(UnregisteredPlainComponent.class).orElseThrow());
 
-        TestUtils.runWithSystemProperties(() ->
-                assertTrue(ComponentMetadataLookups.lookup(UnregisteredPlainComponent.class).isEmpty()),
-                ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(ComponentMetadataLookups.lookup(UnregisteredPlainComponent.class).isEmpty()));
     }
 
     @Test
-    @ResourceLock(Resources.SYSTEM_PROPERTIES)
     void resolverStillUsesRegistryMetadataInGeneratedOnlyMode() {
         ComponentRegistry registry = JvmComponentMetadataLookup.scan(LookupCommand.class).registry();
 
-        TestUtils.runWithSystemProperties(() -> {
+        GeneratedOnlyMetadataMode.run(() -> {
             ComponentMetadataLookup lookup =
                     ComponentMetadataLookups.lookup(registry, LookupCommand.class).orElseThrow();
 
             assertInstanceOf(RegistryComponentMetadataLookup.class, lookup);
             assertEquals("id", lookup.property(LookupCommand.class.getName(), "id").orElseThrow().name());
-        }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+        });
     }
 
     @Test

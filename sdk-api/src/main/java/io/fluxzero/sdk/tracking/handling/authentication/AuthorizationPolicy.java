@@ -38,7 +38,7 @@ public final class AuthorizationPolicy {
     public static AuthorizationDecision evaluate(
             String action, AuthorizationSubject user, Collection<AuthorizationRule> rules) {
         Objects.requireNonNull(action, "action");
-        if (rules == null || rules.contains(AuthorizationRule.NO_USER_REQUIRED)) {
+        if (rules == null || rules.isEmpty() || rules.contains(AuthorizationRule.NO_USER_REQUIRED)) {
             return AuthorizationDecision.allow();
         }
         Optional<AuthorizationRule> forbidsUser = rules.stream().filter(AuthorizationRule::forbidsUser).findFirst();
@@ -58,9 +58,6 @@ public final class AuthorizationPolicy {
                         AuthorizationFailure.UNAUTHENTICATED, "%s requires authentication".formatted(action));
             }
             return AuthorizationDecision.skipped();
-        }
-        if (rules.isEmpty()) {
-            return AuthorizationDecision.allow();
         }
         List<AuthorizationRule> remainingRoles = new ArrayList<>();
         List<AuthorizationRule> forbiddenRoles = rules.stream().filter(rule -> {

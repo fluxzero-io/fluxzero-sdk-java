@@ -39,6 +39,7 @@ class AuthorizationPolicyTest {
                 "Register", admin, List.of(AuthorizationRule.forbidsUser(false)));
         AuthorizationDecision publicAction = AuthorizationPolicy.evaluate(
                 "Health", null, List.of(AuthorizationRule.NO_USER_REQUIRED));
+        AuthorizationDecision emptyRules = AuthorizationPolicy.evaluate("Public", null, List.of());
 
         assertFalse(missingUser.allowed());
         assertEquals(AuthorizationFailure.UNAUTHENTICATED, missingUser.failure());
@@ -46,6 +47,7 @@ class AuthorizationPolicyTest {
         assertFalse(forbiddenUser.allowed());
         assertFalse(forbiddenUser.rejected());
         assertTrue(publicAction.allowed());
+        assertTrue(emptyRules.allowed());
     }
 
     @Test
@@ -63,6 +65,22 @@ class AuthorizationPolicyTest {
         assertEquals(List.of(AuthorizationRule.NO_USER_REQUIRED), methodRules.orElseThrow());
         assertEquals(List.of(AuthorizationRule.requiresRole("admin", true)), typeRules.orElseThrow());
         assertTrue(noRules.isEmpty());
+    }
+
+    @Test
+    void lowersMetaAnnotatedRegistryAnnotations() {
+        AnnotationDescriptor customRequiresRole = new AnnotationDescriptor(
+                "MockRequiresRole", "example.MockRequiresRole", Map.of("value", List.of("delete")),
+                List.of(annotation("RequiresAnyRole")));
+        AnnotationDescriptor requiresUser = new AnnotationDescriptor(
+                "RequiresUser", "io.fluxzero.sdk.tracking.handling.authentication.RequiresUser", Map.of(),
+                List.of(annotation("RequiresAnyRole")));
+
+        Optional<List<AuthorizationRule>> rules = AuthorizationMetadata.rules(List.of(customRequiresRole));
+        Optional<List<AuthorizationRule>> userRules = AuthorizationMetadata.rules(List.of(requiresUser));
+
+        assertEquals(List.of(AuthorizationRule.requiresRole("delete", true)), rules.orElseThrow());
+        assertEquals(List.of(AuthorizationRule.requiresUser(true)), userRules.orElseThrow());
     }
 
     private static AnnotationDescriptor annotation(String name) {
