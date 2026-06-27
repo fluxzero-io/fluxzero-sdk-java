@@ -18,6 +18,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.List;
@@ -85,6 +86,13 @@ public interface ExecutableView {
      */
     default boolean hasReturnType() {
         return !"void".equals(returnTypeName());
+    }
+
+    /**
+     * Returns whether this executable is static.
+     */
+    default boolean isStatic() {
+        return false;
     }
 
     /**
@@ -157,6 +165,11 @@ public interface ExecutableView {
         @Override
         public Optional<Executable> executable() {
             return Optional.of(executable);
+        }
+
+        @Override
+        public boolean isStatic() {
+            return Modifier.isStatic(executable.getModifiers());
         }
 
         @Override

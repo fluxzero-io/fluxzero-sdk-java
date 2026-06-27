@@ -17,13 +17,16 @@ package io.fluxzero.common.handling;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.Annotation;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Parameter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -189,6 +192,38 @@ class HandlerInspectorTest {
         assertTrue(view.executable().isPresent());
     }
 
+    @Test
+    void inspectViewsInvokesWithoutMatchingJvmMethods() throws Exception {
+        Annotation annotation = SingleMethod.class.getDeclaredMethod("handle", String.class)
+                .getAnnotation(Handle.class);
+        ExecutableView executableView = new MetadataExecutableView(
+                ExecutableView.Kind.METHOD,
+                SingleMethod.class.getName(),
+                "handle",
+                String.class.getName(),
+                List.of(new MetadataParameterView(
+                        0, "value", String.class.getName(), Optional.of(String.class), Map.of())),
+                Optional.of(SingleMethod.class),
+                false,
+                Map.of(Handle.class, annotation));
+        HandlerMatcher<Object, Object> matcher = HandlerInspector.inspectViews(
+                SingleMethod.class,
+                List.of(executableView),
+                view -> (target, parameterCount, parameterProvider) ->
+                        ((SingleMethod) target).handle((String) parameterProvider.apply(0)),
+                List.of(new PreparedIdentityResolver()),
+                HandlerConfiguration.builder().methodAnnotation(Handle.class).build());
+        Handler<Object> handler = DefaultHandler.forTarget(SingleMethod.class, new SingleMethod(), matcher);
+
+        assertTrue(matcher.matchingMethods("first").toList().isEmpty());
+        assertEquals(List.of(executableView), matcher.matchingExecutableViews("first").toList());
+
+        HandlerInvoker invoker = handler.getInvoker("first").orElseThrow();
+        assertNull(invoker.getMethod());
+        assertSame(executableView, invoker.getExecutableView());
+        assertEquals("first!", invoker.invoke());
+    }
+
     private static class Foo extends Bar implements SomeInterface {
         @Handle
         @Override
@@ -253,6 +288,18 @@ class HandlerInspectorTest {
 
         @Override
         public Function<Object, Object> prepare(java.lang.reflect.Parameter parameter,
+                                                java.lang.annotation.Annotation methodAnnotation) {
+            return message -> message;
+        }
+
+        @Override
+        public Function<Object, Object> resolve(ParameterView parameter,
+                                                java.lang.annotation.Annotation methodAnnotation) {
+            return message -> message;
+        }
+
+        @Override
+        public Function<Object, Object> prepare(ParameterView parameter,
                                                 java.lang.annotation.Annotation methodAnnotation) {
             return message -> message;
         }
@@ -337,6 +384,45 @@ class HandlerInspectorTest {
     @Target(ElementType.METHOD)
     @Handle
     public @interface MetaHandle {
+    }
+
+    private record MetadataExecutableView(
+            Kind kind,
+            String targetTypeName,
+            String name,
+            String returnTypeName,
+            List<? extends ParameterView> parameters,
+            Optional<Class<?>> targetClass,
+            boolean isStatic,
+            Map<Class<? extends Annotation>, Annotation> annotations) implements ExecutableView {
+
+        @Override
+        public Optional<Executable> executable() {
+            return Optional.empty();
+        }
+
+        @Override
+        public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
+            return Optional.ofNullable(annotations.get(annotationType)).map(annotationType::cast);
+        }
+    }
+
+    private record MetadataParameterView(
+            int index,
+            String name,
+            String typeName,
+            Optional<Class<?>> type,
+            Map<Class<? extends Annotation>, Annotation> annotations) implements ParameterView {
+
+        @Override
+        public Optional<Parameter> parameter() {
+            return Optional.empty();
+        }
+
+        @Override
+        public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
+            return Optional.ofNullable(annotations.get(annotationType)).map(annotationType::cast);
+        }
     }
 
 }

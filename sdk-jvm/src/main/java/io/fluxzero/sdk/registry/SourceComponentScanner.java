@@ -340,7 +340,8 @@ public class SourceComponentScanner {
                                 parameter.name(), parameter.typeName(),
                                 enrichAnnotations(parameter.annotations(), metaAnnotations, new LinkedHashSet<>())))
                                 .toList(),
-                        enrichAnnotations(executable.annotations(), metaAnnotations, new LinkedHashSet<>()))).toList());
+                        enrichAnnotations(executable.annotations(), metaAnnotations, new LinkedHashSet<>()),
+                        executable.isStatic())).toList());
     }
 
     private static List<AnnotationDescriptor> enrichAnnotations(
@@ -1029,13 +1030,14 @@ public class SourceComponentScanner {
             List<AnnotationDescriptor> annotations = parseAnnotations(header.substring(0, nameStart));
             String signaturePrefix = removeAnnotations(header.substring(0, nameStart)).trim();
             List<String> prefixTokens = words(signaturePrefix);
+            boolean isStatic = prefixTokens.contains("static");
             prefixTokens.removeIf(MODIFIERS::contains);
             prefixTokens.removeIf(token -> token.startsWith("<") && token.endsWith(">"));
             ExecutableKind kind = name.equals(className) ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
             String returnType = kind == ExecutableKind.CONSTRUCTOR || prefixTokens.isEmpty()
                     ? "void" : resolveType(eraseGeneric(prefixTokens.get(prefixTokens.size() - 1)));
             List<ParameterDescriptor> parameters = parseParameters(header.substring(paren + 1, paramEnd));
-            return Optional.of(new ExecutableDescriptor(kind, name, returnType, parameters, annotations));
+            return Optional.of(new ExecutableDescriptor(kind, name, returnType, parameters, annotations, isStatic));
         }
 
         private List<ParameterDescriptor> parseParameters(String parameters) {

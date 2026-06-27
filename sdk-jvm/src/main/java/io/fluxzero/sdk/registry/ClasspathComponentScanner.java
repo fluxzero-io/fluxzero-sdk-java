@@ -283,7 +283,8 @@ public class ClasspathComponentScanner {
                         parameter.getName(), typeName(parameter.getType()), annotationDescriptors(parameter.getAnnotations())))
                 .toList();
         return new ExecutableDescriptor(kind, executable.getName(), returnType, parameters,
-                                        annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable)));
+                                        annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable)),
+                                        java.lang.reflect.Modifier.isStatic(executable.getModifiers()));
     }
 
     private List<Annotation> handlerAnnotations(Executable executable) {

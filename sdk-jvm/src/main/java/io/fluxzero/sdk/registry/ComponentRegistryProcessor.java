@@ -26,6 +26,7 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
@@ -381,7 +382,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 .toList();
         return new ExecutableDescriptor(
                 kind, executable.getSimpleName().toString(), returnType, parameters,
-                annotationDescriptors(executable.getAnnotationMirrors()));
+                annotationDescriptors(executable.getAnnotationMirrors()),
+                executable.getModifiers().contains(Modifier.STATIC));
     }
 
     private List<WebRouteDescriptor> webRoutes(AnnotationDescriptor annotation, HandlerSpec spec,

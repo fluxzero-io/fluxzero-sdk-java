@@ -207,7 +207,8 @@ public final class ComponentRegistryJson {
         return new ExecutableDto(
                 descriptor.kind().name(), descriptor.name(), descriptor.returnTypeName(),
                 descriptor.parameters().stream().map(ComponentRegistryJson::toDto).toList(),
-                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList());
+                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList(),
+                descriptor.isStatic());
     }
 
     private static PropertyDto toDto(PropertyDescriptor descriptor) {
@@ -288,7 +289,8 @@ public final class ComponentRegistryJson {
         return new ExecutableDescriptor(
                 ExecutableKind.valueOf(dto.kind()), dto.name(), dto.returnTypeName(),
                 list(dto.parameters()).stream().map(ComponentRegistryJson::fromDto).toList(),
-                list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList());
+                list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(),
+                Boolean.TRUE.equals(dto.isStatic()));
     }
 
     private static PropertyDescriptor fromDto(PropertyDto dto) {
@@ -384,7 +386,7 @@ public final class ComponentRegistryJson {
 
     private record ExecutableDto(
             String kind, String name, String returnTypeName, List<ParameterDto> parameters,
-            List<AnnotationDto> annotations) {
+            List<AnnotationDto> annotations, Boolean isStatic) {
     }
 
     private record PropertyDto(String name, String typeName, String genericTypeName, List<AnnotationDto> annotations) {

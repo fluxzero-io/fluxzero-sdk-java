@@ -322,7 +322,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         return switch (messageType) {
             case WEBREQUEST -> WebHandlerMatcher.create(target, parameterResolvers, config, webRouteRegistry);
-            default -> HandlerInspector.inspect(JvmComponentIntrospector.getInstance().asClass(target), parameterResolvers, config);
+            default -> {
+                Class<?> targetClass = JvmComponentIntrospector.getInstance().asClass(target);
+                yield RegistryHandlerMatcherFactory.create(targetClass, parameterResolvers, config)
+                        .orElseGet(() -> HandlerInspector.inspect(targetClass, parameterResolvers, config));
+            }
         };
     }
 

@@ -26,13 +26,15 @@ import java.util.Objects;
  * @param returnTypeName resolved return type name, or {@code void} for constructors
  * @param parameters executable parameters
  * @param annotations source annotations on the executable
+ * @param isStatic whether this executable is static
  */
 public record ExecutableDescriptor(
         ExecutableKind kind,
         String name,
         String returnTypeName,
         List<ParameterDescriptor> parameters,
-        List<AnnotationDescriptor> annotations) {
+        List<AnnotationDescriptor> annotations,
+        boolean isStatic) {
 
     public ExecutableDescriptor {
         Objects.requireNonNull(kind, "kind");
@@ -40,5 +42,14 @@ public record ExecutableDescriptor(
         Objects.requireNonNull(returnTypeName, "returnTypeName");
         parameters = List.copyOf(Objects.requireNonNull(parameters, "parameters"));
         annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
+    }
+
+    public ExecutableDescriptor(
+            ExecutableKind kind,
+            String name,
+            String returnTypeName,
+            List<ParameterDescriptor> parameters,
+            List<AnnotationDescriptor> annotations) {
+        this(kind, name, returnTypeName, parameters, annotations, false);
     }
 }

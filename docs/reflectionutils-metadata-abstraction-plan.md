@@ -94,7 +94,7 @@ Acceptance evidence:
 
 ### Slice 3: Generated Invocation Plan
 
-Status: [ ] partially implemented; still open for generated matching and parameter-binding parity.
+Status: [ ] partially implemented; still open for remaining resolver/decorator parity.
 
 Goal: the JVM runtime can use generated executable plans for app-level invocation decisions.
 
@@ -119,7 +119,7 @@ Remaining work:
   - [x] Move `TypedParameterResolver` subclasses, `SegmentFilter`, `HandleCustomFilter`, `HandleDocumentFilter`,
     `JsonPayloadParameterResolver`, and `WebPayloadParameterResolver` onto view overrides where type metadata is
     sufficient.
-  - [ ] Add a generated matcher that can be built from registry invocation plans without enumerating JVM executables.
+  - [x] Add a generated matcher that can be built from registry invocation plans without enumerating JVM executables.
   - [ ] Move built-in SDK resolvers/filters/decorators to override the view APIs where they still inspect
     `Executable`/`Parameter` directly.
 - [ ] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths
@@ -146,6 +146,8 @@ Current evidence:
 - [x] `GeneratedInvocationPlanTest` proves generated-only handler invocation can use registry metadata plus a generated
   invoker without calling the JVM method body.
 - [x] Common handling tests prove view-based parameter resolvers can run without the legacy `Parameter` methods.
+- [x] `DefaultHandlerFactoryGeneratedOnlyMetadataTest` proves a registry-backed handler matcher can run in
+  generated-only mode with no matching JVM `Executable` exposed to the Fluxzero handler invoker.
 - [x] Broad generated-only thematic suite passed after this change:
   `./mvnw -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,GeneratedInvocationPlanTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,RegistryFilteringHandlerTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest -Dsurefire.failIfNoSpecifiedTests=false test`.
 

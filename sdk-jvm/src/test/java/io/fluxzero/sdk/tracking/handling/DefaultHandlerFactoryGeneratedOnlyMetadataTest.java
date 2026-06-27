@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.MethodInvocationValidator;
@@ -22,7 +23,9 @@ import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.test.TestFixture;
@@ -41,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
@@ -63,6 +67,29 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
                         new RegisteredGeneratedOnlyHandler(), (c, e) -> true, List.of()).orElseThrow();
 
                 assertEquals("handled", handler.getInvokerOrNull(command()).invoke());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMatcherWhenGeneratedInvocationIsRegistered() {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                RegisteredGeneratedOnlyHandler.class,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "handle", List.of()),
+                (target, parameterCount, parameterProvider) -> "generated")) {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = factory().createHandler(
+                        new RegisteredGeneratedOnlyHandler(), (c, e) -> true, List.of()).orElseThrow();
+
+                HandlerInvoker invoker = handler.getInvokerOrNull(command());
+                assertNull(invoker.getMethod());
+                assertEquals("handle", invoker.getExecutableView().name());
+                assertEquals("generated", invoker.invoke());
             });
         } finally {
             TestFixture.shutDownActiveFixtures();
