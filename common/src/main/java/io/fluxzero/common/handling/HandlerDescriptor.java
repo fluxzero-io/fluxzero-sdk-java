@@ -46,6 +46,18 @@ public interface HandlerDescriptor {
     Executable getMethod();
 
     /**
+     * Metadata view of the handler executable.
+     * <p>
+     * This is the preferred runtime-facing shape for generated metadata backends. The default keeps existing JVM
+     * implementations compatible by adapting {@link #getMethod()}.
+     *
+     * @return executable metadata view
+     */
+    default ExecutableView getExecutableView() {
+        return ExecutableView.of(getMethod());
+    }
+
+    /**
      * Retrieves the configured handler annotation from the handler method, if present.
      *
      * @param <A> the annotation type

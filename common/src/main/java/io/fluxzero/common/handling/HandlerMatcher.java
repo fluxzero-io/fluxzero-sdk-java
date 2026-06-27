@@ -59,6 +59,16 @@ public interface HandlerMatcher<T, M> {
     Stream<Executable> matchingMethods(M message);
 
     /**
+     * Returns a stream of executable metadata views that match the given message.
+     *
+     * @param message the message to match against
+     * @return a stream of matching executable views
+     */
+    default Stream<ExecutableView> matchingExecutableViews(M message) {
+        return matchingMethods(message).map(ExecutableView::of);
+    }
+
+    /**
      * Attempts to resolve a {@link HandlerInvoker} for the given target instance and message.
      *
      * @param target  the handler object
@@ -112,6 +122,11 @@ public interface HandlerMatcher<T, M> {
             @Override
             public Stream<Executable> matchingMethods(M message) {
                 return Stream.concat(first.matchingMethods(message), next.matchingMethods(message));
+            }
+
+            @Override
+            public Stream<ExecutableView> matchingExecutableViews(M message) {
+                return Stream.concat(first.matchingExecutableViews(message), next.matchingExecutableViews(message));
             }
 
             @Override

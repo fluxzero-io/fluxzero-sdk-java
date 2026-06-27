@@ -121,6 +121,18 @@ public class HandlerConfiguration<M> {
     }
 
     /**
+     * Determines whether the given executable metadata view is eligible to handle messages according to this
+     * configuration.
+     *
+     * @param c the class owning the method, when available
+     * @param e the executable metadata view to check
+     * @return {@code true} if the executable should be included as a handler
+     */
+    public boolean methodMatches(Class<?> c, ExecutableView e) {
+        return isEnabled(e) && handlerFilter.test(c, e);
+    }
+
+    /**
      * Determines whether the given method is "enabled" based on the presence of {@link #methodAnnotation}
      * and whether the annotation declares a {@code disabled()} attribute.
      * <p>
@@ -148,6 +160,29 @@ public class HandlerConfiguration<M> {
     }
 
     /**
+     * Determines whether the given executable metadata view is enabled.
+     *
+     * @param e the executable metadata view to evaluate
+     * @return {@code true} if the method is enabled and can be considered as a handler
+     */
+    boolean isEnabled(ExecutableView e) {
+        if (methodAnnotation == null) {
+            return true;
+        }
+        var annotation = getAnnotation(e).orElse(null);
+        if (annotation == null) {
+            return false;
+        }
+        Optional<Method> match = Arrays.stream(annotation.annotationType().getMethods())
+                .filter(m -> m.getName().equals("disabled")).findFirst();
+        if (match.isPresent()) {
+            var result = silentBoolean(() -> (boolean) match.get().invoke(annotation));
+            return !result;
+        }
+        return true;
+    }
+
+    /**
      * Retrieves the configured method annotation on the given method, if present.
      *
      * @param e the method to inspect
@@ -156,5 +191,35 @@ public class HandlerConfiguration<M> {
     public Optional<? extends Annotation> getAnnotation(Executable e) {
         return methodAnnotation == null ? Optional.empty()
                 : executableAnnotationResolver.getAnnotation(e, methodAnnotation);
+    }
+
+    /**
+     * Retrieves the configured method annotation on the given executable metadata view, if present.
+     *
+     * @param e the executable metadata view to inspect
+     * @return an optional containing the annotation if present, or empty otherwise
+     */
+    public Optional<? extends Annotation> getAnnotation(ExecutableView e) {
+        if (methodAnnotation == null) {
+            return Optional.empty();
+        }
+        Optional<? extends Annotation> reflectionAnnotation = e.executable()
+                .flatMap(method -> executableAnnotationResolver.getAnnotation(method, methodAnnotation));
+        if (reflectionAnnotation.isPresent()) {
+            return reflectionAnnotation;
+        }
+        @SuppressWarnings("unchecked")
+        Class<Annotation> annotationType = (Class<Annotation>) methodAnnotation;
+        return e.annotation(annotationType);
+    }
+
+    @SneakyThrows
+    private static boolean silentBoolean(BooleanSupplier supplier) {
+        return supplier.getAsBoolean();
+    }
+
+    @FunctionalInterface
+    private interface BooleanSupplier {
+        boolean getAsBoolean() throws Exception;
     }
 }

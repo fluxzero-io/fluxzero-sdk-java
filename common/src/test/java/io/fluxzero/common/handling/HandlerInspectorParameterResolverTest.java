@@ -87,6 +87,17 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals(0, resolver.resolveCount);
     }
 
+    @Test
+    void parameterResolverCanUseMetadataViewInsteadOfLegacyParameter() {
+        ViewOnlyPreparedResolver resolver = new ViewOnlyPreparedResolver();
+        Handler<Message> handler = HandlerInspector.createHandler(
+                new PreparedHandler(), Handle.class, List.of(resolver));
+
+        assertEquals("metadata", handler.getInvoker(new Message("metadata")).orElseThrow().invoke());
+        assertEquals(1, resolver.viewPrepareCount);
+        assertEquals(0, resolver.legacyPrepareCount);
+    }
+
     private static class Foo {
         @Handle
         public Object handle(String o, Instant time) {
@@ -158,6 +169,34 @@ public class HandlerInspectorParameterResolverTest {
                                Message value) {
             matchesCount++;
             return false;
+        }
+    }
+
+    private static class ViewOnlyPreparedResolver implements ParameterResolver<Message> {
+        private int viewPrepareCount;
+        private int legacyPrepareCount;
+
+        @Override
+        public Function<Message, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                 java.lang.annotation.Annotation methodAnnotation) {
+            throw new AssertionError("Legacy Parameter resolve should not be used");
+        }
+
+        @Override
+        public Function<Message, Object> prepare(java.lang.reflect.Parameter parameter,
+                                                 java.lang.annotation.Annotation methodAnnotation) {
+            legacyPrepareCount++;
+            throw new AssertionError("Legacy Parameter prepare should not be used");
+        }
+
+        @Override
+        public Function<Message, Object> prepare(ParameterView parameter,
+                                                 java.lang.annotation.Annotation methodAnnotation) {
+            viewPrepareCount++;
+            if (String.class.getCanonicalName().equals(parameter.typeName())) {
+                return Message::getPayload;
+            }
+            return null;
         }
     }
 

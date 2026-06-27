@@ -174,6 +174,21 @@ class HandlerInspectorTest {
         assertEquals(2, invoked.get());
     }
 
+    @Test
+    void handlerInvokerExposesExecutableView() {
+        HandlerInvoker invoker = subject.getInvoker(true).orElseThrow();
+
+        ExecutableView view = invoker.getExecutableView();
+
+        assertEquals(ExecutableView.Kind.METHOD, view.kind());
+        assertEquals(Foo.class, invoker.getTargetClass());
+        assertEquals(Foo.class.getCanonicalName(), view.targetTypeName());
+        assertEquals("handle", view.name());
+        assertEquals(Object.class.getCanonicalName(), view.returnTypeName());
+        assertEquals(Boolean.class.getCanonicalName(), view.parameters().getFirst().typeName());
+        assertTrue(view.executable().isPresent());
+    }
+
     private static class Foo extends Bar implements SomeInterface {
         @Handle
         @Override

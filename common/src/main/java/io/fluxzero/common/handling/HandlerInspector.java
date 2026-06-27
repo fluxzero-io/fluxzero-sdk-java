@@ -216,7 +216,9 @@ public class HandlerInspector {
 
         private final int methodIndex;
         private final Executable executable;
+        private final ExecutableView executableView;
         private final Parameter[] parameters;
+        private final List<? extends ParameterView> parameterViews;
         private final int parameterCount;
         private final boolean staticMethod;
         private final ExecutableInvocation invoker;
@@ -241,19 +243,22 @@ public class HandlerInspector {
                                     List<ParameterResolver<? super M>> parameterResolvers,
                                     @NonNull HandlerConfiguration<? super M> config) {
             this.targetClass = targetClass;
-            this.parameterResolvers = parameterResolvers.stream()
-                    .filter(silentTest(r -> r.mayApply(executable, targetClass))).toList();
             this.config = config;
             this.methodIndex = executable instanceof Method ? methodIndex((Method) executable, targetClass) : 0;
             this.executable = ensureAccessible(executable);
+            this.executableView = ExecutableView.of(this.executable);
+            this.parameterResolvers = parameterResolvers.stream()
+                    .filter(silentTest(r -> r.mayApply(executableView, targetClass))).toList();
             this.parameters = this.executable.getParameters();
+            this.parameterViews = this.executableView.parameters();
             this.parameterCount = this.parameters.length;
             this.staticMethod = Modifier.isStatic(this.executable.getModifiers());
             this.hasReturnType = ReflectionUtils.hasReturnType(executable);
-            this.methodAnnotation = config.getAnnotation(executable).orElse(null);
+            this.methodAnnotation = config.getAnnotation(executableView).orElse(null);
             this.methodAnnotationType = Optional.ofNullable(this.methodAnnotation).map(Annotation::annotationType)
                     .orElse(null);
-            this.messageFilter = config.messageFilter().prepare(this.executable, this.methodAnnotationType, targetClass);
+            this.messageFilter = config.messageFilter()
+                    .prepare(this.executableView, this.methodAnnotationType, targetClass);
             this.parameterResolverPlans = prepareParameterResolvers();
             this.onlyPreparedParameterResolvers = onlyPreparedParameterResolvers(this.parameterResolverPlans);
             this.validateMethodInvocation = config.methodInvocationValidator() != MethodInvocationValidator.noOp();
@@ -283,7 +288,7 @@ public class HandlerInspector {
 
         @SuppressWarnings("unchecked")
         protected Function<Object, HandlerInvoker> prepareInvokerOrNull(M m) {
-            if (!messageFilter.test(m, executable, methodAnnotationType, targetClass)) {
+            if (!messageFilter.test(m, executableView, methodAnnotationType, targetClass)) {
                 return null;
             }
 
@@ -307,7 +312,7 @@ public class HandlerInspector {
         }
 
         private HandlerInvoker createInvokerOrNull(Object target, M m) {
-            if (!messageFilter.test(m, executable, methodAnnotationType, targetClass)) {
+            if (!messageFilter.test(m, executableView, methodAnnotationType, targetClass)) {
                 return null;
             }
             if (parameterCount == 0) {
@@ -338,7 +343,7 @@ public class HandlerInspector {
         }
 
         private Function<? super M, Object> resolveDynamicParameterResolver(M m, int parameterIndex) {
-            Parameter p = parameters[parameterIndex];
+            ParameterView p = parameterViews.get(parameterIndex);
             for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
                 if (plan.preparedResolver() != null) {
                     return plan.preparedResolver();
@@ -383,7 +388,7 @@ public class HandlerInspector {
                     for (int i = 0; i < parameterCount; i++) {
                         args[i] = parameterResolverPlans[i].getFirst().preparedResolver().apply(m);
                     }
-                    config.methodInvocationValidator().validate(m, target, executable, args);
+                    config.methodInvocationValidator().validate(m, target, executableView, args);
                     return invoker.invoke(target, parameterCount, i -> args[i]);
                 }
             };
@@ -410,7 +415,7 @@ public class HandlerInspector {
                     for (int i = 0; i < parameterCount; i++) {
                         args[i] = matchingResolvers[i].apply(m);
                     }
-                    config.methodInvocationValidator().validate(m, target, executable, args);
+                    config.methodInvocationValidator().validate(m, target, executableView, args);
                     return invoker.invoke(target, parameterCount, i -> args[i]);
                 }
             };
@@ -425,7 +430,7 @@ public class HandlerInspector {
         private List<ParameterResolverPlan<M>>[] prepareParameterResolvers() {
             List<ParameterResolverPlan<M>>[] result = new List[parameterCount];
             for (int i = 0; i < parameterCount; i++) {
-                Parameter p = parameters[i];
+                ParameterView p = parameterViews.get(i);
                 List<ParameterResolverPlan<M>> plans = new ArrayList<>();
                 for (ParameterResolver<? super M> resolver : parameterResolvers) {
                     Function<? super M, Object> preparedResolver = resolver.prepare(p, methodAnnotation);
@@ -494,13 +499,16 @@ public class HandlerInspector {
 
         protected Class<?> computeClassForSpecificity() {
             Class<?> handlerType = messageFilter.getLeastSpecificAllowedClass(
-                    executable, methodAnnotationType).orElse(null);
-            for (Parameter p : parameters) {
+                    executableView, methodAnnotationType).orElse(null);
+            for (ParameterView p : parameterViews) {
                 for (ParameterResolver<? super M> r : parameterResolvers) {
                     if (r.determinesSpecificity()) {
                         Function<? super M, Object> resolver = r.resolve(p, methodAnnotation);
                         if (resolver != null) {
-                            Class<?> parameterType = p.getType();
+                            Class<?> parameterType = p.type().orElse(null);
+                            if (parameterType == null) {
+                                continue;
+                            }
                             if (handlerType != null && !handlerType.isAssignableFrom(parameterType)) {
                                 return handlerType;
                             }
@@ -514,7 +522,7 @@ public class HandlerInspector {
 
         protected Specificity computeSpecificity(M message) {
             Specificity result = new Specificity(classForSpecificity, Integer.MAX_VALUE);
-            for (Parameter p : parameters) {
+            for (ParameterView p : parameterViews) {
                 for (ParameterResolver<? super M> r : parameterResolvers) {
                     if (!r.determinesSpecificity()) {
                         continue;
@@ -526,7 +534,10 @@ public class HandlerInspector {
                         resolver = r.resolve(p, methodAnnotation);
                     }
                     if (resolver != null) {
-                        Class<?> parameterType = p.getType();
+                        Class<?> parameterType = p.type().orElse(null);
+                        if (parameterType == null) {
+                            continue;
+                        }
                         Class<?> candidate = classForSpecificity != null
                                              && !classForSpecificity.isAssignableFrom(parameterType)
                                              ? classForSpecificity : parameterType;
@@ -634,6 +645,11 @@ public class HandlerInspector {
                 return executable;
             }
 
+            @Override
+            public ExecutableView getExecutableView() {
+                return executableView;
+            }
+
             @SuppressWarnings("unchecked")
             @Override
             public <A extends Annotation> A getMethodAnnotation() {
@@ -668,7 +684,7 @@ public class HandlerInspector {
 
             @Override
             public boolean canHandle(M message) {
-                return messageFilter.test(message, executable, methodAnnotationType, targetClass);
+                return messageFilter.test(message, executableView, methodAnnotationType, targetClass);
             }
 
             @Override
@@ -692,6 +708,11 @@ public class HandlerInspector {
             @Override
             public Executable getMethod() {
                 return executable;
+            }
+
+            @Override
+            public ExecutableView getExecutableView() {
+                return executableView;
             }
 
             @SuppressWarnings("unchecked")

@@ -52,6 +52,17 @@ public interface HandlerFilter {
     boolean test(Class<?> ownerType, Executable executable);
 
     /**
+     * Evaluates whether the specified executable metadata view should be considered a valid handler.
+     *
+     * @param ownerType  the class that declares the handler method, when available
+     * @param executable the candidate executable metadata view
+     * @return {@code true} if the method should be included as a handler, {@code false} otherwise
+     */
+    default boolean test(Class<?> ownerType, ExecutableView executable) {
+        return executable.executable().map(method -> test(ownerType, method)).orElse(true);
+    }
+
+    /**
      * Combines this filter with another using logical AND. The resulting filter passes only if both filters pass.
      *
      * @param other another {@code HandlerFilter} to combine with

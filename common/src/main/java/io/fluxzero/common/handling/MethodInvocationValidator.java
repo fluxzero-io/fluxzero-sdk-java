@@ -28,6 +28,13 @@ public interface MethodInvocationValidator<M> {
 
     void validate(M message, Object target, Executable executable, Object[] arguments);
 
+    /**
+     * Validates method invocation arguments using an executable metadata view.
+     */
+    default void validate(M message, Object target, ExecutableView executable, Object[] arguments) {
+        executable.executable().ifPresent(method -> validate(message, target, method, arguments));
+    }
+
     @SuppressWarnings("unchecked")
     static <M> MethodInvocationValidator<M> noOp() {
         return (MethodInvocationValidator<M>) noOp;

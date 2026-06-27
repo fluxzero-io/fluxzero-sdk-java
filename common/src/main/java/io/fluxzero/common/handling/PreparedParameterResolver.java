@@ -33,4 +33,12 @@ public interface PreparedParameterResolver<M> extends ParameterResolver<M> {
      * parameter.
      */
     Function<M, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, M value);
+
+    /**
+     * Returns a prepared resolver for the given metadata parameter view, or {@code null} when this resolver cannot
+     * handle the parameter.
+     */
+    default Function<M, Object> resolveIfPossible(ParameterView parameter, Annotation methodAnnotation, M value) {
+        return parameter.parameter().map(p -> resolveIfPossible(p, methodAnnotation, value)).orElse(null);
+    }
 }

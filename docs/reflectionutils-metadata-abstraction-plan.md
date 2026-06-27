@@ -109,6 +109,14 @@ Remaining work:
 - [x] Keep reflection invocation only behind the explicit JVM backend seam for missing plans or intentionally JVM-only
   mechanics.
 - [ ] Replace handler discovery/matching dependence on JVM `Executable`/`Parameter` with generated plan/view contracts.
+  - [x] Add `ExecutableView` and `ParameterView` contracts in `common`.
+  - [x] Add compatibility bridges on `HandlerDescriptor`, `HandlerMatcher`, `ParameterResolver`,
+    `PreparedParameterResolver`, `HandlerFilter`, `MessageFilter`, and `MethodInvocationValidator`.
+  - [x] Make `HandlerInspector` use executable/parameter views internally for message filtering, parameter resolving,
+    specificity, and validation calls.
+  - [ ] Add a generated matcher that can be built from registry invocation plans without enumerating JVM executables.
+  - [ ] Move built-in SDK resolvers/filters/decorators to override the view APIs where they still inspect
+    `Executable`/`Parameter` directly.
 - [ ] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths
   without relying on `HandlerInspector` reflection-shaped matching/binding.
 
@@ -126,16 +134,19 @@ Current evidence:
 - [x] `GeneratedExecutableInvocations` lets generated code register direct invocation functions by stable executable id.
 - [x] `JvmComponentIntrospector.prepareInvocation(...)` resolves the active registry invocation plan first and prefers
   a generated invoker before falling back to JVM member invocation.
+- [x] `HandlerInspector` now routes the common handling hot path through `ExecutableView`/`ParameterView` while
+  preserving existing `Executable`/`Parameter` extension points through default bridges.
 - [x] `GeneratedInvocationPlanTest` proves generated-only handler invocation can use registry metadata plus a generated
   invoker without calling the JVM method body.
+- [x] Common handling tests prove view-based parameter resolvers can run without the legacy `Parameter` methods.
 - [x] Broad generated-only thematic suite passed after this change:
   `./mvnw -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,GeneratedInvocationPlanTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,RegistryFilteringHandlerTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest -Dsurefire.failIfNoSpecifiedTests=false test`.
 
 Open architectural boundary:
 
-- `HandlerDescriptor`, `ParameterResolver`, validation interceptors, web/socket decorators, content filtering, and
-  several diagnostics still expose JVM `Executable` and `Parameter`. Full generated matching and parameter binding
-  therefore needs a reflection-free executable/parameter view layer before this slice can be marked complete.
+- Validation interceptors, web/socket decorators, content filtering, several diagnostics, and some built-in resolvers
+  still expose JVM `Executable` and `Parameter` directly. Full generated matching and parameter binding therefore needs
+  a generated matcher plus resolver/decorator migrations before this slice can be marked complete.
 
 ### Slice 4: Validation And Policy Gaps
 

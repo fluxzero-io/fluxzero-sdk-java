@@ -45,12 +45,25 @@ public interface MessageFilter<M> {
         }
 
         @Override
+        public boolean test(Object message, ExecutableView executable, Class<? extends Annotation> handlerAnnotation,
+                            Class<?> targetClass) {
+            return true;
+        }
+
+        @Override
         public boolean isAlwaysTrue() {
             return true;
         }
 
         @Override
         public MessageFilter<? super Object> prepare(Executable executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+            return this;
+        }
+
+        @Override
+        public MessageFilter<? super Object> prepare(ExecutableView executable,
                                                      Class<? extends Annotation> handlerAnnotation,
                                                      Class<?> targetClass) {
             return this;
@@ -74,6 +87,22 @@ public interface MessageFilter<M> {
     boolean test(M message, Executable executable, Class<? extends Annotation> handlerAnnotation, Class<?> targetClass);
 
     /**
+     * Evaluates whether a message should be handled by a given executable metadata view.
+     *
+     * @param message           the message instance to evaluate
+     * @param executable        the candidate handler executable metadata view
+     * @param handlerAnnotation the annotation that marks the method as a handler
+     * @param targetClass       the class of the handler object, when available
+     * @return {@code true} if the message is accepted by this filter for the given handler method
+     */
+    default boolean test(M message, ExecutableView executable, Class<? extends Annotation> handlerAnnotation,
+                         Class<?> targetClass) {
+        return executable.executable()
+                .map(method -> test(message, method, handlerAnnotation, targetClass))
+                .orElse(false);
+    }
+
+    /**
      * Returns whether this filter accepts every message without inspecting runtime state.
      */
     default boolean isAlwaysTrue() {
@@ -92,6 +121,20 @@ public interface MessageFilter<M> {
     }
 
     /**
+     * Returns a filter prepared for the supplied executable metadata view.
+     */
+    default MessageFilter<? super M> prepare(ExecutableView executable, Class<? extends Annotation> handlerAnnotation,
+                                             Class<?> targetClass) {
+        Optional<Executable> method = executable.executable();
+        if (method.isPresent()) {
+            return prepare(method.orElseThrow(), handlerAnnotation, targetClass);
+        }
+        @SuppressWarnings("unchecked")
+        MessageFilter<? super M> result = (MessageFilter<? super M>) this;
+        return result;
+    }
+
+    /**
      * Provides the least specific class type that is allowed to match this filter for a given method and annotation.
      * <p>
      * This can be used to restrict or optimize handler matching, especially when working with inheritance or interface
@@ -104,6 +147,15 @@ public interface MessageFilter<M> {
     default Optional<Class<?>> getLeastSpecificAllowedClass(Executable executable,
                                                             Class<? extends Annotation> handlerAnnotation) {
         return Optional.empty();
+    }
+
+    /**
+     * Provides the least specific class type that is allowed to match this filter for a given executable metadata view.
+     */
+    default Optional<Class<?>> getLeastSpecificAllowedClass(ExecutableView executable,
+                                                            Class<? extends Annotation> handlerAnnotation) {
+        return executable.executable()
+                .flatMap(method -> getLeastSpecificAllowedClass(method, handlerAnnotation));
     }
 
     /**
@@ -129,8 +181,22 @@ public interface MessageFilter<M> {
             }
 
             @Override
+            public boolean test(M m, ExecutableView e, Class<? extends Annotation> handlerAnnotation,
+                                Class<?> targetClass) {
+                return first.test(m, e, handlerAnnotation, targetClass)
+                       && second.test(m, e, handlerAnnotation, targetClass);
+            }
+
+            @Override
             public Optional<Class<?>> getLeastSpecificAllowedClass(Executable executable,
                                                                    Class<? extends Annotation> handlerAnnotation) {
+                return first.getLeastSpecificAllowedClass(executable, handlerAnnotation)
+                        .or(() -> second.getLeastSpecificAllowedClass(executable, handlerAnnotation));
+            }
+
+            @Override
+            public Optional<Class<?>> getLeastSpecificAllowedClass(
+                    ExecutableView executable, Class<? extends Annotation> handlerAnnotation) {
                 return first.getLeastSpecificAllowedClass(executable, handlerAnnotation)
                         .or(() -> second.getLeastSpecificAllowedClass(executable, handlerAnnotation));
             }
@@ -158,8 +224,63 @@ public interface MessageFilter<M> {
                     }
 
                     @Override
+                    public boolean test(M m, ExecutableView e, Class<? extends Annotation> a, Class<?> t) {
+                        return preparedFirst.test(m, e, a, t) && preparedSecond.test(m, e, a, t);
+                    }
+
+                    @Override
                     public Optional<Class<?>> getLeastSpecificAllowedClass(
                             Executable e, Class<? extends Annotation> a) {
+                        return preparedFirst.getLeastSpecificAllowedClass(e, a)
+                                .or(() -> preparedSecond.getLeastSpecificAllowedClass(e, a));
+                    }
+
+                    @Override
+                    public Optional<Class<?>> getLeastSpecificAllowedClass(
+                            ExecutableView e, Class<? extends Annotation> a) {
+                        return preparedFirst.getLeastSpecificAllowedClass(e, a)
+                                .or(() -> preparedSecond.getLeastSpecificAllowedClass(e, a));
+                    }
+                };
+            }
+
+            @Override
+            public MessageFilter<? super M> prepare(ExecutableView executable,
+                                                    Class<? extends Annotation> handlerAnnotation,
+                                                    Class<?> targetClass) {
+                @SuppressWarnings("unchecked")
+                MessageFilter<? super M> preparedFirst =
+                        (MessageFilter<? super M>) first.prepare(executable, handlerAnnotation, targetClass);
+                @SuppressWarnings("unchecked")
+                MessageFilter<? super M> preparedSecond =
+                        (MessageFilter<? super M>) second.prepare(executable, handlerAnnotation, targetClass);
+                if (preparedFirst.isAlwaysTrue()) {
+                    return preparedSecond;
+                }
+                if (preparedSecond.isAlwaysTrue()) {
+                    return preparedFirst;
+                }
+                return new MessageFilter<>() {
+                    @Override
+                    public boolean test(M m, Executable e, Class<? extends Annotation> a, Class<?> t) {
+                        return preparedFirst.test(m, e, a, t) && preparedSecond.test(m, e, a, t);
+                    }
+
+                    @Override
+                    public boolean test(M m, ExecutableView e, Class<? extends Annotation> a, Class<?> t) {
+                        return preparedFirst.test(m, e, a, t) && preparedSecond.test(m, e, a, t);
+                    }
+
+                    @Override
+                    public Optional<Class<?>> getLeastSpecificAllowedClass(
+                            Executable e, Class<? extends Annotation> a) {
+                        return preparedFirst.getLeastSpecificAllowedClass(e, a)
+                                .or(() -> preparedSecond.getLeastSpecificAllowedClass(e, a));
+                    }
+
+                    @Override
+                    public Optional<Class<?>> getLeastSpecificAllowedClass(
+                            ExecutableView e, Class<? extends Annotation> a) {
                         return preparedFirst.getLeastSpecificAllowedClass(e, a)
                                 .or(() -> preparedSecond.getLeastSpecificAllowedClass(e, a));
                     }
