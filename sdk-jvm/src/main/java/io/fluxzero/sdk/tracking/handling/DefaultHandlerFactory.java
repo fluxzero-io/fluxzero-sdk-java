@@ -232,10 +232,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
             }
 
             {
-                var trackSelf
-                        = Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, TrackSelf.class))
-                        .or(() -> Optional.ofNullable(targetClass.getPackage())
-                                .flatMap(p -> JvmComponentIntrospector.getInstance().getPackageAnnotation(p, TrackSelf.class)));
+                var trackSelf = ComponentMetadataLookups.typeOrPackageAnnotation(targetClass, TrackSelf.class);
                 if (trackSelf.isPresent()) {
                     MessageFilter<DeserializingMessage> selfFilter =
                             (message, method, handlerAnnotation, t) -> t.isAssignableFrom(

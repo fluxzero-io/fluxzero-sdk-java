@@ -24,6 +24,7 @@ import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
@@ -158,6 +159,26 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeCreatesTrackSelfHandlerFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredTrackSelfCommand.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = factory().createHandler(
+                        RegisteredTrackSelfCommand.class, (c, e) -> true, List.of()).orElseThrow();
+
+                assertEquals("self", handler.getInvokerOrNull(
+                        new DeserializingMessage(new Message(new RegisteredTrackSelfCommand()),
+                                                 MessageType.COMMAND, null))
+                        .invoke());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static DefaultHandlerFactory factory() {
         return new DefaultHandlerFactory(
                 MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
@@ -218,6 +239,14 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         @HandleCommand(allowedClasses = AllowedGeneratedOnlyCommand.class)
         String handle() {
             return "allowed";
+        }
+    }
+
+    @TrackSelf
+    private static class RegisteredTrackSelfCommand {
+        @HandleCommand
+        String handle() {
+            return "self";
         }
     }
 

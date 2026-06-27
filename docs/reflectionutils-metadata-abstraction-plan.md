@@ -61,6 +61,8 @@ Work slices:
       generated-only mode.
     - [x] `ConsumerConfiguration` uses the central resolver for package/type `@Consumer`; generated-only mode no
       longer derives consumer configuration from JVM annotation fallback.
+    - [x] `DefaultHandlerFactory` uses metadata-backed type/package `@TrackSelf` resolution; generated-only mode no
+      longer derives self-handling factory behavior through JVM annotation fallback.
   - [ ] Modeling, aggregates, entities, repositories, and property access.
     - [x] `HandlerAssociations` and `StatefulHandler` use the central resolver for association, member,
       routing-key, and entity-id metadata; generated-only mode no longer derives those semantics through direct
