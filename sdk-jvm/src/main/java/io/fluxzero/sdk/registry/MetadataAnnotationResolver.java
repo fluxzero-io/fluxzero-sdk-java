@@ -71,6 +71,12 @@ final class MetadataAnnotationResolver {
                 annotationType.getClassLoader(), new Class<?>[]{annotationType}, handler));
     }
 
+    static Optional<Annotation> annotationView(AnnotationDescriptor descriptor, Class<?> declaringClass) {
+        return loadClass(descriptor.qualifiedName(), declaringClass.getClassLoader())
+                .filter(Annotation.class::isAssignableFrom)
+                .map(type -> annotationView(type.asSubclass(Annotation.class), descriptor, declaringClass));
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> T annotationAs(
             Class<? extends Annotation> annotationType, Class<T> projectionType,

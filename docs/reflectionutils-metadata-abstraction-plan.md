@@ -88,6 +88,10 @@ Work slices:
       `@FilterContent` through JVM annotation fallback.
     - [x] `ValidationUtils` uses the central metadata resolver for `@ValidateWith` and auth rules; generated-only
       mode no longer enforces validation/auth semantics from JVM annotation fallback.
+    - [x] Jakarta bean and executable validation uses registered/generated metadata for element-level constraints,
+      `@Valid`, `@ConvertGroup`, and `@GroupSequence`; generated-only mode no longer derives those validation
+      annotations through JVM element annotation fallback. Type-use validation and constraint-definition internals
+      remain JVM-backend work for a later slice.
     - [x] `DataProtectionInterceptor` uses the central metadata resolver for `@ProtectData` and
       `@DropProtectedData`; generated-only mode no longer protects or drops data through JVM annotation fallback.
     - [x] Web route pattern metadata uses the central resolver; generated-only mode no longer derives web patterns

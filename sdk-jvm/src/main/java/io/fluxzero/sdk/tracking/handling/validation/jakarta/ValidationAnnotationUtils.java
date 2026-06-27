@@ -15,7 +15,13 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintDefinitionException;
 import jakarta.validation.ConstraintTarget;
@@ -31,7 +37,11 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.AnnotatedParameterizedType;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Array;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,13 +61,17 @@ final class ValidationAnnotationUtils {
     }
 
     static boolean hasValidationAnnotations(AnnotatedElement element) {
-        return !constraintAnnotations(JvmComponentIntrospector.getInstance().getAnnotations(element)).isEmpty()
-               || JvmComponentIntrospector.getInstance().getAnnotation(element, Valid.class).isPresent()
-               || JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.class).isPresent()
-               || JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.List.class).isPresent();
+        List<Annotation> annotations = annotations(element);
+        return !constraintAnnotations(annotations).isEmpty()
+               || hasAnnotation(annotations, Valid.class)
+               || hasAnnotation(annotations, ConvertGroup.class)
+               || hasAnnotation(annotations, ConvertGroup.List.class);
     }
 
     static boolean hasValidationAnnotations(AnnotatedType type) {
+        if (type == null || ComponentMetadataLookups.generatedOnlyMode()) {
+            return false;
+        }
         return type != null && (hasValidationAnnotations((AnnotatedElement) type)
                                 || type instanceof AnnotatedParameterizedType parameterizedType
                                    && Arrays.stream(parameterizedType.getAnnotatedActualTypeArguments())
@@ -67,7 +81,7 @@ final class ValidationAnnotationUtils {
     }
 
     static List<ConstraintMeta> constraintMetas(AnnotatedElement element) {
-        return constraintAnnotations(JvmComponentIntrospector.getInstance().getAnnotations(element)).stream().map(ConstraintMeta::new)
+        return constraintAnnotations(annotations(element)).stream().map(ConstraintMeta::new)
                 .toList();
     }
 
@@ -149,12 +163,12 @@ final class ValidationAnnotationUtils {
 
     static Class<?>[] validationGroups(Class<?> group, Class<?> beanType) {
         if (group == Default.class) {
-            GroupSequence sequence = JvmComponentIntrospector.getInstance().getAnnotation(beanType, GroupSequence.class).orElse(null);
+            GroupSequence sequence = annotation(beanType, GroupSequence.class).orElse(null);
             if (sequence != null) {
                 return sequence.value();
             }
         }
-        GroupSequence sequence = JvmComponentIntrospector.getInstance().getAnnotation(group, GroupSequence.class).orElse(null);
+        GroupSequence sequence = annotation(group, GroupSequence.class).orElse(null);
         return sequence == null ? new Class<?>[]{group} : sequence.value();
     }
 
@@ -189,17 +203,104 @@ final class ValidationAnnotationUtils {
 
     static List<GroupConversion> groupConversions(AnnotatedElement element) {
         List<GroupConversion> result = new ArrayList<>();
-        ConvertGroup single = JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.class).orElse(null);
+        ConvertGroup single = annotation(element, ConvertGroup.class).orElse(null);
         if (single != null) {
             result.add(new GroupConversion(single.from(), single.to()));
         }
-        ConvertGroup.List list = JvmComponentIntrospector.getInstance().getAnnotation(element, ConvertGroup.List.class).orElse(null);
+        ConvertGroup.List list = annotation(element, ConvertGroup.List.class).orElse(null);
         if (list != null) {
             for (ConvertGroup conversion : list.value()) {
                 result.add(new GroupConversion(conversion.from(), conversion.to()));
             }
         }
         return List.copyOf(result);
+    }
+
+    static boolean hasAnnotation(AnnotatedElement element, Class<? extends Annotation> annotationType) {
+        return annotation(element, annotationType).isPresent();
+    }
+
+    static <A extends Annotation> Optional<A> annotation(AnnotatedElement element, Class<A> annotationType) {
+        List<Annotation> annotations = annotations(element);
+        Optional<A> annotation = annotations.stream()
+                .filter(candidate -> annotationType.isAssignableFrom(candidate.annotationType()))
+                .map(annotationType::cast)
+                .findFirst();
+        if (annotation.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return annotation;
+        }
+        return JvmComponentIntrospector.getInstance().getAnnotation(element, annotationType);
+    }
+
+    static List<Annotation> annotations(AnnotatedElement element) {
+        Optional<Class<?>> declaringClass = metadataDeclaringClass(element);
+        if (declaringClass.isPresent()) {
+            List<AnnotationDescriptor> descriptors = metadataAnnotations(element);
+            if (!descriptors.isEmpty() || ComponentMetadataLookups.generatedOnlyMode()) {
+                return ComponentMetadataLookups.annotationViews(descriptors, declaringClass.get());
+            }
+        }
+        return ComponentMetadataLookups.generatedOnlyMode()
+                ? List.of() : JvmComponentIntrospector.getInstance().getAnnotations(element);
+    }
+
+    private static boolean hasAnnotation(Collection<? extends Annotation> annotations,
+                                         Class<? extends Annotation> annotationType) {
+        return annotations.stream().anyMatch(annotation -> annotationType.isAssignableFrom(annotation.annotationType()));
+    }
+
+    private static List<AnnotationDescriptor> metadataAnnotations(AnnotatedElement element) {
+        return metadataDeclaringClass(element)
+                .flatMap(type -> ComponentMetadataLookups.registeredLookup(type)
+                        .map(lookup -> metadataAnnotations(lookup, element)))
+                .orElseGet(List::of);
+    }
+
+    private static List<AnnotationDescriptor> metadataAnnotations(
+            ComponentMetadataLookup lookup, AnnotatedElement element) {
+        if (element instanceof Parameter parameter) {
+            return ComponentMetadataLookups.parameter(lookup, parameter)
+                    .map(ParameterDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof RecordComponent component) {
+            return lookup.property(component.getDeclaringRecord().getName(), component.getName())
+                    .map(PropertyDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof Field field) {
+            return lookup.property(field.getDeclaringClass().getName(), field.getName())
+                    .map(PropertyDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof Executable executable) {
+            return ComponentMetadataLookups.executable(lookup, executable)
+                    .map(ExecutableDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof Class<?> type) {
+            return lookup.typeAnnotations(type.getName());
+        }
+        return List.of();
+    }
+
+    private static Optional<Class<?>> metadataDeclaringClass(AnnotatedElement element) {
+        if (element instanceof Parameter parameter) {
+            return Optional.of(parameter.getDeclaringExecutable().getDeclaringClass());
+        }
+        if (element instanceof RecordComponent component) {
+            return Optional.of(component.getDeclaringRecord());
+        }
+        if (element instanceof Field field) {
+            return Optional.of(field.getDeclaringClass());
+        }
+        if (element instanceof Executable executable) {
+            return Optional.of(executable.getDeclaringClass());
+        }
+        if (element instanceof Class<?> type) {
+            return Optional.of(type);
+        }
+        return Optional.empty();
     }
 
     record GroupConversion(Class<?> from, Class<?> to) {

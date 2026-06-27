@@ -72,6 +72,19 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Returns generated or explicitly registered metadata for the supplied component types without using the JVM
+     * classpath-scanning compatibility fallback.
+     */
+    public static Optional<ComponentMetadataLookup> registeredLookup(Class<?>... types) {
+        List<Class<?>> componentTypes = componentTypes(types);
+        if (componentTypes.isEmpty()) {
+            return Optional.empty();
+        }
+        return activeRegistryLookup(componentTypes)
+                .or(() -> generatedRegistryLookup(componentTypes));
+    }
+
+    /**
      * Returns registry metadata for the supplied component types.
      * <p>
      * Generated registry resources win. JVM classpath scanning is used only in hybrid/compatibility mode.
@@ -181,6 +194,19 @@ public final class ComponentMetadataLookups {
                 .map(descriptor -> MetadataAnnotationResolver.annotationView(annotationType, descriptor, declaringClass))
                 .filter(annotationType::isInstance)
                 .map(annotationType::cast)
+                .toList();
+    }
+
+    /**
+     * Projects metadata annotations to JVM annotation views for annotation types available on the classpath.
+     */
+    public static List<Annotation> annotationViews(
+            List<AnnotationDescriptor> annotations, Class<?> declaringClass) {
+        Objects.requireNonNull(annotations, "annotations");
+        Objects.requireNonNull(declaringClass, "declaringClass");
+        return annotations.stream()
+                .map(descriptor -> MetadataAnnotationResolver.annotationView(descriptor, declaringClass))
+                .flatMap(Optional::stream)
                 .toList();
     }
 

@@ -17,6 +17,8 @@ package io.fluxzero.sdk.tracking.handling.validation;
 
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
@@ -57,6 +59,7 @@ import static java.lang.annotation.ElementType.PARAMETER;
 import static java.lang.annotation.ElementType.TYPE;
 import static java.lang.annotation.ElementType.TYPE_USE;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -383,6 +386,65 @@ class DefaultValidatorTest {
     }
 
     @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForJakartaBeanValidation() {
+        GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(() -> subject.assertValid(
+                new UnregisteredGeneratedOnlyJakartaBean("", new UnregisteredGeneratedOnlyJakartaChild("")))));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredJakartaBeanValidationMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
+                    RegisteredGeneratedOnlyJakartaBean.class, RegisteredGeneratedOnlyJakartaChild.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                ValidationException e = assertThrows(ValidationException.class, () -> subject.assertValid(
+                        new RegisteredGeneratedOnlyJakartaBean("", new RegisteredGeneratedOnlyJakartaChild(""))));
+
+                assertEquals(2, e.getViolations().size());
+                assertTrue(e.getViolations().stream().anyMatch(v -> v.contains("name must not be blank")));
+                assertTrue(e.getViolations().stream().anyMatch(v -> v.contains("value must not be blank")));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredJakartaExecutableValidationMetadata() throws Exception {
+        Method unregistered = UnregisteredGeneratedOnlyExecutableTarget.class.getDeclaredMethod(
+                "handle", String.class, UnregisteredGeneratedOnlyExecutableChild.class);
+        GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(() -> subject.assertValidParameters(
+                new UnregisteredGeneratedOnlyExecutableTarget(), unregistered,
+                new Object[]{"", new UnregisteredGeneratedOnlyExecutableChild("")})));
+
+        Method registered = RegisteredGeneratedOnlyExecutableTarget.class.getDeclaredMethod(
+                "handle", String.class, RegisteredGeneratedOnlyExecutableChild.class);
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
+                    RegisteredGeneratedOnlyExecutableTarget.class, RegisteredGeneratedOnlyExecutableChild.class)
+                    .registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                ValidationException parameterException = assertThrows(ValidationException.class,
+                        () -> subject.assertValidParameters(new RegisteredGeneratedOnlyExecutableTarget(), registered,
+                                                            new Object[]{"", new RegisteredGeneratedOnlyExecutableChild("")}));
+                assertEquals(2, parameterException.getViolations().size());
+                assertEquals(2, parameterException.getViolations().stream()
+                        .filter(v -> v.contains("must not be blank")).count());
+
+                ValidationException returnException = assertThrows(ValidationException.class,
+                        () -> subject.assertValidReturnValue(new RegisteredGeneratedOnlyExecutableTarget(),
+                                                             registered,
+                                                             new RegisteredGeneratedOnlyExecutableChild("")));
+                assertTrue(returnException.getMessage().contains("value must not be blank"));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void validatesExecutableParameters() throws Exception {
         Method method = ParameterTarget.class.getDeclaredMethod("handle", String.class, Child.class);
 
@@ -691,16 +753,61 @@ class DefaultValidatorTest {
     private record Child(@NotNull(groups = ChildChecks.class) String value) {
     }
 
+    private record UnregisteredGeneratedOnlyJakartaBean(
+            @NotBlank String name,
+            @Valid @ConvertGroup(from = Default.class, to = GeneratedOnlyChildChecks.class)
+            UnregisteredGeneratedOnlyJakartaChild child) {
+    }
+
+    private record UnregisteredGeneratedOnlyJakartaChild(
+            @NotBlank(groups = GeneratedOnlyChildChecks.class) String value) {
+    }
+
+    private record RegisteredGeneratedOnlyJakartaBean(
+            @NotBlank String name,
+            @Valid @ConvertGroup(from = Default.class, to = GeneratedOnlyChildChecks.class)
+            RegisteredGeneratedOnlyJakartaChild child) {
+    }
+
+    private record RegisteredGeneratedOnlyJakartaChild(
+            @NotBlank(groups = GeneratedOnlyChildChecks.class) String value) {
+    }
+
     private record ReturnChild(@NotNull String value) {
     }
 
     private interface ChildChecks {
     }
 
+    private interface GeneratedOnlyChildChecks {
+    }
+
     private static class ParameterTarget {
         void handle(@NotBlank String name, @Valid @ConvertGroup(from = Default.class, to = ChildChecks.class)
                     Child child) {
         }
+    }
+
+    private static class UnregisteredGeneratedOnlyExecutableTarget {
+        @Valid
+        UnregisteredGeneratedOnlyExecutableChild handle(
+                @NotBlank String name, @Valid UnregisteredGeneratedOnlyExecutableChild child) {
+            return child;
+        }
+    }
+
+    private record UnregisteredGeneratedOnlyExecutableChild(@NotBlank String value) {
+    }
+
+    private static class RegisteredGeneratedOnlyExecutableTarget {
+        @Valid
+        RegisteredGeneratedOnlyExecutableChild handle(
+                @NotBlank String name, @Valid RegisteredGeneratedOnlyExecutableChild child) {
+            return child;
+        }
+    }
+
+    private record RegisteredGeneratedOnlyExecutableChild(@NotBlank String value) {
     }
 
     private static class CrossParameterTarget {

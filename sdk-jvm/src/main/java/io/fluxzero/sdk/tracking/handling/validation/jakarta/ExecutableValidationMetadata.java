@@ -110,8 +110,7 @@ record ReturnValueMetadata(List<ConstraintMeta> constraints, TypeUseValidationMe
                     .filter(meta -> !meta.crossParameter())
                     .distinct()
                     .toList();
-            boolean cascaded = methods.stream()
-                    .anyMatch(m -> JvmComponentIntrospector.getInstance().getAnnotation(m, Valid.class).isPresent());
+            boolean cascaded = methods.stream().anyMatch(m -> ValidationAnnotationUtils.hasAnnotation(m, Valid.class));
             List<ValidationAnnotationUtils.GroupConversion> conversions = methods.stream()
                     .flatMap(m -> ValidationAnnotationUtils.groupConversions(m).stream())
                     .toList();
@@ -123,7 +122,7 @@ record ReturnValueMetadata(List<ConstraintMeta> constraints, TypeUseValidationMe
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(executable).stream()
                 .filter(meta -> !meta.crossParameter())
                 .toList();
-        boolean cascaded = JvmComponentIntrospector.getInstance().getAnnotation(executable, Valid.class).isPresent();
+        boolean cascaded = ValidationAnnotationUtils.hasAnnotation(executable, Valid.class);
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(executable);
         return new ReturnValueMetadata(constraints,
                                        TypeUseValidationMetadata.of(executable.getAnnotatedReturnType(), constraints,
@@ -158,8 +157,7 @@ record ParameterMetadata(String name, int index, List<ConstraintMeta> constraint
                 .flatMap(p -> ValidationAnnotationUtils.constraintMetas(p).stream())
                 .distinct()
                 .toList();
-        boolean cascaded = parameters.stream()
-                .anyMatch(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Valid.class).isPresent());
+        boolean cascaded = parameters.stream().anyMatch(p -> ValidationAnnotationUtils.hasAnnotation(p, Valid.class));
         List<ValidationAnnotationUtils.GroupConversion> conversions = parameters.stream()
                 .flatMap(p -> ValidationAnnotationUtils.groupConversions(p).stream())
                 .toList();

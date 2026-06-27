@@ -226,7 +226,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
 
     static MemberMetadata field(Field field) {
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(field);
-        boolean cascaded = JvmComponentIntrospector.getInstance().getAnnotation(field, Valid.class).isPresent();
+        boolean cascaded = ValidationAnnotationUtils.hasAnnotation(field, Valid.class);
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(field);
         return new MemberMetadata(field.getName(), field,
                                   JvmComponentIntrospector.getInstance().getTypeMetadata(field.getDeclaringClass()).invoker(field, true),
@@ -242,7 +242,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
 
     static MemberMetadata parameter(String propertyName, Parameter parameter, MemberInvoker invoker) {
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(parameter);
-        boolean cascaded = JvmComponentIntrospector.getInstance().getAnnotation(parameter, Valid.class).isPresent();
+        boolean cascaded = ValidationAnnotationUtils.hasAnnotation(parameter, Valid.class);
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(parameter);
         return new MemberMetadata(propertyName, parameter, invoker, false, false, constraints,
                                   TypeUseValidationMetadata.of(parameter.getAnnotatedType(), constraints, cascaded, conversions),
@@ -261,7 +261,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
                 .distinct()
                 .toList();
         boolean cascaded = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
-                .anyMatch(m -> JvmComponentIntrospector.getInstance().getAnnotation(m, Valid.class).isPresent());
+                .anyMatch(m -> ValidationAnnotationUtils.hasAnnotation(m, Valid.class));
         List<ValidationAnnotationUtils.GroupConversion> conversions = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
                 .flatMap(m -> ValidationAnnotationUtils.groupConversions(m).stream())
                 .toList();
