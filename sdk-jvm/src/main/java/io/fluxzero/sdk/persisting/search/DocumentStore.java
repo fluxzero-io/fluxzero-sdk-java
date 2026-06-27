@@ -25,8 +25,8 @@ import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PropertyAccess;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
@@ -457,10 +457,13 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
         if (value == null) {
             return Optional.empty();
         }
-        return JvmComponentMetadataLookup.scanIfScannable(value.getClass())
-                .flatMap(lookup -> lookup.annotatedPropertyName(value.getClass(), EntityId.class))
+        return ComponentMetadataLookups.lookup(value.getClass())
+                .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(
+                        lookup, value.getClass(), EntityId.class))
                 .flatMap(propertyName -> properties().readProperty(propertyName, value))
-                .or(() -> properties().annotatedPropertyValue(value, EntityId.class));
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty()
+                        : properties().annotatedPropertyValue(value, EntityId.class));
     }
 
     private static PropertyAccess<Class<?>, AccessibleObject> properties() {

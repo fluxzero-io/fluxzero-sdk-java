@@ -25,8 +25,8 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PropertyAccess;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -84,9 +84,11 @@ public class DefaultIndexOperation implements IndexOperation {
     }
 
     private static Optional<String> entityIdPropertyName(Class<?> type) {
-        return JvmComponentMetadataLookup.scanIfScannable(type)
-                .flatMap(lookup -> lookup.annotatedPropertyName(type, EntityId.class))
-                .or(() -> PROPERTIES.annotatedPropertyName(type, EntityId.class));
+        return ComponentMetadataLookups.lookup(type)
+                .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(lookup, type, EntityId.class))
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty()
+                        : PROPERTIES.annotatedPropertyName(type, EntityId.class));
     }
 
     /**

@@ -51,6 +51,7 @@ import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.test.Given;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.test.When;
@@ -71,6 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
@@ -117,6 +119,18 @@ public class SearchTest {
                 .expectResult(r -> r.size() == 1)
                 .mapResult(List::getFirst)
                 .expectResult(s -> Objects.equals(s.getId(), "foo"));
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForIndexEntityId() {
+        TestFixture.create()
+                .whenApplying(fc -> {
+                    AtomicReference<Object> id = new AtomicReference<>();
+                    GeneratedOnlyMetadataMode.run(() -> id.set(
+                            prepareIndex(new UnregisteredGeneratedOnlySearchable("entity-id")).id()));
+                    return id.get();
+                })
+                .expectResult(id -> !"entity-id".equals(id));
     }
 
     @Test
@@ -287,6 +301,12 @@ public class SearchTest {
         @EntityId
         String id;
         Instant timestamp;
+    }
+
+    @Value
+    static class UnregisteredGeneratedOnlySearchable {
+        @EntityId
+        String id;
     }
 
     @Test

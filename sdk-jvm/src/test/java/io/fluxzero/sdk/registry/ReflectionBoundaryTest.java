@@ -35,9 +35,6 @@ class ReflectionBoundaryTest {
     private static final Map<String, Long> KNOWN_DIRECT_METADATA_SCAN_SITES = new TreeMap<>(Map.ofEntries(
             Map.entry("src/main/java/io/fluxzero/sdk/configuration/DefaultFluxzero.java", 1L),
             Map.entry("src/main/java/io/fluxzero/sdk/configuration/spring/FluxzeroSpringConfig.java", 1L),
-            Map.entry("src/main/java/io/fluxzero/sdk/persisting/repository/DefaultAggregateRepository.java", 2L),
-            Map.entry("src/main/java/io/fluxzero/sdk/persisting/search/DefaultIndexOperation.java", 1L),
-            Map.entry("src/main/java/io/fluxzero/sdk/persisting/search/DocumentStore.java", 1L),
             Map.entry("src/main/java/io/fluxzero/sdk/web/WebUtils.java", 1L)));
 
     @Test
