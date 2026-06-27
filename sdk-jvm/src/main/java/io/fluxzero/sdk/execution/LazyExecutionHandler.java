@@ -68,8 +68,8 @@ class LazyExecutionHandler implements Handler<DeserializingMessage>, AutoCloseab
         return unit.handler(route.messageType(), handlerFactory);
     }
 
-    void prewarm() {
-        delegate();
+    void prewarm(String sourceHash) {
+        unit.handler(route.messageType(), handlerFactory, sourceHash);
     }
 
     OnDemandCompiler.CompilationRequest compilationRequestIfNeeded() {

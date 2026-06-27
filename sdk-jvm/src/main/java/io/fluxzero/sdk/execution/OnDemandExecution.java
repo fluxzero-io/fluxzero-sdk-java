@@ -475,15 +475,17 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
         }
         Map<OnDemandCompiler, Map<ComponentDescriptor, OnDemandCompiler.CompilationRequest>> requests =
                 new IdentityHashMap<>();
+        Map<LazyExecutionUnit, String> sourceHashes = new IdentityHashMap<>();
         for (LazyExecutionHandler handler : handlers) {
             OnDemandCompiler.CompilationRequest request = handler.compilationRequestIfNeeded();
             if (request != null) {
                 requests.computeIfAbsent(handler.compiler(), ignored -> new LinkedHashMap<>())
                         .putIfAbsent(request.component(), request);
+                sourceHashes.putIfAbsent(handler.unit(), request.sourceHash());
             }
         }
         requests.forEach((compiler, compilerRequests) -> compiler.compileAll(List.copyOf(compilerRequests.values())));
-        handlers.forEach(LazyExecutionHandler::prewarm);
+        handlers.forEach(handler -> handler.prewarm(sourceHashes.get(handler.unit())));
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -46,15 +48,18 @@ class DefaultGenericGatewayTest {
     void sendAndForgetRegistersAppendFutureWithActiveCompletionScope() throws Exception {
         GatewayClient gatewayClient = mock(GatewayClient.class);
         CompletableFuture<Void> appendCompletion = new CompletableFuture<>();
-        when(gatewayClient.append(eq(Guarantee.STORED), any(SerializedMessage[].class))).thenReturn(
-                appendCompletion);
+        CountDownLatch appendStarted = new CountDownLatch(1);
+        when(gatewayClient.append(eq(Guarantee.STORED), any(SerializedMessage[].class))).thenAnswer(invocation -> {
+            appendStarted.countDown();
+            return appendCompletion;
+        });
         DefaultGenericGateway gateway = gateway(gatewayClient);
 
         CompletableFuture<Void> scopedCompletion = CompletableFuture.runAsync(
                 () -> AsyncCompletionScope.runAndAwait(
                         () -> gateway.sendAndForget(Guarantee.STORED, new Message("command"))));
 
-        TimeUnit.MILLISECONDS.sleep(50L);
+        assertTrue(appendStarted.await(1, TimeUnit.SECONDS));
         assertFalse(scopedCompletion.isDone());
 
         appendCompletion.complete(null);

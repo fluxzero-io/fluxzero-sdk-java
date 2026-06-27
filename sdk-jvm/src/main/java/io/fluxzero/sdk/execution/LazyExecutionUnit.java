@@ -44,7 +44,12 @@ class LazyExecutionUnit implements AutoCloseable {
     }
 
     synchronized Handler<DeserializingMessage> handler(MessageType messageType, HandlerFactory handlerFactory) {
-        ActiveComponent active = active();
+        return handler(messageType, handlerFactory, null);
+    }
+
+    synchronized Handler<DeserializingMessage> handler(
+            MessageType messageType, HandlerFactory handlerFactory, String sourceHash) {
+        ActiveComponent active = active(sourceHash);
         active.compiled().touch();
         return active.handler(messageType, handlerFactory, component);
     }
@@ -55,9 +60,14 @@ class LazyExecutionUnit implements AutoCloseable {
 
     synchronized OnDemandCompiler.CompilationRequest compilationRequestIfNeeded() {
         if (activeComponent != null && !expired(activeComponent.compiled())) {
-            if (!checkSourceChangesOnInvocation || activeComponent.sourceHash().equals(sourceHash())) {
+            if (!checkSourceChangesOnInvocation) {
                 return null;
             }
+            String currentSourceHash = sourceHash();
+            if (activeComponent.sourceHash().equals(currentSourceHash)) {
+                return null;
+            }
+            return new OnDemandCompiler.CompilationRequest(component, currentSourceHash);
         }
         return new OnDemandCompiler.CompilationRequest(component, sourceHash());
     }
@@ -67,17 +77,21 @@ class LazyExecutionUnit implements AutoCloseable {
     }
 
     private ActiveComponent active() {
+        return active(null);
+    }
+
+    private ActiveComponent active(String knownSourceHash) {
         if (activeComponent != null && !expired(activeComponent.compiled())) {
             if (!checkSourceChangesOnInvocation) {
                 return activeComponent;
             }
-            String currentSourceHash = sourceHash();
+            String currentSourceHash = knownSourceHash == null ? sourceHash() : knownSourceHash;
             if (activeComponent.sourceHash().equals(currentSourceHash)) {
                 return activeComponent;
             }
         }
         closeActive();
-        String sourceHash = sourceHash();
+        String sourceHash = knownSourceHash == null ? sourceHash() : knownSourceHash;
         CompiledExecutionUnit compiled = compiler.compile(component, sourceHash);
         Class<?> handlerType = compiled.load(component.fullClassName());
         activeComponent = new ActiveComponent(sourceHash, compiled, handlerType);

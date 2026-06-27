@@ -38,6 +38,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -233,7 +236,8 @@ class WebsocketEndpointTest {
 
     @Test
     void commandsWithSameRoutingKeyAreHandledSequentially() throws Exception {
-        TestEndpoint endpoint = new TestEndpoint();
+        ThreadPoolExecutor commandExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run, new ExecutorService[]{commandExecutor});
         ServerWebsocketSession session = session("session-1");
         CountDownLatch firstEntered = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
@@ -249,7 +253,8 @@ class WebsocketEndpointTest {
             assertTrue(firstEntered.await(1, TimeUnit.SECONDS));
 
             endpoint.dispatch(session, second);
-            assertFalse(secondEntered.await(100, TimeUnit.MILLISECONDS));
+            assertEquals(1, commandExecutor.getQueue().size());
+            assertEquals(1, firstEntered.getCount() + secondEntered.getCount());
 
             releaseFirst.countDown();
             assertTrue(secondEntered.await(1, TimeUnit.SECONDS));
@@ -325,6 +330,10 @@ class WebsocketEndpointTest {
 
         TestEndpoint(Executor executor) {
             super(executor);
+        }
+
+        TestEndpoint(Executor executor, ExecutorService[] commandExecutors) {
+            super(executor, commandExecutors);
         }
 
         @Override

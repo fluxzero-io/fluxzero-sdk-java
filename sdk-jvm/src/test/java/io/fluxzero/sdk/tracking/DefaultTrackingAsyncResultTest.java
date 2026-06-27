@@ -126,14 +126,15 @@ class DefaultTrackingAsyncResultTest {
         when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
         TestTracking tracking = tracking(resultGateway, serializer);
         CompletableFuture<String> handlerResult = new CompletableFuture<>();
+        CountDownLatch handlerInvoked = new CountDownLatch(1);
 
         CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
                 List.of(message(serializer)),
-                List.of(handler(handlerResult)),
+                List.of(handler(handlerResult, handlerInvoked)),
                 ConsumerConfiguration.builder().name("web").awaitAsyncResults(true).build(),
                 true));
 
-        TimeUnit.MILLISECONDS.sleep(50L);
+        assertTrue(handlerInvoked.await(1, TimeUnit.SECONDS));
         assertFalse(batchCompletion.isDone());
         verify(resultGateway, never()).respond("ok", "benchmark-app", 7);
 
@@ -259,7 +260,6 @@ class DefaultTrackingAsyncResultTest {
 
         try {
             assertTrue(handlerStarted.await(1, TimeUnit.SECONDS));
-            TimeUnit.MILLISECONDS.sleep(50L);
             assertFalse(batchCompletion.isDone());
 
             releaseHandler.complete(null);
@@ -317,7 +317,6 @@ class DefaultTrackingAsyncResultTest {
 
         try {
             assertTrue(handlerRan.await(1, TimeUnit.SECONDS));
-            TimeUnit.MILLISECONDS.sleep(50L);
             assertFalse(batchCompletion.isDone());
 
             sendCompletion.complete(null);
@@ -336,14 +335,18 @@ class DefaultTrackingAsyncResultTest {
         when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
         TestTracking tracking = tracking(resultGateway, serializer);
         CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
+        CountDownLatch handlerRan = new CountDownLatch(1);
 
         CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
                 List.of(message(serializer)),
-                List.of(handler(() -> AsyncCompletionScope.register(sendCompletion))),
+                List.of(handler(() -> {
+                    AsyncCompletionScope.register(sendCompletion);
+                    handlerRan.countDown();
+                })),
                 ConsumerConfiguration.builder().name("web").build(),
                 false));
 
-        TimeUnit.MILLISECONDS.sleep(50L);
+        assertTrue(handlerRan.await(1, TimeUnit.SECONDS));
         assertFalse(batchCompletion.isDone());
 
         sendCompletion.complete(null);
@@ -538,8 +541,17 @@ class DefaultTrackingAsyncResultTest {
     }
 
     private static Handler<DeserializingMessage> handler(CompletableFuture<String> result) {
+        return handler(result, null);
+    }
+
+    private static Handler<DeserializingMessage> handler(CompletableFuture<String> result, CountDownLatch invoked) {
         HandlerInvoker invoker = mock(HandlerInvoker.class);
-        when(invoker.invoke()).thenReturn(result);
+        when(invoker.invoke()).thenAnswer(invocation -> {
+            if (invoked != null) {
+                invoked.countDown();
+            }
+            return result;
+        });
         when(invoker.isPassive()).thenReturn(false);
         Handler<DeserializingMessage> handler = mock(Handler.class);
         when(handler.getInvokerOrNull(org.mockito.ArgumentMatchers.any())).thenReturn(invoker);

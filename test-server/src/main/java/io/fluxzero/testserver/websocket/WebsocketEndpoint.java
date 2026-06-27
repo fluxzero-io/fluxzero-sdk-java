@@ -136,19 +136,19 @@ public abstract class WebsocketEndpoint {
     private final ObjectMapper objectMapper;
     private final Executor requestExecutor;
     private final ExecutorService ownedRequestExecutor;
-    private final ExecutorService[] commandExecutors;
     private final CommandIdempotencyStore commandIdempotencyStore;
     private final boolean ownsCommandIdempotencyStore;
+    private volatile ExecutorService[] commandExecutors;
 
     private final Map<String, SessionBacklog> sessionBacklogs = new ConcurrentHashMap<>();
     private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
-    private final TaskScheduler pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
     private final Semaphore inFlightWebSocketBytes = new Semaphore(DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
     private final ThreadLocal<Long> requestReceivedTimestamps = new ThreadLocal<>();
     protected final AtomicBoolean shuttingDown = new AtomicBoolean();
     protected volatile boolean shutDown;
+    private volatile TaskScheduler pingScheduler;
 
     protected WebsocketEndpoint() {
         this(newWorkerPool(WebsocketEndpoint.class.getSimpleName(), 64), true,
@@ -170,13 +170,21 @@ public abstract class WebsocketEndpoint {
              commandIdempotencyStore, false);
     }
 
+    protected WebsocketEndpoint(Executor requestExecutor, ExecutorService[] commandExecutors) {
+        this(ofNullable(requestExecutor).orElse(Runnable::run), false,
+             new CommandIdempotencyStore(), true);
+        if (Objects.requireNonNull(commandExecutors).length == 0) {
+            throw new IllegalArgumentException("commandExecutors must not be empty");
+        }
+        this.commandExecutors = commandExecutors;
+    }
+
     private WebsocketEndpoint(Executor requestExecutor, boolean ownsRequestExecutor,
                               CommandIdempotencyStore commandIdempotencyStore,
                               boolean ownsCommandIdempotencyStore) {
         this.objectMapper = defaultObjectMapper;
         this.ownedRequestExecutor = ownsRequestExecutor ? (ExecutorService) requestExecutor : null;
         this.requestExecutor = requestExecutor;
-        this.commandExecutors = newRequestStripeExecutors(DEFAULT_COMMAND_REQUEST_STRIPES);
         this.commandIdempotencyStore = commandIdempotencyStore;
         this.ownsCommandIdempotencyStore = ownsCommandIdempotencyStore;
     }
@@ -266,9 +274,25 @@ public abstract class WebsocketEndpoint {
     }
 
     private Executor executorFor(JsonType request) {
-        return request instanceof Command command && command.routingKey() != null
-                ? commandExecutors[ConsistentHashing.computeSegment(command.routingKey(), commandExecutors.length)]
-                : requestExecutor;
+        if (request instanceof Command command && command.routingKey() != null) {
+            ExecutorService[] executors = commandExecutors();
+            return executors[ConsistentHashing.computeSegment(command.routingKey(), executors.length)];
+        }
+        return requestExecutor;
+    }
+
+    private ExecutorService[] commandExecutors() {
+        ExecutorService[] result = commandExecutors;
+        if (result == null) {
+            synchronized (this) {
+                result = commandExecutors;
+                if (result == null) {
+                    result = newRequestStripeExecutors(DEFAULT_COMMAND_REQUEST_STRIPES);
+                    commandExecutors = result;
+                }
+            }
+        }
+        return result;
     }
 
     private void processRequest(ServerWebsocketSession session, JsonType request, long requestReceivedTimestamp) {
@@ -756,7 +780,7 @@ public abstract class WebsocketEndpoint {
                 v.cancel();
             }
             return !shuttingDown.get() ? new PingRegistration(
-                    pingScheduler.schedule(pingDelay, () -> sendPing(session))) : null;
+                    pingScheduler().schedule(pingDelay, () -> sendPing(session))) : null;
         });
     }
 
@@ -768,7 +792,7 @@ public abstract class WebsocketEndpoint {
                 if (v != null) {
                     v.cancel();
                 }
-                return new PingRegistration(pingScheduler.schedule(pingTimeout, () -> {
+                return new PingRegistration(pingScheduler().schedule(pingTimeout, () -> {
                     log.warn("Failed to get a ping response in time for session {}. Resetting connection", sessionId);
                     abort(session, "TestServer ping timeout");
                 }));
@@ -858,11 +882,17 @@ public abstract class WebsocketEndpoint {
             } finally {
                 shutDown = true;
                 pingDeadlines.clear();
-                pingScheduler.shutdown();
+                TaskScheduler pingScheduler = this.pingScheduler;
+                if (pingScheduler != null) {
+                    pingScheduler.shutdown();
+                }
                 if (ownsCommandIdempotencyStore) {
                     commandIdempotencyStore.close();
                 }
-                Arrays.stream(commandExecutors).forEach(ExecutorService::shutdown);
+                ExecutorService[] commandExecutors = this.commandExecutors;
+                if (commandExecutors != null) {
+                    Arrays.stream(commandExecutors).forEach(ExecutorService::shutdown);
+                }
                 ofNullable(ownedRequestExecutor).ifPresent(ExecutorService::shutdown);
                 sessionBacklogs.values().stream().map(SessionBacklog::getSession).filter(ServerWebsocketSession::isOpen).forEach(s -> {
                     try {
@@ -872,6 +902,20 @@ public abstract class WebsocketEndpoint {
                 });
             }
         }
+    }
+
+    private TaskScheduler pingScheduler() {
+        TaskScheduler result = pingScheduler;
+        if (result == null) {
+            synchronized (this) {
+                result = pingScheduler;
+                if (result == null) {
+                    result = new InMemoryTaskScheduler(this + "-pingScheduler");
+                    pingScheduler = result;
+                }
+            }
+        }
+        return result;
     }
 
     @SuppressWarnings({"SameParameterValue", "resource"})
