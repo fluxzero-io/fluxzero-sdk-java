@@ -110,6 +110,25 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeSynthesizesConcreteAnnotationWhenResolvingByMetaAnnotation() throws Exception {
+        Method method = RegisteredGeneratedOnlyHandler.class.getDeclaredMethod("handle");
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                var annotation = MetadataExecutableAnnotationResolver.create()
+                        .getAnnotation(method, HandleMessage.class).orElseThrow();
+
+                assertEquals(HandleCommand.class, annotation.annotationType());
+                assertTrue(annotation instanceof HandleCommand);
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static DefaultHandlerFactory factory() {
         return new DefaultHandlerFactory(
                 MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),

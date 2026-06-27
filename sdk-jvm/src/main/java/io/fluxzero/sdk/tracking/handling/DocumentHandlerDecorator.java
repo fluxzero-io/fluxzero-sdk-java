@@ -15,23 +15,26 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.ExecutableAnnotationResolver;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import lombok.AllArgsConstructor;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
+
 /**
  * A {@link HandlerDecorator} that intercepts handler methods annotated with {@link HandleDocument} and synchronizes
  * their return values with a {@link DocumentStore}.
@@ -62,9 +65,19 @@ import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
  * @see DocumentStore
  * @see HandlerDecorator
  */
-@AllArgsConstructor
 public class DocumentHandlerDecorator implements HandlerDecorator {
     private final Supplier<DocumentStore> documentStoreSupplier;
+    private final ExecutableAnnotationResolver annotationResolver;
+
+    public DocumentHandlerDecorator(Supplier<DocumentStore> documentStoreSupplier) {
+        this(documentStoreSupplier, MetadataExecutableAnnotationResolver.create());
+    }
+
+    DocumentHandlerDecorator(Supplier<DocumentStore> documentStoreSupplier,
+                             ExecutableAnnotationResolver annotationResolver) {
+        this.documentStoreSupplier = Objects.requireNonNull(documentStoreSupplier, "documentStoreSupplier");
+        this.annotationResolver = Objects.requireNonNull(annotationResolver, "annotationResolver");
+    }
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
@@ -81,9 +94,11 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
             return delegate.getInvoker(message)
                     .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
                                   && m.getReturnType().isAssignableFrom(message.getPayloadClass())
-                            ? JvmComponentIntrospector.getInstance().<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
+                            ? annotationResolver.getAnnotation(i.getMethod(), HandleDocument.class)
+                                    .map(HandleDocument.class::cast)
                                     .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
-                            .map(topic -> new DocumentHandlerInvoker(i, topic, message)) : Optional.of(i));
+                                    .map(topic -> (HandlerInvoker) new DocumentHandlerInvoker(i, topic, message))
+                                    .or(() -> Optional.of(i)) : Optional.of(i));
         }
 
         @Override

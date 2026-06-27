@@ -15,15 +15,16 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.handling.ExecutableAnnotationResolver;
 import io.fluxzero.common.handling.PreparedParameterResolver;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
-import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -32,6 +33,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -60,14 +62,23 @@ import java.util.function.Supplier;
  * <p>This resolver determines handler method specificity and can thus be used in disambiguation when multiple
  * handler methods are present in the same target class.
  */
-@AllArgsConstructor
 public class EntityParameterResolver implements PreparedParameterResolver<Object> {
 
     private final boolean checkCompatibility;
+    private final ExecutableAnnotationResolver annotationResolver;
     private static final Object NO_ENTITY = new Object();
 
     public EntityParameterResolver() {
         this(true);
+    }
+
+    public EntityParameterResolver(boolean checkCompatibility) {
+        this(checkCompatibility, MetadataExecutableAnnotationResolver.create());
+    }
+
+    EntityParameterResolver(boolean checkCompatibility, ExecutableAnnotationResolver annotationResolver) {
+        this.checkCompatibility = checkCompatibility;
+        this.annotationResolver = Objects.requireNonNull(annotationResolver, "annotationResolver");
     }
 
     /**
@@ -79,7 +90,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        return JvmComponentIntrospector.getInstance().getMethodAnnotation(method, HandleMessage.class)
+        return annotationResolver.getAnnotation(method, HandleMessage.class)
                 .map(EntityParameterResolver::supportsMessageEntityInjection)
                 .orElse(true);
     }

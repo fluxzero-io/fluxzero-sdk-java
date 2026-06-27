@@ -18,6 +18,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -36,9 +37,29 @@ public interface ExecutableAnnotationResolver {
             Executable executable, Class<? extends Annotation> annotationType);
 
     /**
+     * Resolves all matching annotations of the supplied type for the executable.
+     */
+    default List<? extends Annotation> getAnnotations(
+            Executable executable, Class<? extends Annotation> annotationType) {
+        return getAnnotation(executable, annotationType).stream().toList();
+    }
+
+    /**
      * Returns the default reflection-backed annotation resolver.
      */
     static ExecutableAnnotationResolver reflection() {
-        return ReflectionUtils::getMethodAnnotation;
+        return new ExecutableAnnotationResolver() {
+            @Override
+            public Optional<? extends Annotation> getAnnotation(
+                    Executable executable, Class<? extends Annotation> annotationType) {
+                return ReflectionUtils.getMethodAnnotation(executable, annotationType);
+            }
+
+            @Override
+            public List<? extends Annotation> getAnnotations(
+                    Executable executable, Class<? extends Annotation> annotationType) {
+                return ReflectionUtils.getMethodAnnotations(executable, annotationType);
+            }
+        };
     }
 }

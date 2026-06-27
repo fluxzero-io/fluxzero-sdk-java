@@ -47,35 +47,47 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
     @Override
     public Optional<? extends Annotation> getAnnotation(
             Executable executable, Class<? extends Annotation> annotationType) {
+        return getAnnotations(executable, annotationType).stream().findFirst();
+    }
+
+    @Override
+    public List<? extends Annotation> getAnnotations(
+            Executable executable, Class<? extends Annotation> annotationType) {
         Objects.requireNonNull(executable, "executable");
         Objects.requireNonNull(annotationType, "annotationType");
-        Optional<AnnotationDescriptor> descriptor = lookup(executable.getDeclaringClass())
+        List<AnnotationDescriptor> descriptors = lookup(executable.getDeclaringClass())
                 .flatMap(metadata -> ComponentMetadataLookups.executable(metadata, executable))
-                .flatMap(metadata -> annotation(metadata.annotations(), annotationType));
-        if (descriptor.isPresent()) {
-            return Optional.of(annotation(annotationType, descriptor.get(), executable.getDeclaringClass()));
+                .map(metadata -> annotations(metadata.annotations(), annotationType))
+                .orElseGet(List::of);
+        if (!descriptors.isEmpty()) {
+            return descriptors.stream()
+                    .map(descriptor -> annotation(annotationType, descriptor, executable.getDeclaringClass()))
+                    .toList();
         }
         if (ComponentMetadataLookups.generatedOnlyMode()) {
-            return Optional.empty();
+            return List.of();
         }
-        return JvmComponentIntrospector.getInstance().getMethodAnnotation(executable, annotationType);
+        return JvmComponentIntrospector.getInstance().getMethodAnnotations(executable, annotationType);
     }
 
     private Optional<ComponentMetadataLookup> lookup(Class<?> type) {
         return lookups.computeIfAbsent(type, ComponentMetadataLookups::lookup);
     }
 
-    private static Optional<AnnotationDescriptor> annotation(
+    private static List<AnnotationDescriptor> annotations(
             List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType) {
         String simpleName = annotationType.getSimpleName();
         String qualifiedName = annotationType.getName();
         return annotations.stream()
                 .filter(annotation -> annotation.isOrHas(simpleName, qualifiedName))
-                .findFirst();
+                .toList();
     }
 
-    private static <A extends Annotation> A annotation(
-            Class<A> annotationType, AnnotationDescriptor descriptor, Class<?> declaringClass) {
+    private static Annotation annotation(
+            Class<? extends Annotation> requestedAnnotationType, AnnotationDescriptor descriptor,
+            Class<?> declaringClass) {
+        Class<? extends Annotation> annotationType =
+                annotationType(requestedAnnotationType, descriptor, declaringClass.getClassLoader());
         InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
             case "annotationType" -> annotationType;
             case "toString" -> descriptor.toString();
@@ -85,6 +97,17 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
         };
         return annotationType.cast(Proxy.newProxyInstance(
                 annotationType.getClassLoader(), new Class<?>[]{annotationType}, handler));
+    }
+
+    private static Class<? extends Annotation> annotationType(
+            Class<? extends Annotation> requestedAnnotationType, AnnotationDescriptor descriptor,
+            ClassLoader classLoader) {
+        Optional<Class<?>> loadedType = loadClass(descriptor.qualifiedName(), classLoader)
+                .filter(Annotation.class::isAssignableFrom);
+        if (loadedType.isPresent()) {
+            return loadedType.get().asSubclass(Annotation.class);
+        }
+        return requestedAnnotationType;
     }
 
     private static Object attributeValue(AnnotationDescriptor descriptor, Class<? extends Annotation> annotationType,
