@@ -17,13 +17,16 @@ package io.fluxzero.sdk.tracking.handling;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -70,6 +73,16 @@ public class JsonPayloadParameterResolver implements ParameterResolver<Deseriali
         return m -> m.getPayloadAs(parameter.getParameterizedType());
     }
 
+    @Override
+    public Function<DeserializingMessage, Object> resolve(ParameterView parameter, Annotation methodAnnotation) {
+        Optional<Parameter> reflectionParameter = parameter.parameter();
+        if (reflectionParameter.isPresent()) {
+            return resolve(reflectionParameter.orElseThrow(), methodAnnotation);
+        }
+        return parameter.type().<Function<DeserializingMessage, Object>>map(type -> m -> m.getPayloadAs(type))
+                .orElse(null);
+    }
+
     /**
      * Determines whether this resolver matches the given parameter.
      * <p>
@@ -83,6 +96,14 @@ public class JsonPayloadParameterResolver implements ParameterResolver<Deseriali
                && Data.JSON_FORMAT.equals(value.getSerializedObject().getData().getFormat());
     }
 
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, DeserializingMessage value) {
+        return Data.JSON_FORMAT.equals(value.getSerializedObject().getData().getFormat())
+               && parameter.type()
+                       .map(JsonNode.class::isAssignableFrom)
+                       .orElseGet(() -> JsonNode.class.getCanonicalName().equals(parameter.typeName()));
+    }
+
     /**
      * Indicates whether this resolver may apply to the given method.
      * <p>
@@ -94,6 +115,18 @@ public class JsonPayloadParameterResolver implements ParameterResolver<Deseriali
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
             if (JsonNode.class.isAssignableFrom(parameter.getType())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        for (ParameterView parameter : method.parameters()) {
+            if (parameter.type()
+                    .map(JsonNode.class::isAssignableFrom)
+                    .orElseGet(() -> JsonNode.class.getCanonicalName().equals(parameter.typeName()))) {
                 return true;
             }
         }

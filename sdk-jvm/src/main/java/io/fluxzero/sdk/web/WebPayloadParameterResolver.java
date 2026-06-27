@@ -15,7 +15,9 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -30,6 +32,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
@@ -83,9 +86,44 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     }
 
     @Override
+    public Function<HasMessage, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        Optional<Parameter> reflectionParameter = p.parameter();
+        if (reflectionParameter.isPresent()) {
+            return resolve(reflectionParameter.orElseThrow(), methodAnnotation);
+        }
+        return p.type().<Function<HasMessage, Object>>map(type -> m -> {
+            Object payload = resolvePayload(m, p, type);
+            if (payload != null) {
+                if (validatePayload) {
+                    assertValid(payload);
+                }
+                if (authoriseUser) {
+                    assertAuthorized(payload.getClass(), User.getCurrent());
+                }
+            }
+            return payload;
+        }).orElse(null);
+    }
+
+    @Override
     public boolean test(HasMessage m, Parameter p) {
         if (authoriseUser && !hasStreamingPayload(m)) {
             Object payload = resolvePayload(m, p, p.getParameterizedType());
+            if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
+                return false;
+            }
+        }
+        return ParameterResolver.super.test(m, p);
+    }
+
+    @Override
+    public boolean test(HasMessage m, ParameterView p) {
+        Optional<Parameter> reflectionParameter = p.parameter();
+        if (reflectionParameter.isPresent()) {
+            return test(m, reflectionParameter.orElseThrow());
+        }
+        if (authoriseUser && !hasStreamingPayload(m)) {
+            Object payload = p.type().map(type -> resolvePayload(m, p, type)).orElse(null);
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
@@ -112,8 +150,20 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     }
 
     @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, HasMessage value) {
+        return INTROSPECTOR.isOrHas(methodAnnotation, HandleWeb.class);
+    }
+
+    @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         return INTROSPECTOR.isExecutableAnnotationPresent(method, HandleWeb.class);
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        return method.executable()
+                .map(executable -> INTROSPECTOR.isExecutableAnnotationPresent(executable, HandleWeb.class))
+                .orElseGet(() -> method.annotation(HandleWeb.class).isPresent());
     }
 
     Object resolvePayload(HasMessage message, Parameter parameter, Type type) {
@@ -124,9 +174,41 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
         return message.getPayloadAs(type);
     }
 
+    Object resolvePayload(HasMessage message, ParameterView parameter, Type type) {
+        Optional<Parameter> reflectionParameter = parameter.parameter();
+        if (reflectionParameter.isPresent()) {
+            return resolvePayload(message, reflectionParameter.orElseThrow(), type);
+        }
+        if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
+            var formObject = DefaultWebRequestContext.getWebRequestContext(m).formObject();
+            return formObject.isEmpty() ? null : JsonUtils.convertValue(formObject, type);
+        }
+        return message.getPayloadAs(type);
+    }
+
     boolean shouldBindFormPayload(DeserializingMessage message, Parameter parameter) {
         String contentType = WebRequest.getHeader(message.getMetadata(), "Content-Type").orElse(null);
         Class<?> type = parameter.getType();
+        return isFormContentType(contentType)
+               && !type.isPrimitive()
+               && !type.isArray()
+               && !type.isEnum()
+               && !String.class.isAssignableFrom(type)
+               && !Number.class.isAssignableFrom(type)
+               && !Boolean.class.isAssignableFrom(type)
+               && !Character.class.isAssignableFrom(type)
+               && !Collection.class.isAssignableFrom(type)
+               && !InputStream.class.isAssignableFrom(type)
+               && !WebFormPart.class.isAssignableFrom(type)
+               && !type.getPackageName().startsWith("java.");
+    }
+
+    boolean shouldBindFormPayload(DeserializingMessage message, ParameterView parameter) {
+        return parameter.type().map(type -> shouldBindFormPayload(message, type)).orElse(false);
+    }
+
+    private boolean shouldBindFormPayload(DeserializingMessage message, Class<?> type) {
+        String contentType = WebRequest.getHeader(message.getMetadata(), "Content-Type").orElse(null);
         return isFormContentType(contentType)
                && !type.isPrimitive()
                && !type.isArray()

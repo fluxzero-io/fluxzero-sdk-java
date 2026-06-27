@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -23,6 +24,7 @@ import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A {@link MessageFilter} that routes {@link DeserializingMessage} instances to methods annotated with
@@ -49,5 +51,31 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
                         handleDocument -> ClientUtils.getTopic(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);
+    }
+
+    @Override
+    public boolean test(DeserializingMessage message, ExecutableView executable,
+                        Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+        return documentTopic(executable)
+                .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
+                .orElse(false);
+    }
+
+    private Optional<String> documentTopic(ExecutableView executable) {
+        Optional<Executable> method = executable.executable();
+        if (method.isPresent()) {
+            return introspector.executableAnnotation(method.orElseThrow(), HandleDocument.class)
+                    .map(handleDocument -> ClientUtils.getTopic(handleDocument, method.orElseThrow()));
+        }
+        return executable.annotation(HandleDocument.class)
+                .filter(h -> !h.disabled())
+                .flatMap(h -> Optional.ofNullable(h.value()).filter(s -> !s.isBlank())
+                        .or(() -> Optional.ofNullable(h.collection()).filter(s -> !s.isBlank()))
+                        .or(() -> Void.class.equals(h.documentClass()) ? Optional.empty() :
+                                Optional.of(ClientUtils.determineSearchCollection(h.documentClass())))
+                        .or(() -> executable.parameters().stream().findFirst()
+                                .flatMap(parameter -> parameter.type()
+                                        .map(ClientUtils::determineSearchCollection))))
+                .filter(s -> !s.isBlank());
     }
 }

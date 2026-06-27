@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling.authentication;
 
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.handling.TypedParameterResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -44,6 +45,25 @@ public class UserParameterResolver extends TypedParameterResolver<Object> {
 
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
+        return userResolver();
+    }
+
+    @Override
+    public Function<Object, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        return userResolver();
+    }
+
+    @Override
+    public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
+        return User.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
+    public Function<Object, Object> prepare(ParameterView parameter, Annotation methodAnnotation) {
+        return supports(parameter) ? userResolver() : null;
+    }
+
+    private Function<Object, Object> userResolver() {
         return m -> {
             DeserializingMessage currentMessage =
                     m instanceof DeserializingMessage dm ? dm : DeserializingMessage.getCurrent();
@@ -57,10 +77,5 @@ public class UserParameterResolver extends TypedParameterResolver<Object> {
                     ? Optional.of(((HasMessage) m)) : ofNullable(currentMessage))
                     .map(userProvider::fromMessage).orElseGet(User::getCurrent);
         };
-    }
-
-    @Override
-    public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
-        return User.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
     }
 }

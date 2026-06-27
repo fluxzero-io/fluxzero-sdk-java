@@ -53,6 +53,11 @@ public abstract class TypedParameterResolver<M> implements ParameterResolver<M> 
         return type.isAssignableFrom(parameter.getType());
     }
 
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, M value) {
+        return supports(parameter);
+    }
+
     /**
      * Determines whether this resolver may be applicable to the given method or constructor.
      */
@@ -64,5 +69,28 @@ public abstract class TypedParameterResolver<M> implements ParameterResolver<M> 
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        for (ParameterView parameter : method.parameters()) {
+            if (supports(parameter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns whether this resolver supports the supplied metadata parameter view.
+     */
+    protected boolean supports(ParameterView parameter) {
+        return parameter.type()
+                .map(type::isAssignableFrom)
+                .orElseGet(() -> typeName(type).equals(parameter.typeName()));
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 }

@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.authentication;
 
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.handling.TypedParameterResolver;
 
 import java.lang.annotation.Annotation;
@@ -36,7 +37,17 @@ public class CurrentUserParameterResolver extends TypedParameterResolver<Object>
     }
 
     @Override
+    public Function<Object, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        return m -> User.getCurrent();
+    }
+
+    @Override
     public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
         return User.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
+    public Function<Object, Object> prepare(ParameterView parameter, Annotation methodAnnotation) {
+        return supports(parameter) ? resolve(parameter, methodAnnotation) : null;
     }
 }

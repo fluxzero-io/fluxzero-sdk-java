@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.handling.TypedParameterResolver;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
@@ -55,7 +56,22 @@ public class MetadataParameterResolver extends TypedParameterResolver<Object> {
     }
 
     @Override
+    public Function<Object, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        return metadataResolver();
+    }
+
+    @Override
     public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
         return Metadata.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
+    public Function<Object, Object> prepare(ParameterView parameter, Annotation methodAnnotation) {
+        return supports(parameter) ? metadataResolver() : null;
+    }
+
+    private Function<Object, Object> metadataResolver() {
+        return m -> m instanceof HasMetadata hasMetadata ? hasMetadata.getMetadata()
+                : ofNullable(DeserializingMessage.getCurrent()).map(DeserializingMessage::getMetadata).orElse(null);
     }
 }

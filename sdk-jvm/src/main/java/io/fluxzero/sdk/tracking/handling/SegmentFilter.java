@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -67,6 +68,14 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
     }
 
     @Override
+    public MessageFilter<? super HasMessage> prepare(ExecutableView executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+        RoutingKey routingKey = routingKey(executable);
+        return routingKey == null ? ALLOW_ALL : new PreparedSegmentFilter(routingKey.value());
+    }
+
+    @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
         Tracker tracker = Tracker.current.get();
@@ -86,10 +95,51 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
         return tracker.canHandle(dm, routingValue);
     }
 
+    @Override
+    public boolean test(HasMessage message, ExecutableView executable,
+                        Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+        Tracker tracker = Tracker.current.get();
+        if (!(message instanceof DeserializingMessage dm)
+            || tracker == null
+            || !tracker.getConfiguration().ignoreSegment()) {
+            return true;
+        }
+        RoutingKey routingKey = routingKey(executable);
+        if (routingKey == null) {
+            return true;
+        }
+        String routingValue = message.getRoutingKey(routingKey.value())
+                .or(message::computeRoutingKey)
+                .orElseGet(message::getMessageId);
+        return tracker.canHandle(dm, routingValue);
+    }
+
+    private RoutingKey routingKey(ExecutableView executable) {
+        return executable.executable()
+                .flatMap(method -> introspector.executableAnnotation(method, RoutingKey.class))
+                .or(() -> executable.annotation(RoutingKey.class))
+                .orElse(null);
+    }
+
     private record PreparedSegmentFilter(String routingKey) implements MessageFilter<HasMessage> {
         @Override
         public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                             Class<?> targetClass) {
+            Tracker tracker = Tracker.current.get();
+            if (!(message instanceof DeserializingMessage dm)
+                || tracker == null
+                || !tracker.getConfiguration().ignoreSegment()) {
+                return true;
+            }
+            String routingValue = message.getRoutingKey(routingKey)
+                    .or(message::computeRoutingKey)
+                    .orElseGet(message::getMessageId);
+            return tracker.canHandle(dm, routingValue);
+        }
+
+        @Override
+        public boolean test(HasMessage message, ExecutableView executable,
+                            Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
             Tracker tracker = Tracker.current.get();
             if (!(message instanceof DeserializingMessage dm)
                 || tracker == null
