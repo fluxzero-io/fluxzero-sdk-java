@@ -62,8 +62,8 @@ class SourceComponentScannerTest {
                 import io.fluxzero.sdk.web.PathParam;
 
                 @Consumer(name = "type-consumer", threads = 3)
-                @io.fluxzero.common.serialization.RegisterType(root = "io.fluxzero.sdk.registry.generated",
-                                                               contains = "Execution")
+                @io.fluxzero.common.serialization.RegisterType(rootClass = RichLogic.class,
+                                                               contains = "RichLogic")
                 @Path("logic")
                 public class RichLogic {
                     @LocalHandler(false)
@@ -97,6 +97,10 @@ class SourceComponentScannerTest {
         assertEquals("type-consumer", component.consumerMetadata().orElseThrow().name());
         assertTrue(component.capabilities().contains(ComponentCapability.CONSUMER));
         assertTrue(component.capabilities().contains(ComponentCapability.REGISTERED_TYPE));
+        assertEquals("io.fluxzero.sdk.registry.generated.RichLogic",
+                     component.registeredTypes().getFirst().root());
+        assertEquals(List.of("io.fluxzero.sdk.registry.generated.RichLogic"),
+                     component.registeredTypes().getFirst().candidateTypeNames());
         assertTrue(packageDescriptor.capabilities().contains(ComponentCapability.PACKAGE_LOCAL_HANDLER));
         assertTrue(registry.registeredTypes()
                 .flatMap(registeredType -> registeredType.candidateTypeNames().stream())
@@ -157,6 +161,179 @@ class SourceComponentScannerTest {
         try (var files = Files.walk(tempDir)) {
             assertFalse(files.anyMatch(path -> path.toString().endsWith(".class")));
         }
+    }
+
+    @Test
+    void indexesAllConcreteHandlerRouteTypes(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "AllRoutesLogic", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.tracking.handling.*;
+                import io.fluxzero.sdk.web.HandleWeb;
+                import io.fluxzero.sdk.web.HandleWebResponse;
+
+                public class AllRoutesLogic {
+                    @HandleCommand
+                    public void command(String payload) {
+                    }
+
+                    @HandleEvent
+                    public void event(String payload) {
+                    }
+
+                    @HandleNotification
+                    public void notification(String payload) {
+                    }
+
+                    @HandleQuery
+                    public String query(String payload) {
+                        return payload;
+                    }
+
+                    @HandleResult
+                    public void result(String payload) {
+                    }
+
+                    @HandleSchedule
+                    public void schedule(String payload) {
+                    }
+
+                    @HandleError
+                    public void error(Throwable payload) {
+                    }
+
+                    @HandleMetrics
+                    public void metrics(String payload) {
+                    }
+
+                    @HandleWeb
+                    public String web(String payload) {
+                        return payload;
+                    }
+
+                    @HandleWebResponse
+                    public void webResponse(String payload) {
+                    }
+
+                    @HandleDocument
+                    public void document(String payload) {
+                    }
+
+                    @HandleCustom("custom-topic")
+                    public void custom(String payload) {
+                    }
+                }
+                """);
+
+        ComponentRegistry registry = new SourceComponentScanner().scan(tempDir);
+
+        assertEquals(java.util.Set.of(MessageType.values()), registry.messageTypes());
+    }
+
+    @Test
+    void resolvesKnownFluxzeroAnnotationsFromSimpleNames(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "AnnotatedModelLogic", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.common.search.*;
+                import io.fluxzero.common.serialization.*;
+                import io.fluxzero.sdk.common.serialization.*;
+                import io.fluxzero.sdk.modeling.*;
+                import io.fluxzero.sdk.persisting.eventsourcing.*;
+                import io.fluxzero.sdk.persisting.search.*;
+                import io.fluxzero.sdk.publishing.dataprotection.*;
+                import io.fluxzero.sdk.publishing.routing.*;
+                import io.fluxzero.sdk.tracking.handling.*;
+
+                @Aggregate
+                @Stateful
+                @Searchable
+                @SearchInclude
+                @Revision(2)
+                @FilterContent
+                @ProtectData
+                public class AnnotatedModelLogic {
+                    @HandleCommand
+                    @Apply
+                    @RoutingKey("model-route")
+                    @DropProtectedData
+                    public void handle(@Association String command) {
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.AnnotatedModelLogic").orElseThrow();
+        ExecutableDescriptor executable = component.executables().stream()
+                .filter(e -> e.name().equals("handle"))
+                .findFirst().orElseThrow();
+
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.sdk.modeling.Aggregate"));
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.sdk.tracking.handling.Stateful"));
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.sdk.persisting.search.Searchable"));
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.common.search.SearchInclude"));
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.common.serialization.Revision"));
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.sdk.common.serialization.FilterContent"));
+        assertTrue(hasAnnotation(component.annotations(), "io.fluxzero.sdk.publishing.dataprotection.ProtectData"));
+        assertTrue(hasAnnotation(executable.annotations(), "io.fluxzero.sdk.persisting.eventsourcing.Apply"));
+        assertTrue(hasAnnotation(executable.annotations(), "io.fluxzero.sdk.publishing.routing.RoutingKey"));
+        assertTrue(hasAnnotation(executable.annotations(), "io.fluxzero.sdk.publishing.dataprotection.DropProtectedData"));
+        assertTrue(hasAnnotation(executable.parameters().getFirst().annotations(),
+                                 "io.fluxzero.sdk.tracking.handling.Association"));
+    }
+
+    @Test
+    void indexesSourcePropertyAndRecordComponentAnnotations(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "PropertyPayload", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.modeling.EntityId;
+                import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
+
+                public record PropertyPayload(@EntityId String id, @ProtectData String secret) {
+                }
+                """);
+        writeSource(tempDir, "PropertyModel", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.modeling.EntityId;
+                import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
+                import io.fluxzero.sdk.tracking.handling.Association;
+                import io.fluxzero.sdk.modeling.Member;
+
+                import java.util.List;
+
+                public class PropertyModel {
+                    @EntityId
+                    private String id;
+
+                    @Member
+                    private List<PropertyPayload> children;
+
+                    @Association
+                    @ProtectData
+                    private String accountId;
+                }
+                """);
+
+        ComponentRegistry registry = new SourceComponentScanner().scan(tempDir);
+        ComponentDescriptor payload = registry.findComponent(
+                "io.fluxzero.sdk.registry.generated.PropertyPayload").orElseThrow();
+        ComponentDescriptor model = registry.findComponent(
+                "io.fluxzero.sdk.registry.generated.PropertyModel").orElseThrow();
+
+        assertTrue(hasAnnotation(property(payload, "id").annotations(), "io.fluxzero.sdk.modeling.EntityId"));
+        assertTrue(hasAnnotation(property(payload, "secret").annotations(),
+                                 "io.fluxzero.sdk.publishing.dataprotection.ProtectData"));
+        assertEquals("java.util.List<io.fluxzero.sdk.registry.generated.PropertyPayload>",
+                     property(model, "children").genericTypeName());
+        assertTrue(hasAnnotation(property(model, "id").annotations(), "io.fluxzero.sdk.modeling.EntityId"));
+        assertTrue(hasAnnotation(property(model, "children").annotations(),
+                                 "io.fluxzero.sdk.modeling.Member"));
+        assertTrue(hasAnnotation(property(model, "accountId").annotations(),
+                                 "io.fluxzero.sdk.tracking.handling.Association"));
+        assertTrue(hasAnnotation(property(model, "accountId").annotations(),
+                                 "io.fluxzero.sdk.publishing.dataprotection.ProtectData"));
     }
 
     @Test
@@ -281,6 +458,16 @@ class SourceComponentScannerTest {
     private static HandlerRoute route(ComponentDescriptor component, MessageType messageType) {
         return component.handlerRoutes().stream()
                 .filter(route -> route.messageType() == messageType)
+                .findFirst().orElseThrow();
+    }
+
+    private static boolean hasAnnotation(List<AnnotationDescriptor> annotations, String qualifiedName) {
+        return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(qualifiedName));
+    }
+
+    private static PropertyDescriptor property(ComponentDescriptor component, String name) {
+        return component.properties().stream()
+                .filter(property -> property.name().equals(name))
                 .findFirst().orElseThrow();
     }
 

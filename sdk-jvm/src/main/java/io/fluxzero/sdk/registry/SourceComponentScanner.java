@@ -61,14 +61,21 @@ public class SourceComponentScanner {
             entry("Consumer", "io.fluxzero.sdk.tracking.Consumer"),
             entry("TrackSelf", "io.fluxzero.sdk.tracking.TrackSelf"),
             entry("LocalHandler", "io.fluxzero.sdk.tracking.handling.LocalHandler"),
+            entry("Stateful", "io.fluxzero.sdk.tracking.handling.Stateful"),
+            entry("Association", "io.fluxzero.sdk.tracking.handling.Association"),
+            entry("Trigger", "io.fluxzero.sdk.tracking.handling.Trigger"),
             entry("HandleCommand", "io.fluxzero.sdk.tracking.handling.HandleCommand"),
             entry("HandleQuery", "io.fluxzero.sdk.tracking.handling.HandleQuery"),
             entry("HandleEvent", "io.fluxzero.sdk.tracking.handling.HandleEvent"),
             entry("HandleNotification", "io.fluxzero.sdk.tracking.handling.HandleNotification"),
             entry("HandleError", "io.fluxzero.sdk.tracking.handling.HandleError"),
             entry("HandleMetrics", "io.fluxzero.sdk.tracking.handling.HandleMetrics"),
+            entry("HandleResult", "io.fluxzero.sdk.tracking.handling.HandleResult"),
+            entry("HandleCustom", "io.fluxzero.sdk.tracking.handling.HandleCustom"),
+            entry("HandleDocument", "io.fluxzero.sdk.tracking.handling.HandleDocument"),
             entry("HandleSchedule", "io.fluxzero.sdk.tracking.handling.HandleSchedule"),
             entry("HandleWeb", "io.fluxzero.sdk.web.HandleWeb"),
+            entry("HandleWebResponse", "io.fluxzero.sdk.web.HandleWebResponse"),
             entry("HandleGet", "io.fluxzero.sdk.web.HandleGet"),
             entry("HandlePost", "io.fluxzero.sdk.web.HandlePost"),
             entry("HandlePut", "io.fluxzero.sdk.web.HandlePut"),
@@ -88,7 +95,53 @@ public class SourceComponentScanner {
             entry("HeaderParam", "io.fluxzero.sdk.web.HeaderParam"),
             entry("CookieParam", "io.fluxzero.sdk.web.CookieParam"),
             entry("FormParam", "io.fluxzero.sdk.web.FormParam"),
-            entry("BodyParam", "io.fluxzero.sdk.web.BodyParam"));
+            entry("BodyParam", "io.fluxzero.sdk.web.BodyParam"),
+            entry("WebParam", "io.fluxzero.sdk.web.WebParam"),
+            entry("ApiDoc", "io.fluxzero.sdk.web.ApiDoc"),
+            entry("ApiDocInfo", "io.fluxzero.sdk.web.ApiDocInfo"),
+            entry("ApiDocServer", "io.fluxzero.sdk.web.ApiDocServer"),
+            entry("ApiDocComponent", "io.fluxzero.sdk.web.ApiDocComponent"),
+            entry("ApiDocResponse", "io.fluxzero.sdk.web.ApiDocResponse"),
+            entry("ApiDocResponses", "io.fluxzero.sdk.web.ApiDocResponses"),
+            entry("ApiDocExclude", "io.fluxzero.sdk.web.ApiDocExclude"),
+            entry("ServeStatic", "io.fluxzero.sdk.web.ServeStatic"),
+            entry("SocketEndpoint", "io.fluxzero.sdk.web.SocketEndpoint"),
+            entry("Aggregate", "io.fluxzero.sdk.modeling.Aggregate"),
+            entry("EntityId", "io.fluxzero.sdk.modeling.EntityId"),
+            entry("Alias", "io.fluxzero.sdk.modeling.Alias"),
+            entry("Member", "io.fluxzero.sdk.modeling.Member"),
+            entry("AssertLegal", "io.fluxzero.sdk.modeling.AssertLegal"),
+            entry("Apply", "io.fluxzero.sdk.persisting.eventsourcing.Apply"),
+            entry("InterceptApply", "io.fluxzero.sdk.persisting.eventsourcing.InterceptApply"),
+            entry("Searchable", "io.fluxzero.sdk.persisting.search.Searchable"),
+            entry("SearchInclude", "io.fluxzero.common.search.SearchInclude"),
+            entry("SearchExclude", "io.fluxzero.common.search.SearchExclude"),
+            entry("Facet", "io.fluxzero.common.search.Facet"),
+            entry("Sortable", "io.fluxzero.common.search.Sortable"),
+            entry("Revision", "io.fluxzero.common.serialization.Revision"),
+            entry("RoutingKey", "io.fluxzero.sdk.publishing.routing.RoutingKey"),
+            entry("ProtectData", "io.fluxzero.sdk.publishing.dataprotection.ProtectData"),
+            entry("DropProtectedData", "io.fluxzero.sdk.publishing.dataprotection.DropProtectedData"),
+            entry("FilterContent", "io.fluxzero.sdk.common.serialization.FilterContent"),
+            entry("Cast", "io.fluxzero.sdk.common.serialization.casting.Cast"),
+            entry("Upcast", "io.fluxzero.sdk.common.serialization.casting.Upcast"),
+            entry("UpcastRepeatable", "io.fluxzero.sdk.common.serialization.casting.UpcastRepeatable"),
+            entry("Downcast", "io.fluxzero.sdk.common.serialization.casting.Downcast"),
+            entry("DowncastRepeatable", "io.fluxzero.sdk.common.serialization.casting.DowncastRepeatable"),
+            entry("Timeout", "io.fluxzero.sdk.publishing.Timeout"),
+            entry("Periodic", "io.fluxzero.sdk.scheduling.Periodic"),
+            entry("ValidateWith", "io.fluxzero.sdk.tracking.handling.validation.ValidateWith"),
+            entry("Length", "io.fluxzero.sdk.tracking.handling.validation.constraints.Length"),
+            entry("Range", "io.fluxzero.sdk.tracking.handling.validation.constraints.Range"),
+            entry("URL", "io.fluxzero.sdk.tracking.handling.validation.constraints.URL"),
+            entry("CreditCardNumber", "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber"),
+            entry("UUID", "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID"),
+            entry("UniqueElements", "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements"),
+            entry("RequiresUser", "io.fluxzero.sdk.tracking.handling.authentication.RequiresUser"),
+            entry("RequiresAnyRole", "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole"),
+            entry("NoUserRequired", "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired"),
+            entry("ForbidsUser", "io.fluxzero.sdk.tracking.handling.authentication.ForbidsUser"),
+            entry("ForbidsAnyRole", "io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole"));
 
     private static final Map<String, String> KNOWN_TYPES = Map.ofEntries(
             entry("Cache", "io.fluxzero.common.caching.Cache"),
@@ -140,7 +193,11 @@ public class SourceComponentScanner {
             entry("HandleNotification", new HandlerSpec(MessageType.NOTIFICATION, false, false, false, List.of(), false, false)),
             entry("HandleError", new HandlerSpec(MessageType.ERROR, false, false, false, List.of(), false, false)),
             entry("HandleMetrics", new HandlerSpec(MessageType.METRICS, false, false, false, List.of(), false, false)),
+            entry("HandleResult", new HandlerSpec(MessageType.RESULT, false, false, false, List.of(), false, false)),
+            entry("HandleCustom", new HandlerSpec(MessageType.CUSTOM, false, false, false, List.of(), false, false)),
+            entry("HandleDocument", new HandlerSpec(MessageType.DOCUMENT, false, false, false, List.of(), false, false)),
             entry("HandleSchedule", new HandlerSpec(MessageType.SCHEDULE, false, false, false, List.of(), false, false)),
+            entry("HandleWebResponse", new HandlerSpec(MessageType.WEBRESPONSE, false, false, false, List.of(), false, false)),
             entry("HandleWeb", new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of("ANY"), true, true)),
             entry("HandleGet", new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of("GET"), true, true)),
             entry("HandlePost", new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of("POST"), false, true)),
@@ -170,7 +227,7 @@ public class SourceComponentScanner {
                     .map(this::parse)
                     .toList();
             List<String> allTypeNames = sources.stream()
-                    .flatMap(source -> source.type().stream())
+                    .flatMap(source -> source.types().stream())
                     .map(TypeInfo::fullClassName)
                     .sorted()
                     .toList();
@@ -179,7 +236,8 @@ public class SourceComponentScanner {
                     .map(packageInfo -> packageDescriptor(packageInfo, allTypeNames))
                     .toList();
             List<ComponentDescriptor> components = sources.stream()
-                    .flatMap(source -> source.type().stream().map(type -> componentDescriptor(source, type, packages, allTypeNames)))
+                    .flatMap(source -> source.types().stream()
+                            .map(type -> componentDescriptor(source, type, packages, allTypeNames)))
                     .toList();
             return new ComponentRegistry(sourceRoot, packageDescriptors, components);
         } catch (Exception e) {
@@ -286,8 +344,8 @@ public class SourceComponentScanner {
         Set<ComponentCapability> capabilities = componentCapabilities(routes, registeredTypes, consumer, type.superTypeNames());
         return new ComponentDescriptor(
                 source.sourceFile(), packageInfo == null ? null : packageInfo.sourceFile(), type.kind(),
-                source.packageName(), type.className(), type.superTypeNames(), type.annotations(), type.executables(),
-                Set.copyOf(routes), registeredTypes, consumer, capabilities);
+                source.packageName(), type.className(), type.superTypeNames(), type.annotations(), type.properties(),
+                type.executables(), Set.copyOf(routes), registeredTypes, consumer, capabilities);
     }
 
     private static Optional<String> firstPayloadType(ExecutableDescriptor executable) {
@@ -402,7 +460,7 @@ public class SourceComponentScanner {
         return annotations.stream()
                 .filter(annotation -> annotation.name().equals("RegisterType"))
                 .map(annotation -> {
-                    String root = annotation.firstValue("root").filter(value -> !value.isBlank()).orElse(defaultRoot);
+                    String root = annotationRoot(annotation, defaultRoot);
                     List<String> contains = annotation.values("contains");
                     List<String> candidates = allTypeNames.stream()
                             .filter(typeName -> typeName.replace("$", ".").startsWith(root))
@@ -413,6 +471,14 @@ public class SourceComponentScanner {
                     return new RegisteredTypeDescriptor(root, contains, candidates, annotation);
                 })
                 .toList();
+    }
+
+    private static String annotationRoot(AnnotationDescriptor annotation, String defaultRoot) {
+        return annotation.firstValue("root")
+                .filter(value -> !value.isBlank())
+                .or(() -> annotation.firstValue("rootClass").filter(value -> !value.isBlank())
+                        .filter(value -> !value.equals(Void.class.getName())))
+                .orElse(defaultRoot);
     }
 
     private static Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
@@ -484,11 +550,12 @@ public class SourceComponentScanner {
 
     private record ParsedSource(Path sourceFile, String packageName, Map<String, String> imports,
                                 List<String> wildcardImports, List<AnnotationDescriptor> packageAnnotations,
-                                Optional<TypeInfo> type) {
+                                List<TypeInfo> types) {
     }
 
     private record TypeInfo(ComponentKind kind, String packageName, String className, List<String> superTypeNames,
-                            List<AnnotationDescriptor> annotations, List<ExecutableDescriptor> executables) {
+                            List<AnnotationDescriptor> annotations, List<PropertyDescriptor> properties,
+                            List<ExecutableDescriptor> executables) {
         String fullClassName() {
             return packageName.isBlank() ? className : packageName + "." + className;
         }
@@ -512,7 +579,7 @@ public class SourceComponentScanner {
         ParsedSource parse() {
             List<AnnotationDescriptor> packageAnnotations = parsePackageAnnotations();
             return new ParsedSource(sourceFile, packageName, imports, wildcardImports,
-                                    packageAnnotations, parseType());
+                                    packageAnnotations, parseTypes());
         }
 
         private List<AnnotationDescriptor> parsePackageAnnotations() {
@@ -523,28 +590,46 @@ public class SourceComponentScanner {
             return parseAnnotations(source.substring(0, matcher.start()));
         }
 
-        private Optional<TypeInfo> parseType() {
+        private List<TypeInfo> parseTypes() {
+            List<TypeInfo> types = new ArrayList<>();
             Matcher matcher = TYPE_PATTERN.matcher(source);
             while (matcher.find()) {
-                if (insideAnnotation(matcher.start())) {
+                if (insideAnnotation(matcher.start()) || !isTopLevel(matcher.start())) {
                     continue;
                 }
                 ComponentKind kind = ComponentKind.valueOf(matcher.group(1).toUpperCase(Locale.ROOT));
                 String className = matcher.group(2);
                 int bodyStart = source.indexOf('{', matcher.end());
                 if (bodyStart < 0) {
-                    return Optional.empty();
+                    continue;
                 }
                 int bodyEnd = matching(source, bodyStart, '{', '}');
                 if (bodyEnd < 0) {
                     bodyEnd = source.length() - 1;
                 }
                 List<AnnotationDescriptor> annotations = parseAnnotations(annotationsBefore(matcher.start()));
-                List<String> superTypeNames = parseSuperTypeNames(source.substring(matcher.end(), bodyStart));
+                String declarationTail = source.substring(matcher.end(), bodyStart);
+                List<String> superTypeNames = parseSuperTypeNames(declarationTail);
+                List<PropertyDescriptor> properties = parseProperties(kind, declarationTail, bodyStart, bodyEnd);
                 List<ExecutableDescriptor> executables = parseExecutables(className, bodyStart, bodyEnd);
-                return Optional.of(new TypeInfo(kind, packageName, className, superTypeNames, annotations, executables));
+                types.add(new TypeInfo(kind, packageName, className, superTypeNames, annotations, properties, executables));
             }
-            return Optional.empty();
+            return types;
+        }
+
+        private boolean isTopLevel(int offset) {
+            int depth = 0;
+            for (int i = 0; i < offset; i++) {
+                char c = source.charAt(i);
+                if (c == '"' || c == '\'') {
+                    i = skipQuoted(source, i);
+                } else if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth = Math.max(0, depth - 1);
+                }
+            }
+            return depth == 0;
         }
 
         private List<String> parseSuperTypeNames(String declarationTail) {
@@ -583,9 +668,42 @@ public class SourceComponentScanner {
         }
 
         private String annotationsBefore(int offset) {
-            int boundary = Math.max(Math.max(source.lastIndexOf(';', offset), source.lastIndexOf('{', offset)),
-                                    source.lastIndexOf('}', offset));
-            return source.substring(Math.max(boundary + 1, 0), offset);
+            int start = offset;
+            while (true) {
+                int at = source.lastIndexOf('@', start - 1);
+                if (at < 0) {
+                    break;
+                }
+                int annotationEnd = annotationEnd(at);
+                String between = stripModifiers(source.substring(annotationEnd, start));
+                if (!between.isBlank()) {
+                    break;
+                }
+                start = at;
+            }
+            return source.substring(start, offset);
+        }
+
+        private int annotationEnd(int at) {
+            int nameEnd = at + 1;
+            while (nameEnd < source.length()
+                   && (Character.isJavaIdentifierPart(source.charAt(nameEnd)) || source.charAt(nameEnd) == '.')) {
+                nameEnd++;
+            }
+            int next = skipWhitespace(source, nameEnd);
+            if (next < source.length() && source.charAt(next) == '(') {
+                int end = matching(source, next, '(', ')');
+                return end < 0 ? next + 1 : end + 1;
+            }
+            return nameEnd;
+        }
+
+        private static String stripModifiers(String text) {
+            String result = text;
+            for (String modifier : MODIFIERS) {
+                result = result.replaceAll("\\b" + Pattern.quote(modifier) + "\\b", " ");
+            }
+            return result.trim();
         }
 
         private List<ExecutableDescriptor> parseExecutables(String className, int bodyStart, int bodyEnd) {
@@ -622,6 +740,83 @@ public class SourceComponentScanner {
                 i++;
             }
             return result;
+        }
+
+        private List<PropertyDescriptor> parseProperties(ComponentKind kind, String declarationTail,
+                                                         int bodyStart, int bodyEnd) {
+            Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
+            String tail = declarationTail.trim();
+            if (kind == ComponentKind.RECORD && tail.startsWith("(")) {
+                int end = matching(tail, 0, '(', ')');
+                if (end > 0) {
+                    parseParameters(tail.substring(1, end)).stream()
+                            .map(parameter -> new PropertyDescriptor(
+                                    parameter.name(), parameter.typeName(), parameter.typeName(),
+                                    parameter.annotations()))
+                            .forEach(property -> result.put(property.name(), property));
+                }
+            }
+            int memberStart = bodyStart + 1;
+            int i = memberStart;
+            int paren = 0;
+            while (i < bodyEnd) {
+                char c = source.charAt(i);
+                if (isStringStart(i)) {
+                    i = skipString(i);
+                    continue;
+                }
+                if (c == '(') {
+                    paren++;
+                } else if (c == ')') {
+                    paren = Math.max(0, paren - 1);
+                } else if (c == '{' && paren == 0) {
+                    int blockEnd = matching(source, i, '{', '}');
+                    if (blockEnd < 0 || blockEnd >= bodyEnd) {
+                        break;
+                    }
+                    i = blockEnd + 1;
+                    memberStart = i;
+                    paren = 0;
+                    continue;
+                }
+                if (c == ';' && paren == 0) {
+                    parseProperty(source.substring(memberStart, i).trim()).ifPresent(
+                            property -> result.putIfAbsent(property.name(), property));
+                    memberStart = i + 1;
+                }
+                i++;
+            }
+            return List.copyOf(result.values());
+        }
+
+        private Optional<PropertyDescriptor> parseProperty(String header) {
+            if (header.isBlank() || header.contains("(")) {
+                return Optional.empty();
+            }
+            int equals = topLevelIndexOf(header, '=');
+            String declaration = equals < 0 ? header : header.substring(0, equals);
+            List<AnnotationDescriptor> annotations = parseAnnotations(declaration);
+            String cleaned = removeAnnotations(declaration).trim();
+            List<String> tokens = words(cleaned);
+            tokens.removeIf(MODIFIERS::contains);
+            if (tokens.size() < 2) {
+                return Optional.empty();
+            }
+            String name = tokens.get(tokens.size() - 1);
+            if (name == null || name.isBlank() || controlKeyword(name)) {
+                return Optional.empty();
+            }
+            String type = cleaned.substring(0, cleaned.lastIndexOf(name)).trim();
+            for (String modifier : MODIFIERS) {
+                type = type.replaceAll("\\b" + Pattern.quote(modifier) + "\\b", " ");
+            }
+            type = type.trim();
+            if (type.isBlank() || type.contains(",")) {
+                return Optional.empty();
+            }
+            String genericTypeName = resolveGenericType(type);
+            return Optional.of(new PropertyDescriptor(
+                    name, resolveType(eraseGeneric(type.replace("[]", ""))), genericTypeName, annotations));
         }
 
         private Optional<ExecutableDescriptor> parseExecutable(String header, String className) {
@@ -790,6 +985,23 @@ public class SourceComponentScanner {
                 return type;
             }
             return packageName.isBlank() ? type : packageName + "." + type;
+        }
+
+        private String resolveGenericType(String type) {
+            String normalized = type.replace("...", "[]").trim();
+            Matcher matcher = Pattern.compile("\\b[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*\\b")
+                    .matcher(normalized);
+            StringBuilder result = new StringBuilder();
+            while (matcher.find()) {
+                String token = matcher.group();
+                String replacement = switch (token) {
+                    case "extends", "super" -> token;
+                    default -> resolveType(token);
+                };
+                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+            }
+            matcher.appendTail(result);
+            return result.toString();
         }
 
         private static int nextKeywordIndex(String text, int start) {

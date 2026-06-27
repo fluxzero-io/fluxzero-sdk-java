@@ -39,6 +39,7 @@ class ComponentRegistryJsonTest {
         assertEquals(registry.normalized(), result.normalized());
         String json = ComponentRegistryJson.toJson(registry);
         assertTrue(json.contains("\"componentKind\""));
+        assertTrue(json.contains("\"properties\""));
         assertFalse(json.contains("@class"));
     }
 
@@ -82,6 +83,10 @@ class ComponentRegistryJsonTest {
                 "JsonHandler",
                 List.of(),
                 List.of(consumerAnnotation),
+                List.of(new PropertyDescriptor(
+                        "id", "java.lang.String", "java.lang.String",
+                        List.of(new AnnotationDescriptor(
+                                "EntityId", "io.fluxzero.sdk.modeling.EntityId", Map.of())))),
                 List.of(executable),
                 Set.of(route),
                 List.of(),

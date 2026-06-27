@@ -27,6 +27,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.MirroredTypeException;
 import javax.tools.FileObject;
 import java.io.IOException;
 import java.io.Writer;
@@ -156,14 +157,30 @@ public class TypeRegistryProcessor extends AbstractProcessor {
         try {
             RegisterType registerType = element.getAnnotation(RegisterType.class);
             if (registerType != null) {
-                String root = registerType.root().isBlank()
-                        ? ((QualifiedNameable) element).getQualifiedName().toString()
-                        : registerType.root().trim();
+                String root = root(registerType, element);
                 return Stream.of(new Prefix(root, Arrays.asList(registerType.contains())));
             }
         } catch (Throwable ignored) {
         }
         return element.getEnclosedElements().stream().flatMap(this::getPrefixes);
+    }
+
+    private String root(RegisterType registerType, Element element) {
+        if (!registerType.root().isBlank()) {
+            return registerType.root().trim();
+        }
+        String rootClass = rootClass(registerType);
+        return rootClass.isBlank() ? ((QualifiedNameable) element).getQualifiedName().toString() : rootClass;
+    }
+
+    private String rootClass(RegisterType registerType) {
+        try {
+            Class<?> rootClass = registerType.rootClass();
+            return rootClass == Void.class ? "" : rootClass.getName();
+        } catch (MirroredTypeException e) {
+            String typeName = e.getTypeMirror().toString();
+            return Void.class.getName().equals(typeName) ? "" : typeName;
+        }
     }
 
     Stream<TypeElement> getClasses(Element element) {

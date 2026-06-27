@@ -68,6 +68,14 @@ import java.lang.annotation.Target;
  * @RegisterType(root = "com.example.messages")
  * object TypeRegistryMarker
  * }</pre>
+ *
+ * <h2>Class-literal root registration</h2>
+ * Java sources may also use {@link #rootClass()} when a generated registry should lower class-literal metadata before
+ * browser execution:
+ * <pre>{@code
+ * @RegisterType(rootClass = MyMessages.class)
+ * class TypeRegistryMarker {}
+ * }</pre>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.PACKAGE, ElementType.TYPE})
@@ -83,6 +91,16 @@ public @interface RegisterType {
      * @return explicit package or type root to register
      */
     String root() default "";
+
+    /**
+     * Optional explicit root type to register.
+     * <p>
+     * This is equivalent to {@link #root()} for Java sources that prefer class literals. When both {@link #root()} and
+     * {@code rootClass} are set, build-time registry producers should prefer {@link #root()}.
+     *
+     * @return explicit root type to register
+     */
+    Class<?> rootClass() default Void.class;
 
     /**
      * Optional filters to determine which types should be registered based on name matching.

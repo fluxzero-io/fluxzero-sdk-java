@@ -27,6 +27,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
@@ -111,8 +112,16 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                   new HandlerSpec(MessageType.ERROR, false, false, false, List.of(), false, false)),
             entry("io.fluxzero.sdk.tracking.handling.HandleMetrics",
                   new HandlerSpec(MessageType.METRICS, false, false, false, List.of(), false, false)),
+            entry("io.fluxzero.sdk.tracking.handling.HandleResult",
+                  new HandlerSpec(MessageType.RESULT, false, false, false, List.of(), false, false)),
+            entry("io.fluxzero.sdk.tracking.handling.HandleCustom",
+                  new HandlerSpec(MessageType.CUSTOM, false, false, false, List.of(), false, false)),
+            entry("io.fluxzero.sdk.tracking.handling.HandleDocument",
+                  new HandlerSpec(MessageType.DOCUMENT, false, false, false, List.of(), false, false)),
             entry("io.fluxzero.sdk.tracking.handling.HandleSchedule",
                   new HandlerSpec(MessageType.SCHEDULE, false, false, false, List.of(), false, false)),
+            entry("io.fluxzero.sdk.web.HandleWebResponse",
+                  new HandlerSpec(MessageType.WEBRESPONSE, false, false, false, List.of(), false, false)),
             entry("io.fluxzero.sdk.web.HandleWeb",
                   new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of("ANY"), true, true)),
             entry("io.fluxzero.sdk.web.HandleGet",
@@ -261,6 +270,7 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         PackageMetadata packageMetadata = packageMetadata(packageName);
         ConsumerDescriptor consumer = consumerDescriptor(annotations).orElse(packageMetadata.consumer());
         LocalHandlerConfig typeLocalHandler = localHandlerConfig(annotations).orElse(null);
+        List<PropertyDescriptor> properties = propertyDescriptors(type);
         List<ExecutableElement> elements = executableElements(type);
         List<ExecutableDescriptor> executables = elements.stream().map(this::executableDescriptor).toList();
         Set<HandlerRoute> routes = new LinkedHashSet<>();
@@ -297,8 +307,32 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         List<String> superTypeNames = superTypeNames(type);
         return new ComponentDescriptor(
                 null, null, componentKind(type).orElse(ComponentKind.CLASS), packageName, className(type),
-                superTypeNames, annotations, executables, Set.copyOf(routes), registeredTypes, consumer,
+                superTypeNames, annotations, properties, executables, Set.copyOf(routes), registeredTypes, consumer,
                 componentCapabilities(type, routes, registeredTypes, consumer, superTypeNames));
+    }
+
+    private List<PropertyDescriptor> propertyDescriptors(TypeElement type) {
+        Map<String, PropertyDescriptor> properties = new LinkedHashMap<>();
+        type.getEnclosedElements().stream()
+                .filter(element -> element.getKind() == ElementKind.FIELD && !element.getSimpleName().toString().startsWith("$"))
+                .map(VariableElement.class::cast)
+                .sorted(Comparator.comparing(field -> field.getSimpleName().toString()))
+                .forEach(field -> properties.putIfAbsent(field.getSimpleName().toString(), new PropertyDescriptor(
+                        field.getSimpleName().toString(), typeName(field.asType()), field.asType().toString(),
+                        annotationDescriptors(field.getAnnotationMirrors()))));
+        type.getEnclosedElements().stream()
+                .filter(element -> element.getKind() == ElementKind.RECORD_COMPONENT)
+                .map(RecordComponentElement.class::cast)
+                .sorted(Comparator.comparing(component -> component.getSimpleName().toString()))
+                .forEach(component -> {
+                    String name = component.getSimpleName().toString();
+                    List<AnnotationDescriptor> annotations = mergeAnnotations(
+                            Optional.ofNullable(properties.get(name)).map(PropertyDescriptor::annotations).orElse(List.of()),
+                            annotationDescriptors(component.getAnnotationMirrors()));
+                    properties.put(name, new PropertyDescriptor(
+                            name, typeName(component.asType()), component.asType().toString(), annotations));
+                });
+        return List.copyOf(properties.values());
     }
 
     private List<ExecutableElement> executableElements(TypeElement type) {
@@ -396,6 +430,14 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 .toList();
     }
 
+    private static List<AnnotationDescriptor> mergeAnnotations(
+            List<AnnotationDescriptor> first, List<AnnotationDescriptor> second) {
+        Map<String, AnnotationDescriptor> result = new LinkedHashMap<>();
+        first.forEach(annotation -> result.putIfAbsent(annotation.qualifiedName(), annotation));
+        second.forEach(annotation -> result.putIfAbsent(annotation.qualifiedName(), annotation));
+        return List.copyOf(result.values());
+    }
+
     private AnnotationDescriptor annotationDescriptor(AnnotationMirror annotation) {
         Element annotationElement = annotation.getAnnotationType().asElement();
         String qualifiedName = annotationElement instanceof TypeElement type
@@ -448,7 +490,7 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         return annotations.stream()
                 .filter(annotation -> annotation.qualifiedName().equals(REGISTER_TYPE))
                 .map(annotation -> {
-                    String root = annotation.firstValue("root").filter(value -> !value.isBlank()).orElse(defaultRoot);
+                    String root = annotationRoot(annotation, defaultRoot);
                     List<String> contains = annotation.values("contains");
                     List<String> candidates = allTypeNames.stream()
                             .filter(typeName -> typeName.replace("$", ".").startsWith(root))
@@ -459,6 +501,14 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                     return new RegisteredTypeDescriptor(root, contains, candidates, annotation);
                 })
                 .toList();
+    }
+
+    private static String annotationRoot(AnnotationDescriptor annotation, String defaultRoot) {
+        return annotation.firstValue("root")
+                .filter(value -> !value.isBlank())
+                .or(() -> annotation.firstValue("rootClass").filter(value -> !value.isBlank())
+                        .filter(value -> !value.equals(Void.class.getName())))
+                .orElse(defaultRoot);
     }
 
     private Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {

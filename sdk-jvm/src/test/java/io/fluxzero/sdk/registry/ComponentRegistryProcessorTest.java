@@ -57,6 +57,10 @@ class ComponentRegistryProcessorTest {
         assertTrue(component.capabilities().contains(ComponentCapability.SOURCE_COMPONENT));
         assertTrue(component.capabilities().contains(ComponentCapability.HANDLER));
         assertEquals("processor-handler", component.consumerMetadata().orElseThrow().name());
+        assertEquals(Set.of(MessageType.values()), component.messageTypes());
+        assertTrue(hasAnnotation(property(component, "id").annotations(), "io.fluxzero.sdk.modeling.EntityId"));
+        assertTrue(hasAnnotation(property(component, "command").annotations(),
+                                 "io.fluxzero.sdk.tracking.handling.Association"));
 
         HandlerRoute command = route(component, MessageType.COMMAND);
         assertFalse(command.local());
@@ -93,6 +97,10 @@ class ComponentRegistryProcessorTest {
         assertTrue(registry.findComponent(
                         "io.fluxzero.sdk.registry.processorfixture.ProcessorPropertySource").orElseThrow()
                            .capabilities().contains(ComponentCapability.PROPERTY_SOURCE));
+        ComponentDescriptor payload = registry.findComponent(
+                "io.fluxzero.sdk.registry.processorfixture.ProcessorCommand").orElseThrow();
+        assertTrue(hasAnnotation(property(payload, "value").annotations(),
+                                 "io.fluxzero.sdk.publishing.dataprotection.ProtectData"));
     }
 
     @Test
@@ -110,6 +118,16 @@ class ComponentRegistryProcessorTest {
         return component.handlerRoutes().stream()
                 .filter(route -> route.messageType() == messageType)
                 .findFirst().orElseThrow();
+    }
+
+    private static PropertyDescriptor property(ComponentDescriptor component, String name) {
+        return component.properties().stream()
+                .filter(property -> property.name().equals(name))
+                .findFirst().orElseThrow();
+    }
+
+    private static boolean hasAnnotation(List<AnnotationDescriptor> annotations, String qualifiedName) {
+        return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(qualifiedName));
     }
 
     private static void compile(Path sourceRoot, Path output, String... additionalOptions) throws Exception {
@@ -163,7 +181,9 @@ class ComponentRegistryProcessorTest {
         Files.writeString(packageDir.resolve("ProcessorCommand.java"), """
                 package io.fluxzero.sdk.registry.processorfixture;
 
-                public record ProcessorCommand(String value) {
+                import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
+
+                public record ProcessorCommand(@ProtectData String value) {
                 }
                 """);
         Files.writeString(packageDir.resolve("ProcessorResult.java"), """
@@ -176,19 +196,78 @@ class ComponentRegistryProcessorTest {
                 package io.fluxzero.sdk.registry.processorfixture;
 
                 import io.fluxzero.sdk.tracking.Consumer;
+                import io.fluxzero.sdk.tracking.handling.HandleCustom;
+                import io.fluxzero.sdk.tracking.handling.HandleDocument;
                 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+                import io.fluxzero.sdk.tracking.handling.HandleError;
+                import io.fluxzero.sdk.tracking.handling.HandleEvent;
+                import io.fluxzero.sdk.tracking.handling.HandleMetrics;
+                import io.fluxzero.sdk.tracking.handling.HandleNotification;
+                import io.fluxzero.sdk.tracking.handling.HandleResult;
+                import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+                import io.fluxzero.sdk.tracking.handling.HandleQuery;
+                import io.fluxzero.sdk.modeling.EntityId;
+                import io.fluxzero.sdk.tracking.handling.Association;
                 import io.fluxzero.sdk.tracking.handling.LocalHandler;
                 import io.fluxzero.sdk.web.HandleGet;
+                import io.fluxzero.sdk.web.HandleWebResponse;
                 import io.fluxzero.sdk.web.Path;
                 import io.fluxzero.sdk.web.PathParam;
 
                 @Consumer(name = "processor-handler", threads = 3)
                 @Path("logic")
                 public class ProcessorHandler {
+                    @EntityId
+                    private String id;
+
+                    @Association
+                    private ProcessorCommand command;
+
                     @LocalHandler(false)
                     @HandleCommand(allowedClasses = ProcessorCommand.class, passive = true, skipExpiredRequests = true)
                     public ProcessorResult handle(@jakarta.validation.constraints.NotBlank ProcessorCommand command) {
                         return new ProcessorResult(command.value());
+                    }
+
+                    @HandleEvent
+                    public void event(ProcessorCommand command) {
+                    }
+
+                    @HandleNotification
+                    public void notification(ProcessorCommand command) {
+                    }
+
+                    @HandleQuery
+                    public ProcessorResult query(ProcessorCommand command) {
+                        return new ProcessorResult(command.value());
+                    }
+
+                    @HandleResult
+                    public void result(ProcessorResult result) {
+                    }
+
+                    @HandleSchedule
+                    public void schedule(ProcessorCommand command) {
+                    }
+
+                    @HandleError
+                    public void error(Throwable error) {
+                    }
+
+                    @HandleMetrics
+                    public void metrics(ProcessorCommand command) {
+                    }
+
+                    @HandleWebResponse
+                    public void webResponse(String response) {
+                    }
+
+                    @HandleDocument
+                    public void document(ProcessorResult result) {
+                    }
+
+                    @HandleCustom("processor-custom")
+                    public void custom(ProcessorCommand command) {
                     }
 
                     @HandleGet(value = {"items/{id}", "items"}, autoHead = false, autoOptions = false)

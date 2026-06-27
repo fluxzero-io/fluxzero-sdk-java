@@ -25,7 +25,7 @@ import io.fluxzero.sdk.web.PathParam;
 import jakarta.validation.constraints.NotBlank;
 
 @Consumer(name = "parity-type", threads = 3)
-@RegisterType(root = "io.fluxzero.sdk.registry.parity", contains = "Parity")
+@RegisterType(rootClass = ParityHandler.class, contains = "ParityHandler")
 @Path("logic")
 public class ParityHandler {
 

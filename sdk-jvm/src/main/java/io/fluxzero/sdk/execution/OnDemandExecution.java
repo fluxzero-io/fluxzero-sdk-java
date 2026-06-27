@@ -318,7 +318,7 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
                 .map(c -> new ComponentDescriptor(
                         relocate(c.sourceFile(), registryRoot), relocate(c.packageInfoSource(), registryRoot),
                         c.componentKind(), c.packageName(), c.className(), c.superTypeNames(),
-                        c.annotations(), c.executables(),
+                        c.annotations(), c.properties(), c.executables(),
                         c.handlerRoutes(), c.registeredTypes(), c.consumer(), c.capabilities()))
                 .toList();
         return new ComponentRegistry(sourceRoot, packages, components);

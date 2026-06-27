@@ -18,12 +18,26 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
+import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
 import io.fluxzero.sdk.registry.compiled.CompiledPackageHandler;
 import io.fluxzero.sdk.registry.compiled.child.CompiledChildHandler;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleCustom;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
+import io.fluxzero.sdk.tracking.handling.HandleError;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleMetrics;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.HandleResult;
+import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+import io.fluxzero.sdk.web.HandleWeb;
+import io.fluxzero.sdk.web.HandleWebResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -117,6 +131,29 @@ class ClasspathComponentScannerTest {
     }
 
     @Test
+    void indexesAllConcreteHandlerRouteTypes() {
+        ComponentRegistry registry = new ClasspathComponentScanner().scan(CompiledAllRoutesLogic.class);
+
+        assertEquals(java.util.Set.of(MessageType.values()), registry.messageTypes());
+    }
+
+    @Test
+    void indexesCompiledPropertyAndRecordComponentAnnotations() {
+        ComponentRegistry registry = new ClasspathComponentScanner().scan(
+                CompiledPropertyPayload.class, CompiledPropertyModel.class);
+        ComponentDescriptor payload = registry.findComponent(CompiledPropertyPayload.class).orElseThrow();
+        ComponentDescriptor model = registry.findComponent(CompiledPropertyModel.class).orElseThrow();
+
+        assertTrue(hasAnnotation(property(payload, "id").annotations(), EntityId.class.getName()));
+        assertTrue(hasAnnotation(property(payload, "secret").annotations(), ProtectData.class.getName()));
+        assertTrue(property(model, "children").genericTypeName().contains("CompiledPropertyPayload"));
+        assertTrue(hasAnnotation(property(model, "id").annotations(), EntityId.class.getName()));
+        assertTrue(hasAnnotation(property(model, "children").annotations(), Member.class.getName()));
+        assertTrue(hasAnnotation(property(model, "accountId").annotations(), Association.class.getName()));
+        assertTrue(hasAnnotation(property(model, "accountId").annotations(), ProtectData.class.getName()));
+    }
+
+    @Test
     void indexesCompiledInfrastructureCapabilities() {
         ComponentRegistry registry = new ClasspathComponentScanner().scan(
                 CompiledIdentityProvider.class, CompiledCache.class, CompiledTaskScheduler.class,
@@ -140,6 +177,16 @@ class ClasspathComponentScannerTest {
                 .findFirst().orElseThrow();
     }
 
+    private static PropertyDescriptor property(ComponentDescriptor component, String name) {
+        return component.properties().stream()
+                .filter(property -> property.name().equals(name))
+                .findFirst().orElseThrow();
+    }
+
+    private static boolean hasAnnotation(List<AnnotationDescriptor> annotations, String qualifiedName) {
+        return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(qualifiedName));
+    }
+
     private record CompiledSelfQuery(String value) {
         @HandleQuery
         String handle() {
@@ -153,6 +200,73 @@ class ClasspathComponentScannerTest {
         String handle() {
             return value;
         }
+    }
+
+    private static class CompiledAllRoutesLogic {
+        @HandleCommand
+        void command(String payload) {
+        }
+
+        @HandleEvent
+        void event(String payload) {
+        }
+
+        @HandleNotification
+        void notification(String payload) {
+        }
+
+        @HandleQuery
+        String query(String payload) {
+            return payload;
+        }
+
+        @HandleResult
+        void result(String payload) {
+        }
+
+        @HandleSchedule
+        void schedule(String payload) {
+        }
+
+        @HandleError
+        void error(Throwable payload) {
+        }
+
+        @HandleMetrics
+        void metrics(String payload) {
+        }
+
+        @HandleWeb
+        String web(String payload) {
+            return payload;
+        }
+
+        @HandleWebResponse
+        void webResponse(String payload) {
+        }
+
+        @HandleDocument
+        void document(String payload) {
+        }
+
+        @HandleCustom("custom-topic")
+        void custom(String payload) {
+        }
+    }
+
+    private record CompiledPropertyPayload(@EntityId String id, @ProtectData String secret) {
+    }
+
+    private static class CompiledPropertyModel {
+        @EntityId
+        private String id;
+
+        @Member
+        private List<CompiledPropertyPayload> children;
+
+        @Association
+        @ProtectData
+        private String accountId;
     }
 
     private static class CompiledIdentityProvider implements IdentityProvider {

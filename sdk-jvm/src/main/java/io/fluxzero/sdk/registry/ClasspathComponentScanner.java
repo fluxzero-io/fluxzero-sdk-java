@@ -30,11 +30,14 @@ import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleCustom;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandleError;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMetrics;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.HandleResult;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -56,6 +59,7 @@ import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleSocketPong;
 import io.fluxzero.sdk.web.HandleTrace;
 import io.fluxzero.sdk.web.HandleWeb;
+import io.fluxzero.sdk.web.HandleWebResponse;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.Path;
 import io.fluxzero.sdk.web.WebResponseMapper;
@@ -64,8 +68,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -97,7 +103,11 @@ public class ClasspathComponentScanner {
             entry(HandleNotification.class, new HandlerSpec(MessageType.NOTIFICATION, false, false, false, List.of(), false, false)),
             entry(HandleError.class, new HandlerSpec(MessageType.ERROR, false, false, false, List.of(), false, false)),
             entry(HandleMetrics.class, new HandlerSpec(MessageType.METRICS, false, false, false, List.of(), false, false)),
+            entry(HandleResult.class, new HandlerSpec(MessageType.RESULT, false, false, false, List.of(), false, false)),
+            entry(HandleCustom.class, new HandlerSpec(MessageType.CUSTOM, false, false, false, List.of(), false, false)),
+            entry(HandleDocument.class, new HandlerSpec(MessageType.DOCUMENT, false, false, false, List.of(), false, false)),
             entry(HandleSchedule.class, new HandlerSpec(MessageType.SCHEDULE, false, false, false, List.of(), false, false)),
+            entry(HandleWebResponse.class, new HandlerSpec(MessageType.WEBRESPONSE, false, false, false, List.of(), false, false)),
             entry(HandleWeb.class, new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of(HttpRequestMethod.ANY), true, true)),
             entry(HandleGet.class, new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of(HttpRequestMethod.GET), true, true)),
             entry(HandlePost.class, new HandlerSpec(MessageType.WEBREQUEST, false, true, true, List.of(HttpRequestMethod.POST), false, true)),
@@ -149,6 +159,7 @@ public class ClasspathComponentScanner {
                 .orElseGet(() -> consumerDescriptor(packageAnnotations(type.getPackage())).orElse(null));
         LocalHandlerConfig typeLocalHandler = localHandlerConfig(annotations).orElse(null);
         List<AnnotationDescriptor> packageAnnotations = packageAnnotations(type.getPackage());
+        List<PropertyDescriptor> properties = propertyDescriptors(type);
         List<Executable> reflectionExecutables = reflectionExecutables(type);
         List<ExecutableDescriptor> executables = reflectionExecutables.stream().map(this::executableDescriptor).toList();
         Set<HandlerRoute> routes = new LinkedHashSet<>();
@@ -183,8 +194,32 @@ public class ClasspathComponentScanner {
         }
         return new ComponentDescriptor(
                 null, null, componentKind(type), type.getPackageName(), className(type), superTypeNames(type),
-                annotations, executables, Set.copyOf(routes), registeredTypes, consumer,
+                annotations, properties, executables, Set.copyOf(routes), registeredTypes, consumer,
                 componentCapabilities(type, routes, registeredTypes, consumer));
+    }
+
+    private List<PropertyDescriptor> propertyDescriptors(Class<?> type) {
+        Map<String, PropertyDescriptor> properties = new LinkedHashMap<>();
+        Arrays.stream(type.getDeclaredFields())
+                .filter(field -> !field.isSynthetic())
+                .sorted(Comparator.comparing(Field::getName))
+                .forEach(field -> properties.putIfAbsent(field.getName(), new PropertyDescriptor(
+                        field.getName(), typeName(field.getType()), field.getGenericType().getTypeName(),
+                        annotationDescriptors(ReflectionUtils.getAnnotations(field)))));
+        if (type.isRecord()) {
+            Arrays.stream(type.getRecordComponents())
+                    .sorted(Comparator.comparing(RecordComponent::getName))
+                    .forEach(component -> {
+                        List<AnnotationDescriptor> annotations = mergeAnnotations(
+                                Optional.ofNullable(properties.get(component.getName()))
+                                        .map(PropertyDescriptor::annotations).orElse(List.of()),
+                                annotationDescriptors(component.getAnnotations()));
+                        properties.put(component.getName(), new PropertyDescriptor(
+                                component.getName(), typeName(component.getType()),
+                                component.getGenericType().getTypeName(), annotations));
+                    });
+        }
+        return List.copyOf(properties.values());
     }
 
     private PackageDescriptor packageDescriptor(Package p, List<String> allTypeNames) {
@@ -370,7 +405,7 @@ public class ClasspathComponentScanner {
         return annotations.stream()
                 .filter(annotation -> annotation.name().equals("RegisterType"))
                 .map(annotation -> {
-                    String root = annotation.firstValue("root").filter(value -> !value.isBlank()).orElse(defaultRoot);
+                    String root = annotationRoot(annotation, defaultRoot);
                     List<String> contains = annotation.values("contains");
                     List<String> candidates = allTypeNames.stream()
                             .filter(typeName -> typeName.replace("$", ".").startsWith(root))
@@ -381,6 +416,14 @@ public class ClasspathComponentScanner {
                     return new RegisteredTypeDescriptor(root, contains, candidates, annotation);
                 })
                 .toList();
+    }
+
+    private static String annotationRoot(AnnotationDescriptor annotation, String defaultRoot) {
+        return annotation.firstValue("root")
+                .filter(value -> !value.isBlank())
+                .or(() -> annotation.firstValue("rootClass").filter(value -> !value.isBlank())
+                        .filter(value -> !value.equals(Void.class.getName())))
+                .orElse(defaultRoot);
     }
 
     private static Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
@@ -424,6 +467,14 @@ public class ClasspathComponentScanner {
 
     private static List<AnnotationDescriptor> annotationDescriptors(Annotation[] annotations) {
         return Arrays.stream(annotations).map(ClasspathComponentScanner::annotationDescriptor).toList();
+    }
+
+    private static List<AnnotationDescriptor> mergeAnnotations(
+            List<AnnotationDescriptor> first, List<AnnotationDescriptor> second) {
+        Map<String, AnnotationDescriptor> result = new LinkedHashMap<>();
+        first.forEach(annotation -> result.putIfAbsent(annotation.qualifiedName(), annotation));
+        second.forEach(annotation -> result.putIfAbsent(annotation.qualifiedName(), annotation));
+        return List.copyOf(result.values());
     }
 
     private static AnnotationDescriptor annotationDescriptor(Annotation annotation) {

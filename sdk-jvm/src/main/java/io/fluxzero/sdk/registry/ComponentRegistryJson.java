@@ -176,6 +176,7 @@ public final class ComponentRegistryJson {
                 descriptor.componentKind().name(), descriptor.packageName(), descriptor.className(),
                 descriptor.superTypeNames(),
                 descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList(),
+                descriptor.properties().stream().map(ComponentRegistryJson::toDto).toList(),
                 descriptor.executables().stream().map(ComponentRegistryJson::toDto).toList(),
                 descriptor.routes().stream().map(ComponentRegistryJson::toDto).toList(),
                 descriptor.registeredTypes().stream().map(ComponentRegistryJson::toDto).toList(),
@@ -200,6 +201,12 @@ public final class ComponentRegistryJson {
         return new ExecutableDto(
                 descriptor.kind().name(), descriptor.name(), descriptor.returnTypeName(),
                 descriptor.parameters().stream().map(ComponentRegistryJson::toDto).toList(),
+                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList());
+    }
+
+    private static PropertyDto toDto(PropertyDescriptor descriptor) {
+        return new PropertyDto(
+                descriptor.name(), descriptor.typeName(), descriptor.genericTypeName(),
                 descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList());
     }
 
@@ -246,6 +253,7 @@ public final class ComponentRegistryJson {
                 path(dto.sourceFile()), path(dto.packageInfoSource()), ComponentKind.valueOf(dto.componentKind()),
                 dto.packageName(), dto.className(), list(dto.superTypeNames()),
                 list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(),
+                list(dto.properties()).stream().map(ComponentRegistryJson::fromDto).toList(),
                 list(dto.executables()).stream().map(ComponentRegistryJson::fromDto).toList(),
                 set(list(dto.handlerRoutes()).stream().map(ComponentRegistryJson::fromDto).toList()),
                 list(dto.registeredTypes()).stream().map(ComponentRegistryJson::fromDto).toList(),
@@ -271,6 +279,12 @@ public final class ComponentRegistryJson {
         return new ExecutableDescriptor(
                 ExecutableKind.valueOf(dto.kind()), dto.name(), dto.returnTypeName(),
                 list(dto.parameters()).stream().map(ComponentRegistryJson::fromDto).toList(),
+                list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList());
+    }
+
+    private static PropertyDescriptor fromDto(PropertyDto dto) {
+        return new PropertyDescriptor(
+                dto.name(), dto.typeName(), dto.genericTypeName() == null ? dto.typeName() : dto.genericTypeName(),
                 list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList());
     }
 
@@ -331,7 +345,8 @@ public final class ComponentRegistryJson {
     private record ComponentDto(
             String sourceFile, String packageInfoSource, String componentKind, String packageName, String className,
             List<String> superTypeNames,
-            List<AnnotationDto> annotations, List<ExecutableDto> executables, List<HandlerRouteDto> handlerRoutes,
+            List<AnnotationDto> annotations, List<PropertyDto> properties,
+            List<ExecutableDto> executables, List<HandlerRouteDto> handlerRoutes,
             List<RegisteredTypeDto> registeredTypes, ConsumerDto consumer, List<String> capabilities) {
     }
 
@@ -347,6 +362,9 @@ public final class ComponentRegistryJson {
     private record ExecutableDto(
             String kind, String name, String returnTypeName, List<ParameterDto> parameters,
             List<AnnotationDto> annotations) {
+    }
+
+    private record PropertyDto(String name, String typeName, String genericTypeName, List<AnnotationDto> annotations) {
     }
 
     private record ParameterDto(String name, String typeName, List<AnnotationDto> annotations) {

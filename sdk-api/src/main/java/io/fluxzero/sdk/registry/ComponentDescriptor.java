@@ -37,6 +37,7 @@ import static java.util.stream.Collectors.toSet;
  * @param className simple Java type name
  * @param superTypeNames directly declared superclass and interface type names
  * @param annotations source annotations on the component
+ * @param properties fields, record components, or source properties discovered on the component
  * @param executables methods and constructors discovered on the component
  * @param handlerRoutes handler routes discovered on the component
  * @param registeredTypes source type registration metadata declared by the component
@@ -51,6 +52,7 @@ public record ComponentDescriptor(
         String className,
         List<String> superTypeNames,
         List<AnnotationDescriptor> annotations,
+        List<PropertyDescriptor> properties,
         List<ExecutableDescriptor> executables,
         Set<HandlerRoute> handlerRoutes,
         List<RegisteredTypeDescriptor> registeredTypes,
@@ -63,6 +65,7 @@ public record ComponentDescriptor(
         Objects.requireNonNull(className, "className");
         superTypeNames = List.copyOf(Objects.requireNonNull(superTypeNames, "superTypeNames"));
         annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
+        properties = List.copyOf(Objects.requireNonNull(properties, "properties"));
         executables = List.copyOf(Objects.requireNonNull(executables, "executables"));
         handlerRoutes = Collections.unmodifiableSet(new LinkedHashSet<>(
                 Objects.requireNonNull(handlerRoutes, "handlerRoutes")));
@@ -74,7 +77,7 @@ public record ComponentDescriptor(
     public ComponentDescriptor(Path sourceFile, Path packageInfoSource, String packageName, String className,
                                Set<HandlerRoute> handlerRoutes, Set<ComponentCapability> capabilities) {
         this(sourceFile, packageInfoSource, ComponentKind.CLASS, packageName, className,
-             List.of(), List.of(), List.of(), handlerRoutes, List.of(), null, capabilities);
+             List.of(), List.of(), List.of(), List.of(), handlerRoutes, List.of(), null, capabilities);
     }
 
     /**

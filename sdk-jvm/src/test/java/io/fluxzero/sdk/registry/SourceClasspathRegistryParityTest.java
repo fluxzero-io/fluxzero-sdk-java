@@ -78,6 +78,8 @@ class SourceClasspathRegistryParityTest {
                      classpathComponent.registeredTypes().getFirst().root());
         assertEquals(sourceComponent.registeredTypes().getFirst().contains(),
                      classpathComponent.registeredTypes().getFirst().contains());
+        assertEquals(sourceComponent.registeredTypes().getFirst().candidateTypeNames(),
+                     classpathComponent.registeredTypes().getFirst().candidateTypeNames());
     }
 
     private static void assertRouteParity(ComponentRegistry source, ComponentRegistry classpath,
@@ -158,7 +160,7 @@ class SourceClasspathRegistryParityTest {
                 import jakarta.validation.constraints.NotBlank;
 
                 @Consumer(name = "parity-type", threads = 3)
-                @RegisterType(root = "io.fluxzero.sdk.registry.parity", contains = "Parity")
+                @RegisterType(rootClass = ParityHandler.class, contains = "ParityHandler")
                 @Path("logic")
                 public class ParityHandler {
                     @LocalHandler(false)

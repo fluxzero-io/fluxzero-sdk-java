@@ -37,12 +37,14 @@ class ComponentRegistryBlueprintTest {
 
         assertTrue(markdown.contains("# Fluxzero App Blueprint"));
         assertTrue(markdown.contains("| Components | 1 |"));
+        assertTrue(markdown.contains("| Properties | 1 |"));
         assertTrue(markdown.contains("| Handler routes | 2 |"));
         assertTrue(markdown.contains("```mermaid"));
         assertTrue(markdown.contains("| BlueprintHandler | io.fluxzero.example |"));
         assertTrue(markdown.contains("COMMAND"));
         assertTrue(markdown.contains("GET /blueprint/{id}"));
         assertTrue(markdown.contains("handle(command: BlueprintCommand) -> BlueprintResult"));
+        assertTrue(markdown.contains("| BlueprintHandler | id | String | EntityId |"));
         assertTrue(markdown.contains("package-consumer"));
         assertTrue(markdown.contains("| Source root | src/main/fluxzero |"));
         assertTrue(markdown.contains("| io.fluxzero.example | CONSUMER, REGISTERED_TYPE |"));
@@ -78,6 +80,7 @@ class ComponentRegistryBlueprintTest {
                 ComponentKind.CLASS,
                 "com.example",
                 "ImplicitHandler",
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(commandRoute.executableMetadata().orElseThrow()),
@@ -140,6 +143,10 @@ class ComponentRegistryBlueprintTest {
                 "BlueprintHandler",
                 List.of(),
                 List.of(),
+                List.of(new PropertyDescriptor(
+                        "id", "java.lang.String", "java.lang.String",
+                        List.of(new AnnotationDescriptor(
+                                "EntityId", "io.fluxzero.sdk.modeling.EntityId", Map.of())))),
                 List.of(commandRoute.executableMetadata().orElseThrow(), webRoute.executableMetadata().orElseThrow()),
                 Set.of(commandRoute, webRoute),
                 List.of(),

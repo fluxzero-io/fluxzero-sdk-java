@@ -87,6 +87,7 @@ public final class ComponentRegistryBlueprint {
         appendSummary(result, routes);
         appendPackages(result);
         appendComponents(result);
+        appendProperties(result);
         appendRoutes(result, routes);
         appendConsumers(result);
         appendRegisteredTypes(result);
@@ -113,6 +114,7 @@ public final class ComponentRegistryBlueprint {
                                     : relativePath(registry.sourceRoot())),
                             List.of("Packages", Integer.toString(packageRows().size())),
                             List.of("Components", Integer.toString(registry.components().size())),
+                            List.of("Properties", Long.toString(propertyCount())),
                             List.of("Handler routes", Integer.toString(routes.size())),
                             List.of("Web routes", Long.toString(routes.stream()
                                     .flatMap(route -> route.route().webRoutes().stream()).count())),
@@ -183,7 +185,7 @@ public final class ComponentRegistryBlueprint {
     private void appendComponents(StringBuilder result) {
         result.append("## Components\n\n");
         appendTable(result,
-                    List.of("Component", "Package", "Kind", "Capabilities", "Consumer", "Routes", "Source"),
+                    List.of("Component", "Package", "Kind", "Capabilities", "Consumer", "Properties", "Routes", "Source"),
                     components().stream()
                             .map(c -> List.of(
                                     c.className(),
@@ -191,8 +193,23 @@ public final class ComponentRegistryBlueprint {
                                     c.componentKind().name(),
                                     join(c.capabilities()),
                                     c.consumerMetadata().map(ConsumerDescriptor::name).orElse(""),
+                                    Integer.toString(c.properties().size()),
                                     Integer.toString(c.handlerRoutes().size()),
                                     path(c.sourceFile())))
+                            .toList());
+    }
+
+    private void appendProperties(StringBuilder result) {
+        result.append("## Properties\n\n");
+        appendTable(result,
+                    List.of("Component", "Property", "Type", "Annotations"),
+                    components().stream()
+                            .flatMap(component -> component.properties().stream()
+                                    .map(property -> List.of(
+                                            component.className(),
+                                            property.name(),
+                                            simpleTypeNames(property.genericTypeName()),
+                                            annotationNames(property.annotations()))))
                             .toList());
     }
 
@@ -279,6 +296,10 @@ public final class ComponentRegistryBlueprint {
                 packageRows().stream().filter(p -> p.consumer() != null),
                 registry.components().stream().filter(c -> c.consumerMetadata().isPresent()))
                 .count();
+    }
+
+    private long propertyCount() {
+        return registry.components().stream().mapToLong(component -> component.properties().size()).sum();
     }
 
     private long registeredTypeCount() {
@@ -397,6 +418,11 @@ public final class ComponentRegistryBlueprint {
                 .map(entry -> entry.getKey() + "=" + join(entry.getValue()))
                 .reduce((left, right) -> left + ", " + right)
                 .orElse("");
+    }
+
+    private static String annotationNames(List<AnnotationDescriptor> annotations) {
+        return annotations.stream().map(AnnotationDescriptor::name).sorted()
+                .reduce((left, right) -> left + ", " + right).orElse("");
     }
 
     private String path(Path path) {
