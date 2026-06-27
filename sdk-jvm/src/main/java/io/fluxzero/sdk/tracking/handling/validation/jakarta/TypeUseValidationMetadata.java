@@ -15,9 +15,13 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.TypeUseDescriptor;
 import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.AnnotatedArrayType;
 import java.lang.reflect.AnnotatedParameterizedType;
 import java.lang.reflect.AnnotatedType;
@@ -35,6 +39,28 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
 
     static TypeUseValidationMetadata of(AnnotatedType type) {
         return of(type, List.of(), false, List.of());
+    }
+
+    static TypeUseValidationMetadata of(AnnotatedElement element, AnnotatedType type) {
+        return of(element, type, List.of(), false, List.of());
+    }
+
+    static boolean hasValidation(AnnotatedElement element, AnnotatedType type) {
+        return of(element, type).hasValidation();
+    }
+
+    static TypeUseValidationMetadata of(AnnotatedElement element, AnnotatedType type,
+                              Collection<ConstraintMeta> ignoredConstraints,
+                              boolean ignoreCascaded,
+                              Collection<ValidationAnnotationUtils.GroupConversion> ignoredConversions) {
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return ValidationAnnotationUtils.typeUseDescriptor(element)
+                    .flatMap(descriptor -> ValidationAnnotationUtils.metadataDeclaringClass(element)
+                            .map(declaringClass -> of(descriptor, declaringClass, ignoredConstraints,
+                                                      ignoreCascaded, ignoredConversions)))
+                    .orElse(empty);
+        }
+        return of(type, ignoredConstraints, ignoreCascaded, ignoredConversions);
     }
 
     static TypeUseValidationMetadata of(AnnotatedType type, Collection<ConstraintMeta> ignoredConstraints,
@@ -66,6 +92,39 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
         return new TypeUseValidationMetadata(constraints,
                                    !ignoreCascaded && ValidationAnnotationUtils.hasAnnotation(type, Valid.class),
                                    conversions, List.copyOf(typeArguments), component);
+    }
+
+    private static TypeUseValidationMetadata of(
+            TypeUseDescriptor descriptor, Class<?> declaringClass, Collection<ConstraintMeta> ignoredConstraints,
+            boolean ignoreCascaded, Collection<ValidationAnnotationUtils.GroupConversion> ignoredConversions) {
+        if (descriptor == null || descriptor.equals(TypeUseDescriptor.EMPTY)) {
+            return empty;
+        }
+        List<TypeArgumentValidationMetadata> typeArguments = new ArrayList<>();
+        List<TypeUseDescriptor> descriptorTypeArguments = descriptor.typeArguments();
+        for (int i = 0; i < descriptorTypeArguments.size(); i++) {
+            TypeUseValidationMetadata metadata = of(
+                    descriptorTypeArguments.get(i), declaringClass, List.of(), false, List.of());
+            if (metadata.hasValidation()) {
+                typeArguments.add(new TypeArgumentValidationMetadata(i, metadata));
+            }
+        }
+        TypeUseValidationMetadata component = descriptor.componentType() == null ? null
+                : of(descriptor.componentType(), declaringClass, ignoredConstraints, ignoreCascaded,
+                     ignoredConversions);
+        List<Annotation> annotations = ValidationAnnotationUtils.annotationViews(
+                descriptor.annotations(), declaringClass);
+        List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintAnnotations(annotations).stream()
+                .map(ConstraintMeta::new)
+                .filter(meta -> !ignoredConstraints.contains(meta))
+                .toList();
+        List<ValidationAnnotationUtils.GroupConversion> conversions =
+                ValidationAnnotationUtils.groupConversions(annotations).stream()
+                        .filter(conversion -> !ignoredConversions.contains(conversion))
+                        .toList();
+        return new TypeUseValidationMetadata(
+                constraints, !ignoreCascaded && ValidationAnnotationUtils.hasAnnotation(annotations, Valid.class),
+                conversions, List.copyOf(typeArguments), component);
     }
 
     boolean hasValidation() {

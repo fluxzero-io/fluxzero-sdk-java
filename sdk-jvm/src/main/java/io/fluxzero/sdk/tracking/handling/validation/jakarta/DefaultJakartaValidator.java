@@ -16,7 +16,6 @@
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
@@ -324,7 +323,7 @@ public class DefaultJakartaValidator implements Validator {
         }
         ConstraintDescriptor<?> constraintDescriptor = v.getConstraintDescriptor();
         if (constraintDescriptor != null
-            && JvmComponentIntrospector.getInstance().hasNonDefaultAnnotationAttribute(constraintDescriptor.getAnnotation(), "message")) {
+            && JakartaValidationBackend.getInstance().hasNonDefaultAnnotationAttribute(constraintDescriptor.getAnnotation(), "message")) {
             return v.getMessage();
         }
         return String.format("%s %s", getPropertyPath(v, fullPath), v.getMessage()).trim();

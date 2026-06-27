@@ -19,9 +19,9 @@ import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
+import io.fluxzero.sdk.registry.TypeUseDescriptor;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintDefinitionException;
 import jakarta.validation.ConstraintTarget;
@@ -93,22 +93,26 @@ final class ValidationAnnotationUtils {
         return result;
     }
 
+    static List<Annotation> annotationViews(List<AnnotationDescriptor> descriptors, Class<?> declaringClass) {
+        return ComponentMetadataLookups.annotationViews(descriptors, declaringClass);
+    }
+
     private static void addConstraintAnnotation(Annotation annotation, List<Annotation> result) {
-        if (JvmComponentIntrospector.getInstance().getAnnotation(annotation.annotationType(), Constraint.class).isPresent()) {
+        if (JakartaValidationBackend.getInstance().getAnnotation(annotation.annotationType(), Constraint.class).isPresent()) {
             result.add(annotation);
             return;
         }
-        Optional<Method> valueMethod = JvmComponentIntrospector.getInstance().getTypeMetadata(annotation.annotationType()).method("value")
+        Optional<Method> valueMethod = JakartaValidationBackend.getInstance().method(annotation.annotationType(), "value")
                 .filter(method -> method.getParameterCount() == 0);
         if (valueMethod.isEmpty()) {
             return;
         }
         Class<?> returnType = valueMethod.get().getReturnType();
         if (!returnType.isArray() || !returnType.getComponentType().isAnnotation()
-            || JvmComponentIntrospector.getInstance().getAnnotation(returnType.getComponentType(), Constraint.class).isEmpty()) {
+            || JakartaValidationBackend.getInstance().getAnnotation(returnType.getComponentType(), Constraint.class).isEmpty()) {
             return;
         }
-        Object value = JvmComponentIntrospector.getInstance().getAnnotationAttribute(annotation, valueMethod.get().getName(), Object.class)
+        Object value = JakartaValidationBackend.getInstance().getAnnotationAttribute(annotation, valueMethod.get().getName(), Object.class)
                 .orElse(null);
         for (int i = 0; value != null && i < Array.getLength(value); i++) {
             result.add((Annotation) Array.get(value, i));
@@ -140,7 +144,7 @@ final class ValidationAnnotationUtils {
     }
 
     static boolean customMessage(Annotation annotation) {
-        return JvmComponentIntrospector.getInstance().hasNonDefaultAnnotationAttribute(annotation, "message");
+        return JakartaValidationBackend.getInstance().hasNonDefaultAnnotationAttribute(annotation, "message");
     }
 
     static Optional<ConstraintTarget> validationAppliesTo(Annotation annotation) {
@@ -149,7 +153,7 @@ final class ValidationAnnotationUtils {
 
     @SuppressWarnings("unchecked")
     static <T> Optional<T> annotationValue(Annotation annotation, String name, Class<T> expectedType) {
-        return JvmComponentIntrospector.getInstance().getAnnotationAttribute(annotation, name, expectedType);
+        return JakartaValidationBackend.getInstance().getAnnotationAttribute(annotation, name, expectedType);
     }
 
     static boolean appliesToGroup(ConstraintMeta meta, Class<?> requestedGroup) {
@@ -202,12 +206,16 @@ final class ValidationAnnotationUtils {
     }
 
     static List<GroupConversion> groupConversions(AnnotatedElement element) {
+        return groupConversions(annotations(element));
+    }
+
+    static List<GroupConversion> groupConversions(Collection<? extends Annotation> annotations) {
         List<GroupConversion> result = new ArrayList<>();
-        ConvertGroup single = annotation(element, ConvertGroup.class).orElse(null);
+        ConvertGroup single = annotation(annotations, ConvertGroup.class).orElse(null);
         if (single != null) {
             result.add(new GroupConversion(single.from(), single.to()));
         }
-        ConvertGroup.List list = annotation(element, ConvertGroup.List.class).orElse(null);
+        ConvertGroup.List list = annotation(annotations, ConvertGroup.List.class).orElse(null);
         if (list != null) {
             for (ConvertGroup conversion : list.value()) {
                 result.add(new GroupConversion(conversion.from(), conversion.to()));
@@ -220,16 +228,24 @@ final class ValidationAnnotationUtils {
         return annotation(element, annotationType).isPresent();
     }
 
+    static boolean hasAnnotation(Collection<? extends Annotation> annotations,
+                                 Class<? extends Annotation> annotationType) {
+        return annotation(annotations, annotationType).isPresent();
+    }
+
     static <A extends Annotation> Optional<A> annotation(AnnotatedElement element, Class<A> annotationType) {
         List<Annotation> annotations = annotations(element);
-        Optional<A> annotation = annotations.stream()
-                .filter(candidate -> annotationType.isAssignableFrom(candidate.annotationType()))
-                .map(annotationType::cast)
-                .findFirst();
+        Optional<A> annotation = annotation(annotations, annotationType);
         if (annotation.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return annotation;
         }
-        return JvmComponentIntrospector.getInstance().getAnnotation(element, annotationType);
+        return JakartaValidationBackend.getInstance().getAnnotation(element, annotationType);
+    }
+
+    static Optional<TypeUseDescriptor> typeUseDescriptor(AnnotatedElement element) {
+        return metadataDeclaringClass(element)
+                .flatMap(type -> ComponentMetadataLookups.registeredLookup(type)
+                        .flatMap(lookup -> metadataTypeUse(lookup, element)));
     }
 
     static List<Annotation> annotations(AnnotatedElement element) {
@@ -241,12 +257,15 @@ final class ValidationAnnotationUtils {
             }
         }
         return ComponentMetadataLookups.generatedOnlyMode()
-                ? List.of() : JvmComponentIntrospector.getInstance().getAnnotations(element);
+                ? List.of() : JakartaValidationBackend.getInstance().getAnnotations(element);
     }
 
-    private static boolean hasAnnotation(Collection<? extends Annotation> annotations,
-                                         Class<? extends Annotation> annotationType) {
-        return annotations.stream().anyMatch(annotation -> annotationType.isAssignableFrom(annotation.annotationType()));
+    private static <A extends Annotation> Optional<A> annotation(
+            Collection<? extends Annotation> annotations, Class<A> annotationType) {
+        return annotations.stream()
+                .filter(candidate -> annotationType.isAssignableFrom(candidate.annotationType()))
+                .map(annotationType::cast)
+                .findFirst();
     }
 
     private static List<AnnotationDescriptor> metadataAnnotations(AnnotatedElement element) {
@@ -284,7 +303,28 @@ final class ValidationAnnotationUtils {
         return List.of();
     }
 
-    private static Optional<Class<?>> metadataDeclaringClass(AnnotatedElement element) {
+    private static Optional<TypeUseDescriptor> metadataTypeUse(
+            ComponentMetadataLookup lookup, AnnotatedElement element) {
+        if (element instanceof Parameter parameter) {
+            return ComponentMetadataLookups.parameter(lookup, parameter)
+                    .map(ParameterDescriptor::typeUse);
+        }
+        if (element instanceof RecordComponent component) {
+            return lookup.property(component.getDeclaringRecord().getName(), component.getName())
+                    .map(PropertyDescriptor::typeUse);
+        }
+        if (element instanceof Field field) {
+            return lookup.property(field.getDeclaringClass().getName(), field.getName())
+                    .map(PropertyDescriptor::typeUse);
+        }
+        if (element instanceof Executable executable) {
+            return ComponentMetadataLookups.executable(lookup, executable)
+                    .map(ExecutableDescriptor::returnTypeUse);
+        }
+        return Optional.empty();
+    }
+
+    static Optional<Class<?>> metadataDeclaringClass(AnnotatedElement element) {
         if (element instanceof Parameter parameter) {
             return Optional.of(parameter.getDeclaringExecutable().getDeclaringClass());
         }

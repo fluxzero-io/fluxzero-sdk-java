@@ -165,19 +165,29 @@ Remaining architectural boundary:
 
 Goal: close the remaining validation and policy areas that still need JVM-specific metadata or explicit boundaries.
 
-Remaining work:
+Status: [x] implemented for this slice.
 
-- [ ] Model type-use validation metadata where Fluxzero semantics need it, including collection, optional, generic
+- [x] Model type-use validation metadata where Fluxzero semantics need it, including collection, optional, generic
   element, and array paths.
-- [ ] Define the JVM-only Jakarta backend boundary for constraint validator instantiation, `@Constraint` definitions,
+- [x] Define the JVM-only Jakarta backend boundary for constraint validator instantiation, `@Constraint` definitions,
   composed constraints, `ValueExtractor`s, and provider metadata views.
-- [ ] Move those JVM-only validation mechanics behind the backend boundary instead of letting them look like generic app
+- [x] Move those JVM-only validation mechanics behind the backend boundary instead of letting them look like generic app
   semantic reflection.
-- [ ] Add generated-only tests for the remaining type-use validation and Jakarta backend-boundary cases.
+- [x] Add generated-only tests for the remaining type-use validation and Jakarta backend-boundary cases.
 
 Done when:
 
-- [ ] Generated-only JVM tests prove app-facing validation and policy behavior without undisclosed reflection fallback.
+- [x] Generated-only JVM tests prove app-facing validation and policy behavior without undisclosed reflection fallback.
+
+Evidence:
+
+- Added `TypeUseDescriptor` to the registry model and JSON format so fields, parameters, and return values can carry
+  nested type-use annotations from classpath and annotation-processor producers.
+- Added `JakartaValidationBackend` as the only direct JVM introspection site inside the Jakarta validation package.
+- Added `ReflectionBoundaryTest.jakartaValidationUsesOnlyItsJvmBackendForDirectIntrospection`.
+- Added `DefaultValidatorTest.generatedOnlyModeUsesRegisteredJakartaTypeUseValidationMetadata`, proving
+  `List<@NotBlank ...>` and `Optional<@Valid ...>` are enforced from registered metadata while unregistered
+  generated-only mode does not reflectively infer them.
 
 ### Slice 5: On-Demand Source Lifecycle
 

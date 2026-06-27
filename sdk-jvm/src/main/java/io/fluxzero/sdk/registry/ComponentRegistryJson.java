@@ -206,6 +206,7 @@ public final class ComponentRegistryJson {
     private static ExecutableDto toDto(ExecutableDescriptor descriptor) {
         return new ExecutableDto(
                 descriptor.kind().name(), descriptor.name(), descriptor.returnTypeName(),
+                toDto(descriptor.returnTypeUse()),
                 descriptor.parameters().stream().map(ComponentRegistryJson::toDto).toList(),
                 descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList(),
                 descriptor.isStatic());
@@ -214,13 +215,26 @@ public final class ComponentRegistryJson {
     private static PropertyDto toDto(PropertyDescriptor descriptor) {
         return new PropertyDto(
                 descriptor.name(), descriptor.typeName(), descriptor.genericTypeName(),
-                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList());
+                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList(),
+                toDto(descriptor.typeUse()));
     }
 
     private static ParameterDto toDto(ParameterDescriptor descriptor) {
         return new ParameterDto(
                 descriptor.name(), descriptor.typeName(),
-                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList());
+                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList(),
+                toDto(descriptor.typeUse()));
+    }
+
+    private static TypeUseDto toDto(TypeUseDescriptor descriptor) {
+        if (descriptor == null || descriptor.equals(TypeUseDescriptor.EMPTY)) {
+            return null;
+        }
+        return new TypeUseDto(
+                descriptor.typeName(),
+                descriptor.annotations().stream().map(ComponentRegistryJson::toDto).toList(),
+                descriptor.typeArguments().stream().map(ComponentRegistryJson::toDto).toList(),
+                toDto(descriptor.componentType()));
     }
 
     private static ConsumerDto toDto(ConsumerDescriptor descriptor) {
@@ -287,7 +301,7 @@ public final class ComponentRegistryJson {
 
     private static ExecutableDescriptor fromDto(ExecutableDto dto) {
         return new ExecutableDescriptor(
-                ExecutableKind.valueOf(dto.kind()), dto.name(), dto.returnTypeName(),
+                ExecutableKind.valueOf(dto.kind()), dto.name(), dto.returnTypeName(), fromDto(dto.returnTypeUse()),
                 list(dto.parameters()).stream().map(ComponentRegistryJson::fromDto).toList(),
                 list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(),
                 Boolean.TRUE.equals(dto.isStatic()));
@@ -296,12 +310,23 @@ public final class ComponentRegistryJson {
     private static PropertyDescriptor fromDto(PropertyDto dto) {
         return new PropertyDescriptor(
                 dto.name(), dto.typeName(), dto.genericTypeName() == null ? dto.typeName() : dto.genericTypeName(),
-                list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList());
+                list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(), fromDto(dto.typeUse()));
     }
 
     private static ParameterDescriptor fromDto(ParameterDto dto) {
         return new ParameterDescriptor(
-                dto.name(), dto.typeName(), list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList());
+                dto.name(), dto.typeName(), list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(),
+                fromDto(dto.typeUse()));
+    }
+
+    private static TypeUseDescriptor fromDto(TypeUseDto dto) {
+        if (dto == null) {
+            return TypeUseDescriptor.EMPTY;
+        }
+        return new TypeUseDescriptor(
+                dto.typeName(), list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(),
+                list(dto.typeArguments()).stream().map(ComponentRegistryJson::fromDto).toList(),
+                fromDto(dto.componentType()));
     }
 
     private static ConsumerDescriptor fromDto(ConsumerDto dto) {
@@ -385,14 +410,21 @@ public final class ComponentRegistryJson {
     }
 
     private record ExecutableDto(
-            String kind, String name, String returnTypeName, List<ParameterDto> parameters,
+            String kind, String name, String returnTypeName, TypeUseDto returnTypeUse, List<ParameterDto> parameters,
             List<AnnotationDto> annotations, Boolean isStatic) {
     }
 
-    private record PropertyDto(String name, String typeName, String genericTypeName, List<AnnotationDto> annotations) {
+    private record PropertyDto(
+            String name, String typeName, String genericTypeName, List<AnnotationDto> annotations,
+            TypeUseDto typeUse) {
     }
 
-    private record ParameterDto(String name, String typeName, List<AnnotationDto> annotations) {
+    private record ParameterDto(String name, String typeName, List<AnnotationDto> annotations, TypeUseDto typeUse) {
+    }
+
+    private record TypeUseDto(
+            String typeName, List<AnnotationDto> annotations, List<TypeUseDto> typeArguments,
+            TypeUseDto componentType) {
     }
 
     private record ConsumerDto(String name, Map<String, List<String>> attributes, AnnotationDto annotation) {

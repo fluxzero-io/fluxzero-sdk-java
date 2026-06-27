@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.validation.ElementKind;
 import jakarta.validation.Valid;
 
@@ -75,7 +74,7 @@ record ExecutableValidationMetadata(List<ConstraintMeta> crossParameterConstrain
 
     private static List<ConstraintMeta> executableConstraints(Executable executable) {
         if (executable instanceof Method method) {
-            return JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
+            return JakartaValidationBackend.getInstance().getMethodOverrideHierarchy(method)
                     .flatMap(m -> ValidationAnnotationUtils.constraintMetas(m).stream())
                     .filter(ConstraintMeta::crossParameter)
                     .distinct()
@@ -104,7 +103,7 @@ record ReturnValueMetadata(List<ConstraintMeta> constraints, TypeUseValidationMe
                            List<ValidationAnnotationUtils.GroupConversion> conversions) {
     static ReturnValueMetadata of(Executable executable) {
         if (executable instanceof Method method) {
-            List<Method> methods = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method).toList();
+            List<Method> methods = JakartaValidationBackend.getInstance().getMethodOverrideHierarchy(method).toList();
             List<ConstraintMeta> constraints = methods.stream()
                     .flatMap(m -> ValidationAnnotationUtils.constraintMetas(m).stream())
                     .filter(meta -> !meta.crossParameter())
@@ -115,7 +114,7 @@ record ReturnValueMetadata(List<ConstraintMeta> constraints, TypeUseValidationMe
                     .flatMap(m -> ValidationAnnotationUtils.groupConversions(m).stream())
                     .toList();
             return new ReturnValueMetadata(constraints,
-                                           TypeUseValidationMetadata.of(method.getAnnotatedReturnType(), constraints,
+                                           TypeUseValidationMetadata.of(method, method.getAnnotatedReturnType(), constraints,
                                                               cascaded, conversions),
                                            cascaded, conversions);
         }
@@ -125,7 +124,7 @@ record ReturnValueMetadata(List<ConstraintMeta> constraints, TypeUseValidationMe
         boolean cascaded = ValidationAnnotationUtils.hasAnnotation(executable, Valid.class);
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(executable);
         return new ReturnValueMetadata(constraints,
-                                       TypeUseValidationMetadata.of(executable.getAnnotatedReturnType(), constraints,
+                                       TypeUseValidationMetadata.of(executable, executable.getAnnotatedReturnType(), constraints,
                                                           cascaded, conversions),
                                        cascaded, conversions);
     }
@@ -151,7 +150,7 @@ record ParameterMetadata(String name, int index, List<ConstraintMeta> constraint
                          TypeUseValidationMetadata typeUse, boolean cascaded,
                          List<ValidationAnnotationUtils.GroupConversion> conversions) {
     static ParameterMetadata of(Parameter parameter, int index) {
-        Stream<Parameter> hierarchy = JvmComponentIntrospector.getInstance().getParameterOverrideHierarchy(parameter);
+        Stream<Parameter> hierarchy = JakartaValidationBackend.getInstance().getParameterOverrideHierarchy(parameter);
         List<Parameter> parameters = hierarchy.toList();
         List<ConstraintMeta> constraints = parameters.stream()
                 .flatMap(p -> ValidationAnnotationUtils.constraintMetas(p).stream())
@@ -162,7 +161,7 @@ record ParameterMetadata(String name, int index, List<ConstraintMeta> constraint
                 .flatMap(p -> ValidationAnnotationUtils.groupConversions(p).stream())
                 .toList();
         return new ParameterMetadata(parameter.isNamePresent() ? parameter.getName() : "arg" + index, index,
-                                     constraints, TypeUseValidationMetadata.of(parameter.getAnnotatedType(), constraints,
+                                     constraints, TypeUseValidationMetadata.of(parameter, parameter.getAnnotatedType(), constraints,
                                                                     cascaded, conversions),
                                      cascaded,
                                      conversions);

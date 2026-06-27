@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
@@ -445,6 +446,32 @@ class DefaultValidatorTest {
     }
 
     @Test
+    void generatedOnlyModeUsesRegisteredJakartaTypeUseValidationMetadata() {
+        GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(() -> subject.assertValid(
+                new UnregisteredGeneratedOnlyTypeUseBean(
+                        List.of(""), Optional.of(new UnregisteredGeneratedOnlyTypeUseChild(""))))));
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
+                    RegisteredGeneratedOnlyTypeUseBean.class, RegisteredGeneratedOnlyTypeUseChild.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                ValidationException e = assertThrows(ValidationException.class, () -> subject.assertValid(
+                        new RegisteredGeneratedOnlyTypeUseBean(
+                                List.of(""), Optional.of(new RegisteredGeneratedOnlyTypeUseChild("")))));
+
+                assertEquals(2, e.getViolations().size());
+                assertTrue(e.getViolations().stream()
+                                   .anyMatch(v -> v.contains("values") && v.contains("must not be blank")));
+                assertTrue(e.getViolations().stream()
+                                   .anyMatch(v -> v.contains("value") && v.contains("must not be blank")));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void validatesExecutableParameters() throws Exception {
         Method method = ParameterTarget.class.getDeclaredMethod("handle", String.class, Child.class);
 
@@ -808,6 +835,22 @@ class DefaultValidatorTest {
     }
 
     private record RegisteredGeneratedOnlyExecutableChild(@NotBlank String value) {
+    }
+
+    private record UnregisteredGeneratedOnlyTypeUseBean(
+            List<@NotBlank String> values,
+            Optional<@Valid UnregisteredGeneratedOnlyTypeUseChild> child) {
+    }
+
+    private record UnregisteredGeneratedOnlyTypeUseChild(@NotBlank String value) {
+    }
+
+    private record RegisteredGeneratedOnlyTypeUseBean(
+            List<@NotBlank String> values,
+            Optional<@Valid RegisteredGeneratedOnlyTypeUseChild> child) {
+    }
+
+    private record RegisteredGeneratedOnlyTypeUseChild(@NotBlank String value) {
     }
 
     private static class CrossParameterTarget {

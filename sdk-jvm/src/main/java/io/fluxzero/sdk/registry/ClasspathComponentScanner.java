@@ -65,6 +65,9 @@ import io.fluxzero.sdk.web.Path;
 import io.fluxzero.sdk.web.WebResponseMapper;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedArrayType;
+import java.lang.reflect.AnnotatedParameterizedType;
+import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
@@ -228,7 +231,8 @@ public class ClasspathComponentScanner {
                 .sorted(Comparator.comparing(Field::getName))
                 .forEach(field -> properties.putIfAbsent(field.getName(), new PropertyDescriptor(
                         field.getName(), typeName(field.getType()), field.getGenericType().getTypeName(),
-                        annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(field)))));
+                        annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(field)),
+                        typeUseDescriptor(field.getAnnotatedType()))));
         if (type.isRecord()) {
             Arrays.stream(type.getRecordComponents())
                     .sorted(Comparator.comparing(RecordComponent::getName))
@@ -237,9 +241,10 @@ public class ClasspathComponentScanner {
                                 Optional.ofNullable(properties.get(component.getName()))
                                         .map(PropertyDescriptor::annotations).orElse(List.of()),
                                 annotationDescriptors(component.getAnnotations()));
+                        TypeUseDescriptor typeUse = typeUseDescriptor(component.getAnnotatedType());
                         properties.put(component.getName(), new PropertyDescriptor(
                                 component.getName(), typeName(component.getType()),
-                                component.getGenericType().getTypeName(), annotations));
+                                component.getGenericType().getTypeName(), annotations, typeUse));
                     });
         }
         return List.copyOf(properties.values());
@@ -278,13 +283,33 @@ public class ClasspathComponentScanner {
     private ExecutableDescriptor executableDescriptor(Executable executable) {
         ExecutableKind kind = executable instanceof Constructor<?> ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
         String returnType = executable instanceof Method method ? typeName(method.getReturnType()) : "void";
+        TypeUseDescriptor returnTypeUse = executable instanceof Method method
+                ? typeUseDescriptor(method.getAnnotatedReturnType()) : TypeUseDescriptor.EMPTY;
         List<ParameterDescriptor> parameters = Arrays.stream(executable.getParameters())
                 .map(parameter -> new ParameterDescriptor(
-                        parameter.getName(), typeName(parameter.getType()), annotationDescriptors(parameter.getAnnotations())))
+                        parameter.getName(), typeName(parameter.getType()),
+                        annotationDescriptors(parameter.getAnnotations()),
+                        typeUseDescriptor(parameter.getAnnotatedType())))
                 .toList();
-        return new ExecutableDescriptor(kind, executable.getName(), returnType, parameters,
+        return new ExecutableDescriptor(kind, executable.getName(), returnType, returnTypeUse, parameters,
                                         annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable)),
                                         java.lang.reflect.Modifier.isStatic(executable.getModifiers()));
+    }
+
+    private static TypeUseDescriptor typeUseDescriptor(AnnotatedType type) {
+        if (type == null) {
+            return TypeUseDescriptor.EMPTY;
+        }
+        TypeUseDescriptor componentType = type instanceof AnnotatedArrayType arrayType
+                ? typeUseDescriptor(arrayType.getAnnotatedGenericComponentType()) : null;
+        List<TypeUseDescriptor> typeArguments = type instanceof AnnotatedParameterizedType parameterizedType
+                ? Arrays.stream(parameterizedType.getAnnotatedActualTypeArguments())
+                        .map(ClasspathComponentScanner::typeUseDescriptor)
+                        .toList()
+                : List.of();
+        return new TypeUseDescriptor(
+                typeName(JvmComponentIntrospector.getInstance().rawClass(type.getType())),
+                annotationDescriptors(type.getAnnotations()), typeArguments, componentType);
     }
 
     private List<Annotation> handlerAnnotations(Executable executable) {

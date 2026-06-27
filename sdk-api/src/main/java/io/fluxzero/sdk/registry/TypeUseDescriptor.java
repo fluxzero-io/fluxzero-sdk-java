@@ -14,32 +14,33 @@
 
 package io.fluxzero.sdk.registry;
 
-
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Incubating source-level metadata for a method or constructor parameter.
+ * Incubating source-level metadata for annotations attached to a Java type use.
  *
- * @param name parameter name
- * @param typeName resolved parameter type name
- * @param annotations source annotations on the parameter
- * @param typeUse source annotations on the parameter type use
+ * @param typeName resolved type name for this type use
+ * @param annotations annotations declared on this type use
+ * @param typeArguments nested generic type argument metadata
+ * @param componentType nested array component metadata
  */
-public record ParameterDescriptor(
-        String name,
+public record TypeUseDescriptor(
         String typeName,
         List<AnnotationDescriptor> annotations,
-        TypeUseDescriptor typeUse) {
+        List<TypeUseDescriptor> typeArguments,
+        TypeUseDescriptor componentType) {
 
-    public ParameterDescriptor {
-        Objects.requireNonNull(name, "name");
+    public static final TypeUseDescriptor EMPTY = new TypeUseDescriptor(
+            "java.lang.Object", List.of(), List.of(), null);
+
+    public TypeUseDescriptor {
         Objects.requireNonNull(typeName, "typeName");
         annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
-        typeUse = typeUse == null ? TypeUseDescriptor.EMPTY : typeUse;
+        typeArguments = List.copyOf(Objects.requireNonNull(typeArguments, "typeArguments"));
     }
 
-    public ParameterDescriptor(String name, String typeName, List<AnnotationDescriptor> annotations) {
-        this(name, typeName, annotations, TypeUseDescriptor.EMPTY);
+    public TypeUseDescriptor(String typeName, List<AnnotationDescriptor> annotations) {
+        this(typeName, annotations, List.of(), null);
     }
 }

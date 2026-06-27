@@ -24,6 +24,7 @@ import java.util.Objects;
  * @param kind executable kind
  * @param name method or constructor name
  * @param returnTypeName resolved return type name, or {@code void} for constructors
+ * @param returnTypeUse source annotations on the return type use
  * @param parameters executable parameters
  * @param annotations source annotations on the executable
  * @param isStatic whether this executable is static
@@ -32,6 +33,7 @@ public record ExecutableDescriptor(
         ExecutableKind kind,
         String name,
         String returnTypeName,
+        TypeUseDescriptor returnTypeUse,
         List<ParameterDescriptor> parameters,
         List<AnnotationDescriptor> annotations,
         boolean isStatic) {
@@ -40,6 +42,7 @@ public record ExecutableDescriptor(
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(returnTypeName, "returnTypeName");
+        returnTypeUse = returnTypeUse == null ? TypeUseDescriptor.EMPTY : returnTypeUse;
         parameters = List.copyOf(Objects.requireNonNull(parameters, "parameters"));
         annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
     }
@@ -49,7 +52,17 @@ public record ExecutableDescriptor(
             String name,
             String returnTypeName,
             List<ParameterDescriptor> parameters,
+            List<AnnotationDescriptor> annotations,
+            boolean isStatic) {
+        this(kind, name, returnTypeName, TypeUseDescriptor.EMPTY, parameters, annotations, isStatic);
+    }
+
+    public ExecutableDescriptor(
+            ExecutableKind kind,
+            String name,
+            String returnTypeName,
+            List<ParameterDescriptor> parameters,
             List<AnnotationDescriptor> annotations) {
-        this(kind, name, returnTypeName, parameters, annotations, false);
+        this(kind, name, returnTypeName, TypeUseDescriptor.EMPTY, parameters, annotations, false);
     }
 }

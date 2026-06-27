@@ -91,6 +91,24 @@ class ReflectionBoundaryTest {
         }
     }
 
+    @Test
+    void jakartaValidationUsesOnlyItsJvmBackendForDirectIntrospection() throws Exception {
+        Path sourceRoot = Path.of("src/main/java/io/fluxzero/sdk/tracking/handling/validation/jakarta");
+        if (!Files.isDirectory(sourceRoot)) {
+            return;
+        }
+        try (var files = Files.walk(sourceRoot)) {
+            var offenders = files.filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("JakartaValidationBackend.java"))
+                    .filter(ReflectionBoundaryTest::hasDirectJvmIntrospectorAccess)
+                    .map(Path::toString)
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Jakarta validation must use JakartaValidationBackend: "
+                                                 + offenders);
+        }
+    }
+
     private static boolean containsForbiddenReflectionReference(Path path) {
         if (path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "JvmComponentIntrospector.java"))) {
             return false;

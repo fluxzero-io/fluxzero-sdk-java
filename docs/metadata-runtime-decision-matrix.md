@@ -13,21 +13,21 @@ Allowed source values:
 | ID | Runtime decision | Current source | Final source | Boundary |
 | --- | --- | --- | --- | --- |
 | handler.registration | Which component routes are registered for command/query/event/notification/error/metrics/result/schedule/document/custom/web messages | Registry metadata | Registry metadata | `HandlerRoute` descriptors and `ComponentCapability.HANDLER` |
-| handler.discovery | Which executable is a handler method or constructor | Generated invocation plan with JVM fallback | Generated invocation plan | Registry-backed matcher when generated invocations are registered |
+| handler.discovery | Which executable is a handler method or constructor | Hybrid | Generated invocation plan | Registry-backed matcher when generated invocations are registered |
 | handler.annotation-kind | Which concrete handler annotation applies, including composed/meta annotations | Registry metadata | Registry metadata | `MetadataExecutableAnnotationResolver` |
 | handler.disabled-passive-expiry | Disabled, passive, and skipExpiredRequests behavior | Registry metadata | Registry metadata | `HandlerRoute` and metadata annotation projection |
 | handler.payload-filter | Payload type names, likely payload parameter, and allowedClasses filtering | Registry metadata | Registry metadata | `HandlerRoute.payloadTypeNames` and `allowedClassNames` |
 | handler.local-tracked | Local/tracked semantics and method/type/package precedence | Registry metadata | Registry metadata | `HandlerRoute.local` and `tracked` |
 | handler.consumer | Consumer name/group/segment/batch/passive configuration | Registry metadata | Registry metadata | `ConsumerDescriptor` from package/type metadata |
 | handler.parameter-binding | Binding payload, message, metadata, trigger, user, entity, web, and custom parameters | Hybrid | Generated invocation plan | Parameter metadata plus JVM/web parameter resolver mechanics |
-| handler.invocation | Calling handler methods and constructors | Generated invocation plan with JVM fallback | Generated invocation plan | Registry-backed matcher can expose only `ExecutableView`; reflection-shaped matcher remains fallback |
+| handler.invocation | Calling handler methods and constructors | Hybrid | Generated invocation plan | Registry-backed matcher can expose only `ExecutableView`; reflection-shaped matcher remains fallback |
 | tracking.gateway-locality | Local handler and self-tracking gateway decisions | Registry metadata | Registry metadata | `ClientUtils` metadata lookups |
 | routing.message-key | Routing key from payload type/property/metadata | Registry metadata | Registry metadata | `HasMessage` and routing interceptor metadata lookup |
 | timeout.request | Request timeout metadata from payload type | Registry metadata | Registry metadata | `DefaultGenericGateway` and `SocketSession` metadata lookup |
 | validation.validate-with | `@ValidateWith` and custom validator selection | Registry metadata | Registry metadata | `ValidationUtils` metadata lookup |
 | validation.auth-policy | Requires/forbids user/role policy metadata | Registry metadata | Registry metadata | `ValidationUtils` metadata lookup |
-| validation.jakarta-elements | Bean/executable element constraints, `@Valid`, groups, and conversions | Registry metadata | Registry metadata | Generated element descriptors consumed by Jakarta bridge |
-| validation.jakarta-provider | Constraint validator construction, composed constraints, provider metadata views, and value extractors | Allowed JVM backend | Allowed JVM backend | Slice 4 defines final JVM-only boundary |
+| validation.jakarta-elements | Bean/executable/type-use constraints, `@Valid`, groups, and conversions | Registry metadata | Registry metadata | Generated element and `TypeUseDescriptor` metadata consumed by Jakarta bridge |
+| validation.jakarta-provider | Constraint validator construction, composed constraints, provider metadata views, and value extractors | Allowed JVM backend | Allowed JVM backend | `JakartaValidationBackend` |
 | policy.data-protection | Protect/drop data policy on type/property/method | Registry metadata | Registry metadata | `DataProtectionInterceptor` metadata lookup |
 | policy.content-filter | Filter content policy on handler/type/package/property | Registry metadata | Registry metadata | `ContentFilterInterceptor` metadata lookup |
 | modeling.stateful | Stateful handler type and repository behavior | Registry metadata | Registry metadata | `DefaultHandlerFactory` and repository metadata lookup |

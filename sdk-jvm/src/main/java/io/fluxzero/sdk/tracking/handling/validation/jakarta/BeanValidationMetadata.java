@@ -17,7 +17,6 @@ package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
 import io.fluxzero.common.reflection.KotlinReflectionUtils;
 import io.fluxzero.common.reflection.MemberInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 
@@ -88,7 +87,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
             addClassConstraints(current, result);
         }
-        for (Class<?> interfaceType : JvmComponentIntrospector.getInstance().getAllInterfaces(type)) {
+        for (Class<?> interfaceType : JakartaValidationBackend.getInstance().getAllInterfaces(type)) {
             addClassConstraints(interfaceType, result);
         }
         return List.copyOf(result.values());
@@ -103,7 +102,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
     private static List<MemberMetadata> members(Class<?> type) {
         List<MemberMetadata> result = new ArrayList<>();
         Map<String, MemberMetadata> fieldMembers = new HashMap<>();
-        for (Field field : JvmComponentIntrospector.getInstance().getTypeMetadata(type).fields()) {
+        for (Field field : JakartaValidationBackend.getInstance().fields(type)) {
             if (MemberMetadata.fieldHasValidation(field)) {
                 MemberMetadata metadata = MemberMetadata.field(field);
                 result.add(metadata);
@@ -116,7 +115,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
                 fieldMembers.putIfAbsent(metadata.propertyName(), metadata);
             }
         }
-        for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(type)) {
+        for (Method method : JakartaValidationBackend.getInstance().getAllMethods(type)) {
             if (isConstrainedMethodCandidate(method) && MemberMetadata.methodHasValidation(method)) {
                 MemberMetadata metadata = MemberMetadata.method(method);
                 if (!metadata.duplicates(fieldMembers.get(metadata.propertyName()))) {
@@ -128,7 +127,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
     }
 
     private static boolean isConstrainedMethodCandidate(Method method) {
-        return JvmComponentIntrospector.getInstance().hasReturnType(method)
+        return JakartaValidationBackend.getInstance().hasReturnType(method)
                && !Modifier.isStatic(method.getModifiers())
                && !method.getDeclaringClass().isAssignableFrom(method.getReturnType());
     }
@@ -145,7 +144,7 @@ static final class KotlinSupport {
     }
 
     static List<MemberMetadata> constructorParameterMembers(Class<?> type) {
-        if (!JvmComponentIntrospector.getInstance().isKotlinReflectionSupported() || !isKotlinType(type)) {
+        if (!JakartaValidationBackend.getInstance().isKotlinReflectionSupported() || !isKotlinType(type)) {
             return List.of();
         }
         Constructor<?> constructor = primaryConstructor(type);
@@ -169,7 +168,7 @@ static final class KotlinSupport {
     }
 
     private static boolean isKotlinType(Class<?> type) {
-        for (Annotation annotation : JvmComponentIntrospector.getInstance().getTypeMetadata(type).typeAnnotations()) {
+        for (Annotation annotation : JakartaValidationBackend.getInstance().typeAnnotations(type)) {
             if (annotation.annotationType().getName().equals(KOTLIN_METADATA)) {
                 return true;
             }
@@ -197,18 +196,18 @@ static final class KotlinSupport {
     }
 
     private static Optional<MemberInvoker> propertyInvoker(Class<?> type, String propertyName) {
-        Optional<Field> field = JvmComponentIntrospector.getInstance().getTypeMetadata(type).field(propertyName)
+        Optional<Field> field = JakartaValidationBackend.getInstance().field(type, propertyName)
                 .filter(f -> !Modifier.isStatic(f.getModifiers()));
         if (field.isPresent()) {
-            return field.map(f -> JvmComponentIntrospector.getInstance().getTypeMetadata(f.getDeclaringClass()).invoker(f, true));
+            return field.map(f -> JakartaValidationBackend.getInstance().invoker(f.getDeclaringClass(), f, true));
         }
-        for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(type)) {
+        for (Method method : JakartaValidationBackend.getInstance().getAllMethods(type)) {
             if (!Modifier.isStatic(method.getModifiers())
                 && method.getParameterCount() == 0
-                && JvmComponentIntrospector.getInstance().hasReturnType(method)
-                && propertyName.equals(JvmComponentIntrospector.getInstance().getPropertyName(method))) {
-                return Optional.of(JvmComponentIntrospector.getInstance().getTypeMetadata(method.getDeclaringClass())
-                                           .invoker(method, true));
+                && JakartaValidationBackend.getInstance().hasReturnType(method)
+                && propertyName.equals(JakartaValidationBackend.getInstance().getPropertyName(method))) {
+                return Optional.of(JakartaValidationBackend.getInstance()
+                                           .invoker(method.getDeclaringClass(), method, true));
             }
         }
         return Optional.empty();
@@ -221,7 +220,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
                       boolean cascaded, List<ValidationAnnotationUtils.GroupConversion> conversions) {
     static boolean fieldHasValidation(Field field) {
         return ValidationAnnotationUtils.hasValidationAnnotations(field)
-               || ValidationAnnotationUtils.hasValidationAnnotations(field.getAnnotatedType());
+               || TypeUseValidationMetadata.hasValidation(field, field.getAnnotatedType());
     }
 
     static MemberMetadata field(Field field) {
@@ -229,15 +228,16 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         boolean cascaded = ValidationAnnotationUtils.hasAnnotation(field, Valid.class);
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(field);
         return new MemberMetadata(field.getName(), field,
-                                  JvmComponentIntrospector.getInstance().getTypeMetadata(field.getDeclaringClass()).invoker(field, true),
+                                  JakartaValidationBackend.getInstance().invoker(field.getDeclaringClass(), field, true),
                                   false, false, constraints,
-                                  TypeUseValidationMetadata.of(field.getAnnotatedType(), constraints, cascaded, conversions),
+                                  TypeUseValidationMetadata.of(field, field.getAnnotatedType(), constraints, cascaded,
+                                                               conversions),
                                   cascaded, conversions);
     }
 
     static boolean parameterHasValidation(Parameter parameter) {
         return ValidationAnnotationUtils.hasValidationAnnotations(parameter)
-               || ValidationAnnotationUtils.hasValidationAnnotations(parameter.getAnnotatedType());
+               || TypeUseValidationMetadata.hasValidation(parameter, parameter.getAnnotatedType());
     }
 
     static MemberMetadata parameter(String propertyName, Parameter parameter, MemberInvoker invoker) {
@@ -245,30 +245,31 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         boolean cascaded = ValidationAnnotationUtils.hasAnnotation(parameter, Valid.class);
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(parameter);
         return new MemberMetadata(propertyName, parameter, invoker, false, false, constraints,
-                                  TypeUseValidationMetadata.of(parameter.getAnnotatedType(), constraints, cascaded, conversions),
+                                  TypeUseValidationMetadata.of(parameter, parameter.getAnnotatedType(), constraints,
+                                                               cascaded, conversions),
                                   cascaded, conversions);
     }
 
     static boolean methodHasValidation(Method method) {
-        return JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
+        return JakartaValidationBackend.getInstance().getMethodOverrideHierarchy(method)
                        .anyMatch(ValidationAnnotationUtils::hasValidationAnnotations)
-               || ValidationAnnotationUtils.hasValidationAnnotations(method.getAnnotatedReturnType());
+               || TypeUseValidationMetadata.hasValidation(method, method.getAnnotatedReturnType());
     }
 
     static MemberMetadata method(Method method) {
-        List<ConstraintMeta> constraints = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
+        List<ConstraintMeta> constraints = JakartaValidationBackend.getInstance().getMethodOverrideHierarchy(method)
                 .flatMap(m -> ValidationAnnotationUtils.constraintMetas(m).stream())
                 .distinct()
                 .toList();
-        boolean cascaded = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
+        boolean cascaded = JakartaValidationBackend.getInstance().getMethodOverrideHierarchy(method)
                 .anyMatch(m -> ValidationAnnotationUtils.hasAnnotation(m, Valid.class));
-        List<ValidationAnnotationUtils.GroupConversion> conversions = JvmComponentIntrospector.getInstance().getMethodOverrideHierarchy(method)
+        List<ValidationAnnotationUtils.GroupConversion> conversions = JakartaValidationBackend.getInstance().getMethodOverrideHierarchy(method)
                 .flatMap(m -> ValidationAnnotationUtils.groupConversions(m).stream())
                 .toList();
         return new MemberMetadata(propertyName(method), method,
-                                  JvmComponentIntrospector.getInstance().getTypeMetadata(method.getDeclaringClass()).invoker(method, true),
+                                  JakartaValidationBackend.getInstance().invoker(method.getDeclaringClass(), method, true),
                                   true, hasBeanPropertyName(method), constraints,
-                                  TypeUseValidationMetadata.of(method.getAnnotatedReturnType(), constraints, cascaded,
+                                  TypeUseValidationMetadata.of(method, method.getAnnotatedReturnType(), constraints, cascaded,
                                                      conversions),
                                   cascaded, conversions);
     }
@@ -284,7 +285,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (isBooleanType(method.getReturnType()) && hasPrefixedPropertyName(name, "has")) {
             return decapitalize(name, 3);
         }
-        return JvmComponentIntrospector.getInstance().getPropertyName(method);
+        return JakartaValidationBackend.getInstance().getPropertyName(method);
     }
 
     private static boolean hasBeanPropertyName(Method method) {

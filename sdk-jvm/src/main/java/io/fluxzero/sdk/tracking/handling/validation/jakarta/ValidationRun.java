@@ -18,7 +18,6 @@ package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.MemberInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import jakarta.validation.ClockProvider;
 import jakarta.validation.ConstraintViolation;
 
@@ -152,7 +151,7 @@ final class ValidationRun {
     }
 
     void validateBean(Object object, Class<?>[] requestedGroups, ValidationPath path) {
-        if (object == null || JvmComponentIntrospector.getInstance().isLeafValue(object)) {
+        if (object == null || JakartaValidationBackend.getInstance().isLeafValue(object)) {
             return;
         }
         if (!validationStack.add(object)) {
@@ -169,7 +168,7 @@ final class ValidationRun {
     }
 
     void validateBean(Object object, Class<?> requestedGroup, ValidationPath path) {
-        if (object == null || JvmComponentIntrospector.getInstance().isLeafValue(object)) {
+        if (object == null || JakartaValidationBackend.getInstance().isLeafValue(object)) {
             return;
         }
         if (!validationStack.add(object)) {

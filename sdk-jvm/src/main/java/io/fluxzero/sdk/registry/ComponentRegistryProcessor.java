@@ -31,6 +31,8 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
@@ -345,7 +347,7 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 .sorted(Comparator.comparing(field -> field.getSimpleName().toString()))
                 .forEach(field -> properties.putIfAbsent(field.getSimpleName().toString(), new PropertyDescriptor(
                         field.getSimpleName().toString(), typeName(field.asType()), field.asType().toString(),
-                        annotationDescriptors(field.getAnnotationMirrors()))));
+                        annotationDescriptors(field.getAnnotationMirrors()), typeUseDescriptor(field.asType()))));
         type.getEnclosedElements().stream()
                 .filter(element -> element.getKind() == ElementKind.RECORD_COMPONENT)
                 .map(RecordComponentElement.class::cast)
@@ -356,7 +358,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                             Optional.ofNullable(properties.get(name)).map(PropertyDescriptor::annotations).orElse(List.of()),
                             annotationDescriptors(component.getAnnotationMirrors()));
                     properties.put(name, new PropertyDescriptor(
-                            name, typeName(component.asType()), component.asType().toString(), annotations));
+                            name, typeName(component.asType()), component.asType().toString(), annotations,
+                            typeUseDescriptor(component.asType())));
                 });
         return List.copyOf(properties.values());
     }
@@ -375,15 +378,30 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         ExecutableKind kind = executable.getKind() == ElementKind.CONSTRUCTOR
                 ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
         String returnType = kind == ExecutableKind.CONSTRUCTOR ? "void" : typeName(executable.getReturnType());
+        TypeUseDescriptor returnTypeUse = kind == ExecutableKind.CONSTRUCTOR
+                ? TypeUseDescriptor.EMPTY : typeUseDescriptor(executable.getReturnType());
         List<ParameterDescriptor> parameters = executable.getParameters().stream()
                 .map(parameter -> new ParameterDescriptor(
                         parameter.getSimpleName().toString(), typeName(parameter.asType()),
-                        annotationDescriptors(parameter.getAnnotationMirrors())))
+                        annotationDescriptors(parameter.getAnnotationMirrors()), typeUseDescriptor(parameter.asType())))
                 .toList();
         return new ExecutableDescriptor(
-                kind, executable.getSimpleName().toString(), returnType, parameters,
+                kind, executable.getSimpleName().toString(), returnType, returnTypeUse, parameters,
                 annotationDescriptors(executable.getAnnotationMirrors()),
                 executable.getModifiers().contains(Modifier.STATIC));
+    }
+
+    private TypeUseDescriptor typeUseDescriptor(TypeMirror type) {
+        if (type == null || type.getKind() == TypeKind.NONE) {
+            return TypeUseDescriptor.EMPTY;
+        }
+        TypeUseDescriptor componentType = type instanceof ArrayType arrayType
+                ? typeUseDescriptor(arrayType.getComponentType()) : null;
+        List<TypeUseDescriptor> typeArguments = type instanceof DeclaredType declaredType
+                ? declaredType.getTypeArguments().stream().map(this::typeUseDescriptor).toList()
+                : List.of();
+        return new TypeUseDescriptor(typeName(type), annotationDescriptors(type.getAnnotationMirrors()),
+                                     typeArguments, componentType);
     }
 
     private List<WebRouteDescriptor> webRoutes(AnnotationDescriptor annotation, HandlerSpec spec,

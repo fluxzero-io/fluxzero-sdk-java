@@ -24,17 +24,28 @@ import java.util.Objects;
  * @param typeName resolved erased property type name
  * @param genericTypeName resolved generic property type name when available
  * @param annotations source annotations on the property
+ * @param typeUse source annotations on the property type use
  */
 public record PropertyDescriptor(
         String name,
         String typeName,
         String genericTypeName,
-        List<AnnotationDescriptor> annotations) {
+        List<AnnotationDescriptor> annotations,
+        TypeUseDescriptor typeUse) {
 
     public PropertyDescriptor {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(typeName, "typeName");
         Objects.requireNonNull(genericTypeName, "genericTypeName");
         annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
+        typeUse = typeUse == null ? TypeUseDescriptor.EMPTY : typeUse;
+    }
+
+    public PropertyDescriptor(
+            String name,
+            String typeName,
+            String genericTypeName,
+            List<AnnotationDescriptor> annotations) {
+        this(name, typeName, genericTypeName, annotations, TypeUseDescriptor.EMPTY);
     }
 }
