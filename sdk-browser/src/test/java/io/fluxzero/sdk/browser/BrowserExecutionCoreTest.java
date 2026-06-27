@@ -31,6 +31,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BrowserExecutionCoreTest {
 
     @Test
+    void registersGeneratedHandlersFromComponentMetadataLookup() {
+        String componentName = "io.fluxzero.sdk.browser.MetadataHandler";
+        BrowserComponentRegistry registry = new BrowserComponentRegistry(
+                0,
+                1,
+                0,
+                List.of(new BrowserRouteMetadata(
+                        componentName,
+                        MessageType.COMMAND,
+                        false,
+                        false,
+                        false,
+                        true,
+                        true,
+                        java.util.Set.of(CreateOrder.class.getName()),
+                        java.util.Set.of(),
+                        0)));
+        BrowserExecutionCore core = BrowserExecutionCore.create(fixedClock(), registry);
+
+        core.register(componentName, MessageType.COMMAND, CreateOrder.class.getName(),
+                      message -> new OrderCreated(((CreateOrder) message.payload()).orderId()));
+
+        Object result = core.messageBus().dispatch(MessageType.COMMAND, "", CreateOrder.class.getName(),
+                                                   new CreateOrder("order-1"), Map.of());
+
+        assertEquals(new OrderCreated("order-1"), result);
+        assertEquals(1, ((Map<?, ?>) core.snapshot().get("metadata")).get("components"));
+        assertEquals(1L, ((Map<?, ?>) core.messageBus().snapshot()).get("metadataHandlers"));
+    }
+
+    @Test
     void routesGatewaysThroughGeneratedHandlerRegistrations() {
         BrowserExecutionCore core = BrowserExecutionCore.create(fixedClock());
         core.messageBus().register(new BrowserHandlerRegistration(

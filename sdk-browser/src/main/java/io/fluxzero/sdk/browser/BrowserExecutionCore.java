@@ -27,6 +27,7 @@ import java.util.Objects;
  * Browser-native Fluxzero execution core backed by in-memory adapters.
  */
 public final class BrowserExecutionCore {
+    private final BrowserComponentRegistry metadata;
     private final BrowserMessageBus messageBus;
     private final BrowserKeyValueStore keyValueStore = new BrowserKeyValueStore();
     private final BrowserEventStore eventStore = new BrowserEventStore();
@@ -39,6 +40,11 @@ public final class BrowserExecutionCore {
     private final QueryGateway queryGateway;
 
     public BrowserExecutionCore(Clock clock) {
+        this(clock, BrowserComponentRegistry.empty());
+    }
+
+    public BrowserExecutionCore(Clock clock, BrowserComponentRegistry metadata) {
+        this.metadata = Objects.requireNonNull(metadata, "metadata");
         messageBus = new BrowserMessageBus(Objects.requireNonNull(clock, "clock"));
         scheduler = new BrowserScheduler(clock, messageBus);
         commandGateway = new BrowserCommandGateway(new CoreCommandDispatcher());
@@ -47,6 +53,14 @@ public final class BrowserExecutionCore {
 
     public static BrowserExecutionCore create(Clock clock) {
         return new BrowserExecutionCore(clock);
+    }
+
+    public static BrowserExecutionCore create(Clock clock, BrowserComponentRegistry metadata) {
+        return new BrowserExecutionCore(clock, metadata);
+    }
+
+    public BrowserComponentRegistry metadata() {
+        return metadata;
     }
 
     public BrowserMessageBus messageBus() {
@@ -93,8 +107,24 @@ public final class BrowserExecutionCore {
         return messageBus.dispatch(messageType, payload);
     }
 
+    public void register(String componentName, MessageType messageType, String payloadTypeName, BrowserHandler handler) {
+        Objects.requireNonNull(componentName, "componentName");
+        Objects.requireNonNull(messageType, "messageType");
+        BrowserRouteMetadata route = metadata.findRoute(componentName, messageType, payloadTypeName);
+        if (route == null) {
+            throw new IllegalArgumentException(
+                    "No browser route metadata found for " + componentName + " and " + messageType);
+        }
+        register(route, handler);
+    }
+
+    public void register(BrowserRouteMetadata route, BrowserHandler handler) {
+        messageBus.register(BrowserHandlerRegistration.from(route, handler));
+    }
+
     public Map<String, Object> snapshot() {
         Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("metadata", metadataSnapshot());
         snapshot.put("messageBus", messageBus.snapshot());
         snapshot.put("keyValue", keyValueStore.snapshot());
         snapshot.put("events", eventStore.snapshot());
@@ -104,6 +134,10 @@ public final class BrowserExecutionCore {
         snapshot.put("web", webRouter.snapshot());
         snapshot.put("socket", socketSimulator.snapshot());
         return snapshot;
+    }
+
+    private Map<String, Object> metadataSnapshot() {
+        return metadata.snapshot();
     }
 
     private final class CoreCommandDispatcher implements CommandDispatcher {

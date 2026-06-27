@@ -95,6 +95,8 @@ class BrowserApplicationGeneratorTest {
         assertTrue(result.manifestJson().contains("\"window.fluxzeroConformance.runAll()\""));
         assertTrue(result.sources().getFirst().content().contains("BrowserExecutionCore"));
         assertTrue(result.sources().getFirst().content().contains("MessageType.COMMAND"));
+        assertTrue(result.sources().getFirst().content().contains("generatedRegistry()"));
+        assertTrue(result.sources().getFirst().content().contains("core.register(\"example.CreateOrder\""));
     }
 
     @Test

@@ -28,15 +28,38 @@ public final class BrowserHandlerRegistration {
     private final String payloadTypeName;
     private final boolean passive;
     private final BrowserHandler handler;
+    private final String componentName;
+    private final BrowserRouteMetadata route;
 
     public BrowserHandlerRegistration(String feature, MessageType messageType, String topic, String payloadTypeName,
                                       boolean passive, BrowserHandler handler) {
+        this(feature, messageType, topic, payloadTypeName, passive, handler, null, null);
+    }
+
+    private BrowserHandlerRegistration(String feature, MessageType messageType, String topic, String payloadTypeName,
+                                       boolean passive, BrowserHandler handler, String componentName,
+                                       BrowserRouteMetadata route) {
         this.feature = Objects.requireNonNull(feature, "feature");
         this.messageType = Objects.requireNonNull(messageType, "messageType");
         this.topic = topic == null ? "" : topic;
         this.payloadTypeName = payloadTypeName == null ? "" : payloadTypeName;
         this.passive = passive;
         this.handler = Objects.requireNonNull(handler, "handler");
+        this.componentName = componentName;
+        this.route = route;
+    }
+
+    public static BrowserHandlerRegistration from(BrowserRouteMetadata route, BrowserHandler handler) {
+        Objects.requireNonNull(route, "route");
+        return new BrowserHandlerRegistration(
+                route.componentName(),
+                route.messageType(),
+                "",
+                route.primaryPayloadTypeName(),
+                route.passive(),
+                handler,
+                route.componentName(),
+                route);
     }
 
     public String feature() {
@@ -63,12 +86,23 @@ public final class BrowserHandlerRegistration {
         return handler;
     }
 
+    public boolean metadataBacked() {
+        return route != null;
+    }
+
+    public String componentName() {
+        return componentName;
+    }
+
     boolean matches(BrowserMessage message) {
         if (messageType != message.messageType()) {
             return false;
         }
         if (!topic.isBlank() && !topic.equals(message.topic())) {
             return false;
+        }
+        if (route != null) {
+            return route.matches(message.messageType(), message.payloadTypeName());
         }
         return payloadTypeName.isBlank()
                || payloadTypeName.equals(message.payloadTypeName())

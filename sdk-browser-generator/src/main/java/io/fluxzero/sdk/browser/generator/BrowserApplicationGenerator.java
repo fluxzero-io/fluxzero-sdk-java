@@ -332,12 +332,14 @@ public final class BrowserApplicationGenerator {
                 import java.util.LinkedHashMap;
                 import java.util.List;
                 import java.util.Map;
+                import java.util.Set;
 
                 /**
                  * Generated Fluxzero browser application. Handler invocations are filled in by the browser generator.
                  */
                 public final class %s {
-                    private final BrowserExecutionCore core = BrowserExecutionCore.create(Clock.systemUTC());
+                    private final BrowserExecutionCore core = BrowserExecutionCore.create(
+                            Clock.systemUTC(), generatedRegistry());
                     private final GeneratedErrorReporter errorReporter = new GeneratedErrorReporter();
 
                     public %s() {
@@ -347,6 +349,8 @@ public final class BrowserApplicationGenerator {
                     public BrowserExecutionCore core() {
                         return core;
                     }
+
+                %s
 
                     public String runAll() {
                         Map<String, Object> routeEvidence = runGeneratedRoutes();
@@ -361,6 +365,9 @@ public final class BrowserApplicationGenerator {
                         Map<String, Object> evidence = new LinkedHashMap<>();
                 %s
                         evidence.put("invocations", core.messageBus().invocations());
+                        evidence.put("metadata.handlers",
+                                     ((Map<?, ?>) core.messageBus().snapshot()).get("metadataHandlers"));
+                        evidence.put("metadata.snapshot", core.snapshot().get("metadata"));
                         return evidence;
                     }
 
@@ -563,6 +570,8 @@ public final class BrowserApplicationGenerator {
                         Map<String, Object> evidence = new LinkedHashMap<>();
                         if (name.startsWith("handler.")) {
                             evidence.put("invocations", routeEvidence.get("invocations"));
+                            evidence.put("metadataHandlers", routeEvidence.get("metadata.handlers"));
+                            evidence.put("metadataSnapshot", routeEvidence.get("metadata.snapshot"));
                         } else {
                             evidence.put("core", coreEvidence);
                         }
@@ -781,7 +790,8 @@ public final class BrowserApplicationGenerator {
                     }
                 }
                 """.formatted(options.packageName(), options.className(), options.className(), routeRegistration,
-                              featureList, routeDispatches(registry), authorizationEvidence,
+                              generatedRegistrySource(registry), featureList, routeDispatches(registry),
+                              authorizationEvidence,
                               metadataEvidence(metadataCounters));
     }
 
@@ -847,6 +857,64 @@ public final class BrowserApplicationGenerator {
         return lastDot < 0 ? null : packageName.substring(0, lastDot);
     }
 
+    private static String generatedRegistrySource(ComponentRegistry registry) {
+        String routes = registry.components().stream()
+                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
+                .flatMap(component -> component.routes().stream()
+                        .map(route -> routeMetadataSource(component, route)))
+                .collect(joining(",\n"));
+        int registeredTypes = registry.registeredTypes()
+                .mapToInt(type -> type.candidateTypeNames().size())
+                .sum();
+        return """
+                    private static io.fluxzero.sdk.browser.BrowserComponentRegistry generatedRegistry() {
+                        return new io.fluxzero.sdk.browser.BrowserComponentRegistry(
+                                %s,
+                                %s,
+                                %s,
+                                %s);
+                    }
+                """.formatted(registry.packages().size(), registry.components().size(), registeredTypes,
+                              listSource(routes));
+    }
+
+    private static String routeMetadataSource(ComponentDescriptor component, HandlerRoute route) {
+        return """
+                        new io.fluxzero.sdk.browser.BrowserRouteMetadata(
+                                %s,
+                                MessageType.%s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s)"""
+                .formatted(stringLiteral(component.fullClassName()), route.messageType().name(), route.disabled(),
+                           route.passive(), route.skipExpiredRequests(), route.local(), route.tracked(),
+                           stringSetSource(route.payloadTypeNames()), stringSetSource(route.allowedClassNames()),
+                           route.webRoutes().size());
+    }
+
+    private static String stringListSource(java.util.Collection<String> values) {
+        String literals = values.stream().map(BrowserApplicationGenerator::stringLiteral).collect(joining(", "));
+        return listSource(literals);
+    }
+
+    private static String stringSetSource(java.util.Collection<String> values) {
+        String literals = values.stream().map(BrowserApplicationGenerator::stringLiteral).collect(joining(", "));
+        return setSource(literals);
+    }
+
+    private static String listSource(String elements) {
+        return elements.isBlank() ? "List.of()" : "List.of(" + elements + ")";
+    }
+
+    private static String setSource(String elements) {
+        return elements.isBlank() ? "Set.of()" : "Set.of(" + elements + ")";
+    }
+
     private static boolean requiresUserRule(List<AuthorizationRule> rules) {
         return rules.stream().anyMatch(rule -> rule.value() == null && rule.requiresUser() && !rule.forbidsUser());
     }
@@ -905,10 +973,8 @@ public final class BrowserApplicationGenerator {
             handler = "new GeneratedAuthorizedHandler(\"" + escapeJava(action(component, route)) + "\", "
                       + rulesLiteral(rules) + ", " + handler + ")";
         }
-        return "        core.messageBus().register(new BrowserHandlerRegistration(\""
-               + escapeJava(component.fullClassName()) + "\", MessageType." + route.messageType().name()
-               + ", \"\", \"" + escapeJava(payloadType) + "\", " + route.passive()
-               + ", " + handler + "));";
+        return "        core.register(\"" + escapeJava(component.fullClassName()) + "\", MessageType."
+               + route.messageType().name() + ", \"" + escapeJava(payloadType) + "\", " + handler + ");";
     }
 
     private static String routeDispatches(ComponentRegistry registry) {

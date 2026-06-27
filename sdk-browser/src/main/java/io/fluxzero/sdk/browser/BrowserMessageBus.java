@@ -189,6 +189,8 @@ public final class BrowserMessageBus {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("messages", emittedMessages.size());
         snapshot.put("handlers", registrations.size());
+        snapshot.put("metadataHandlers", registrations.stream().filter(BrowserHandlerRegistration::metadataBacked)
+                .count());
         snapshot.put("dispatchInterceptors", dispatchInterceptors.size());
         snapshot.put("handlerInterceptors", handlerInterceptors.size());
         snapshot.put("batchInterceptors", batchInterceptors.size());

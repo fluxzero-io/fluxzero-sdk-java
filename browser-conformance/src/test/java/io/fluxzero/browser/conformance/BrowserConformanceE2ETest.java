@@ -77,6 +77,10 @@ class BrowserConformanceE2ETest {
             assertTrue(((String) report.get("raw")).contains(
                     "BrowserConformanceApplication:COMMAND:io.fluxzero.browser.conformance.app.CreateOrder"),
                        String.valueOf(report));
+            assertTrue(((String) report.get("raw")).contains("\"metadataHandlers\":"),
+                       String.valueOf(report));
+            assertTrue(((String) report.get("raw")).contains("\"metadataSnapshot\""),
+                       String.valueOf(report));
             assertTrue(((String) report.get("raw")).contains(
                     "\"dispatchInterceptor.metadata\":\"intercepted:corr-1\""), String.valueOf(report));
             assertTrue(((String) report.get("raw")).contains("\"recursivePublicationGuard.blocked\":1"),

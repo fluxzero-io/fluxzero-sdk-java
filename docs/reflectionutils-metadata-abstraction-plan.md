@@ -133,7 +133,7 @@ Nearby follow-up, not required for this slice to count as done:
 
 ## Phase 2: Metadata Runtime Migration
 
-Status: [ ] in progress.
+Status: [x] implemented for the current JVM and browser metadata runtime targets.
 
 ### Slice 3: Metadata Lookup Facade
 
@@ -257,7 +257,7 @@ Acceptance evidence:
 
 ### Slice 6: Browser Runtime Parity
 
-Status: [ ] planned.
+Status: [x] implemented for the current browser conformance target.
 
 Context: browser execution should be a backend problem, not a copied Fluxzero implementation. The browser can have
 generated invokers, generated codecs, browser stores, and browser-safe IO, but the Fluxzero rules should be shared with
@@ -267,13 +267,30 @@ Goal: make browser execution consume the same metadata-shaped core as JVM execut
 
 Work:
 
-- [ ] Generated invokers and codecs.
-- [ ] Browser stores, scheduler, and browser-safe IO.
-- [ ] Shared Fluxzero semantics with backend-only divergence.
+- [x] Generated invokers and codecs.
+  - [x] Browser generation emits generated route handlers and generated codec/upcast/downcast hooks.
+  - [x] Browser execution avoids runtime reflection and explicit `Object#getClass()` payload discovery.
+- [x] Browser stores, scheduler, and browser-safe IO.
+  - [x] In-memory browser key-value, event/snapshot, document/search, scheduler, web router, and socket simulator are
+    exercised by conformance.
+- [x] Shared Fluxzero semantics with backend-only divergence.
+  - [x] Build-time `ComponentRegistry` remains the source model.
+  - [x] Browser generation lowers that registry into a TeaVM-safe `BrowserComponentRegistry`.
+  - [x] Browser runtime registers generated handlers from lowered route metadata, not ad hoc handler strings.
+  - [x] JVM runtime continues to consume the broader `ComponentMetadataLookup` facade.
 
 Done when:
 
-- [ ] Browser conformance proves app-level SDK behavior using the shared metadata-driven core.
+- [x] Browser conformance proves app-level SDK behavior using the shared metadata-driven core.
+
+Acceptance evidence:
+
+- [x] Browser unit tests prove registry-lowered route metadata can register and dispatch generated handlers.
+- [x] Browser generator tests prove generated source includes a lowered runtime registry and uses metadata-backed
+  `core.register(...)`.
+- [x] Playwright/TeaVM E2E compiles the generated browser app to WebAssembly and passes the browser-native conformance
+  report.
+- [x] E2E report includes metadata-backed handler evidence (`metadataHandlers` and `metadataSnapshot`).
 
 ## Phase 3: Hardening After This Plan
 
@@ -307,6 +324,8 @@ Work:
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after property-access backend seam migration.
 - [x] Focused source/classpath/processor web route parity tests passed with `-Dmaven.compiler.proc=full`.
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after web route producer parity migration.
+- [x] Full `sdk-jvm`, `sdk-browser`, `sdk-browser-generator`, and `browser-conformance` suites passed under
+  `-Pbrowser-conformance`, including Playwright/TeaVM E2E.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape
