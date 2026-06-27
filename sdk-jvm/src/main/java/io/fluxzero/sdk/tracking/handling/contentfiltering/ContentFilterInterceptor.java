@@ -20,8 +20,9 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
@@ -56,12 +57,12 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
 
     private static final class FilterContentMetadata {
         private final Class<?> targetClass;
-        private final JvmComponentMetadataLookup lookup;
+        private final Optional<ComponentMetadataLookup> lookup;
         private final ConcurrentHashMap<Executable, Optional<FilterContent>> filterContent = new ConcurrentHashMap<>();
 
         private FilterContentMetadata(Class<?> targetClass) {
             this.targetClass = targetClass;
-            this.lookup = JvmComponentMetadataLookup.scan(targetClass);
+            this.lookup = ComponentMetadataLookups.lookup(targetClass);
         }
 
         private Optional<FilterContent> filterContent(Executable executable) {
@@ -69,14 +70,18 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
             if (cached != null) {
                 return cached;
             }
-            Optional<FilterContent> computed = filterContent(lookup.executableAnnotations(executable))
-                    .or(() -> filterContent(lookup.typeAnnotations(targetClass)))
-                    .or(() -> filterContent(lookup.packageAnnotations(targetClass.getPackage())))
-                    .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(executable, FilterContent.class)
+            Optional<FilterContent> metadata = lookup.flatMap(l -> filterContent(
+                    ComponentMetadataLookups.executableAnnotations(l, executable))
+                    .or(() -> filterContent(l.typeAnnotations(targetClass.getName())))
+                    .or(() -> filterContent(l.packageAnnotations(targetClass.getPackageName()))));
+            Optional<FilterContent> computed = metadata.isPresent() || lookup.isPresent()
+                                               || ComponentMetadataLookups.generatedOnlyMode()
+                    ? metadata
+                    : JvmComponentIntrospector.getInstance().getAnnotation(executable, FilterContent.class)
                             .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance()
                                     .getTypeAnnotation(targetClass, FilterContent.class)))
                             .or(() -> JvmComponentIntrospector.getInstance()
-                                    .getPackageAnnotation(targetClass.getPackage(), FilterContent.class)));
+                                    .getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
             Optional<FilterContent> existing = filterContent.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
         }

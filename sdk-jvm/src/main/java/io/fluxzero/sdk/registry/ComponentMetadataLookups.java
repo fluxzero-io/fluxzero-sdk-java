@@ -16,6 +16,9 @@ package io.fluxzero.sdk.registry;
 
 import io.fluxzero.sdk.Fluxzero;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -74,6 +77,39 @@ public final class ComponentMetadataLookups {
                 : registryLookup(generatedRegistry(classLoader), componentTypes);
     }
 
+    /**
+     * Returns metadata annotations for the supplied executable.
+     */
+    public static List<AnnotationDescriptor> executableAnnotations(
+            ComponentMetadataLookup lookup, Executable executable) {
+        return executable(lookup, executable)
+                .map(ExecutableDescriptor::annotations)
+                .orElseGet(List::of);
+    }
+
+    /**
+     * Finds executable metadata matching the supplied JVM executable.
+     */
+    public static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, Executable executable) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(executable, "executable");
+        ExecutableKind kind = executable instanceof Constructor<?> ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
+        String name = executable.getName();
+        List<String> parameters = Arrays.stream(executable.getParameterTypes())
+                .map(ComponentMetadataLookups::typeName)
+                .toList();
+        Optional<ExecutableDescriptor> result = lookup.executable(
+                executable.getDeclaringClass().getName(), kind, name, parameters);
+        if (result.isPresent() || executable instanceof Method) {
+            return result;
+        }
+        return lookup.executables(executable.getDeclaringClass().getName()).stream()
+                .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
+                .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
+                        .equals(parameters))
+                .findFirst();
+    }
+
     private static Optional<ComponentMetadataLookup> activeRegistryLookup(List<Class<?>> types) {
         return Fluxzero.getOptionally()
                 .map(Fluxzero::componentRegistry)
@@ -125,5 +161,9 @@ public final class ComponentMetadataLookups {
     private static List<Class<?>> componentTypes(Class<?>... types) {
         Objects.requireNonNull(types, "types");
         return Arrays.stream(types).filter(Objects::nonNull).distinct().toList();
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 }
