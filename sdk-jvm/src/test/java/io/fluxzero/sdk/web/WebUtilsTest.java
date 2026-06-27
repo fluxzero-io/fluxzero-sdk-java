@@ -14,11 +14,13 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.compiled.web.child.CompiledWebPathHandler;
 import org.junit.jupiter.api.Test;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebUtilsTest {
 
@@ -43,6 +45,15 @@ class WebUtilsTest {
         assertEquals(1, result.size());
         assertEquals("/tenant/items", result.getFirst().getUri());
         assertEquals(GET, result.getFirst().getMethod());
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForDynamicHandlerPath() throws Exception {
+        var handler = new DynamicPathHandler("/tenant");
+        var method = DynamicPathHandler.class.getDeclaredMethod("get");
+
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(WebUtils.getWebPatterns(DynamicPathHandler.class, handler, method).isEmpty()));
     }
 
     private static class DynamicPathHandler {

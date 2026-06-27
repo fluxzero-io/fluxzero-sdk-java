@@ -19,9 +19,9 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
@@ -150,6 +150,9 @@ public class WebUtils {
         if (metadataPatterns.isPresent()) {
             return metadataPatterns.get();
         }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return List.of();
+        }
         String root = getHandlerPath(targetClass, handler, method);
         return JvmComponentIntrospector.getInstance().getMethodAnnotations(method, HandleWeb.class)
                 .stream().flatMap(a -> JvmComponentIntrospector.getInstance().getAnnotationAs(a, HandleWeb.class, WebParameters.class)
@@ -161,12 +164,12 @@ public class WebUtils {
         if (hasDynamicHandlerPath(handler)) {
             return Optional.empty();
         }
-        return JvmComponentMetadataLookup.scanIfScannable(targetClass).flatMap(lookup -> {
-            Optional<ExecutableDescriptor> executable = lookup.executable(method);
+        return ComponentMetadataLookups.lookup(targetClass).flatMap(lookup -> {
+            Optional<ExecutableDescriptor> executable = ComponentMetadataLookups.executable(lookup, method);
             if (executable.isEmpty()) {
                 return Optional.empty();
             }
-            var routes = lookup.routes(targetClass, MessageType.WEBREQUEST).stream()
+            var routes = lookup.routes(targetClass.getName(), MessageType.WEBREQUEST).stream()
                     .filter(route -> route.executableMetadata().filter(executable.get()::equals).isPresent())
                     .toList();
             List<WebPattern> result = routes.stream().flatMap(route -> route.webRoutes().stream())

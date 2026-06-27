@@ -49,7 +49,7 @@ Work slices:
     `new ClasspathComponentScanner().scan(...)` calls in runtime code as backlog debt.
   - [x] Add a focused guardrail that can be tightened as each thematic cluster moves through the central/generated
     resolver.
-  - [x] Current known debt: 3 direct runtime scan/fallback sites outside the central metadata lookup backends.
+  - [x] Current known debt: 2 direct runtime scan/fallback sites outside the central metadata lookup backends.
 - [ ] Slice C: Thematic generated-only JVM clusters.
   - [ ] Handler discovery, filtering, and invocation.
     - [x] `RegistryFilteringHandler` uses the central metadata resolver and generated-only mode no longer scans
@@ -72,6 +72,8 @@ Work slices:
       mode no longer enforces validation/auth semantics from JVM annotation fallback.
     - [x] `DataProtectionInterceptor` uses the central metadata resolver for `@ProtectData` and
       `@DropProtectedData`; generated-only mode no longer protects or drops data through JVM annotation fallback.
+    - [x] Web route pattern metadata uses the central resolver; generated-only mode no longer derives web patterns
+      through direct scanner fallback.
 - [ ] Slice D: Generated invocation parity.
   - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
   - [ ] Keep unavoidable JVM-only reflection behind an explicit backend seam.
