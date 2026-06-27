@@ -132,6 +132,40 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Projects package-level metadata annotations to a JVM annotation view, nearest package first.
+     */
+    public static <A extends Annotation> Optional<A> packageAnnotation(
+            ComponentMetadataLookup lookup, Class<?> anchorType, Class<A> annotationType) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(anchorType, "anchorType");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return MetadataAnnotationResolver.annotation(
+                        lookup.packageAnnotations(anchorType.getPackageName()), annotationType, anchorType)
+                .filter(annotationType::isInstance)
+                .map(annotationType::cast);
+    }
+
+    /**
+     * Resolves a package-level annotation through the active metadata lookup.
+     */
+    public static <A extends Annotation> Optional<A> packageAnnotation(Class<?> anchorType, Class<A> annotationType) {
+        Objects.requireNonNull(anchorType, "anchorType");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return lookup(anchorType).flatMap(lookup -> packageAnnotation(lookup, anchorType, annotationType));
+    }
+
+    /**
+     * Resolves a type-level annotation first, then the nearest package-level annotation.
+     */
+    public static <A extends Annotation> Optional<A> typeOrPackageAnnotation(
+            Class<?> type, Class<A> annotationType) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return lookup(type).flatMap(lookup -> typeAnnotation(lookup, type, annotationType)
+                .or(() -> packageAnnotation(lookup, type, annotationType)));
+    }
+
+    /**
      * Finds executable metadata matching the supplied JVM executable.
      */
     public static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, Executable executable) {

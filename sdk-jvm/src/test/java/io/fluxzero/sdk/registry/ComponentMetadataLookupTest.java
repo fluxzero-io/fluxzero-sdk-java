@@ -187,6 +187,23 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
+    void packageAnnotationUsesRegisteredMetadataInGeneratedOnlyMode() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(CompiledPackageHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Consumer consumer = ComponentMetadataLookups.packageAnnotation(
+                        CompiledPackageHandler.class, Consumer.class).orElseThrow();
+
+                assertEquals("compiled-package", consumer.name());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void typeAnnotationProjectsNestedAnnotationAttributesFromMetadata() {
         try {
             TestFixture.create().getFluxzero().registerComponentRegistry(

@@ -86,6 +86,8 @@ Work slices:
     - [x] `DefaultHandlerFactory` and `SocketEndpointHandler` use metadata-backed `@SocketEndpoint` resolution,
       including nested `aliveCheck` configuration; generated-only mode no longer discovers socket endpoint semantics
       through JVM annotation fallback.
+    - [x] `StaticFileHandler` uses metadata-backed type/package `@ServeStatic` resolution; generated-only mode no
+      longer discovers static file handlers through JVM type or package annotation fallback.
 - [ ] Slice D: Generated invocation parity.
   - [x] Route JVM handler, entity apply, assertion, authorization helper, and caster invocation through the explicit
     `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.

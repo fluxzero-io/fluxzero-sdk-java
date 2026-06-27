@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.web;
 
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import jakarta.annotation.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -64,9 +64,7 @@ public class StaticFileHandler implements Closeable {
     public static final String filePrefix = "file:";
 
     public static List<StaticFileHandler> forTargetClass(Class<?> targetClass) {
-        ServeStatic serveStatic = JvmComponentIntrospector.getInstance().getAnnotation(targetClass, ServeStatic.class)
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
-                .orElse(null);
+        ServeStatic serveStatic = serveStatic(targetClass).orElse(null);
         if (serveStatic == null) {
             return List.of();
         }
@@ -85,9 +83,11 @@ public class StaticFileHandler implements Closeable {
     }
 
     public static boolean isHandler(Class<?> targetClass) {
-        return JvmComponentIntrospector.getInstance().getAnnotation(targetClass, ServeStatic.class)
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
-                .isPresent();
+        return serveStatic(targetClass).isPresent();
+    }
+
+    private static Optional<ServeStatic> serveStatic(Class<?> targetClass) {
+        return ComponentMetadataLookups.typeOrPackageAnnotation(targetClass, ServeStatic.class);
     }
 
     @io.fluxzero.sdk.web.Path("")
