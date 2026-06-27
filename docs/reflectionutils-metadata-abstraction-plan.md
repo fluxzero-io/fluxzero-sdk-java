@@ -79,6 +79,8 @@ Work slices:
     - [x] `SchedulingInterceptor` and `MessageScheduler` use metadata-backed `@Periodic` resolution for handler
       methods and payload types; generated-only mode no longer derives scheduling semantics through JVM annotation
       fallback.
+    - [x] `DefaultGenericGateway` and `SocketSession` use metadata-backed `@Timeout` resolution for request payload
+      types; generated-only mode no longer derives timeout semantics through JVM annotation fallback.
 - [ ] Slice D: Generated invocation parity.
   - [x] Route JVM handler, entity apply, assertion, authorization helper, and caster invocation through the explicit
     `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.

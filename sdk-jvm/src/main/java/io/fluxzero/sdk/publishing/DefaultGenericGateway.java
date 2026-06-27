@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.web.WebResponse;
@@ -274,9 +275,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private Optional<Duration> annotatedTimeout(Message message) {
-        Timeout timeout = message.getPayloadClass().getAnnotation(Timeout.class);
-        return timeout == null ? Optional.empty()
-                : Optional.of(Duration.ofNanos(timeout.timeUnit().toNanos(timeout.value())));
+        return ComponentMetadataLookups.typeAnnotation(message.getPayloadClass(), Timeout.class)
+                .map(timeout -> Duration.ofNanos(timeout.timeUnit().toNanos(timeout.value())));
     }
 
     private Throwable unwrap(Throwable error) {

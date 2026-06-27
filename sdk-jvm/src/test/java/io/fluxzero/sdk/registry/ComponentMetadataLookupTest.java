@@ -17,8 +17,10 @@ package io.fluxzero.sdk.registry;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.publishing.Timeout;
 import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
 import io.fluxzero.sdk.registry.compiled.CompiledPackageHandler;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
@@ -37,6 +39,7 @@ import java.lang.reflect.Method;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -155,6 +158,34 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
+    void typeAnnotationRefusesJvmFallbackInGeneratedOnlyMode() {
+        assertTrue(ComponentMetadataLookups.typeAnnotation(
+                UnregisteredTimeoutRequest.class, Timeout.class).isPresent());
+
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(ComponentMetadataLookups.typeAnnotation(
+                        UnregisteredTimeoutRequest.class, Timeout.class).isEmpty()));
+    }
+
+    @Test
+    void typeAnnotationUsesRegisteredMetadataInGeneratedOnlyMode() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredTimeoutRequest.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Timeout timeout = ComponentMetadataLookups.typeAnnotation(
+                        RegisteredTimeoutRequest.class, Timeout.class).orElseThrow();
+
+                assertEquals(15, timeout.value());
+                assertEquals(TimeUnit.SECONDS, timeout.timeUnit());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void metadataLookupMatchesMetaAnnotationsWithoutJvmFallback() throws Exception {
         JvmComponentMetadataLookup lookup = JvmComponentMetadataLookup.scan(MetaLookupHandler.class, LookupCommand.class);
         Method command = MetaLookupHandler.class.getDeclaredMethod("command", LookupCommand.class);
@@ -232,6 +263,14 @@ class ComponentMetadataLookupTest {
     }
 
     static class UnregisteredPlainComponent {
+    }
+
+    @Timeout(10)
+    static class UnregisteredTimeoutRequest {
+    }
+
+    @Timeout(value = 15, timeUnit = TimeUnit.SECONDS)
+    static class RegisteredTimeoutRequest {
     }
 
     private static String packageStrippedName(Class<?> type) {

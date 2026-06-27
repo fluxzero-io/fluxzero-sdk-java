@@ -49,12 +49,7 @@ final class PeriodicMetadata {
     }
 
     static Optional<Periodic> type(Class<?> type) {
-        Optional<Periodic> metadata = ComponentMetadataLookups.lookup(type)
-                .flatMap(lookup -> ComponentMetadataLookups.typeAnnotation(lookup, type, Periodic.class));
-        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
-            return metadata;
-        }
-        return Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(type, Periodic.class));
+        return ComponentMetadataLookups.typeAnnotation(type, Periodic.class);
     }
 
     private static List<Method> scheduleMethods(ComponentMetadataLookup lookup, Class<?> targetClass) {

@@ -123,6 +123,15 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Resolves a type-level annotation through the active metadata lookup.
+     */
+    public static <A extends Annotation> Optional<A> typeAnnotation(Class<?> type, Class<A> annotationType) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return lookup(type).flatMap(lookup -> typeAnnotation(lookup, type, annotationType));
+    }
+
+    /**
      * Finds executable metadata matching the supplied JVM executable.
      */
     public static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, Executable executable) {

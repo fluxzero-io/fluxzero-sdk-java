@@ -15,8 +15,8 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.publishing.Timeout;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.tracking.handling.Request;
 
 import java.time.Duration;
@@ -71,9 +71,9 @@ public interface SocketSession {
      * @see SocketResponse for a description of the expected response.
      */
     default <R> CompletionStage<R> sendRequest(Request<R> request) {
-        Timeout timeout = JvmComponentIntrospector.getInstance().getTypeAnnotation(request.getClass(), Timeout.class);
-        Duration duration = timeout == null ? Duration.ofSeconds(30)
-                : Duration.of(timeout.value(), timeout.timeUnit().toChronoUnit());
+        Duration duration = ComponentMetadataLookups.typeAnnotation(request.getClass(), Timeout.class)
+                .map(timeout -> Duration.of(timeout.value(), timeout.timeUnit().toChronoUnit()))
+                .orElseGet(() -> Duration.ofSeconds(30));
         return sendRequest(request, duration);
     }
 
