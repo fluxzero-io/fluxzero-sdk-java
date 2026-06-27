@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 /**
  * Incubating runtime-facing lookup facade for Fluxzero component metadata.
@@ -136,8 +137,33 @@ public interface ComponentMetadataLookup {
                 .filter(executable -> executable.kind() == kind)
                 .filter(executable -> executable.name().equals(name))
                 .filter(executable -> executable.parameters().stream().map(ParameterDescriptor::typeName).toList()
-                        .equals(parameterTypes))
+                .equals(parameterTypes))
                 .findFirst();
+    }
+
+    /**
+     * Returns generated invocation plan descriptors for the supplied component class name.
+     */
+    default List<InvocationPlanDescriptor> invocationPlans(String fullClassName) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        List<PropertyAccessPlanDescriptor> propertyAccesses = properties(fullClassName).stream()
+                .map(ComponentMetadataLookup::propertyAccessPlan)
+                .toList();
+        return executables(fullClassName).stream()
+                .map(executable -> invocationPlan(fullClassName, executable, propertyAccesses))
+                .toList();
+    }
+
+    /**
+     * Finds a generated invocation plan descriptor by kind, name, and erased parameter type names.
+     */
+    default Optional<InvocationPlanDescriptor> invocationPlan(
+            String fullClassName, ExecutableKind kind, String name, List<String> parameterTypeNames) {
+        return executable(fullClassName, kind, name, parameterTypeNames)
+                .map(executable -> invocationPlan(fullClassName, executable,
+                                                  properties(fullClassName).stream()
+                                                          .map(ComponentMetadataLookup::propertyAccessPlan)
+                                                          .toList()));
     }
 
     /**
@@ -183,5 +209,49 @@ public interface ComponentMetadataLookup {
      */
     default Set<ComponentCapability> capabilities(String fullClassName) {
         return component(fullClassName).map(ComponentDescriptor::capabilities).orElseGet(Set::of);
+    }
+
+    private static InvocationPlanDescriptor invocationPlan(
+            String targetComponentName, ExecutableDescriptor executable,
+            List<PropertyAccessPlanDescriptor> propertyAccesses) {
+        List<String> parameterTypes = executable.parameters().stream()
+                .map(ParameterDescriptor::typeName)
+                .toList();
+        return new InvocationPlanDescriptor(
+                targetComponentName,
+                InvocationPlanDescriptor.executableId(executable.kind(), executable.name(), parameterTypes),
+                executable.kind(),
+                executable.name(),
+                executable.returnTypeName(),
+                IntStream.range(0, executable.parameters().size())
+                        .mapToObj(index -> parameterBinding(index, executable.parameters().get(index)))
+                        .toList(),
+                propertyAccesses,
+                List.of());
+    }
+
+    private static ParameterBindingDescriptor parameterBinding(int index, ParameterDescriptor parameter) {
+        return new ParameterBindingDescriptor(
+                index,
+                parameter.name(),
+                parameter.typeName(),
+                annotationNames(parameter.annotations()));
+    }
+
+    private static PropertyAccessPlanDescriptor propertyAccessPlan(PropertyDescriptor property) {
+        return new PropertyAccessPlanDescriptor(
+                property.name(),
+                property.typeName(),
+                property.genericTypeName(),
+                true,
+                true,
+                annotationNames(property.annotations()));
+    }
+
+    private static List<String> annotationNames(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .map(AnnotationDescriptor::qualifiedName)
+                .filter(Objects::nonNull)
+                .toList();
     }
 }

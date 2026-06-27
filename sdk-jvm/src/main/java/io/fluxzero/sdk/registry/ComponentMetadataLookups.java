@@ -268,6 +268,18 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Finds invocation plan metadata matching the supplied JVM executable.
+     */
+    public static Optional<InvocationPlanDescriptor> invocationPlan(
+            ComponentMetadataLookup lookup, Executable executable) {
+        return executable(lookup, executable).map(descriptor -> lookup.invocationPlan(
+                executable.getDeclaringClass().getName(),
+                descriptor.kind(),
+                descriptor.name(),
+                descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()).orElseThrow());
+    }
+
+    /**
      * Finds parameter metadata matching the supplied JVM parameter.
      */
     public static Optional<ParameterDescriptor> parameter(ComponentMetadataLookup lookup, Parameter parameter) {

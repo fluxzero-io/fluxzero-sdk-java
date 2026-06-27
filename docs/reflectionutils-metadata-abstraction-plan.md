@@ -94,24 +94,48 @@ Acceptance evidence:
 
 ### Slice 3: Generated Invocation Plan
 
+Status: [ ] partially implemented; still open for generated matching and parameter-binding parity.
+
 Goal: the JVM runtime can use generated executable plans for app-level invocation decisions.
 
 Remaining work:
 
-- [ ] Add invocation-plan descriptors on top of the existing executable/parameter metadata, including target component,
+- [x] Add invocation-plan descriptors on top of the existing executable/parameter metadata, including target component,
   executable id, binding plan, property access plan, and generated codec hooks where needed.
-- [ ] Generate invocation plans from build-time/source-time registry producers.
-- [ ] Make JVM handler invocation prefer generated plans when present.
-- [ ] Make JVM modeling/caster invocation prefer generated plans for `@Apply`, `@AssertLegal`, upcasters, and
+- [x] Generate invocation plans from build-time/source-time registry producers.
+- [x] Make JVM handler invocation prefer generated plans when present.
+- [x] Make JVM modeling/caster invocation prefer generated plans for `@Apply`, `@AssertLegal`, upcasters, and
   downcasters.
-- [ ] Keep reflection invocation only behind the explicit JVM backend seam for missing plans or intentionally JVM-only
+- [x] Keep reflection invocation only behind the explicit JVM backend seam for missing plans or intentionally JVM-only
   mechanics.
-- [ ] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths.
+- [ ] Replace handler discovery/matching dependence on JVM `Executable`/`Parameter` with generated plan/view contracts.
+- [ ] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths
+  without relying on `HandlerInspector` reflection-shaped matching/binding.
 
 Done when:
 
 - [ ] Existing JVM behavior is preserved while handler matching, parameter binding, and app-level invocation decisions
   are driven by generated plans.
+
+Current evidence:
+
+- [x] `InvocationPlanDescriptor`, `ParameterBindingDescriptor`, and `PropertyAccessPlanDescriptor` describe executable,
+  parameter, and property access plans without JVM reflection objects.
+- [x] `ComponentMetadataLookup.invocationPlans(...)` derives invocation plans from existing registry descriptors, so
+  source, classpath, and build-time registry producers expose the same plan shape.
+- [x] `GeneratedExecutableInvocations` lets generated code register direct invocation functions by stable executable id.
+- [x] `JvmComponentIntrospector.prepareInvocation(...)` resolves the active registry invocation plan first and prefers
+  a generated invoker before falling back to JVM member invocation.
+- [x] `GeneratedInvocationPlanTest` proves generated-only handler invocation can use registry metadata plus a generated
+  invoker without calling the JVM method body.
+- [x] Broad generated-only thematic suite passed after this change:
+  `./mvnw -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,GeneratedInvocationPlanTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,RegistryFilteringHandlerTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+
+Open architectural boundary:
+
+- `HandlerDescriptor`, `ParameterResolver`, validation interceptors, web/socket decorators, content filtering, and
+  several diagnostics still expose JVM `Executable` and `Parameter`. Full generated matching and parameter binding
+  therefore needs a reflection-free executable/parameter view layer before this slice can be marked complete.
 
 ### Slice 4: Validation And Policy Gaps
 

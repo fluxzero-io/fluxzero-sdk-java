@@ -20,7 +20,7 @@ Allowed source values:
 | handler.local-tracked | Local/tracked semantics and method/type/package precedence | Registry metadata | Registry metadata | `HandlerRoute.local` and `tracked` |
 | handler.consumer | Consumer name/group/segment/batch/passive configuration | Registry metadata | Registry metadata | `ConsumerDescriptor` from package/type metadata |
 | handler.parameter-binding | Binding payload, message, metadata, trigger, user, entity, web, and custom parameters | Hybrid | Generated invocation plan | Parameter metadata plus JVM/web parameter resolver mechanics |
-| handler.invocation | Calling handler methods and constructors | Allowed JVM backend | Generated invocation plan | `HandlerInspector` remains classified until Slice 3 |
+| handler.invocation | Calling handler methods and constructors | Hybrid | Generated invocation plan | Generated invocation registry is preferred when a registry invocation plan is present; `HandlerInspector` still supplies JVM executable context |
 | tracking.gateway-locality | Local handler and self-tracking gateway decisions | Registry metadata | Registry metadata | `ClientUtils` metadata lookups |
 | routing.message-key | Routing key from payload type/property/metadata | Registry metadata | Registry metadata | `HasMessage` and routing interceptor metadata lookup |
 | timeout.request | Request timeout metadata from payload type | Registry metadata | Registry metadata | `DefaultGenericGateway` and `SocketSession` metadata lookup |
@@ -36,7 +36,7 @@ Allowed source values:
 | modeling.property-access | Reading/writing JVM object properties and constructing entities | Allowed JVM backend | Generated invocation plan | `AnnotatedEntityHolder` and property backend until Slice 3 |
 | search.document-indexing | Searchable collections, document ids, revisions, facets, sorting, includes/excludes | Registry metadata | Registry metadata | Search/document metadata lookups |
 | casting.route-discovery | `@Upcast`, `@Downcast`, and cast parameter discovery | Registry metadata | Registry metadata | Caster executable descriptors |
-| casting.invocation | Calling upcaster/downcaster methods | Allowed JVM backend | Generated invocation plan | Caster invocation moves in Slice 3 |
+| casting.invocation | Calling upcaster/downcaster methods | Hybrid | Generated invocation plan | Caster invocation uses the shared JVM invocation backend, which now prefers generated invokers when present |
 | serialization.registered-types | `@RegisterType` roots, contains filters, and candidate type names | Registry metadata | Registry metadata | Registry registered type descriptors |
 | serialization.payload-type | Runtime payload class names and serializer-specific type handling | Allowed JVM backend | Allowed JVM backend | JVM serializer/type backend |
 | web.route | Web path/method/autoHead/autoOptions/static/socket/API-doc route metadata | Registry metadata | Registry metadata | Web route descriptors and route registry |

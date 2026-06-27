@@ -16,6 +16,7 @@ package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.handling.ExecutableInvocation;
 import io.fluxzero.common.handling.ExecutableInvocationBackend;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata;
@@ -207,6 +208,14 @@ public final class JvmComponentIntrospector implements
      */
     public ExecutableInvocation prepareInvocation(Executable executable) {
         guardGeneratedOnlyAccess();
+        Optional<ExecutableInvocation> generatedInvocation = ComponentMetadataLookups.lookup(executable.getDeclaringClass())
+                .flatMap(lookup -> ComponentMetadataLookups.invocationPlan(lookup, executable))
+                .flatMap(plan -> GeneratedExecutableInvocations.find(
+                        executable.getDeclaringClass(), plan.executableId()))
+                .or(() -> GeneratedExecutableInvocations.find(executable));
+        if (generatedInvocation.isPresent()) {
+            return generatedInvocation.get();
+        }
         MemberInvoker invoker = getTypeMetadata(executable.getDeclaringClass())
                 .invoker((Member) executable, true);
         return invoker::invoke;

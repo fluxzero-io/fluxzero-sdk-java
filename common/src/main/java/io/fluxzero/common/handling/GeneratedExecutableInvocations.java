@@ -1,0 +1,107 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.common.handling;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+/**
+ * Registry for generated executable invocations.
+ * <p>
+ * Generated JVM or browser-adjacent code can register a direct invocation function for a handler/model/caster
+ * executable. JVM runtime code can then prefer that function over reflective invocation while preserving the same
+ * handler matching and result/error semantics.
+ */
+public final class GeneratedExecutableInvocations {
+    private static final ConcurrentMap<Key, ExecutableInvocation> INVOCATIONS = new ConcurrentHashMap<>();
+
+    private GeneratedExecutableInvocations() {
+    }
+
+    /**
+     * Registers a generated invocation for a target class and executable id.
+     */
+    public static Registration register(
+            Class<?> targetClass, String executableId, ExecutableInvocation invocation) {
+        Objects.requireNonNull(targetClass, "targetClass");
+        Objects.requireNonNull(executableId, "executableId");
+        Objects.requireNonNull(invocation, "invocation");
+        Key key = new Key(typeName(targetClass), executableId);
+        INVOCATIONS.put(key, invocation);
+        return new Registration(key, invocation);
+    }
+
+    /**
+     * Finds a generated invocation for the supplied JVM executable.
+     */
+    public static Optional<ExecutableInvocation> find(Executable executable) {
+        Objects.requireNonNull(executable, "executable");
+        return find(executable.getDeclaringClass(), executableId(executable));
+    }
+
+    /**
+     * Finds a generated invocation by target class and executable id.
+     */
+    public static Optional<ExecutableInvocation> find(Class<?> targetClass, String executableId) {
+        Objects.requireNonNull(targetClass, "targetClass");
+        Objects.requireNonNull(executableId, "executableId");
+        return Optional.ofNullable(INVOCATIONS.get(new Key(typeName(targetClass), executableId)));
+    }
+
+    /**
+     * Returns the stable executable id used by generated invocation plans.
+     */
+    public static String executableId(Executable executable) {
+        Objects.requireNonNull(executable, "executable");
+        String kind = executable instanceof Constructor<?> ? "CONSTRUCTOR" : "METHOD";
+        String name = executable instanceof Constructor<?> ? "<init>" : executable.getName();
+        String parameters = Arrays.stream(executable.getParameterTypes())
+                .map(GeneratedExecutableInvocations::typeName)
+                .reduce((left, right) -> left + "," + right)
+                .orElse("");
+        return kind + ":" + name + "(" + parameters + ")";
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
+    }
+
+    private record Key(String targetClassName, String executableId) {
+    }
+
+    /**
+     * Registration handle for a generated invocation.
+     */
+    public static final class Registration implements AutoCloseable {
+        private final Key key;
+        private final ExecutableInvocation invocation;
+
+        private Registration(Key key, ExecutableInvocation invocation) {
+            this.key = Objects.requireNonNull(key, "key");
+            this.invocation = Objects.requireNonNull(invocation, "invocation");
+        }
+
+        @Override
+        public void close() {
+            INVOCATIONS.remove(key, invocation);
+        }
+    }
+}
