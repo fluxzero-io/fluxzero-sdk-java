@@ -20,6 +20,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,6 +82,22 @@ class ComponentRegistryGeneratorTest {
         assertFalse(Files.exists(blueprint));
     }
 
+    @Test
+    void mergesExistingRegistryOutputWhenRequested(@TempDir Path tempDir) throws Exception {
+        Path sourceRoot = tempDir.resolve("src/main/fluxzero");
+        writeGeneratorFixture(sourceRoot);
+        Path output = tempDir.resolve("target/classes").resolve(ComponentRegistryJson.DEFAULT_RESOURCE);
+        ComponentRegistryJson.write(existingRegistry(), output);
+
+        ComponentRegistry registry = ComponentRegistryGenerator.generate(
+                sourceRoot, output, null, "Merged Source Registry", false, true);
+
+        assertTrue(registry.findComponent("io.fluxzero.sdk.registry.generatorfixture.ExistingHandler").isPresent());
+        assertTrue(registry.findComponent("io.fluxzero.sdk.registry.generatorfixture.GeneratorHandler").isPresent());
+        ComponentRegistry read = ComponentRegistryJson.read(output);
+        assertEquals(registry.normalized(), read.normalized());
+    }
+
     private static void writeGeneratorFixture(Path sourceRoot) throws Exception {
         Path packageDir = sourceRoot.resolve("io/fluxzero/sdk/registry/generatorfixture");
         Files.createDirectories(packageDir);
@@ -105,5 +123,15 @@ class ComponentRegistryGeneratorTest {
                     }
                 }
                 """);
+    }
+
+    private static ComponentRegistry existingRegistry() {
+        HandlerRoute route = new HandlerRoute(
+                MessageType.QUERY, true, false,
+                Set.of("io.fluxzero.sdk.registry.generatorfixture.ExistingQuery"));
+        ComponentDescriptor component = new ComponentDescriptor(
+                null, null, "io.fluxzero.sdk.registry.generatorfixture", "ExistingHandler",
+                Set.of(route), Set.of(ComponentCapability.HANDLER));
+        return new ComponentRegistry(null, List.of(), List.of(component));
     }
 }

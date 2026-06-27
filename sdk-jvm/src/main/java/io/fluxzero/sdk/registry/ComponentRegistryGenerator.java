@@ -19,6 +19,7 @@ import lombok.NonNull;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -87,6 +88,29 @@ public final class ComponentRegistryGenerator {
     public static ComponentRegistry generate(
             @NonNull Path sourceRoot, @NonNull Path output, Path blueprintOutput,
             String blueprintTitle, boolean strict) {
+        return generate(sourceRoot, output, blueprintOutput, blueprintTitle, strict, false);
+    }
+
+    /**
+     * Generates the registry JSON artifact and optionally merges it with a previously generated registry at the same
+     * output path.
+     * <p>
+     * Build lifecycles that also run the javac-backed registry annotation processor should use {@code mergeExisting}
+     * after compilation. That keeps compiled classpath metadata and {@code src/.../fluxzero} source metadata in one
+     * classpath artifact.
+     *
+     * @param sourceRoot source root to scan
+     * @param output registry JSON output path
+     * @param blueprintOutput optional Markdown blueprint output path, or {@code null}
+     * @param blueprintTitle Markdown title used when a blueprint output path is supplied
+     * @param strict whether a missing source root should fail generation
+     * @param mergeExisting whether to merge the scanned registry with an existing output file before writing
+     * @return the generated or merged registry, or an empty registry when the source root is absent and strict mode is
+     * disabled
+     */
+    public static ComponentRegistry generate(
+            @NonNull Path sourceRoot, @NonNull Path output, Path blueprintOutput,
+            String blueprintTitle, boolean strict, boolean mergeExisting) {
         Objects.requireNonNull(sourceRoot, "sourceRoot");
         Objects.requireNonNull(output, "output");
         if (!Files.isDirectory(sourceRoot)) {
@@ -97,6 +121,9 @@ public final class ComponentRegistryGenerator {
             return ComponentRegistry.empty();
         }
         ComponentRegistry registry = new SourceComponentScanner().scan(sourceRoot).normalized();
+        if (mergeExisting && Files.isRegularFile(output)) {
+            registry = ComponentRegistry.merge(List.of(ComponentRegistryJson.read(output), registry));
+        }
         ComponentRegistryJson.write(registry, output);
         if (blueprintOutput != null) {
             try {
@@ -128,6 +155,7 @@ public final class ComponentRegistryGenerator {
         String title = DEFAULT_TITLE;
         boolean strict = false;
         boolean testSources = false;
+        boolean mergeExisting = false;
 
         try {
             for (int i = 0; i < args.length; i++) {
@@ -139,6 +167,7 @@ public final class ComponentRegistryGenerator {
                     case "--title" -> title = value(args, ++i, arg);
                     case "--strict" -> strict = true;
                     case "--test" -> testSources = true;
+                    case "--merge-existing" -> mergeExisting = true;
                     case "--help", "-h" -> {
                         out.println(usage());
                         return 0;
@@ -155,7 +184,7 @@ public final class ComponentRegistryGenerator {
             output = output == null
                     ? testSources ? DEFAULT_TEST_OUTPUT : DEFAULT_OUTPUT : output;
 
-            ComponentRegistry registry = generate(sourceRoot, output, blueprint, title, strict);
+            ComponentRegistry registry = generate(sourceRoot, output, blueprint, title, strict, mergeExisting);
             if (registry.isEmpty() && !Files.isDirectory(sourceRoot)) {
                 out.println("Fluxzero component registry skipped; source root does not exist: " + sourceRoot);
             } else {
@@ -189,6 +218,7 @@ public final class ComponentRegistryGenerator {
                   --blueprint <path>     Optional Markdown blueprint output.
                   --title <title>        Optional blueprint title.
                   --strict               Fail when the source root is absent.
+                  --merge-existing       Merge with an existing output file before writing.
                   --help                 Show this help.
                 """.formatted(ComponentRegistryJson.DEFAULT_RESOURCE, ComponentRegistryJson.DEFAULT_RESOURCE);
     }

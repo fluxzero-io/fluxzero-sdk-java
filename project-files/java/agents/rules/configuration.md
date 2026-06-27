@@ -185,12 +185,19 @@ When you modify `src/main/fluxzero`, check whether the project expects a build-t
 target/classes/META-INF/fluxzero/component-registry.json
 ```
 
-Generate or refresh it with:
+Fluxzero Maven templates normally generate and merge this automatically during the build:
+
+- main source registry: `process-classes`
+- test source registry: `process-test-classes`
+
+If you need to refresh it manually, include `--merge-existing` so the source scan does not replace javac-generated
+classpath metadata:
 
 ```bash
 java -cp "$APP_CLASSPATH" io.fluxzero.sdk.registry.ComponentRegistryGenerator \
   --source-root src/main/fluxzero \
   --output target/classes/META-INF/fluxzero/component-registry.json \
+  --merge-existing \
   --blueprint target/fluxzero-blueprint.md
 ```
 

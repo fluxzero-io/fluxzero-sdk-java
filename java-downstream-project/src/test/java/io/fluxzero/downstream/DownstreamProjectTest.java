@@ -14,6 +14,7 @@
 
 package io.fluxzero.downstream;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
@@ -62,6 +63,12 @@ class DownstreamProjectTest {
 
         var componentRegistry = ComponentRegistry.merge(
                 ComponentRegistryJson.load(DownstreamProjectTest.class.getClassLoader()));
+        assertTrue(componentRegistry.findComponent("io.fluxzero.downstream.DownstreamHandler").isPresent());
+        assertTrue(componentRegistry.findComponent("io.fluxzero.downstream.DownstreamOnDemandHandler").isPresent());
+        assertTrue(componentRegistry.findComponent("io.fluxzero.downstream.DownstreamTestOnDemandHandler").isPresent());
+        assertTrue(componentRegistry.routes(MessageType.COMMAND).stream()
+                           .anyMatch(route -> route.payloadTypeNames().contains(
+                                   "io.fluxzero.downstream.DownstreamCommand")));
         assertTrue(componentRegistry.components().stream()
                            .anyMatch(component -> component.fullClassName().contains(
                                    "OnDemandComparisonBenchmark$NormalBenchmarkHandler")));

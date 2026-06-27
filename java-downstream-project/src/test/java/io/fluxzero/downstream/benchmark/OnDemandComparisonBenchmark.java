@@ -665,6 +665,7 @@ public class OnDemandComparisonBenchmark {
                         <maven.compiler.release>21</maven.compiler.release>
                         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
                         <maven.compiler.version>3.15.0</maven.compiler.version>
+                        <maven.exec.version>3.6.3</maven.exec.version>
                     </properties>
                     <dependencyManagement>
                         <dependencies>
@@ -704,6 +705,50 @@ public class OnDemandComparisonBenchmark {
                                         </path>
                                     </annotationProcessorPaths>
                                 </configuration>
+                            </plugin>
+                            <plugin>
+                                <groupId>org.codehaus.mojo</groupId>
+                                <artifactId>exec-maven-plugin</artifactId>
+                                <version>${maven.exec.version}</version>
+                                <executions>
+                                    <execution>
+                                        <id>generate-fluxzero-main-registry</id>
+                                        <phase>process-classes</phase>
+                                        <goals>
+                                            <goal>java</goal>
+                                        </goals>
+                                        <configuration>
+                                            <mainClass>io.fluxzero.sdk.registry.ComponentRegistryGenerator</mainClass>
+                                            <classpathScope>runtime</classpathScope>
+                                            <arguments>
+                                                <argument>--source-root</argument>
+                                                <argument>${project.basedir}/src/main/fluxzero</argument>
+                                                <argument>--output</argument>
+                                                <argument>${project.build.outputDirectory}/META-INF/fluxzero/component-registry.json</argument>
+                                                <argument>--merge-existing</argument>
+                                            </arguments>
+                                        </configuration>
+                                    </execution>
+                                    <execution>
+                                        <id>generate-fluxzero-test-registry</id>
+                                        <phase>process-test-classes</phase>
+                                        <goals>
+                                            <goal>java</goal>
+                                        </goals>
+                                        <configuration>
+                                            <mainClass>io.fluxzero.sdk.registry.ComponentRegistryGenerator</mainClass>
+                                            <classpathScope>test</classpathScope>
+                                            <arguments>
+                                                <argument>--test</argument>
+                                                <argument>--source-root</argument>
+                                                <argument>${project.basedir}/src/test/fluxzero</argument>
+                                                <argument>--output</argument>
+                                                <argument>${project.build.testOutputDirectory}/META-INF/fluxzero/component-registry.json</argument>
+                                                <argument>--merge-existing</argument>
+                                            </arguments>
+                                        </configuration>
+                                    </execution>
+                                </executions>
                             </plugin>
                         </plugins>
                     </build>

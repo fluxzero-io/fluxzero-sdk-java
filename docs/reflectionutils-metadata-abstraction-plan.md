@@ -300,7 +300,14 @@ Context: these are adoption and confidence steps after the metadata/runtime dire
 
 Work:
 
-- [ ] Wire the registry artifact into standard CLI/template defaults.
+- [x] Wire the registry artifact into standard CLI/template defaults.
+  - [x] `ComponentRegistryGenerator` supports explicit `--merge-existing` output.
+  - [x] Java downstream/template Maven lifecycle generates main registry metadata in `process-classes`.
+  - [x] Java downstream/template Maven lifecycle generates test registry metadata in `process-test-classes`.
+  - [x] The downstream fixture proves compiled classpath metadata and `src/.../fluxzero` source metadata are merged in
+    classpath registry resources.
+  - [x] The manual comparison harness generated Maven apps use the same registry lifecycle wiring.
+  - [x] Docs and Java agent rules describe lifecycle generation as the default path and manual generation as fallback.
 - [ ] Add a larger real-app parity corpus beyond the curated registry fixtures.
 - [ ] Rerun full `./mvnw -B install` after the current parity changes.
 
@@ -326,6 +333,7 @@ Work:
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after web route producer parity migration.
 - [x] Full `sdk-jvm`, `sdk-browser`, `sdk-browser-generator`, and `browser-conformance` suites passed under
   `-Pbrowser-conformance`, including Playwright/TeaVM E2E.
+- [x] Phase 3 registry lifecycle focused tests passed for `ComponentRegistryGeneratorTest` and `DownstreamProjectTest`.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape

@@ -216,8 +216,9 @@ Follow this layout unless instructed otherwise:
 - Tests: mirror the domain structure under `src/test/java`
 - JSON test resources: flat files grouped per domain (`/home/create-home.json`, etc.)
 - On-demand source handlers: keep handler source in `src/main/fluxzero` when the project uses
-  `ExecutionMode.onDemand(...)`; keep payloads and models in `src/main/java` and refresh the generated component
-  registry/blueprint after handler changes.
+  `ExecutionMode.onDemand(...)`; keep payloads and models in `src/main/java`. Fluxzero Maven templates generate and
+  merge the component registry during `process-classes`; refresh the blueprint only when the project explicitly asks
+  for that report.
 
 Here's the layout of a sample app called `fluxchess`:
 

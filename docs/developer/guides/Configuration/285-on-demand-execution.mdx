@@ -80,12 +80,22 @@ by source hash, so a later invocation can hot-recompile the changed handler with
 
 ## Build-time registry generation
 
-For `src/main/fluxzero`, use the source generator to create the same registry model before packaging or running the app:
+For `src/main/fluxzero`, use the source generator to create the same registry model before packaging or running the app.
+Fluxzero Maven templates bind this automatically after javac has written its annotation-processor registry:
+
+- `process-classes` writes/merges `src/main/fluxzero` into
+  `target/classes/META-INF/fluxzero/component-registry.json`
+- `process-test-classes` writes/merges `src/test/fluxzero` into
+  `target/test-classes/META-INF/fluxzero/component-registry.json`
+
+The important bit is `--merge-existing`: it keeps normal compiled classpath metadata and on-demand source metadata in
+one registry artifact.
 
 ```bash
 java -cp "$APP_CLASSPATH" io.fluxzero.sdk.registry.ComponentRegistryGenerator \
   --source-root src/main/fluxzero \
   --output target/classes/META-INF/fluxzero/component-registry.json \
+  --merge-existing \
   --blueprint target/fluxzero-blueprint.md
 ```
 
@@ -98,6 +108,7 @@ Useful options:
 - `--source-root <path>`: defaults to `src/main/fluxzero`
 - `--output <path>`: defaults to `target/classes/META-INF/fluxzero/component-registry.json`
 - `--blueprint <path>`: optional Markdown/Mermaid blueprint output
+- `--merge-existing`: merge with an existing javac-generated registry at the same output path
 - `--strict`: fail when the source root is missing
 
 Generated registries are preferred by `OnDemandExecution`. Runtime source scanning is still useful during experiments,
