@@ -15,15 +15,21 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,6 +78,39 @@ class RegistryFilteringHandlerTest {
 
         handler.getInvokerOrNull(command(new OtherRegistryCommand("runtime")));
         assertEquals(1, delegate.invocations());
+    }
+
+    @Test
+    @ResourceLock(Resources.SYSTEM_PROPERTIES)
+    void generatedOnlyModeDoesNotUseClasspathScannerFallback() {
+        TestUtils.runWithSystemProperties(() -> {
+            CountingHandler delegate = new CountingHandler(UnregisteredGeneratedOnlyCommandHandler.class);
+            Handler<DeserializingMessage> handler = RegistryFilteringHandler.wrap(delegate, MessageType.COMMAND);
+
+            handler.getInvokerOrNull(command(new OtherRegistryCommand("miss")));
+            assertEquals(1, delegate.invocations());
+        }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+    }
+
+    @Test
+    @ResourceLock(Resources.SYSTEM_PROPERTIES)
+    void generatedOnlyModeFiltersWithRegisteredMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyCommandHandler.class).registry());
+            TestUtils.runWithSystemProperties(() -> {
+                CountingHandler delegate = new CountingHandler(RegisteredGeneratedOnlyCommandHandler.class);
+                Handler<DeserializingMessage> handler = RegistryFilteringHandler.wrap(delegate, MessageType.COMMAND);
+
+                handler.getInvokerOrNull(command(new OtherRegistryCommand("miss")));
+                assertEquals(0, delegate.invocations());
+
+                handler.getInvokerOrNull(command(new RegistryCommand("hit")));
+                assertEquals(1, delegate.invocations());
+            }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     private static DeserializingMessage command(Object payload) {
@@ -155,6 +194,18 @@ class RegistryFilteringHandlerTest {
         @HandleGet("/registry/items/{id}")
         String get() {
             return "ok";
+        }
+    }
+
+    private static class UnregisteredGeneratedOnlyCommandHandler {
+        @HandleCommand
+        void handle(RegistryCommand command) {
+        }
+    }
+
+    private static class RegisteredGeneratedOnlyCommandHandler {
+        @HandleCommand
+        void handle(RegistryCommand command) {
         }
     }
 }

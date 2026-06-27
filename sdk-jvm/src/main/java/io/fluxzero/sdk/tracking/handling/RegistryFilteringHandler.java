@@ -19,7 +19,8 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.registry.ClasspathComponentScanner;
+import io.fluxzero.sdk.registry.ComponentDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.HandlerRouteMatcher;
@@ -32,16 +33,6 @@ import java.util.List;
 import java.util.Optional;
 
 final class RegistryFilteringHandler extends Handler.DelegatingHandler<DeserializingMessage> {
-    private static final ClassValue<List<HandlerRoute>> ROUTES = new ClassValue<>() {
-        @Override
-        protected List<HandlerRoute> computeValue(Class<?> type) {
-            return new ClasspathComponentScanner().scan(type).components().stream()
-                    .filter(component -> component.fullClassName().equals(type.getName()))
-                    .flatMap(component -> component.routes().stream())
-                    .toList();
-        }
-    };
-
     private final List<HandlerRoute> routes;
 
     private RegistryFilteringHandler(Handler<DeserializingMessage> delegate, List<HandlerRoute> routes) {
@@ -55,7 +46,7 @@ final class RegistryFilteringHandler extends Handler.DelegatingHandler<Deseriali
         }
         List<HandlerRoute> routes;
         try {
-            routes = ROUTES.get(handler.getTargetClass()).stream()
+            routes = routes(handler.getTargetClass()).stream()
                     .filter(route -> !route.disabled())
                     .filter(route -> route.messageType() == messageType)
                     .toList();
@@ -66,6 +57,13 @@ final class RegistryFilteringHandler extends Handler.DelegatingHandler<Deseriali
             return handler;
         }
         return new RegistryFilteringHandler(handler, routes);
+    }
+
+    private static List<HandlerRoute> routes(Class<?> type) {
+        return ComponentMetadataLookups.lookup(type)
+                .flatMap(lookup -> lookup.component(type.getName()))
+                .map(ComponentDescriptor::routes)
+                .orElseGet(List::of);
     }
 
     private static boolean isSafeNormalDispatchFilter(HandlerRoute route) {
