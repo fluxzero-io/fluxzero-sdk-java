@@ -18,12 +18,12 @@ import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.constraints.AnyConstraint;
 import io.fluxzero.common.api.search.constraints.MatchConstraint;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.tracking.handling.Stateful;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -34,7 +34,6 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -70,7 +69,7 @@ public class DefaultHandlerRepository implements HandlerRepository {
     public static Function<Class<?>, HandlerRepository> handlerRepositorySupplier(Supplier<DocumentStore> documentStore,
                                                                                   DocumentSerializer documentSerializer) {
         return memoize(type -> {
-            Stateful stateful = JvmComponentIntrospector.getInstance().getTypeAnnotation(type, Stateful.class);
+            Stateful stateful = ComponentMetadataLookups.typeAnnotation(type, Stateful.class).orElse(null);
             var defaultRepo = new DefaultHandlerRepository(
                     documentStore.get(), ClientUtils.getSearchParameters(type).getCollection(), type, stateful);
             return ofNullable(stateful).filter(Stateful::commitInBatch)
@@ -90,12 +89,12 @@ public class DefaultHandlerRepository implements HandlerRepository {
         this.documentStore = documentStore;
         this.collection = collection;
         this.type = type;
-        String timestampPath = Optional.of(annotation)
+        String timestampPath = ofNullable(annotation)
                 .map(Stateful::timestampPath)
                 .filter(not(String::isEmpty))
                 .orElse(null);
         this.timestampFunction = handler -> parseTimeProperty(timestampPath, handler, false, Fluxzero::currentTime);
-        String endPath = Optional.of(annotation)
+        String endPath = ofNullable(annotation)
                 .map(Stateful::endPath)
                 .filter(not(String::isBlank))
                 .orElse(null);

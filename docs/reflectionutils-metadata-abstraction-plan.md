@@ -72,6 +72,8 @@ Work slices:
       scanner fallback.
     - [x] Aggregate repository, index operations, and document store entity-id/apply-factory metadata use the central
       resolver; generated-only mode no longer derives those semantics through direct scanner fallback.
+    - [x] `DefaultHandlerRepository` uses metadata-backed `@Stateful` commit/timestamp policy; generated-only mode no
+      longer derives repository behavior through JVM annotation fallback.
   - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
     - [x] Registry annotations preserve nested annotation-valued attributes across source scanning, classpath scanning,
       annotation processing, JSON round-tripping, and metadata annotation projection.
