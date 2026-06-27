@@ -22,6 +22,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -161,6 +163,50 @@ class MessageRoutingInterceptorTest {
     @Test
     void testAnnotationOnMethodWithParametersFails() {
         assertThrows(AssertionFailedError.class, () -> testInvocation(new AnnotationOnWrongMethod()));
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseRoutingKeyWithoutRegistryMetadata() {
+        expectedHash = null;
+
+        GeneratedOnlyMetadataMode.run(() -> testInvocation(new AnnotationOnField()));
+    }
+
+    @Test
+    void generatedOnlyModeUsesPropertyRoutingKeyFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(AnnotationOnField.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> testInvocation(new AnnotationOnField()));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesMetaPropertyRoutingKeyFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(AnnotationViaMetaOnField.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> testInvocation(new AnnotationViaMetaOnField()));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesTypeRoutingKeyFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(AnnotationOnType.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() ->
+                    testInvocation(new Message(new AnnotationOnType(), Metadata.of("foo", "bar"))));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     private void testInvocation(Object payload) {

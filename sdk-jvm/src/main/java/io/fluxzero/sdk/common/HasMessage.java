@@ -17,6 +17,8 @@ package io.fluxzero.sdk.common;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.scheduling.Schedule;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +29,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Interface for objects that expose a backing {@link Message} instance.
@@ -129,14 +130,27 @@ public interface HasMessage extends HasMetadata {
         Message m = toMessage();
         String routingValue = null;
         Class<?> payloadType = m.getPayloadClass();
-        RoutingKey typeAnnotation = JvmComponentIntrospector.getInstance().getAnnotation(payloadType, RoutingKey.class)
+        var metadataLookup = ComponentMetadataLookups.lookup(payloadType);
+        RoutingKey typeAnnotation = metadataLookup
+                .flatMap(lookup -> ComponentMetadataLookups.typeAnnotation(lookup, payloadType, RoutingKey.class))
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty()
+                        : JvmComponentIntrospector.getInstance()
+                        .getAnnotation(payloadType, RoutingKey.class))
                 .filter(a -> !a.value().isBlank()).orElse(null);
         if (typeAnnotation != null) {
             return getRoutingKey(typeAnnotation.value());
         }
         if (m.getPayload() != null) {
-            routingValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(
-                    m.getPayload(), RoutingKey.class).map(Object::toString).orElse(null);
+            var routingProperty = metadataLookup.flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(
+                    lookup, payloadType, RoutingKey.class));
+            if (routingProperty.isPresent()) {
+                routingValue = JvmComponentIntrospector.getInstance().readProperty(routingProperty.get(), m.getPayload())
+                        .map(Object::toString).orElse(null);
+            } else if (!ComponentMetadataLookups.generatedOnlyMode()) {
+                routingValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(
+                        m.getPayload(), RoutingKey.class).map(Object::toString).orElse(null);
+            }
         }
         if (routingValue == null && m instanceof Schedule) {
             routingValue = ((Schedule) m).getScheduleId();

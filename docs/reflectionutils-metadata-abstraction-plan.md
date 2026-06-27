@@ -90,6 +90,8 @@ Work slices:
       fallback.
     - [x] `DefaultGenericGateway` and `SocketSession` use metadata-backed `@Timeout` resolution for request payload
       types; generated-only mode no longer derives timeout semantics through JVM annotation fallback.
+    - [x] `HasMessage` and message routing use metadata-backed `@RoutingKey` type/property resolution; generated-only
+      mode no longer derives publication routing keys through JVM annotation fallback.
     - [x] `DefaultHandlerFactory` and `SocketEndpointHandler` use metadata-backed `@SocketEndpoint` resolution,
       including nested `aliveCheck` configuration; generated-only mode no longer discovers socket endpoint semantics
       through JVM annotation fallback.
