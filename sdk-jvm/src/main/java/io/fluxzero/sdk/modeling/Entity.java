@@ -67,8 +67,8 @@ public interface Entity<T> {
         @Override
         protected Boolean computeValue(Class<?> entityType) {
             for (var location : ModelMetadata.annotatedPropertyLocations(entityType, Member.class)) {
-                Class<?> childType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
-                        .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
+                Class<?> childType = ModelMetadata.collectionElementType(location)
+                        .orElse(ModelMetadata.propertyType(location));
                 if (Objects.equals(entityType, childType)) {
                     return true;
                 }
@@ -859,12 +859,12 @@ public interface Entity<T> {
         Object payload = message instanceof HasMessage hm ? hm.getPayload() : message;
         Object id = id();
         if (id == null) {
-            if (!(includeEmpty && isEmpty() && JvmComponentIntrospector.getInstance().hasProperty(idProperty, payload))) {
+            if (!(includeEmpty && isEmpty() && ModelMetadata.hasProperty(idProperty, payload))) {
                 return false;
             }
             Entity<?> parent = parent();
             Object routeValue = parent != null && parent.idProperty() != null
-                    ? JvmComponentIntrospector.getInstance().readProperty(parent.idProperty(), payload).orElse(null) : null;
+                    ? ModelMetadata.readProperty(parent.idProperty(), payload).orElse(null) : null;
             if (routeValue == null) {
                 routeValue = ModelMetadata.annotatedPropertyValue(payload, RoutingKey.class).orElse(null);
             }
@@ -876,7 +876,7 @@ public interface Entity<T> {
             }
             return matchesRoute(parent, routeValue);
         }
-        if (JvmComponentIntrospector.getInstance().readProperty(idProperty, payload)
+        if (ModelMetadata.readProperty(idProperty, payload)
                 .or(() -> ModelMetadata.annotatedPropertyValue(payload, RoutingKey.class)).map(id::equals).orElse(false)) {
             return true;
         }
@@ -891,13 +891,13 @@ public interface Entity<T> {
     }
 
     private boolean shouldSearchDescendants(Object payload, String idProperty) {
-        if (!JvmComponentIntrospector.getInstance().hasProperty(idProperty, payload)) {
+        if (!ModelMetadata.hasProperty(idProperty, payload)) {
             return true;
         }
         if (!hasSelfReferentialMember(type())) {
             return false;
         }
-        Object candidate = JvmComponentIntrospector.getInstance().readProperty(idProperty, payload).orElse(null);
+        Object candidate = ModelMetadata.readProperty(idProperty, payload).orElse(null);
         return candidate != null && !matchesRoute(this, candidate);
     }
 

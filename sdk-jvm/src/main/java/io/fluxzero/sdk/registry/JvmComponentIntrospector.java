@@ -251,6 +251,7 @@ public final class JvmComponentIntrospector implements
     /**
      * Reads a property path from an object.
      */
+    @Override
     public <T> Optional<T> readProperty(String propertyPath, Object target) {
         return ReflectionUtils.readProperty(propertyPath, target);
     }
@@ -265,6 +266,7 @@ public final class JvmComponentIntrospector implements
     /**
      * Returns whether a property path exists on an object.
      */
+    @Override
     public boolean hasProperty(String propertyPath, Object target) {
         return ReflectionUtils.hasProperty(propertyPath, target);
     }
@@ -321,6 +323,7 @@ public final class JvmComponentIntrospector implements
     /**
      * Writes a property path on an object when it exists.
      */
+    @Override
     public void writeProperty(String propertyPath, Object target, Object value) {
         ReflectionUtils.writeProperty(propertyPath, target, value);
     }
@@ -708,14 +711,44 @@ public final class JvmComponentIntrospector implements
     }
 
     @Override
+    public <A extends Annotation> List<AccessibleObject> annotatedProperties(
+            Class<?> type, Class<A> annotationType) {
+        return ReflectionUtils.getAnnotatedProperties(type, annotationType).stream()
+                .map(AccessibleObject.class::cast)
+                .toList();
+    }
+
+    @Override
+    public <A extends Annotation> Optional<String> annotatedPropertyName(
+            Class<?> type, Class<A> annotationType) {
+        return ReflectionUtils.getAnnotatedProperty(type, annotationType)
+                .map(ReflectionUtils::getPropertyName);
+    }
+
+    @Override
     public <A extends Annotation> Optional<Object> annotatedPropertyValue(
             Object target, Class<A> annotationType) {
         return ReflectionUtils.getAnnotatedPropertyValue(target, annotationType);
     }
 
     @Override
+    public Object propertyValue(AccessibleObject property, Object target, boolean forceAccess) {
+        return ReflectionUtils.getValue(property, target, forceAccess);
+    }
+
+    @Override
     public String propertyName(AccessibleObject property) {
         return ReflectionUtils.getPropertyName(property);
+    }
+
+    @Override
+    public Class<?> propertyType(AccessibleObject property) {
+        return ReflectionUtils.getPropertyType(property);
+    }
+
+    @Override
+    public Optional<Class<?>> collectionElementType(AccessibleObject property) {
+        return ReflectionUtils.getCollectionElementType(property);
     }
 
     @Override

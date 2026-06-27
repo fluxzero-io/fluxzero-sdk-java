@@ -291,7 +291,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (mentionsDistinctDescendantProperty(payload)) {
             return false;
         }
-        return JvmComponentIntrospector.getInstance().readProperty(idProperty(), payload).map(id()::equals).orElse(false);
+        return ModelMetadata.readProperty(idProperty(), payload).map(id()::equals).orElse(false);
     }
 
     private ExplicitTarget explicitTarget(Object payload) {
@@ -303,8 +303,8 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
             return ExplicitTarget.OTHER;
         }
-        if (id() != null && idProperty() != null && JvmComponentIntrospector.getInstance().hasProperty(idProperty(), payload)) {
-            return JvmComponentIntrospector.getInstance().readProperty(idProperty(), payload)
+        if (id() != null && idProperty() != null && ModelMetadata.hasProperty(idProperty(), payload)) {
+            return ModelMetadata.readProperty(idProperty(), payload)
                     .map(candidate -> Objects.equals(id(), candidate)
                             ? (mentionsDistinctDescendantProperty(payload) ? ExplicitTarget.UNKNOWN : ExplicitTarget.CURRENT)
                             : ExplicitTarget.OTHER)
@@ -313,7 +313,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
         if (targetMetadata.certain()) {
             for (String property : targetMetadata.idProperties()) {
-                if (JvmComponentIntrospector.getInstance().hasProperty(property, payload)) {
+                if (ModelMetadata.hasProperty(property, payload)) {
                     return ExplicitTarget.OTHER;
                 }
             }
@@ -328,7 +328,7 @@ public class ImmutableEntity<T> implements Entity<T> {
             return false;
         }
         for (String property : targetMetadata.idProperties()) {
-            if (!Objects.equals(property, idProperty()) && JvmComponentIntrospector.getInstance().hasProperty(property, payload)) {
+            if (!Objects.equals(property, idProperty()) && ModelMetadata.hasProperty(property, payload)) {
                 return true;
             }
         }
@@ -350,9 +350,8 @@ public class ImmutableEntity<T> implements Entity<T> {
                                                                                 payload.getClass(),
                                                                                 io.fluxzero.sdk.publishing.routing.RoutingKey.class)
                                                                         .map(idProperty()::equals)
-                                                                        .orElseGet(() -> JvmComponentIntrospector.getInstance().hasProperty(
-                                                                                idProperty(),
-                                                                                payload)));
+                                                                        .orElseGet(() -> ModelMetadata.hasProperty(
+                                                                                idProperty(), payload)));
     }
 
     private Iterable<Entity<?>> resolvePossibleTargets(Object payload) {
@@ -418,7 +417,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         Optional.ofNullable(getRoutingKey(payload)).map(Object::toString).ifPresent(results::add);
         DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
         for (String property : targetMetadata.idProperties()) {
-            JvmComponentIntrospector.getInstance().readProperty(property, payload).map(Object::toString).ifPresent(results::add);
+            ModelMetadata.readProperty(property, payload).map(Object::toString).ifPresent(results::add);
         }
         return List.copyOf(results);
     }
@@ -468,7 +467,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         Object routingKey = getRoutingKey(payload);
         String routeValue = Optional.ofNullable(routingKey).map(Object::toString)
                 .or(() -> idProperty() == null ? Optional.empty()
-                        : JvmComponentIntrospector.getInstance().readProperty(idProperty(), payload).map(Object::toString))
+                        : ModelMetadata.readProperty(idProperty(), payload).map(Object::toString))
                 .orElse(null);
         if (routeValue == null) {
             return null;
@@ -511,7 +510,7 @@ public class ImmutableEntity<T> implements Entity<T> {
             return true;
         }
         String childIdProperty = entity.idProperty();
-        return childIdProperty != null && JvmComponentIntrospector.getInstance().hasProperty(childIdProperty, payloadType);
+        return childIdProperty != null && ModelMetadata.hasProperty(childIdProperty, payloadType);
     }
 
     private boolean matchesRoute(Entity<?> entity, String routeValue) {
@@ -659,7 +658,7 @@ public class ImmutableEntity<T> implements Entity<T> {
             return null;
         }
         if (entity.idProperty() != null) {
-            Object payloadId = JvmComponentIntrospector.getInstance().readProperty(entity.idProperty(), payload).orElse(null);
+            Object payloadId = ModelMetadata.readProperty(entity.idProperty(), payload).orElse(null);
             if (payloadId != null) {
                 return payloadId;
             }
@@ -687,7 +686,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         }
         List<Object> results = new ArrayList<>();
         for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(target.getClass(), Alias.class)) {
-            Object v = JvmComponentIntrospector.getInstance().getValue(location, target, false);
+            Object v = ModelMetadata.propertyValue(location, target, false);
             if (v != null) {
                 JvmComponentIntrospector.getInstance().getAnnotationAs(location, Alias.class, Alias.class).ifPresent(alias -> {
                     UnaryOperator<Object> aliasFunction = id -> "".equals(alias.prefix()) && "".equals(alias.postfix())

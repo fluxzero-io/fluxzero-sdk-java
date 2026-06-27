@@ -31,18 +31,18 @@ import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.PropertyAccess;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.AccessibleObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data
@@ -101,6 +101,7 @@ import static java.util.Optional.ofNullable;
 public class DataProtectionInterceptor implements DispatchInterceptor, HandlerInterceptor {
 
     public static String METADATA_KEY = "$protectedData";
+    private static final PropertyAccess<Class<?>, AccessibleObject> PROPERTIES = JvmComponentIntrospector.getInstance();
 
     private final KeyValueStore keyValueStore;
     private final Serializer serializer;
@@ -217,7 +218,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
         try {
-            JvmComponentIntrospector.getInstance().writeProperty(fieldName, payload, keyValueStore.get(key));
+            PROPERTIES.writeProperty(fieldName, payload, keyValueStore.get(key));
         } catch (Exception e) {
             log.warn("Failed to set field {}", fieldName, e);
         }
@@ -229,11 +230,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     private Object sanitizePayload(Object payload, Map<String, String> protectedFields) {
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
-            protectedFields.forEach((name, key) -> JvmComponentIntrospector.getInstance().writeProperty(name, payloadTree, null));
+            protectedFields.forEach((name, key) -> PROPERTIES.writeProperty(name, payloadTree, null));
             return serializer.convert(payloadTree, payload.getClass());
         }
         Object payloadCopy = serializer.deserialize(serializer.serialize(payload));
-        protectedFields.forEach((name, key) -> JvmComponentIntrospector.getInstance().writeProperty(name, payloadCopy, null));
+        protectedFields.forEach((name, key) -> PROPERTIES.writeProperty(name, payloadCopy, null));
         return payloadCopy;
     }
 
@@ -244,15 +245,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         Map<String, String> protectedFields = new LinkedHashMap<>();
         JvmComponentMetadataLookup.scanIfScannable(value.getClass())
                 .map(lookup -> lookup.annotatedProperties(value.getClass(), ProtectData.class).stream()
-                        .flatMap(property -> JvmComponentIntrospector.getInstance()
+                        .flatMap(property -> PROPERTIES
                                 .readProperty(property.name(), value).stream()
                                 .flatMap(propertyValue -> getProtectedFields(property.name(), propertyValue))))
-                .orElseGet(() -> JvmComponentIntrospector.getInstance()
-                        .getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
-                        .flatMap(property -> ofNullable(JvmComponentIntrospector.getInstance()
-                                        .getValue(property, value)).stream()
+                .orElseGet(() -> PROPERTIES.annotatedProperties(value.getClass(), ProtectData.class).stream()
+                        .flatMap(property -> Optional.ofNullable(PROPERTIES.propertyValue(property, value, true)).stream()
                                 .flatMap(propertyValue -> getProtectedFields(
-                                        JvmComponentIntrospector.getInstance().getPropertyName(property),
+                                        PROPERTIES.propertyName(property),
                                         propertyValue))))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;

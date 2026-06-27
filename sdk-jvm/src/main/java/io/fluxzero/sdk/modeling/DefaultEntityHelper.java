@@ -182,7 +182,8 @@ public class DefaultEntityHelper implements EntityHelper {
         if (idProperty == null) {
             return false;
         }
-        return JvmComponentIntrospector.getInstance().readProperty(idProperty, payload).filter(candidate -> !entityId.equals(candidate)).isPresent();
+        return ModelMetadata.readProperty(idProperty, payload)
+                .filter(candidate -> !entityId.equals(candidate)).isPresent();
     }
 
     private static boolean hasSelfReferentialMember(Class<?> entityType) {

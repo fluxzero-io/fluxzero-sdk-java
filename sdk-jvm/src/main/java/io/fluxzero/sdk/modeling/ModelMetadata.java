@@ -16,6 +16,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.PropertyAccess;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
@@ -26,6 +27,8 @@ import java.util.Map;
 import java.util.Optional;
 
 final class ModelMetadata {
+    private static final PropertyAccess<Class<?>, AccessibleObject> PROPERTIES = JvmComponentIntrospector.getInstance();
+
     private ModelMetadata() {
     }
 
@@ -39,10 +42,9 @@ final class ModelMetadata {
                 .ifPresent(lookup -> lookup.annotatedProperties(ownerType, annotationType)
                         .forEach(property -> annotatedPropertyLocation(ownerType, property.name(), annotationType)
                                 .ifPresent(location -> result.putIfAbsent(property.name(), location))));
-        JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, annotationType)
+        PROPERTIES.annotatedProperties(ownerType, annotationType)
                 .forEach(location -> result.putIfAbsent(
-                        JvmComponentIntrospector.getInstance().getPropertyName(location),
-                        (AccessibleObject) location));
+                        PROPERTIES.propertyName(location), location));
         return List.copyOf(result.values());
     }
 
@@ -53,8 +55,7 @@ final class ModelMetadata {
         }
         return JvmComponentMetadataLookup.scanIfScannable(ownerType)
                 .flatMap(lookup -> lookup.annotatedPropertyName(ownerType, annotationType))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedProperty(ownerType, annotationType)
-                        .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)));
+                .or(() -> PROPERTIES.annotatedPropertyName(ownerType, annotationType));
     }
 
     static Optional<Object> annotatedPropertyValue(
@@ -63,8 +64,8 @@ final class ModelMetadata {
             return Optional.empty();
         }
         return annotatedPropertyName(target.getClass(), annotationType)
-                .flatMap(propertyName -> JvmComponentIntrospector.getInstance().readProperty(propertyName, target))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(target, annotationType));
+                .flatMap(propertyName -> PROPERTIES.readProperty(propertyName, target))
+                .or(() -> PROPERTIES.annotatedPropertyValue(target, annotationType));
     }
 
     static Collection<Object> annotatedPropertyValues(
@@ -73,8 +74,32 @@ final class ModelMetadata {
             return List.of();
         }
         return annotatedPropertyLocations(target.getClass(), annotationType).stream()
-                .map(location -> JvmComponentIntrospector.getInstance().getValue(location, target, false))
+                .map(location -> PROPERTIES.propertyValue(location, target, false))
                 .toList();
+    }
+
+    static <T> Optional<T> readProperty(String propertyPath, Object target) {
+        return PROPERTIES.readProperty(propertyPath, target);
+    }
+
+    static boolean hasProperty(String propertyPath, Object target) {
+        return PROPERTIES.hasProperty(propertyPath, target);
+    }
+
+    static Object propertyValue(AccessibleObject property, Object target, boolean forceAccess) {
+        return PROPERTIES.propertyValue(property, target, forceAccess);
+    }
+
+    static String propertyName(AccessibleObject property) {
+        return PROPERTIES.propertyName(property);
+    }
+
+    static Class<?> propertyType(AccessibleObject property) {
+        return PROPERTIES.propertyType(property);
+    }
+
+    static Optional<Class<?>> collectionElementType(AccessibleObject property) {
+        return PROPERTIES.collectionElementType(property);
     }
 
     static boolean hasAnnotatedProperty(Class<?> ownerType, Class<? extends Annotation> annotationType) {
@@ -84,15 +109,13 @@ final class ModelMetadata {
         return JvmComponentMetadataLookup.scanIfScannable(ownerType)
                        .map(lookup -> !lookup.annotatedProperties(ownerType, annotationType).isEmpty())
                        .orElse(false)
-               || !JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, annotationType).isEmpty();
+               || !PROPERTIES.annotatedProperties(ownerType, annotationType).isEmpty();
     }
 
     private static Optional<AccessibleObject> annotatedPropertyLocation(
             Class<?> ownerType, String propertyName, Class<? extends Annotation> annotationType) {
-        return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, annotationType).stream()
-                .filter(location -> JvmComponentIntrospector.getInstance().getPropertyName(location)
-                        .equals(propertyName))
-                .map(AccessibleObject.class::cast)
+        return PROPERTIES.annotatedProperties(ownerType, annotationType).stream()
+                .filter(location -> PROPERTIES.propertyName(location).equals(propertyName))
                 .findFirst();
     }
 }

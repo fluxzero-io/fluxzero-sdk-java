@@ -25,11 +25,14 @@ import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.PropertyAccess;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
+import java.lang.reflect.AccessibleObject;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -43,7 +46,6 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 import static java.util.Collections.singletonList;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Interface for storing, updating, and querying documents in the Fluxzero Runtime.
@@ -457,8 +459,12 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
         }
         return JvmComponentMetadataLookup.scanIfScannable(value.getClass())
                 .flatMap(lookup -> lookup.annotatedPropertyName(value.getClass(), EntityId.class))
-                .flatMap(propertyName -> JvmComponentIntrospector.getInstance().readProperty(propertyName, value))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(value, EntityId.class));
+                .flatMap(propertyName -> properties().readProperty(propertyName, value))
+                .or(() -> properties().annotatedPropertyValue(value, EntityId.class));
+    }
+
+    private static PropertyAccess<Class<?>, AccessibleObject> properties() {
+        return JvmComponentIntrospector.getInstance();
     }
 
 }

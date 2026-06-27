@@ -25,13 +25,16 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.PropertyAccess;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.experimental.Accessors;
 
+import java.lang.reflect.AccessibleObject;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,7 +47,6 @@ import static io.fluxzero.sdk.common.ClientUtils.determineSearchCollection;
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
 import static io.fluxzero.sdk.modeling.SearchParameters.defaultSearchParameters;
 import static java.util.Optional.ofNullable;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Default implementation of the {@link IndexOperation} interface.
@@ -63,6 +65,7 @@ import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 @Accessors(chain = true, fluent = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class DefaultIndexOperation implements IndexOperation {
+    private static final PropertyAccess<Class<?>, AccessibleObject> PROPERTIES = JvmComponentIntrospector.getInstance();
 
     /**
      * Prepare a new {@code DefaultIndexOperation} instance for managing document indexing.
@@ -83,7 +86,7 @@ public class DefaultIndexOperation implements IndexOperation {
     private static Optional<String> entityIdPropertyName(Class<?> type) {
         return JvmComponentMetadataLookup.scanIfScannable(type)
                 .flatMap(lookup -> lookup.annotatedPropertyName(type, EntityId.class))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyName(type, EntityId.class));
+                .or(() -> PROPERTIES.annotatedPropertyName(type, EntityId.class));
     }
 
     /**
@@ -100,7 +103,7 @@ public class DefaultIndexOperation implements IndexOperation {
     public static DefaultIndexOperation prepare(DocumentStore documentStore, Object object, @NonNull Object collection,
                                                 String idPath, String beginPath, String endPath) {
         Function<Object, ?> idFunction = v -> idPath != null && !idPath.isBlank()
-                ? JvmComponentIntrospector.getInstance().readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
+                ? PROPERTIES.readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
                 "Could not determine the document id for path: %s".formatted(idPath)))
                 : currentIdentityProvider().nextTechnicalId();
         Function<Object, Instant> beginFunction = v -> parseTimeProperty(beginPath, v, false, () -> null);

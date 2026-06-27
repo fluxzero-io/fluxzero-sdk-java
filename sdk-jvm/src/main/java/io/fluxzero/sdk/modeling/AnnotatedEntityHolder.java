@@ -43,11 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.call;
-import static java.beans.Introspector.decapitalize;
 
 /**
  * Helper class for {@link Entity} instances that manage nested entity relationships annotated with
@@ -90,7 +88,6 @@ public class AnnotatedEntityHolder {
             loadingEntityCache = ThreadLocal.withInitial(IdentityHashMap::new);
     private static final ThreadLocal<Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>>>
             loadingRouteValuesCache = ThreadLocal.withInitial(IdentityHashMap::new);
-    private static final Pattern getterPattern = Pattern.compile("(get|is)([A-Z].*)");
 
     private final AccessibleObject location;
     private final BiFunction<Object, Object, Object> wither;
@@ -169,15 +166,15 @@ public class AnnotatedEntityHolder {
         this.entityHelper = entityHelper;
         this.serializer = serializer;
         this.location = location;
-        this.holderType = JvmComponentIntrospector.getInstance().getPropertyType(location);
+        this.holderType = ModelMetadata.propertyType(location);
         this.collectionHolder = Collection.class.isAssignableFrom(holderType);
         this.mapHolder = Map.class.isAssignableFrom(holderType);
-        this.entityType = JvmComponentIntrospector.getInstance().getCollectionElementType(location).orElse(holderType);
+        this.entityType = ModelMetadata.collectionElementType(location).orElse(holderType);
         Member member = JvmComponentIntrospector.getInstance().getAnnotation(location, Member.class).orElseThrow();
         String pathToId = member.idProperty();
         this.idProvider = pathToId.isBlank() ?
                 AnnotatedEntityHolder::entityId :
-                v -> new Id(JvmComponentIntrospector.getInstance().readProperty(pathToId, v).orElse(null), pathToId);
+                v -> new Id(ModelMetadata.readProperty(pathToId, v).orElse(null), pathToId);
         this.wither = computeWither(ownerType, location, serializer, member);
     }
 
@@ -189,16 +186,14 @@ public class AnnotatedEntityHolder {
             return new Id(null, ModelMetadata.annotatedPropertyName(type, EntityId.class).orElse(null));
         }
         Optional<String> propertyName = ModelMetadata.annotatedPropertyName(value.getClass(), EntityId.class);
-        return new Id(propertyName.flatMap(name -> JvmComponentIntrospector.getInstance().readProperty(name, value))
+        return new Id(propertyName.flatMap(name -> ModelMetadata.readProperty(name, value))
                               .orElse(null), propertyName.orElse(null));
     }
 
     private static BiFunction<Object, Object, Object> computeWither(
             Class<?> ownerType, AccessibleObject location, Serializer serializer, Member member) {
-        String propertyName = decapitalize(Optional.of(JvmComponentIntrospector.getInstance().getName(location)).map(name -> Optional.of(
-                        getterPattern.matcher(name)).map(matcher -> matcher.matches() ? matcher.group(2) : name)
-                .orElse(name)).orElseThrow());
-        Class<?>[] witherParams = new Class<?>[]{JvmComponentIntrospector.getInstance().getPropertyType(location)};
+        String propertyName = ModelMetadata.propertyName(location);
+        Class<?>[] witherParams = new Class<?>[]{ModelMetadata.propertyType(location)};
         Stream<Method> witherCandidates = JvmComponentIntrospector.getInstance().getAllMethods(ownerType).stream().filter(
                 m -> m.getReturnType().isAssignableFrom(ownerType) || m.getReturnType().equals(void.class));
         witherCandidates = member.wither().isBlank() ?
@@ -357,7 +352,7 @@ public class AnnotatedEntityHolder {
         if (parent.get() == null) {
             return List.of();
         }
-        Object holderValue = JvmComponentIntrospector.getInstance().getValue(location, parent.get(), false);
+        Object holderValue = ModelMetadata.propertyValue(location, parent.get(), false);
         ImmutableEntity<?> emptyEntity = getEmptyEntity().toBuilder().parent(parent).build();
         if (holderValue == null) {
             return List.of(emptyEntity);
@@ -395,7 +390,7 @@ public class AnnotatedEntityHolder {
         if (parent.get() == null) {
             return null;
         }
-        Object holderValue = JvmComponentIntrospector.getInstance().getValue(location, parent.get(), false);
+        Object holderValue = ModelMetadata.propertyValue(location, parent.get(), false);
         if (holderValue == null) {
             return null;
         }
@@ -459,7 +454,7 @@ public class AnnotatedEntityHolder {
             addRouteValue(results, id.value().toString());
         }
         for (AccessibleObject aliasLocation : ModelMetadata.annotatedPropertyLocations(member.getClass(), Alias.class)) {
-            Object aliasValue = JvmComponentIntrospector.getInstance().getValue(aliasLocation, member, false);
+            Object aliasValue = ModelMetadata.propertyValue(aliasLocation, member, false);
             if (aliasValue == null) {
                 continue;
             }
@@ -547,7 +542,7 @@ public class AnnotatedEntityHolder {
         if (updateList.isEmpty()) {
             return owner;
         }
-        Object holder = JvmComponentIntrospector.getInstance().getValue(location, owner);
+        Object holder = ModelMetadata.propertyValue(location, owner, true);
         if (collectionHolder) {
             Collection<Object> collection = serializer.clone(holder);
             if (collection == null) {

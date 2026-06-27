@@ -197,9 +197,15 @@ Work:
     JVM fallback.
   - [x] Recursive entity-helper/entity traversal for `@Member`, `@Alias`, `@AssertLegal`, and routing-key properties
     uses descriptor metadata before JVM access fallback.
+  - [x] Modeling, data-protection, search, and indexing property reads/writes use the `PropertyAccess` backend seam for
+    property paths and property handles.
   - [ ] Annotation attribute projection for modeling annotations such as `@Member`, `@Alias`, and `@Apply` still uses
     JVM annotation instances where attributes are needed.
 - [ ] Invocation and mutable property access behind a platform backend seam.
+  - [x] `PropertyAccess` covers annotated property discovery, property names, property path reads/writes,
+    property-handle reads, raw property types, and collection element types.
+  - [ ] Handler invocation, constructor/wither invocation, and mutable entity reconstruction still use JVM invocation
+    machinery directly.
 
 Done when:
 
@@ -280,6 +286,8 @@ Work:
 - [x] Aggregate repository/modeling focused tests passed with `-Dmaven.compiler.proc=full` after aggregate metadata
   discovery migration.
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after aggregate metadata discovery migration.
+- [x] Focused modeling/search/data-protection/property-access tests passed with `-Dmaven.compiler.proc=full`.
+- [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after property-access backend seam migration.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape
