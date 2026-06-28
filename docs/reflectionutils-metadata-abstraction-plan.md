@@ -131,6 +131,8 @@ Current evidence:
   direct JVM backend access were removed.
 - Normal JVM compatibility fallbacks for result error descriptions, consumer interceptor instantiation, mutable handler
   construction, and request response type resolution now go through `JvmCompatibilityBackend`.
+- Stale direct-backend debt entries were removed for entity helpers, default tracking, expired request metadata, and
+  default web request context after the boundary inventory showed no direct JVM introspector access in those classes.
 - `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
   generated construction for a class without a JVM default constructor.
 - `ModelMetadataTest.generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors` covers generated-only
@@ -139,7 +141,7 @@ Current evidence:
   generated-only protected-field handling without explicit runtime registry registration.
 - `SchedulingInterceptorTest.generatedOnlyModeInstallsClasspathGeneratedConstructorForPeriodicHandlerMethods` covers
   generated-only periodic payload construction without explicit runtime registry registration.
-- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 25 migration-debt classes.
+- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 18 migration-debt classes.
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 
