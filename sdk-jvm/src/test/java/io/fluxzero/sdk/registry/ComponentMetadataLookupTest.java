@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -159,6 +160,37 @@ class ComponentMetadataLookupTest {
         } finally {
             Thread.currentThread().setContextClassLoader(previous);
         }
+    }
+
+    @Test
+    void metadataModePropertySupportsExplicitJvmCompatibilityNames() throws Exception {
+        withMetadataModeProperty(ComponentMetadataLookups.JVM_COMPATIBILITY_MODE, () -> {
+            assertFalse(ComponentMetadataLookups.generatedOnlyMode());
+            assertFalse(ComponentMetadataLookups.strictGeneratedOnlyMode());
+            assertTrue(ComponentMetadataLookups.jvmCompatibilityMode());
+            assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode());
+        });
+        withMetadataModeProperty(ComponentMetadataLookups.COMPATIBILITY_MODE,
+                                 () -> assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode()));
+        withMetadataModeProperty(ComponentMetadataLookups.HYBRID_MODE,
+                                 () -> assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode()));
+    }
+
+    @Test
+    void scopedJvmCompatibilityModeAllowsIntentionalBackendAccessUnderGeneratedOnlyProperty() throws Exception {
+        withMetadataModeProperty(ComponentMetadataLookups.GENERATED_ONLY_MODE, () -> {
+            assertTrue(ComponentMetadataLookups.generatedOnlyMode());
+            assertThrows(ComponentRegistryException.class, JvmCompatibilityBackend::introspector);
+
+            JvmCompatibilityMetadataMode.run(() -> {
+                assertFalse(ComponentMetadataLookups.generatedOnlyMode());
+                assertFalse(ComponentMetadataLookups.strictGeneratedOnlyMode());
+                assertTrue(ComponentMetadataLookups.jvmCompatibilityMode());
+                assertSame(JvmComponentIntrospector.getInstance(), JvmCompatibilityBackend.introspector());
+            });
+
+            assertTrue(ComponentMetadataLookups.generatedOnlyMode());
+        });
     }
 
     @Test
@@ -314,6 +346,20 @@ class ComponentMetadataLookupTest {
         assertTrue(lookup.hasExecutableAnnotation(web, HandleWeb.class));
         assertEquals("HandleWeb", lookup.routes(MetaLookupHandler.class, MessageType.WEBREQUEST)
                 .getFirst().annotation().name());
+    }
+
+    private static void withMetadataModeProperty(String mode, ThrowingRunnable runnable) throws Exception {
+        String previous = System.getProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY);
+        System.setProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY, mode);
+        try {
+            runnable.run();
+        } finally {
+            if (previous == null) {
+                System.clearProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY);
+            } else {
+                System.setProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY, previous);
+            }
+        }
     }
 
     @Consumer(name = "lookup")

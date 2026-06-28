@@ -28,20 +28,29 @@ by name.
 
 ### Slice 1: Explicit Runtime Modes And Compatibility Surface
 
-Status: [ ] next.
+Status: [x] implemented.
 
-- [ ] Add an explicit compatibility mode for reflection fallback, for example
+- [x] Add an explicit compatibility mode for reflection fallback, for example
   `fluxzero.metadata.mode=jvm-compatibility`, with short aliases such as `compatibility` or `hybrid` only if they make
   migration clearer.
-- [ ] Keep the current default until the migration slices below have isolated legacy/TestFixture behavior.
-- [ ] Add scoped test helpers for compatibility mode so tests do not rely on ambient fallback.
-- [ ] Document the supported modes and the generated-metadata error text.
-- [ ] Ensure strict/generated-only mode keeps rejecting semantic reflection fallback.
+- [x] Keep the current default until the migration slices below have isolated legacy/TestFixture behavior.
+- [x] Add scoped test helpers for compatibility mode so tests do not rely on ambient fallback.
+- [x] Document the supported modes and the generated-metadata error text.
+- [x] Ensure strict/generated-only mode keeps rejecting semantic reflection fallback.
 
 Done when:
 
-- [ ] Existing hybrid behavior is reachable through a named mode/helper/property in tests and docs.
-- [ ] Generated-only failures explain the missing registry/invocation/access metadata instead of falling back.
+- [x] Existing hybrid behavior is reachable through a named mode/helper/property in tests and docs.
+- [x] Generated-only failures explain the missing registry/invocation/access metadata instead of falling back.
+
+Evidence:
+
+- Added `fluxzero.metadata.mode=jvm-compatibility` plus `compatibility` and `hybrid` aliases.
+- Added scoped JVM compatibility mode override for tests, while `GeneratedOnlyMetadataMode.run(...)` still uses strict
+  generated-only mode.
+- `JvmCompatibilityBackend` errors now name the explicit compatibility opt-in for intentional JVM migration fallback.
+- Verification passed:
+  `./mvnw -q -pl sdk-jvm -Dtest=ComponentMetadataLookupTest,ReflectionBoundaryTest test`.
 
 ### Slice 2: Cross-Version Fluxzero Handler Benchmark Gate
 

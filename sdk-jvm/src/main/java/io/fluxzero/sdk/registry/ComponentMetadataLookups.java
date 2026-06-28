@@ -47,8 +47,8 @@ import java.util.stream.Stream;
  */
 public final class ComponentMetadataLookups {
     /**
-     * Runtime metadata mode property. The default is hybrid mode: generated/registered metadata wins, with JVM
-     * classpath scanning as compatibility fallback.
+     * Runtime metadata mode property. The current default is JVM compatibility mode: generated/registered metadata
+     * wins, with JVM classpath scanning as compatibility fallback.
      */
     public static final String METADATA_MODE_PROPERTY = "fluxzero.metadata.mode";
 
@@ -67,6 +67,21 @@ public final class ComponentMetadataLookups {
      */
     public static final String STRICT_GENERATED_ONLY_MODE = "strict-generated-only";
 
+    /**
+     * Metadata mode that explicitly allows JVM classpath/reflection fallback for compatibility.
+     */
+    public static final String JVM_COMPATIBILITY_MODE = "jvm-compatibility";
+
+    /**
+     * Alias for {@link #JVM_COMPATIBILITY_MODE}.
+     */
+    public static final String COMPATIBILITY_MODE = "compatibility";
+
+    /**
+     * Alias for {@link #JVM_COMPATIBILITY_MODE}.
+     */
+    public static final String HYBRID_MODE = "hybrid";
+
     private static final ConcurrentMap<GeneratedRegistryClassLoaderKey, ComponentRegistry> generatedRegistries =
             new ConcurrentHashMap<>();
     private static final ConcurrentMap<GeneratedRegistryClassLoaderKey, ComponentMetadataLookup>
@@ -82,8 +97,8 @@ public final class ComponentMetadataLookups {
                     return size() > REGISTRY_LOOKUP_CACHE_SIZE;
                 }
             });
-    private static final ThreadLocal<Boolean> generatedOnlyModeOverride = new ThreadLocal<>();
-    private static final ThreadLocal<Boolean> strictGeneratedOnlyModeOverride = new ThreadLocal<>();
+    private static final ThreadLocal<List<RuntimeMetadataMode>> metadataModeOverrides =
+            ThreadLocal.withInitial(ArrayList::new);
 
     private ComponentMetadataLookups() {
     }
@@ -567,61 +582,105 @@ public final class ComponentMetadataLookups {
      * Returns whether the central metadata resolver is configured to refuse JVM classpath/reflection fallback.
      */
     public static boolean generatedOnlyMode() {
-        if (strictGeneratedOnlyMode()) {
-            return true;
+        Optional<RuntimeMetadataMode> override = metadataModeOverride();
+        if (override.isPresent()) {
+            return switch (override.orElseThrow()) {
+                case GENERATED_ONLY, STRICT_GENERATED_ONLY -> true;
+                case JVM_COMPATIBILITY -> false;
+            };
         }
-        if (Boolean.TRUE.equals(generatedOnlyModeOverride.get())) {
-            return true;
-        }
-        String configured = System.getProperty(METADATA_MODE_PROPERTY);
-        if (configured == null || configured.isBlank()) {
-            configured = System.getenv(METADATA_MODE_ENV);
-        }
-        return GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
-               || "generatedOnly".equalsIgnoreCase(configured);
+        return configuredGeneratedOnlyMode(configuredMetadataMode());
     }
 
     /**
      * Returns whether generated-only mode should reject migration-debt JVM backend categories.
      */
     public static boolean strictGeneratedOnlyMode() {
-        if (Boolean.TRUE.equals(strictGeneratedOnlyModeOverride.get())) {
-            return true;
+        Optional<RuntimeMetadataMode> override = metadataModeOverride();
+        if (override.isPresent()) {
+            return RuntimeMetadataMode.STRICT_GENERATED_ONLY == override.orElseThrow();
         }
+        return configuredStrictGeneratedOnlyMode(configuredMetadataMode());
+    }
+
+    /**
+     * Returns whether the central resolver allows JVM classpath/reflection fallback.
+     */
+    public static boolean jvmCompatibilityMode() {
+        return !generatedOnlyMode();
+    }
+
+    private static String configuredMetadataMode() {
         String configured = System.getProperty(METADATA_MODE_PROPERTY);
         if (configured == null || configured.isBlank()) {
             configured = System.getenv(METADATA_MODE_ENV);
         }
+        return configured == null ? "" : configured.trim();
+    }
+
+    private static boolean configuredGeneratedOnlyMode(String configured) {
+        return configuredStrictGeneratedOnlyMode(configured)
+               || GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
+               || "generatedOnly".equalsIgnoreCase(configured);
+    }
+
+    private static boolean configuredStrictGeneratedOnlyMode(String configured) {
         return STRICT_GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
                || "strictGeneratedOnly".equalsIgnoreCase(configured);
     }
 
     static void runInGeneratedOnlyMode(ThrowingRunnable runnable) throws Exception {
-        Boolean previous = generatedOnlyModeOverride.get();
-        generatedOnlyModeOverride.set(Boolean.TRUE);
+        runWithMetadataMode(RuntimeMetadataMode.GENERATED_ONLY, runnable);
+    }
+
+    static void runInStrictGeneratedOnlyMode(ThrowingRunnable runnable) throws Exception {
+        runWithMetadataMode(RuntimeMetadataMode.STRICT_GENERATED_ONLY, runnable);
+    }
+
+    static void runInJvmCompatibilityMode(ThrowingRunnable runnable) throws Exception {
+        runWithMetadataMode(RuntimeMetadataMode.JVM_COMPATIBILITY, runnable);
+    }
+
+    private static Optional<RuntimeMetadataMode> metadataModeOverride() {
+        List<RuntimeMetadataMode> overrides = metadataModeOverrides.get();
+        return overrides.isEmpty() ? Optional.empty() : Optional.of(overrides.get(overrides.size() - 1));
+    }
+
+    private static void runWithMetadataMode(RuntimeMetadataMode mode, ThrowingRunnable runnable) throws Exception {
+        List<RuntimeMetadataMode> overrides = metadataModeOverrides.get();
+        overrides.add(mode);
         try {
             runnable.run();
         } finally {
-            if (previous == null) {
-                generatedOnlyModeOverride.remove();
-            } else {
-                generatedOnlyModeOverride.set(previous);
+            overrides.remove(overrides.size() - 1);
+            if (overrides.isEmpty()) {
+                metadataModeOverrides.remove();
             }
         }
     }
 
-    static void runInStrictGeneratedOnlyMode(ThrowingRunnable runnable) throws Exception {
-        Boolean previous = strictGeneratedOnlyModeOverride.get();
-        strictGeneratedOnlyModeOverride.set(Boolean.TRUE);
-        try {
-            runnable.run();
-        } finally {
-            if (previous == null) {
-                strictGeneratedOnlyModeOverride.remove();
-            } else {
-                strictGeneratedOnlyModeOverride.set(previous);
-            }
+    private enum RuntimeMetadataMode {
+        GENERATED_ONLY,
+        STRICT_GENERATED_ONLY,
+        JVM_COMPATIBILITY
+    }
+
+    static boolean explicitJvmCompatibilityMode(String mode) {
+        if (mode == null || mode.isBlank()) {
+            return false;
         }
+        String normalized = mode.trim();
+        return JVM_COMPATIBILITY_MODE.equalsIgnoreCase(normalized)
+               || COMPATIBILITY_MODE.equalsIgnoreCase(normalized)
+               || HYBRID_MODE.equalsIgnoreCase(normalized);
+    }
+
+    static boolean configuredJvmCompatibilityMode() {
+        Optional<RuntimeMetadataMode> override = metadataModeOverride();
+        if (override.isPresent()) {
+            return RuntimeMetadataMode.JVM_COMPATIBILITY == override.orElseThrow();
+        }
+        return explicitJvmCompatibilityMode(configuredMetadataMode());
     }
 
     private static boolean containsAll(ComponentMetadataLookup lookup, List<Class<?>> types) {

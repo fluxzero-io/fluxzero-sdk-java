@@ -29,6 +29,7 @@ public final class JvmCompatibilityBackend {
             throw new ComponentRegistryException("""
                     Generated-only metadata mode forbids JVM compatibility backend access.
                     Replace this runtime semantic path with generated metadata, invocation, or access plans.
+                    Use fluxzero.metadata.mode=jvm-compatibility only for intentional JVM migration compatibility.
                     """);
         }
         return JvmComponentIntrospector.getInstance();
