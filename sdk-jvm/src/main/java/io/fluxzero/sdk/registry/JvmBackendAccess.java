@@ -47,9 +47,7 @@ final class JvmBackendAccess {
     private static final Map<String, BackendCategory> ALLOWED_CLASSES = new TreeMap<>(Map.ofEntries(
             Map.entry("io.fluxzero.sdk.Fluxzero", platform("JVM caller-scope memoization")),
             Map.entry("io.fluxzero.common.handling.HandlerInspector",
-                      debt("current JVM executable invocation backend")),
-            Map.entry("io.fluxzero.sdk.tracking.handling.validation.ValidationUtils",
-                      debt("JVM validation compatibility bridge"))
+                      debt("current JVM executable invocation backend"))
     ));
 
     private JvmBackendAccess() {

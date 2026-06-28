@@ -18,7 +18,7 @@ package io.fluxzero.sdk.tracking.handling.validation;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationDecision;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailure;
@@ -322,7 +322,7 @@ public class ValidationUtils {
         if (ComponentMetadataLookups.generatedOnlyMode()) {
             return new Class<?>[0];
         }
-        ValidateWith annotation = JvmComponentIntrospector.getInstance().getTypeAnnotation(object.getClass(), ValidateWith.class);
+        ValidateWith annotation = JvmCompatibilityBackend.introspector().getTypeAnnotation(object.getClass(), ValidateWith.class);
         return annotation == null ? new Class<?>[0] : annotation.value();
     }
 
@@ -334,7 +334,7 @@ public class ValidationUtils {
                         .findFirst()
                         .map(annotation -> annotation.values("value").stream()
                                 .map(className -> JvmComponentMetadataLookup.classForMetadataName(className)
-                                        .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                                        .orElseGet(() -> JvmCompatibilityBackend.introspector()
                                                 .classForName(className)))
                                 .toArray(Class<?>[]::new))
                         .orElseGet(() -> new Class<?>[0]));
@@ -484,10 +484,10 @@ public class ValidationUtils {
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.orElse(null);
         }
-        return Optional.ofNullable(getRequiredRoles(JvmComponentIntrospector.getInstance().getTypeAnnotations(
+        return Optional.ofNullable(getRequiredRoles(JvmCompatibilityBackend.introspector().getTypeAnnotations(
                         payloadClass)))
                 .orElseGet(() -> getRequiredRoles(
-                        JvmComponentIntrospector.getInstance().getPackageAnnotations(payloadClass.getPackage())));
+                        JvmCompatibilityBackend.introspector().getPackageAnnotations(payloadClass.getPackage())));
     }
 
     private static Optional<RequiredRole[]> getRequiredRolesFromMetadata(Class<?> payloadClass) {
@@ -506,10 +506,10 @@ public class ValidationUtils {
         }
         return Optional.ofNullable(getRequiredRoles(Arrays.asList(executable.getAnnotations())))
                 .or(() -> Optional.ofNullable(getRequiredRoles(
-                        JvmComponentIntrospector.getInstance().getTypeAnnotations(targetClass))))
-                .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                        JvmCompatibilityBackend.introspector().getTypeAnnotations(targetClass))))
+                .orElseGet(() -> JvmCompatibilityBackend.introspector()
                         .getPackageAndParentPackages(targetClass.getPackage()).stream()
-                        .map(p -> JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false))
+                        .map(p -> JvmCompatibilityBackend.introspector().getPackageAnnotations(p, false))
                         .map(ValidationUtils::getRequiredRoles)
                         .filter(Objects::nonNull).findFirst().orElse(null));
     }
@@ -522,10 +522,10 @@ public class ValidationUtils {
         return executable.executable()
                 .map(method -> getRequiredRoles(targetClass, method))
                 .orElseGet(() -> Optional.ofNullable(getRequiredRoles(
-                                JvmComponentIntrospector.getInstance().getTypeAnnotations(targetClass)))
-                        .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                                JvmCompatibilityBackend.introspector().getTypeAnnotations(targetClass)))
+                        .orElseGet(() -> JvmCompatibilityBackend.introspector()
                                 .getPackageAndParentPackages(targetClass.getPackage()).stream()
-                                .map(p -> JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false))
+                                .map(p -> JvmCompatibilityBackend.introspector().getPackageAnnotations(p, false))
                                 .map(ValidationUtils::getRequiredRoles)
                                 .filter(Objects::nonNull).findFirst().orElse(null)));
     }
@@ -586,9 +586,9 @@ public class ValidationUtils {
             boolean throwIfUnauthorized
                     = throwIfUnauthorized(annotation).orElseGet(a::throwIfUnauthorized);
 
-            for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(annotation.annotationType())) {
+            for (Method method : JvmCompatibilityBackend.introspector().getAllMethods(annotation.annotationType())) {
                 if (method.getName().equalsIgnoreCase("value")) {
-                    Object[] result = (Object[]) JvmComponentIntrospector.getInstance().invoke(method, annotation);
+                    Object[] result = (Object[]) JvmCompatibilityBackend.introspector().invoke(method, annotation);
                     return Arrays.stream(result).map(Object::toString)
                             .map(r -> new RequiredRole(r, throwIfUnauthorized, true, false))
                             .toArray(RequiredRole[]::new);
@@ -610,9 +610,9 @@ public class ValidationUtils {
             boolean throwIfUnauthorized
                     = throwIfUnauthorized(annotation).orElseGet(a::throwIfUnauthorized);
 
-            for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(annotation.annotationType())) {
+            for (Method method : JvmCompatibilityBackend.introspector().getAllMethods(annotation.annotationType())) {
                 if (method.getName().equalsIgnoreCase("value")) {
-                    Object[] result = (Object[]) JvmComponentIntrospector.getInstance().invoke(method, annotation);
+                    Object[] result = (Object[]) JvmCompatibilityBackend.introspector().invoke(method, annotation);
                     return Arrays.stream(result).map(Object::toString).map(s -> "!" + s)
                             .map(r -> new RequiredRole(r, throwIfUnauthorized, true, false))
                             .toArray(RequiredRole[]::new);
@@ -624,8 +624,8 @@ public class ValidationUtils {
     }
 
     static Optional<Boolean> throwIfUnauthorized(Annotation holder) {
-        return JvmComponentIntrospector.getInstance().getMethod(holder.annotationType(), "throwIfUnauthorized")
-                .map(method -> (boolean) JvmComponentIntrospector.getInstance().invoke(method, holder));
+        return JvmCompatibilityBackend.introspector().getMethod(holder.annotationType(), "throwIfUnauthorized")
+                .map(method -> (boolean) JvmCompatibilityBackend.introspector().invoke(method, holder));
     }
 
     protected record RequiredRole(@Nullable String value, boolean throwIfUnauthorized, boolean requiresUser,
