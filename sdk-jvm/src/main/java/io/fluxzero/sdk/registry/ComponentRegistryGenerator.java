@@ -218,7 +218,9 @@ public final class ComponentRegistryGenerator {
             String blueprintTitle, boolean strict, boolean mergeExisting, boolean metadataOnly) {
         Objects.requireNonNull(sourceRoot, "sourceRoot");
         Objects.requireNonNull(output, "output");
-        List<ComponentRegistry> registries = new java.util.ArrayList<>();
+        List<ComponentRegistry> registries = new ArrayList<>();
+        ComponentRegistry existingRegistry = mergeExisting && Files.isRegularFile(output)
+                ? ComponentRegistryJson.read(output) : null;
         if (!Files.isDirectory(sourceRoot)) {
             if (strict) {
                 throw new ComponentRegistryException(
@@ -233,14 +235,14 @@ public final class ComponentRegistryGenerator {
             registries.add(sourceRegistry);
         }
         if (classRoot != null && Files.isDirectory(classRoot)) {
-            registries.add(scanClassRoot(classRoot));
+            registries.add(scanClassRoot(classRoot, classRootCandidates(registries, existingRegistry)));
         }
         if (registries.isEmpty() && !(mergeExisting && Files.isRegularFile(output))) {
             return ComponentRegistry.empty();
         }
         ComponentRegistry registry = registries.isEmpty() ? ComponentRegistry.empty() : ComponentRegistry.merge(registries);
-        if (mergeExisting && Files.isRegularFile(output)) {
-            registry = ComponentRegistry.merge(List.of(ComponentRegistryJson.read(output), registry));
+        if (existingRegistry != null) {
+            registry = ComponentRegistry.merge(List.of(existingRegistry, registry));
         }
         if (metadataOnly) {
             registry = pruneMetadataOnlyRegistry(registry);
@@ -393,11 +395,12 @@ public final class ComponentRegistryGenerator {
         }
     }
 
-    private static ComponentRegistry scanClassRoot(Path classRoot) {
+    private static ComponentRegistry scanClassRoot(Path classRoot, Set<String> candidateClassNames) {
         List<Class<?>> classes;
         try (Stream<Path> files = Files.walk(classRoot)) {
             classes = files.filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".class"))
+                    .filter(path -> isCandidateClass(classRoot, path, candidateClassNames))
                     .map(path -> loadClass(classRoot, path))
                     .flatMap(Optional::stream)
                     .filter(JvmComponentMetadataLookup::isScannable)
@@ -408,6 +411,33 @@ public final class ComponentRegistryGenerator {
             throw new ComponentRegistryException("Failed to scan compiled Fluxzero component classes in " + classRoot, e);
         }
         return classes.isEmpty() ? ComponentRegistry.empty() : new ClasspathComponentScanner().scan(classes).normalized();
+    }
+
+    private static Set<String> classRootCandidates(
+            Collection<ComponentRegistry> registries, ComponentRegistry existingRegistry) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        registries.stream().flatMap(registry -> registry.components().stream())
+                .map(ComponentDescriptor::fullClassName)
+                .forEach(result::add);
+        if (existingRegistry != null) {
+            existingRegistry.components().stream()
+                    .map(ComponentDescriptor::fullClassName)
+                    .forEach(result::add);
+        }
+        return Set.copyOf(result);
+    }
+
+    private static boolean isCandidateClass(Path classRoot, Path classFile, Set<String> candidateClassNames) {
+        if (candidateClassNames.isEmpty()) {
+            return true;
+        }
+        String relativeName = classRoot.relativize(classFile).toString();
+        if (relativeName.equals("module-info.class") || relativeName.endsWith("package-info.class")) {
+            return false;
+        }
+        String className = relativeName.substring(0, relativeName.length() - ".class".length())
+                .replace(classFile.getFileSystem().getSeparator(), ".");
+        return candidateClassNames.contains(className) || candidateClassNames.contains(className.replace('$', '.'));
     }
 
     private static Optional<Class<?>> loadClass(Path classRoot, Path classFile) {

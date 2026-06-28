@@ -60,6 +60,7 @@ class OnDemandCompiler {
     private final List<Path> extraClasspath;
     private final List<Path> extraSourcepath;
     private final ClassLoader parentClassLoader;
+    private volatile SourceGraph sourceGraph;
 
     OnDemandCompiler(int release, Path sourceRoot, Path cacheRoot, List<Path> extraClasspath,
                   List<Path> extraSourcepath, ClassLoader parentClassLoader) {
@@ -287,7 +288,16 @@ class OnDemandCompiler {
 
     @SneakyThrows
     String sourceHash(ComponentDescriptor component) {
-        SourceGraph graph = sourceGraph();
+        return sourceHash(component, sourceGraph());
+    }
+
+    @SneakyThrows
+    String refreshSourceHash(ComponentDescriptor component) {
+        return sourceHash(component, refreshSourceGraph());
+    }
+
+    private String sourceHash(ComponentDescriptor component, SourceGraph graph)
+            throws java.security.NoSuchAlgorithmException, IOException {
         java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
         for (Path sourceFile : sourceFiles(component, graph)) {
             if (Files.isRegularFile(sourceFile)) {
@@ -314,6 +324,24 @@ class OnDemandCompiler {
     }
 
     private SourceGraph sourceGraph() {
+        SourceGraph graph = sourceGraph;
+        if (graph != null) {
+            return graph;
+        }
+        synchronized (this) {
+            if (sourceGraph == null) {
+                sourceGraph = scanSourceGraph();
+            }
+            return sourceGraph;
+        }
+    }
+
+    private synchronized SourceGraph refreshSourceGraph() {
+        sourceGraph = scanSourceGraph();
+        return sourceGraph;
+    }
+
+    private SourceGraph scanSourceGraph() {
         List<Path> roots = new ArrayList<>();
         roots.add(sourceRoot);
         extraSourcepath.forEach(roots::add);

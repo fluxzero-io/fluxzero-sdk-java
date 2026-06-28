@@ -69,6 +69,10 @@ class LazyExecutionUnit implements AutoCloseable {
             if (activeComponent.sourceHash().equals(currentSourceHash)) {
                 return null;
             }
+            currentSourceHash = refreshedSourceHash();
+            if (activeComponent.sourceHash().equals(currentSourceHash)) {
+                return null;
+            }
             return new OnDemandCompiler.CompilationRequest(component, currentSourceHash);
         }
         return new OnDemandCompiler.CompilationRequest(component, sourceHash());
@@ -91,6 +95,12 @@ class LazyExecutionUnit implements AutoCloseable {
             if (activeComponent.sourceHash().equals(currentSourceHash)) {
                 return activeComponent;
             }
+            if (knownSourceHash == null) {
+                currentSourceHash = refreshedSourceHash();
+                if (activeComponent.sourceHash().equals(currentSourceHash)) {
+                    return activeComponent;
+                }
+            }
         }
         closeActive();
         String sourceHash = knownSourceHash == null ? sourceHash() : knownSourceHash;
@@ -104,6 +114,10 @@ class LazyExecutionUnit implements AutoCloseable {
 
     private String sourceHash() {
         return compiler.sourceHash(component);
+    }
+
+    private String refreshedSourceHash() {
+        return compiler.refreshSourceHash(component);
     }
 
     private boolean expired(CompiledExecutionUnit compiled) {
