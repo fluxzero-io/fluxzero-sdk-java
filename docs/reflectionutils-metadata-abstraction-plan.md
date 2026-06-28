@@ -10,6 +10,113 @@ semantics, while reflection remains only a JVM backend implementation detail whe
 The active phase lists only open work. Queued phases capture the next intended work after the active phase. Completed
 slices are kept later in this file as historical evidence.
 
+## Active Phase: Reflection Opt-In Migration
+
+Status: [ ] active.
+
+Context: generated-only mode already proves that semantic reflection fallback can be blocked, but the ordinary JVM
+default is still hybrid: generated/registered metadata wins, with reflection-backed classpath metadata as a
+compatibility fallback. A direct default flip was attempted and rejected as too broad for a setting-only change. The
+strict-default run produced large failure clusters in legacy/TestFixture paths, including `GivenWhenThen*`,
+`AggregateEntitiesTest`, `StatefulHandlerTest`, `HandleWebTest`, `RequestAnnotationProcessorTest`,
+`ChunkedMessageTest`, `LocalHandlerTest`, and scheduling tests. Those failures should be migrated deliberately, not
+hidden behind a silent fallback.
+
+Goal: make reflection-backed app semantics an explicit JVM compatibility opt-in. The final default should fail when
+generated metadata is missing or incomplete, while compatibility tests and legacy surfaces opt into reflection fallback
+by name.
+
+### Slice 1: Explicit Runtime Modes And Compatibility Surface
+
+Status: [ ] next.
+
+- [ ] Add an explicit compatibility mode for reflection fallback, for example
+  `fluxzero.metadata.mode=jvm-compatibility`, with short aliases such as `compatibility` or `hybrid` only if they make
+  migration clearer.
+- [ ] Keep the current default until the migration slices below have isolated legacy/TestFixture behavior.
+- [ ] Add scoped test helpers for compatibility mode so tests do not rely on ambient fallback.
+- [ ] Document the supported modes and the generated-metadata error text.
+- [ ] Ensure strict/generated-only mode keeps rejecting semantic reflection fallback.
+
+Done when:
+
+- [ ] Existing hybrid behavior is reachable through a named mode/helper/property in tests and docs.
+- [ ] Generated-only failures explain the missing registry/invocation/access metadata instead of falling back.
+
+### Slice 2: Cross-Version Fluxzero Handler Benchmark Gate
+
+Status: [ ] queued.
+
+- [ ] Add a benchmark that compiles on both `main` and this branch using only stable Fluxzero APIs.
+- [ ] Cover about 20 `@Handle...` methods invoked through Fluxzero/TestFixture-style dispatch, not through the new
+  generated-invocation backend APIs.
+- [ ] Measure registration/setup separately from warm handler dispatch.
+- [ ] Record timings for `main` and this branch before the default flip.
+- [ ] Keep this benchmark narrow enough to run locally during migration, but broad enough to catch handler
+  matching/parameter-resolution/invocation regressions.
+
+Done when:
+
+- [ ] We have a cross-version app-level number for handler invocation, not only backend-level microbenchmarks.
+- [ ] A regression in the generated-metadata branch is visible before reflection fallback becomes opt-in.
+
+Notes:
+
+- This benchmark is worth doing. `HandlerInvocationBackendBenchmark` answers the backend question, but it cannot run
+  unchanged on `main` because `main` does not have `ExecutableInvocationBackend`,
+  `GeneratedExecutableInvocations`, `ExecutableView`, or `inspectViews`.
+- The existing cross-version `MethodInvokerBenchmark` overlap did not show a regression: on `main`
+  (`f2ac3f33699`), direct 165ms, reflection 385ms, method handle 328ms, lambda invoker 163ms, Fluxzero invoker
+  166ms, Fluxzero handler 235ms; on this branch, direct 164ms, reflection 384ms, method handle 329ms, lambda invoker
+  165ms, Fluxzero invoker 164ms, Fluxzero handler 233ms. That benchmark is still too synthetic to cover full
+  Fluxzero handler routing and fixture dispatch.
+
+### Slice 3: Legacy/TestFixture Compatibility Isolation
+
+Status: [ ] queued.
+
+- [ ] Audit the strict-default failure clusters from the attempted flip.
+- [ ] For each legacy/TestFixture case, either add the generated registry/invocation/access metadata it is missing or
+  opt the test/surface explicitly into JVM compatibility mode.
+- [ ] Avoid broad hidden fallback inside `TestFixture`; compatibility should be visible at the call site, fixture
+  option, or scoped test helper.
+- [ ] Preserve the existing green `sdk-jvm` behavior while making the runtime mode choice explicit.
+
+Done when:
+
+- [ ] Legacy compatibility tests state that they are using the JVM compatibility backend.
+- [ ] Tests that are meant to prove generated metadata run without semantic reflection fallback.
+
+### Slice 4: Generated Metadata Gap Closure
+
+Status: [ ] queued.
+
+- [ ] Fill generated metadata, invocation, and access-plan gaps exposed by the isolation pass.
+- [ ] Prefer adding generated metadata for real app semantics over marking cases as compatibility-only.
+- [ ] Keep the generated model browser-portable: no new semantic dependency on JVM reflection, `LambdaMetafactory`, or
+  method handles.
+
+Done when:
+
+- [ ] The broad generated-only JVM suite is green for cases that should represent normal runtime behavior.
+- [ ] Remaining JVM compatibility coverage is deliberate and documented.
+
+### Slice 5: Default Flip And Release Boundary
+
+Status: [ ] queued.
+
+- [ ] Change the default runtime mode from hybrid to generated metadata first.
+- [ ] Require explicit opt-in for reflection-backed compatibility.
+- [ ] Run broad `sdk-jvm`, annotation processor, Java downstream, Kotlin downstream, and cross-version benchmark
+  verification.
+- [ ] Update release notes/docs to explain the migration path and compatibility opt-in.
+
+Done when:
+
+- [ ] Ordinary JVM runtime startup no longer has silent reflection fallback for Fluxzero app semantics.
+- [ ] Compatibility mode remains available only as an explicit JVM migration/backend choice.
+- [ ] Performance and behavioral baselines are recorded before and after the flip.
+
 ## Completed Mini Phase: Component Registry Slimming
 
 Status: [x] implemented.
@@ -284,15 +391,11 @@ Status: [ ] queued.
 
 ### Reflection Opt-In
 
-Decision to make: generated metadata should become the normal source for Fluxzero app semantics, while reflection-backed
-compatibility should be an explicit JVM opt-in rather than the default fallback.
+Status: moved to `Active Phase: Reflection Opt-In Migration`.
 
-Acceptance questions:
-
-- [ ] What is the default runtime mode for ordinary JVM customer apps once generated registries are present?
-- [ ] Which compatibility mode name/property enables reflection fallback intentionally?
-- [ ] How do errors explain missing generated metadata without surprising existing users?
-- [ ] Which release boundary is appropriate for flipping the default?
+Decision: generated metadata should become the normal source for Fluxzero app semantics, while reflection-backed
+compatibility should be an explicit JVM opt-in rather than the default fallback. This is now an active migration phase,
+not a setting-only flip.
 
 ### Handler JIT After Generated Registry
 
