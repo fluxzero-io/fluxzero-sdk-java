@@ -16,6 +16,7 @@ package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.Fluxzero;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
@@ -104,6 +106,8 @@ public final class ComponentMetadataLookups {
                 }
             });
     private static final ThreadLocal<List<RuntimeMetadataMode>> metadataModeOverrides =
+            ThreadLocal.withInitial(ArrayList::new);
+    private static final ThreadLocal<List<PropertySource>> metadataPropertySourceOverrides =
             ThreadLocal.withInitial(ArrayList::new);
     private static final String CONFIGURED_METADATA_MODE_ENV = normalizedMode(System.getenv(METADATA_MODE_ENV));
 
@@ -671,6 +675,21 @@ public final class ComponentMetadataLookups {
     }
 
     private static String configuredMetadataMode() {
+        return metadataPropertySourceOverride()
+                .flatMap(ComponentMetadataLookups::configuredMetadataMode)
+                .or(() -> Fluxzero.getOptionally()
+                        .map(Fluxzero::propertySource)
+                        .flatMap(ComponentMetadataLookups::configuredMetadataMode))
+                .orElseGet(ComponentMetadataLookups::configuredGlobalMetadataMode);
+    }
+
+    private static Optional<String> configuredMetadataMode(PropertySource propertySource) {
+        return Optional.ofNullable(propertySource.get(METADATA_MODE_PROPERTY))
+                .filter(mode -> !mode.isBlank())
+                .map(ComponentMetadataLookups::normalizedMode);
+    }
+
+    private static String configuredGlobalMetadataMode() {
         String configured = System.getProperty(METADATA_MODE_PROPERTY);
         return configured == null || configured.isBlank() ? CONFIGURED_METADATA_MODE_ENV : configured.trim();
     }
@@ -702,9 +721,31 @@ public final class ComponentMetadataLookups {
         runWithMetadataMode(RuntimeMetadataMode.JVM_COMPATIBILITY, runnable);
     }
 
+    /**
+     * Runs a metadata lookup scope against a builder-level property source before a {@link Fluxzero} instance exists.
+     */
+    public static <T> T callWithMetadataPropertySource(PropertySource propertySource, Callable<T> callable)
+            throws Exception {
+        List<PropertySource> overrides = metadataPropertySourceOverrides.get();
+        overrides.add(propertySource);
+        try {
+            return callable.call();
+        } finally {
+            overrides.remove(overrides.size() - 1);
+            if (overrides.isEmpty()) {
+                metadataPropertySourceOverrides.remove();
+            }
+        }
+    }
+
     private static RuntimeMetadataMode metadataModeOverride() {
         List<RuntimeMetadataMode> overrides = metadataModeOverrides.get();
         return overrides.isEmpty() ? null : overrides.get(overrides.size() - 1);
+    }
+
+    private static Optional<PropertySource> metadataPropertySourceOverride() {
+        List<PropertySource> overrides = metadataPropertySourceOverrides.get();
+        return overrides.isEmpty() ? Optional.empty() : Optional.of(overrides.get(overrides.size() - 1));
     }
 
     private static void runWithMetadataMode(RuntimeMetadataMode mode, ThrowingRunnable runnable) throws Exception {

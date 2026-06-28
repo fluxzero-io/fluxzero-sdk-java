@@ -27,6 +27,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
@@ -75,7 +76,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = FluxzeroSpringConfigTest.Config.class)
-@TestPropertySource(properties = {"existingProperty=test", "emptyProperty="})
+@TestPropertySource(properties = {"existingProperty=test", "emptyProperty=", "fluxzero.metadata.mode=jvm-compatibility"})
 @Slf4j
 public class FluxzeroSpringConfigTest {
     private static final User mockUser = mock(User.class);
@@ -211,7 +212,10 @@ public class FluxzeroSpringConfigTest {
     void explicitStatefulIncludeFilterDoesNotInstantiateHandlerBean() {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.getEnvironment().getPropertySources().addFirst(
-                    new MapPropertySource("testProperties", Map.of("explicitStatefulScan", "true")));
+                    new MapPropertySource("testProperties", Map.of(
+                            "explicitStatefulScan", "true",
+                            ComponentMetadataLookups.METADATA_MODE_PROPERTY,
+                            ComponentMetadataLookups.JVM_COMPATIBILITY_MODE)));
             context.register(ExplicitStatefulScanConfig.class);
             assertDoesNotThrow(context::refresh);
             assertThrows(NoSuchBeanDefinitionException.class, () -> context.getBean(ExplicitlyIncludedStatefulHandler.class));

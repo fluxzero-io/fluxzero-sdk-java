@@ -655,6 +655,7 @@ public class ClasspathComponentScanner {
 
     private static Optional<Object> invoke(Method method, Annotation annotation) {
         try {
+            ensureAccessible(method, annotation);
             return Optional.ofNullable(method.invoke(annotation));
         } catch (ReflectiveOperationException e) {
             return Optional.empty();
@@ -728,12 +729,20 @@ public class ClasspathComponentScanner {
 
     private static Optional<Object> attribute(Annotation annotation, String name) {
         try {
-            return Optional.of(annotation.annotationType().getDeclaredMethod(name).invoke(annotation));
+            Method method = annotation.annotationType().getDeclaredMethod(name);
+            ensureAccessible(method, annotation);
+            return Optional.of(method.invoke(annotation));
         } catch (NoSuchMethodException e) {
             return Optional.empty();
         } catch (ReflectiveOperationException e) {
             throw new ComponentRegistryException("Failed to read annotation attribute `%s` from %s".formatted(
                     name, annotation), e);
+        }
+    }
+
+    private static void ensureAccessible(Method method, Annotation annotation) {
+        if (!method.canAccess(annotation)) {
+            method.setAccessible(true);
         }
     }
 

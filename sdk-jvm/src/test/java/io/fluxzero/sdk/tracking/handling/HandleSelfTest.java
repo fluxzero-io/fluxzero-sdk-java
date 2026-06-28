@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class HandleSelfTest {
 
-    final TestFixture testFixture = TestFixture.create();
+    final TestFixture testFixture = TestFixture.createJvmCompatibility();
 
     @Test
     void query() {
@@ -183,7 +183,7 @@ class HandleSelfTest {
     @Nested
     class AsyncTests {
 
-        final TestFixture testFixture = TestFixture.createAsync();
+        final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility();
 
         @Test
         void logMessage() {
@@ -224,7 +224,7 @@ class HandleSelfTest {
     @Nested
     class TrackSelfTests {
 
-        final TestFixture testFixture = TestFixture.createAsync();
+        final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility();
 
         @TrackSelf
         @Consumer(name = "SelfTracked")
@@ -337,7 +337,8 @@ class HandleSelfTest {
                 }
             }
 
-            Fluxzero fluxzero = DefaultFluxzero.builder().build(LocalClient.newInstance(null));
+            Fluxzero fluxzero = TestFixture.jvmCompatibilityMetadata(DefaultFluxzero.builder())
+                    .build(LocalClient.newInstance(null));
             Registration firstRegistration = fluxzero.registerHandlers(FirstSelfTracked.class);
             Registration secondRegistration = fluxzero.registerHandlers(SecondSelfTracked.class);
             try {

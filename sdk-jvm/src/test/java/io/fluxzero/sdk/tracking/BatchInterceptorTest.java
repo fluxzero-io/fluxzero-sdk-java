@@ -82,7 +82,7 @@ class BatchInterceptorTest {
     void ordersCustomBatchInterceptorsAroundBuiltIns() {
         List<String> invocationOrder = new ArrayList<>();
 
-        TestFixture.createAsync(DefaultFluxzero.builder()
+        TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder()
                         .addBatchInterceptor(new PositiveBatchInterceptor(invocationOrder), COMMAND)
                         .addBatchInterceptor(new HigherPriorityBatchInterceptor(invocationOrder), COMMAND),
                 new Object() {

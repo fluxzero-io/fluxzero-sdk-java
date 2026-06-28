@@ -41,7 +41,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void changeMessageType() {
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                         DefaultFluxzero.builder().addDispatchInterceptor(
                                 (message, messageType, topic) -> message.withPayload(new DifferentCommand()), COMMAND),
                         commandHandler)
@@ -51,7 +51,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void changeMessageContent() {
-        TestFixture.createAsync(
+        TestFixture.createAsyncJvmCompatibility(
                         DefaultFluxzero.builder().addDispatchInterceptor(
                                 (message, messageType, topic) -> message.withPayload(new Command("intercepted")), COMMAND),
                         commandHandler)
@@ -61,7 +61,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void blockMessagePublication() {
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                 DefaultFluxzero.builder().addDispatchInterceptor((message, messageType, topic) -> null, COMMAND),
                 commandHandler)
                 .whenCommand(new Command("whatever"))
@@ -70,7 +70,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void throwException() {
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                         DefaultFluxzero.builder().addDispatchInterceptor((message, messageType, topic) -> {
                             throw new MockException();
                         }, COMMAND), commandHandler)
@@ -82,7 +82,7 @@ public class DispatchInterceptorTest {
     void ordersCustomInterceptorsUsingOrderAnnotation() {
         List<String> invocationOrder = new ArrayList<>();
 
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                         DefaultFluxzero.builder()
                                 .disableMessageCorrelation()
                                 .replaceMessageRoutingInterceptor(DispatchInterceptor.noOp)
@@ -101,7 +101,7 @@ public class DispatchInterceptorTest {
     void acceptsSpringOrderAnnotationWhenPresent() {
         List<String> invocationOrder = new ArrayList<>();
 
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                         DefaultFluxzero.builder()
                                 .disableMessageCorrelation()
                                 .replaceMessageRoutingInterceptor(DispatchInterceptor.noOp)

@@ -44,7 +44,7 @@ import java.util.function.BiFunction;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 class ValidatingInterceptorTest {
-    private final TestFixture testFixture = TestFixture.create(new MockHandler());
+    private final TestFixture testFixture = TestFixture.createJvmCompatibility(new MockHandler());
 
     @Test
     void testWithConstraintViolations() {
@@ -76,14 +76,14 @@ class ValidatingInterceptorTest {
 
     @Test
     void validatesPayloadMethodConstraintWithInjectedUser() {
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                         DefaultFluxzero.builder().registerUserProvider(
                                 new FixedUserProvider(new MockUser("admin"))),
                         new MockHandler())
                 .whenCommand(new UserAwareCommand("admin"))
                 .expectSuccessfulResult();
 
-        TestFixture.create(
+        TestFixture.createJvmCompatibility(
                         DefaultFluxzero.builder().registerUserProvider(
                                 new FixedUserProvider(new MockUser("viewer"))),
                         new MockHandler())
@@ -93,49 +93,49 @@ class ValidatingInterceptorTest {
 
     @Test
     void validatesPayloadMethodConstraintWithInjectedMessage() {
-        TestFixture.create(new MockHandler())
+        TestFixture.createJvmCompatibility(new MockHandler())
                 .whenCommand(new MessageAwareCommand())
                 .expectSuccessfulResult();
     }
 
     @Test
     void skipsPayloadMethodConstraintWhenParameterCannotBeResolved() {
-        TestFixture.create(new MockHandler())
+        TestFixture.createJvmCompatibility(new MockHandler())
                 .whenCommand(new UnresolvedParameterCommand())
                 .expectSuccessfulResult();
     }
 
     @Test
     void validatesReturnValue() {
-        TestFixture.create(new ReturnValueHandler())
+        TestFixture.createJvmCompatibility(new ReturnValueHandler())
                 .whenCommand(new ReturnValueCommand())
                 .expectExceptionalResult(ValidationException.class);
     }
 
     @Test
     void validatesQueryReturnValue() {
-        TestFixture.create(new ReturnValueHandler())
+        TestFixture.createJvmCompatibility(new ReturnValueHandler())
                 .whenQuery(new ReturnValueQuery())
                 .expectExceptionalResult(ValidationException.class);
     }
 
     @Test
     void validatesCustomReturnValue() {
-        TestFixture.create(new ReturnValueHandler())
+        TestFixture.createJvmCompatibility(new ReturnValueHandler())
                 .whenCustom("return-validation", new ReturnValueCustom())
                 .expectExceptionalResult(ValidationException.class);
     }
 
     @Test
     void validatesWebRequestReturnValue() {
-        TestFixture.create(new ReturnValueHandler())
+        TestFixture.createJvmCompatibility(new ReturnValueHandler())
                 .whenWebRequest(WebRequest.get("/return-validation").build())
                 .expectExceptionalResult(ValidationException.class);
     }
 
     @Test
     void ignoresEventReturnValue() {
-        TestFixture.create(new ReturnValueHandler())
+        TestFixture.createJvmCompatibility(new ReturnValueHandler())
                 .whenEvent(new ReturnValueEvent())
                 .expectSuccessfulResult();
     }

@@ -19,6 +19,6 @@ import io.fluxzero.sdk.test.TestFixture;
 public class HandleDocumentAsyncTest extends HandleDocumentTest {
 
     public HandleDocumentAsyncTest() {
-        testFixture = TestFixture.createAsync();
+        testFixture = TestFixture.createAsyncJvmCompatibility();
     }
 }

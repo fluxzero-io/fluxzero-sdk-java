@@ -785,6 +785,14 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            try {
+                return ComponentMetadataLookups.callWithMetadataPropertySource(propertySource, () -> doBuild(client));
+            } catch (Exception e) {
+                throw ObjectUtils.rethrow(e);
+            }
+        }
+
+        private Fluxzero doBuild(@NonNull Client client) {
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
             }

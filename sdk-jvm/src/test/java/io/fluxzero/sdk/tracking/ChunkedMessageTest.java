@@ -62,7 +62,7 @@ class ChunkedMessageTest {
         CompletableFuture<String> completed = new CompletableFuture<>();
         CompletableFuture<Boolean> fluxzeroPresent = new CompletableFuture<>();
         CompletableFuture<Boolean> currentMessagePresent = new CompletableFuture<>();
-        TestFixture.createAsync(new Object() {
+        TestFixture.createAsyncJvmCompatibility(new Object() {
             @HandleEvent
             void handle(DeserializingMessage message) throws Exception {
                 assertEquals(MessageType.EVENT, Tracker.current().orElseThrow().getMessageType());
@@ -90,7 +90,7 @@ class ChunkedMessageTest {
     void deserializesChunkedJsonPayloadIntoSingleObjectAfterFinalChunk() {
         LargePayload expected = new LargePayload("hello world", 42);
         CompletableFuture<LargePayload> handled = new CompletableFuture<>();
-        TestFixture.createAsync(new Object() {
+        TestFixture.createAsyncJvmCompatibility(new Object() {
             @HandleEvent
             void handle(LargePayload payload) {
                 handled.complete(payload);
@@ -113,7 +113,7 @@ class ChunkedMessageTest {
         LargePayload expected = new LargePayload("hello world", 42);
         CompletableFuture<LargePayload> handled = new CompletableFuture<>();
         CompletableFuture<String> pingHandled = new CompletableFuture<>();
-        TestFixture.createAsync(new Object() {
+        TestFixture.createAsyncJvmCompatibility(new Object() {
             @HandleEvent
             void handle(LargePayload payload) {
                 handled.complete(payload);
@@ -142,7 +142,7 @@ class ChunkedMessageTest {
     @Test
     void skipsChunkWhenFirstChunkWasNotObserved() {
         CompletableFuture<String> handled = new CompletableFuture<>();
-        TestFixture.createAsync(new Object() {
+        TestFixture.createAsyncJvmCompatibility(new Object() {
             @HandleEvent
             void handle(DeserializingMessage message) throws Exception {
                 InputStream stream = message.getPayloadAs(InputStream.class);
@@ -159,7 +159,7 @@ class ChunkedMessageTest {
 
     @Test
     void buffersOutOfSequenceObservedContinuationUntilMissingChunkArrives() {
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             firstChunk.setIndex(0L);
             SerializedMessage missing = chunk(fc, "middle ", firstChunk.getMessageId(), false, false, 1);
@@ -182,7 +182,7 @@ class ChunkedMessageTest {
 
     @Test
     void observedContinuationCompletesWithoutReadingMessageIndex() throws Exception {
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             firstChunk.setIndex(0L);
             SerializedMessage secondChunk = chunk(fc, "world", firstChunk.getMessageId(), false, true, 1);
@@ -200,7 +200,7 @@ class ChunkedMessageTest {
 
     @Test
     void recoversFirstChunkFromPagedEarlierRangeWhenContinuationArrivesAfterRestart() throws Exception {
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             long timestamp = 1_764_000_000_000L;
             long timestampIndex = IndexUtils.indexFromMillis(timestamp);
             SerializedMessage noise1 = message(fc, "noise-1");
@@ -248,7 +248,7 @@ class ChunkedMessageTest {
 
     @Test
     void failsStreamReadWhenFinalChunkDoesNotArriveBeforeRequestTimeout() {
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             firstChunk.setIndex(0L);
             firstChunk.setMetadata(firstChunk.getMetadata().with(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY, "50"));

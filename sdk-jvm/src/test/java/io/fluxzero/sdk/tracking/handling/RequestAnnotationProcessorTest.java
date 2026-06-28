@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.ParameterizedType;
 import java.util.List;
 
+import static io.fluxzero.sdk.registry.JvmCompatibilityMetadataMode.call;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,7 +39,7 @@ public class RequestAnnotationProcessorTest {
 
         @Test
         void testStringRequest() {
-            assertEquals(String.class, RequestTypeResolver.responseType(new StringRequest()));
+            assertEquals(String.class, call(() -> RequestTypeResolver.responseType(new StringRequest())));
         }
 
         static class GenericListRequest implements Request<List<String>> {
@@ -46,7 +47,7 @@ public class RequestAnnotationProcessorTest {
 
         @Test
         void testGenericListRequest() {
-            assertTrue(RequestTypeResolver.responseType(new GenericListRequest()) instanceof ParameterizedType pt
+            assertTrue(call(() -> RequestTypeResolver.responseType(new GenericListRequest())) instanceof ParameterizedType pt
                        && pt.getActualTypeArguments().length == 1 && pt.getActualTypeArguments()[0] == String.class);
         }
 
@@ -58,7 +59,7 @@ public class RequestAnnotationProcessorTest {
 
         @Test
         void testConcreteClassRequest() {
-            assertEquals(String.class, RequestTypeResolver.responseType(new ConcreteClassRequest()));
+            assertEquals(String.class, call(() -> RequestTypeResolver.responseType(new ConcreteClassRequest())));
         }
 
         @SuppressWarnings("rawtypes")
@@ -71,8 +72,8 @@ public class RequestAnnotationProcessorTest {
 
         @Test
         void testRawRequest() {
-            assertEquals(Object.class, RequestTypeResolver.responseType(new RawRequest()));
-            assertEquals(Object.class, RequestTypeResolver.responseType(new RawConcreteClassRequest()));
+            assertEquals(Object.class, call(() -> RequestTypeResolver.responseType(new RawRequest())));
+            assertEquals(Object.class, call(() -> RequestTypeResolver.responseType(new RawConcreteClassRequest())));
         }
 
         static abstract class BoundRequest<R extends CharSequence> implements Request<R> {
@@ -83,7 +84,7 @@ public class RequestAnnotationProcessorTest {
 
         @Test
         void testBoundRequest() {
-            assertEquals(String.class, RequestTypeResolver.responseType(new BoundConcreteClassRequest()));
+            assertEquals(String.class, call(() -> RequestTypeResolver.responseType(new BoundConcreteClassRequest())));
         }
 
         interface ListResponse<R> extends List<R> {
@@ -94,7 +95,7 @@ public class RequestAnnotationProcessorTest {
 
         @Test
         void testListResponseRequest() {
-            assertTrue(RequestTypeResolver.responseType(new ListResponseRequest()) instanceof ParameterizedType pt
+            assertTrue(call(() -> RequestTypeResolver.responseType(new ListResponseRequest())) instanceof ParameterizedType pt
                        && pt.getRawType() == ListResponse.class && pt.getActualTypeArguments()[0] == String.class);
         }
     }
@@ -107,7 +108,7 @@ public class RequestAnnotationProcessorTest {
                 return "foo";
             }
         };
-        TestFixture.create(handler)
+        TestFixture.createJvmCompatibility(handler)
                 .whenApplying(fc -> Fluxzero.queryAndWait(new MockQuery()))
                 .expectResult("foo");
     }

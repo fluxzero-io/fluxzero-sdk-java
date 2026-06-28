@@ -30,7 +30,7 @@ import java.util.List;
 
 public class HandleDocumentTest {
 
-    protected TestFixture testFixture = TestFixture.create();
+    protected TestFixture testFixture = TestFixture.createJvmCompatibility();
 
     @Test
     void handleDocument_class() {

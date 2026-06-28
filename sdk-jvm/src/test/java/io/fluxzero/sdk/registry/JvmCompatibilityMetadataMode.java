@@ -17,6 +17,9 @@ package io.fluxzero.sdk.registry;
 import io.fluxzero.common.ThrowingRunnable;
 import lombok.SneakyThrows;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
+
 public final class JvmCompatibilityMetadataMode {
     private JvmCompatibilityMetadataMode() {
     }
@@ -24,5 +27,12 @@ public final class JvmCompatibilityMetadataMode {
     @SneakyThrows
     public static void run(ThrowingRunnable runnable) {
         ComponentMetadataLookups.runInJvmCompatibilityMode(runnable);
+    }
+
+    @SneakyThrows
+    public static <T> T call(Callable<T> callable) {
+        AtomicReference<T> result = new AtomicReference<>();
+        run(() -> result.set(callable.call()));
+        return result.get();
     }
 }

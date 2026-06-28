@@ -76,7 +76,7 @@ public class AggregateEntitiesTest {
 
     @BeforeEach
     void setUp() {
-        testFixture = TestFixture.create().given(
+        testFixture = TestFixture.createJvmCompatibility().given(
                 fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()));
     }
 
@@ -248,7 +248,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void getEntityByAliasPrefersAliasOwnerOverEntityIdMatch() {
-            TestFixture.create()
+            TestFixture.createJvmCompatibility()
                     .given(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
                             .update(ignored -> new AliasCollisionAggregate(
                                     "alias-collision",
@@ -261,7 +261,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void loadEntityByAliasPrefersAliasOwnerOverEntityIdMatch() {
-            TestFixture.create()
+            TestFixture.createJvmCompatibility()
                     .given(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
                             .update(ignored -> new AliasCollisionAggregate(
                                     "alias-collision",
@@ -301,7 +301,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void testRouteToGrandchild() {
-            testFixture = TestFixture.create().given(
+            testFixture = TestFixture.createJvmCompatibility().given(
                     fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()));
             testFixture.whenCommand(new Object() {
                         @HandleCommand
@@ -688,7 +688,7 @@ public class AggregateEntitiesTest {
             @Test
             void testAddSingleton_illegalWhenParentMissing() {
                 MissingChildId childId = new MissingChildId("missing");
-                TestFixture.create()
+                TestFixture.createJvmCompatibility()
                         .registerHandlers(new Object() {
                             @HandleCommand
                             void handle(Object command) {
@@ -725,7 +725,7 @@ public class AggregateEntitiesTest {
             @Test
             void findChildJustAfterAdding() {
                 MissingChildId childId = new MissingChildId("missing");
-                TestFixture.create().given(
+                TestFixture.createJvmCompatibility().given(
                                 fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()))
                         .registerHandlers(new Object() {
                             @HandleCommand
@@ -781,7 +781,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void testAddListChildAndRootInSingleApplyWhenPayloadContainsAggregateAndChildId() {
-                TestFixture.create().given(fc -> loadAggregate("payment", PaymentAggregate.class)
+                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("payment", PaymentAggregate.class)
                                 .update(s -> PaymentAggregate.builder().paymentId("payment").build()))
                         .registerHandlers(new Object() {
                             @HandleCommand
@@ -802,7 +802,7 @@ public class AggregateEntitiesTest {
             void testAddTypedListChildAndRootInSingleApplyWithTimestampParameters() {
                 TypedPaymentId paymentId = new TypedPaymentId("payment");
                 TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
-                TestFixture.create()
+                TestFixture.createJvmCompatibility()
                         .whenCommand(new CreateTypedPayment(paymentId))
                         .andThen()
                         .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
@@ -820,7 +820,7 @@ public class AggregateEntitiesTest {
             void testReplayTypedListChildAndRootInSingleApplyWithTimestampParameters() {
                 TypedPaymentId paymentId = new TypedPaymentId("payment");
                 TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
-                TestFixture.create()
+                TestFixture.createJvmCompatibility()
                         .givenCommands(new CreateTypedPayment(paymentId),
                                        new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
                         .whenApplying(fc -> loadAggregate(paymentId, TypedPaymentAggregate.class).get())
@@ -835,7 +835,7 @@ public class AggregateEntitiesTest {
             void testReplayTypedListChildAndRootInSingleApplyRejectsDuplicateAttemptId() {
                 TypedPaymentId paymentId = new TypedPaymentId("payment");
                 TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
-                TestFixture.create()
+                TestFixture.createJvmCompatibility()
                         .givenCommands(new CreateTypedPayment(paymentId),
                                        new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
                         .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
@@ -844,7 +844,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void addNestedChildWithParentRoutingKeyUsesMatchingParent() {
-                TestFixture.create().given(fc -> loadAggregate("organisation", Organisation.class)
+                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("organisation", Organisation.class)
                                 .update(s -> new Organisation("organisation",
                                                               List.of(new Location("location-1", List.of()),
                                                                       new Location("location-2", List.of())))))
@@ -869,7 +869,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithParentRoutingKeyUsesMatchingParent() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(Object command) {
                                 loadAggregate("organisation", Organisation.class).apply(command);
@@ -892,7 +892,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithAggregateRoutingKeyAndParentIdUsesMatchingParent() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateOrganisation command) {
                                 loadAggregate(command.organisationId(), Organisation.class).apply(command);
@@ -920,7 +920,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithTypedParentIdFallsBackFromAggregateRoutingKeyToParentId() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateTypedOrganisation command) {
                                 loadAggregate(command.organisationId(), TypedOrganisation.class).apply(command);
@@ -949,7 +949,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithAggregateRoutingKeyCanUseParentAlias() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateAliasOrganisation command) {
                                 loadAggregate(command.organisationId(), AliasOrganisation.class).apply(command);
@@ -977,7 +977,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithChildRoutingKeyAndParentIdUsesMatchingParent() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateOrganisation command) {
                                 loadAggregate(command.organisationId(), Organisation.class).apply(command);
@@ -1005,7 +1005,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayDeepNestedChildWithRootRoutingKeyUsesMatchingGrandParentAndParent() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateEndpointOrganisation command) {
                                 loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
@@ -1030,7 +1030,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayDeepNestedChildWithParentRoutingKeyUsesMatchingParent() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateEndpointOrganisation command) {
                                 loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
@@ -1054,7 +1054,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayDeepNestedChildWithChildRoutingKeyUpdatesExistingChild() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateEndpointOrganisation command) {
                                 loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
@@ -1085,7 +1085,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayFourthLevelChildWithRootRoutingKeyUsesAllIntermediateIds() {
-                TestFixture.create(new Object() {
+                TestFixture.createJvmCompatibility(new Object() {
                             @HandleCommand
                             void handle(CreateCredentialOrganisation command) {
                                 loadAggregate(command.organisationId(), CredentialOrganisation.class).apply(command);
@@ -1112,7 +1112,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void testUpdateNestedMemberInRecordOwnerUsingWithMethod() {
-                TestFixture.create().given(fc -> loadAggregate("record", RecordAggregate.class)
+                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("record", RecordAggregate.class)
                                 .update(s -> new RecordAggregate("record",
                                                                  new RecordChild("recordChild",
                                                                                  new RecordGrandChild("gc0")))))
@@ -1129,7 +1129,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void testUpdateNestedMemberInRecordOwnerUsingCanonicalConstructor() {
-                TestFixture.create().given(fc -> loadAggregate("constructor-record", ConstructorRecordAggregate.class)
+                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("constructor-record", ConstructorRecordAggregate.class)
                                 .update(s -> new ConstructorRecordAggregate(
                                         "constructor-record",
                                         new ConstructorRecordChild("recordChild",
@@ -1342,7 +1342,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void duplicateNonNullEntityIdsInOneListCanStillBeTraversed() {
-                TestFixture.create()
+                TestFixture.createJvmCompatibility()
                         .whenApplying(fc -> loadAggregate("duplicate-list", DuplicateListAggregate.class)
                                 .update(s -> new DuplicateListAggregate(
                                         "duplicate-list",
@@ -1566,7 +1566,7 @@ public class AggregateEntitiesTest {
 
     @Nested
     class MutableEntityTests {
-        private final TestFixture testFixture = TestFixture.create(new CommandHandler()).given(
+        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new CommandHandler()).given(
                 fc -> loadAggregate("test", MutableAggregate.class)
                         .update(s -> new MutableAggregate(null)));
 
@@ -1693,7 +1693,7 @@ public class AggregateEntitiesTest {
 
     @Nested
     class RecursiveRootAggregateTests {
-        private final TestFixture recursiveFixture = TestFixture.create(new Object() {
+        private final TestFixture recursiveFixture = TestFixture.createJvmCompatibility(new Object() {
             @HandleCommand
             void handle(Object command) {
                 loadAggregate("root", Folder.class).apply(command);
@@ -1946,7 +1946,7 @@ public class AggregateEntitiesTest {
 
     @Nested
     class RecursiveWrappedAggregateTests {
-        private final TestFixture wrappedFixture = TestFixture.create(new Object() {
+        private final TestFixture wrappedFixture = TestFixture.createJvmCompatibility(new Object() {
             @HandleCommand
             void handle(Object command) {
                 loadAggregate("tree", FolderAggregate.class).apply(command);

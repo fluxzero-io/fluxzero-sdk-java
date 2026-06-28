@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 class JsonPayloadParameterResolverTest {
 
-    TestFixture testFixture = TestFixture.create();
+    TestFixture testFixture = TestFixture.createJvmCompatibility();
 
     @Test
     void payloadToJsonNode() {

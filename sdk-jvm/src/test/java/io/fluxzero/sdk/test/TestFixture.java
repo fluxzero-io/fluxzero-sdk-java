@@ -61,6 +61,7 @@ import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.scheduling.ScheduledCommand;
@@ -273,6 +274,39 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     /**
+     * Creates a synchronous fixture that explicitly opts into JVM compatibility metadata mode.
+     * <p>
+     * This mode is intended for legacy fixture tests that still exercise reflection-backed JVM semantics while the
+     * default runtime migrates to generated metadata.
+     */
+    public static TestFixture createJvmCompatibility(Object... handlers) {
+        return create(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlers);
+    }
+
+    /**
+     * Creates a synchronous fixture with a custom builder that explicitly opts into JVM compatibility metadata mode.
+     */
+    public static TestFixture createJvmCompatibility(FluxzeroBuilder fluxzeroBuilder, Object... handlers) {
+        return create(jvmCompatibilityMetadata(fluxzeroBuilder), handlers);
+    }
+
+    /**
+     * Creates a synchronous fixture with a handler factory that explicitly opts into JVM compatibility metadata mode.
+     */
+    public static TestFixture createJvmCompatibility(Function<Fluxzero, List<?>> handlersFactory) {
+        return create(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlersFactory);
+    }
+
+    /**
+     * Creates a synchronous fixture with a custom builder and handler factory that explicitly opts into JVM
+     * compatibility metadata mode.
+     */
+    public static TestFixture createJvmCompatibility(FluxzeroBuilder fluxzeroBuilder,
+                                                     Function<Fluxzero, List<?>> handlersFactory) {
+        return create(jvmCompatibilityMetadata(fluxzeroBuilder), handlersFactory);
+    }
+
+    /**
      * Creates an asynchronous {@code TestFixture} with the given handlers.
      * <p>
      * In async mode, messages are dispatched to handlers in separate threads unless they are marked with
@@ -321,6 +355,36 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     /**
+     * Creates an asynchronous fixture that explicitly opts into JVM compatibility metadata mode.
+     */
+    public static TestFixture createAsyncJvmCompatibility(Object... handlers) {
+        return createAsync(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlers);
+    }
+
+    /**
+     * Creates an asynchronous fixture with a custom builder that explicitly opts into JVM compatibility metadata mode.
+     */
+    public static TestFixture createAsyncJvmCompatibility(FluxzeroBuilder fluxzeroBuilder, Object... handlers) {
+        return createAsync(jvmCompatibilityMetadata(fluxzeroBuilder), handlers);
+    }
+
+    /**
+     * Creates an asynchronous fixture with a handler factory that explicitly opts into JVM compatibility metadata mode.
+     */
+    public static TestFixture createAsyncJvmCompatibility(Function<Fluxzero, List<?>> handlersFactory) {
+        return createAsync(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlersFactory);
+    }
+
+    /**
+     * Creates an asynchronous fixture with a custom builder and handler factory that explicitly opts into JVM
+     * compatibility metadata mode.
+     */
+    public static TestFixture createAsyncJvmCompatibility(FluxzeroBuilder fluxzeroBuilder,
+                                                         Function<Fluxzero, List<?>> handlersFactory) {
+        return createAsync(jvmCompatibilityMetadata(fluxzeroBuilder), handlersFactory);
+    }
+
+    /**
      * Creates an asynchronous {@code TestFixture} using a custom {@link FluxzeroBuilder}, a handler factory, and a
      * preconfigured {@link Client}.
      * <p>
@@ -335,6 +399,23 @@ public class TestFixture implements Given<TestFixture>, When {
     public static TestFixture createAsync(FluxzeroBuilder fluxzeroBuilder, Client client,
                                           Object... handlers) {
         return new TestFixture(fluxzeroBuilder, fc -> Arrays.asList(handlers), client, false);
+    }
+
+    /**
+     * Creates an asynchronous fixture with a custom builder, client and explicit JVM compatibility metadata mode.
+     */
+    public static TestFixture createAsyncJvmCompatibility(FluxzeroBuilder fluxzeroBuilder, Client client,
+                                                          Object... handlers) {
+        return createAsync(jvmCompatibilityMetadata(fluxzeroBuilder), client, handlers);
+    }
+
+    /**
+     * Prepends the JVM compatibility metadata-mode property to a builder.
+     */
+    public static FluxzeroBuilder jvmCompatibilityMetadata(FluxzeroBuilder fluxzeroBuilder) {
+        return fluxzeroBuilder.replacePropertySource(source -> new SimplePropertySource(Map.of(
+                ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.JVM_COMPATIBILITY_MODE))
+                .andThen(source));
     }
 
     public static Duration defaultResultTimeout = Duration.ofSeconds(2L);

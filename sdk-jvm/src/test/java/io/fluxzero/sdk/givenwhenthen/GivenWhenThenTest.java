@@ -45,7 +45,7 @@ import static org.mockito.Mockito.*;
 class GivenWhenThenTest {
 
     private final CommandHandler commandHandler = spy(new CommandHandler());
-    private TestFixture testFixture = TestFixture.create(commandHandler);
+    private TestFixture testFixture = TestFixture.createJvmCompatibility(commandHandler);
 
     @Test
     void testInjectingMockBeans() {
@@ -80,14 +80,14 @@ class GivenWhenThenTest {
 
     @Test
     void registeringHandlerAsClassWorks() {
-        TestFixture.create(CommandHandler.class).whenCommand(new YieldsEventAndResult())
+        TestFixture.createJvmCompatibility(CommandHandler.class).whenCommand(new YieldsEventAndResult())
                 .expectOnlyEvents(new YieldsEventAndResult())
                 .expectResult(String.class);
     }
 
     @Test
     void registeringHandlerAsClassWorks_async() {
-        TestFixture.createAsync(CommandHandler.class).whenCommand(new YieldsEventAndResult())
+        TestFixture.createAsyncJvmCompatibility(CommandHandler.class).whenCommand(new YieldsEventAndResult())
                 .expectOnlyEvents(new YieldsEventAndResult())
                 .expectResult(String.class);
     }
@@ -204,7 +204,7 @@ class GivenWhenThenTest {
 
     @Test
     void testMultiHandler() {
-        testFixture = TestFixture.create(commandHandler, new EventHandler());
+        testFixture = TestFixture.createJvmCompatibility(commandHandler, new EventHandler());
         testFixture.whenCommand(new YieldsEventAndNoResult())
                 .expectEvents(new YieldsEventAndNoResult())
                 .expectCommands(new YieldsNoResult());
@@ -212,7 +212,7 @@ class GivenWhenThenTest {
 
     @Test
     void testExpectNoCommandLike_predicate() {
-        testFixture = TestFixture.create(commandHandler, new EventHandler());
+        testFixture = TestFixture.createJvmCompatibility(commandHandler, new EventHandler());
         // EventHandler sends a YieldsNoResult command; predicate does not match
         testFixture.whenCommand(new YieldsEventAndNoResult())
                 .expectNoCommandLike(o -> o instanceof String);
@@ -220,7 +220,7 @@ class GivenWhenThenTest {
 
     @Test
     void testMultiHandlerWithExceptionInEventHandler() {
-        testFixture = TestFixture.create(commandHandler, new ThrowingEventHandler());
+        testFixture = TestFixture.createJvmCompatibility(commandHandler, new ThrowingEventHandler());
         testFixture.whenCommand(new YieldsEventAndNoResult())
                 .expectEvents(new YieldsEventAndNoResult())
                 .expectSuccessfulResult()
@@ -273,19 +273,19 @@ class GivenWhenThenTest {
 
     @Test
     void testExpectMetrics() {
-        TestFixture.createAsync(commandHandler).whenCommand(new YieldsNoResult())
+        TestFixture.createAsyncJvmCompatibility(commandHandler).whenCommand(new YieldsNoResult())
                 .expectMetrics(ProcessBatchEvent.class);
     }
 
     @Test
     void testExpectNoMetricsLike() {
-        TestFixture.createAsync(commandHandler).whenCommand(new YieldsNoResult()).expectNoMetricsLike(String.class);
+        TestFixture.createAsyncJvmCompatibility(commandHandler).whenCommand(new YieldsNoResult()).expectNoMetricsLike(String.class);
     }
 
     @Test
     void testExpectNoMetricLike_predicate() {
         // ProcessBatchEvent metric is emitted by async fixture; predicate must not match
-        TestFixture.createAsync(commandHandler)
+        TestFixture.createAsyncJvmCompatibility(commandHandler)
                 .whenCommand(new YieldsNoResult())
                 .expectNoMetricLike(o -> o instanceof String);
     }
@@ -293,7 +293,7 @@ class GivenWhenThenTest {
     @Test
     void testGivenMetrics() {
         MetricHandler handler = new MetricHandler();
-        TestFixture.create(handler)
+        TestFixture.createJvmCompatibility(handler)
                 .givenMetrics(new ManualMetric("given"))
                 .whenApplying(fc -> null)
                 .expectThat(fc -> assertEquals(1, handler.count))
@@ -302,7 +302,7 @@ class GivenWhenThenTest {
 
     @Test
     void testWhenMetric() {
-        TestFixture.create(new MetricHandler())
+        TestFixture.createJvmCompatibility(new MetricHandler())
                 .whenMetric(new ManualMetric("alpha"))
                 .expectOnlyEvents("metric:alpha")
                 .expectMetrics(new DerivedMetric("alpha"));
@@ -310,7 +310,7 @@ class GivenWhenThenTest {
 
     @Test
     void testWhenMetricAsJson() {
-        TestFixture.create(new MetricHandler())
+        TestFixture.createJvmCompatibility(new MetricHandler())
                 .whenMetric("manual-metric.json")
                 .expectOnlyEvents("metric:json")
                 .expectMetric((DerivedMetric metric) -> metric.getName().equals("json"));
@@ -319,7 +319,7 @@ class GivenWhenThenTest {
     @Test
     void testTimestampInject() {
         Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
-        TestFixture.create(new Object() {
+        TestFixture.createJvmCompatibility(new Object() {
             @HandleCommand
             Instant handle(String payload, Instant timestamp) {
                 return timestamp;
@@ -330,7 +330,7 @@ class GivenWhenThenTest {
     @Test
     void testClockInject() {
         Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
-        TestFixture.create(new Object() {
+        TestFixture.createJvmCompatibility(new Object() {
             @HandleCommand
             Instant handle(String payload, Clock clock) {
                 return clock.instant();

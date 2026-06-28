@@ -56,7 +56,7 @@ class GivenWhenThenSchedulingTest {
     private static final String atStartOfDay = "0 0 * * *";
     private static final String LEGACY_DEFAULTS_VERSION = "2026.05.20";
     private static final String NEW_DEFAULTS_VERSION = "2026.05.21";
-    private final TestFixture subject = TestFixture.create(new CommandHandler(), new ScheduleHandler());
+    private final TestFixture subject = TestFixture.createJvmCompatibility(new CommandHandler(), new ScheduleHandler());
 
     @Test
     void testExpectCommandAfterDeadline() {
@@ -134,7 +134,7 @@ class GivenWhenThenSchedulingTest {
     void scheduleIndexCurrentTimeAlwaysNew() {
         String scheduleId = "test1323";
         AtomicReference<Long> firstIndex = new AtomicReference<>();
-        TestFixture.createAsync().spy()
+        TestFixture.createAsyncJvmCompatibility().spy()
                 .whenExecuting(fc -> Fluxzero.schedule("foo1", scheduleId, subject.getCurrentTime()))
                 .expectThat(fc -> firstIndex.set(fc.client().getSchedulingClient().getSchedule(scheduleId).getMessage().getIndex()))
                 .andThen()
@@ -150,7 +150,7 @@ class GivenWhenThenSchedulingTest {
     @Nested
     class BranchIdTracing {
         private final Instant start = Instant.parse("2024-01-01T00:00:00Z");
-        private final TestFixture fixture = TestFixture.createAsync(new BranchIdCommandHandler(),
+        private final TestFixture fixture = TestFixture.createAsyncJvmCompatibility(new BranchIdCommandHandler(),
                                                                     new BranchIdScheduleHandler())
                 .atFixedTime(start);
 
@@ -207,7 +207,7 @@ class GivenWhenThenSchedulingTest {
         private final Instant start = Instant.parse("2023-07-01T12:10:00Z");
         private final Instant afterOneHour = start.truncatedTo(ChronoUnit.HOURS).plus(Duration.ofHours(1));
 
-        private final TestFixture testFixture = TestFixture.create().atFixedTime(start)
+        private final TestFixture testFixture = TestFixture.createJvmCompatibility().atFixedTime(start)
                 .registerHandlers(new Object() {
                     @HandleSchedule
                     @Periodic(cron = "0 * * * *")
@@ -239,7 +239,7 @@ class GivenWhenThenSchedulingTest {
 
         @Test
         void testPeriodicCronScheduleViaProperty() {
-            TestFixture.create()
+            TestFixture.createJvmCompatibility()
                     .withProperty("cronSchedule", "0 * * * *")
                     .atFixedTime(start)
                     .registerHandlers(new Object() {
@@ -258,7 +258,7 @@ class GivenWhenThenSchedulingTest {
 
         @Test
         void disablePeriodicUsingSpecialExpression() {
-            TestFixture.create().atFixedTime(start)
+            TestFixture.createJvmCompatibility().atFixedTime(start)
                     .registerHandlers(new Object() {
                         @HandleSchedule
                         @Periodic(cron = Periodic.DISABLED)
@@ -271,7 +271,7 @@ class GivenWhenThenSchedulingTest {
 
         @Test
         void useCronWithTimeZone() {
-            TestFixture.create().atFixedTime(Instant.parse("2023-07-01T12:00:00+02:00"))
+            TestFixture.createJvmCompatibility().atFixedTime(Instant.parse("2023-07-01T12:00:00+02:00"))
                     .registerHandlers(new Object() {
                         @HandleSchedule
                         @Periodic(cron = atStartOfDay, timeZone = "Europe/Amsterdam")
@@ -284,7 +284,7 @@ class GivenWhenThenSchedulingTest {
 
         @Test
         void disablePeriodicUsingSpecialExpression_viaMissingProperty() {
-            TestFixture.create().atFixedTime(start)
+            TestFixture.createJvmCompatibility().atFixedTime(start)
                     .registerHandlers(new Object() {
                         @HandleSchedule
                         @Periodic(cron = "${someMissingProperty:-}")
@@ -298,7 +298,7 @@ class GivenWhenThenSchedulingTest {
         @Test
         void testScheduleExpiresBeforeEarlierScheduleIfClockIsChanged() {
             Object schedule = "schedule";
-            TestFixture.create(new Object() {
+            TestFixture.createJvmCompatibility(new Object() {
                         @HandleSchedule
                         @Periodic(cron = "0 * * * *")
                         void handle(Object schedule) {
@@ -340,7 +340,7 @@ class GivenWhenThenSchedulingTest {
         void featureFlagEnablesImplicitFixedDelayDefault() {
             Instant deadline = start.plusSeconds(60);
 
-            TestFixture.create().atFixedTime(start)
+            TestFixture.createJvmCompatibility().atFixedTime(start)
                     .withProperty(Periodic.USE_DEFAULT_INITIAL_DELAY_PROPERTY, true)
                     .whenExecuting(fc -> fc.registerHandlers(new ImplicitFixedDelayHandler("flag delay")))
                     .expectNoEvents()
@@ -381,7 +381,7 @@ class GivenWhenThenSchedulingTest {
         }
 
         private TestFixture fixtureWithDefaults(String defaultsVersion) {
-            TestFixture fixture = TestFixture.create().atFixedTime(start);
+            TestFixture fixture = TestFixture.createJvmCompatibility().atFixedTime(start);
             if (defaultsVersion != null) {
                 fixture.withProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, defaultsVersion);
             }
@@ -421,7 +421,7 @@ class GivenWhenThenSchedulingTest {
     class SchedulingErrorTests {
         @Test
         void stopAfterError() {
-            TestFixture.create(new Object() {
+            TestFixture.createJvmCompatibility(new Object() {
                         @HandleSchedule
                         @Periodic(continueOnError = false, delay = 60, initialDelay = 0,
                                 timeUnit = TimeUnit.MINUTES)
@@ -436,7 +436,7 @@ class GivenWhenThenSchedulingTest {
 
         @Test
         void continueAfterError() {
-            TestFixture.create(new Object() {
+            TestFixture.createJvmCompatibility(new Object() {
                         private int count = 0;
 
                         @HandleSchedule
@@ -455,7 +455,7 @@ class GivenWhenThenSchedulingTest {
 
         @Test
         void otherDelayAfterError() {
-            TestFixture.create(new Object() {
+            TestFixture.createJvmCompatibility(new Object() {
                         private int count = 0;
 
                         @HandleSchedule
@@ -507,7 +507,7 @@ class GivenWhenThenSchedulingTest {
     @Test
     void testExpectScheduledCommand_async() {
         Instant deadline = Instant.now().plusSeconds(10);
-        TestFixture.createAsync(new CommandHandler())
+        TestFixture.createAsyncJvmCompatibility(new CommandHandler())
                 .whenCommand(new YieldsScheduledCommand("command", "testId", deadline))
                 .expectScheduledCommand("command");
     }
@@ -617,7 +617,7 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void testAutomaticPeriodicScheduleWithMethodAnnotation() {
-        TestFixture.create(new MethodPeriodicHandler())
+        TestFixture.createJvmCompatibility(new MethodPeriodicHandler())
                 .whenTimeElapses(Duration.ofMillis(1000)).expectNewSchedules(MethodPeriodicSchedule.class);
     }
 
@@ -629,7 +629,7 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void testAlteredPayloadPeriodic() {
-        TestFixture.create(new AlteredPayloadPeriodicHandler())
+        TestFixture.createJvmCompatibility(new AlteredPayloadPeriodicHandler())
                 .whenTimeElapses(Duration.ofMillis(1000)).expectOnlyNewSchedules(new YieldsAlteredSchedule(1));
     }
 
@@ -651,7 +651,7 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void testCancellingPeriodic() {
-        TestFixture.create(new CancellingPeriodicHandler())
+        TestFixture.createJvmCompatibility(new CancellingPeriodicHandler())
                 .whenTimeElapses(Duration.ofMillis(1000))
                 .expectNoNewSchedules()
                 .expectNoSchedules();
@@ -659,7 +659,7 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void testAlteredPayloadNonPeriodic() {
-        TestFixture subject = TestFixture.create(new AlteredPayloadNonPeriodicHandler());
+        TestFixture subject = TestFixture.createJvmCompatibility(new AlteredPayloadNonPeriodicHandler());
         Instant deadline = subject.getCurrentTime().plusSeconds(1);
         subject.givenSchedules(new Schedule(new YieldsAlteredSchedule(), "test", deadline))
                 .whenTimeAdvancesTo(deadline).expectOnlyNewSchedules(new YieldsAlteredSchedule(1));
@@ -667,7 +667,7 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void testAlteredPayloadNonPeriodicReturningSchedule() {
-        TestFixture subject = TestFixture.create(new AlteredPayloadNonPeriodicHandlerReturningSchedule());
+        TestFixture subject = TestFixture.createJvmCompatibility(new AlteredPayloadNonPeriodicHandlerReturningSchedule());
         Instant deadline = subject.getCurrentTime().plusSeconds(1);
         subject.givenSchedules(new Schedule(new YieldsAlteredSchedule(), "test", deadline))
                 .whenTimeAdvancesTo(deadline).expectOnlyNewSchedules(new YieldsAlteredSchedule(1));
@@ -675,35 +675,35 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void testInterfacePeriodicHandler() {
-        TestFixture.create(new InterfacePeriodicHandler())
+        TestFixture.createJvmCompatibility(new InterfacePeriodicHandler())
                 .whenTimeElapses(Duration.ofMillis(1000))
                 .expectNewSchedules(PeriodicScheduleFromInterface.class);
     }
 
     @Test
     void localScheduleHandlerIsTriggeredByTaskSchedulerInAsyncFixture() {
-        TestFixture.createAsync(new LocalScheduleHandler())
+        TestFixture.createAsyncJvmCompatibility(new LocalScheduleHandler())
                 .whenScheduleExpires(new LocalSchedule())
                 .expectOnlyEvents("local schedule");
     }
 
     @Test
     void payloadScheduleHandlerWithoutTrackSelfIsHandledLocally() {
-        TestFixture.createAsync()
+        TestFixture.createAsyncJvmCompatibility()
                 .whenScheduleExpires(new LocalSelfSchedule())
                 .expectOnlyEvents("local self schedule");
     }
 
     @Test
     void localPeriodicScheduleHandlerIsTriggeredByTaskSchedulerInAsyncFixture() {
-        TestFixture.createAsync(new LocalPeriodicScheduleHandler())
+        TestFixture.createAsyncJvmCompatibility(new LocalPeriodicScheduleHandler())
                 .whenTimeElapses(Duration.ofMillis(1000))
                 .expectEvents("local periodic schedule");
     }
 
     @Test
     void autoStartedLocalPeriodicScheduleIsScheduledWhenRegisteredDuringWhen() {
-        TestFixture.create()
+        TestFixture.createJvmCompatibility()
                 .whenExecuting(fc -> fc.registerHandlers(new LocalPeriodicScheduleHandler()))
                 .expectNoEvents()
                 .expectNewSchedules(LocalPeriodicSchedule.class);
@@ -714,7 +714,7 @@ class GivenWhenThenSchedulingTest {
         Instant start = Instant.parse("2024-01-01T00:00:00Z");
         Instant firstDeadline = start.plusMillis(1000);
 
-        TestFixture.createAsync(new LocalPeriodicReturnHandler()).atFixedTime(start)
+        TestFixture.createAsyncJvmCompatibility(new LocalPeriodicReturnHandler()).atFixedTime(start)
                 .givenSchedules(new Schedule(new LocalPeriodicDurationReturn(), "local-duration", firstDeadline),
                                 new Schedule(new LocalPeriodicInstantReturn(), "local-instant", firstDeadline),
                                 new Schedule(new LocalPeriodicPayloadReturn(), "local-payload", firstDeadline),
@@ -729,7 +729,7 @@ class GivenWhenThenSchedulingTest {
 
     @Test
     void statefulScheduleCreatedBeforeStateIsStoredIsTriggeredLocally() {
-        TestFixture.create(StatefulScheduleProcess.class)
+        TestFixture.createJvmCompatibility(StatefulScheduleProcess.class)
                 .whenCommand(new StartStatefulScheduleProcess("process-1"))
                 .expectNewSchedules(new StatefulSchedule("process-1"))
                 .andThen()
@@ -767,7 +767,7 @@ class GivenWhenThenSchedulingTest {
     @Test
     void testScheduledCommand_async() {
         Instant deadline = Instant.now().plusSeconds(10);
-        TestFixture.createAsync(new CommandHandler())
+        TestFixture.createAsyncJvmCompatibility(new CommandHandler())
                 .givenScheduledCommands(new Schedule("some command", deadline).addMetadata("a", "b"))
                 .whenTimeAdvancesTo(deadline)
                 .expectCommands("some command");

@@ -185,7 +185,7 @@ class SelectiveCacheTest {
         private final RebuildAwareCache booleanCache = new RebuildAwareCache();
         private final RebuildAwareCache fallbackCache = new RebuildAwareCache();
 
-        private final TestFixture testFixture = TestFixture.create(
+        private final TestFixture testFixture = TestFixture.createJvmCompatibility(
                 DefaultFluxzero.builder()
                         .disableAutomaticAggregateCaching()
                         .replaceCache(fallbackCache)

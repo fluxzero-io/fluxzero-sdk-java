@@ -24,7 +24,7 @@ import java.time.temporal.ChronoUnit;
 
 class HandleNotificationTests {
 
-    TestFixture testFixture = TestFixture.createAsync(new Object() {
+    TestFixture testFixture = TestFixture.createAsyncJvmCompatibility(new Object() {
         @HandleNotification
         void handle(Integer event) {
             Fluxzero.publishEvent(String.valueOf(event));
@@ -38,14 +38,14 @@ class HandleNotificationTests {
 
     @Test
     void handlerReceivesEventAndNotification() {
-        TestFixture.createAsync(new CombinedHandler())
+        TestFixture.createAsyncJvmCompatibility(new CombinedHandler())
                 .whenEvent(new CombinedInput(1))
                 .expectOnlyEvents(new EventHandled(1), new NotificationHandled(1));
     }
 
     @Test
     void consumerAnnotatedHandlerReceivesEventAndNotification() {
-        TestFixture.createAsync(new ConsumerAnnotatedCombinedHandler())
+        TestFixture.createAsyncJvmCompatibility(new ConsumerAnnotatedCombinedHandler())
                 .whenEvent(new CombinedInput(2))
                 .expectOnlyEvents(new EventHandled(2), new NotificationHandled(2));
     }

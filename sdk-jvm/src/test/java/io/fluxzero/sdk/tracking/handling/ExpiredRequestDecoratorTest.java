@@ -29,6 +29,7 @@ import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.JvmCompatibilityMetadataMode;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.metrics.HandleMessageEvent;
@@ -59,7 +60,8 @@ class ExpiredRequestDecoratorTest {
 
     @Test
     void commandHandlersCanOptInToSkippingExpiredRequests() {
-        Handler<DeserializingMessage> handler = handler(MessageType.COMMAND, new SkippingCommandHandler());
+        Handler<DeserializingMessage> handler = JvmCompatibilityMetadataMode.call(
+                () -> handler(MessageType.COMMAND, new SkippingCommandHandler()));
 
         assertFalse(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
     }
@@ -76,7 +78,15 @@ class ExpiredRequestDecoratorTest {
                 true, HandleCommand.class, null, (e, a) -> Optional.empty())
                 .wrap(singleInvoker(LocalSkippingCommandHandler.class, executable));
 
-        assertFalse(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(LocalSkippingCommandHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() ->
+                    assertFalse(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent()));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     @Test
@@ -144,7 +154,7 @@ class ExpiredRequestDecoratorTest {
     void skippedRequestsPublishIgnoreMessageMetricsInsteadOfHandleMessageMetrics() {
         Handler<DeserializingMessage> handler = handler(MessageType.QUERY, new QueryHandler());
 
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             assertFalse(handler.getInvoker(expiredMessage(MessageType.QUERY, true)).isPresent());
             return null;
         }).<IgnoreMessageEvent>expectMetric(e -> e.getReason().equals(IgnoreMessageEvent.EXPIRED_REQUEST)
@@ -157,7 +167,7 @@ class ExpiredRequestDecoratorTest {
     void handlerFactoryDoesNotPublishIgnoreMessageMetricsWhenTrackingMetricsAreDisabled() {
         Handler<DeserializingMessage> handler = handler(MessageType.QUERY, new QueryHandler(), false);
 
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             assertFalse(handler.getInvoker(expiredMessage(MessageType.QUERY, true)).isPresent());
             return null;
         }).expectNoMetricsLike(IgnoreMessageEvent.class);
@@ -167,7 +177,7 @@ class ExpiredRequestDecoratorTest {
     void nonMatchingHandlerMethodsDoNotPublishIgnoreMessageMetrics() {
         Handler<DeserializingMessage> handler = handler(MessageType.QUERY, new TypedQueryHandler());
 
-        TestFixture.create().whenApplying(fc -> {
+        TestFixture.createJvmCompatibility().whenApplying(fc -> {
             assertFalse(handler.getInvoker(expiredMessage(MessageType.QUERY, true, BarQuery.class)).isPresent());
             return null;
         }).expectNoMetricsLike(IgnoreMessageEvent.class);

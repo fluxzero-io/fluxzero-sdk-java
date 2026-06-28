@@ -37,7 +37,7 @@ class TestFixtureDeadlockDetectionTest {
 
     @Test
     void syncFixtureFailsNestedRequestWhenConsumerMayBeSame() {
-        TestFixture.create(defaultAppConsumerBuilder(), new OuterHandler(), new InnerHandler())
+        TestFixture.createJvmCompatibility(defaultAppConsumerBuilder(), new OuterHandler(), new InnerHandler())
                 .whenQuery(new OuterQuery())
                 .verifyExceptionalResult((IllegalStateException e) -> {
                     assertTrue(e.getMessage().contains("production deadlock risk"));
@@ -57,7 +57,7 @@ class TestFixtureDeadlockDetectionTest {
         builder.addConsumerConfiguration(consumer("outer", OuterHandler.class), MessageType.QUERY);
         builder.addConsumerConfiguration(consumer("inner", InnerHandler.class), MessageType.QUERY);
 
-        TestFixture.create(builder, new OuterHandler(), new InnerHandler())
+        TestFixture.createJvmCompatibility(builder, new OuterHandler(), new InnerHandler())
                 .whenQuery(new OuterQuery())
                 .expectResult("inner");
     }
@@ -74,14 +74,14 @@ class TestFixtureDeadlockDetectionTest {
                         .build(),
                 MessageType.QUERY);
 
-        TestFixture.create(builder, new OuterHandler(), new InnerHandler())
+        TestFixture.createJvmCompatibility(builder, new OuterHandler(), new InnerHandler())
                 .whenQuery(new OuterQuery())
                 .expectResult("inner");
     }
 
     @Test
     void syncFixtureFailsNestedRequestWhenSameHandlerConsumerMayBeSame() {
-        TestFixture.create(defaultAppConsumerBuilder(), new SameConsumerHandler())
+        TestFixture.createJvmCompatibility(defaultAppConsumerBuilder(), new SameConsumerHandler())
                 .whenQuery(new OuterQuery())
                 .verifyExceptionalResult((IllegalStateException e) -> {
                     assertTrue(e.getMessage().contains("production deadlock risk"));
@@ -91,28 +91,28 @@ class TestFixtureDeadlockDetectionTest {
 
     @Test
     void syncFixtureAllowsNestedFireAndForgetCommandOnSameConsumer() {
-        TestFixture.create(defaultAppConsumerBuilder(), new FireAndForgetOuterHandler(), new FireAndForgetInnerHandler())
+        TestFixture.createJvmCompatibility(defaultAppConsumerBuilder(), new FireAndForgetOuterHandler(), new FireAndForgetInnerHandler())
                 .whenCommand(new FireAndForgetOuterCommand())
                 .expectEvents(new FireAndForgetHandledEvent());
     }
 
     @Test
     void syncFixtureAllowsNestedRequestToLocalHandlerOnSameConsumer() {
-        TestFixture.create(defaultAppConsumerBuilder(), new OuterHandler(), new LocalInnerHandler())
+        TestFixture.createJvmCompatibility(defaultAppConsumerBuilder(), new OuterHandler(), new LocalInnerHandler())
                 .whenQuery(new OuterQuery())
                 .expectResult("inner");
     }
 
     @Test
     void syncFixtureAllowsNestedRequestToPassiveHandlerOnSameConsumer() {
-        TestFixture.create(defaultAppConsumerBuilder(), new PassiveOuterHandler(), new PassiveInnerHandler())
+        TestFixture.createJvmCompatibility(defaultAppConsumerBuilder(), new PassiveOuterHandler(), new PassiveInnerHandler())
                 .whenQuery(new PassiveOuterQuery())
                 .expectResult("timed-out");
     }
 
     @Test
     void syncFixtureAllowsNestedRequestBetweenRegisteredLocalSelfHandlers() {
-        TestFixture.create(defaultAppConsumerBuilder(), LocalOuterQuery.class, LocalInnerQuery.class)
+        TestFixture.createJvmCompatibility(defaultAppConsumerBuilder(), LocalOuterQuery.class, LocalInnerQuery.class)
                 .whenQuery(new LocalOuterQuery("outer"))
                 .expectResult("inner");
     }

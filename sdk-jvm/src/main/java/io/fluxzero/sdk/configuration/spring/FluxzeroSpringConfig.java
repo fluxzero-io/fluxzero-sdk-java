@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -54,6 +55,7 @@ import org.springframework.core.env.Environment;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -215,6 +217,10 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
         userProvider.ifPresent(builder::registerUserProvider);
         cache.ifPresent(builder::replaceCache);
         webResponseMapper.ifPresent(builder::replaceWebResponseMapper);
+        Optional.ofNullable(environment.getProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY))
+                .filter(mode -> !mode.isBlank())
+                .ifPresent(mode -> builder.replacePropertySource(source -> new SimplePropertySource(Map.of(
+                        ComponentMetadataLookups.METADATA_MODE_PROPERTY, mode)).andThen(source)));
         builder.addPropertySource(new SpringPropertySource(environment));
         builder.addParameterResolver(new SpringBeanParameterResolver(context));
         return builder;

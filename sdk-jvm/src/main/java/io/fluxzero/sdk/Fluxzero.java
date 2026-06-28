@@ -338,10 +338,10 @@ public interface Fluxzero extends AutoCloseable {
      * Fetches the configured identity provider used for both functional and technical IDs. The default is a
      * {@link UuidFactory} that generates UUIDs.
      * <p>
-     * If there is no current Fluxzero instance, a new UUID factory is generated.
+     * If there is no current Fluxzero instance, the default identity provider is used.
      */
     static IdentityProvider currentIdentityProvider() {
-        return getOptionally().map(Fluxzero::identityProvider).orElseGet(UuidFactory::new);
+        return getOptionally().map(Fluxzero::identityProvider).orElse(IdentityProvider.defaultIdentityProvider);
     }
 
     /**

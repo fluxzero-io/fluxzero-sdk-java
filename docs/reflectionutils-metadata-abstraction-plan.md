@@ -118,33 +118,64 @@ Notes:
 
 ### Slice 3: Legacy/TestFixture Compatibility Isolation
 
-Status: [ ] queued.
+Status: [x] implemented.
 
-- [ ] Audit the strict-default failure clusters from the attempted flip.
-- [ ] For each legacy/TestFixture case, either add the generated registry/invocation/access metadata it is missing or
+- [x] Audit the strict-default failure clusters from the attempted flip.
+- [x] For each legacy/TestFixture case, either add the generated registry/invocation/access metadata it is missing or
   opt the test/surface explicitly into JVM compatibility mode.
-- [ ] Avoid broad hidden fallback inside `TestFixture`; compatibility should be visible at the call site, fixture
+- [x] Avoid broad hidden fallback inside `TestFixture`; compatibility should be visible at the call site, fixture
   option, or scoped test helper.
-- [ ] Preserve the existing green `sdk-jvm` behavior while making the runtime mode choice explicit.
+- [x] Preserve the existing green `sdk-jvm` behavior while making the runtime mode choice explicit.
 
 Done when:
 
-- [ ] Legacy compatibility tests state that they are using the JVM compatibility backend.
-- [ ] Tests that are meant to prove generated metadata run without semantic reflection fallback.
+- [x] Legacy compatibility tests state that they are using the JVM compatibility backend.
+- [x] Tests that are meant to prove generated metadata run without semantic reflection fallback.
+
+Evidence:
+
+- Added explicit `TestFixture.createJvmCompatibility(...)` / `createAsyncJvmCompatibility(...)` factories and a scoped
+  `JvmCompatibilityMetadataMode.call(...)` helper for legacy fixture and direct metadata tests.
+- `DefaultFluxzero.Builder.build(...)` now scopes builder-level property sources while resolving metadata mode, so
+  Spring/TestFixture compatibility settings are visible before an active `Fluxzero` instance exists.
+- Spring fixture tests declare `fluxzero.metadata.mode=jvm-compatibility` explicitly, and generated-only tests keep
+  using strict generated-only helpers instead of ambient fallback.
+- Verification passed:
+  `./mvnw -q -pl sdk-jvm -am clean test -Dfluxzero.metadata.mode=strict-generated-only`.
+- Verification passed:
+  `./mvnw -q -pl sdk-jvm -am test`.
 
 ### Slice 4: Generated Metadata Gap Closure
 
-Status: [ ] queued.
+Status: [x] implemented for the `sdk-jvm` generated-only closure gate.
 
-- [ ] Fill generated metadata, invocation, and access-plan gaps exposed by the isolation pass.
-- [ ] Prefer adding generated metadata for real app semantics over marking cases as compatibility-only.
-- [ ] Keep the generated model browser-portable: no new semantic dependency on JVM reflection, `LambdaMetafactory`, or
+- [x] Fill generated metadata, invocation, and access-plan gaps exposed by the isolation pass.
+- [x] Prefer adding generated metadata for real app semantics over marking cases as compatibility-only.
+- [x] Keep the generated model browser-portable: no new semantic dependency on JVM reflection, `LambdaMetafactory`, or
   method handles.
 
 Done when:
 
-- [ ] The broad generated-only JVM suite is green for cases that should represent normal runtime behavior.
-- [ ] Remaining JVM compatibility coverage is deliberate and documented.
+- [x] The broad generated-only JVM suite is green for cases that should represent normal runtime behavior.
+- [x] Remaining JVM compatibility coverage is deliberate and documented.
+
+Evidence:
+
+- Fixed classpath registry scanning of private nested annotation attributes, so generated Jakarta validation metadata
+  preserves composed constraint attributes such as `groups`, `message`, and `payload`.
+- `JakartaValidationTckSubsetTest#composedConstraintsInheritGroupsAndReportAsSingleViolation` now passes in
+  strict-generated-only mode instead of relying on reflection fallback.
+- Full-install verification exposed a parallel proxy-test hang caused by a class-initialization cycle between
+  `IdentityProvider.defaultIdentityProvider` and `UuidFactory`. The default provider now creates the `UuidFactory`
+  fallback lazily, and `Fluxzero.currentIdentityProvider()` uses that shared default provider outside an active runtime.
+- Verification passed:
+  `./mvnw -q -pl sdk-jvm -am clean test -Dfluxzero.metadata.mode=strict-generated-only`.
+- Follow-up compatibility/downstream checks passed:
+  `./mvnw -q -pl proxy -am test` and `./mvnw -q -pl java-downstream-project -am test`.
+- Post-deadlock verification passed:
+  `./mvnw -q -pl proxy -am test`,
+  `./mvnw -q -pl sdk-jvm -am test -Dfluxzero.metadata.mode=strict-generated-only`, and two consecutive
+  `./mvnw -B install` runs.
 
 ### Slice 5: Default Flip And Release Boundary
 

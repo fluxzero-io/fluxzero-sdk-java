@@ -28,7 +28,7 @@ class TrackerMonitorTest {
             void handle(String ignored) {
             }
         }
-        TestFixture.createAsync(new Handler()).whenEvent("test")
+        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test")
                 .<ProcessBatchEvent>expectMetric(
                         e -> e.getConsumer().equals("custom-consumer") && e.getBatchSize() == 1)
                 .expectMetrics(HandleMessageEvent.class);
@@ -42,7 +42,7 @@ class TrackerMonitorTest {
             void handle(String ignored) {
             }
         }
-        TestFixture.createAsync(new Handler()).whenEvent("test").expectNoMetricsLike(HandleMessageEvent.class);
+        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test").expectNoMetricsLike(HandleMessageEvent.class);
     }
 
     @Test
@@ -53,7 +53,7 @@ class TrackerMonitorTest {
             void handle(String ignored) {
             }
         }
-        TestFixture.createAsync(new Handler()).whenEvent("test")
+        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test")
                 .expectNoMetricsLike(HandleMessageEvent.class)
                 .expectNoMetricsLike(ProcessBatchEvent.class);
     }
@@ -66,7 +66,7 @@ class TrackerMonitorTest {
             void handle(String ignored) {
             }
         }
-        TestFixture.createAsync(new Handler()).whenEvent("test")
+        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test")
                 .expectNoMetricsLike(HandleMessageEvent.class)
                 .expectNoMetricsLike(ProcessBatchEvent.class);
     }

@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class GivenWhenThenAsyncTest {
 
-    private final TestFixture testFixture = TestFixture.createAsync(
+    private final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility(
             new MixedHandler(), new AsyncCommandHandler(), new ScheduleHandler()).resultTimeout(Duration.ofSeconds(1));
 
     @Test
@@ -101,7 +101,7 @@ class GivenWhenThenAsyncTest {
 
     @Test
     void testExpectPassiveHandling() {
-        TestFixture.createAsync(new MixedHandler(), new AsyncCommandHandler(), new ScheduleHandler())
+        TestFixture.createAsyncJvmCompatibility(new MixedHandler(), new AsyncCommandHandler(), new ScheduleHandler())
                 .resultTimeout(Duration.ofMillis(50))
                 .whenCommand(new PassivelyHandled()).expectExceptionalResult(TimeoutException.class);
     }
@@ -120,7 +120,7 @@ class GivenWhenThenAsyncTest {
 
     @Test
     void testErrorFromCompletableFutureResult() {
-        TestFixture.createAsync(new Object() {
+        TestFixture.createAsyncJvmCompatibility(new Object() {
             @HandleCommand
             CompletableFuture<Void> handle(String command) {
                 return CompletableFuture.failedFuture(new MockException());
@@ -130,7 +130,7 @@ class GivenWhenThenAsyncTest {
 
     @Nested
     class MakeAsyncLater {
-        final TestFixture syncFixture = TestFixture.create(
+        final TestFixture syncFixture = TestFixture.createJvmCompatibility(
                 new MixedHandler(), new AsyncCommandHandler(), new ScheduleHandler());
 
         @Test
@@ -146,7 +146,7 @@ class GivenWhenThenAsyncTest {
 
         @Test
         void afterRegisteringCasterAndSpying() {
-            TestFixture.create(new MixedHandler())
+            TestFixture.createJvmCompatibility(new MixedHandler())
                     .registerCasters(new AsyncTestUpcaster())
                     .spy()
                     .async()
@@ -157,7 +157,7 @@ class GivenWhenThenAsyncTest {
 
         @Test
         void usesFreshCache() {
-            TestFixture fixture = TestFixture.create(DefaultFluxzero.builder().replaceCache(new DefaultCache()),
+            TestFixture fixture = TestFixture.createJvmCompatibility(DefaultFluxzero.builder().replaceCache(new DefaultCache()),
                                                     new MixedHandler());
             fixture.getFluxzero().cache().put("test", "value");
 
@@ -191,7 +191,7 @@ class GivenWhenThenAsyncTest {
 
     @Test
     void errorHandlerIsUsedAfterBatchCompletes() {
-        TestFixture.createAsync(DefaultFluxzero.builder().configureDefaultConsumer(
+        TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder().configureDefaultConsumer(
                         COMMAND, c -> c.toBuilder().errorHandler(new ForeverRetryingErrorHandler()).build()),
                                 new Object() {
                                     volatile boolean retried;
@@ -215,7 +215,7 @@ class GivenWhenThenAsyncTest {
     @Nested
     class NamespaceTests {
 
-        private final TestFixture testFixture = TestFixture.createAsync(new DefaultNameSpaceHandler(),
+        private final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility(new DefaultNameSpaceHandler(),
                                                                         new FooNameSpaceHandler());
 
         @Test
@@ -247,7 +247,7 @@ class GivenWhenThenAsyncTest {
     @Nested
     class PropertySubstitutionTests {
 
-        private final TestFixture testFixture = TestFixture.createAsync()
+        private final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility()
                 .withProperty("defaultConsumer", "DefaultNameSpaceHandler")
                 .withProperty("fooNamespace", "foo")
                 .registerHandlers(new DefaultNameSpaceHandler(), new FooNameSpaceHandler());
