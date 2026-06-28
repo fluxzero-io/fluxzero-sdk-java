@@ -73,11 +73,6 @@ class RuntimeDecisionMatrixTest {
 
     private static final Set<String> ALLOWED_CLOSURE_VALUES = Set.of(
             "Done",
-            "Slice 2",
-            "Slice 3",
-            "Slice 4",
-            "Slice 5",
-            "Slice 6",
             "Platform backend"
     );
 

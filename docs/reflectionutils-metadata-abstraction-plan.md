@@ -11,7 +11,7 @@ The active phase lists only open work. Completed slices are kept later in this f
 
 ## Active Phase: Generated-Only Runtime Closure
 
-Status: open.
+Status: [x] implemented.
 
 Browser-local execution stays parked until generated-only JVM mode has no semantic reflection fallback left. The goal is
 not zero JVM reflection everywhere; the goal is that existing JVM tests prove Fluxzero app semantics from the generated
@@ -39,7 +39,7 @@ Done when:
 Evidence:
 
 - `JvmBackendAccess` now classifies generated-only backend access as `PLATFORM_BACKEND` or `MIGRATION_DEBT`.
-- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` records the current 43 class-specific migration
+- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` records the current 0 class-specific migration
   debt entries.
 - `docs/metadata-runtime-decision-matrix.md` now has a `Closure` column, and `RuntimeDecisionMatrixTest` validates
   closure targets for unfinished backend rows.
@@ -93,20 +93,20 @@ Current evidence:
 
 ### Slice 3: Property And Constructor Access Plans
 
-Status: [ ] open.
+Status: [x] implemented for this slice.
 
 Goal: generated-only state/model/search/policy code should use generated property, constructor, and member access plans
 instead of reflective JVM property access.
 
-- [ ] Generate and consume property read/write plans for model ids, associations, routing keys, data protection,
+- [x] Generate and consume property read/write plans for model ids, associations, routing keys, data protection,
   content filtering, document indexing, search facets, and web body extraction.
-- [ ] Generate and consume constructor/factory plans for stateful entities and scheduled payload instantiation.
-- [ ] Burn down the modeling, repository, search, data-protection, content-filtering, schedule, and web-body entries in
+- [x] Generate and consume constructor/factory plans for stateful entities and scheduled payload instantiation.
+- [x] Burn down the modeling, repository, search, data-protection, content-filtering, schedule, and web-body entries in
   the backend debt ledger.
 
 Done when:
 
-- [ ] Generated-only tests prove stateful/modeling/search/policy behavior without reflective property discovery.
+- [x] Generated-only tests prove stateful/modeling/search/policy behavior without reflective property discovery.
 
 Current evidence:
 
@@ -122,8 +122,7 @@ Current evidence:
   protected field readers and writers.
 - `SchedulingInterceptor` now installs classpath generated constructor invocations before generated-only periodic
   auto-start payload creation.
-- The generated-only backend debt ledger no longer classifies `SchedulingInterceptor` as schedule instantiation debt;
-  `PeriodicMetadata` remains as schedule metadata compatibility debt.
+- The generated-only backend debt ledger now tracks 0 migration-debt classes.
 - Normal JVM compatibility fallbacks for model metadata, search/document id property reads, data protection,
   content filtering, and periodic metadata now go through `JvmCompatibilityBackend`, which refuses generated-only mode.
 - Normal JVM compatibility fallbacks for handler document filtering, payload filtering, segment filtering, and trigger
@@ -154,18 +153,18 @@ Current evidence:
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 
-Status: [ ] open.
+Status: [x] implemented for this slice.
 
 Goal: app-facing policies and web bindings are enforced from generated metadata and generated binding plans.
 
-- [ ] Ensure auth, role, validation, data-protection, content-filtering, timeout, routing, and consumer decisions are
+- [x] Ensure auth, role, validation, data-protection, content-filtering, timeout, routing, and consumer decisions are
   sourced only from registry metadata in generated-only mode.
-- [ ] Keep Jakarta provider mechanics as a platform backend, but remove app-facing validation metadata fallback.
-- [ ] Make web route, parameter, body, response mapper, and socket binding tests run against generated-only metadata.
+- [x] Keep Jakarta provider mechanics as a platform backend, but remove app-facing validation metadata fallback.
+- [x] Make web route, parameter, body, response mapper, and socket binding tests run against generated-only metadata.
 
 Done when:
 
-- [ ] Policy/web failures in generated-only mode point to missing generated metadata, not hidden JVM inspection.
+- [x] Policy/web failures in generated-only mode point to missing generated metadata, not hidden JVM inspection.
 
 Current evidence:
 
@@ -173,51 +172,65 @@ Current evidence:
   meta-annotations to the requested semantic annotation type.
 - `ComponentMetadataLookupTest.typeAnnotationProjectsMetaAnnotationToRequestedPolicyTypeInGeneratedOnlyMode` proves
   type-level policy metadata can be consumed as `@RequiresUser` from a composed annotation in generated-only mode.
+- Validation authorization/group fallbacks and web/API-doc compatibility fallbacks go through `JvmCompatibilityBackend`,
+  which refuses generated-only mode.
+- Generated-only validation, web route, web parameter, web body, API-doc, static file, and socket tests are covered by
+  the strict generated-only thematic suite.
 
 ### Slice 5: Type, Serialization, And Casting Boundary
 
-Status: [ ] open.
+Status: [x] implemented for this slice.
 
 Goal: generated-only mode should know Fluxzero type semantics from the registry while JVM serializers remain pure
 encoding/decoding backends.
 
-- [ ] Move payload type, request response type, routing type, registered type, upcast, and downcast decisions to
+- [x] Move payload type, request response type, routing type, registered type, upcast, and downcast decisions to
   generated metadata/plans.
-- [ ] Keep Jackson/class resolution behind the JVM serialization backend only for object materialization and wire
+- [x] Keep Jackson/class resolution behind the JVM serialization backend only for object materialization and wire
   encoding.
-- [ ] Add generated-only tests for request/response metadata, registered types, upcast/downcast chains, and serializer
+- [x] Add generated-only tests for request/response metadata, registered types, upcast/downcast chains, and serializer
   integration.
 
 Done when:
 
-- [ ] Serialization can remain JVM-specific without owning Fluxzero app-model decisions.
+- [x] Serialization can remain JVM-specific without owning Fluxzero app-model decisions.
 
 Current evidence:
 
 - Caster discovery already uses registry metadata for `@Upcast`/`@Downcast` in generated-only mode.
 - `UpcasterChainTest.generatedOnlyModeUsesGeneratedInvocationForCasterMethods` proves caster invocation uses registered
   generated executable invocation instead of the JVM method body.
+- `ClientUtilsTest`, `MessageRoutingInterceptorTest`, and request response type fallback gating prove local/tracked,
+  routing-key, and request/response app semantics no longer need generated-only reflection fallback.
 
 ### Slice 6: Strict Generated-Only Acceptance
 
-Status: [ ] open.
+Status: [x] implemented for this slice.
 
 Goal: turn generated-only JVM mode into the acceptance gate for browser-shared semantics.
 
 - [x] Make `MIGRATION_DEBT` backend access fail in strict generated-only mode.
-- [ ] Run the broad `sdk-jvm` test suite in strict generated-only phases.
-- [ ] Run downstream Java/Kotlin compatibility tests against generated metadata defaults.
-- [ ] Only after this passes, resume browser conformance as another executor of the same app model.
+- [x] Run the broad `sdk-jvm` test suite in strict generated-only phases.
+- [x] Run downstream Java/Kotlin compatibility tests against generated metadata defaults.
+- [x] Only after this passes, resume browser conformance as another executor of the same app model.
 
 Done when:
 
-- [ ] The JVM no longer proves behavior through semantic reflection fallback, so browser work can reuse JVM evidence.
+- [x] The JVM no longer proves behavior through semantic reflection fallback, so browser work can reuse JVM evidence.
 
 Current evidence:
 
 - Added `fluxzero.metadata.mode=strict-generated-only` support. Strict mode still counts as generated-only, but
   `JvmBackendAccess` rejects `MIGRATION_DEBT` backend categories while allowing platform backends.
 - `ReflectionBoundaryTest.strictGeneratedOnlyModeRejectsMigrationDebtBackendCategories` proves the strict guard.
+- `GeneratedOnlyMetadataMode.run(...)` now uses strict generated-only mode, so the existing generated-only test corpus
+  also rejects migration-debt backend access.
+- Strict generated-only thematic suite passed:
+  `./mvnw -q -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ComponentRegistryJsonTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,GeneratedInvocationPlanTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,ReflectionBoundaryTest,RegistryFilteringHandlerTest,RuntimeDecisionMatrixTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,SourceComponentScannerTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest,OnDemandExecutionTest,OnDemandSemanticParityTest,FluxzeroComponentRegistryTest,SourceClasspathRegistryParityTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+- Broad `sdk-jvm` and annotation-processor suite passed:
+  `./mvnw -q -pl sdk-jvm,annotation-processor-tests -am test`.
+- Java/Kotlin downstream compatibility tests passed:
+  `./mvnw -q -pl java-downstream-project,kotlin-downstream-project -am -Dtest=DownstreamProjectTest,KotlinTypeRegistryProcessorTest,GivenWhenThenKotlinFixtureTest,KotlinReflectionUtilsTest,JsonUtilsKotlinTest,JacksonContentFilterKotlinTest,AggregateEntitiesKotlinTest,StatefulMembersKotlinTest,KotlinValidationTest,KotlinOpenApiProcessorTest -Dsurefire.failIfNoSpecifiedTests=false test`.
 
 ## Completed Phase: JVM Metadata Runtime Foundation
 

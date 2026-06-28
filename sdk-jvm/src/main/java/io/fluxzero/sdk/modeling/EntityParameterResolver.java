@@ -23,6 +23,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -441,13 +442,18 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         if (directAnnotation) {
             return true;
         }
-        return ComponentMetadataLookups.lookup(parameter.getDeclaringExecutable().getDeclaringClass())
+        boolean metadataAnnotation = ComponentMetadataLookups.lookup(parameter.getDeclaringExecutable().getDeclaringClass())
                 .map(lookup -> NULLABLE_ANNOTATION_TYPES.stream()
                         .map(EntityParameterResolver::annotationType)
                         .flatMap(Optional::stream)
                         .anyMatch(annotationType ->
                                 ComponentMetadataLookups.hasParameterAnnotation(lookup, parameter, annotationType)))
                 .orElse(false);
+        if (metadataAnnotation) {
+            return true;
+        }
+        return !ComponentMetadataLookups.generatedOnlyMode()
+               && JvmCompatibilityBackend.introspector().isNullable(parameter);
     }
 
     private static boolean isNullable(ParameterView parameter) {

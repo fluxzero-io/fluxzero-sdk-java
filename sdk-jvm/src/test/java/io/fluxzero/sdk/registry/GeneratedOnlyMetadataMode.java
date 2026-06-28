@@ -23,7 +23,7 @@ public final class GeneratedOnlyMetadataMode {
 
     @SneakyThrows
     public static void run(ThrowingRunnable runnable) {
-        ComponentMetadataLookups.runInGeneratedOnlyMode(runnable);
+        ComponentMetadataLookups.runInStrictGeneratedOnlyMode(runnable);
     }
 
     @SneakyThrows
