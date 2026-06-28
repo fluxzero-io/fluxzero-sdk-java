@@ -140,6 +140,8 @@ Current evidence:
 - Web/API-doc compatibility fallbacks now go through `JvmCompatibilityBackend`, and generated-only web/API-doc entry
   points return empty metadata/routes instead of reflecting when no component metadata is available.
 - Validation group and authorization compatibility fallbacks now go through `JvmCompatibilityBackend`.
+- The remaining `HandlerInspector` ledger entry was removed after generated-only handler execution had closed the
+  reflective matcher/invocation fallback through registry matchers and generated invocation plans.
 - `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
   generated construction for a class without a JVM default constructor.
 - `ModelMetadataTest.generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors` covers generated-only
@@ -148,7 +150,7 @@ Current evidence:
   generated-only protected-field handling without explicit runtime registry registration.
 - `SchedulingInterceptorTest.generatedOnlyModeInstallsClasspathGeneratedConstructorForPeriodicHandlerMethods` covers
   generated-only periodic payload construction without explicit runtime registry registration.
-- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 1 migration-debt class.
+- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 0 migration-debt classes.
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 

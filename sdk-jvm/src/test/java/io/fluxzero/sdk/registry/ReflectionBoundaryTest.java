@@ -96,11 +96,10 @@ class ReflectionBoundaryTest {
     void generatedOnlyBackendMigrationDebtIsExplicit() {
         Map<String, JvmBackendAccess.BackendCategory> debt = JvmBackendAccess.migrationDebtClasses();
 
-        assertEquals(1, debt.size(),
+        assertEquals(0, debt.size(),
                      () -> "Generated-only JVM backend migration debt changed. Lower this count when a semantic "
                            + "fallback is replaced by generated metadata/invocation/access plans; add new debt only "
                            + "with an explicit Generated-Only Runtime Closure slice.");
-        assertTrue(debt.containsKey("io.fluxzero.common.handling.HandlerInspector"));
         assertEquals(JvmBackendAccess.BackendStatus.PLATFORM_BACKEND,
                      JvmBackendAccess.classification("io.fluxzero.sdk.registry.GeneratedRegistryBridge")
                              .orElseThrow().status());
@@ -109,7 +108,7 @@ class ReflectionBoundaryTest {
     }
 
     @Test
-    void strictGeneratedOnlyModeRejectsMigrationDebtBackendCategories() {
+    void strictGeneratedOnlyModeRejectsUnclassifiedBackendAccess() {
         assertThrows(ComponentRegistryException.class, () ->
                 GeneratedOnlyMetadataMode.runStrict(() -> JvmBackendAccess.assertAllowed(
                         "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory")));
