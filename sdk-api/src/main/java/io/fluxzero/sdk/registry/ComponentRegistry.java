@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -44,6 +45,23 @@ public record ComponentRegistry(
         Path sourceRoot,
         List<PackageDescriptor> packages,
         List<ComponentDescriptor> components) {
+    private static final int REGISTRY_CACHE_SIZE = 512;
+    private static final Map<IdentityRegistryListKey, ComponentRegistry> mergeCache =
+            Collections.synchronizedMap(new LinkedHashMap<>(REGISTRY_CACHE_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<IdentityRegistryListKey, ComponentRegistry> eldest) {
+                    return size() > REGISTRY_CACHE_SIZE;
+                }
+            });
+    private static final Map<IdentityRegistryKey, ComponentRegistry> normalizedCache =
+            Collections.synchronizedMap(new LinkedHashMap<>(REGISTRY_CACHE_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<IdentityRegistryKey, ComponentRegistry> eldest) {
+                    return size() > REGISTRY_CACHE_SIZE;
+                }
+            });
 
     public ComponentRegistry {
         packages = List.copyOf(Objects.requireNonNull(packages, "packages"));
@@ -65,6 +83,19 @@ public record ComponentRegistry(
      */
     public static ComponentRegistry merge(Collection<ComponentRegistry> registries) {
         Objects.requireNonNull(registries, "registries");
+        List<ComponentRegistry> registryList = registries.stream()
+                .map(registry -> Objects.requireNonNull(registry, "registry"))
+                .toList();
+        if (registryList.isEmpty()) {
+            return empty();
+        }
+        synchronized (mergeCache) {
+            return mergeCache.computeIfAbsent(
+                    new IdentityRegistryListKey(registryList), ignored -> mergeUncached(registryList));
+        }
+    }
+
+    private static ComponentRegistry mergeUncached(List<ComponentRegistry> registries) {
         List<Path> sourceRoots = registries.stream().map(ComponentRegistry::sourceRoot)
                 .filter(Objects::nonNull).distinct().toList();
         Path sourceRoot = sourceRoots.size() == 1 ? sourceRoots.getFirst() : null;
@@ -77,6 +108,12 @@ public record ComponentRegistry(
      * Returns a registry with duplicate descriptors removed and package/component descriptors in stable order.
      */
     public ComponentRegistry normalized() {
+        synchronized (normalizedCache) {
+            return normalizedCache.computeIfAbsent(new IdentityRegistryKey(this), ignored -> normalizedUncached());
+        }
+    }
+
+    private ComponentRegistry normalizedUncached() {
         Map<String, PackageDescriptor> packagesByName = new LinkedHashMap<>();
         packages.stream()
                 .sorted(Comparator.comparing(PackageDescriptor::packageName))
@@ -252,6 +289,61 @@ public record ComponentRegistry(
     public Optional<ComponentDescriptor> findComponent(Class<?> type) {
         Objects.requireNonNull(type, "type");
         return findComponent(type.getName());
+    }
+
+    private static final class IdentityRegistryListKey {
+        private final List<ComponentRegistry> registries;
+        private final int hashCode;
+
+        private IdentityRegistryListKey(List<ComponentRegistry> registries) {
+            this.registries = List.copyOf(registries);
+            int result = 1;
+            for (ComponentRegistry registry : registries) {
+                result = 31 * result + System.identityHashCode(registry);
+            }
+            this.hashCode = result;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof IdentityRegistryListKey that) || registries.size() != that.registries.size()) {
+                return false;
+            }
+            for (int i = 0; i < registries.size(); i++) {
+                if (registries.get(i) != that.registries.get(i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+    }
+
+    private static final class IdentityRegistryKey {
+        private final ComponentRegistry registry;
+        private final int hashCode;
+
+        private IdentityRegistryKey(ComponentRegistry registry) {
+            this.registry = Objects.requireNonNull(registry, "registry");
+            this.hashCode = System.identityHashCode(registry);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return this == other || other instanceof IdentityRegistryKey that && registry == that.registry;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 
     /**

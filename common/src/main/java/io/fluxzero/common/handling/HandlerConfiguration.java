@@ -27,6 +27,8 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Configuration object used to define how message handler methods are selected and filtered for a given message type.
@@ -46,6 +48,8 @@ import java.util.Optional;
 @Builder(toBuilder = true)
 @Accessors(fluent = true)
 public class HandlerConfiguration<M> {
+    private static final ConcurrentMap<Class<? extends Annotation>, Optional<Method>> disabledMethods =
+            new ConcurrentHashMap<>();
 
     /**
      * The annotation type that marks a method as a handler (e.g. {@code @HandleCommand}, {@code @HandleQuery}).
@@ -150,8 +154,7 @@ public class HandlerConfiguration<M> {
         if (annotation == null) {
             return false;
         }
-        Optional<Method> match = Arrays.stream(annotation.annotationType().getMethods())
-                .filter(m -> m.getName().equals("disabled")).findFirst();
+        Optional<Method> match = disabledMethod(annotation.annotationType());
         if (match.isPresent()) {
             var result = (boolean) match.get().invoke(annotation);
             return !result;
@@ -173,8 +176,7 @@ public class HandlerConfiguration<M> {
         if (annotation == null) {
             return false;
         }
-        Optional<Method> match = Arrays.stream(annotation.annotationType().getMethods())
-                .filter(m -> m.getName().equals("disabled")).findFirst();
+        Optional<Method> match = disabledMethod(annotation.annotationType());
         if (match.isPresent()) {
             var result = silentBoolean(() -> (boolean) match.get().invoke(annotation));
             return !result;
@@ -211,6 +213,15 @@ public class HandlerConfiguration<M> {
         @SuppressWarnings("unchecked")
         Class<Annotation> annotationType = (Class<Annotation>) methodAnnotation;
         return e.annotation(annotationType);
+    }
+
+    private static Optional<Method> disabledMethod(Class<? extends Annotation> annotationType) {
+        return disabledMethods.computeIfAbsent(annotationType, HandlerConfiguration::findDisabledMethod);
+    }
+
+    private static Optional<Method> findDisabledMethod(Class<? extends Annotation> annotationType) {
+        return Arrays.stream(annotationType.getMethods())
+                .filter(m -> m.getName().equals("disabled")).findFirst();
     }
 
     @SneakyThrows

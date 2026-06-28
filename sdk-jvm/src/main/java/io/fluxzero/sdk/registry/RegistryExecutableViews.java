@@ -25,12 +25,16 @@ import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.IntStream;
 
 /**
  * Adapters from component-registry descriptors to common handler metadata views.
  */
 public final class RegistryExecutableViews {
+    private static final ConcurrentMap<ExecutableViewKey, ExecutableView> executableViews = new ConcurrentHashMap<>();
+
     private RegistryExecutableViews() {
     }
 
@@ -38,13 +42,49 @@ public final class RegistryExecutableViews {
      * Creates an executable metadata view from registry metadata.
      */
     public static ExecutableView executableView(Class<?> targetClass, ExecutableDescriptor descriptor) {
-        return new RegistryExecutableView(targetClass, descriptor);
+        return executableViews.computeIfAbsent(
+                new ExecutableViewKey(targetClass, descriptor),
+                key -> new RegistryExecutableView(key.targetClass(), key.descriptor()));
+    }
+
+    private static final class ExecutableViewKey {
+        private final Class<?> targetClass;
+        private final ExecutableDescriptor descriptor;
+        private final int hashCode;
+
+        private ExecutableViewKey(Class<?> targetClass, ExecutableDescriptor descriptor) {
+            this.targetClass = Objects.requireNonNull(targetClass, "targetClass");
+            this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
+            this.hashCode = 31 * System.identityHashCode(targetClass) + System.identityHashCode(descriptor);
+        }
+
+        private Class<?> targetClass() {
+            return targetClass;
+        }
+
+        private ExecutableDescriptor descriptor() {
+            return descriptor;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return this == other || other instanceof ExecutableViewKey that
+                                  && targetClass == that.targetClass
+                                  && descriptor == that.descriptor;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 
     private static final class RegistryExecutableView implements ExecutableView {
         private final Class<?> targetClass;
         private final ExecutableDescriptor descriptor;
         private final List<ParameterView> parameters;
+        private final ConcurrentMap<Class<? extends Annotation>, Optional<? extends Annotation>> annotationCache =
+                new ConcurrentHashMap<>();
 
         private RegistryExecutableView(Class<?> targetClass, ExecutableDescriptor descriptor) {
             this.targetClass = Objects.requireNonNull(targetClass, "targetClass");
@@ -91,8 +131,12 @@ public final class RegistryExecutableViews {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
-            return MetadataAnnotationResolver.annotationProjection(descriptor.annotations(), annotationType, targetClass);
+            return (Optional<A>) annotationCache.computeIfAbsent(
+                    annotationType,
+                    type -> MetadataAnnotationResolver.annotationProjection(
+                            descriptor.annotations(), type, targetClass));
         }
 
         @Override
@@ -105,11 +149,17 @@ public final class RegistryExecutableViews {
         private final Class<?> targetClass;
         private final ParameterDescriptor descriptor;
         private final int index;
+        private final Optional<Class<?>> type;
+        private final Optional<Type> genericType;
+        private final ConcurrentMap<Class<? extends Annotation>, Optional<? extends Annotation>> annotationCache =
+                new ConcurrentHashMap<>();
 
         private RegistryParameterView(Class<?> targetClass, ParameterDescriptor descriptor, int index) {
             this.targetClass = Objects.requireNonNull(targetClass, "targetClass");
             this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
             this.index = index;
+            this.type = JvmComponentMetadataLookup.classForMetadataName(descriptor.typeName());
+            this.genericType = genericType(descriptor.typeUse(), type);
         }
 
         @Override
@@ -129,16 +179,12 @@ public final class RegistryExecutableViews {
 
         @Override
         public Optional<Class<?>> type() {
-            return JvmComponentMetadataLookup.classForMetadataName(descriptor.typeName());
+            return type;
         }
 
         @Override
         public Optional<Type> genericType() {
-            TypeUseDescriptor typeUse = descriptor.typeUse();
-            if (typeUse.typeArguments().isEmpty() && typeUse.componentType() == null) {
-                return type().map(type -> type);
-            }
-            return typeFrom(typeUse);
+            return genericType;
         }
 
         @Override
@@ -147,8 +193,19 @@ public final class RegistryExecutableViews {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
-            return MetadataAnnotationResolver.annotationProjection(descriptor.annotations(), annotationType, targetClass);
+            return (Optional<A>) annotationCache.computeIfAbsent(
+                    annotationType,
+                    type -> MetadataAnnotationResolver.annotationProjection(
+                            descriptor.annotations(), type, targetClass));
+        }
+
+        private static Optional<Type> genericType(TypeUseDescriptor typeUse, Optional<Class<?>> type) {
+            if (typeUse.typeArguments().isEmpty() && typeUse.componentType() == null) {
+                return type.map(resolvedType -> resolvedType);
+            }
+            return typeFrom(typeUse);
         }
 
         private static Optional<Type> typeFrom(TypeUseDescriptor typeUse) {

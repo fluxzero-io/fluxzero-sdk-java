@@ -87,6 +87,19 @@ Evidence:
   `warmDispatch.20Handlers` 475.093ms / 210485.3 ops/sec.
 - The >20x warm-dispatch regression is removed. The remaining app-level dispatch delta versus `main` is still visible
   and should be watched before the default flip.
+- Follow-up checkpoint after generated-runtime metadata caches and setup hot-path fixes, using direct JVM classpaths
+  built from reactor `target/classes` so the split `sdk-api`/`sdk-jvm` branch cannot accidentally measure stale local
+  Maven artifacts:
+  - `main` (`f2ac3f33699`, 300k dispatch iterations, 5 warmups, 1000 setup iterations):
+    `build+register.20Handlers` 1268.757ms / 788.2 ops/sec; `warmDispatch.20Handlers` 957.173ms /
+    313423.1 ops/sec.
+  - Branch default compatibility mode: `build+register.20Handlers` 1322.596ms / 756.1 ops/sec;
+    `warmDispatch.20Handlers` 633.913ms / 473251.1 ops/sec.
+  - Branch generated-only mode: `build+register.20Handlers` 1431.141ms / 698.7 ops/sec;
+    `warmDispatch.20Handlers` 613.121ms / 489300.1 ops/sec.
+  - Interpretation: the earlier 2x setup/register regression is gone for the reactor-correct measurement, and warm
+    dispatch is now faster than `main`. Generated-only setup remains measurably above `main`, so the default flip still
+    needs a setup-performance gate rather than being treated as fully closed.
 - Verification passed:
   `./mvnw -q -pl sdk-jvm -Dtest=ComponentMetadataLookupTest,ReflectionBoundaryTest,RegistryFilteringHandlerTest,DefaultValidatorTest,ValidationUtilsTest,HandleWebTest,WebUtilsTest test`.
 - Broad verification passed:

@@ -35,8 +35,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 final class RegistryHandlerMatcherFactory {
+    private static final ConcurrentMap<RegisteredExecutableViewsKey, List<RegisteredExecutableView>>
+            executableViewsByLookup = new ConcurrentHashMap<>();
+
     private RegistryHandlerMatcherFactory() {
     }
 
@@ -115,15 +120,33 @@ final class RegistryHandlerMatcherFactory {
             Class<?> targetClass,
             HandlerConfiguration<DeserializingMessage> config) {
         return ComponentMetadataLookups.registeredLookup(targetClass)
-                .map(lookup -> metadataRouteTypes(targetClass, lookup).stream()
-                        .flatMap(metadataType -> targetClassNames(metadataType).stream()
-                                .flatMap(name -> lookup.executables(name).stream())
-                                .distinct()
-                                .map(descriptor -> new RegisteredExecutableView(
-                                        metadataType,
-                                        RegistryExecutableViews.executableView(metadataType, descriptor))))
+                .map(lookup -> registeredExecutableViews(targetClass, lookup).stream()
                         .filter(view -> config.methodMatches(targetClass, view.view()))
                         .toList());
+    }
+
+    private static List<RegisteredExecutableView> registeredExecutableViews(
+            Class<?> targetClass, ComponentMetadataLookup lookup) {
+        return executableViewsByLookup.computeIfAbsent(
+                new RegisteredExecutableViewsKey(targetClass, lookup),
+                ignored -> computeRegisteredExecutableViews(targetClass, lookup));
+    }
+
+    private static List<RegisteredExecutableView> computeRegisteredExecutableViews(
+            Class<?> targetClass, ComponentMetadataLookup lookup) {
+        Map<String, RegisteredExecutableView> result = new LinkedHashMap<>();
+        for (Class<?> metadataType : metadataRouteTypes(targetClass, lookup)) {
+            for (String name : targetClassNames(metadataType)) {
+                for (ExecutableDescriptor descriptor : lookup.executables(name)) {
+                    result.putIfAbsent(
+                            metadataType.getName() + ":" + executableId(descriptor),
+                            new RegisteredExecutableView(
+                                    metadataType,
+                                    RegistryExecutableViews.executableView(metadataType, descriptor)));
+                }
+            }
+        }
+        return List.copyOf(result.values());
     }
 
     private static List<Class<?>> metadataRouteTypes(Class<?> targetClass, ComponentMetadataLookup lookup) {
@@ -157,5 +180,29 @@ final class RegistryHandlerMatcherFactory {
     }
 
     private record RegisteredExecutableView(Class<?> metadataType, ExecutableView view) {
+    }
+
+    private static final class RegisteredExecutableViewsKey {
+        private final Class<?> targetClass;
+        private final ComponentMetadataLookup lookup;
+        private final int hashCode;
+
+        private RegisteredExecutableViewsKey(Class<?> targetClass, ComponentMetadataLookup lookup) {
+            this.targetClass = targetClass;
+            this.lookup = lookup;
+            this.hashCode = 31 * System.identityHashCode(targetClass) + System.identityHashCode(lookup);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return this == other || other instanceof RegisteredExecutableViewsKey that
+                                  && targetClass == that.targetClass
+                                  && lookup == that.lookup;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 }

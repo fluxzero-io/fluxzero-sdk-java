@@ -113,6 +113,13 @@ public class DefaultJakartaValidator implements Validator {
         if (object == null) {
             return Optional.empty();
         }
+        if (JakartaValidationBackend.getInstance().isLeafValue(object)) {
+            return Optional.empty();
+        }
+        BeanValidationMetadata metadata = BeanValidationMetadata.of(object.getClass());
+        if (!metadata.hasValidation()) {
+            return Optional.empty();
+        }
         Class<?>[] effectiveGroups = ValidationAnnotationUtils.normalizeGroups(groups);
         ValidationRun run = new ValidationRun(
                 object, effectiveGroups.length > 1, settings, parameterContext, parameterResolvers);
@@ -164,6 +171,13 @@ public class DefaultJakartaValidator implements Validator {
     @SuppressWarnings({"unchecked", "rawtypes"})
     <T> Set<ConstraintViolation<T>> getJakartaConstraintViolations(T object, Class<?>... groups) {
         if (object == null) {
+            return Set.of();
+        }
+        if (JakartaValidationBackend.getInstance().isLeafValue(object)) {
+            return Set.of();
+        }
+        BeanValidationMetadata metadata = BeanValidationMetadata.of(object.getClass());
+        if (!metadata.hasValidation()) {
             return Set.of();
         }
         Class<?>[] effectiveGroups = ValidationAnnotationUtils.normalizeGroups(groups);

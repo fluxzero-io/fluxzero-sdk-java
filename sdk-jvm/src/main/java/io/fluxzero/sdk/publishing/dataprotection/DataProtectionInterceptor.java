@@ -48,6 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -110,6 +112,8 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     public static String METADATA_KEY = "$protectedData";
 
+    private static final ConcurrentMap<Class<?>, List<String>> protectedPropertyNamesByType = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Class<?>, Boolean> protectedTypes = new ConcurrentHashMap<>();
     private final KeyValueStore keyValueStore;
     private final Serializer serializer;
 
@@ -254,19 +258,37 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (value == null) {
             return Map.of();
         }
+        List<String> protectedPropertyNames = protectedPropertyNames(value.getClass());
+        if (protectedPropertyNames.isEmpty()) {
+            return Map.of();
+        }
         Map<String, String> protectedFields = new LinkedHashMap<>();
-        Optional<Stream<Map.Entry<String, String>>> metadata = ComponentMetadataLookups.lookup(value.getClass())
-                .map(lookup -> typeNames(value.getClass()).stream()
-                        .flatMap(typeName -> lookup.properties(typeName).stream())
-                        .filter(property -> hasAnnotation(property, ProtectData.class))
-                        .flatMap(property -> readProperty(property.name(), value).stream()
-                                .flatMap(propertyValue -> getProtectedFields(property.name(), propertyValue))));
-        metadata.orElseGet(() -> ComponentMetadataLookups.generatedOnlyMode() ? Stream.empty()
-                : properties().annotatedProperties(value.getClass(), ProtectData.class).stream()
-                .flatMap(property -> Optional.ofNullable(properties().propertyValue(property, value, true)).stream()
-                        .flatMap(propertyValue -> getProtectedFields(properties().propertyName(property), propertyValue))))
+        protectedPropertyNames.stream()
+                .flatMap(propertyName -> readProperty(propertyName, value).stream()
+                        .flatMap(propertyValue -> getProtectedFields(propertyName, propertyValue)))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
+    }
+
+    private static List<String> protectedPropertyNames(Class<?> type) {
+        return protectedPropertyNamesByType.computeIfAbsent(type, DataProtectionInterceptor::computeProtectedPropertyNames);
+    }
+
+    private static List<String> computeProtectedPropertyNames(Class<?> type) {
+        Optional<List<String>> metadata = ComponentMetadataLookups.lookup(type)
+                .map(lookup -> typeNames(type).stream()
+                        .flatMap(typeName -> lookup.properties(typeName).stream())
+                        .filter(property -> hasAnnotation(property, ProtectData.class))
+                        .map(PropertyDescriptor::name)
+                        .distinct()
+                        .toList());
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElseGet(List::of);
+        }
+        return properties().annotatedProperties(type, ProtectData.class).stream()
+                .map(properties()::propertyName)
+                .distinct()
+                .toList();
     }
 
     @SuppressWarnings("ConditionCoveredByFurtherCondition")
@@ -287,6 +309,10 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private boolean isProtectedType(Class<?> type) {
+        return protectedTypes.computeIfAbsent(type, DataProtectionInterceptor::computeProtectedType);
+    }
+
+    private static boolean computeProtectedType(Class<?> type) {
         Optional<Boolean> metadata = ComponentMetadataLookups.lookup(type)
                 .map(lookup -> typeNames(type).stream()
                         .anyMatch(typeName -> hasAnnotation(lookup.typeAnnotations(typeName), ProtectData.class)));

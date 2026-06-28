@@ -297,8 +297,10 @@ public class DefaultFluxzero implements Fluxzero {
 
     @Override
     public Registration registerHandlers(@NonNull List<?> handlers) {
-        ComponentRegistry handlerRegistry = componentRegistry(handlers);
-        Registration registryRegistration = handlerRegistry.isEmpty()
+        List<Class<?>> componentTypes = componentTypes(handlers);
+        ComponentRegistry handlerRegistry = componentRegistryForTypes(componentTypes);
+        boolean generatedRegistryContainsHandlers = ComponentMetadataLookups.generatedRegistryContains(componentTypes);
+        Registration registryRegistration = handlerRegistry.isEmpty() || generatedRegistryContainsHandlers
                                             ? Registration.noOp() : registerComponentRegistry(handlerRegistry);
         try {
             Registration handlerRegistration = Fluxzero.super.registerHandlers(handlers);
@@ -310,12 +312,19 @@ public class DefaultFluxzero implements Fluxzero {
     }
 
     private static ComponentRegistry componentRegistry(List<?> handlers) {
-        List<Class<?>> componentTypes = handlers.stream()
+        return componentRegistryForTypes(componentTypes(handlers));
+    }
+
+    private static ComponentRegistry componentRegistryForTypes(Collection<Class<?>> componentTypes) {
+        return ComponentMetadataLookups.registryFor(componentTypes);
+    }
+
+    private static List<Class<?>> componentTypes(List<?> handlers) {
+        return handlers.stream()
                 .filter(Objects::nonNull)
                 .map(handler -> handler instanceof Class<?> type ? type : handler.getClass())
                 .distinct()
                 .toList();
-        return ComponentMetadataLookups.registryFor(componentTypes);
     }
 
     @Override

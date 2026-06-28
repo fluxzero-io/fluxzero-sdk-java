@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
     private final Map<MessageType, List<ComponentDescriptor>> componentsByMessageType;
     private final Map<MessageType, List<HandlerRoute>> routesByMessageType;
     private final Map<String, PackageDescriptor> packagesByName;
+    private final ConcurrentMap<String, List<PackageDescriptor>> packageMetadataChainCache = new ConcurrentHashMap<>();
     private final ConcurrentMap<ComponentExecutableKey, Optional<ExecutableDescriptor>> executableCache =
             new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<InvocationPlanDescriptor>> invocationPlansByComponentName =
@@ -52,10 +54,11 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
      */
     public RegistryComponentMetadataLookup(ComponentRegistry registry) {
         this.registry = Objects.requireNonNull(registry, "registry");
-        this.componentsByName = componentsByName(registry);
-        this.componentsByCapability = componentsByCapability(registry);
-        this.componentsByMessageType = componentsByMessageType(registry);
-        this.routesByMessageType = routesByMessageType(registry);
+        RegistryIndexes indexes = indexes(registry);
+        this.componentsByName = indexes.componentsByName();
+        this.componentsByCapability = indexes.componentsByCapability();
+        this.componentsByMessageType = indexes.componentsByMessageType();
+        this.routesByMessageType = indexes.routesByMessageType();
         this.packagesByName = packagesByName(registry);
     }
 
@@ -98,6 +101,10 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
     @Override
     public List<PackageDescriptor> packageMetadataChain(String packageName) {
         Objects.requireNonNull(packageName, "packageName");
+        return packageMetadataChainCache.computeIfAbsent(packageName, this::computePackageMetadataChain);
+    }
+
+    private List<PackageDescriptor> computePackageMetadataChain(String packageName) {
         return registry.packages().stream()
                 .filter(descriptor -> packageName.equals(descriptor.packageName())
                                       || packageName.startsWith(descriptor.packageName() + "."))
@@ -157,40 +164,29 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
                 .findFirst());
     }
 
-    private static Map<String, ComponentDescriptor> componentsByName(ComponentRegistry registry) {
+    private static RegistryIndexes indexes(ComponentRegistry registry) {
         Map<String, ComponentDescriptor> result = new LinkedHashMap<>();
-        registry.components().stream()
-                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
-                .forEach(component -> result.putIfAbsent(component.fullClassName(), component));
-        return Map.copyOf(result);
-    }
+        Map<ComponentCapability, List<ComponentDescriptor>> byCapability = new EnumMap<>(ComponentCapability.class);
+        Map<MessageType, List<ComponentDescriptor>> byMessageType = new EnumMap<>(MessageType.class);
+        Map<MessageType, List<HandlerRoute>> routesByMessageType = new EnumMap<>(MessageType.class);
 
-    private static Map<ComponentCapability, List<ComponentDescriptor>> componentsByCapability(
-            ComponentRegistry registry) {
-        Map<ComponentCapability, List<ComponentDescriptor>> result = new EnumMap<>(ComponentCapability.class);
         registry.components().stream()
                 .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
-                .forEach(component -> component.capabilities().forEach(capability ->
-                        result.computeIfAbsent(capability, ignored -> new ArrayList<>()).add(component)));
-        return copyLists(result);
-    }
-
-    private static Map<MessageType, List<ComponentDescriptor>> componentsByMessageType(ComponentRegistry registry) {
-        Map<MessageType, List<ComponentDescriptor>> result = new EnumMap<>(MessageType.class);
-        registry.components().stream()
-                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
-                .forEach(component -> component.messageTypes().forEach(messageType ->
-                        result.computeIfAbsent(messageType, ignored -> new ArrayList<>()).add(component)));
-        return copyLists(result);
-    }
-
-    private static Map<MessageType, List<HandlerRoute>> routesByMessageType(ComponentRegistry registry) {
-        Map<MessageType, List<HandlerRoute>> result = new EnumMap<>(MessageType.class);
-        registry.components().stream()
-                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
-                .flatMap(component -> component.routes().stream())
-                .forEach(route -> result.computeIfAbsent(route.messageType(), ignored -> new ArrayList<>()).add(route));
-        return copyLists(result);
+                .forEach(component -> {
+                    result.putIfAbsent(component.fullClassName(), component);
+                    component.capabilities().forEach(capability ->
+                            byCapability.computeIfAbsent(capability, ignored -> new ArrayList<>()).add(component));
+                    EnumSet<MessageType> messageTypes = EnumSet.noneOf(MessageType.class);
+                    for (HandlerRoute route : component.routes()) {
+                        MessageType messageType = route.messageType();
+                        messageTypes.add(messageType);
+                        routesByMessageType.computeIfAbsent(messageType, ignored -> new ArrayList<>()).add(route);
+                    }
+                    messageTypes.forEach(messageType ->
+                            byMessageType.computeIfAbsent(messageType, ignored -> new ArrayList<>()).add(component));
+                });
+        return new RegistryIndexes(
+                Map.copyOf(result), copyLists(byCapability), copyLists(byMessageType), copyLists(routesByMessageType));
     }
 
     private static Map<String, PackageDescriptor> packagesByName(ComponentRegistry registry) {
@@ -286,5 +282,12 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
     }
 
     private record ComponentExecutableKey(String componentName, String executableId) {
+    }
+
+    private record RegistryIndexes(
+            Map<String, ComponentDescriptor> componentsByName,
+            Map<ComponentCapability, List<ComponentDescriptor>> componentsByCapability,
+            Map<MessageType, List<ComponentDescriptor>> componentsByMessageType,
+            Map<MessageType, List<HandlerRoute>> routesByMessageType) {
     }
 }

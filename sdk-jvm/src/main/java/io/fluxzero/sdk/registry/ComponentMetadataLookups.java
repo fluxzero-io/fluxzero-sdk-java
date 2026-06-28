@@ -88,6 +88,12 @@ public final class ComponentMetadataLookups {
             generatedRegistryLookups = new ConcurrentHashMap<>();
     private static final ConcurrentMap<GeneratedExecutionRegistrationKey, Registration> generatedExecutionRegistrations =
             new ConcurrentHashMap<>();
+    private static final ConcurrentMap<RegistryForKey, ComponentRegistry> registriesByComponentTypes =
+            new ConcurrentHashMap<>();
+    private static final ConcurrentMap<GeneratedRegistryContainsKey, Boolean> generatedRegistryContainsByComponentTypes =
+            new ConcurrentHashMap<>();
+    private static final ConcurrentMap<TypeAnnotationKey, Optional<? extends Annotation>> typeAnnotationCache =
+            new ConcurrentHashMap<>();
     private static final int REGISTRY_LOOKUP_CACHE_SIZE = 256;
     private static final Map<IdentityRegistryKey, ComponentMetadataLookup> registryLookupCache =
             Collections.synchronizedMap(new LinkedHashMap<>(REGISTRY_LOOKUP_CACHE_SIZE, 0.75f, true) {
@@ -99,6 +105,7 @@ public final class ComponentMetadataLookups {
             });
     private static final ThreadLocal<List<RuntimeMetadataMode>> metadataModeOverrides =
             ThreadLocal.withInitial(ArrayList::new);
+    private static final String CONFIGURED_METADATA_MODE_ENV = normalizedMode(System.getenv(METADATA_MODE_ENV));
 
     private ComponentMetadataLookups() {
     }
@@ -141,6 +148,12 @@ public final class ComponentMetadataLookups {
         if (componentTypes.isEmpty()) {
             return ComponentRegistry.empty();
         }
+        return registriesByComponentTypes.computeIfAbsent(
+                new RegistryForKey(componentTypes, generatedOnlyMode()),
+                ignored -> computeRegistryFor(componentTypes));
+    }
+
+    private static ComponentRegistry computeRegistryFor(List<Class<?>> componentTypes) {
         ComponentRegistry generatedRegistry = generatedRegistry(componentTypes.getFirst().getClassLoader());
         ComponentRegistry generatedSubset = registrySubset(generatedRegistry, componentTypes);
         if (!generatedSubset.isEmpty()) {
@@ -180,6 +193,40 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Returns whether generated registry resources already contain all supplied component types.
+     * <p>
+     * This lets runtime registration avoid adding a duplicate per-instance registry contribution when the app model is
+     * already present in the generated classpath registry.
+     */
+    public static boolean generatedRegistryContains(Collection<Class<?>> types) {
+        List<Class<?>> componentTypes = componentTypes(types).stream()
+                .filter(JvmComponentMetadataLookup::isScannable)
+                .toList();
+        if (componentTypes.isEmpty()) {
+            return false;
+        }
+        return generatedRegistryContainsByComponentTypes.computeIfAbsent(
+                new GeneratedRegistryContainsKey(componentTypes),
+                ignored -> computeGeneratedRegistryContains(componentTypes));
+    }
+
+    private static boolean computeGeneratedRegistryContains(List<Class<?>> componentTypes) {
+        Map<ClassLoader, List<Class<?>>> typesByLoader = new LinkedHashMap<>();
+        for (Class<?> type : componentTypes) {
+            typesByLoader.computeIfAbsent(classLoader(type), ignored -> new ArrayList<>()).add(type);
+        }
+        for (Map.Entry<ClassLoader, List<Class<?>>> entry : typesByLoader.entrySet()) {
+            ComponentRegistry registry = generatedRegistry(entry.getKey());
+            ComponentMetadataLookup lookup = generatedRegistryLookup(entry.getKey());
+            if (!containsAll(lookup, entry.getValue())) {
+                return false;
+            }
+            ensureGeneratedExecutions(registry, lookup, entry.getKey(), entry.getValue());
+        }
+        return true;
+    }
+
+    /**
      * Returns metadata annotations for the supplied executable.
      */
     public static List<AnnotationDescriptor> executableAnnotations(
@@ -207,6 +254,19 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(lookup, "lookup");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(annotationType, "annotationType");
+        return cachedTypeAnnotation(lookup, type, annotationType);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <A extends Annotation> Optional<A> cachedTypeAnnotation(
+            ComponentMetadataLookup lookup, Class<?> type, Class<A> annotationType) {
+        return (Optional<A>) typeAnnotationCache.computeIfAbsent(
+                new TypeAnnotationKey(lookup, type, annotationType),
+                key -> resolveTypeAnnotation(key.lookup(), key.type(), key.annotationType()));
+    }
+
+    private static Optional<? extends Annotation> resolveTypeAnnotation(
+            ComponentMetadataLookup lookup, Class<?> type, Class<? extends Annotation> annotationType) {
         return metadataTypeCandidates(type).stream()
                 .flatMap(candidate -> MetadataAnnotationResolver.annotationProjection(
                         typeAnnotations(lookup, candidate).toList(), annotationType, candidate).stream())
@@ -582,9 +642,9 @@ public final class ComponentMetadataLookups {
      * Returns whether the central metadata resolver is configured to refuse JVM classpath/reflection fallback.
      */
     public static boolean generatedOnlyMode() {
-        Optional<RuntimeMetadataMode> override = metadataModeOverride();
-        if (override.isPresent()) {
-            return switch (override.orElseThrow()) {
+        RuntimeMetadataMode override = metadataModeOverride();
+        if (override != null) {
+            return switch (override) {
                 case GENERATED_ONLY, STRICT_GENERATED_ONLY -> true;
                 case JVM_COMPATIBILITY -> false;
             };
@@ -596,9 +656,9 @@ public final class ComponentMetadataLookups {
      * Returns whether generated-only mode should reject migration-debt JVM backend categories.
      */
     public static boolean strictGeneratedOnlyMode() {
-        Optional<RuntimeMetadataMode> override = metadataModeOverride();
-        if (override.isPresent()) {
-            return RuntimeMetadataMode.STRICT_GENERATED_ONLY == override.orElseThrow();
+        RuntimeMetadataMode override = metadataModeOverride();
+        if (override != null) {
+            return RuntimeMetadataMode.STRICT_GENERATED_ONLY == override;
         }
         return configuredStrictGeneratedOnlyMode(configuredMetadataMode());
     }
@@ -612,10 +672,11 @@ public final class ComponentMetadataLookups {
 
     private static String configuredMetadataMode() {
         String configured = System.getProperty(METADATA_MODE_PROPERTY);
-        if (configured == null || configured.isBlank()) {
-            configured = System.getenv(METADATA_MODE_ENV);
-        }
-        return configured == null ? "" : configured.trim();
+        return configured == null || configured.isBlank() ? CONFIGURED_METADATA_MODE_ENV : configured.trim();
+    }
+
+    private static String normalizedMode(String mode) {
+        return mode == null ? "" : mode.trim();
     }
 
     private static boolean configuredGeneratedOnlyMode(String configured) {
@@ -641,9 +702,9 @@ public final class ComponentMetadataLookups {
         runWithMetadataMode(RuntimeMetadataMode.JVM_COMPATIBILITY, runnable);
     }
 
-    private static Optional<RuntimeMetadataMode> metadataModeOverride() {
+    private static RuntimeMetadataMode metadataModeOverride() {
         List<RuntimeMetadataMode> overrides = metadataModeOverrides.get();
-        return overrides.isEmpty() ? Optional.empty() : Optional.of(overrides.get(overrides.size() - 1));
+        return overrides.isEmpty() ? null : overrides.get(overrides.size() - 1);
     }
 
     private static void runWithMetadataMode(RuntimeMetadataMode mode, ThrowingRunnable runnable) throws Exception {
@@ -676,9 +737,9 @@ public final class ComponentMetadataLookups {
     }
 
     static boolean configuredJvmCompatibilityMode() {
-        Optional<RuntimeMetadataMode> override = metadataModeOverride();
-        if (override.isPresent()) {
-            return RuntimeMetadataMode.JVM_COMPATIBILITY == override.orElseThrow();
+        RuntimeMetadataMode override = metadataModeOverride();
+        if (override != null) {
+            return RuntimeMetadataMode.JVM_COMPATIBILITY == override;
         }
         return explicitJvmCompatibilityMode(configuredMetadataMode());
     }
@@ -786,6 +847,16 @@ public final class ComponentMetadataLookups {
     }
 
     private record GeneratedExecutionRegistrationKey(ClassLoader classLoader, String componentName) {
+    }
+
+    private record RegistryForKey(List<Class<?>> componentTypes, boolean generatedOnlyMode) {
+    }
+
+    private record GeneratedRegistryContainsKey(List<Class<?>> componentTypes) {
+    }
+
+    private record TypeAnnotationKey(
+            ComponentMetadataLookup lookup, Class<?> type, Class<? extends Annotation> annotationType) {
     }
 
     private record GeneratedRegistryClassLoaderKey(ClassLoader primary, ClassLoader context, ClassLoader sdk) {

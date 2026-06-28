@@ -15,6 +15,8 @@
 package io.fluxzero.common.application;
 
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * A {@link PropertySource} that resolves property values from system environment variables.
@@ -46,6 +48,8 @@ import java.util.Locale;
 public enum EnvironmentVariablesSource implements PropertySource {
     INSTANCE;
 
+    private final ConcurrentMap<String, String> environmentVariableNames = new ConcurrentHashMap<>();
+
     /**
      * Retrieves the value of the given property name from the system environment. Exact environment variable names have
      * priority over their normalized variants.
@@ -59,7 +63,8 @@ public enum EnvironmentVariablesSource implements PropertySource {
         if (result != null) {
             return result;
         }
-        String environmentVariableName = toEnvironmentVariableName(name);
+        String environmentVariableName = environmentVariableNames.computeIfAbsent(
+                name, EnvironmentVariablesSource::toEnvironmentVariableName);
         return environmentVariableName.equals(name) ? null : System.getenv(environmentVariableName);
     }
 

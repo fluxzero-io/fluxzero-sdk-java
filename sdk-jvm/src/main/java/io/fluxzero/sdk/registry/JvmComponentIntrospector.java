@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 
 /**
@@ -58,6 +60,8 @@ public final class JvmComponentIntrospector implements
 
     private static final JvmComponentIntrospector INSTANCE = new JvmComponentIntrospector();
     private final ExecutableInvocationBackend executableInvocationBackend = this::prepareInvocation;
+    private final ConcurrentMap<ExecutableSignatureKey, ExecutableInvocation> executableInvocations =
+            new ConcurrentHashMap<>();
 
     private JvmComponentIntrospector() {
     }
@@ -217,6 +221,12 @@ public final class JvmComponentIntrospector implements
      */
     public ExecutableInvocation prepareInvocation(Executable executable) {
         guardGeneratedOnlyAccess();
+        return executableInvocations.computeIfAbsent(
+                new ExecutableSignatureKey(executable),
+                ignored -> prepareInvocationUncached(executable));
+    }
+
+    private ExecutableInvocation prepareInvocationUncached(Executable executable) {
         Optional<ExecutableInvocation> generatedInvocation = ComponentMetadataLookups.lookup(executable.getDeclaringClass())
                 .flatMap(lookup -> ComponentMetadataLookups.invocationPlan(lookup, executable))
                 .flatMap(plan -> GeneratedExecutableInvocations.find(
@@ -228,6 +238,30 @@ public final class JvmComponentIntrospector implements
         MemberInvoker invoker = getTypeMetadata(executable.getDeclaringClass())
                 .invoker((Member) executable, true);
         return invoker::invoke;
+    }
+
+    private static final class ExecutableSignatureKey {
+        private final Class<?> declaringClass;
+        private final String executableId;
+        private final int hashCode;
+
+        private ExecutableSignatureKey(Executable executable) {
+            this.declaringClass = executable.getDeclaringClass();
+            this.executableId = GeneratedExecutableInvocations.executableId(executable);
+            this.hashCode = 31 * System.identityHashCode(declaringClass) + executableId.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return this == other || other instanceof ExecutableSignatureKey that
+                                  && declaringClass == that.declaringClass
+                                  && executableId.equals(that.executableId);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 
     /**

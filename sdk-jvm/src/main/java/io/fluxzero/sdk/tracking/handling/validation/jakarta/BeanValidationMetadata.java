@@ -54,6 +54,10 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
         return members.stream().filter(member -> member.propertyName().equals(propertyName)).findFirst();
     }
 
+    boolean hasValidation() {
+        return !classConstraints.isEmpty() || !members.isEmpty();
+    }
+
     void validate(ValidationRun run, Object object, Class<?> group, ValidationPath path) {
         int violationsBeforeBean = run.violations().size();
         int violationsBeforeMethods = -1;

@@ -107,6 +107,12 @@ public class ClientUtils {
             return new LocalHandlerAnnotationCache(type);
         }
     };
+    private static final ClassValue<TrackSelfAnnotationCache> trackSelfAnnotationCache = new ClassValue<>() {
+        @Override
+        protected TrackSelfAnnotationCache computeValue(Class<?> type) {
+            return new TrackSelfAnnotationCache(type);
+        }
+    };
 
     /**
      * A marker used to denote specific log entries that should be ignored or treated differently, typically to bypass
@@ -226,7 +232,7 @@ public class ClientUtils {
         }
         return executable.executable()
                 .map(method -> getLocalHandlerAnnotation(target, method))
-                .orElseGet(() -> computeLocalHandlerAnnotation(target, executable));
+                .orElseGet(() -> localHandlerAnnotationCache.get(target).get(executable));
     }
 
     private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target,
@@ -257,6 +263,13 @@ public class ClientUtils {
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, Executable method) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        return trackSelfAnnotationCache.get(target).get(method);
+    }
+
+    private static Optional<TrackSelf> computeTrackSelfAnnotation(Class<?> target, Executable method) {
         Optional<TrackSelf> metadata = getTrackSelfAnnotationFromMetadata(target, method);
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata;
@@ -269,6 +282,15 @@ public class ClientUtils {
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, ExecutableView executable) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        return executable.executable()
+                .map(method -> getTrackSelfAnnotation(target, method))
+                .orElseGet(() -> trackSelfAnnotationCache.get(target).get(executable));
+    }
+
+    private static Optional<TrackSelf> computeTrackSelfAnnotation(Class<?> target, ExecutableView executable) {
         Optional<TrackSelf> metadata = getTrackSelfAnnotationFromMetadata(target, executable);
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata;
@@ -415,7 +437,11 @@ public class ClientUtils {
         private final Optional<LocalHandler> classAnnotation;
         private final ConcurrentHashMap<Executable, Optional<LocalHandler>> methodAnnotations =
                 new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<ExecutableView, Optional<LocalHandler>> executableViewAnnotations =
+                new ConcurrentHashMap<>();
         private final Function<Executable, Optional<LocalHandler>> computer = this::compute;
+        private final Function<ExecutableView, Optional<LocalHandler>> executableViewComputer =
+                this::compute;
 
         private LocalHandlerAnnotationCache(Class<?> target) {
             this.target = target;
@@ -426,8 +452,49 @@ public class ClientUtils {
             return method == null ? classAnnotation : methodAnnotations.computeIfAbsent(method, computer);
         }
 
+        Optional<LocalHandler> get(ExecutableView executable) {
+            return executableViewAnnotations.computeIfAbsent(executable, executableViewComputer);
+        }
+
         private Optional<LocalHandler> compute(Executable method) {
             return computeLocalHandlerAnnotation(target, method);
+        }
+
+        private Optional<LocalHandler> compute(ExecutableView executable) {
+            return computeLocalHandlerAnnotation(target, executable);
+        }
+    }
+
+    private static class TrackSelfAnnotationCache {
+        private final Class<?> target;
+        private final Optional<TrackSelf> classAnnotation;
+        private final ConcurrentHashMap<Executable, Optional<TrackSelf>> methodAnnotations =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<ExecutableView, Optional<TrackSelf>> executableViewAnnotations =
+                new ConcurrentHashMap<>();
+        private final Function<Executable, Optional<TrackSelf>> computer = this::compute;
+        private final Function<ExecutableView, Optional<TrackSelf>> executableViewComputer =
+                this::compute;
+
+        private TrackSelfAnnotationCache(Class<?> target) {
+            this.target = target;
+            this.classAnnotation = computeTrackSelfAnnotation(target, (Executable) null);
+        }
+
+        Optional<TrackSelf> get(Executable method) {
+            return method == null ? classAnnotation : methodAnnotations.computeIfAbsent(method, computer);
+        }
+
+        Optional<TrackSelf> get(ExecutableView executable) {
+            return executableViewAnnotations.computeIfAbsent(executable, executableViewComputer);
+        }
+
+        private Optional<TrackSelf> compute(Executable method) {
+            return computeTrackSelfAnnotation(target, method);
+        }
+
+        private Optional<TrackSelf> compute(ExecutableView executable) {
+            return computeTrackSelfAnnotation(target, executable);
         }
     }
 
