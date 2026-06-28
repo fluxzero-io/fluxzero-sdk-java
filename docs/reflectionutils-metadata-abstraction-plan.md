@@ -120,7 +120,7 @@ Evidence:
 
 ## Active Phase: Test And Benchmark Performance Closure
 
-Status: [~] active.
+Status: [x] closed for this pass.
 
 Context: generated-only runtime closure is functionally green, but recent broad suite runs exposed runtime/test
 performance regressions. The clearest offender was `HandleWebTest`, with Surefire timings around 31-43 seconds in
@@ -205,20 +205,20 @@ Notes:
 
 ### Slice 4: Benchmark And Handler Invocation Decision
 
-Status: [~] active.
+Status: [x] closed.
 
 - [x] Profile the generated-metadata runtime hot paths before changing benchmark-performance code.
 - [x] Fix measured metadata class-resolution and trigger-filter overhead without changing runtime semantics.
 - [x] Run `OnDemandComparisonBenchmark` at meaningful scales and commit a stable summary outside `target/` if the
   numbers are used for decisions.
-- [ ] Add or extend benchmark coverage for handler invocation paths: reflection compatibility, generated invocation
+- [x] Add or extend benchmark coverage for handler invocation paths: reflection compatibility, generated invocation
   registry, and any existing JIT/compiled handler path.
-- [ ] Decide whether handler JIT compilation still earns its complexity now that the generated registry and generated
+- [x] Decide whether handler JIT compilation still earns its complexity now that the generated registry and generated
   invocation plans exist.
 
 Done when:
 
-- [ ] The project has a measured answer for handler JIT: keep, simplify, gate, or remove.
+- [x] The project has a measured answer for handler JIT: keep, simplify, gate, or remove.
 
 Notes:
 
@@ -261,6 +261,22 @@ Notes:
   internal JVM invocation backend, not a separate app-semantics fallback. The remaining decision needs a direct
   invocation benchmark that can compare the `LambdaMetafactory` backend against a simpler reflective/backend path
   before we keep, gate, simplify, or remove it.
+- `HandlerInvocationBackendBenchmark` now covers direct method calls, raw `DefaultMemberInvoker`, raw
+  `ExecutableInvocation`, generated-invocation-registry lookup, plain reflection invocation, full handler
+  `getInvokerOrNull+invoke`, generated metadata handler matching, and cached handler invokers.
+- Stable handler invocation command:
+  `./mvnw -q -pl sdk-jvm -DskipTests test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=io.fluxzero.sdk.benchmark.HandlerInvocationBackendBenchmark -Diterations=10000000 -Dwarmup=5`.
+- Stable handler invocation result, local wall time 6.77s: raw lambda member invoker 31.042ms / 322.1M op/s, raw
+  lambda `ExecutableInvocation` 34.208ms / 292.3M op/s, raw generated-registry invocation 34.466ms / 290.1M op/s,
+  and raw plain reflection 51.950ms / 192.5M op/s. Full handler `getInvokerOrNull+invoke` was 118.659ms / 84.3M op/s
+  for the lambda backend, 118.492ms / 84.4M op/s for generated registry, 114.875ms / 87.1M op/s for generated metadata,
+  and 136.523ms / 73.2M op/s for plain reflection. Cached handler invocation was 49.735ms / 201.1M op/s for lambda,
+  49.640ms / 201.4M op/s for generated registry, 54.798ms / 182.5M op/s for generated metadata, and 65.914ms /
+  151.7M op/s for plain reflection.
+- Decision: keep the `LambdaMetafactory`/method-handle path as the internal JVM optimized invocation backend. The
+  generated invocation registry does not make it redundant; it gives generated metadata a stable semantic binding while
+  still benefiting from the optimized JVM invocation handle. Do not expose this as app-semantics reflection fallback and
+  do not remove or gate it without a future benchmark showing startup or native-image costs outweigh hot-path gains.
 
 ## Queued Architecture Decisions
 
@@ -280,14 +296,15 @@ Acceptance questions:
 
 ### Handler JIT After Generated Registry
 
-Decision to make: determine whether JIT compilation of handlers is still useful now that handler discovery, binding, and
-invocation can be driven by generated metadata and generated invocation registrations.
+Decision: keep the `LambdaMetafactory`/method-handle path as an internal JVM optimized invocation backend. Generated
+metadata should own handler discovery and binding semantics; the optimized JVM backend remains useful for the actual
+call once generated invocation registrations identify the executable.
 
 Acceptance questions:
 
-- [ ] Does JIT still improve hot handler throughput or startup enough to justify the complexity?
-- [ ] Does generated invocation make JIT redundant for normal SDK usage?
-- [ ] Should JIT become a benchmark-proven opt-in, an internal optimization, or be removed?
+- [x] Does JIT still improve hot handler throughput or startup enough to justify the complexity?
+- [x] Does generated invocation make JIT redundant for normal SDK usage?
+- [x] Should JIT become a benchmark-proven opt-in, an internal optimization, or be removed?
 
 ## Completed Phase: Generated-Only Runtime Closure
 
