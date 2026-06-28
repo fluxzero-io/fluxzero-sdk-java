@@ -46,7 +46,7 @@ public final class GeneratedExecutableInvocations {
         Objects.requireNonNull(targetClass, "targetClass");
         Objects.requireNonNull(executableId, "executableId");
         Objects.requireNonNull(invocation, "invocation");
-        Key key = new Key(typeName(targetClass), executableId);
+        Key key = new Key(targetClass, executableId);
         INVOCATIONS.computeIfAbsent(key, ignored -> new ArrayDeque<>()).addLast(invocation);
         return new Registration(key, invocation);
     }
@@ -65,7 +65,7 @@ public final class GeneratedExecutableInvocations {
     public static Optional<ExecutableInvocation> find(Class<?> targetClass, String executableId) {
         Objects.requireNonNull(targetClass, "targetClass");
         Objects.requireNonNull(executableId, "executableId");
-        return find(new Key(typeName(targetClass), executableId));
+        return find(new Key(targetClass, executableId));
     }
 
     private static synchronized Optional<ExecutableInvocation> find(Key key) {
@@ -92,7 +92,7 @@ public final class GeneratedExecutableInvocations {
         return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 
-    private record Key(String targetClassName, String executableId) {
+    private record Key(Class<?> targetClass, String executableId) {
     }
 
     /**

@@ -209,7 +209,7 @@ Status: [~] active.
 
 - [x] Profile the generated-metadata runtime hot paths before changing benchmark-performance code.
 - [x] Fix measured metadata class-resolution and trigger-filter overhead without changing runtime semantics.
-- [ ] Run `OnDemandComparisonBenchmark` at meaningful scales and commit a stable summary outside `target/` if the
+- [x] Run `OnDemandComparisonBenchmark` at meaningful scales and commit a stable summary outside `target/` if the
   numbers are used for decisions.
 - [ ] Add or extend benchmark coverage for handler invocation paths: reflection compatibility, generated invocation
   registry, and any existing JIT/compiled handler path.
@@ -239,6 +239,28 @@ Notes:
 - Verification passed:
   `./mvnw -q -pl sdk-jvm -Dtest=ComponentMetadataLookupTest,HandlerAssociationsTest,TriggerParameterResolverTest test`
   and `./mvnw -q -pl sdk-jvm -am test`.
+- `OnDemandComparisonBenchmark` initially exposed a real generated-invocation registry collision: normal and
+  on-demand benchmark apps compile the same fully qualified handler names under different classloaders, while
+  `GeneratedExecutableInvocations` was keyed only by class name plus executable id. Generated invocations are now
+  scoped by JVM class identity, with a regression test that loads the same class name through two classloaders.
+- The benchmark fixture setup is now isolated from conventional classpath source roots by passing an explicit no-op
+  execution mode. This keeps normal compiled baselines from accidentally auto-registering the benchmark's on-demand
+  source registry.
+- On-demand benchmark command used for the stable baseline:
+  `./mvnw -q -pl java-downstream-project -DskipTests test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=io.fluxzero.downstream.benchmark.OnDemandComparisonBenchmark -Dfluxzero.benchmark.handlerCounts=1,10,100 -Dfluxzero.benchmark.flowIterations=50 -Dfluxzero.benchmark.consumers=4 -Dfluxzero.benchmark.routesPerHandler=4 -Dfluxzero.benchmark.webRoutes=true`.
+- On-demand benchmark baseline, local wall time 27.45s: at 1 handler, normal registration 318.957ms,
+  on-demand registration 54.963ms, cold compile command 226.094ms, prewarm compile/load 47.754ms, and warm-flow
+  throughput improved from 2017.1 op/s on hot-checking on-demand to 7726.9 op/s prewarmed and 7908.2 op/s with source
+  checks disabled. At 10 handlers, normal registration was 64.777ms, on-demand registration 40.086ms, cold sweep
+  387.054ms, prewarm compile/load 109.270ms, and prewarmed warm-flow throughput 11119.3 op/s. At 100 handlers, normal
+  registration was 225.388ms, on-demand registration 59.517ms, cold sweep 6103.258ms, prewarm compile/load 2368.431ms,
+  and prewarmed warm-flow throughput 8256.2 op/s.
+- Handler JIT inventory: the current JIT-like path is `DefaultMemberInvoker` using `LambdaMetafactory`/method handles
+  behind `ExecutableInvocationBackend.reflection()`. Generated-only metadata mode selects generated executable plans,
+  but the JVM installer still lowers those plans to the same optimized JVM backend. This means JIT is currently an
+  internal JVM invocation backend, not a separate app-semantics fallback. The remaining decision needs a direct
+  invocation benchmark that can compare the `LambdaMetafactory` backend against a simpler reflective/backend path
+  before we keep, gate, simplify, or remove it.
 
 ## Queued Architecture Decisions
 

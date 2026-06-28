@@ -14,6 +14,8 @@
 
 package io.fluxzero.downstream.benchmark;
 
+import io.fluxzero.common.Registration;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.execution.OnDemandExecution;
 import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ComponentRegistryBlueprint;
@@ -183,7 +185,8 @@ public class OnDemandComparisonBenchmark {
         List<Measurement> measurements = new ArrayList<>();
         try (URLClassLoader classLoader = appClassLoader(scale.normalApp())) {
             List<Object> handlers = instantiateHandlers(classLoader, config, scale.handlerCount());
-            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(handlers.toArray()));
+            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(
+                    isolatedFluxzeroBuilder(), handlers.toArray()));
             measurements.add(new Measurement("normal.fluxzero.register", scale.handlerCount(), fixture.nanos(),
                                              "registered %d compiled handler(s)".formatted(handlers.size())));
             try {
@@ -214,7 +217,7 @@ public class OnDemandComparisonBenchmark {
                      .checkSourceChangesOnInvocation(false)
                      .startTracking(false)
                      .build()) {
-            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(fluxzero -> {
+            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(isolatedFluxzeroBuilder(), fluxzero -> {
                 execution.registerWith(fluxzero);
                 return List.of();
             }));
@@ -247,7 +250,7 @@ public class OnDemandComparisonBenchmark {
                      .parentClassLoader(classLoader)
                      .startTracking(false)
                      .build()) {
-            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(fluxzero -> {
+            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(isolatedFluxzeroBuilder(), fluxzero -> {
                 execution.registerWith(fluxzero);
                 return List.of();
             }));
@@ -288,7 +291,7 @@ public class OnDemandComparisonBenchmark {
                      .checkSourceChangesOnInvocation(false)
                      .startTracking(false)
                      .build()) {
-            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(fluxzero -> {
+            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(isolatedFluxzeroBuilder(), fluxzero -> {
                 execution.registerWith(fluxzero);
                 return List.of();
             }));
@@ -314,7 +317,9 @@ public class OnDemandComparisonBenchmark {
 
     private static List<Measurement> measureSingleNormalRuntime(BenchmarkConfig config) {
         List<Measurement> measurements = new ArrayList<>();
-        Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(new NormalBenchmarkHandler("normal")));
+        Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(
+                isolatedFluxzeroBuilder(),
+                new NormalBenchmarkHandler("normal")));
         measurements.add(new Measurement("normal.single.fluxzero.register", 1, fixture.nanos(),
                                          "TestFixture.create"));
         try {
@@ -340,7 +345,7 @@ public class OnDemandComparisonBenchmark {
                 .cacheTtl(Duration.ofMinutes(10))
                 .startTracking(false)
                 .build()) {
-            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(fluxzero -> {
+            Timed<TestFixture> fixture = timedValue(() -> TestFixture.create(isolatedFluxzeroBuilder(), fluxzero -> {
                 execution.registerWith(fluxzero);
                 return List.of();
             }));
@@ -371,6 +376,10 @@ public class OnDemandComparisonBenchmark {
             Object result = result(classLoader, config, 0, prefix, "command", "cold");
             fixture.whenCommand(command).expectResult(result).expectNoErrors();
         });
+    }
+
+    private static DefaultFluxzero.Builder isolatedFluxzeroBuilder() {
+        return DefaultFluxzero.builder().executionMode(fluxzero -> Registration.noOp());
     }
 
     private static Measurement measureGeneratedHotRecompile(ScaleContext scale, TestFixture fixture,
