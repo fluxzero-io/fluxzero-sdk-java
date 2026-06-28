@@ -25,6 +25,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -151,22 +152,14 @@ public final class ComponentMetadataLookups {
      * {@code Fluxzero.registerComponentRegistry}.
      */
     public static void ensureGeneratedExecutions(Class<?>... types) {
+        Map<ClassLoader, List<Class<?>>> typesByLoader = new LinkedHashMap<>();
         for (Class<?> type : componentTypes(types)) {
-            ClassLoader loader = type.getClassLoader();
-            ClassLoader key = loader == null ? ComponentMetadataLookups.class.getClassLoader() : loader;
-            ComponentRegistry registry = generatedRegistry(key);
-            for (Class<?> candidate : metadataTypeCandidates(type)) {
-                for (String typeName : typeNames(candidate)) {
-                    registry.findComponent(typeName).ifPresent(component -> {
-                        GeneratedExecutionRegistrationKey registrationKey =
-                                new GeneratedExecutionRegistrationKey(key, component.fullClassName());
-                        generatedExecutionRegistrations.computeIfAbsent(
-                                registrationKey,
-                                ignored -> JvmGeneratedExecutionInstaller.install(
-                                        registry, key, List.of(component.fullClassName())));
-                    });
-                }
-            }
+            typesByLoader.computeIfAbsent(classLoader(type), ignored -> new ArrayList<>()).add(type);
+        }
+        for (Map.Entry<ClassLoader, List<Class<?>>> entry : typesByLoader.entrySet()) {
+            ComponentRegistry registry = generatedRegistry(entry.getKey());
+            ComponentMetadataLookup lookup = generatedRegistryLookup(entry.getKey());
+            ensureGeneratedExecutions(registry, lookup, entry.getKey(), entry.getValue());
         }
     }
 
@@ -480,8 +473,10 @@ public final class ComponentMetadataLookups {
     }
 
     private static Optional<ComponentMetadataLookup> generatedRegistryLookup(List<Class<?>> types) {
-        ensureGeneratedExecutions(types.toArray(Class<?>[]::new));
-        ComponentMetadataLookup lookup = generatedRegistryLookup(types.getFirst().getClassLoader());
+        ClassLoader loader = classLoader(types.getFirst());
+        ComponentRegistry registry = generatedRegistry(loader);
+        ComponentMetadataLookup lookup = generatedRegistryLookup(loader);
+        ensureGeneratedExecutions(registry, lookup, loader, types);
         return containsAll(lookup, types) ? Optional.of(lookup) : Optional.empty();
     }
 
@@ -494,6 +489,27 @@ public final class ComponentMetadataLookups {
         ClassLoader loader = classLoader == null ? ComponentMetadataLookups.class.getClassLoader() : classLoader;
         return generatedRegistryLookups.computeIfAbsent(
                 loader, key -> RegistryComponentMetadataLookup.of(generatedRegistry(key)));
+    }
+
+    private static void ensureGeneratedExecutions(
+            ComponentRegistry registry, ComponentMetadataLookup lookup, ClassLoader loader, Collection<Class<?>> types) {
+        if (registry.isEmpty()) {
+            return;
+        }
+        for (Class<?> type : componentTypes(types)) {
+            for (Class<?> candidate : metadataTypeCandidates(type)) {
+                for (String typeName : typeNames(candidate)) {
+                    lookup.component(typeName).ifPresent(component -> {
+                        GeneratedExecutionRegistrationKey registrationKey =
+                                new GeneratedExecutionRegistrationKey(loader, component.fullClassName());
+                        generatedExecutionRegistrations.computeIfAbsent(
+                                registrationKey,
+                                ignored -> JvmGeneratedExecutionInstaller.install(
+                                        registry, loader, List.of(component.fullClassName())));
+                    });
+                }
+            }
+        }
     }
 
     private static Optional<ComponentMetadataLookup> registryLookup(ComponentRegistry registry, List<Class<?>> types) {
@@ -667,6 +683,11 @@ public final class ComponentMetadataLookups {
     private static List<Class<?>> componentTypes(Collection<Class<?>> types) {
         Objects.requireNonNull(types, "types");
         return types.stream().filter(Objects::nonNull).distinct().toList();
+    }
+
+    private static ClassLoader classLoader(Class<?> type) {
+        ClassLoader loader = type.getClassLoader();
+        return loader == null ? ComponentMetadataLookups.class.getClassLoader() : loader;
     }
 
     private static String typeName(Class<?> type) {

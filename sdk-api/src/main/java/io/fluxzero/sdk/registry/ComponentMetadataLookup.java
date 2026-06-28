@@ -132,12 +132,14 @@ public interface ComponentMetadataLookup {
             String fullClassName, ExecutableKind kind, String name, List<String> parameterTypeNames) {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(name, "name");
-        List<String> parameterTypes = List.copyOf(Objects.requireNonNull(parameterTypeNames, "parameterTypeNames"));
+        Objects.requireNonNull(parameterTypeNames, "parameterTypeNames");
+        parameterTypeNames.forEach(parameterTypeName -> Objects.requireNonNull(
+                parameterTypeName, "parameterTypeName"));
         return executables(fullClassName).stream()
                 .filter(executable -> executable.kind() == kind)
                 .filter(executable -> executable.name().equals(name))
                 .filter(executable -> executable.parameters().stream().map(ParameterDescriptor::typeName).toList()
-                .equals(parameterTypes))
+                .equals(parameterTypeNames))
                 .findFirst();
     }
 

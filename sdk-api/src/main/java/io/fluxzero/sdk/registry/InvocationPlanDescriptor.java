@@ -60,8 +60,10 @@ public record InvocationPlanDescriptor(
             ExecutableKind kind, String executableName, List<String> parameterTypeNames) {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(executableName, "executableName");
-        List<String> parameters = List.copyOf(Objects.requireNonNull(parameterTypeNames, "parameterTypeNames"));
+        Objects.requireNonNull(parameterTypeNames, "parameterTypeNames");
+        parameterTypeNames.forEach(parameterTypeName -> Objects.requireNonNull(
+                parameterTypeName, "parameterTypeName"));
         String name = kind == ExecutableKind.CONSTRUCTOR ? "<init>" : executableName;
-        return kind.name() + ":" + name + "(" + String.join(",", parameters) + ")";
+        return kind.name() + ":" + name + "(" + String.join(",", parameterTypeNames) + ")";
     }
 }

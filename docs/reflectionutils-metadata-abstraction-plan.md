@@ -120,7 +120,7 @@ Evidence:
 
 ## Active Phase: Test And Benchmark Performance Closure
 
-Status: [ ] planned.
+Status: [~] active.
 
 Context: generated-only runtime closure is functionally green, but recent broad suite runs exposed runtime/test
 performance regressions. The clearest offender was `HandleWebTest`, with Surefire timings around 31-43 seconds in
@@ -131,43 +131,77 @@ Goal: make test and benchmark performance boring again before resuming browser c
 
 ### Slice 1: Reproducible Performance Baseline
 
-Status: [ ] queued.
+Status: [x] closed for the test-performance pass.
 
-- [ ] Capture clean Maven timings for focused generated-only suites and `./mvnw -q -pl sdk-jvm -am test`.
-- [ ] Capture Surefire per-class timings and isolate the top offenders.
-- [ ] Profile before changing code, using JFR or an equivalent local profiler where useful.
-- [ ] Record the benchmark/test command lines and environment assumptions.
+- [x] Captured Maven timings for the focused slow group and `./mvnw -q -pl sdk-jvm -am test`.
+- [x] Captured Surefire per-class timings and isolated the top offenders.
+- [x] Profiled before changing code with JFR attached to the Surefire fork.
+- [x] Recorded the benchmark/test command lines and environment assumptions.
 
 Done when:
 
-- [ ] We can point to measured setup/load/invocation hotspots instead of guessing.
+- [x] We can point to measured setup/load/invocation hotspots instead of guessing.
+
+Notes:
+
+- Focused baseline command:
+  `./mvnw -q -pl sdk-jvm -am -Dtest=OnDemandExecutionTest,AggregateEntitiesTest,HandleWebTest,StatefulHandlerTest,EventSourcingRepositoryTest,SearchTest,GivenWhenThenSchedulingTest,FixtureTraceDiagnosticsTest,ConsumerConfigurationTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+- Baseline focused Surefire sum before this pass was about 27.8s for that group; `HandleWebTest` was 4.896s and
+  `AggregateEntitiesTest` was 5.781s.
+- JFR attached to the Surefire fork showed:
+  route executable refs doing repeated linear `findFirst` scans during `ComponentRegistryJson` deserialization,
+  generated execution installation using linear `ComponentRegistry.findComponent`, and registry lookup executable
+  matching falling back to stream scans/list allocation.
+- An eager full executable/invocation index was profiled and rejected: it moved the hotspot into
+  `RegistryComponentMetadataLookup.componentIndexes` and raised the focused Surefire sum to about 41.4s.
 
 ### Slice 2: Web/Test Fixture Hotspot Pass
 
-Status: [ ] queued.
+Status: [x] closed for this pass.
 
-- [ ] Start with `HandleWebTest`.
-- [ ] Verify whether repeated registry load/normalization/install work is still happening after the classloader cache
+- [x] Started with `HandleWebTest`.
+- [x] Verified whether repeated registry load/normalization/install work is still happening after the classloader cache
   and indexed lookup changes.
-- [ ] Reduce redundant fixture setup, metadata lookup, and generated execution installation where the profile supports
+- [x] Reduced redundant fixture setup, metadata lookup, and generated execution installation where the profile supports
   it.
 
 Done when:
 
-- [ ] `HandleWebTest` no longer dominates the broad `sdk-jvm` suite without hiding work in global mutable state.
+- [x] `HandleWebTest` no longer dominates the broad `sdk-jvm` suite without hiding work in global mutable state.
+
+Notes:
+
+- `ComponentRegistryJson` now resolves route executable refs through a per-component id map instead of scanning all
+  executables per route.
+- `ComponentMetadataLookups.ensureGeneratedExecutions` now uses the indexed registry lookup rather than
+  `ComponentRegistry.findComponent`.
+- `RegistryComponentMetadataLookup` caches executable and invocation-plan lookups lazily. The cache avoids repeated
+  scans without eagerly indexing every fixture registry.
+- `FixtureTraceDiagnosticsTest` example traces log at DEBUG instead of INFO, reducing normal test output capture while
+  keeping diagnostics available when needed.
+- Post-fix focused group was about 15.7-16.3s Surefire sum and about 8-9s wall locally; `HandleWebTest` was about
+  2.6s in Maven.
 
 ### Slice 3: Broad Suite Performance Pass
 
-Status: [ ] queued.
+Status: [x] closed for this pass.
 
-- [ ] Re-check previously high suites such as `ConsumerConfigurationTest`,
+- [x] Re-checked previously high suites such as `ConsumerConfigurationTest`,
   `DefaultHandlerFactoryGeneratedOnlyMetadataTest`, `AggregateEntitiesTest`, `ValidatingInterceptorTest`,
   `SearchTest`, and `EventSourcingRepositoryTest`.
-- [ ] Keep the broad suite green while reducing repeated metadata/runtime setup costs.
+- [x] Kept the broad suite green while reducing repeated metadata/runtime setup costs.
 
 Done when:
 
-- [ ] Broad `sdk-jvm` timing is recorded after fixes and no generated-only coverage is removed to gain speed.
+- [x] Broad `sdk-jvm` timing is recorded after fixes and no generated-only coverage is removed to gain speed.
+
+Notes:
+
+- Broad verification command: `./mvnw -q -pl sdk-jvm -am test`.
+- Local wall time after this pass: 12.9s.
+- Slowest broad Surefire classes after this pass: `OnDemandExecutionTest` 4.012s,
+  `GivenWhenThenSpringTest` 3.232s, `HandleWebTest` 3.095s, `AggregateEntitiesTest` 2.739s,
+  `GivenWhenThenSchedulingTest` 2.010s, `EventSourcingRepositoryTest` 1.913s, `SearchTest` 1.825s.
 
 ### Slice 4: Benchmark And Handler Invocation Decision
 

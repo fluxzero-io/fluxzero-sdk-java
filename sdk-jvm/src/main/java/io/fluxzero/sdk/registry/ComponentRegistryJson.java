@@ -413,20 +413,23 @@ public final class ComponentRegistryJson {
 
         private ComponentDescriptor componentDescriptor(ComponentDto dto) {
             List<ExecutableDescriptor> executables = list(dto.executables()).stream().map(this::executable).toList();
+            List<HandlerRouteDto> handlerRoutes = list(dto.handlerRoutes());
+            Map<String, ExecutableDescriptor> executablesById = handlerRoutes.isEmpty()
+                    ? Map.of() : executablesById(executables);
             return new ComponentDescriptor(
                     path(dto.sourceFile()), path(dto.packageInfoSource()), componentKind(dto.componentKind()),
                     dto.packageName(), dto.className(), list(dto.superTypeNames()),
                     list(dto.annotations()).stream().map(this::annotation).toList(),
                     list(dto.properties()).stream().map(this::property).toList(),
                     executables,
-                    set(list(dto.handlerRoutes()).stream().map(route -> handlerRoute(route, executables)).toList()),
+                    set(handlerRoutes.stream().map(route -> handlerRoute(route, executablesById)).toList()),
                     list(dto.registeredTypes()).stream().map(this::registeredType).toList(),
                     dto.consumer() == null ? null : consumer(dto.consumer()),
                     enums(dto.capabilities(), ComponentCapability.class));
         }
 
-        private HandlerRoute handlerRoute(HandlerRouteDto dto, List<ExecutableDescriptor> executables) {
-            ExecutableDescriptor executable = dto.executable() == null ? executable(dto.executableId(), executables)
+        private HandlerRoute handlerRoute(HandlerRouteDto dto, Map<String, ExecutableDescriptor> executablesById) {
+            ExecutableDescriptor executable = dto.executable() == null ? executable(dto.executableId(), executablesById)
                     : executable(dto.executable());
             AnnotationDescriptor annotation = dto.annotation() == null
                     ? annotation(dto.annotationRef(), executable) : annotation(dto.annotation());
@@ -439,15 +442,27 @@ public final class ComponentRegistryJson {
                     list(dto.webRoutes()).stream().map(this::webRoute).toList());
         }
 
-        private ExecutableDescriptor executable(String executableId, List<ExecutableDescriptor> executables) {
+        private ExecutableDescriptor executable(String executableId, Map<String, ExecutableDescriptor> executablesById) {
             if (executableId == null) {
                 return null;
             }
-            return executables.stream()
-                    .filter(executable -> executableId(executable).equals(executableId))
-                    .findFirst()
-                    .orElseThrow(() -> new ComponentRegistryException(
-                            "Generated component registry route references missing executable: " + executableId));
+            ExecutableDescriptor executable = executablesById.get(executableId);
+            if (executable == null) {
+                throw new ComponentRegistryException(
+                        "Generated component registry route references missing executable: " + executableId);
+            }
+            return executable;
+        }
+
+        private Map<String, ExecutableDescriptor> executablesById(List<ExecutableDescriptor> executables) {
+            if (executables.isEmpty()) {
+                return Map.of();
+            }
+            Map<String, ExecutableDescriptor> result = new LinkedHashMap<>();
+            for (ExecutableDescriptor executable : executables) {
+                result.putIfAbsent(executableId(executable), executable);
+            }
+            return result;
         }
 
         private AnnotationDescriptor annotation(String annotationRef, ExecutableDescriptor executable) {

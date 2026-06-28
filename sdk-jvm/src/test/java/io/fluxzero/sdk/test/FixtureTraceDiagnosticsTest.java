@@ -582,7 +582,7 @@ class FixtureTraceDiagnosticsTest {
 
     private static void logReviewExample(String title, Executable executable) {
         Throwable error = assertThrows(Throwable.class, executable);
-        log.info("Fixture trace review - {}:\n{}", title, diagnosticsFrom(error));
+        log.debug("Fixture trace review - {}:\n{}", title, diagnosticsFrom(error));
     }
 
     private static void withoutGatewayErrorLogs(Executable executable) throws Throwable {
@@ -611,7 +611,7 @@ class FixtureTraceDiagnosticsTest {
             }
         }
         assertTrue(trace != null);
-        log.info("Fixture trace diagnostics:\n{}", trace);
+        log.debug("Fixture trace diagnostics:\n{}", trace);
         return trace;
     }
 

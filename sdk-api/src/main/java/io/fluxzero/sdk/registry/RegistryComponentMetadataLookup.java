@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Registry-backed implementation of the component metadata lookup facade.
@@ -38,6 +40,12 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
     private final Map<MessageType, List<ComponentDescriptor>> componentsByMessageType;
     private final Map<MessageType, List<HandlerRoute>> routesByMessageType;
     private final Map<String, PackageDescriptor> packagesByName;
+    private final ConcurrentMap<ComponentExecutableKey, Optional<ExecutableDescriptor>> executableCache =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<InvocationPlanDescriptor>> invocationPlansByComponentName =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<ComponentExecutableKey, Optional<InvocationPlanDescriptor>> invocationPlanCache =
+            new ConcurrentHashMap<>();
 
     /**
      * Creates a lookup facade for the supplied registry.
@@ -104,6 +112,51 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
         return routesByMessageType.getOrDefault(messageType, List.of());
     }
 
+    @Override
+    public List<PropertyDescriptor> properties(String fullClassName) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        return component(fullClassName).map(ComponentDescriptor::properties).orElseGet(List::of);
+    }
+
+    @Override
+    public Optional<PropertyDescriptor> property(String fullClassName, String propertyName) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        Objects.requireNonNull(propertyName, "propertyName");
+        return properties(fullClassName).stream()
+                .filter(property -> property.name().equals(propertyName))
+                .findFirst();
+    }
+
+    @Override
+    public List<ExecutableDescriptor> executables(String fullClassName) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        return component(fullClassName).map(ComponentDescriptor::executables).orElseGet(List::of);
+    }
+
+    @Override
+    public Optional<ExecutableDescriptor> executable(
+            String fullClassName, ExecutableKind kind, String name, List<String> parameterTypeNames) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        ComponentExecutableKey key = componentExecutableKey(fullClassName, kind, name, parameterTypeNames);
+        return executableCache.computeIfAbsent(key, ignored -> findExecutable(fullClassName, key.executableId()));
+    }
+
+    @Override
+    public List<InvocationPlanDescriptor> invocationPlans(String fullClassName) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        return invocationPlansByComponentName.computeIfAbsent(fullClassName, this::buildInvocationPlans);
+    }
+
+    @Override
+    public Optional<InvocationPlanDescriptor> invocationPlan(
+            String fullClassName, ExecutableKind kind, String name, List<String> parameterTypeNames) {
+        Objects.requireNonNull(fullClassName, "fullClassName");
+        ComponentExecutableKey key = componentExecutableKey(fullClassName, kind, name, parameterTypeNames);
+        return invocationPlanCache.computeIfAbsent(key, ignored -> invocationPlans(fullClassName).stream()
+                .filter(plan -> plan.executableId().equals(key.executableId()))
+                .findFirst());
+    }
+
     private static Map<String, ComponentDescriptor> componentsByName(ComponentRegistry registry) {
         Map<String, ComponentDescriptor> result = new LinkedHashMap<>();
         registry.components().stream()
@@ -148,10 +201,90 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
         return Map.copyOf(result);
     }
 
+    private Optional<ExecutableDescriptor> findExecutable(String fullClassName, String executableId) {
+        return executables(fullClassName).stream()
+                .filter(executable -> executableId(executable).equals(executableId))
+                .findFirst();
+    }
+
+    private List<InvocationPlanDescriptor> buildInvocationPlans(String fullClassName) {
+        Optional<ComponentDescriptor> component = component(fullClassName);
+        if (component.isEmpty()) {
+            return List.of();
+        }
+        ComponentDescriptor descriptor = component.orElseThrow();
+        List<PropertyAccessPlanDescriptor> propertyAccesses = descriptor.properties().stream()
+                .map(RegistryComponentMetadataLookup::propertyAccessPlan)
+                .toList();
+        return descriptor.executables().stream()
+                .map(executable -> invocationPlan(fullClassName, executable, propertyAccesses))
+                .toList();
+    }
+
+    private static String executableId(ExecutableDescriptor executable) {
+        return InvocationPlanDescriptor.executableId(
+                executable.kind(), executable.name(),
+                executable.parameters().stream().map(ParameterDescriptor::typeName).toList());
+    }
+
+    private static ComponentExecutableKey componentExecutableKey(
+            String fullClassName, ExecutableKind kind, String name, List<String> parameterTypeNames) {
+        return new ComponentExecutableKey(
+                fullClassName, InvocationPlanDescriptor.executableId(kind, name, parameterTypeNames));
+    }
+
+    private static InvocationPlanDescriptor invocationPlan(
+            String targetComponentName, ExecutableDescriptor executable,
+            List<PropertyAccessPlanDescriptor> propertyAccesses) {
+        List<String> parameterTypes = executable.parameters().stream()
+                .map(ParameterDescriptor::typeName)
+                .toList();
+        return new InvocationPlanDescriptor(
+                targetComponentName,
+                InvocationPlanDescriptor.executableId(executable.kind(), executable.name(), parameterTypes),
+                executable.kind(),
+                executable.name(),
+                executable.returnTypeName(),
+                parameterBindings(executable),
+                propertyAccesses,
+                List.of());
+    }
+
+    private static List<ParameterBindingDescriptor> parameterBindings(ExecutableDescriptor executable) {
+        List<ParameterDescriptor> parameters = executable.parameters();
+        List<ParameterBindingDescriptor> result = new ArrayList<>(parameters.size());
+        for (int i = 0; i < parameters.size(); i++) {
+            ParameterDescriptor parameter = parameters.get(i);
+            result.add(new ParameterBindingDescriptor(
+                    i, parameter.name(), parameter.typeName(), annotationNames(parameter.annotations())));
+        }
+        return List.copyOf(result);
+    }
+
+    private static PropertyAccessPlanDescriptor propertyAccessPlan(PropertyDescriptor property) {
+        return new PropertyAccessPlanDescriptor(
+                property.name(),
+                property.typeName(),
+                property.genericTypeName(),
+                true,
+                true,
+                annotationNames(property.annotations()));
+    }
+
+    private static List<String> annotationNames(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .map(AnnotationDescriptor::qualifiedName)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
     private static <K, V> Map<K, List<V>> copyLists(Map<K, List<V>> source) {
         return source.entrySet().stream()
                 .collect(LinkedHashMap::new,
                          (map, entry) -> map.put(entry.getKey(), List.copyOf(entry.getValue())),
                          Map::putAll);
+    }
+
+    private record ComponentExecutableKey(String componentName, String executableId) {
     }
 }
