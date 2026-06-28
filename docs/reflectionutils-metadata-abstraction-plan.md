@@ -122,6 +122,8 @@ Current evidence:
   protected field readers and writers.
 - `SchedulingInterceptor` now installs classpath generated constructor invocations before generated-only periodic
   auto-start payload creation.
+- The generated-only backend debt ledger no longer classifies `SchedulingInterceptor` as schedule instantiation debt;
+  `PeriodicMetadata` remains as schedule metadata compatibility debt.
 - `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
   generated construction for a class without a JVM default constructor.
 - `ModelMetadataTest.generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors` covers generated-only
@@ -130,6 +132,7 @@ Current evidence:
   generated-only protected-field handling without explicit runtime registry registration.
 - `SchedulingInterceptorTest.generatedOnlyModeInstallsClasspathGeneratedConstructorForPeriodicHandlerMethods` covers
   generated-only periodic payload construction without explicit runtime registry registration.
+- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 42 migration-debt classes.
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 

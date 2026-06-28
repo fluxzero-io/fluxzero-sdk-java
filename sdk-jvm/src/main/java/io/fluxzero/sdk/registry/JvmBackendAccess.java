@@ -65,7 +65,6 @@ final class JvmBackendAccess {
             Map.entry("io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor",
                       debt("JVM property access backend")),
             Map.entry("io.fluxzero.sdk.scheduling.PeriodicMetadata", debt("JVM schedule compatibility backend")),
-            Map.entry("io.fluxzero.sdk.scheduling.SchedulingInterceptor", debt("JVM schedule instantiation backend")),
             Map.entry("io.fluxzero.sdk.tracking.ConsumerConfiguration", debt("JVM consumer compatibility bridge")),
             Map.entry("io.fluxzero.sdk.tracking.DefaultTracking", debt("JVM handler type backend")),
             Map.entry("io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory",
