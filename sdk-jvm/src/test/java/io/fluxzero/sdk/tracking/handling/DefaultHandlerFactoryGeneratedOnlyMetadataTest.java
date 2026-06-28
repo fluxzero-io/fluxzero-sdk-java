@@ -18,7 +18,9 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
@@ -129,6 +131,59 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
             GeneratedOnlyMetadataMode.run(() -> assertThrows(ComponentRegistryException.class,
                     () -> factory().createHandler(
                             new LocalRegisteredGeneratedOnlyHandler(), (c, e) -> true, List.of())));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeRejectsHandlerInspectorFallbackWithoutRegistryMatcher() {
+        class LocalUnregisteredGeneratedOnlyHandler {
+            @HandleCommand
+            String handle() {
+                return "handled";
+            }
+        }
+
+        HandlerConfiguration<DeserializingMessage> config =
+                HandlerConfiguration.<DeserializingMessage>builder()
+                        .methodAnnotation(HandleCommand.class)
+                        .build();
+
+        GeneratedOnlyMetadataMode.run(() -> assertThrows(ComponentRegistryException.class,
+                () -> new ExposedDefaultHandlerFactory().createMatcher(
+                        new LocalUnregisteredGeneratedOnlyHandler(), config)));
+    }
+
+    @Test
+    void generatedOnlyModeRejectsPartiallyLoweredRegisteredHandlerInvocations() {
+        class LocalPartiallyLoweredGeneratedOnlyHandler {
+            @HandleCommand
+            String handle() {
+                return "handled";
+            }
+
+            @HandleCommand
+            String handle(String command) {
+                return command;
+            }
+        }
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    registryWithPartiallyUnlowerableHandlerPlan(LocalPartiallyLoweredGeneratedOnlyHandler.class));
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                assertThrows(ComponentRegistryException.class,
+                             () -> factory().createHandler(
+                                     new LocalPartiallyLoweredGeneratedOnlyHandler(), (c, e) -> true, List.of()));
+                assertThrows(ComponentRegistryException.class,
+                             () -> new ExposedDefaultHandlerFactory().createMatcher(
+                                     new LocalPartiallyLoweredGeneratedOnlyHandler(),
+                                     HandlerConfiguration.<DeserializingMessage>builder()
+                                             .methodAnnotation(HandleCommand.class)
+                                             .build()));
+            });
         } finally {
             TestFixture.shutDownActiveFixtures();
         }
@@ -411,6 +466,42 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         return new ComponentRegistry(registry.sourceRoot(), registry.packages(), List.of(unlowerableComponent));
     }
 
+    private static ComponentRegistry registryWithPartiallyUnlowerableHandlerPlan(Class<?> handlerType) {
+        ComponentRegistry registry = JvmComponentMetadataLookup.scan(handlerType).registry();
+        ComponentDescriptor component = registry.components().getFirst();
+        List<ExecutableDescriptor> executables = component.executables().stream()
+                .map(executable -> executable.parameters().isEmpty()
+                        ? executable : unlowerableExecutable(executable))
+                .toList();
+        ComponentDescriptor partialComponent = new ComponentDescriptor(
+                component.sourceFile(),
+                component.packageInfoSource(),
+                component.componentKind(),
+                component.packageName(),
+                component.className(),
+                component.superTypeNames(),
+                component.annotations(),
+                component.properties(),
+                executables,
+                component.handlerRoutes(),
+                component.registeredTypes(),
+                component.consumer(),
+                component.capabilities());
+        return new ComponentRegistry(registry.sourceRoot(), registry.packages(), List.of(partialComponent));
+    }
+
+    private static ExecutableDescriptor unlowerableExecutable(ExecutableDescriptor executable) {
+        return new ExecutableDescriptor(
+                executable.kind(),
+                executable.name(),
+                executable.returnTypeName(),
+                executable.returnTypeUse(),
+                List.of(new ParameterDescriptor(
+                        "missing", MissingGeneratedOnlyInvocationParameter.class.getName(), List.of())),
+                executable.annotations(),
+                executable.isStatic());
+    }
+
     private static DefaultHandlerFactory factory() {
         return factory(MessageType.COMMAND);
     }
@@ -431,6 +522,18 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         return new DefaultHandlerFactory(
                 MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
                 c -> emptyRepository(), null, false, null);
+    }
+
+    private static class ExposedDefaultHandlerFactory extends DefaultHandlerFactory {
+        private ExposedDefaultHandlerFactory() {
+            super(MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
+                  c -> null, null, false, null);
+        }
+
+        HandlerMatcher<Object, DeserializingMessage> createMatcher(
+                Object target, HandlerConfiguration<DeserializingMessage> config) {
+            return createHandlerMatcher(target, config);
+        }
     }
 
     private static RepositoryProvider repositoryProvider() {

@@ -177,6 +177,9 @@ class RuntimeDecisionMatrixTest {
             String boundary,
             String closure) {
         boolean usesUnfinishedBackend() {
+            if (currentSource.equals(finalSource)) {
+                return false;
+            }
             return currentSource.equals("Hybrid")
                    || currentSource.equals("Allowed JVM backend")
                    || finalSource.equals("Generated invocation plan");

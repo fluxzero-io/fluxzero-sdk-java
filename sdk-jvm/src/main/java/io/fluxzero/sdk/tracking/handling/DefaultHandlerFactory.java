@@ -392,15 +392,16 @@ public class DefaultHandlerFactory implements HandlerFactory {
             default -> {
                 Class<?> targetClass = asClass(target);
                 if (ComponentMetadataLookups.generatedOnlyMode()) {
+                    if (RegistryHandlerMatcherFactory.hasRegisteredHandlersWithoutGeneratedInvocations(
+                            targetClass, messageType, config)) {
+                        throw missingGeneratedInvocationPlans(targetClass);
+                    }
                     Optional<HandlerMatcher<Object, DeserializingMessage>> registryMatcher =
                             RegistryHandlerMatcherFactory.create(targetClass, parameterResolvers, config);
                     if (registryMatcher.isPresent()) {
                         yield registryMatcher.orElseThrow();
                     }
-                    if (RegistryHandlerMatcherFactory.hasRegisteredHandlersWithoutGeneratedInvocations(
-                            targetClass, messageType, config)) {
-                        throw missingGeneratedInvocationPlans(targetClass);
-                    }
+                    throw missingGeneratedInvocationPlans(targetClass);
                 }
                 yield HandlerInspector.inspect(targetClass, parameterResolvers, config);
             }

@@ -65,8 +65,8 @@ final class RegistryHandlerMatcherFactory {
             MessageType messageType,
             HandlerConfiguration<DeserializingMessage> config) {
         return registeredExecutableViews(targetClass, config)
-                .map(views -> !views.isEmpty() && views.stream().noneMatch(
-                        view -> generatedInvocation(view).isPresent()))
+                .map(views -> !views.isEmpty() && views.stream().anyMatch(
+                        view -> generatedInvocation(view).isEmpty()))
                 .orElse(false);
     }
 

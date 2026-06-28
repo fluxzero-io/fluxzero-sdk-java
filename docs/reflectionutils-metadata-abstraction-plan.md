@@ -46,14 +46,18 @@ Evidence:
 
 ### Slice 2: Handler Execution Without Semantic Fallback
 
-Status: [ ] open.
+Status: [x] implemented for this slice.
 
 Goal: generated-only handler registration, matching, parameter binding, and invocation must not need JVM executable or
 parameter reflection for Fluxzero semantics.
 
-- [ ] Make generated invocation plans the required path for generated-only handler execution.
+- [x] Make generated invocation plans the required path for generated-only handler execution.
   - [x] Registered non-web handlers now fail in generated-only mode when matching registry metadata exists but generated
     invocation plans are missing.
+  - [x] Non-web handler matching in generated-only mode now rejects missing registry-backed generated matchers instead
+    of falling through to `HandlerInspector`.
+  - [x] Partially lowered registered handler metadata now fails when any matching executable lacks a generated
+    invocation plan.
 - [x] Remove the generated-only allowance for `HandlerInspector`/`DefaultHandlerFactory` semantic fallback where a
   generated plan exists.
 - [x] Cover command, query, event, notification, error, metrics, result, custom, document, schedule, web, and socket
@@ -61,15 +65,19 @@ parameter reflection for Fluxzero semantics.
 
 Done when:
 
-- [ ] Existing handler tests can run in generated-only mode without relying on reflective executable discovery or
+- [x] Existing handler tests can run in generated-only mode without relying on reflective executable discovery or
   parameter semantics.
 
 Current evidence:
 
-- `DefaultHandlerFactory` now prefers registry-backed generated matchers, and in generated-only mode rejects registered
-  handler metadata without generated invocations instead of falling back to `HandlerInspector`.
+- `DefaultHandlerFactory` now requires registry-backed generated matchers in generated-only mode and rejects missing or
+  partially lowered generated invocations before any `HandlerInspector` compatibility fallback can run.
 - `DefaultHandlerFactoryGeneratedOnlyMetadataTest.generatedOnlyModeRejectsRegisteredHandlerWithoutGeneratedInvocation`
   covers the new failure mode.
+- `DefaultHandlerFactoryGeneratedOnlyMetadataTest.generatedOnlyModeRejectsHandlerInspectorFallbackWithoutRegistryMatcher`
+  covers the missing-registry-matcher fallback boundary.
+- `DefaultHandlerFactoryGeneratedOnlyMetadataTest.generatedOnlyModeRejectsPartiallyLoweredRegisteredHandlerInvocations`
+  covers the partial-lowering boundary.
 - `TrackSelf` handler filtering now implements both `Executable` and metadata-only `ExecutableView` filter paths, fixing
   a view-first mismatch that reflection had hidden.
 - `WebHandlerMatcher` now builds generated-only web routes from `HandlerRoute.webRoutes()`, `ExecutableView`, and

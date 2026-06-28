@@ -13,14 +13,14 @@ Allowed source values:
 | ID | Runtime decision | Current source | Final source | Boundary | Closure |
 | --- | --- | --- | --- | --- | --- |
 | handler.registration | Which component routes are registered for command/query/event/notification/error/metrics/result/schedule/document/custom/web messages | Registry metadata | Registry metadata | `HandlerRoute` descriptors and `ComponentCapability.HANDLER` | Done |
-| handler.discovery | Which executable is a handler method or constructor | Hybrid | Generated invocation plan | Registry-backed matcher when generated invocations are registered; normal JVM mode keeps compatibility fallback | Slice 2 |
+| handler.discovery | Which executable is a handler method or constructor | Generated invocation plan | Generated invocation plan | Generated-only registry matcher requires generated invocations; normal JVM mode keeps compatibility fallback | Done |
 | handler.annotation-kind | Which concrete handler annotation applies, including composed/meta annotations | Registry metadata | Registry metadata | `MetadataExecutableAnnotationResolver`, `RegistryExecutableViews`, and metadata annotation projection | Done |
 | handler.disabled-passive-expiry | Disabled, passive, and skipExpiredRequests behavior | Registry metadata | Registry metadata | `HandlerRoute` and metadata annotation projection | Done |
 | handler.payload-filter | Payload type names, likely payload parameter, and allowedClasses filtering | Registry metadata | Registry metadata | `HandlerRoute.payloadTypeNames` and `allowedClassNames` | Done |
 | handler.local-tracked | Local/tracked semantics and method/type/package precedence | Registry metadata | Registry metadata | `HandlerRoute.local` and `tracked` | Done |
 | handler.consumer | Consumer name/group/segment/batch/passive configuration | Registry metadata | Registry metadata | `ConsumerDescriptor` from package/type metadata | Done |
-| handler.parameter-binding | Binding payload, message, metadata, trigger, user, entity, web, and custom parameters | Hybrid | Generated invocation plan | Parameter metadata plus JVM/web parameter resolver mechanics | Slice 2 |
-| handler.invocation | Calling handler methods and constructors | Hybrid | Generated invocation plan | Registry-backed matcher can expose only `ExecutableView`; reflection-shaped matcher remains fallback | Slice 2 |
+| handler.parameter-binding | Binding payload, message, metadata, trigger, user, entity, web, and custom parameters | Generated invocation plan | Generated invocation plan | `ExecutableView`/`ParameterView` metadata plus generated invocation-backed resolver mechanics | Done |
+| handler.invocation | Calling handler methods and constructors | Generated invocation plan | Generated invocation plan | Registry-backed matcher exposes `ExecutableView` and generated invocations; reflection-shaped matcher remains normal JVM compatibility fallback | Done |
 | tracking.gateway-locality | Local handler and self-tracking gateway decisions | Registry metadata | Registry metadata | `ClientUtils` metadata lookups | Slice 5 |
 | routing.message-key | Routing key from payload type/property/metadata | Registry metadata | Registry metadata | `HasMessage` and routing interceptor metadata lookup | Slice 5 |
 | timeout.request | Request timeout metadata from payload type | Registry metadata | Registry metadata | `DefaultGenericGateway` and `SocketSession` metadata lookup | Done |
