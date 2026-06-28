@@ -247,6 +247,19 @@ class DataProtectionInterceptorTest {
     }
 
     @Test
+    void generatedOnlyModeInstallsClasspathGeneratedPropertyAccessForProtectedFields() {
+        KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        DataProtectionInterceptor interceptor = new DataProtectionInterceptor(keyValueStore, new JacksonSerializer());
+        AtomicReference<Message> result = new AtomicReference<>();
+
+        GeneratedOnlyMetadataMode.run(() -> result.set(interceptor.interceptDispatch(
+                new Message(new ClasspathGeneratedOnlyProtectedPayload("secret")), MessageType.EVENT, null)));
+
+        assertTrue(result.get().getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
+        verify(keyValueStore).store(anyString(), eq("secret"), eq(Guarantee.STORED));
+    }
+
+    @Test
     void protectedMessagesDoNotExposeReusableHandlerMethodBeforeDataIsRestored() {
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
                 new SomeHandler(), HandleEvent.class,
@@ -343,6 +356,9 @@ class DataProtectionInterceptorTest {
     }
 
     private record RegisteredGeneratedOnlyProtectedPayload(@ProtectData String secret) {
+    }
+
+    private record ClasspathGeneratedOnlyProtectedPayload(@ProtectData String secret) {
     }
 
     @Getter

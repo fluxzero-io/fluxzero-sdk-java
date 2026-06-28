@@ -333,6 +333,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         }
         int separator = propertyPath.indexOf('.');
         String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        ComponentMetadataLookups.ensureGeneratedExecutions(target.getClass());
         Optional<Object> value = GeneratedPropertyAccesses.findReader(target.getClass(), propertyName)
                 .map(reader -> reader.read(target));
         if (value.isEmpty() || separator < 0) {
@@ -348,6 +349,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         int separator = propertyPath.indexOf('.');
         String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
         if (separator < 0) {
+            ComponentMetadataLookups.ensureGeneratedExecutions(target.getClass());
             return GeneratedPropertyAccesses.findWriter(target.getClass(), propertyName)
                     .map(writer -> {
                         writer.write(target, value);

@@ -118,10 +118,14 @@ Current evidence:
   using reflective default construction.
 - `ModelMetadata.annotatedPropertyValues` now reads generated-only annotated property values through
   `PropertyDescriptor` metadata and generated property readers instead of reflective `AccessibleObject` reads.
+- `DataProtectionInterceptor` now installs classpath generated property access before resolving generated-only
+  protected field readers and writers.
 - `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
   generated construction for a class without a JVM default constructor.
 - `ModelMetadataTest.generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors` covers generated-only
   `@AssertLegal` property values without relying on the backing field value.
+- `DataProtectionInterceptorTest.generatedOnlyModeInstallsClasspathGeneratedPropertyAccessForProtectedFields` covers
+  generated-only protected-field handling without explicit runtime registry registration.
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 
