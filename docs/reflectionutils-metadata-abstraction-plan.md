@@ -205,8 +205,10 @@ Notes:
 
 ### Slice 4: Benchmark And Handler Invocation Decision
 
-Status: [ ] queued.
+Status: [~] active.
 
+- [x] Profile the generated-metadata runtime hot paths before changing benchmark-performance code.
+- [x] Fix measured metadata class-resolution and trigger-filter overhead without changing runtime semantics.
 - [ ] Run `OnDemandComparisonBenchmark` at meaningful scales and commit a stable summary outside `target/` if the
   numbers are used for decisions.
 - [ ] Add or extend benchmark coverage for handler invocation paths: reflection compatibility, generated invocation
@@ -217,6 +219,26 @@ Status: [ ] queued.
 Done when:
 
 - [ ] The project has a measured answer for handler JIT: keep, simplify, gate, or remove.
+
+Notes:
+
+- First benchmark pass used `CrossVersionHotPathBenchmark` because it isolates high-frequency registry/handler-runtime
+  paths with much less websocket/server noise than `TrackerIntegrationBenchmark`.
+- Baseline command setup:
+  `./mvnw -q -pl sdk-jvm -am -DskipTests test-compile`, then a direct `java` run with
+  `-Diterations=300000 -Dwarmup=2` and JFR `settings=profile`.
+- Baseline JFR showed `trigger filter` dominated by metadata annotation class-value resolution, repeatedly hitting
+  `Class.forName`, `URLClassPath`, and filesystem/resource probing through `JvmComponentMetadataLookup`.
+- Baseline timings for 300k iterations: `trigger filter` 9275ms, `stateful getInvoker` 1127ms,
+  `stateful getInvoker+invoke` 1140ms. JFR wall time was 35.73s.
+- Commit `bf07d4ac7f0 perf(metadata): cache hot-path class resolution` caches metadata class-name resolution by loader
+  context, prepares trigger predicate annotation values once, and caches parsed association property paths.
+- Post-fix timings for 300k iterations: `trigger filter` 9ms, `stateful getInvoker` 1022ms,
+  `stateful getInvoker+invoke` 1041ms. After-run JFR no longer showed `Class.forName` or `URLClassPath` as trigger
+  hot paths.
+- Verification passed:
+  `./mvnw -q -pl sdk-jvm -Dtest=ComponentMetadataLookupTest,HandlerAssociationsTest,TriggerParameterResolverTest test`
+  and `./mvnw -q -pl sdk-jvm -am test`.
 
 ## Queued Architecture Decisions
 
