@@ -48,6 +48,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -114,6 +116,7 @@ public class ValidationUtils {
             .map(ServiceLoader::iterator).filter(Iterator::hasNext).map(Iterator::next)
             .orElseGet(DefaultValidator::createDefault);
     private static final RequiredRole noUserRequired = new RequiredRole(null, false, false, false);
+    private static final RequiredRole[] noRequiredRoles = new RequiredRole[0];
 
     /*
         Check object validity
@@ -315,14 +318,21 @@ public class ValidationUtils {
         if (customGroups.length > 0 || object == null) {
             return customGroups;
         }
-        Optional<Class<?>[]> metadataGroups = getValidationGroupsFromMetadata(object.getClass());
+        boolean generatedOnlyMode = ComponentMetadataLookups.generatedOnlyMode();
+        return validationGroupsCache.computeIfAbsent(
+                new ValidationGroupsKey(object.getClass(), generatedOnlyMode),
+                key -> getValidationGroups(key.targetClass(), key.generatedOnlyMode()));
+    }
+
+    private static Class<?>[] getValidationGroups(Class<?> targetClass, boolean generatedOnlyMode) {
+        Optional<Class<?>[]> metadataGroups = getValidationGroupsFromMetadata(targetClass);
         if (metadataGroups.isPresent()) {
             return metadataGroups.get();
         }
-        if (ComponentMetadataLookups.generatedOnlyMode()) {
+        if (generatedOnlyMode) {
             return new Class<?>[0];
         }
-        ValidateWith annotation = JvmCompatibilityBackend.introspector().getTypeAnnotation(object.getClass(), ValidateWith.class);
+        ValidateWith annotation = JvmCompatibilityBackend.introspector().getTypeAnnotation(targetClass, ValidateWith.class);
         return annotation == null ? new Class<?>[0] : annotation.value();
     }
 
@@ -349,6 +359,11 @@ public class ValidationUtils {
 
     private static final BiFunction<Class<?>, Executable, RequiredRole[]> requiredRolesForMethodCache = memoize(
             (BiFunction<Class<?>, Executable, RequiredRole[]>) ValidationUtils::getRequiredRoles);
+
+    private static final ConcurrentMap<ExecutableViewAuthorizationKey, RequiredRole[]> requiredRolesForViewCache =
+            new ConcurrentHashMap<>();
+    private static final ConcurrentMap<ValidationGroupsKey, Class<?>[]> validationGroupsCache =
+            new ConcurrentHashMap<>();
 
     /**
      * Verifies whether the given user is authorized to issue the given payload, based on roles declared via annotations
@@ -416,7 +431,14 @@ public class ValidationUtils {
      */
     public static boolean assertAuthorized(Class<?> target, ExecutableView executable, @Nullable User user) {
         return assertAuthorized("%s#%s".formatted(target.getSimpleName(), executable.name()),
-                                user, getRequiredRoles(target, executable));
+                                user, requiredRoles(target, executable));
+    }
+
+    private static RequiredRole[] requiredRoles(Class<?> target, ExecutableView executable) {
+        RequiredRole[] roles = requiredRolesForViewCache.computeIfAbsent(
+                ExecutableViewAuthorizationKey.of(target, executable),
+                ignored -> Optional.ofNullable(getRequiredRoles(target, executable)).orElse(noRequiredRoles));
+        return roles == noRequiredRoles ? null : roles;
     }
 
     /**
@@ -632,5 +654,24 @@ public class ValidationUtils {
                                   boolean forbidsUser) {
     }
 
+    private record ExecutableViewAuthorizationKey(
+            Class<?> targetClass,
+            ExecutableView.Kind kind,
+            String targetTypeName,
+            String name,
+            List<String> parameterTypeNames) {
+
+        private static ExecutableViewAuthorizationKey of(Class<?> targetClass, ExecutableView executable) {
+            return new ExecutableViewAuthorizationKey(
+                    targetClass,
+                    executable.kind(),
+                    executable.targetTypeName(),
+                    executable.name(),
+                    executable.parameters().stream().map(parameter -> parameter.typeName()).toList());
+        }
+    }
+
+    private record ValidationGroupsKey(Class<?> targetClass, boolean generatedOnlyMode) {
+    }
 
 }

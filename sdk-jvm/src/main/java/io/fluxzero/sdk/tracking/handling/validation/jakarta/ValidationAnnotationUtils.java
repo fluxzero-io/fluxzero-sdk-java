@@ -51,9 +51,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 final class ValidationAnnotationUtils {
     static final Class<?>[] DEFAULT_GROUPS = new Class<?>[]{Default.class};
+    private static final ConcurrentMap<ValidationGroupsKey, Class<?>[]> validationGroupsCache =
+            new ConcurrentHashMap<>();
 
     private ValidationAnnotationUtils() {
     }
@@ -168,6 +172,13 @@ final class ValidationAnnotationUtils {
     }
 
     static Class<?>[] validationGroups(Class<?> group, Class<?> beanType) {
+        boolean generatedOnlyMode = ComponentMetadataLookups.generatedOnlyMode();
+        return validationGroupsCache.computeIfAbsent(
+                new ValidationGroupsKey(group, beanType, generatedOnlyMode),
+                key -> resolveValidationGroups(key.group(), key.beanType()));
+    }
+
+    private static Class<?>[] resolveValidationGroups(Class<?> group, Class<?> beanType) {
         if (group == Default.class) {
             GroupSequence sequence = annotation(beanType, GroupSequence.class).orElse(null);
             if (sequence != null) {
@@ -405,5 +416,8 @@ final class ValidationAnnotationUtils {
     }
 
     record GroupConversion(Class<?> from, Class<?> to) {
+    }
+
+    private record ValidationGroupsKey(Class<?> group, Class<?> beanType, boolean generatedOnlyMode) {
     }
 }

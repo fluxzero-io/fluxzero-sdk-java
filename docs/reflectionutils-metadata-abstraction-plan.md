@@ -54,20 +54,43 @@ Evidence:
 
 ### Slice 2: Cross-Version Fluxzero Handler Benchmark Gate
 
-Status: [ ] queued.
+Status: [x] implemented.
 
-- [ ] Add a benchmark that compiles on both `main` and this branch using only stable Fluxzero APIs.
-- [ ] Cover about 20 `@Handle...` methods invoked through Fluxzero/TestFixture-style dispatch, not through the new
+- [x] Add a benchmark that compiles on both `main` and this branch using only stable Fluxzero APIs.
+- [x] Cover about 20 `@Handle...` methods invoked through Fluxzero/TestFixture-style dispatch, not through the new
   generated-invocation backend APIs.
-- [ ] Measure registration/setup separately from warm handler dispatch.
-- [ ] Record timings for `main` and this branch before the default flip.
-- [ ] Keep this benchmark narrow enough to run locally during migration, but broad enough to catch handler
+- [x] Measure registration/setup separately from warm handler dispatch.
+- [x] Record timings for `main` and this branch before the default flip.
+- [x] Keep this benchmark narrow enough to run locally during migration, but broad enough to catch handler
   matching/parameter-resolution/invocation regressions.
 
 Done when:
 
-- [ ] We have a cross-version app-level number for handler invocation, not only backend-level microbenchmarks.
-- [ ] A regression in the generated-metadata branch is visible before reflection fallback becomes opt-in.
+- [x] We have a cross-version app-level number for handler invocation, not only backend-level microbenchmarks.
+- [x] A regression in the generated-metadata branch is visible before reflection fallback becomes opt-in.
+
+Evidence:
+
+- Added `CrossVersionFluxzeroHandlerBenchmark`, which registers one `@LocalHandler` with 10 `@HandleCommand` and 10
+  `@HandleQuery` methods and dispatches through `CommandGateway`/`QueryGateway`.
+- The same benchmark source was copied into a detached `main` worktree at `f2ac3f33699` and run with:
+  `./mvnw -q -pl sdk -DskipTests test-compile exec:java -Dexec.classpathScope=test
+  -Dexec.mainClass=io.fluxzero.sdk.benchmark.CrossVersionFluxzeroHandlerBenchmark -Diterations=100000 -Dwarmup=2
+  -DsetupIterations=15`.
+- `main` baseline: `build+register.20Handlers` 69.706ms / 215.2 ops/sec; `warmDispatch.20Handlers` 327.774ms /
+  305088.7 ops/sec.
+- Generated-metadata branch before this slice's perf fixes: `build+register.20Handlers` 136.331ms / 110.0 ops/sec;
+  `warmDispatch.20Handlers` 7776.496ms / 12859.3 ops/sec.
+- JFR showed the warm-dispatch regression was dominated by repeated generated-route class resolution for nested
+  canonical payload names, followed by uncached `ExecutableView` authorization metadata and validation group metadata.
+- Generated-metadata branch after this slice's perf fixes: `build+register.20Handlers` 148.742ms / 100.8 ops/sec;
+  `warmDispatch.20Handlers` 475.093ms / 210485.3 ops/sec.
+- The >20x warm-dispatch regression is removed. The remaining app-level dispatch delta versus `main` is still visible
+  and should be watched before the default flip.
+- Verification passed:
+  `./mvnw -q -pl sdk-jvm -Dtest=ComponentMetadataLookupTest,ReflectionBoundaryTest,RegistryFilteringHandlerTest,DefaultValidatorTest,ValidationUtilsTest,HandleWebTest,WebUtilsTest test`.
+- Broad verification passed:
+  `./mvnw -q -pl sdk-jvm -am test`.
 
 Notes:
 

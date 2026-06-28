@@ -21,11 +21,16 @@ import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebPattern;
 
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Matches registry handler routes against runtime messages before delegating to normal Fluxzero handler resolution.
  */
 public final class HandlerRouteMatcher {
+    private static final ConcurrentMap<LoadClassKey, Optional<Class<?>>> classCache = new ConcurrentHashMap<>();
+
     private HandlerRouteMatcher() {
     }
 
@@ -50,8 +55,15 @@ public final class HandlerRouteMatcher {
         if (route.disabled() || route.messageType() != messageType) {
             return false;
         }
-        return route.payloadTypeNames().isEmpty()
-               || route.payloadTypeNames().stream().anyMatch(typeName -> matchesPayloadType(typeName, payloadType));
+        if (route.payloadTypeNames().isEmpty()) {
+            return true;
+        }
+        for (String typeName : route.payloadTypeNames()) {
+            if (matchesPayloadType(typeName, payloadType)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean matchesPayloadType(String typeName, Class<?> payloadType) {
@@ -71,35 +83,47 @@ public final class HandlerRouteMatcher {
     }
 
     private static boolean isAssignable(String typeName, Class<?> payloadType) {
-        try {
-            ClassLoader classLoader = payloadType.getClassLoader() == null
-                    ? ClassLoader.getSystemClassLoader()
-                    : payloadType.getClassLoader();
-            return loadClass(typeName, classLoader).isAssignableFrom(payloadType);
-        } catch (ClassNotFoundException | LinkageError ignored) {
-            return false;
-        }
+        ClassLoader classLoader = payloadType.getClassLoader() == null
+                ? ClassLoader.getSystemClassLoader()
+                : payloadType.getClassLoader();
+        return resolveClass(typeName, classLoader)
+                .map(type -> type.isAssignableFrom(payloadType))
+                .orElse(false);
     }
 
-    private static Class<?> loadClass(String typeName, ClassLoader classLoader) throws ClassNotFoundException {
+    private static Optional<Class<?>> resolveClass(String typeName, ClassLoader classLoader) {
+        return classCache.computeIfAbsent(new LoadClassKey(classLoader, typeName),
+                                          key -> loadClass(key.typeName(), key.classLoader()));
+    }
+
+    private static Optional<Class<?>> loadClass(String typeName, ClassLoader classLoader) {
         try {
-            return Class.forName(typeName, false, classLoader);
-        } catch (ClassNotFoundException e) {
+            return Optional.of(Class.forName(typeName, false, classLoader));
+        } catch (ClassNotFoundException | LinkageError ignored) {
             for (int dot = typeName.lastIndexOf('.'); dot > 0; dot = typeName.lastIndexOf('.', dot - 1)) {
                 try {
-                    return Class.forName(typeName.substring(0, dot) + "$" + typeName.substring(dot + 1),
-                                         false, classLoader);
-                } catch (ClassNotFoundException ignored) {
+                    return Optional.of(Class.forName(
+                            typeName.substring(0, dot) + "$" + typeName.substring(dot + 1),
+                            false, classLoader));
+                } catch (ClassNotFoundException | LinkageError ignoredNestedCandidate) {
                     // try the next outer-class boundary
                 }
             }
-            throw e;
+            return Optional.empty();
         }
+    }
+
+    private record LoadClassKey(ClassLoader classLoader, String typeName) {
     }
 
     private static boolean canHandleWebRequest(HandlerRoute route, DeserializingMessage message) {
         DefaultWebRequestContext context = DefaultWebRequestContext.getWebRequestContext(message);
-        return route.webRoutes().stream().anyMatch(webRoute -> webRouteMatches(context, webRoute));
+        for (WebRouteDescriptor webRoute : route.webRoutes()) {
+            if (webRouteMatches(context, webRoute)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean webRouteMatches(DefaultWebRequestContext context, WebRouteDescriptor route) {
@@ -107,8 +131,15 @@ public final class HandlerRouteMatcher {
     }
 
     private static boolean methodMatches(String requestMethod, WebRouteDescriptor route) {
-        return route.methods().isEmpty()
-               || route.methods().stream().anyMatch(method -> methodMatches(requestMethod, method, route));
+        if (route.methods().isEmpty()) {
+            return true;
+        }
+        for (String method : route.methods()) {
+            if (methodMatches(requestMethod, method, route)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean methodMatches(String requestMethod, String routeMethod, WebRouteDescriptor route) {
@@ -127,7 +158,15 @@ public final class HandlerRouteMatcher {
     }
 
     private static boolean pathMatches(DefaultWebRequestContext context, WebRouteDescriptor route) {
-        return route.paths().isEmpty() || route.paths().stream().anyMatch(path -> pathMatches(context, path));
+        if (route.paths().isEmpty()) {
+            return true;
+        }
+        for (String path : route.paths()) {
+            if (pathMatches(context, path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean pathMatches(DefaultWebRequestContext context, String path) {

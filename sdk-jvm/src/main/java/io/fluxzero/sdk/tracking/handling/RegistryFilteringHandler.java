@@ -26,14 +26,18 @@ import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.HandlerRouteMatcher;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.web.ApiReferenceEndpoint;
+import io.fluxzero.sdk.web.DefaultWebRequestContext;
 import io.fluxzero.sdk.web.OpenApiDocumentEndpoint;
 import io.fluxzero.sdk.web.StaticFileHandler;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 final class RegistryFilteringHandler extends Handler.DelegatingHandler<DeserializingMessage> {
     private final List<HandlerRoute> routes;
+    private final ConcurrentMap<PayloadKey, Boolean> canHandleCache = new ConcurrentHashMap<>();
 
     private RegistryFilteringHandler(Handler<DeserializingMessage> delegate, List<HandlerRoute> routes) {
         super(delegate);
@@ -115,6 +119,27 @@ final class RegistryFilteringHandler extends Handler.DelegatingHandler<Deseriali
     }
 
     private boolean canHandle(DeserializingMessage message) {
-        return routes.stream().anyMatch(route -> HandlerRouteMatcher.canHandle(route, message));
+        PayloadKey key = PayloadKey.of(message);
+        return canHandleCache.computeIfAbsent(key, ignored -> routesCanHandle(message));
+    }
+
+    private boolean routesCanHandle(DeserializingMessage message) {
+        for (HandlerRoute route : routes) {
+            if (HandlerRouteMatcher.canHandle(route, message)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private record PayloadKey(MessageType messageType, Class<?> payloadType, String requestMethod, String requestPath) {
+        private static PayloadKey of(DeserializingMessage message) {
+            if (message.getMessageType() != MessageType.WEBREQUEST) {
+                return new PayloadKey(message.getMessageType(), message.getPayloadClass(), null, null);
+            }
+            DefaultWebRequestContext context = DefaultWebRequestContext.getWebRequestContext(message);
+            return new PayloadKey(message.getMessageType(), message.getPayloadClass(), context.getMethod(),
+                                  context.getRequestPath());
+        }
     }
 }
