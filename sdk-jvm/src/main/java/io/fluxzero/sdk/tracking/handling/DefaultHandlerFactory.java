@@ -39,7 +39,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ComponentRegistryException;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.ApiReferenceEndpoint;
@@ -212,9 +212,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (targetClass == null || Object.class.equals(targetClass) || !visitedTypes.add(targetClass)) {
             return false;
         }
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(targetClass, Member.class)) {
-            Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
-                    .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
+        for (AccessibleObject location : JvmCompatibilityBackend.introspector().getAnnotatedProperties(targetClass, Member.class)) {
+            Class<?> memberType = JvmCompatibilityBackend.introspector().getCollectionElementType(location)
+                    .orElse(JvmCompatibilityBackend.introspector().getPropertyType(location));
             if (hasHandlerMethods(memberType, handlerConfiguration)
                 || hasMemberHandlerMethods(memberType, handlerConfiguration, new HashSet<>(visitedTypes))) {
                 return true;
@@ -292,11 +292,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
             // Null makes instance methods ineligible for non-self payloads without trying a reflective constructor.
             return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : null;
         }
-        if (JvmComponentIntrospector.getInstance().getDefaultConstructor(targetClass).isEmpty()) {
+        if (JvmCompatibilityBackend.introspector().getDefaultConstructor(targetClass).isEmpty()) {
             // Null makes instance methods ineligible for non-self payloads without trying to instantiate the class.
             return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : null;
         }
-        Supplier<Object> instanceSupplier = memoize(() -> JvmComponentIntrospector.getInstance().asInstance(targetClass));
+        Supplier<Object> instanceSupplier = memoize(() -> JvmCompatibilityBackend.introspector().asInstance(targetClass));
         return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : instanceSupplier.get();
     }
 
@@ -418,7 +418,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
     private static ExecutableInvocationBackend executableInvocationBackend() {
         if (!ComponentMetadataLookups.generatedOnlyMode()) {
-            return JvmComponentIntrospector.getInstance().executableInvocationBackend();
+            return JvmCompatibilityBackend.introspector().executableInvocationBackend();
         }
         return executable -> GeneratedExecutableInvocations.find(executable)
                 .orElseThrow(() -> missingGeneratedInvocationPlans(executable.getDeclaringClass()));

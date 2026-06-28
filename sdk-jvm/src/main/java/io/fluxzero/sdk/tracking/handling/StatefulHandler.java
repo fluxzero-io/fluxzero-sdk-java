@@ -38,7 +38,7 @@ import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.registry.TypeUseDescriptor;
@@ -327,12 +327,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         static StatefulMemberLocation fromAccessible(AccessibleObject location) {
-            Class<?> holderType = JvmComponentIntrospector.getInstance().getPropertyType(location);
-            Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
+            Class<?> holderType = JvmCompatibilityBackend.introspector().getPropertyType(location);
+            Class<?> memberType = JvmCompatibilityBackend.introspector().getCollectionElementType(location)
                     .orElse(holderType);
             return new StatefulMemberLocation(
                     Optional.empty(), Optional.of(location),
-                    JvmComponentIntrospector.getInstance().getPropertyName(location), holderType, memberType,
+                    JvmCompatibilityBackend.introspector().getPropertyName(location), holderType, memberType,
                     Map.class.isAssignableFrom(holderType));
         }
 
@@ -358,7 +358,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadataLocations.orElseGet(List::of);
         }
-        return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class).stream()
+        return JvmCompatibilityBackend.introspector().getAnnotatedProperties(ownerType, Member.class).stream()
                 .map(location -> StatefulMemberLocation.fromAccessible((AccessibleObject) location))
                 .toList();
     }
@@ -368,8 +368,8 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                 .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(lookup, type, EntityId.class))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
-                                .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)));
+                        : JvmCompatibilityBackend.introspector().getAnnotatedProperty(type, EntityId.class)
+                                .map(property -> JvmCompatibilityBackend.introspector().getPropertyName(property)));
     }
 
     private static Optional<Object> entityIdValue(Object value) {

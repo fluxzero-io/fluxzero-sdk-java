@@ -135,6 +135,8 @@ Current evidence:
   default web request context after the boundary inventory showed no direct JVM introspector access in those classes.
 - Normal JVM compatibility fallbacks for client helper annotations/topics, message routing-key reads, `Id`
   construction, and aggregate apply/entity id inference now go through `JvmCompatibilityBackend`.
+- Normal JVM compatibility fallbacks for handler construction/invocation backend selection, handler association
+  metadata, and stateful member/entity id discovery now go through `JvmCompatibilityBackend`.
 - `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
   generated construction for a class without a JVM default constructor.
 - `ModelMetadataTest.generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors` covers generated-only
@@ -143,7 +145,7 @@ Current evidence:
   generated-only protected-field handling without explicit runtime registry registration.
 - `SchedulingInterceptorTest.generatedOnlyModeInstallsClasspathGeneratedConstructorForPeriodicHandlerMethods` covers
   generated-only periodic payload construction without explicit runtime registry registration.
-- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 14 migration-debt classes.
+- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` now tracks 11 migration-debt classes.
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 
