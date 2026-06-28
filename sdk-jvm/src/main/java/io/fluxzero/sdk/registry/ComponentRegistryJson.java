@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
@@ -170,18 +171,44 @@ public final class ComponentRegistryJson {
         }
     }
 
+    static List<ComponentRegistry> load(Collection<ClassLoader> classLoaders) {
+        Objects.requireNonNull(classLoaders, "classLoaders");
+        List<ClassLoader> effectiveClassLoaders = classLoaders.stream()
+                .map(classLoader -> classLoader == null ? ComponentRegistryJson.class.getClassLoader() : classLoader)
+                .distinct()
+                .toList();
+        if (effectiveClassLoaders.isEmpty()) {
+            return List.of();
+        }
+        return effectiveClassLoaders.size() == 1
+                ? load(effectiveClassLoaders.getFirst())
+                : loadUncached(effectiveClassLoaders);
+    }
+
     private static List<ComponentRegistry> loadUncached(ClassLoader effectiveClassLoader) {
+        return loadUncached(List.of(effectiveClassLoader));
+    }
+
+    private static List<ComponentRegistry> loadUncached(List<ClassLoader> effectiveClassLoaders) {
         try {
-            Enumeration<URL> resources = effectiveClassLoader.getResources(DEFAULT_RESOURCE);
-            List<URL> orderedResources = new ArrayList<>();
-            while (resources.hasMoreElements()) {
-                orderedResources.add(resources.nextElement());
+            Map<String, RegistryResource> resources = new LinkedHashMap<>();
+            for (int i = 0; i < effectiveClassLoaders.size(); i++) {
+                ClassLoader effectiveClassLoader = effectiveClassLoaders.get(i);
+                Enumeration<URL> loaderResources = effectiveClassLoader.getResources(DEFAULT_RESOURCE);
+                while (loaderResources.hasMoreElements()) {
+                    URL resource = loaderResources.nextElement();
+                    resources.putIfAbsent(
+                            resource.toExternalForm(), new RegistryResource(resource, effectiveClassLoader, i));
+                }
             }
-            orderedResources.sort(Comparator.comparingInt(
-                    resource -> resourcePriority(resource, effectiveClassLoader)));
+            List<RegistryResource> orderedResources = new ArrayList<>(resources.values());
+            orderedResources.sort(Comparator
+                    .comparingInt(RegistryResource::loaderIndex)
+                    .thenComparingInt(resource -> resourcePriority(resource.url(), resource.classLoader()))
+                    .thenComparing(resource -> resource.url().toExternalForm()));
             List<ComponentRegistry> registries = new ArrayList<>();
-            for (URL resource : orderedResources) {
-                try (InputStream input = resource.openStream()) {
+            for (RegistryResource resource : orderedResources) {
+                try (InputStream input = resource.url().openStream()) {
                     registries.add(read(input));
                 }
             }
@@ -189,6 +216,9 @@ public final class ComponentRegistryJson {
         } catch (IOException e) {
             throw new ComponentRegistryException("Failed to load Fluxzero component registry resources", e);
         }
+    }
+
+    private record RegistryResource(URL url, ClassLoader classLoader, int loaderIndex) {
     }
 
     private static int resourcePriority(URL resource, ClassLoader classLoader) {

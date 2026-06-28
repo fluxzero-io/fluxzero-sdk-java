@@ -67,9 +67,10 @@ public final class ComponentMetadataLookups {
      */
     public static final String STRICT_GENERATED_ONLY_MODE = "strict-generated-only";
 
-    private static final ConcurrentMap<ClassLoader, ComponentRegistry> generatedRegistries = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<ClassLoader, ComponentMetadataLookup> generatedRegistryLookups =
+    private static final ConcurrentMap<GeneratedRegistryClassLoaderKey, ComponentRegistry> generatedRegistries =
             new ConcurrentHashMap<>();
+    private static final ConcurrentMap<GeneratedRegistryClassLoaderKey, ComponentMetadataLookup>
+            generatedRegistryLookups = new ConcurrentHashMap<>();
     private static final ConcurrentMap<GeneratedExecutionRegistrationKey, Registration> generatedExecutionRegistrations =
             new ConcurrentHashMap<>();
     private static final int REGISTRY_LOOKUP_CACHE_SIZE = 256;
@@ -481,14 +482,18 @@ public final class ComponentMetadataLookups {
     }
 
     private static ComponentRegistry generatedRegistry(ClassLoader classLoader) {
-        ClassLoader loader = classLoader == null ? ComponentMetadataLookups.class.getClassLoader() : classLoader;
-        return generatedRegistries.computeIfAbsent(loader, key -> ComponentRegistry.merge(ComponentRegistryJson.load(key)));
+        return generatedRegistry(generatedRegistryClassLoaderKey(classLoader));
     }
 
     private static ComponentMetadataLookup generatedRegistryLookup(ClassLoader classLoader) {
-        ClassLoader loader = classLoader == null ? ComponentMetadataLookups.class.getClassLoader() : classLoader;
+        GeneratedRegistryClassLoaderKey loaderKey = generatedRegistryClassLoaderKey(classLoader);
         return generatedRegistryLookups.computeIfAbsent(
-                loader, key -> RegistryComponentMetadataLookup.of(generatedRegistry(key)));
+                loaderKey, key -> RegistryComponentMetadataLookup.of(generatedRegistry(key)));
+    }
+
+    private static ComponentRegistry generatedRegistry(GeneratedRegistryClassLoaderKey loaderKey) {
+        return generatedRegistries.computeIfAbsent(
+                loaderKey, key -> ComponentRegistry.merge(ComponentRegistryJson.load(key.loaders())));
     }
 
     private static void ensureGeneratedExecutions(
@@ -690,6 +695,17 @@ public final class ComponentMetadataLookups {
         return loader == null ? ComponentMetadataLookups.class.getClassLoader() : loader;
     }
 
+    private static GeneratedRegistryClassLoaderKey generatedRegistryClassLoaderKey(ClassLoader classLoader) {
+        ClassLoader primary = effectiveClassLoader(classLoader);
+        ClassLoader context = effectiveClassLoader(Thread.currentThread().getContextClassLoader());
+        ClassLoader sdk = effectiveClassLoader(ComponentMetadataLookups.class.getClassLoader());
+        return new GeneratedRegistryClassLoaderKey(primary, context, sdk);
+    }
+
+    private static ClassLoader effectiveClassLoader(ClassLoader classLoader) {
+        return classLoader == null ? ComponentMetadataLookups.class.getClassLoader() : classLoader;
+    }
+
     private static String typeName(Class<?> type) {
         return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
@@ -711,6 +727,16 @@ public final class ComponentMetadataLookups {
     }
 
     private record GeneratedExecutionRegistrationKey(ClassLoader classLoader, String componentName) {
+    }
+
+    private record GeneratedRegistryClassLoaderKey(ClassLoader primary, ClassLoader context, ClassLoader sdk) {
+        private List<ClassLoader> loaders() {
+            LinkedHashSet<ClassLoader> loaders = new LinkedHashSet<>();
+            loaders.add(primary);
+            loaders.add(context);
+            loaders.add(sdk);
+            return List.copyOf(loaders);
+        }
     }
 
     private static final class IdentityRegistryKey {

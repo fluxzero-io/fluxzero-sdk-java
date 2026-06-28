@@ -135,6 +135,33 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
+    void resolverLoadsGeneratedRegistryResourcesFromContextClassLoader(@TempDir Path tempDir) throws Exception {
+        @Timeout(15)
+        class ContextOnlyCommand {
+        }
+
+        ComponentRegistry registry = JvmComponentMetadataLookup.scan(ContextOnlyCommand.class).registry();
+        ComponentRegistryJson.write(registry, tempDir.resolve(ComponentRegistryJson.DEFAULT_RESOURCE));
+
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        try (URLClassLoader primaryLoader = new URLClassLoader(new java.net.URL[0], null);
+             URLClassLoader contextLoader =
+                     new URLClassLoader(new java.net.URL[]{tempDir.toUri().toURL()},
+                                        ComponentMetadataLookupTest.class.getClassLoader())) {
+            Thread.currentThread().setContextClassLoader(contextLoader);
+
+            ComponentMetadataLookup lookup =
+                    ComponentMetadataLookups.lookupGenerated(primaryLoader, ContextOnlyCommand.class).orElseThrow();
+
+            assertInstanceOf(RegistryComponentMetadataLookup.class, lookup);
+            assertTrue(lookup.typeAnnotations(ContextOnlyCommand.class.getName()).stream()
+                               .anyMatch(annotation -> annotation.qualifiedName().equals(Timeout.class.getName())));
+        } finally {
+            Thread.currentThread().setContextClassLoader(previous);
+        }
+    }
+
+    @Test
     void resolverUsesGeneratedRegistryForCompiledClasspathComponentsInGeneratedOnlyMode() {
         if (!ComponentMetadataLookups.generatedOnlyMode()) {
             assertInstanceOf(RegistryComponentMetadataLookup.class,
