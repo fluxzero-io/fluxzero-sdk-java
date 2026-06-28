@@ -16,7 +16,7 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 
@@ -65,6 +65,9 @@ public final class ApiReferenceEndpoint {
     public static List<ApiReferenceEndpoint> forHandler(Class<?> handlerType) {
         List<ApiReferenceEndpoint> endpoints = new ArrayList<>();
         Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(handlerType);
+        if (ComponentMetadataLookups.generatedOnlyMode() && lookup.isEmpty()) {
+            return endpoints;
+        }
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
         if (lookup.isPresent()) {
@@ -74,7 +77,7 @@ public final class ApiReferenceEndpoint {
                 addIfEnabled(endpoints, apiDocInfo(handlerType, currentPackage), path);
             }
         } else {
-            for (Package currentPackage : JvmComponentIntrospector.getInstance()
+            for (Package currentPackage : JvmCompatibilityBackend.introspector()
                     .getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
                 path = appendPath(path, pathValues.apply(currentPackage).toList());
                 addIfEnabled(endpoints, apiDocInfo(lookup, handlerType, currentPackage), path);

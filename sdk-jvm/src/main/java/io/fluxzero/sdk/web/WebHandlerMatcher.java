@@ -30,7 +30,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ComponentRegistryException;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.HandlerRoute;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.MessageDescription;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
@@ -139,7 +139,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         if (ComponentMetadataLookups.generatedOnlyMode()) {
             return createFromRegistry(handler, type, parameterResolvers, config, routeRegistry);
         }
-        var matchers = concat(JvmComponentIntrospector.getInstance().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
+        var matchers = concat(JvmCompatibilityBackend.introspector().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .filter(m -> config.methodMatches(type, m))
                 .flatMap(m -> Stream.of(new MethodHandlerMatcher<>(m, type, parameterResolvers, config))).toList();
         return new WebHandlerMatcher(handler, matchers, routeRegistry);

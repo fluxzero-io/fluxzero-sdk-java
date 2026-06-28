@@ -49,16 +49,7 @@ final class JvmBackendAccess {
             Map.entry("io.fluxzero.common.handling.HandlerInspector",
                       debt("current JVM executable invocation backend")),
             Map.entry("io.fluxzero.sdk.tracking.handling.validation.ValidationUtils",
-                      debt("JVM validation compatibility bridge")),
-            Map.entry("io.fluxzero.sdk.web.ApiDocExtractor", debt("JVM API-doc compatibility bridge")),
-            Map.entry("io.fluxzero.sdk.web.ApiReferenceEndpoint", debt("JVM API-doc endpoint backend")),
-            Map.entry("io.fluxzero.sdk.web.OpenApiDocumentEndpoint", debt("JVM API-doc endpoint backend")),
-            Map.entry("io.fluxzero.sdk.web.OpenApiRenderer", debt("JVM OpenAPI compatibility bridge")),
-            Map.entry("io.fluxzero.sdk.web.WebHandlerMatcher", debt("JVM web handler matcher backend")),
-            Map.entry("io.fluxzero.sdk.web.WebParamParameterResolver", debt("JVM web parameter backend")),
-            Map.entry("io.fluxzero.sdk.web.WebPayloadParameterResolver", debt("JVM web payload backend")),
-            Map.entry("io.fluxzero.sdk.web.WebUtils", debt("JVM web route compatibility bridge")),
-            Map.entry("io.fluxzero.sdk.web.WebsocketHandlerDecorator", debt("JVM websocket handler backend"))
+                      debt("JVM validation compatibility bridge"))
     ));
 
     private JvmBackendAccess() {

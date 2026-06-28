@@ -96,14 +96,12 @@ class ReflectionBoundaryTest {
     void generatedOnlyBackendMigrationDebtIsExplicit() {
         Map<String, JvmBackendAccess.BackendCategory> debt = JvmBackendAccess.migrationDebtClasses();
 
-        assertEquals(11, debt.size(),
+        assertEquals(2, debt.size(),
                      () -> "Generated-only JVM backend migration debt changed. Lower this count when a semantic "
                            + "fallback is replaced by generated metadata/invocation/access plans; add new debt only "
                            + "with an explicit Generated-Only Runtime Closure slice.");
         assertTrue(debt.containsKey("io.fluxzero.common.handling.HandlerInspector"));
-        assertTrue(debt.containsKey("io.fluxzero.common.handling.HandlerInspector"));
         assertTrue(debt.containsKey("io.fluxzero.sdk.tracking.handling.validation.ValidationUtils"));
-        assertTrue(debt.containsKey("io.fluxzero.sdk.web.WebHandlerMatcher"));
         assertEquals(JvmBackendAccess.BackendStatus.PLATFORM_BACKEND,
                      JvmBackendAccess.classification("io.fluxzero.sdk.registry.GeneratedRegistryBridge")
                              .orElseThrow().status());

@@ -25,7 +25,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.HandlerRoute;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
@@ -87,8 +87,8 @@ public final class ApiDocExtractor {
      */
     public static ApiDocCatalog extract(Class<?> handlerType, Object handler) {
         MetadataContext metadata = MetadataContext.of(handlerType);
-        if (ComponentMetadataLookups.generatedOnlyMode() && metadata.available()) {
-            return extractFromMetadata(handlerType, metadata);
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.available() ? extractFromMetadata(handlerType, metadata) : new ApiDocCatalog(List.of());
         }
         List<ApiDocEndpoint> endpoints = new ArrayList<>();
         for (Executable executable : handlerExecutables(handlerType).toList()) {
@@ -136,7 +136,7 @@ public final class ApiDocExtractor {
     }
 
     private static Stream<Executable> handlerExecutables(Class<?> handlerType) {
-        return concat(JvmComponentIntrospector.getInstance().getAllMethods(handlerType).stream(), stream(handlerType.getDeclaredConstructors()));
+        return concat(JvmCompatibilityBackend.introspector().getAllMethods(handlerType).stream(), stream(handlerType.getDeclaredConstructors()));
     }
 
     private static boolean isHandleWeb(MetadataContext metadata, Executable executable) {
@@ -145,7 +145,7 @@ public final class ApiDocExtractor {
         if (metadataResult.isPresent() || (ComponentMetadataLookups.generatedOnlyMode() && metadata.available())) {
             return metadataResult.orElse(false);
         }
-        return JvmComponentIntrospector.getInstance().isMethodAnnotationPresent(executable, HandleWeb.class);
+        return JvmCompatibilityBackend.introspector().isMethodAnnotationPresent(executable, HandleWeb.class);
     }
 
     private static ApiDocEndpoint endpoint(Class<?> handlerType, Executable executable, WebPattern pattern,
@@ -375,7 +375,7 @@ public final class ApiDocExtractor {
     }
 
     private static Stream<Package> packages(Class<?> handlerType) {
-        return JvmComponentIntrospector.getInstance().getPackageAndParentPackages(handlerType.getPackage()).reversed().stream();
+        return JvmCompatibilityBackend.introspector().getPackageAndParentPackages(handlerType.getPackage()).reversed().stream();
     }
 
     private static Set<String> extractPathParameterNames(String path) {

@@ -35,6 +35,14 @@ class WebUtilsTest {
         assertEquals(1, result.size());
         assertEquals("/compiled/web-root/child/type/method/items", result.getFirst().getUri());
         assertEquals(GET, result.getFirst().getMethod());
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            var generatedOnlyResult = WebUtils.getWebPatterns(CompiledWebPathHandler.class, null, method);
+
+            assertEquals(1, generatedOnlyResult.size());
+            assertEquals("/compiled/web-root/child/type/method/items", generatedOnlyResult.getFirst().getUri());
+            assertEquals(GET, generatedOnlyResult.getFirst().getMethod());
+        });
     }
 
     @Test
@@ -50,7 +58,7 @@ class WebUtilsTest {
     }
 
     @Test
-    void generatedOnlyModeUsesGeneratedClasspathRegistryForCompiledDynamicHandlerPath() throws Exception {
+    void generatedOnlyModeDoesNotUseReflectionFallbackForUnregisteredDynamicHandlerPath() throws Exception {
         class LocalDynamicPathHandler {
             @Path
             private final String root = "/tenant";
@@ -67,9 +75,7 @@ class WebUtilsTest {
         GeneratedOnlyMetadataMode.run(() -> {
             var result = WebUtils.getWebPatterns(LocalDynamicPathHandler.class, handler, method);
 
-            assertEquals(1, result.size());
-            assertEquals("/tenant/items", result.getFirst().getUri());
-            assertEquals(GET, result.getFirst().getMethod());
+            assertTrue(result.isEmpty());
         });
     }
 

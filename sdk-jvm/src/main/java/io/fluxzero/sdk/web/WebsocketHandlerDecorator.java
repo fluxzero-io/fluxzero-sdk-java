@@ -24,7 +24,7 @@ import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.registry.RegistryExecutableViews;
 import io.fluxzero.sdk.common.HasMessage;
@@ -167,7 +167,12 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        if (!JvmComponentIntrospector.getInstance().isMethodAnnotationPresent(method, HandleWeb.class)) {
+        var metadata = ANNOTATION_RESOLVER.getAnnotation(method, HandleWeb.class);
+        if (metadata.isEmpty() && ComponentMetadataLookups.generatedOnlyMode()) {
+            return false;
+        }
+        if (metadata.isEmpty()
+            && !JvmCompatibilityBackend.introspector().isMethodAnnotationPresent(method, HandleWeb.class)) {
             return false;
         }
         for (Parameter parameter : method.getParameters()) {
@@ -262,7 +267,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
         if (ComponentMetadataLookups.generatedOnlyMode()) {
             return socketPatternsFromRegistry(type);
         }
-        return concat(JvmComponentIntrospector.getInstance().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
+        return concat(JvmCompatibilityBackend.introspector().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .flatMap(m -> WebUtils.getWebPatterns(type, null, m).stream()
                         .filter(p -> isWebsocket(p.getMethod()))
                         .map(p -> new SocketPattern(m, p))).toList();

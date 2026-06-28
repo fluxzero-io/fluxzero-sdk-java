@@ -23,7 +23,7 @@ import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 
@@ -82,7 +82,7 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
             Optional<ParamField> field = metadataField(p)
                     .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                             ? Optional.empty()
-                            : JvmComponentIntrospector.getInstance().getAnnotationAs(
+                            : JvmCompatibilityBackend.introspector().getAnnotationAs(
                                     p, WebParam.class, ParamField.class));
             return field.map(f -> {
                         String value = f.getValue();
@@ -198,7 +198,7 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
             return true;
         }
         return !ComponentMetadataLookups.generatedOnlyMode()
-               && JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class);
+               && JvmCompatibilityBackend.introspector().isAnnotationPresent(parameter, WebParam.class);
     }
 
     private static boolean hasWebParam(ParameterView parameter) {

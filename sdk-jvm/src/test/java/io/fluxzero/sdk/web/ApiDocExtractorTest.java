@@ -94,7 +94,7 @@ class ApiDocExtractorTest {
     }
 
     @Test
-    void generatedOnlyModeUsesGeneratedClasspathMetadataForApiDocMetadata() {
+    void generatedOnlyModeDoesNotUseReflectionFallbackForUnregisteredApiDocMetadata() {
         @Path("/unregistered")
         @ApiDoc(description = "Unregistered docs")
         class UnregisteredGeneratedOnlyDocHandler {
@@ -108,12 +108,7 @@ class ApiDocExtractorTest {
         GeneratedOnlyMetadataMode.run(() -> {
             ApiDocCatalog catalog = ApiDocExtractor.extract(UnregisteredGeneratedOnlyDocHandler.class);
 
-            assertEquals(1, catalog.endpoints().size());
-            ApiDocEndpoint endpoint = catalog.endpoints().getFirst();
-            assertEquals("/unregistered/items/{id}", endpoint.path());
-            assertEquals("Find unregistered item", endpoint.documentation().summary());
-            assertEquals("Unregistered docs", endpoint.documentation().description());
-            assertParameter(endpoint, "id", WebParameterSource.PATH, String.class);
+            assertTrue(catalog.endpoints().isEmpty());
         });
     }
 
@@ -142,7 +137,7 @@ class ApiDocExtractorTest {
     }
 
     @Test
-    void generatedOnlyModeUsesRegistryMetadataForAutomaticApiDocEndpoints() throws Exception {
+    void generatedOnlyModeDoesNotUseReflectionFallbackForUnregisteredAutomaticApiDocEndpoints() throws Exception {
         @Path("/unregistered-api")
         @ApiDocInfo(
                 title = "Unregistered API",
@@ -165,10 +160,8 @@ class ApiDocExtractorTest {
             List<ApiReferenceEndpoint> referenceEndpoints =
                     ApiReferenceEndpoint.forHandler(UnregisteredGeneratedOnlyInfoHandler.class);
 
-            assertFalse(documentEndpoints.isEmpty());
-            assertFalse(referenceEndpoints.isEmpty());
-            assertEquals("/unregistered-api/spec.json", endpointPath(documentEndpoints.getFirst()));
-            assertEquals("/unregistered-api/reference", endpointPath(referenceEndpoints.getFirst()));
+            assertTrue(documentEndpoints.isEmpty());
+            assertTrue(referenceEndpoints.isEmpty());
         });
 
         try {

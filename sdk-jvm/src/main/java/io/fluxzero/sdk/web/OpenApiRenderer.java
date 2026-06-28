@@ -23,7 +23,7 @@ import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
@@ -194,6 +194,9 @@ public final class OpenApiRenderer {
             applyDocumentInfo(builder, l.typeAnnotations(handlerType.getName()), handlerType);
             return;
         }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return;
+        }
         packages(handlerType).forEach(p -> builder.apply(p.getAnnotation(ApiDocInfo.class)));
         builder.apply(handlerType.getAnnotation(ApiDocInfo.class));
     }
@@ -209,7 +212,7 @@ public final class OpenApiRenderer {
         if (leaf == null || leaf.getName().isBlank()) {
             return List.of();
         }
-        return JvmComponentIntrospector.getInstance().getPackageAndParentPackages(leaf).reversed();
+        return JvmCompatibilityBackend.introspector().getPackageAndParentPackages(leaf).reversed();
     }
 
     private static ObjectNode info(DocumentInfo documentInfo) {

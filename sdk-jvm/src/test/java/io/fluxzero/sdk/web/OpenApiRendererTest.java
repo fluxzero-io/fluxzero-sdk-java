@@ -142,8 +142,8 @@ class OpenApiRendererTest {
         GeneratedOnlyMetadataMode.run(() -> {
             JsonNode document = OpenApiRenderer.render(localCatalog);
 
-            assertEquals("Unscanned API", document.path("info").path("title").asText());
-            assertEquals("bearerAuth", document.path("security").get(0).fieldNames().next());
+            assertEquals("Fluxzero API", document.path("info").path("title").asText());
+            assertTrue(document.path("security").isMissingNode());
             assertFalse(document.path("components").path("securitySchemes").has("bearerAuth"));
         });
 

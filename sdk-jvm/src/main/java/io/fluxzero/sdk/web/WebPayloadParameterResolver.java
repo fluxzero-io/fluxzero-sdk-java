@@ -22,7 +22,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
@@ -163,7 +163,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.isPresent();
         }
-        return JvmComponentIntrospector.getInstance().isExecutableAnnotationPresent(method, HandleWeb.class);
+        return JvmCompatibilityBackend.introspector().isExecutableAnnotationPresent(method, HandleWeb.class);
     }
 
     @Override
@@ -173,7 +173,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
             return metadata.isPresent();
         }
         return method.executable()
-                .map(executable -> JvmComponentIntrospector.getInstance()
+                .map(executable -> JvmCompatibilityBackend.introspector()
                         .isExecutableAnnotationPresent(executable, HandleWeb.class))
                 .orElseGet(() -> method.annotation(HandleWeb.class).isPresent());
     }

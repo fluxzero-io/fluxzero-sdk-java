@@ -24,7 +24,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
@@ -156,12 +156,12 @@ public class WebUtils {
         if (metadataPatterns.isPresent()) {
             return metadataPatterns.get();
         }
-        if (ComponentMetadataLookups.generatedOnlyMode() && lookup.isPresent()) {
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
             return List.of();
         }
         String root = getHandlerPath(targetClass, handler, method);
-        return JvmComponentIntrospector.getInstance().getMethodAnnotations(method, HandleWeb.class)
-                .stream().flatMap(a -> JvmComponentIntrospector.getInstance().getAnnotationAs(a, HandleWeb.class, WebParameters.class)
+        return JvmCompatibilityBackend.introspector().getMethodAnnotations(method, HandleWeb.class)
+                .stream().flatMap(a -> JvmCompatibilityBackend.introspector().getAnnotationAs(a, HandleWeb.class, WebParameters.class)
                         .stream().flatMap(webParameters -> webParameters.getWebPatterns(root))).toList();
     }
 
@@ -229,6 +229,9 @@ public class WebUtils {
             return metadataResult.get() || !ComponentMetadataLookups.generatedOnlyMode()
                                            && hasReflectionDynamicHandlerPath(handler);
         }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return false;
+        }
         return hasReflectionDynamicHandlerPath(handler);
     }
 
@@ -252,18 +255,18 @@ public class WebUtils {
         if (metadataPath.isPresent()) {
             return metadataPath.get();
         }
-        if (ComponentMetadataLookups.generatedOnlyMode() && lookup.isPresent()) {
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
             return "";
         }
         var mapper = pathValues();
         List<String> hierarchy = concat(
-                JvmComponentIntrospector.getInstance().getPackageAndParentPackages(targetClass.getPackage()).reversed().stream().flatMap(mapper),
+                JvmCompatibilityBackend.introspector().getPackageAndParentPackages(targetClass.getPackage()).reversed().stream().flatMap(mapper),
                 Stream.of(targetClass).flatMap(mapper),
-                JvmComponentIntrospector.getInstance().getAnnotatedProperty(handler, Path.class).stream()
-                        .filter(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Path.class).map(Path::value)
-                                             .filter(String::isBlank).isPresent() && JvmComponentIntrospector.getInstance().getAnnotation(p,
+                JvmCompatibilityBackend.introspector().getAnnotatedProperty(handler, Path.class).stream()
+                        .filter(p -> JvmCompatibilityBackend.introspector().getAnnotation(p, Path.class).map(Path::value)
+                                             .filter(String::isBlank).isPresent() && JvmCompatibilityBackend.introspector().getAnnotation(p,
                                                                                                    HandleWeb.class).isEmpty())
-                        .flatMap(a -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(handler, Path.class).map(Object::toString).stream()),
+                        .flatMap(a -> JvmCompatibilityBackend.introspector().getAnnotatedPropertyValue(handler, Path.class).map(Object::toString).stream()),
                 Optional.ofNullable(method).stream().flatMap(mapper)).toList();
         return hierarchy.stream().reduce((a, b) -> isAbsolutePathOrUrl(b) ? b : concatenateUrlParts(a, b)).orElse("");
     }
@@ -318,7 +321,7 @@ public class WebUtils {
         if (generatedValue.isPresent() || ComponentMetadataLookups.strictGeneratedOnlyMode()) {
             return generatedValue;
         }
-        return JvmComponentIntrospector.getInstance().readProperty(propertyName, handler);
+        return JvmCompatibilityBackend.introspector().readProperty(propertyName, handler);
     }
 
     private static Optional<Stream<String>> getMetadataPathValues(AnnotatedElement element) {
@@ -339,13 +342,13 @@ public class WebUtils {
     }
 
     private static Stream<String> getReflectionPathValues(AnnotatedElement element) {
-        return JvmComponentIntrospector.getInstance().getAnnotation(element, Path.class).stream().map(Path::value)
+        return JvmCompatibilityBackend.introspector().getAnnotation(element, Path.class).stream().map(Path::value)
                 .map(s -> {
                     if (s.isBlank()) {
                         return switch (element) {
-                            case Class<?> c -> JvmComponentIntrospector.getInstance().getSimpleName(c.getPackage());
-                            case Package p -> JvmComponentIntrospector.getInstance().getSimpleName(p);
-                            case Executable m -> JvmComponentIntrospector.getInstance().getSimpleName(m.getDeclaringClass());
+                            case Class<?> c -> JvmCompatibilityBackend.introspector().getSimpleName(c.getPackage());
+                            case Package p -> JvmCompatibilityBackend.introspector().getSimpleName(p);
+                            case Executable m -> JvmCompatibilityBackend.introspector().getSimpleName(m.getDeclaringClass());
                             default -> null;
                         };
                     }
@@ -387,11 +390,11 @@ public class WebUtils {
     }
 
     private static boolean hasReflectionDynamicHandlerPath(Object handler) {
-        return JvmComponentIntrospector.getInstance().getAnnotatedProperty(handler, Path.class)
+        return JvmCompatibilityBackend.introspector().getAnnotatedProperty(handler, Path.class)
                 .stream()
-                .anyMatch(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Path.class)
+                .anyMatch(p -> JvmCompatibilityBackend.introspector().getAnnotation(p, Path.class)
                         .map(Path::value).filter(String::isBlank).isPresent()
-                               && JvmComponentIntrospector.getInstance().getAnnotation(p,
+                               && JvmCompatibilityBackend.introspector().getAnnotation(p,
                                        HandleWeb.class).isEmpty());
     }
 

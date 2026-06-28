@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 import lombok.SneakyThrows;
@@ -54,6 +54,9 @@ public final class OpenApiDocumentEndpoint {
     public static List<OpenApiDocumentEndpoint> forHandler(Class<?> handlerType, Object handler) {
         List<OpenApiDocumentEndpoint> endpoints = new ArrayList<>();
         Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(handlerType);
+        if (ComponentMetadataLookups.generatedOnlyMode() && lookup.isEmpty()) {
+            return endpoints;
+        }
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
         if (lookup.isPresent()) {
@@ -63,7 +66,7 @@ public final class OpenApiDocumentEndpoint {
                 addIfEnabled(endpoints, apiDocInfo(handlerType, currentPackage), path, handlerType, handler);
             }
         } else {
-            for (Package currentPackage : JvmComponentIntrospector.getInstance()
+            for (Package currentPackage : JvmCompatibilityBackend.introspector()
                     .getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
                 path = appendPath(path, pathValues.apply(currentPackage).toList());
                 addIfEnabled(endpoints, apiDocInfo(lookup, handlerType, currentPackage), path, handlerType, handler);
