@@ -28,7 +28,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -463,7 +463,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
                 .flatMap(propertyName -> readProperty(propertyName, value))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : JvmComponentIntrospector.getInstance().annotatedPropertyValue(value, EntityId.class));
+                        : JvmCompatibilityBackend.introspector().annotatedPropertyValue(value, EntityId.class));
     }
 
     private static Optional<Object> readProperty(String propertyPath, Object target) {
@@ -474,7 +474,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
         if (generatedValue.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return generatedValue;
         }
-        return JvmComponentIntrospector.getInstance().readProperty(propertyPath, target);
+        return JvmCompatibilityBackend.introspector().readProperty(propertyPath, target);
     }
 
     private static Optional<Object> readGeneratedProperty(String propertyPath, Object target) {

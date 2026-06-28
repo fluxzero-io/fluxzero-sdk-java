@@ -34,7 +34,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.PropertyAccess;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -293,7 +293,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.orElse(false);
         }
-        return JvmComponentIntrospector.getInstance().getTypeAnnotation(type, ProtectData.class) != null;
+        return JvmCompatibilityBackend.introspector().getTypeAnnotation(type, ProtectData.class) != null;
     }
 
     private String storeProtectedValue(Object value) {
@@ -303,7 +303,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private static PropertyAccess<Class<?>, AccessibleObject> properties() {
-        return JvmComponentIntrospector.getInstance();
+        return JvmCompatibilityBackend.introspector();
     }
 
     @SuppressWarnings("unchecked")

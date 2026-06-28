@@ -23,7 +23,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
@@ -80,11 +80,11 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
                                                || ComponentMetadataLookups.generatedOnlyMode()
                     ? metadata
                     : executable.executable()
-                            .flatMap(method -> JvmComponentIntrospector.getInstance()
+                            .flatMap(method -> JvmCompatibilityBackend.introspector()
                                     .getAnnotation(method, FilterContent.class))
-                            .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance()
+                            .or(() -> Optional.ofNullable(JvmCompatibilityBackend.introspector()
                                     .getTypeAnnotation(targetClass, FilterContent.class)))
-                            .or(() -> JvmComponentIntrospector.getInstance()
+                            .or(() -> JvmCompatibilityBackend.introspector()
                                     .getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
             Optional<FilterContent> existing = filterContent.putIfAbsent(executableId, computed);
             return existing != null ? existing : computed;

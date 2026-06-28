@@ -19,7 +19,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.registry.PropertyAccess;
@@ -231,7 +231,7 @@ final class ModelMetadata {
                         annotation.firstValue("idProperty").orElse(""),
                         annotation.firstValue("wither").orElse("")))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
-                        ? Optional.empty() : JvmComponentIntrospector.getInstance().getAnnotation(property, Member.class)
+                        ? Optional.empty() : JvmCompatibilityBackend.introspector().getAnnotation(property, Member.class)
                         .map(annotation -> new MemberConfig(annotation.idProperty(), annotation.wither())));
     }
 
@@ -249,7 +249,7 @@ final class ModelMetadata {
                         annotation.firstValue("prefix").orElse(""),
                         annotation.firstValue("postfix").orElse("")))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
-                        ? Optional.empty() : JvmComponentIntrospector.getInstance().getAnnotation(property, Alias.class)
+                        ? Optional.empty() : JvmCompatibilityBackend.introspector().getAnnotation(property, Alias.class)
                         .map(annotation -> new AliasConfig(annotation.prefix(), annotation.postfix())));
     }
 
@@ -406,7 +406,7 @@ final class ModelMetadata {
     }
 
     private static PropertyAccess<Class<?>, AccessibleObject> properties() {
-        return JvmComponentIntrospector.getInstance();
+        return JvmCompatibilityBackend.introspector();
     }
 
     private static Optional<AnnotationDescriptor> annotation(

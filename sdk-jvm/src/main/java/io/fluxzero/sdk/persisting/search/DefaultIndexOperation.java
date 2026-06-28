@@ -28,7 +28,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -87,7 +87,7 @@ public class DefaultIndexOperation implements IndexOperation {
                 .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(lookup, type, EntityId.class))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : JvmComponentIntrospector.getInstance().annotatedPropertyName(type, EntityId.class));
+                        : JvmCompatibilityBackend.introspector().annotatedPropertyName(type, EntityId.class));
     }
 
     /**
@@ -209,7 +209,7 @@ public class DefaultIndexOperation implements IndexOperation {
         if (generatedValue.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return generatedValue;
         }
-        return JvmComponentIntrospector.getInstance().readProperty(propertyPath, target);
+        return JvmCompatibilityBackend.introspector().readProperty(propertyPath, target);
     }
 
     private static Optional<Object> readGeneratedProperty(String propertyPath, Object target) {

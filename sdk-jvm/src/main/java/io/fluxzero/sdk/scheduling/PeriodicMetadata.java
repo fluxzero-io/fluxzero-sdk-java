@@ -20,7 +20,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
@@ -42,7 +42,7 @@ final class PeriodicMetadata {
         if (metadataMethods.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadataMethods.orElseGet(List::of);
         }
-        return JvmComponentIntrospector.getInstance().getAnnotatedMethods(targetClass, HandleSchedule.class).stream()
+        return JvmCompatibilityBackend.introspector().getAnnotatedMethods(targetClass, HandleSchedule.class).stream()
                 .filter(method -> method.getParameterCount() > 0)
                 .map(method -> new ScheduleMethod(
                         method.toString(), method.getParameters()[0].getType(), executable(method)))
