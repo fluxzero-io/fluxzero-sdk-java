@@ -15,6 +15,8 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
@@ -127,6 +129,29 @@ class ModelMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors() {
+        RegisteredGeneratedOnlyAssertLegalAggregate aggregate = new RegisteredGeneratedOnlyAssertLegalAggregate();
+        RegisteredGeneratedOnlyAssertLegalChild generatedChild = new RegisteredGeneratedOnlyAssertLegalChild();
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(
+                            RegisteredGeneratedOnlyAssertLegalAggregate.class,
+                            RegisteredGeneratedOnlyAssertLegalChild.class).registry());
+            ComponentMetadataLookups.ensureGeneratedExecutions(RegisteredGeneratedOnlyAssertLegalAggregate.class);
+
+            try (var ignored = GeneratedPropertyAccesses.registerReader(
+                    RegisteredGeneratedOnlyAssertLegalAggregate.class, "child", ignoredTarget -> generatedChild)) {
+                GeneratedOnlyMetadataMode.run(() -> assertEquals(
+                        List.of(generatedChild),
+                        ModelMetadata.annotatedPropertyValues(aggregate, AssertLegal.class)));
+            }
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static class MetadataAggregate {
         @Member(idProperty = "customId", wither = "withChildren")
         private MetadataChild children;
@@ -157,5 +182,13 @@ class ModelMetadataTest {
     private static class RegisteredGeneratedOnlyChild {
         @Alias(prefix = "pre-", postfix = "-post")
         private String alias;
+    }
+
+    private static class RegisteredGeneratedOnlyAssertLegalAggregate {
+        @AssertLegal
+        private RegisteredGeneratedOnlyAssertLegalChild child;
+    }
+
+    private static class RegisteredGeneratedOnlyAssertLegalChild {
     }
 }

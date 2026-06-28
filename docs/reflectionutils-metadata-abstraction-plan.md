@@ -116,8 +116,12 @@ Current evidence:
   before falling back to the JVM property backend.
 - `JvmComponentIntrospector.asInstance(Class)` now prefers a registered generated no-arg constructor invocation before
   using reflective default construction.
+- `ModelMetadata.annotatedPropertyValues` now reads generated-only annotated property values through
+  `PropertyDescriptor` metadata and generated property readers instead of reflective `AccessibleObject` reads.
 - `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
   generated construction for a class without a JVM default constructor.
+- `ModelMetadataTest.generatedOnlyModeReadsAnnotatedPropertyValuesThroughGeneratedAccessors` covers generated-only
+  `@AssertLegal` property values without relying on the backing field value.
 
 ### Slice 4: Policy, Validation, And Web Binding Closure
 

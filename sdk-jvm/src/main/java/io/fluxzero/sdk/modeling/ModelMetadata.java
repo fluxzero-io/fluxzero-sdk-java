@@ -114,6 +114,12 @@ final class ModelMetadata {
         if (target == null) {
             return List.of();
         }
+        List<PropertyDescriptor> metadataProperties = annotatedProperties(target.getClass(), annotationType);
+        if (!metadataProperties.isEmpty() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadataProperties.stream()
+                    .map(property -> propertyValue(property, target))
+                    .toList();
+        }
         return annotatedPropertyLocations(target.getClass(), annotationType).stream()
                 .map(location -> propertyValue(location, target, false))
                 .toList();
