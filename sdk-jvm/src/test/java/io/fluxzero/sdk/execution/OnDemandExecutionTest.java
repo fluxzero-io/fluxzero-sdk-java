@@ -46,7 +46,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class OnDemandExecutionTest {
-    private static final Duration ABSENCE_TIMEOUT = Duration.ofMillis(50);
 
     @Test
     void indexesHandlerSourceWithoutCompiling(@TempDir Path tempDir) throws Exception {
@@ -869,7 +868,7 @@ public class OnDemandExecutionTest {
             });
 
             fixture.whenCommand(new ExecutionCommand("one")).expectResult("generated:one");
-            fixture.resultTimeout(ABSENCE_TIMEOUT)
+            fixture.resultTimeout(Duration.ofMillis(100))
                     .whenQuery(new ExecutionQuery("one")).expectExceptionalResult(TimeoutException.class);
         }
     }
@@ -1320,7 +1319,7 @@ public class OnDemandExecutionTest {
             TestFixture.create(fc -> {
                 execution.registerWith(fc);
                 return List.of();
-            }).resultTimeout(ABSENCE_TIMEOUT)
+            }).resultTimeout(Duration.ofMillis(100))
                     .whenCommand(new ExecutionCommand("one")).expectExceptionalResult(TimeoutException.class);
         }
     }
@@ -1337,7 +1336,7 @@ public class OnDemandExecutionTest {
             TestFixture.createAsync(fc -> {
                 execution.registerWith(fc);
                 return List.of();
-            }).resultTimeout(ABSENCE_TIMEOUT)
+            }).resultTimeout(Duration.ofMillis(100))
                     .whenCommand(new ExecutionCommand("one")).expectExceptionalResult(TimeoutException.class);
         }
     }
@@ -1352,7 +1351,7 @@ public class OnDemandExecutionTest {
             TestFixture fixture = TestFixture.create(fc -> {
                 execution.registerWith(fc);
                 return List.of();
-            }).resultTimeout(ABSENCE_TIMEOUT);
+            }).resultTimeout(Duration.ofMillis(100));
 
             fixture.whenCommand(new ExecutionCommand("before"))
                     .expectExceptionalResult(TimeoutException.class);
@@ -1377,7 +1376,7 @@ public class OnDemandExecutionTest {
             TestFixture fixture = TestFixture.create(fc -> {
                 execution.registerWith(fc);
                 return List.of();
-            }).resultTimeout(ABSENCE_TIMEOUT);
+            }).resultTimeout(Duration.ofMillis(100));
 
             fixture.whenCommand(new ExecutionCommand("before")).expectResult("deleted:before");
             Files.delete(source);
@@ -1494,7 +1493,7 @@ public class OnDemandExecutionTest {
             TestFixture.create(fc -> {
                 execution.registerWith(fc);
                 return List.of();
-            }).resultTimeout(ABSENCE_TIMEOUT)
+            }).resultTimeout(Duration.ofMillis(100))
                     .whenCommand(new ExecutionCommand("one")).expectExceptionalResult(TimeoutException.class);
         }
     }
