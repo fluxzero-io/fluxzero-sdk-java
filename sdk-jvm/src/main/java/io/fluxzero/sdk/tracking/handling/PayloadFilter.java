@@ -20,6 +20,7 @@ import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import lombok.Value;
@@ -154,7 +155,7 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
             }
         }
         return annotationResolver.getAnnotation(executable, handlerAnnotation)
-                .flatMap(annotation -> JvmComponentIntrospector.getInstance()
+                .flatMap(annotation -> JvmCompatibilityBackend.introspector()
                         .getAnnotationAs(annotation, handlerAnnotation, HandleAnnotation.class))
                 .orElse(null);
     }
@@ -173,7 +174,7 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
             return lookupHandleAnnotation(method.orElseThrow(), handlerAnnotation);
         }
         return executable.annotation(handlerAnnotation)
-                .flatMap(annotation -> JvmComponentIntrospector.getInstance()
+                .flatMap(annotation -> JvmCompatibilityBackend.introspector()
                         .getAnnotationAs(annotation, handlerAnnotation, HandleAnnotation.class))
                 .orElse(null);
     }

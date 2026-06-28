@@ -21,7 +21,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -120,7 +120,7 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.orElse(null);
         }
-        return JvmComponentIntrospector.getInstance()
+        return JvmCompatibilityBackend.introspector()
                 .executableAnnotation(executable, RoutingKey.class)
                 .orElse(null);
     }
@@ -132,7 +132,7 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
             return metadata.orElse(null);
         }
         return executable.executable()
-                .flatMap(method -> JvmComponentIntrospector.getInstance()
+                .flatMap(method -> JvmCompatibilityBackend.introspector()
                         .executableAnnotation(method, RoutingKey.class))
                 .or(() -> executable.annotation(RoutingKey.class))
                 .orElse(null);

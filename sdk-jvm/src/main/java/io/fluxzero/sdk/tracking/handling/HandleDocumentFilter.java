@@ -20,7 +20,7 @@ import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 
 import java.lang.annotation.Annotation;
@@ -69,7 +69,7 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata;
         }
-        return JvmComponentIntrospector.getInstance().executableAnnotation(executable, HandleDocument.class);
+        return JvmCompatibilityBackend.introspector().executableAnnotation(executable, HandleDocument.class);
     }
 
     private Optional<String> documentTopic(ExecutableView executable) {

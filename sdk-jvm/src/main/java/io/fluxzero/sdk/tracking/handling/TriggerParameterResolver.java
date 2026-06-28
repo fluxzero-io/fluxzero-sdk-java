@@ -27,7 +27,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -163,7 +163,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
-        return JvmComponentIntrospector.getInstance().has(Trigger.class, parameter);
+        return JvmCompatibilityBackend.introspector().has(Trigger.class, parameter);
     }
 
     @Override
@@ -392,7 +392,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
-            if (JvmComponentIntrospector.getInstance().has(Trigger.class, parameter)) {
+            if (JvmCompatibilityBackend.introspector().has(Trigger.class, parameter)) {
                 return true;
             }
         }
