@@ -128,6 +128,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
     }
 
     private Optional<Object> createInitialPayload(Class<?> payloadType) {
+        ComponentMetadataLookups.ensureGeneratedExecutions(payloadType);
         Optional<Object> generated = GeneratedExecutableInvocations.find(
                         payloadType,
                         InvocationPlanDescriptor.executableId(ExecutableKind.CONSTRUCTOR, "<init>", List.of()))

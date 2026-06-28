@@ -43,6 +43,6 @@ Allowed source values:
 | web.parameter-binding | Path/query/header/cookie/form/body parameter metadata and dynamic path roots | Hybrid | Generated invocation plan | Web parameter metadata plus JVM/web context mechanics | Slice 4 |
 | web.response-mapping | Web response mapper selection and API-doc response metadata | Registry metadata | Registry metadata | Registry metadata plus JVM mapper execution | Slice 4 |
 | schedule.periodic | Periodic schedule metadata and handler schedule registration | Registry metadata | Registry metadata | `SchedulingInterceptor` and `MessageScheduler` metadata lookup | Done |
-| schedule.payload-instantiation | Constructing schedule payloads for JVM periodic handlers | Allowed JVM backend | Generated invocation plan | JVM constructor backend until Slice 3 | Slice 3 |
+| schedule.payload-instantiation | Constructing schedule payloads for JVM periodic handlers | Generated invocation plan | Generated invocation plan | Generated-only periodic startup installs and uses generated constructors; normal JVM mode keeps constructor compatibility fallback | Done |
 | extension.builder-components | Builder-facing user components such as interceptors, decorators, mappers, validators, serializers, providers, caches, schedulers, and property sources | Registry metadata | Registry metadata | Component capabilities and builder registry merge | Done |
 | source.lifecycle | Add/edit/delete source components under `src/.../fluxzero` | Registry metadata | Registry metadata | `OnDemandExecution.refresh()` diff/register lifecycle | Done |

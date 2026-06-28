@@ -173,6 +173,22 @@ class SchedulingInterceptorTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeInstallsClasspathGeneratedConstructorForPeriodicHandlerMethods() throws Exception {
+        try {
+            TestFixture fixture = TestFixture.create().withProperty(Periodic.USE_DEFAULT_INITIAL_DELAY_PROPERTY, true)
+                    .atFixedTime(START);
+
+            GeneratedOnlyMetadataMode.run(() ->
+                    new SchedulingInterceptor().wrap(handler(ClasspathGeneratedOnlyPeriodicHandler.class)));
+
+            assertTrue(fixture.getFluxzero().messageScheduler()
+                               .getSchedule(ClasspathGeneratedOnlyMethodSchedule.class.getName()).isPresent());
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static Periodic periodic(Class<?> type) {
         return type.getAnnotation(Periodic.class);
     }
@@ -256,6 +272,18 @@ class SchedulingInterceptorTest {
         @HandleSchedule
         @Periodic(delay = 1000, initialDelay = 0)
         void handle(RegisteredGeneratedOnlyMethodSchedule schedule) {
+        }
+    }
+
+    static class ClasspathGeneratedOnlyMethodSchedule {
+        public ClasspathGeneratedOnlyMethodSchedule() {
+        }
+    }
+
+    static class ClasspathGeneratedOnlyPeriodicHandler {
+        @HandleSchedule
+        @Periodic(delay = 1000, initialDelay = 0)
+        void handle(ClasspathGeneratedOnlyMethodSchedule schedule) {
         }
     }
 }
