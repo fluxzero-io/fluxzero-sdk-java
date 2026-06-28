@@ -29,6 +29,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ConsumerDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PackageDescriptor;
@@ -569,7 +570,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     }
 
     private static JvmComponentIntrospector introspector() {
-        return JvmComponentIntrospector.getInstance();
+        return JvmCompatibilityBackend.introspector();
     }
 
     private static String stringAttribute(ConsumerDescriptor consumer, String attribute, String defaultValue) {

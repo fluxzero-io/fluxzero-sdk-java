@@ -16,7 +16,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.ParameterizedType;
@@ -47,7 +47,7 @@ public final class RequestTypeResolver {
         if (ComponentMetadataLookups.generatedOnlyMode()) {
             return Object.class;
         }
-        Type genericType = JvmComponentIntrospector.getInstance().getGenericType(request.getClass(), Request.class);
+        Type genericType = JvmCompatibilityBackend.introspector().getGenericType(request.getClass(), Request.class);
         if (genericType instanceof ParameterizedType pt && pt.getActualTypeArguments().length == 1) {
             return pt.getActualTypeArguments()[0];
         }

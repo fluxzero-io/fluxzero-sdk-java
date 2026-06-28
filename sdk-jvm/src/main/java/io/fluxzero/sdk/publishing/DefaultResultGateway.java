@@ -24,6 +24,7 @@ import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -33,7 +34,6 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.MessageType.RESULT;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Default implementation of the {@link ResultGateway} interface for sending response messages.
@@ -75,7 +75,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             serializedMessage.setRequestId(requestId);
             return getGatewayClient().append(guarantee, serializedMessage);
         } catch (Exception e) {
-            String responseDescription = Objects.toString(payload != null && JvmComponentIntrospector.getInstance().ifClass(payload) == null
+            String responseDescription = Objects.toString(payload != null && JvmCompatibilityBackend.introspector().ifClass(payload) == null
                     ? payload.getClass() : payload);
             throw new GatewayException(FluxzeroErrors.responseDispatchFailed(
                     responseDescription, target, requestId, e), e);

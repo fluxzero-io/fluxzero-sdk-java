@@ -23,7 +23,7 @@ import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -100,7 +100,7 @@ public class MutableHandler<M> implements Handler<M> {
                 .map(invocation -> invocation.invoke(null))
                 .orElseGet(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? null
-                        : JvmComponentIntrospector.getInstance().asInstance(targetClass));
+                        : JvmCompatibilityBackend.introspector().asInstance(targetClass));
         return this;
     }
 
