@@ -7,9 +7,190 @@ Keep one functional Fluxzero core.
 Build/source time produces a Fluxzero application model. The JVM runtime should consume that model for Fluxzero app
 semantics, while reflection remains only a JVM backend implementation detail where Java itself is the platform.
 
-The active phase lists only open work. Completed slices are kept later in this file as historical evidence.
+The active phase lists only open work. Queued phases capture the next intended work after the active phase. Completed
+slices are kept later in this file as historical evidence.
 
-## Active Phase: Generated-Only Runtime Closure
+## Active Mini Phase: Component Registry Slimming
+
+Status: [ ] planned.
+
+Context: the generated registry is now functionally complete enough for JVM generated-only runtime semantics, but the
+JSON artifact is still a diagnostic/plain DTO shape rather than a compact runtime payload. The current large files look
+mostly structural and textual, not like unavoidable unique app-model information.
+
+Recent `sdk-jvm` test registry measurements:
+
+- Pretty JSON: about 9.3 MB.
+- Compact JSON: about 6.1 MB.
+- Compact JSON with gzip: about 207 KB.
+- Omitting empty arrays/objects from the compact shape would reduce about 6.1 MB to about 4.7 MB.
+- Handler routes currently duplicate executable and annotation descriptors already present on the component, costing
+  roughly 870 KB in the compact test registry.
+- Annotation descriptors repeat heavily: about 11.9k annotation objects, but about 1.1k unique JSON shapes.
+- Executable metadata is the largest semantic group, and includes a lot of record/Object boilerplate such as
+  `toString`, `equals`, and `hashCode`.
+
+Goal: make the registry substantially lighter without weakening the generated-only runtime contract or making browser
+consumption harder.
+
+### Slice 1: Wire-Format Hygiene
+
+Status: [ ] planned.
+
+- [ ] Write compact registry JSON by default, or add an explicit compact generated-artifact writer while keeping a
+  human-readable debug/blueprint path.
+- [ ] Omit empty lists/maps and null DTO fields when the reader can restore the same descriptor defaults.
+- [ ] Keep round-trip compatibility for existing generated registry resources.
+- [ ] Record before/after size for `sdk-jvm` main and test registry artifacts.
+
+Done when:
+
+- [ ] `ComponentRegistryJsonTest` proves compact/non-empty output round-trips to the same normalized registry.
+- [ ] Focused generated-only registry/runtime tests remain green.
+- [ ] The size reduction is measured in the plan, not inferred.
+
+### Slice 2: Route-Local References
+
+Status: [ ] planned.
+
+- [ ] Stop embedding a full executable descriptor inside every `HandlerRoute` when that executable already exists in
+  the enclosing component.
+- [ ] Prefer a stable component-local executable reference based on kind/name/parameter type names or an explicit
+  executable id.
+- [ ] Do the same for route annotation metadata when the route can safely reference the executable annotation.
+- [ ] Keep the reader tolerant of the previous embedded route shape during the transition.
+
+Done when:
+
+- [ ] Route registration, generated invocation matching, web routes, payload filters, and generated-only handler tests
+  pass from the reference-based shape.
+
+### Slice 3: Annotation And Type Interning
+
+Status: [ ] planned.
+
+- [ ] Add registry-level pools for repeated annotation descriptors and/or type-use descriptors.
+- [ ] Keep the descriptor API expanded and ergonomic for runtime consumers; interning should be a serialization concern
+  unless profiling shows runtime memory also needs pooled descriptors.
+- [ ] Measure whether string interning/pooling adds enough value after annotation/type pooling to justify schema
+  complexity.
+
+Done when:
+
+- [ ] Repeated annotation metadata no longer dominates the serialized registry.
+- [ ] Jakarta validation, policy meta-annotation projection, API-doc extraction, and handler annotation-kind tests prove
+  no semantic loss.
+
+### Slice 4: Runtime-Minimal Registry Shape
+
+Status: [ ] planned.
+
+- [ ] Separate runtime-required metadata from tooling/parity/debug metadata where the same generated artifact is doing
+  too many jobs.
+- [ ] Revisit whether non-semantic executables such as record/Object boilerplate must be stored in the runtime registry
+  at all.
+- [ ] Keep source/classpath parity tests focused on Fluxzero semantics, not accidental reflection surface area.
+
+Done when:
+
+- [ ] The JVM runtime can load the slim runtime model, while tooling can still request a fuller diagnostic model when
+  needed.
+- [ ] Broad `sdk-jvm` tests remain green in generated-only mode.
+
+## Queued Phase: Test And Benchmark Performance Closure
+
+Status: [ ] queued after Component Registry Slimming.
+
+Context: generated-only runtime closure is functionally green, but recent broad suite runs exposed runtime/test
+performance regressions. The clearest offender was `HandleWebTest`, with Surefire timings around 31-43 seconds in
+earlier runs, while individual test cases did not look proportionally slow. That points to fixture/setup, registry
+loading, generated execution installation, or metadata lookup overhead accumulating across web tests.
+
+Goal: make test and benchmark performance boring again before resuming browser conformance work.
+
+### Slice 1: Reproducible Performance Baseline
+
+Status: [ ] queued.
+
+- [ ] Capture clean Maven timings for focused generated-only suites and `./mvnw -q -pl sdk-jvm -am test`.
+- [ ] Capture Surefire per-class timings and isolate the top offenders.
+- [ ] Profile before changing code, using JFR or an equivalent local profiler where useful.
+- [ ] Record the benchmark/test command lines and environment assumptions.
+
+Done when:
+
+- [ ] We can point to measured setup/load/invocation hotspots instead of guessing.
+
+### Slice 2: Web/Test Fixture Hotspot Pass
+
+Status: [ ] queued.
+
+- [ ] Start with `HandleWebTest`.
+- [ ] Verify whether repeated registry load/normalization/install work is still happening after the classloader cache
+  and indexed lookup changes.
+- [ ] Reduce redundant fixture setup, metadata lookup, and generated execution installation where the profile supports
+  it.
+
+Done when:
+
+- [ ] `HandleWebTest` no longer dominates the broad `sdk-jvm` suite without hiding work in global mutable state.
+
+### Slice 3: Broad Suite Performance Pass
+
+Status: [ ] queued.
+
+- [ ] Re-check previously high suites such as `ConsumerConfigurationTest`,
+  `DefaultHandlerFactoryGeneratedOnlyMetadataTest`, `AggregateEntitiesTest`, `ValidatingInterceptorTest`,
+  `SearchTest`, and `EventSourcingRepositoryTest`.
+- [ ] Keep the broad suite green while reducing repeated metadata/runtime setup costs.
+
+Done when:
+
+- [ ] Broad `sdk-jvm` timing is recorded after fixes and no generated-only coverage is removed to gain speed.
+
+### Slice 4: Benchmark And Handler Invocation Decision
+
+Status: [ ] queued.
+
+- [ ] Run `OnDemandComparisonBenchmark` at meaningful scales and commit a stable summary outside `target/` if the
+  numbers are used for decisions.
+- [ ] Add or extend benchmark coverage for handler invocation paths: reflection compatibility, generated invocation
+  registry, and any existing JIT/compiled handler path.
+- [ ] Decide whether handler JIT compilation still earns its complexity now that the generated registry and generated
+  invocation plans exist.
+
+Done when:
+
+- [ ] The project has a measured answer for handler JIT: keep, simplify, gate, or remove.
+
+## Queued Architecture Decisions
+
+Status: [ ] queued.
+
+### Reflection Opt-In
+
+Decision to make: generated metadata should become the normal source for Fluxzero app semantics, while reflection-backed
+compatibility should be an explicit JVM opt-in rather than the default fallback.
+
+Acceptance questions:
+
+- [ ] What is the default runtime mode for ordinary JVM customer apps once generated registries are present?
+- [ ] Which compatibility mode name/property enables reflection fallback intentionally?
+- [ ] How do errors explain missing generated metadata without surprising existing users?
+- [ ] Which release boundary is appropriate for flipping the default?
+
+### Handler JIT After Generated Registry
+
+Decision to make: determine whether JIT compilation of handlers is still useful now that handler discovery, binding, and
+invocation can be driven by generated metadata and generated invocation registrations.
+
+Acceptance questions:
+
+- [ ] Does JIT still improve hot handler throughput or startup enough to justify the complexity?
+- [ ] Does generated invocation make JIT redundant for normal SDK usage?
+- [ ] Should JIT become a benchmark-proven opt-in, an internal optimization, or be removed?
+
+## Completed Phase: Generated-Only Runtime Closure
 
 Status: [x] implemented.
 
