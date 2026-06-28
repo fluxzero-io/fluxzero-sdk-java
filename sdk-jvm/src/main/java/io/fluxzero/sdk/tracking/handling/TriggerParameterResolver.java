@@ -217,8 +217,14 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     }
 
     static Predicate<HasMessage> triggerFilter(Trigger trigger) {
-        return trigger == null ? ObjectUtils.noOpPredicate()
-                : message -> filterMessage(message, trigger, DefaultCorrelationDataProvider.INSTANCE);
+        if (trigger == null) {
+            return ObjectUtils.noOpPredicate();
+        }
+        MessageType[] messageTypes = trigger.messageType();
+        String[] consumers = trigger.consumer();
+        Class<?>[] allowedTypes = trigger.value();
+        return message -> filterMessage(
+                message, messageTypes, consumers, allowedTypes, DefaultCorrelationDataProvider.INSTANCE);
     }
 
     static boolean filterMessage(HasMessage message, Trigger trigger,
@@ -226,16 +232,21 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
         if (trigger == null) {
             return false;
         }
-        if (trigger.messageType().length > 0 && getTriggerMessageType(message, correlationDataProvider)
-                .filter(type -> Arrays.stream(trigger.messageType()).anyMatch(t -> t == type)).isEmpty()) {
+        return filterMessage(message, trigger.messageType(), trigger.consumer(), trigger.value(), correlationDataProvider);
+    }
+
+    private static boolean filterMessage(HasMessage message, MessageType[] messageTypes, String[] consumers,
+                                         Class<?>[] allowedTypes,
+                                         DefaultCorrelationDataProvider correlationDataProvider) {
+        if (messageTypes.length > 0 && getTriggerMessageType(message, correlationDataProvider)
+                .filter(type -> Arrays.stream(messageTypes).anyMatch(t -> t == type)).isEmpty()) {
             return false;
         }
-        if (trigger.consumer().length > 0 && getConsumer(message, correlationDataProvider)
-                .filter(type -> Arrays.asList(trigger.consumer()).contains(type)).isEmpty()) {
+        if (consumers.length > 0 && getConsumer(message, correlationDataProvider)
+                .filter(type -> Arrays.asList(consumers).contains(type)).isEmpty()) {
             return false;
         }
         return getTriggerClass(message, correlationDataProvider).filter(triggerClass -> {
-            var allowedTypes = trigger.value();
             return (allowedTypes.length == 0
                     || Arrays.stream(allowedTypes).anyMatch(a -> a.isAssignableFrom(triggerClass)));
         }).isPresent();

@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * JVM metadata lookup facade backed by classpath-scanned component descriptors.
@@ -47,6 +49,8 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
             "short", short.class,
             "void", void.class
     );
+    private static final ConcurrentMap<ClassResolutionKey, Optional<Class<?>>> classResolutionCache =
+            new ConcurrentHashMap<>();
 
     private final RegistryComponentMetadataLookup delegate;
 
@@ -100,6 +104,12 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
             return classForMetadataName(className.substring(0, className.length() - 2), preferredLoader)
                     .map(componentType -> Array.newInstance(componentType, 0).getClass());
         }
+        return classResolutionCache.computeIfAbsent(
+                ClassResolutionKey.of(className, preferredLoader),
+                key -> resolveClassForMetadataName(key.className(), key.preferredLoader()));
+    }
+
+    private static Optional<Class<?>> resolveClassForMetadataName(String className, ClassLoader preferredLoader) {
         Optional<Class<?>> result = loadClass(className, preferredLoader);
         if (result.isPresent()) {
             return result;
@@ -137,6 +147,15 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
             return Optional.of(Class.forName(className));
         } catch (ClassNotFoundException ignored) {
             return Optional.empty();
+        }
+    }
+
+    private record ClassResolutionKey(
+            String className, ClassLoader preferredLoader, ClassLoader contextLoader, ClassLoader ownLoader) {
+        private static ClassResolutionKey of(String className, ClassLoader preferredLoader) {
+            return new ClassResolutionKey(
+                    className, preferredLoader, Thread.currentThread().getContextClassLoader(),
+                    JvmComponentMetadataLookup.class.getClassLoader());
         }
     }
 

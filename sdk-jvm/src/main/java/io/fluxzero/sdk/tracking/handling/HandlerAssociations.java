@@ -50,6 +50,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -68,6 +69,8 @@ import static java.util.stream.Collectors.toMap;
  * </ul>
  */
 public class HandlerAssociations {
+    private static final Pattern propertyPathSeparator = Pattern.compile("[./]");
+    private static final ConcurrentHashMap<String, List<String>> propertyPathSegments = new ConcurrentHashMap<>();
     private static final ClassValue<AssociationMetadata> metadataCache = new ClassValue<>() {
         @Override
         protected AssociationMetadata computeValue(Class<?> type) {
@@ -333,7 +336,8 @@ public class HandlerAssociations {
 
     private static Optional<Object> readGeneratedProperty(String propertyPath, Object target) {
         Object current = target;
-        for (String segment : propertyPath.split("[./]")) {
+        for (String segment : propertyPathSegments.computeIfAbsent(
+                propertyPath, HandlerAssociations::splitPropertyPath)) {
             if (segment.isBlank() || current == null) {
                 return Optional.empty();
             }
@@ -350,6 +354,10 @@ public class HandlerAssociations {
             current = reader.orElseThrow().read(current);
         }
         return Optional.ofNullable(current);
+    }
+
+    private static List<String> splitPropertyPath(String propertyPath) {
+        return List.of(propertyPathSeparator.split(propertyPath));
     }
 
     @Value
