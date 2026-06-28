@@ -19,7 +19,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.scheduling.Schedule;
 import org.slf4j.LoggerFactory;
 
@@ -137,7 +137,7 @@ public interface HasMessage extends HasMetadata {
                 .flatMap(lookup -> ComponentMetadataLookups.typeAnnotation(lookup, payloadType, RoutingKey.class))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : JvmComponentIntrospector.getInstance()
+                        : JvmCompatibilityBackend.introspector()
                         .getAnnotation(payloadType, RoutingKey.class))
                 .filter(a -> !a.value().isBlank()).orElse(null);
         if (typeAnnotation != null) {
@@ -150,11 +150,11 @@ public interface HasMessage extends HasMetadata {
                 routingValue = readGeneratedProperty(routingProperty.get(), m.getPayload())
                         .map(Object::toString).orElse(null);
                 if (routingValue == null && !ComponentMetadataLookups.generatedOnlyMode()) {
-                    routingValue = JvmComponentIntrospector.getInstance().readProperty(
+                    routingValue = JvmCompatibilityBackend.introspector().readProperty(
                             routingProperty.get(), m.getPayload()).map(Object::toString).orElse(null);
                 }
             } else if (!ComponentMetadataLookups.generatedOnlyMode()) {
-                routingValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(
+                routingValue = JvmCompatibilityBackend.introspector().getAnnotatedPropertyValue(
                         m.getPayload(), RoutingKey.class).map(Object::toString).orElse(null);
             }
         }
@@ -192,7 +192,7 @@ public interface HasMessage extends HasMetadata {
             result = readGeneratedProperty(propertyName, getPayload()).map(Object::toString).orElse(null);
         }
         if (result == null && !ComponentMetadataLookups.generatedOnlyMode()) {
-            result = JvmComponentIntrospector.getInstance().readProperty(propertyName, getPayload())
+            result = JvmCompatibilityBackend.introspector().readProperty(propertyName, getPayload())
                     .map(Object::toString).orElse(null);
         }
         if (result == null && warnIfMissing && warnedAboutMissingProperty.apply(getPayloadClass(), propertyName)

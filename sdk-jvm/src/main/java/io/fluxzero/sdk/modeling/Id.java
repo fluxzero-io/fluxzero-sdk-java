@@ -31,7 +31,7 @@ import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.Getter;
 import lombok.NonNull;
@@ -316,7 +316,7 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
                             "Id subtype %s must have generated metadata for a single String constructor",
                             targetType.getName());
                 }
-                return (Id<?>) JvmComponentIntrospector.getInstance().getTypeMetadata(targetType)
+                return (Id<?>) JvmCompatibilityBackend.introspector().getTypeMetadata(targetType)
                         .invoker(targetType.getDeclaredConstructor(String.class), true)
                         .invoke(null, functionalId);
             } catch (NoSuchMethodException e) {

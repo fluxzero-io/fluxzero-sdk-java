@@ -57,7 +57,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -222,7 +222,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
                     if (ComponentMetadataLookups.generatedOnlyMode()) {
                         return Optional.empty();
                     }
-                    return JvmComponentIntrospector.getInstance().getAnnotatedMethods(eventType, Apply.class).stream()
+                    return JvmCompatibilityBackend.introspector().getAnnotatedMethods(eventType, Apply.class).stream()
                             .filter(method -> method.getParameterCount() == 0)
                             .map(Method::getReturnType)
                             .filter(returnType -> !void.class.equals(returnType)
@@ -253,8 +253,8 @@ public class DefaultAggregateRepository implements AggregateRepository {
                 .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(lookup, type, EntityId.class))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
-                                .map(property -> JvmComponentIntrospector.getInstance().getName(property)));
+                        : JvmCompatibilityBackend.introspector().getAnnotatedProperty(type, EntityId.class)
+                                .map(property -> JvmCompatibilityBackend.introspector().getName(property)));
     }
 
     @SuppressWarnings("unchecked")

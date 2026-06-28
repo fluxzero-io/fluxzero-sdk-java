@@ -36,7 +36,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.HandlerRoute;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
@@ -235,10 +235,10 @@ public class ClientUtils {
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.filter(LocalHandler::value);
         }
-        return JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
+        return JvmCompatibilityBackend.introspector().getAnnotation(method, LocalHandler.class)
                 .or(() -> Optional.ofNullable(
-                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        JvmCompatibilityBackend.introspector().getTypeAnnotation(target, LocalHandler.class)))
+                .or(() -> JvmCompatibilityBackend.introspector().getPackageAnnotation(
                         target.getPackage(), LocalHandler.class))
                 .filter(LocalHandler::value);
     }
@@ -250,8 +250,8 @@ public class ClientUtils {
         }
         return executable.annotation(LocalHandler.class)
                 .or(() -> Optional.ofNullable(
-                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        JvmCompatibilityBackend.introspector().getTypeAnnotation(target, LocalHandler.class)))
+                .or(() -> JvmCompatibilityBackend.introspector().getPackageAnnotation(
                         target.getPackage(), LocalHandler.class))
                 .filter(LocalHandler::value);
     }
@@ -261,10 +261,10 @@ public class ClientUtils {
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata;
         }
-        return JvmComponentIntrospector.getInstance().getAnnotation(method, TrackSelf.class)
+        return JvmCompatibilityBackend.introspector().getAnnotation(method, TrackSelf.class)
                 .or(() -> Optional.ofNullable(
-                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        JvmCompatibilityBackend.introspector().getTypeAnnotation(target, TrackSelf.class)))
+                .or(() -> JvmCompatibilityBackend.introspector().getPackageAnnotation(
                         target.getPackage(), TrackSelf.class));
     }
 
@@ -275,8 +275,8 @@ public class ClientUtils {
         }
         return executable.annotation(TrackSelf.class)
                 .or(() -> Optional.ofNullable(
-                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        JvmCompatibilityBackend.introspector().getTypeAnnotation(target, TrackSelf.class)))
+                .or(() -> JvmCompatibilityBackend.introspector().getPackageAnnotation(
                         target.getPackage(), TrackSelf.class));
     }
 
@@ -510,13 +510,13 @@ public class ClientUtils {
         if (metadataOrder.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadataOrder.orElse(0);
         }
-        return JvmComponentIntrospector.getInstance().typeAnnotation(type, Order.class)
+        return JvmCompatibilityBackend.introspector().typeAnnotation(type, Order.class)
                 .map(Order::value)
                 .or(() -> springOrderOf(type)).orElse(0);
     }
 
     private static Optional<Integer> springOrderOf(Class<?> type) {
-        return JvmComponentIntrospector.getInstance().getTypeAnnotations(type).stream()
+        return JvmCompatibilityBackend.introspector().getTypeAnnotations(type).stream()
                 .filter(annotation -> annotation.annotationType().getName()
                         .equals("org.springframework.core.annotation.Order"))
                 .findFirst()
@@ -603,7 +603,7 @@ public class ClientUtils {
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return searchParameters(type, metadata);
         }
-        return searchParameters(type, JvmComponentIntrospector.getInstance().getAnnotationAs(
+        return searchParameters(type, JvmCompatibilityBackend.introspector().getAnnotationAs(
                 type, Searchable.class, SearchParameters.class));
     }
 
@@ -647,14 +647,14 @@ public class ClientUtils {
         var annotationResolver = MetadataExecutableAnnotationResolver.create();
         return switch (messageType) {
             case DOCUMENT -> handlerClasses.stream()
-                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAllMethods(handlerClass).stream())
+                    .flatMap(handlerClass -> JvmCompatibilityBackend.introspector().getAllMethods(handlerClass).stream())
                     .flatMap(m -> annotationResolver.getAnnotation(m, HandleDocument.class)
                             .map(HandleDocument.class::cast)
                             .map(a -> getTopic(a, m)).stream())
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             case CUSTOM -> handlerClasses.stream()
-                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAllMethods(handlerClass).stream())
+                    .flatMap(handlerClass -> JvmCompatibilityBackend.introspector().getAllMethods(handlerClass).stream())
                     .flatMap(m -> annotationResolver.getAnnotation(m, HandleCustom.class)
                             .map(HandleCustom.class::cast)
                             .filter(h -> !h.disabled())
@@ -740,7 +740,7 @@ public class ClientUtils {
                 .or(() -> executable.parameters().stream().findFirst()
                         .map(parameter -> JvmComponentMetadataLookup.classForMetadataName(parameter.typeName())
                                 .map(ClientUtils::determineSearchCollection)
-                                .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                                .orElseGet(() -> JvmCompatibilityBackend.introspector()
                                         .getSimpleName(parameter.typeName()))))
                 .filter(s -> !s.isBlank()).orElse(null);
     }
