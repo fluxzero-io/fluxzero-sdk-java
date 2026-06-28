@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.common;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
@@ -68,16 +67,16 @@ class ClientUtilsTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForLocalHandlerSemantics() throws Exception {
+    void generatedOnlyModeUsesGeneratedMetadataForLocalHandlerSemantics() throws Exception {
         GeneratedOnlyMetadataMode.run(() -> {
-            assertFalse(ClientUtils.getLocalHandlerAnnotation(
-                    UnregisteredGeneratedOnlyHandler.class,
-                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class))
+            assertTrue(ClientUtils.getLocalHandlerAnnotation(
+                    GeneratedClasspathHandler.class,
+                    GeneratedClasspathHandler.class.getDeclaredMethod("handleOnlyLocal", int.class))
                     .isPresent());
-            assertTrue(ClientUtils.isTrackingHandler(
-                    UnregisteredGeneratedOnlyHandler.class,
-                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class)));
-            assertFalse(ClientUtils.isSelfTracking(UnregisteredGeneratedOnlyTrackSelf.class));
+            assertFalse(ClientUtils.isTrackingHandler(
+                    GeneratedClasspathHandler.class,
+                    GeneratedClasspathHandler.class.getDeclaredMethod("handleOnlyLocal", int.class)));
+            assertTrue(ClientUtils.isSelfTracking(GeneratedClasspathTrackSelf.class));
         });
     }
 
@@ -103,12 +102,12 @@ class ClientUtilsTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForHandlerTopics() {
+    void generatedOnlyModeUsesGeneratedMetadataForHandlerTopics() {
         GeneratedOnlyMetadataMode.run(() -> {
-            assertTrue(ClientUtils.getTopics(
-                    MessageType.DOCUMENT, List.of(UnregisteredGeneratedOnlyTopicHandler.class)).isEmpty());
-            assertTrue(ClientUtils.getTopics(
-                    MessageType.CUSTOM, List.of(UnregisteredGeneratedOnlyTopicHandler.class)).isEmpty());
+            assertEquals(Set.of("documents"), ClientUtils.getTopics(
+                    MessageType.DOCUMENT, List.of(GeneratedClasspathTopicHandler.class)));
+            assertEquals(Set.of("custom-topic"), ClientUtils.getTopics(
+                    MessageType.CUSTOM, List.of(GeneratedClasspathTopicHandler.class)));
         });
     }
 
@@ -131,13 +130,13 @@ class ClientUtilsTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForSearchParameters() {
+    void generatedOnlyModeUsesGeneratedMetadataForSearchParameters() {
         GeneratedOnlyMetadataMode.run(() -> {
-            SearchParameters parameters = ClientUtils.getSearchParameters(UnregisteredGeneratedOnlySearchable.class);
+            SearchParameters parameters = ClientUtils.getSearchParameters(GeneratedClasspathSearchable.class);
 
             assertTrue(parameters.isSearchable());
-            assertEquals(UnregisteredGeneratedOnlySearchable.class.getSimpleName(), parameters.getCollection());
-            assertEquals(null, parameters.getTimestampPath());
+            assertEquals("generated-search", parameters.getCollection());
+            assertEquals("createdAt", parameters.getTimestampPath());
         });
     }
 
@@ -148,13 +147,17 @@ class ClientUtilsTest {
             fixture.getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlySearchable.class).registry());
 
-            GeneratedOnlyMetadataMode.run(() -> {
-                SearchParameters parameters = ClientUtils.getSearchParameters(RegisteredGeneratedOnlySearchable.class);
+            fixture.getFluxzero().apply(fc -> {
+                GeneratedOnlyMetadataMode.run(() -> {
+                    SearchParameters parameters =
+                            ClientUtils.getSearchParameters(RegisteredGeneratedOnlySearchable.class);
 
-                assertTrue(parameters.isSearchable());
-                assertEquals("registered-search", parameters.getCollection());
-                assertEquals("createdAt", parameters.getTimestampPath());
-                assertEquals("deletedAt", parameters.getEndPath());
+                    assertTrue(parameters.isSearchable());
+                    assertEquals("registered-search", parameters.getCollection());
+                    assertEquals("createdAt", parameters.getTimestampPath());
+                    assertEquals("deletedAt", parameters.getEndPath());
+                });
+                return null;
             });
         } finally {
             TestFixture.shutDownActiveFixtures();
@@ -163,34 +166,27 @@ class ClientUtilsTest {
 
     @Nested
     class MemoizeTests {
-        final TestFixture testFixture = TestFixture.create(new Object() {
-            @HandleCommand
-            int handle() {
-                return supplier.get();
-            }
-        });
-
         final AtomicInteger counter = new AtomicInteger();
-        final MemoizingSupplier<Integer> supplier =
-                ClientUtils.memoize(counter::incrementAndGet, Duration.ofSeconds(10));
+        final ClientUtilsMemoizeHandler handler = new ClientUtilsMemoizeHandler(counter::incrementAndGet);
+        final TestFixture testFixture = TestFixture.create(handler);
 
         @Test
         void memoizeWithLifespan_refreshValueAfterLifespan() {
-            testFixture.givenCommands(new Object()).givenElapsedTime(Duration.ofSeconds(15))
-                    .whenCommand(new Object()).expectResult(2);
+            testFixture.givenCommands(new ClientUtilsMemoizeCommand()).givenElapsedTime(Duration.ofSeconds(15))
+                    .whenCommand(new ClientUtilsMemoizeCommand()).expectResult(2);
         }
 
         @Test
         void memoizeWithLifespan_dontRefreshBeforeLifespan() {
-            testFixture.givenCommands(new Object()).givenElapsedTime(Duration.ofSeconds(5))
-                    .whenCommand(new Object()).expectResult(1);
+            testFixture.givenCommands(new ClientUtilsMemoizeCommand()).givenElapsedTime(Duration.ofSeconds(5))
+                    .whenCommand(new ClientUtilsMemoizeCommand()).expectResult(1);
         }
 
         @Test
         void memoizeWithLifespan_cleared() {
-            testFixture.givenCommands(new Object()).givenElapsedTime(Duration.ofSeconds(5))
-                    .given(fc -> supplier.clear())
-                    .whenCommand(new Object()).expectResult(2);
+            testFixture.givenCommands(new ClientUtilsMemoizeCommand()).givenElapsedTime(Duration.ofSeconds(5))
+                    .given(fc -> handler.clear())
+                    .whenCommand(new ClientUtilsMemoizeCommand()).expectResult(2);
         }
     }
 
@@ -213,7 +209,7 @@ class ClientUtilsTest {
         }
     }
 
-    private static class UnregisteredGeneratedOnlyHandler {
+    private static class RegisteredGeneratedOnlyHandler {
         @HandleCommand
         @LocalHandler
         int handleOnlyLocal(int command) {
@@ -221,11 +217,7 @@ class ClientUtilsTest {
         }
     }
 
-    @TrackSelf
-    private static class UnregisteredGeneratedOnlyTrackSelf {
-    }
-
-    private static class RegisteredGeneratedOnlyHandler {
+    private static class GeneratedClasspathHandler {
         @HandleCommand
         @LocalHandler
         int handleOnlyLocal(int command) {
@@ -237,14 +229,8 @@ class ClientUtilsTest {
     private static class RegisteredGeneratedOnlyTrackSelf {
     }
 
-    private static class UnregisteredGeneratedOnlyTopicHandler {
-        @HandleDocument("documents")
-        void handleDocument(Object document) {
-        }
-
-        @HandleCustom("custom-topic")
-        void handleCustom(Object payload) {
-        }
+    @TrackSelf
+    private static class GeneratedClasspathTrackSelf {
     }
 
     private static class RegisteredGeneratedOnlyTopicHandler {
@@ -261,11 +247,21 @@ class ClientUtilsTest {
         }
     }
 
-    @Aggregate(searchable = true, collection = "unregistered-search", timestampPath = "createdAt")
-    private static class UnregisteredGeneratedOnlySearchable {
+    private static class GeneratedClasspathTopicHandler {
+        @HandleDocument("documents")
+        void handleDocument(Object document) {
+        }
+
+        @HandleCustom("custom-topic")
+        void handleCustom(Object payload) {
+        }
     }
 
     @Aggregate(searchable = true, collection = "registered-search", timestampPath = "createdAt", endPath = "deletedAt")
     private static class RegisteredGeneratedOnlySearchable {
+    }
+
+    @Aggregate(searchable = true, collection = "generated-search", timestampPath = "createdAt")
+    private static class GeneratedClasspathSearchable {
     }
 }

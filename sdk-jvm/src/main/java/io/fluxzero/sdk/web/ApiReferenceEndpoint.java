@@ -17,6 +17,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 
 import java.lang.reflect.AnnotatedElement;
@@ -66,13 +67,27 @@ public final class ApiReferenceEndpoint {
         Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(handlerType);
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
-        for (Package currentPackage : JvmComponentIntrospector.getInstance().getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
-            path = appendPath(path, pathValues.apply(currentPackage).toList());
-            addIfEnabled(endpoints, apiDocInfo(lookup, handlerType, currentPackage), path);
+        if (lookup.isPresent()) {
+            for (PackageDescriptor currentPackage : lookup.orElseThrow()
+                    .packageMetadataChain(handlerType.getPackageName()).reversed()) {
+                path = appendPath(path, WebUtils.pathValues(currentPackage).toList());
+                addIfEnabled(endpoints, apiDocInfo(handlerType, currentPackage), path);
+            }
+        } else {
+            for (Package currentPackage : JvmComponentIntrospector.getInstance()
+                    .getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
+                path = appendPath(path, pathValues.apply(currentPackage).toList());
+                addIfEnabled(endpoints, apiDocInfo(lookup, handlerType, currentPackage), path);
+            }
         }
         path = appendPath(path, pathValues.apply(handlerType).toList());
         addIfEnabled(endpoints, apiDocInfo(lookup, handlerType), path);
         return endpoints;
+    }
+
+    private static ApiDocInfo apiDocInfo(Class<?> handlerType, PackageDescriptor sourcePackage) {
+        return ComponentMetadataLookups.annotationAs(
+                sourcePackage.annotations(), ApiDocInfo.class, ApiDocInfo.class, handlerType).orElse(null);
     }
 
     private static ApiDocInfo apiDocInfo(
@@ -80,7 +95,7 @@ public final class ApiReferenceEndpoint {
         Optional<ApiDocInfo> metadata = lookup.flatMap(l -> l.packageMetadata(sourcePackage.getName())
                 .flatMap(descriptor -> ComponentMetadataLookups.annotationAs(
                         descriptor.annotations(), ApiDocInfo.class, ApiDocInfo.class, handlerType)));
-        if (metadata.isPresent() || lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+        if (metadata.isPresent() || lookup.isPresent()) {
             return metadata.orElse(null);
         }
         return sourcePackage.getAnnotation(ApiDocInfo.class);
@@ -89,7 +104,7 @@ public final class ApiReferenceEndpoint {
     private static ApiDocInfo apiDocInfo(Optional<ComponentMetadataLookup> lookup, Class<?> handlerType) {
         Optional<ApiDocInfo> metadata = lookup.flatMap(l -> ComponentMetadataLookups.typeAnnotation(
                 l, handlerType, ApiDocInfo.class));
-        if (metadata.isPresent() || lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+        if (metadata.isPresent() || lookup.isPresent()) {
             return metadata.orElse(null);
         }
         return handlerType.getAnnotation(ApiDocInfo.class);

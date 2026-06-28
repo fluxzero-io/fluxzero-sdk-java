@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionBoundaryTest {
@@ -92,6 +93,35 @@ class ReflectionBoundaryTest {
     }
 
     @Test
+    void generatedOnlyBackendMigrationDebtIsExplicit() {
+        Map<String, JvmBackendAccess.BackendCategory> debt = JvmBackendAccess.migrationDebtClasses();
+
+        assertEquals(43, debt.size(),
+                     () -> "Generated-only JVM backend migration debt changed. Lower this count when a semantic "
+                           + "fallback is replaced by generated metadata/invocation/access plans; add new debt only "
+                           + "with an explicit Generated-Only Runtime Closure slice.");
+        assertTrue(debt.containsKey("io.fluxzero.common.handling.HandlerInspector"));
+        assertTrue(debt.containsKey("io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory"));
+        assertTrue(debt.containsKey("io.fluxzero.sdk.modeling.AnnotatedEntityHolder"));
+        assertTrue(debt.containsKey("io.fluxzero.sdk.web.WebHandlerMatcher"));
+        assertEquals(JvmBackendAccess.BackendStatus.PLATFORM_BACKEND,
+                     JvmBackendAccess.classification("io.fluxzero.sdk.registry.GeneratedRegistryBridge")
+                             .orElseThrow().status());
+        assertEquals(JvmBackendAccess.BackendStatus.PLATFORM_BACKEND,
+                     JvmBackendAccess.classification("io.fluxzero.sdk.Fluxzero").orElseThrow().status());
+    }
+
+    @Test
+    void strictGeneratedOnlyModeRejectsMigrationDebtBackendCategories() {
+        assertThrows(ComponentRegistryException.class, () ->
+                GeneratedOnlyMetadataMode.runStrict(() -> JvmBackendAccess.assertAllowed(
+                        "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory")));
+
+        GeneratedOnlyMetadataMode.runStrict(() -> JvmBackendAccess.assertAllowed(
+                "io.fluxzero.sdk.registry.GeneratedRegistryBridge"));
+    }
+
+    @Test
     void jakartaValidationUsesOnlyItsJvmBackendForDirectIntrospection() throws Exception {
         Path sourceRoot = Path.of("src/main/java/io/fluxzero/sdk/tracking/handling/validation/jakarta");
         if (!Files.isDirectory(sourceRoot)) {
@@ -125,7 +155,8 @@ class ReflectionBoundaryTest {
 
     private static boolean isRuntimeMetadataScanDebtCandidate(Path path) {
         return !path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "ComponentMetadataLookups.java"))
-               && !path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "JvmComponentMetadataLookup.java"));
+               && !path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "JvmComponentMetadataLookup.java"))
+               && !path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "ComponentRegistryGenerator.java"));
     }
 
     private static long directMetadataScanCount(Path path) {

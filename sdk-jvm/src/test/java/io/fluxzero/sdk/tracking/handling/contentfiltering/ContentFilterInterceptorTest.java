@@ -32,24 +32,24 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ContentFilterInterceptorTest {
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallback() throws Exception {
+    void generatedOnlyModeUsesGeneratedClasspathMetadata() throws Exception {
         Serializer serializer = mock(Serializer.class);
+        when(serializer.filterContent(same("raw"), isNull())).thenReturn("filtered");
         ContentFilterInterceptor interceptor = new ContentFilterInterceptor(serializer);
         HandlerInvoker invoker = HandlerInvoker.noOp(
-                UnregisteredGeneratedOnlyFilteredQuery.class,
-                handlerMethod(UnregisteredGeneratedOnlyFilteredQuery.class));
+                GeneratedClasspathFilteredQuery.class,
+                handlerMethod(GeneratedClasspathFilteredQuery.class));
 
         GeneratedOnlyMetadataMode.run(() -> {
             Function<DeserializingMessage, Object> function = interceptor.interceptHandling(message -> "raw", invoker);
 
-            assertEquals("raw", function.apply(null));
-            verifyNoInteractions(serializer);
+            assertEquals("filtered", function.apply(null));
+            verify(serializer).filterContent(same("raw"), isNull());
         });
     }
 
@@ -81,7 +81,7 @@ class ContentFilterInterceptorTest {
         return type.getDeclaredMethod("handle");
     }
 
-    private static class UnregisteredGeneratedOnlyFilteredQuery {
+    private static class GeneratedClasspathFilteredQuery {
         @HandleQuery
         @FilterContent
         String handle() {

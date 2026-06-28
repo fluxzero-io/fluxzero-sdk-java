@@ -19,11 +19,11 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -35,7 +35,6 @@ import lombok.experimental.NonFinal;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.AccessibleObject;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -257,8 +256,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (updatedId == null || Objects.equals(updatedId, id())) {
             return null;
         }
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(type(), Member.class)) {
-            AnnotatedEntityHolder entityHolder = getEntityHolder(type(), location, entityHelper, serializer);
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(type(), Member.class)) {
+            AnnotatedEntityHolder entityHolder = getEntityHolder(type(), property, entityHelper, serializer);
             ImmutableEntity<?> emptyChild = entityHolder.getEmptyEntity();
             if (!Objects.equals(type(), emptyChild.type())) {
                 continue;
@@ -398,8 +397,8 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private Entity<?> resolveDirectTarget(String routeValue) {
         Class<?> type = type();
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(type, Member.class)) {
-            Entity<?> entity = getEntityHolder(type, location, entityHelper, serializer).getEntityByRoute(this, routeValue);
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(type, Member.class)) {
+            Entity<?> entity = getEntityHolder(type, property, entityHelper, serializer).getEntityByRoute(this, routeValue);
             if (entity != null) {
                 return entity;
             }
@@ -485,8 +484,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         }
         Set<String> properties = new LinkedHashSet<>();
         boolean certain = true;
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(ownerType, Member.class)) {
-            AnnotatedEntityHolder holder = getEntityHolder(ownerType, location, entityHelper, serializer);
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(ownerType, Member.class)) {
+            AnnotatedEntityHolder holder = getEntityHolder(ownerType, property, entityHelper, serializer);
             ImmutableEntity<?> emptyChild = holder.getEmptyEntity();
             Class<?> childType = emptyChild.type();
             if (childType == null || Object.class.equals(childType)) {
@@ -609,8 +608,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (!visitedTypes.add(entity.type())) {
             return;
         }
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(entity.type(), Member.class)) {
-            ImmutableEntity<?> child = getEntityHolder(entity.type(), location, entityHelper, serializer)
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(entity.type(), Member.class)) {
+            ImmutableEntity<?> child = getEntityHolder(entity.type(), property, entityHelper, serializer)
                     .getEmptyEntity().toBuilder().parent(entity).build();
             assertApplyCompatibility(message, child, visitedTypes);
         }
@@ -618,8 +617,8 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private <E extends Exception> void assertApplyCompatibilityOnSelfReferentialChildren(
             DeserializingMessage message, Entity<?> entity, Set<Class<?>> visitedTypes) throws E {
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(entity.type(), Member.class)) {
-            AnnotatedEntityHolder childHolder = getEntityHolder(entity.type(), location, entityHelper, serializer);
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(entity.type(), Member.class)) {
+            AnnotatedEntityHolder childHolder = getEntityHolder(entity.type(), property, entityHelper, serializer);
             ImmutableEntity<?> emptyChild = childHolder.getEmptyEntity().toBuilder().parent(entity).build();
             assertApplyCompatibility(message, emptyChild, new HashSet<>(visitedTypes));
         }
@@ -641,8 +640,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (explicitTarget(payload) != ExplicitTarget.OTHER || entityType == null) {
             return false;
         }
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(entityType, Member.class)) {
-            AnnotatedEntityHolder childHolder = getEntityHolder(entityType, location, entityHelper, serializer);
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(entityType, Member.class)) {
+            AnnotatedEntityHolder childHolder = getEntityHolder(entityType, property, entityHelper, serializer);
             if (Objects.equals(entityType, childHolder.getEmptyEntity().type())) {
                 return true;
             }
@@ -674,8 +673,8 @@ public class ImmutableEntity<T> implements Entity<T> {
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {
         Class<?> type = type();
         List<ImmutableEntity<?>> result = new ArrayList<>();
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(type, Member.class)) {
-            result.addAll(getEntityHolder(type, location, entityHelper, serializer).getEntities(this));
+        for (PropertyDescriptor property : ModelMetadata.annotatedProperties(type, Member.class)) {
+            result.addAll(getEntityHolder(type, property, entityHelper, serializer).getEntities(this));
         }
         return result;
     }
@@ -686,8 +685,8 @@ public class ImmutableEntity<T> implements Entity<T> {
             return emptyList();
         }
         List<Object> results = new ArrayList<>();
-        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(target.getClass(), Alias.class)) {
-            Object v = ModelMetadata.propertyValue(location, target, false);
+        for (PropertyDescriptor location : ModelMetadata.annotatedProperties(target.getClass(), Alias.class)) {
+            Object v = ModelMetadata.propertyValue(location, target);
             if (v != null) {
                 ModelMetadata.alias(location).ifPresent(alias -> {
                     UnaryOperator<Object> aliasFunction = id -> "".equals(alias.prefix()) && "".equals(alias.postfix())

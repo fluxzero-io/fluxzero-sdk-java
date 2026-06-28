@@ -1500,10 +1500,6 @@ public class HandlerInspector {
                     if (bestInvoker == null) {
                         bestInvoker = invoker;
                         if (candidateMatcher != null) {
-                            if (candidateMatcher.computeSpecificity(message).priority()
-                                <= candidateMatcher.lowestSpecificityPriority()) {
-                                return bestInvoker;
-                            }
                             bestMatcher = candidateMatcher;
                         }
                     } else if (bestMatcher != null && candidateMatcher != null) {

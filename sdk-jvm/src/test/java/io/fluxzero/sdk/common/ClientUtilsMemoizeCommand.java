@@ -12,22 +12,7 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.registry;
+package io.fluxzero.sdk.common;
 
-import io.fluxzero.common.ThrowingRunnable;
-import lombok.SneakyThrows;
-
-public final class GeneratedOnlyMetadataMode {
-    private GeneratedOnlyMetadataMode() {
-    }
-
-    @SneakyThrows
-    public static void run(ThrowingRunnable runnable) {
-        ComponentMetadataLookups.runInGeneratedOnlyMode(runnable);
-    }
-
-    @SneakyThrows
-    public static void runStrict(ThrowingRunnable runnable) {
-        ComponentMetadataLookups.runInStrictGeneratedOnlyMode(runnable);
-    }
+record ClientUtilsMemoizeCommand() {
 }

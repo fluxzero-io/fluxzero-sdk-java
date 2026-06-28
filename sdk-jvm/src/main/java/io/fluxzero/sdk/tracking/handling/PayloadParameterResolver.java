@@ -18,7 +18,6 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.handling.PreparedParameterResolver;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -26,6 +25,9 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -46,6 +48,12 @@ import java.util.function.Function;
  */
 public class PayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
     private static final Object UNRESOLVED_PAYLOAD = new Object();
+    private static final List<String> NULLABLE_ANNOTATION_TYPES = List.of(
+            "jakarta.annotation.Nullable",
+            "javax.annotation.Nullable",
+            "org.jetbrains.annotations.Nullable",
+            "org.jspecify.annotations.Nullable",
+            "io.fluxzero.sdk.common.Nullable");
 
     @Override
     public boolean matches(Parameter p, Annotation methodAnnotation, HasMessage value) {
@@ -98,7 +106,7 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
         }
         Object payload = getPayloadIfAvailable(value);
         if (payload != UNRESOLVED_PAYLOAD) {
-            return payload != null || JvmComponentIntrospector.getInstance().isNullable(parameter) ? ignored -> payload : null;
+            return payload != null || isNullable(parameter) ? ignored -> payload : null;
         }
         return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
     }
@@ -125,13 +133,13 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
     @Override
     public boolean test(HasMessage message, Parameter parameter) {
         if (message instanceof ChunkedDeserializingMessage) {
-            return message.getPayloadClass() != Void.class || JvmComponentIntrospector.getInstance().isNullable(parameter);
+            return message.getPayloadClass() != Void.class || isNullable(parameter);
         }
         Object payload = getPayloadIfAvailable(message);
         if (payload != UNRESOLVED_PAYLOAD) {
-            return payload != null || JvmComponentIntrospector.getInstance().isNullable(parameter);
+            return payload != null || isNullable(parameter);
         }
-        return message.getPayloadClass() != Void.class || JvmComponentIntrospector.getInstance().isNullable(parameter);
+        return message.getPayloadClass() != Void.class || isNullable(parameter);
     }
 
     @Override
@@ -153,8 +161,35 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
 
     private boolean isNullable(ParameterView parameter) {
         return parameter.parameter()
-                .map(JvmComponentIntrospector.getInstance()::isNullable)
-                .orElse(false);
+                .map(PayloadParameterResolver::isNullable)
+                .orElseGet(() -> NULLABLE_ANNOTATION_TYPES.stream().anyMatch(typeName -> hasAnnotation(parameter, typeName)));
+    }
+
+    private static boolean isNullable(Parameter parameter) {
+        return Arrays.stream(parameter.getAnnotations())
+                .map(Annotation::annotationType)
+                .anyMatch(PayloadParameterResolver::isNullableAnnotation);
+    }
+
+    private static boolean hasAnnotation(ParameterView parameter, String annotationTypeName) {
+        return annotationType(annotationTypeName)
+                .flatMap(parameter::annotation)
+                .isPresent();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Optional<Class<? extends Annotation>> annotationType(String annotationTypeName) {
+        try {
+            Class<?> type = Class.forName(annotationTypeName);
+            return Annotation.class.isAssignableFrom(type)
+                    ? Optional.of((Class<? extends Annotation>) type) : Optional.empty();
+        } catch (ClassNotFoundException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private static boolean isNullableAnnotation(Class<? extends Annotation> annotationType) {
+        return annotationType.getSimpleName().equals("Nullable") || annotationType.getName().equals("Nullable");
     }
 
     private static String typeName(Class<?> type) {

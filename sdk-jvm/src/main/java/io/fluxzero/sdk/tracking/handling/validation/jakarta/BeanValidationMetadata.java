@@ -329,9 +329,18 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
 
     boolean duplicates(@Nullable MemberMetadata other) {
         return other != null
-               && other.constraints().containsAll(constraints)
+               && containsAllConstraints(other.constraints(), constraints)
                && (!cascaded || other.cascaded())
                && !typeUse.hasValidation();
+    }
+
+    private static boolean containsAllConstraints(List<ConstraintMeta> known, List<ConstraintMeta> candidates) {
+        for (ConstraintMeta candidate : candidates) {
+            if (known.stream().noneMatch(constraint -> constraint.sameConstraint(candidate))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     void validate(ValidationRun run, Object owner, Class<?> group, ValidationPath parentPath) {

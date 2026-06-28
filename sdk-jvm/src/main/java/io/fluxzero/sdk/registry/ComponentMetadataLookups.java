@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.registry;
 
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterView;
@@ -26,13 +27,17 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Stream;
 
 /**
  * Resolves component metadata lookup backends for JVM runtime code.
@@ -56,8 +61,27 @@ public final class ComponentMetadataLookups {
      */
     public static final String GENERATED_ONLY_MODE = "generated-only";
 
+    /**
+     * Metadata mode that also forbids migration-debt JVM backend categories.
+     */
+    public static final String STRICT_GENERATED_ONLY_MODE = "strict-generated-only";
+
     private static final ConcurrentMap<ClassLoader, ComponentRegistry> generatedRegistries = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<ClassLoader, ComponentMetadataLookup> generatedRegistryLookups =
+            new ConcurrentHashMap<>();
+    private static final ConcurrentMap<GeneratedExecutionRegistrationKey, Registration> generatedExecutionRegistrations =
+            new ConcurrentHashMap<>();
+    private static final int REGISTRY_LOOKUP_CACHE_SIZE = 256;
+    private static final Map<IdentityRegistryKey, ComponentMetadataLookup> registryLookupCache =
+            Collections.synchronizedMap(new LinkedHashMap<>(REGISTRY_LOOKUP_CACHE_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<IdentityRegistryKey, ComponentMetadataLookup> eldest) {
+                    return size() > REGISTRY_LOOKUP_CACHE_SIZE;
+                }
+            });
     private static final ThreadLocal<Boolean> generatedOnlyModeOverride = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> strictGeneratedOnlyModeOverride = new ThreadLocal<>();
 
     private ComponentMetadataLookups() {
     }
@@ -100,10 +124,12 @@ public final class ComponentMetadataLookups {
         if (componentTypes.isEmpty()) {
             return ComponentRegistry.empty();
         }
-        return generatedRegistryLookup(componentTypes)
-                .or(() -> jvmLookup(componentTypes))
-                .map(ComponentMetadataLookup::registry)
-                .orElseGet(ComponentRegistry::empty);
+        ComponentRegistry generatedRegistry = generatedRegistry(componentTypes.getFirst().getClassLoader());
+        ComponentRegistry generatedSubset = registrySubset(generatedRegistry, componentTypes);
+        if (!generatedSubset.isEmpty()) {
+            return generatedSubset;
+        }
+        return jvmLookup(componentTypes).map(ComponentMetadataLookup::registry).orElseGet(ComponentRegistry::empty);
     }
 
     static Optional<ComponentMetadataLookup> lookup(ComponentRegistry registry, Class<?>... types) {
@@ -115,6 +141,33 @@ public final class ComponentMetadataLookups {
         List<Class<?>> componentTypes = componentTypes(types);
         return componentTypes.isEmpty() ? Optional.empty()
                 : registryLookup(generatedRegistry(classLoader), componentTypes);
+    }
+
+    /**
+     * Installs generated execution handles from generated registry resources for the supplied component classloaders.
+     * <p>
+     * This is useful for metadata consumers that can run outside an active {@link Fluxzero} instance, such as consumer
+     * configuration derivation. Explicitly registered runtime registries are still installed by
+     * {@code Fluxzero.registerComponentRegistry}.
+     */
+    public static void ensureGeneratedExecutions(Class<?>... types) {
+        for (Class<?> type : componentTypes(types)) {
+            ClassLoader loader = type.getClassLoader();
+            ClassLoader key = loader == null ? ComponentMetadataLookups.class.getClassLoader() : loader;
+            ComponentRegistry registry = generatedRegistry(key);
+            for (Class<?> candidate : metadataTypeCandidates(type)) {
+                for (String typeName : typeNames(candidate)) {
+                    registry.findComponent(typeName).ifPresent(component -> {
+                        GeneratedExecutionRegistrationKey registrationKey =
+                                new GeneratedExecutionRegistrationKey(key, component.fullClassName());
+                        generatedExecutionRegistrations.computeIfAbsent(
+                                registrationKey,
+                                ignored -> JvmGeneratedExecutionInstaller.install(
+                                        registry, key, List.of(component.fullClassName())));
+                    });
+                }
+            }
+        }
     }
 
     /**
@@ -145,9 +198,10 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(lookup, "lookup");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(annotationType, "annotationType");
-        return MetadataAnnotationResolver.annotation(lookup.typeAnnotations(type.getName()), annotationType, type)
-                .filter(annotationType::isInstance)
-                .map(annotationType::cast);
+        return metadataTypeCandidates(type).stream()
+                .flatMap(candidate -> MetadataAnnotationResolver.annotationProjection(
+                        typeAnnotations(lookup, candidate).toList(), annotationType, candidate).stream())
+                .findFirst();
     }
 
     /**
@@ -159,8 +213,11 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(annotationType, "annotationType");
         Objects.requireNonNull(projectionType, "projectionType");
-        return MetadataAnnotationResolver.annotationAs(
-                lookup.typeAnnotations(type.getName()), annotationType, projectionType, type);
+        return metadataTypeCandidates(type).stream()
+                .flatMap(candidate -> MetadataAnnotationResolver.annotationAs(
+                        typeAnnotations(lookup, candidate).toList(), annotationType, projectionType, candidate)
+                        .stream())
+                .findFirst();
     }
 
     /**
@@ -205,9 +262,8 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(annotationType, "annotationType");
         Objects.requireNonNull(declaringClass, "declaringClass");
         return MetadataAnnotationResolver.descriptors(annotations, annotationType).stream()
-                .map(descriptor -> MetadataAnnotationResolver.annotationView(annotationType, descriptor, declaringClass))
-                .filter(annotationType::isInstance)
-                .map(annotationType::cast)
+                .map(descriptor -> MetadataAnnotationResolver.annotationProjection(
+                        descriptor, annotationType, declaringClass))
                 .toList();
     }
 
@@ -232,10 +288,8 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(lookup, "lookup");
         Objects.requireNonNull(anchorType, "anchorType");
         Objects.requireNonNull(annotationType, "annotationType");
-        return MetadataAnnotationResolver.annotation(
-                        lookup.packageAnnotations(anchorType.getPackageName()), annotationType, anchorType)
-                .filter(annotationType::isInstance)
-                .map(annotationType::cast);
+        return MetadataAnnotationResolver.annotationProjection(
+                lookup.packageAnnotations(anchorType.getPackageName()), annotationType, anchorType);
     }
 
     /**
@@ -269,12 +323,16 @@ public final class ComponentMetadataLookups {
         List<String> parameters = Arrays.stream(executable.getParameterTypes())
                 .map(ComponentMetadataLookups::typeName)
                 .toList();
-        Optional<ExecutableDescriptor> result = lookup.executable(
-                executable.getDeclaringClass().getName(), kind, name, parameters);
+        Set<String> targetTypeNames = executableTargetTypeNames(executable);
+        Optional<ExecutableDescriptor> result = targetTypeNames.stream()
+                .map(targetTypeName -> lookup.executable(targetTypeName, kind, name, parameters))
+                .flatMap(Optional::stream)
+                .findFirst();
         if (result.isPresent() || executable instanceof Method) {
             return result;
         }
-        return lookup.executables(executable.getDeclaringClass().getName()).stream()
+        return targetTypeNames.stream()
+                .flatMap(targetTypeName -> lookup.executables(targetTypeName).stream())
                 .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
                 .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
                         .equals(parameters))
@@ -371,7 +429,8 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(lookup, "lookup");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(annotationType, "annotationType");
-        return lookup.properties(type.getName()).stream()
+        return metadataTypeCandidates(type).stream()
+                .flatMap(candidate -> properties(lookup, candidate))
                 .filter(property -> hasAnnotation(property.annotations(), annotationType))
                 .findFirst();
     }
@@ -392,7 +451,8 @@ public final class ComponentMetadataLookups {
         Objects.requireNonNull(lookup, "lookup");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(annotationType, "annotationType");
-        return lookup.properties(type.getName()).stream()
+        return metadataTypeCandidates(type).stream()
+                .flatMap(candidate -> properties(lookup, candidate))
                 .filter(property -> hasAnnotation(property.annotations(), annotationType))
                 .toList();
     }
@@ -420,7 +480,9 @@ public final class ComponentMetadataLookups {
     }
 
     private static Optional<ComponentMetadataLookup> generatedRegistryLookup(List<Class<?>> types) {
-        return registryLookup(generatedRegistry(types.getFirst().getClassLoader()), types);
+        ensureGeneratedExecutions(types.toArray(Class<?>[]::new));
+        ComponentMetadataLookup lookup = generatedRegistryLookup(types.getFirst().getClassLoader());
+        return containsAll(lookup, types) ? Optional.of(lookup) : Optional.empty();
     }
 
     private static ComponentRegistry generatedRegistry(ClassLoader classLoader) {
@@ -428,13 +490,40 @@ public final class ComponentMetadataLookups {
         return generatedRegistries.computeIfAbsent(loader, key -> ComponentRegistry.merge(ComponentRegistryJson.load(key)));
     }
 
+    private static ComponentMetadataLookup generatedRegistryLookup(ClassLoader classLoader) {
+        ClassLoader loader = classLoader == null ? ComponentMetadataLookups.class.getClassLoader() : classLoader;
+        return generatedRegistryLookups.computeIfAbsent(
+                loader, key -> RegistryComponentMetadataLookup.of(generatedRegistry(key)));
+    }
+
     private static Optional<ComponentMetadataLookup> registryLookup(ComponentRegistry registry, List<Class<?>> types) {
         if (registry == null || registry.isEmpty()) {
             return Optional.empty();
         }
-        ComponentRegistry normalized = registry.normalized();
-        return containsAll(normalized, types) ? Optional.of(RegistryComponentMetadataLookup.of(normalized))
+        ComponentMetadataLookup lookup = cachedRegistryLookup(registry);
+        return containsAll(lookup, types) ? Optional.of(lookup)
                 : Optional.empty();
+    }
+
+    private static ComponentRegistry registrySubset(ComponentRegistry registry, List<Class<?>> types) {
+        if (registry == null || registry.isEmpty()) {
+            return ComponentRegistry.empty();
+        }
+        Map<String, ComponentDescriptor> components = new LinkedHashMap<>();
+        ComponentMetadataLookup lookup = cachedRegistryLookup(registry);
+        for (Class<?> type : types) {
+            for (Class<?> candidate : metadataTypeCandidates(type)) {
+                for (String name : typeNames(candidate)) {
+                    lookup.component(name)
+                            .ifPresent(component -> components.putIfAbsent(component.fullClassName(), component));
+                }
+            }
+        }
+        if (components.isEmpty()) {
+            return ComponentRegistry.empty();
+        }
+        return new ComponentRegistry(registry.sourceRoot(), registry.packages(), List.copyOf(components.values()))
+                .normalized();
     }
 
     private static Optional<ComponentMetadataLookup> jvmLookup(List<Class<?>> types) {
@@ -445,10 +534,21 @@ public final class ComponentMetadataLookups {
                 ? Optional.of(JvmComponentMetadataLookup.scan(types)) : Optional.empty();
     }
 
+    private static ComponentMetadataLookup cachedRegistryLookup(ComponentRegistry registry) {
+        synchronized (registryLookupCache) {
+            return registryLookupCache.computeIfAbsent(
+                    new IdentityRegistryKey(registry),
+                    ignored -> RegistryComponentMetadataLookup.of(registry));
+        }
+    }
+
     /**
      * Returns whether the central metadata resolver is configured to refuse JVM classpath/reflection fallback.
      */
     public static boolean generatedOnlyMode() {
+        if (strictGeneratedOnlyMode()) {
+            return true;
+        }
         if (Boolean.TRUE.equals(generatedOnlyModeOverride.get())) {
             return true;
         }
@@ -458,6 +558,21 @@ public final class ComponentMetadataLookups {
         }
         return GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
                || "generatedOnly".equalsIgnoreCase(configured);
+    }
+
+    /**
+     * Returns whether generated-only mode should reject migration-debt JVM backend categories.
+     */
+    public static boolean strictGeneratedOnlyMode() {
+        if (Boolean.TRUE.equals(strictGeneratedOnlyModeOverride.get())) {
+            return true;
+        }
+        String configured = System.getProperty(METADATA_MODE_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv(METADATA_MODE_ENV);
+        }
+        return STRICT_GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
+               || "strictGeneratedOnly".equalsIgnoreCase(configured);
     }
 
     static void runInGeneratedOnlyMode(ThrowingRunnable runnable) throws Exception {
@@ -474,9 +589,24 @@ public final class ComponentMetadataLookups {
         }
     }
 
-    private static boolean containsAll(ComponentRegistry registry, List<Class<?>> types) {
-        return types.stream().allMatch(type -> registry.findComponent(type.getName()).isPresent()
-                                               || registry.findComponent(typeName(type)).isPresent());
+    static void runInStrictGeneratedOnlyMode(ThrowingRunnable runnable) throws Exception {
+        Boolean previous = strictGeneratedOnlyModeOverride.get();
+        strictGeneratedOnlyModeOverride.set(Boolean.TRUE);
+        try {
+            runnable.run();
+        } finally {
+            if (previous == null) {
+                strictGeneratedOnlyModeOverride.remove();
+            } else {
+                strictGeneratedOnlyModeOverride.set(previous);
+            }
+        }
+    }
+
+    private static boolean containsAll(ComponentMetadataLookup lookup, List<Class<?>> types) {
+        return types.stream().allMatch(type -> metadataTypeCandidates(type).stream()
+                .anyMatch(candidate -> typeNames(candidate).stream()
+                        .anyMatch(name -> lookup.component(name).isPresent())));
     }
 
     private static Set<String> targetTypeNames(ExecutableView executable) {
@@ -487,6 +617,46 @@ public final class ComponentMetadataLookups {
             result.add(typeName(type));
         });
         return result;
+    }
+
+    private static Set<String> executableTargetTypeNames(Executable executable) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        Stream<Class<?>> types = executable instanceof Method
+                ? metadataTypeCandidates(executable.getDeclaringClass()).stream()
+                : Stream.of(executable.getDeclaringClass());
+        types.flatMap(type -> typeNames(type).stream()).forEach(result::add);
+        return result;
+    }
+
+    private static List<Class<?>> metadataTypeCandidates(Class<?> type) {
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        collectMetadataTypeCandidates(type, result);
+        return List.copyOf(result);
+    }
+
+    private static void collectMetadataTypeCandidates(Class<?> type, LinkedHashSet<Class<?>> result) {
+        if (type == null || Object.class.equals(type) || !result.add(type)) {
+            return;
+        }
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            collectMetadataTypeCandidates(interfaceType, result);
+        }
+        collectMetadataTypeCandidates(type.getSuperclass(), result);
+    }
+
+    private static Stream<AnnotationDescriptor> typeAnnotations(ComponentMetadataLookup lookup, Class<?> type) {
+        return typeNames(type).stream().flatMap(name -> lookup.typeAnnotations(name).stream());
+    }
+
+    private static Stream<PropertyDescriptor> properties(ComponentMetadataLookup lookup, Class<?> type) {
+        return typeNames(type).stream().flatMap(name -> lookup.properties(name).stream());
+    }
+
+    private static List<String> typeNames(Class<?> type) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        result.add(type.getName());
+        result.add(typeName(type));
+        return List.copyOf(result);
     }
 
     private static List<Class<?>> componentTypes(Class<?>... types) {
@@ -517,5 +687,28 @@ public final class ComponentMetadataLookups {
         return candidate.getDeclaringExecutable().equals(parameter.getDeclaringExecutable())
                && candidate.getParameterizedType().equals(parameter.getParameterizedType())
                && Objects.equals(candidate.getName(), parameter.getName());
+    }
+
+    private record GeneratedExecutionRegistrationKey(ClassLoader classLoader, String componentName) {
+    }
+
+    private static final class IdentityRegistryKey {
+        private final ComponentRegistry registry;
+        private final int hashCode;
+
+        private IdentityRegistryKey(ComponentRegistry registry) {
+            this.registry = Objects.requireNonNull(registry, "registry");
+            this.hashCode = System.identityHashCode(registry);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof IdentityRegistryKey key && registry == key.registry;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 }

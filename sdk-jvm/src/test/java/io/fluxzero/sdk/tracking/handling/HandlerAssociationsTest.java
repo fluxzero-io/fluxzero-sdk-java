@@ -21,6 +21,7 @@ import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import org.junit.jupiter.api.Test;
 
@@ -79,16 +80,16 @@ class HandlerAssociationsTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForAssociationAnnotations() throws NoSuchMethodException {
+    void generatedOnlyModeUsesGeneratedClasspathMetadataForAssociationAnnotations() throws NoSuchMethodException {
         GeneratedOnlyMetadataMode.run(() -> {
             HandlerAssociations associations =
-                    new HandlerAssociations(UnregisteredGeneratedOnlyHandler.class, List.of(), e -> null);
+                    new HandlerAssociations(GeneratedClasspathAssociationHandler.class, List.of(), e -> null);
 
-            assertTrue(associations.getAssociationProperties().isEmpty());
-            assertFalse(associations.alwaysAssociate(
-                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("always", SamplePayload.class)));
-            assertTrue(associations.getMethodAssociationProperties(
-                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("handle", SamplePayload.class)).isEmpty());
+            assertEquals(List.of("someId"), associations.getAssociationProperties().keySet().stream().toList());
+            assertTrue(associations.alwaysAssociate(
+                    GeneratedClasspathAssociationHandler.class.getDeclaredMethod("always", SamplePayload.class)));
+            assertFalse(associations.getMethodAssociationProperties(
+                    GeneratedClasspathAssociationHandler.class.getDeclaredMethod("handle", SamplePayload.class)).isEmpty());
         });
     }
 
@@ -105,8 +106,11 @@ class HandlerAssociationsTest {
         DeserializingMessage message = new DeserializingMessage(
                 new Message(new SampleCommand("order-1")), MessageType.COMMAND, null);
 
-        assertEquals(Map.of("order-1", "targetId"),
-                     associations.associationsFromViews(message, Stream.of(executable)));
+        try (var ignored = GeneratedPropertyAccesses.registerReader(
+                SampleCommand.class, "orderId", target -> ((SampleCommand) target).orderId())) {
+            assertEquals(Map.of("order-1", "targetId"),
+                         associations.associationsFromViews(message, Stream.of(executable)));
+        }
     }
 
     static class SampleHandler {
@@ -134,7 +138,7 @@ class HandlerAssociationsTest {
         }
     }
 
-    static class UnregisteredGeneratedOnlyHandler {
+    static class GeneratedClasspathAssociationHandler {
         @Association
         private String someId;
 

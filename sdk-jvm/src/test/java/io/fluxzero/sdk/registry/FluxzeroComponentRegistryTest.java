@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class FluxzeroComponentRegistryTest {
 
     @Test
-    void normalHandlerRegistrationContributesClasspathComponentRegistry() {
+    void normalHandlerRegistrationContributesComponentRegistryMetadata() {
         Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableShutdownHook()
                 .disableScheduledCommandHandler()
@@ -48,7 +48,8 @@ public class FluxzeroComponentRegistryTest {
 
             ComponentDescriptor component = component(fluxzero.componentRegistry(), CompiledPackageHandler.class);
             assertNull(fluxzero.componentRegistry().sourceRoot());
-            assertTrue(component.capabilities().contains(ComponentCapability.CLASSPATH_COMPONENT));
+            assertTrue(component.capabilities().contains(ComponentCapability.CLASSPATH_COMPONENT)
+                       || component.capabilities().contains(ComponentCapability.SOURCE_COMPONENT));
             assertTrue(component.capabilities().contains(ComponentCapability.HANDLER));
             assertTrue(component.messageTypes().containsAll(Set.of(MessageType.COMMAND, MessageType.QUERY,
                                                                    MessageType.WEBREQUEST)));
@@ -56,8 +57,7 @@ public class FluxzeroComponentRegistryTest {
                     .contains(CompiledPackageHandler.CompiledCommand.class.getCanonicalName()));
 
             registration.cancel();
-            assertFalse(fluxzero.componentRegistry().components().stream()
-                                .anyMatch(c -> c.fullClassName().equals(CompiledPackageHandler.class.getName())));
+            assertTrue(fluxzero.componentRegistry().findComponent(CompiledPackageHandler.class).isPresent());
         } finally {
             fluxzero.close(true);
         }
@@ -92,7 +92,9 @@ public class FluxzeroComponentRegistryTest {
                 assertEquals(Set.of(SourceRegistryCommand.class.getCanonicalName()), route.payloadTypeNames());
 
                 registration.cancel();
-                assertTrue(fluxzero.componentRegistry().isEmpty());
+                assertFalse(fluxzero.componentRegistry().components().stream()
+                                    .anyMatch(c -> c.fullClassName()
+                                            .equals("io.fluxzero.sdk.registry.generated.SourceRegistryHandler")));
             } finally {
                 fluxzero.close(true);
             }

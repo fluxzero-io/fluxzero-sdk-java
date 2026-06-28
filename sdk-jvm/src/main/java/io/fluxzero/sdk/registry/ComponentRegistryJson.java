@@ -22,12 +22,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Writer;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,15 @@ public final class ComponentRegistryJson {
      * Default classpath resource written by the build-time registry processor.
      */
     public static final String DEFAULT_RESOURCE = "META-INF/fluxzero/component-registry.json";
+    private static final int LOAD_CACHE_SIZE = 64;
+    private static final Map<IdentityClassLoaderKey, List<ComponentRegistry>> loadCache =
+            Collections.synchronizedMap(new LinkedHashMap<>(LOAD_CACHE_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<IdentityClassLoaderKey, List<ComponentRegistry>> eldest) {
+                    return size() > LOAD_CACHE_SIZE;
+                }
+            });
 
     private ComponentRegistryJson() {
     }
@@ -138,11 +150,24 @@ public final class ComponentRegistryJson {
     public static List<ComponentRegistry> load(ClassLoader classLoader) {
         ClassLoader effectiveClassLoader = classLoader == null
                 ? ComponentRegistryJson.class.getClassLoader() : classLoader;
+        synchronized (loadCache) {
+            return loadCache.computeIfAbsent(
+                    new IdentityClassLoaderKey(effectiveClassLoader),
+                    ignored -> loadUncached(effectiveClassLoader));
+        }
+    }
+
+    private static List<ComponentRegistry> loadUncached(ClassLoader effectiveClassLoader) {
         try {
             Enumeration<URL> resources = effectiveClassLoader.getResources(DEFAULT_RESOURCE);
-            List<ComponentRegistry> registries = new ArrayList<>();
+            List<URL> orderedResources = new ArrayList<>();
             while (resources.hasMoreElements()) {
-                URL resource = resources.nextElement();
+                orderedResources.add(resources.nextElement());
+            }
+            orderedResources.sort(Comparator.comparingInt(
+                    resource -> resourcePriority(resource, effectiveClassLoader)));
+            List<ComponentRegistry> registries = new ArrayList<>();
+            for (URL resource : orderedResources) {
                 try (InputStream input = resource.openStream()) {
                     registries.add(read(input));
                 }
@@ -150,6 +175,42 @@ public final class ComponentRegistryJson {
             return List.copyOf(registries);
         } catch (IOException e) {
             throw new ComponentRegistryException("Failed to load Fluxzero component registry resources", e);
+        }
+    }
+
+    private static int resourcePriority(URL resource, ClassLoader classLoader) {
+        if (!(classLoader instanceof URLClassLoader urlClassLoader)) {
+            return 1;
+        }
+        String resourceUrl = resource.toExternalForm();
+        for (URL root : urlClassLoader.getURLs()) {
+            String rootUrl = root.toExternalForm();
+            String directoryPrefix = rootUrl.endsWith("/") ? rootUrl : rootUrl + "/";
+            if (resourceUrl.startsWith(directoryPrefix)
+                || resourceUrl.startsWith("jar:" + rootUrl + "!/")) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    private static final class IdentityClassLoaderKey {
+        private final ClassLoader classLoader;
+        private final int hashCode;
+
+        private IdentityClassLoaderKey(ClassLoader classLoader) {
+            this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
+            this.hashCode = System.identityHashCode(classLoader);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof IdentityClassLoaderKey key && classLoader == key.classLoader;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
         }
     }
 
@@ -294,7 +355,7 @@ public final class ComponentRegistryJson {
 
     private static AnnotationDescriptor fromDto(AnnotationDto dto) {
         return new AnnotationDescriptor(
-                dto.name(), dto.qualifiedName(), dto.attributes() == null ? Map.of() : dto.attributes(),
+                dto.name(), dto.qualifiedName(), stringAttributes(dto.attributes()),
                 nestedAnnotations(dto.nestedAnnotations()),
                 list(dto.metaAnnotations()).stream().map(ComponentRegistryJson::fromDto).toList());
     }
@@ -326,11 +387,11 @@ public final class ComponentRegistryJson {
         return new TypeUseDescriptor(
                 dto.typeName(), list(dto.annotations()).stream().map(ComponentRegistryJson::fromDto).toList(),
                 list(dto.typeArguments()).stream().map(ComponentRegistryJson::fromDto).toList(),
-                fromDto(dto.componentType()));
+                dto.componentType() == null ? null : fromDto(dto.componentType()));
     }
 
     private static ConsumerDescriptor fromDto(ConsumerDto dto) {
-        return new ConsumerDescriptor(dto.name(), dto.attributes() == null ? Map.of() : dto.attributes(), fromDto(dto.annotation()));
+        return new ConsumerDescriptor(dto.name(), stringAttributes(dto.attributes()), fromDto(dto.annotation()));
     }
 
     private static RegisteredTypeDescriptor fromDto(RegisteredTypeDto dto) {
@@ -339,7 +400,7 @@ public final class ComponentRegistryJson {
     }
 
     private static WebRouteDescriptor fromDto(WebRouteDto dto) {
-        return new WebRouteDescriptor(list(dto.paths()), list(dto.methods()), dto.autoHead(), dto.autoOptions());
+        return new WebRouteDescriptor(strings(dto.paths()), strings(dto.methods()), dto.autoHead(), dto.autoOptions());
     }
 
     private static String path(Path path) {
@@ -352,6 +413,20 @@ public final class ComponentRegistryJson {
 
     private static <T> List<T> list(List<T> value) {
         return value == null ? List.of() : value;
+    }
+
+    private static List<String> strings(List<String> value) {
+        return list(value).stream().map(item -> item == null ? "" : item).toList();
+    }
+
+    private static Map<String, List<String>> stringAttributes(Map<String, List<String>> value) {
+        if (value == null || value.isEmpty()) {
+            return Map.of();
+        }
+        return value.entrySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        entry -> strings(entry.getValue())));
     }
 
     private static <T> Set<T> set(List<T> value) {

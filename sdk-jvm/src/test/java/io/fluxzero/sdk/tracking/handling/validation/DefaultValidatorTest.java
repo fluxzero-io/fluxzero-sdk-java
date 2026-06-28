@@ -388,8 +388,17 @@ class DefaultValidatorTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForJakartaBeanValidation() {
+        record LocalGeneratedOnlyJakartaChild(
+                @NotBlank(groups = GeneratedOnlyChildChecks.class) String value) {
+        }
+        record LocalGeneratedOnlyJakartaBean(
+                @NotBlank String name,
+                @Valid @ConvertGroup(from = Default.class, to = GeneratedOnlyChildChecks.class)
+                LocalGeneratedOnlyJakartaChild child) {
+        }
+
         GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(() -> subject.assertValid(
-                new UnregisteredGeneratedOnlyJakartaBean("", new UnregisteredGeneratedOnlyJakartaChild("")))));
+                new LocalGeneratedOnlyJakartaBean("", new LocalGeneratedOnlyJakartaChild("")))));
     }
 
     @Test
@@ -413,11 +422,20 @@ class DefaultValidatorTest {
 
     @Test
     void generatedOnlyModeUsesRegisteredJakartaExecutableValidationMetadata() throws Exception {
-        Method unregistered = UnregisteredGeneratedOnlyExecutableTarget.class.getDeclaredMethod(
-                "handle", String.class, UnregisteredGeneratedOnlyExecutableChild.class);
+        record LocalGeneratedOnlyExecutableChild(@NotBlank String value) {
+        }
+        class LocalGeneratedOnlyExecutableTarget {
+            @Valid
+            LocalGeneratedOnlyExecutableChild handle(
+                    @NotBlank String name, @Valid LocalGeneratedOnlyExecutableChild child) {
+                return child;
+            }
+        }
+        Method unregistered = LocalGeneratedOnlyExecutableTarget.class.getDeclaredMethod(
+                "handle", String.class, LocalGeneratedOnlyExecutableChild.class);
         GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(() -> subject.assertValidParameters(
-                new UnregisteredGeneratedOnlyExecutableTarget(), unregistered,
-                new Object[]{"", new UnregisteredGeneratedOnlyExecutableChild("")})));
+                new LocalGeneratedOnlyExecutableTarget(), unregistered,
+                new Object[]{"", new LocalGeneratedOnlyExecutableChild("")})));
 
         Method registered = RegisteredGeneratedOnlyExecutableTarget.class.getDeclaredMethod(
                 "handle", String.class, RegisteredGeneratedOnlyExecutableChild.class);
@@ -447,9 +465,16 @@ class DefaultValidatorTest {
 
     @Test
     void generatedOnlyModeUsesRegisteredJakartaTypeUseValidationMetadata() {
+        record LocalGeneratedOnlyTypeUseChild(@NotBlank String value) {
+        }
+        record LocalGeneratedOnlyTypeUseBean(
+                List<@NotBlank String> values,
+                Optional<@Valid LocalGeneratedOnlyTypeUseChild> child) {
+        }
+
         GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(() -> subject.assertValid(
-                new UnregisteredGeneratedOnlyTypeUseBean(
-                        List.of(""), Optional.of(new UnregisteredGeneratedOnlyTypeUseChild(""))))));
+                new LocalGeneratedOnlyTypeUseBean(
+                        List.of(""), Optional.of(new LocalGeneratedOnlyTypeUseChild(""))))));
 
         try {
             TestFixture.create().getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
@@ -780,16 +805,6 @@ class DefaultValidatorTest {
     private record Child(@NotNull(groups = ChildChecks.class) String value) {
     }
 
-    private record UnregisteredGeneratedOnlyJakartaBean(
-            @NotBlank String name,
-            @Valid @ConvertGroup(from = Default.class, to = GeneratedOnlyChildChecks.class)
-            UnregisteredGeneratedOnlyJakartaChild child) {
-    }
-
-    private record UnregisteredGeneratedOnlyJakartaChild(
-            @NotBlank(groups = GeneratedOnlyChildChecks.class) String value) {
-    }
-
     private record RegisteredGeneratedOnlyJakartaBean(
             @NotBlank String name,
             @Valid @ConvertGroup(from = Default.class, to = GeneratedOnlyChildChecks.class)
@@ -815,17 +830,6 @@ class DefaultValidatorTest {
         }
     }
 
-    private static class UnregisteredGeneratedOnlyExecutableTarget {
-        @Valid
-        UnregisteredGeneratedOnlyExecutableChild handle(
-                @NotBlank String name, @Valid UnregisteredGeneratedOnlyExecutableChild child) {
-            return child;
-        }
-    }
-
-    private record UnregisteredGeneratedOnlyExecutableChild(@NotBlank String value) {
-    }
-
     private static class RegisteredGeneratedOnlyExecutableTarget {
         @Valid
         RegisteredGeneratedOnlyExecutableChild handle(
@@ -835,14 +839,6 @@ class DefaultValidatorTest {
     }
 
     private record RegisteredGeneratedOnlyExecutableChild(@NotBlank String value) {
-    }
-
-    private record UnregisteredGeneratedOnlyTypeUseBean(
-            List<@NotBlank String> values,
-            Optional<@Valid UnregisteredGeneratedOnlyTypeUseChild> child) {
-    }
-
-    private record UnregisteredGeneratedOnlyTypeUseChild(@NotBlank String value) {
     }
 
     private record RegisteredGeneratedOnlyTypeUseBean(

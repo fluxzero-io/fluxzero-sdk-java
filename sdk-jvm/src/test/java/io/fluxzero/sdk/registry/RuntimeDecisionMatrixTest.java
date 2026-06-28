@@ -71,6 +71,16 @@ class RuntimeDecisionMatrixTest {
             "Hybrid"
     );
 
+    private static final Set<String> ALLOWED_CLOSURE_VALUES = Set.of(
+            "Done",
+            "Slice 2",
+            "Slice 3",
+            "Slice 4",
+            "Slice 5",
+            "Slice 6",
+            "Platform backend"
+    );
+
     @Test
     void runtimeDecisionMatrixCoversAllRequiredSemanticAreas() throws Exception {
         Map<String, MatrixRow> matrix = matrix();
@@ -97,6 +107,22 @@ class RuntimeDecisionMatrixTest {
                 .toList();
 
         assertTrue(emptyBoundaries.isEmpty(), () -> "Runtime decision rows without boundary: " + emptyBoundaries);
+    }
+
+    @Test
+    void runtimeDecisionMatrixDeclaresClosureTargets() throws Exception {
+        var invalidRows = matrix().values().stream()
+                .filter(row -> !ALLOWED_CLOSURE_VALUES.contains(row.closure()))
+                .toList();
+        assertTrue(invalidRows.isEmpty(), () -> "Runtime decision rows with invalid closure target: " + invalidRows);
+
+        var unresolvedRowsWithoutSlice = matrix().values().stream()
+                .filter(MatrixRow::usesUnfinishedBackend)
+                .filter(row -> row.closure().equals("Done"))
+                .toList();
+        assertTrue(unresolvedRowsWithoutSlice.isEmpty(),
+                   () -> "Runtime decision rows with unfinished backends need a closure slice: "
+                         + unresolvedRowsWithoutSlice);
     }
 
     private static Set<String> missing(Map<String, MatrixRow> matrix) {
@@ -131,7 +157,7 @@ class RuntimeDecisionMatrixTest {
 
     private static MatrixRow row(String line) {
         String[] columns = line.split("\\|", -1);
-        if (columns.length < 6) {
+        if (columns.length < 7) {
             throw new IllegalArgumentException("Invalid runtime decision matrix row: " + line);
         }
         return new MatrixRow(
@@ -139,7 +165,8 @@ class RuntimeDecisionMatrixTest {
                 columns[2].trim(),
                 columns[3].trim(),
                 columns[4].trim(),
-                columns[5].trim());
+                columns[5].trim(),
+                columns[6].trim());
     }
 
     private record MatrixRow(
@@ -147,6 +174,12 @@ class RuntimeDecisionMatrixTest {
             String runtimeDecision,
             String currentSource,
             String finalSource,
-            String boundary) {
+            String boundary,
+            String closure) {
+        boolean usesUnfinishedBackend() {
+            return currentSource.equals("Hybrid")
+                   || currentSource.equals("Allowed JVM backend")
+                   || finalSource.equals("Generated invocation plan");
+        }
     }
 }

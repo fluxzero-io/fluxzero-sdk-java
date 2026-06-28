@@ -25,6 +25,7 @@ import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 record ConstraintMeta(Annotation annotation, String messageTemplate, boolean customMessage,
@@ -68,6 +69,13 @@ record ConstraintMeta(Annotation annotation, String messageTemplate, boolean cus
         return ValidationAnnotationUtils.appliesToGroup(this, requestedGroup);
     }
 
+    boolean sameConstraint(ConstraintMeta other) {
+        return annotation.annotationType().equals(other.annotation().annotationType())
+               && sameAttributes(attributes, other.attributes())
+               && groups.equals(other.groups())
+               && payload.equals(other.payload());
+    }
+
     private static List<ConstraintMeta> composingConstraints(Annotation annotation, Set<Class<?>> groups,
                                                             Set<Class<? extends Payload>> payload,
                                                             ConstraintTarget validationAppliesTo) {
@@ -80,5 +88,57 @@ record ConstraintMeta(Annotation annotation, String messageTemplate, boolean cus
 
     private static Map<String, Object> attributes(Annotation annotation) {
         return JakartaValidationBackend.getInstance().getAnnotationAttributes(annotation);
+    }
+
+    private static boolean sameAttributes(Map<String, Object> first, Map<String, Object> second) {
+        if (!first.keySet().equals(second.keySet())) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : first.entrySet()) {
+            if (!sameAttributeValue(entry.getValue(), second.get(entry.getKey()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean sameAttributeValue(Object first, Object second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null) {
+            return false;
+        }
+        if (!first.getClass().isArray() || !second.getClass().isArray()) {
+            return Objects.equals(first, second);
+        }
+        if (first instanceof Object[] firstArray && second instanceof Object[] secondArray) {
+            return Arrays.deepEquals(firstArray, secondArray);
+        }
+        if (first instanceof int[] firstArray && second instanceof int[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof long[] firstArray && second instanceof long[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof boolean[] firstArray && second instanceof boolean[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof byte[] firstArray && second instanceof byte[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof char[] firstArray && second instanceof char[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof short[] firstArray && second instanceof short[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof float[] firstArray && second instanceof float[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        if (first instanceof double[] firstArray && second instanceof double[] secondArray) {
+            return Arrays.equals(firstArray, secondArray);
+        }
+        return false;
     }
 }

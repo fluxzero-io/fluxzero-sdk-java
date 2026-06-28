@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.persisting.search;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.BulkUpdate;
@@ -26,15 +27,14 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.PropertyAccess;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.experimental.Accessors;
 
-import java.lang.reflect.AccessibleObject;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -65,7 +65,6 @@ import static java.util.Optional.ofNullable;
 @Accessors(chain = true, fluent = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class DefaultIndexOperation implements IndexOperation {
-    private static final PropertyAccess<Class<?>, AccessibleObject> PROPERTIES = JvmComponentIntrospector.getInstance();
 
     /**
      * Prepare a new {@code DefaultIndexOperation} instance for managing document indexing.
@@ -88,7 +87,7 @@ public class DefaultIndexOperation implements IndexOperation {
                 .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(lookup, type, EntityId.class))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : PROPERTIES.annotatedPropertyName(type, EntityId.class));
+                        : JvmComponentIntrospector.getInstance().annotatedPropertyName(type, EntityId.class));
     }
 
     /**
@@ -105,7 +104,7 @@ public class DefaultIndexOperation implements IndexOperation {
     public static DefaultIndexOperation prepare(DocumentStore documentStore, Object object, @NonNull Object collection,
                                                 String idPath, String beginPath, String endPath) {
         Function<Object, ?> idFunction = v -> idPath != null && !idPath.isBlank()
-                ? PROPERTIES.readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
+                ? readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
                 "Could not determine the document id for path: %s".formatted(idPath)))
                 : currentIdentityProvider().nextTechnicalId();
         Function<Object, Instant> beginFunction = v -> parseTimeProperty(beginPath, v, false, () -> null);
@@ -200,5 +199,41 @@ public class DefaultIndexOperation implements IndexOperation {
     @Override
     public IndexOperation copy() {
         return new DefaultIndexOperation(documentStore, value, collection, id, metadata, start, end, ifNotExists);
+    }
+
+    private static Optional<Object> readProperty(String propertyPath, Object target) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        Optional<Object> generatedValue = readGeneratedProperty(propertyPath, target);
+        if (generatedValue.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return generatedValue;
+        }
+        return JvmComponentIntrospector.getInstance().readProperty(propertyPath, target);
+    }
+
+    private static Optional<Object> readGeneratedProperty(String propertyPath, Object target) {
+        Object current = target;
+        for (String segment : propertyPath.split("\\.")) {
+            if (segment.isBlank() || current == null) {
+                return Optional.empty();
+            }
+            if (current instanceof JsonNode jsonNode) {
+                JsonNode child = jsonNode.get(segment);
+                if (child == null || child.isNull()) {
+                    return Optional.empty();
+                }
+                current = child.isValueNode() ? child.asText() : child;
+                continue;
+            }
+            ComponentMetadataLookups.ensureGeneratedExecutions(current.getClass());
+            Optional<GeneratedPropertyAccesses.PropertyReader> reader =
+                    GeneratedPropertyAccesses.findReader(current.getClass(), segment);
+            if (reader.isEmpty()) {
+                return Optional.empty();
+            }
+            current = reader.orElseThrow().read(current);
+        }
+        return Optional.ofNullable(current);
     }
 }

@@ -292,8 +292,11 @@ public class DefaultAggregateRepository implements AggregateRepository {
         LinkedHashMap<String, Class<?>> result = new LinkedHashMap<>(getActiveAggregatesFor(entityId));
         relationshipsCache.getAggregatesFor(
                         entityId, id -> eventStoreClient.getAggregatesFor(id)
-                                .entrySet().stream().collect(toMap(Map.Entry::getKey, e -> JvmComponentIntrospector.getInstance().classForName(
-                                        serializer.upcastType(e.getValue()), Void.class), (a, b) -> b, LinkedHashMap::new)))
+                                .entrySet().stream().collect(toMap(
+                                        Map.Entry::getKey,
+                                        e -> JvmComponentMetadataLookup.classForMetadataName(
+                                                serializer.upcastType(e.getValue()), Void.class),
+                                        (a, b) -> b, LinkedHashMap::new)))
                 .entrySet().forEach(e -> result.putIfAbsent(e.getKey(), e.getValue()));
         return result;
     }
@@ -393,7 +396,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             return new SideEffectFreeEntity<>(ImmutableAggregateRoot
                                                       .<T>builder()
                                                       .idProperty(idProperty)
-                                                      .id(JvmComponentIntrospector.getInstance().readProperty(idProperty, value).orElse(null))
+                                                      .id(DefaultEntityHelper.readModelProperty(idProperty, value).orElse(null))
                                                       .value(value)
                                                       .type((Class<T>) (value != null ? value.getClass() :
                                                               Object.class))

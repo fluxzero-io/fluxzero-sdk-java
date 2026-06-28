@@ -84,7 +84,7 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
                            ignoredConversions);
         }
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(type).stream()
-                .filter(meta -> !ignoredConstraints.contains(meta))
+                .filter(meta -> !containsConstraint(ignoredConstraints, meta))
                 .toList();
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(type).stream()
                 .filter(conversion -> !ignoredConversions.contains(conversion))
@@ -116,7 +116,7 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
                 descriptor.annotations(), declaringClass);
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintAnnotations(annotations).stream()
                 .map(ConstraintMeta::new)
-                .filter(meta -> !ignoredConstraints.contains(meta))
+                .filter(meta -> !containsConstraint(ignoredConstraints, meta))
                 .toList();
         List<ValidationAnnotationUtils.GroupConversion> conversions =
                 ValidationAnnotationUtils.groupConversions(annotations).stream()
@@ -130,6 +130,10 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
     boolean hasValidation() {
         return !constraints.isEmpty() || cascaded || !typeArguments.isEmpty()
                || componentType != null && componentType.hasValidation();
+    }
+
+    private static boolean containsConstraint(Collection<ConstraintMeta> constraints, ConstraintMeta candidate) {
+        return constraints.stream().anyMatch(constraint -> constraint.sameConstraint(candidate));
     }
 
     boolean appliesToGroup(Class<?> group) {

@@ -16,10 +16,14 @@ package io.fluxzero.sdk.common.serialization.casting;
 
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedObject;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.serialization.AbstractConverter;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.Getter;
@@ -53,12 +57,21 @@ class UpcasterChainTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForCasterMethods() {
-        assertTrue(CastInspector.hasCasterMethods(UnregisteredGeneratedOnlyUpcaster.class));
+        class LocalUnregisteredGeneratedOnlyUpcaster {
+            @Upcast(type = "generatedOnly", revision = 0)
+            public String upcast(String input) {
+                return input + "!";
+            }
+        }
+
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            assertTrue(CastInspector.hasCasterMethods(LocalUnregisteredGeneratedOnlyUpcaster.class));
+        }
 
         GeneratedOnlyMetadataMode.run(() -> {
-            assertFalse(CastInspector.hasCasterMethods(UnregisteredGeneratedOnlyUpcaster.class));
+            assertFalse(CastInspector.hasCasterMethods(LocalUnregisteredGeneratedOnlyUpcaster.class));
             assertTrue(CastInspector.getCasters(
-                    Upcast.class, List.of(new UnregisteredGeneratedOnlyUpcaster()), String.class).isEmpty());
+                    Upcast.class, List.of(new LocalUnregisteredGeneratedOnlyUpcaster()), String.class).isEmpty());
         });
     }
 
@@ -72,6 +85,31 @@ class UpcasterChainTest {
                 assertTrue(CastInspector.hasCasterMethods(RegisteredGeneratedOnlyUpcaster.class));
                 assertEquals(1, CastInspector.getCasters(
                         Upcast.class, List.of(new RegisteredGeneratedOnlyUpcaster()), String.class).size());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesGeneratedInvocationForCasterMethods() {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                RegisteredGeneratedOnlyThrowingUpcaster.class,
+                InvocationPlanDescriptor.executableId(
+                        ExecutableKind.METHOD, "upcast", List.of(String.class.getName())),
+                (target, parameterCount, parameterProvider) -> "generated:" + parameterProvider.apply(0))) {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyThrowingUpcaster.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Caster<Data<String>, Data<String>> caster = DefaultCasterChain.createUpcaster(
+                        List.of(new RegisteredGeneratedOnlyThrowingUpcaster()), String.class);
+                Data<String> result = caster.cast(Stream.of(
+                        new Data<>("input", "generatedOnlyInvoke", 0, null))).findFirst().orElseThrow();
+
+                assertEquals("generated:input", result.getValue());
+                assertEquals("generatedOnlyInvoke", result.getType());
+                assertEquals(1, result.getRevision());
             });
         } finally {
             TestFixture.shutDownActiveFixtures();
@@ -366,17 +404,17 @@ class UpcasterChainTest {
         }
     }
 
-    private static class UnregisteredGeneratedOnlyUpcaster {
+    private static class RegisteredGeneratedOnlyUpcaster {
         @Upcast(type = "generatedOnly", revision = 0)
         public String upcast(String input) {
             return input + "!";
         }
     }
 
-    private static class RegisteredGeneratedOnlyUpcaster {
-        @Upcast(type = "generatedOnly", revision = 0)
+    private static class RegisteredGeneratedOnlyThrowingUpcaster {
+        @Upcast(type = "generatedOnlyInvoke", revision = 0)
         public String upcast(String input) {
-            return input + "!";
+            throw new AssertionError("Generated invocation should have handled this call");
         }
     }
 

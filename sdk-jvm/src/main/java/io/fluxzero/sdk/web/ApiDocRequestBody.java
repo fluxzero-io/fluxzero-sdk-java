@@ -14,11 +14,18 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.sdk.registry.ParameterDescriptor;
+import jakarta.annotation.Nullable;
+
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 
 /**
  * Describes a full request body parameter inferred from an unannotated web handler argument.
  */
-public record ApiDocRequestBody(Type type, Parameter parameter) {
+public record ApiDocRequestBody(Type type, @Nullable Parameter parameter,
+                                @Nullable ParameterDescriptor parameterMetadata) {
+    public ApiDocRequestBody(Type type, @Nullable Parameter parameter) {
+        this(type, parameter, null);
+    }
 }

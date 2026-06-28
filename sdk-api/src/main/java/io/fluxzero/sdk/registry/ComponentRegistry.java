@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,13 +80,122 @@ public record ComponentRegistry(
         Map<String, PackageDescriptor> packagesByName = new LinkedHashMap<>();
         packages.stream()
                 .sorted(Comparator.comparing(PackageDescriptor::packageName))
-                .forEach(p -> packagesByName.putIfAbsent(p.packageName(), p));
+                .forEach(p -> packagesByName.put(p.packageName(), p));
         Map<String, ComponentDescriptor> componentsByName = new LinkedHashMap<>();
         components.stream()
                 .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
-                .forEach(c -> componentsByName.putIfAbsent(c.fullClassName(), c));
+                .forEach(c -> componentsByName.merge(c.fullClassName(), c, ComponentRegistry::mergeComponent));
         return new ComponentRegistry(sourceRoot, List.copyOf(packagesByName.values()),
                                      List.copyOf(componentsByName.values()));
+    }
+
+    private static ComponentDescriptor mergeComponent(ComponentDescriptor first, ComponentDescriptor second) {
+        return new ComponentDescriptor(
+                first.sourceFile() != null ? first.sourceFile() : second.sourceFile(),
+                first.packageInfoSource() != null ? first.packageInfoSource() : second.packageInfoSource(),
+                first.componentKind(),
+                first.packageName(),
+                first.className(),
+                mergeValues(first.superTypeNames(), second.superTypeNames()),
+                mergeAnnotations(first.annotations(), second.annotations()),
+                mergeProperties(first.properties(), second.properties()),
+                mergeExecutables(first.executables(), second.executables()),
+                mergeHandlerRoutes(first.handlerRoutes(), second.handlerRoutes()),
+                mergeValues(first.registeredTypes(), second.registeredTypes()),
+                first.consumer() != null ? first.consumer() : second.consumer(),
+                mergeSet(first.capabilities(), second.capabilities()));
+    }
+
+    private static List<AnnotationDescriptor> mergeAnnotations(
+            List<AnnotationDescriptor> first, List<AnnotationDescriptor> second) {
+        Map<String, AnnotationDescriptor> result = new LinkedHashMap<>();
+        first.forEach(annotation -> result.put(annotationKey(annotation), annotation));
+        second.forEach(annotation -> result.merge(
+                annotationKey(annotation), annotation, ComponentRegistry::mergeAnnotation));
+        return List.copyOf(result.values());
+    }
+
+    private static String annotationKey(AnnotationDescriptor annotation) {
+        return annotation.qualifiedName().replace('$', '.');
+    }
+
+    private static AnnotationDescriptor mergeAnnotation(AnnotationDescriptor first, AnnotationDescriptor second) {
+        return annotationScore(second) >= annotationScore(first) ? second : first;
+    }
+
+    private static int annotationScore(AnnotationDescriptor annotation) {
+        return annotation.attributes().values().stream().mapToInt(List::size).sum()
+               + annotation.nestedAnnotations().values().stream().mapToInt(List::size).sum()
+               + annotation.metaAnnotations().size();
+    }
+
+    private static List<PropertyDescriptor> mergeProperties(
+            List<PropertyDescriptor> first, List<PropertyDescriptor> second) {
+        Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
+        first.forEach(property -> result.put(property.name(), property));
+        second.forEach(property -> result.merge(property.name(), property, ComponentRegistry::mergeProperty));
+        return List.copyOf(result.values());
+    }
+
+    private static PropertyDescriptor mergeProperty(PropertyDescriptor first, PropertyDescriptor second) {
+        return new PropertyDescriptor(
+                first.name(),
+                !first.typeName().isBlank() ? first.typeName() : second.typeName(),
+                !first.genericTypeName().isBlank() ? first.genericTypeName() : second.genericTypeName(),
+                mergeAnnotations(first.annotations(), second.annotations()),
+                first.typeUse().equals(TypeUseDescriptor.EMPTY) ? second.typeUse() : first.typeUse());
+    }
+
+    private static List<ExecutableDescriptor> mergeExecutables(
+            List<ExecutableDescriptor> first, List<ExecutableDescriptor> second) {
+        Map<String, ExecutableDescriptor> result = new LinkedHashMap<>();
+        first.forEach(executable -> result.put(executableKey(executable), executable));
+        second.forEach(executable -> result.merge(
+                executableKey(executable), executable, ComponentRegistry::mergeExecutable));
+        return List.copyOf(result.values());
+    }
+
+    private static ExecutableDescriptor mergeExecutable(ExecutableDescriptor first, ExecutableDescriptor second) {
+        return new ExecutableDescriptor(
+                first.kind(), first.name(),
+                !"void".equals(first.returnTypeName()) ? first.returnTypeName() : second.returnTypeName(),
+                first.returnTypeUse().equals(TypeUseDescriptor.EMPTY) ? second.returnTypeUse() : first.returnTypeUse(),
+                first.parameters().isEmpty() ? second.parameters() : first.parameters(),
+                mergeAnnotations(first.annotations(), second.annotations()),
+                first.isStatic() || second.isStatic());
+    }
+
+    private static String executableKey(ExecutableDescriptor executable) {
+        return executable.kind() + ":" + executable.name() + "("
+               + String.join(",", executable.parameters().stream().map(ParameterDescriptor::typeName).toList()) + ")";
+    }
+
+    private static Set<HandlerRoute> mergeHandlerRoutes(Set<HandlerRoute> first, Set<HandlerRoute> second) {
+        Map<String, HandlerRoute> result = new LinkedHashMap<>();
+        first.forEach(route -> result.put(handlerRouteKey(route), route));
+        second.forEach(route -> result.putIfAbsent(handlerRouteKey(route), route));
+        return Set.copyOf(result.values());
+    }
+
+    private static String handlerRouteKey(HandlerRoute route) {
+        String annotationName = route.annotation() == null ? "" : route.annotation().qualifiedName();
+        String executableName = route.executable() == null ? "" : executableKey(route.executable());
+        return route.messageType() + ":" + annotationName + ":" + executableName + ":"
+               + route.payloadTypeNames().stream().sorted().toList() + ":"
+               + route.allowedClassNames().stream().sorted().toList() + ":"
+               + route.webRoutes();
+    }
+
+    private static <T> List<T> mergeValues(List<T> first, List<T> second) {
+        LinkedHashSet<T> result = new LinkedHashSet<>(first);
+        result.addAll(second);
+        return List.copyOf(result);
+    }
+
+    private static <T> Set<T> mergeSet(Set<T> first, Set<T> second) {
+        LinkedHashSet<T> result = new LinkedHashSet<>(first);
+        result.addAll(second);
+        return Set.copyOf(result);
     }
 
     /**

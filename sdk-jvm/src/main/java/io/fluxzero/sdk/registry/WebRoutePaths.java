@@ -31,7 +31,7 @@ final class WebRoutePaths {
                 .map(annotation -> annotation.find("Path", "io.fluxzero.sdk.web.Path"))
                 .flatMap(Optional::stream)
                 .reduce((first, second) -> second)
-                .flatMap(annotation -> annotation.firstValue("value"))
+                .map(annotation -> annotation.firstValue("value").orElse(""))
                 .map(value -> value.isBlank() ? blankDefault : value);
     }
 

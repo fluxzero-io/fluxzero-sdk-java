@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -24,21 +25,30 @@ import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.registry.ComponentDescriptor;
+import io.fluxzero.sdk.registry.ComponentRegistry;
+import io.fluxzero.sdk.registry.ComponentRegistryException;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
+import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.HandleSocketOpen;
+import io.fluxzero.sdk.web.HandleWebResponse;
 import io.fluxzero.sdk.web.SocketEndpoint;
+import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +56,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
+import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -55,10 +67,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
 
     @Test
-    void generatedOnlyModeDoesNotDiscoverHandlerAnnotationsWithoutRegistryMetadata() {
-        GeneratedOnlyMetadataMode.run(() ->
-                assertTrue(factory().createHandler(
-                        new UnregisteredGeneratedOnlyHandler(), (c, e) -> true, List.of()).isEmpty()));
+    void generatedOnlyModeUsesGeneratedClasspathRegistryForCompiledLocalHandlerMetadata() {
+        GeneratedOnlyMetadataMode.run(() -> {
+            Handler<DeserializingMessage> handler = factory().createHandler(
+                    new GeneratedClasspathHandler(), (c, e) -> true, List.of()).orElseThrow();
+
+            assertEquals("classpath", handler.getInvokerOrNull(command()).invoke());
+        });
     }
 
     @Test
@@ -73,6 +88,47 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
 
                 assertEquals("handled", handler.getInvokerOrNull(command()).invoke());
             });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeExecutesAllNonWebHandlerAnnotationsFromRegistryMetadata() {
+        for (HandlerCase handlerCase : nonWebHandlerCases()) {
+            try {
+                TestFixture.create().getFluxzero().registerComponentRegistry(
+                        JvmComponentMetadataLookup.scan(handlerCase.handlerType()).registry());
+
+                GeneratedOnlyMetadataMode.run(() -> {
+                    Handler<DeserializingMessage> handler = factory(handlerCase.messageType()).createHandler(
+                            handlerCase.target(), (c, e) -> true, List.of()).orElseThrow();
+
+                    assertEquals(handlerCase.expectedResult(), handler.getInvokerOrNull(
+                            message(handlerCase.messageType(), handlerCase.topic())).invoke());
+                });
+            } finally {
+                TestFixture.shutDownActiveFixtures();
+            }
+        }
+    }
+
+    @Test
+    void generatedOnlyModeRejectsRegisteredHandlerWithoutGeneratedInvocation() {
+        class LocalRegisteredGeneratedOnlyHandler {
+            @HandleCommand
+            String handle() {
+                return "handled";
+            }
+        }
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    registryWithUnlowerableHandlerPlan(LocalRegisteredGeneratedOnlyHandler.class));
+
+            GeneratedOnlyMetadataMode.run(() -> assertThrows(ComponentRegistryException.class,
+                    () -> factory().createHandler(
+                            new LocalRegisteredGeneratedOnlyHandler(), (c, e) -> true, List.of())));
         } finally {
             TestFixture.shutDownActiveFixtures();
         }
@@ -96,6 +152,21 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
                 assertEquals("handle", invoker.getExecutableView().name());
                 assertEquals("generated", invoker.invoke());
             });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeRespectsLocalHandlerFilterWithRegistryMetadata() {
+        try (var ignored = registerGeneratedHandle(RegisteredGeneratedOnlyHandler.class, "generated")) {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> assertTrue(factory().createHandler(
+                    new RegisteredGeneratedOnlyHandler(),
+                    ClientUtils.localHandlerFilter(),
+                    List.of()).isEmpty()));
         } finally {
             TestFixture.shutDownActiveFixtures();
         }
@@ -141,7 +212,7 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
 
     @Test
     void generatedOnlyModeHonorsPassiveHandlerMetadata() {
-        try {
+        try (var ignored = registerGeneratedHandle(PassiveGeneratedOnlyHandler.class, "passive")) {
             TestFixture.create().getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(PassiveGeneratedOnlyHandler.class).registry());
 
@@ -196,10 +267,9 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotDiscoverSocketEndpointWithoutRegistryMetadata() {
-        GeneratedOnlyMetadataMode.run(() ->
-                assertTrue(webFactory().createHandler(
-                        UnregisteredSocketEndpoint.class, (c, e) -> true, List.of()).isEmpty()));
+    void generatedOnlyModeUsesGeneratedClasspathRegistryForCompiledLocalSocketEndpointMetadata() {
+        GeneratedOnlyMetadataMode.run(() -> assertTrue(webFactory().createHandler(
+                GeneratedClasspathSocketEndpoint.class, (c, e) -> true, List.of()).isPresent()));
     }
 
     @Test
@@ -220,8 +290,50 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
     }
 
     @Test
+    void generatedOnlyModeExecutesWebHandlerFromRegistryMetadata() {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                RegisteredWebHandler.class,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "handle", List.of()),
+                (target, parameterCount, parameterProvider) -> "generated-web")) {
+            TestFixture fixture = TestFixture.createAsync()
+                    .resultTimeout(Duration.ofSeconds(2))
+                    .consumerTimeout(Duration.ofSeconds(2));
+            fixture.getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredWebHandler.class).registry());
+            GeneratedOnlyMetadataMode.run(() -> fixture.getFluxzero().registerHandlers(new RegisteredWebHandler()));
+
+            fixture.whenWebRequest(WebRequest.builder().method(GET).url("/generated").build())
+                    .expectResult("generated-web");
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeExecutesSocketRouteFromRegistryMetadata() {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                RegisteredSocketRouteHandler.class,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "open", List.of()),
+                (target, parameterCount, parameterProvider) -> "generated-socket")) {
+            TestFixture fixture = TestFixture.createAsync()
+                    .resultTimeout(Duration.ofSeconds(2))
+                    .consumerTimeout(Duration.ofSeconds(2));
+            fixture.getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredSocketRouteHandler.class).registry());
+            GeneratedOnlyMetadataMode.run(() ->
+                    fixture.getFluxzero().registerHandlers(new RegisteredSocketRouteHandler()));
+
+            fixture.whenWebRequest(WebRequest.builder().method(WS_OPEN).url("/generated-socket")
+                                           .metadata(Metadata.of("sessionId", "generated-session")).build())
+                    .expectResult("generated-socket");
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void generatedOnlyModeCreatesTrackSelfHandlerFromRegistryMetadata() {
-        try {
+        try (var ignored = registerGeneratedHandle(RegisteredTrackSelfCommand.class, "self")) {
             TestFixture.create().getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(RegisteredTrackSelfCommand.class).registry());
 
@@ -241,7 +353,10 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
 
     @Test
     void generatedOnlyModeCreatesStatefulHandlerFromRegistryMetadata() {
-        try {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                RegisteredStatefulHandler.class,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "handle", List.of(String.class.getName())),
+                (target, parameterCount, parameterProvider) -> null)) {
             TestFixture.create().getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(RegisteredStatefulHandler.class).registry());
 
@@ -256,9 +371,53 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    private static GeneratedExecutableInvocations.Registration registerGeneratedHandle(
+            Class<?> handlerType, Object result) {
+        return GeneratedExecutableInvocations.register(
+                handlerType,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "handle", List.of()),
+                (target, parameterCount, parameterProvider) -> result);
+    }
+
+    private static ComponentRegistry registryWithUnlowerableHandlerPlan(Class<?> handlerType) {
+        ComponentRegistry registry = JvmComponentMetadataLookup.scan(handlerType).registry();
+        ComponentDescriptor component = registry.components().getFirst();
+        ExecutableDescriptor executable = component.executables().stream()
+                .filter(candidate -> candidate.name().equals("handle"))
+                .findFirst().orElseThrow();
+        ExecutableDescriptor unlowerableExecutable = new ExecutableDescriptor(
+                executable.kind(),
+                executable.name(),
+                executable.returnTypeName(),
+                executable.returnTypeUse(),
+                List.of(new ParameterDescriptor(
+                        "missing", MissingGeneratedOnlyInvocationParameter.class.getName(), List.of())),
+                executable.annotations(),
+                executable.isStatic());
+        ComponentDescriptor unlowerableComponent = new ComponentDescriptor(
+                component.sourceFile(),
+                component.packageInfoSource(),
+                component.componentKind(),
+                component.packageName(),
+                component.className(),
+                component.superTypeNames(),
+                component.annotations(),
+                component.properties(),
+                List.of(unlowerableExecutable),
+                component.handlerRoutes(),
+                component.registeredTypes(),
+                component.consumer(),
+                component.capabilities());
+        return new ComponentRegistry(registry.sourceRoot(), registry.packages(), List.of(unlowerableComponent));
+    }
+
     private static DefaultHandlerFactory factory() {
+        return factory(MessageType.COMMAND);
+    }
+
+    private static DefaultHandlerFactory factory(MessageType messageType) {
         return new DefaultHandlerFactory(
-                MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
+                messageType, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
                 c -> null, null, false, null);
     }
 
@@ -314,10 +473,28 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         return new DeserializingMessage(new Message("command"), MessageType.COMMAND, null);
     }
 
-    private static class UnregisteredGeneratedOnlyHandler {
-        @HandleCommand
-        String handle() {
-            return "unregistered";
+    private static DeserializingMessage message(MessageType messageType, String topic) {
+        return new DeserializingMessage(new Message("payload"), messageType, topic, null);
+    }
+
+    private static List<HandlerCase> nonWebHandlerCases() {
+        return List.of(
+                new HandlerCase(MessageType.COMMAND, new GeneratedCommandHandler(), null, "command"),
+                new HandlerCase(MessageType.QUERY, new GeneratedQueryHandler(), null, "query"),
+                new HandlerCase(MessageType.EVENT, new GeneratedEventHandler(), null, "event"),
+                new HandlerCase(MessageType.NOTIFICATION, new GeneratedNotificationHandler(), null, "notification"),
+                new HandlerCase(MessageType.ERROR, new GeneratedErrorHandler(), null, "error"),
+                new HandlerCase(MessageType.METRICS, new GeneratedMetricsHandler(), null, "metrics"),
+                new HandlerCase(MessageType.RESULT, new GeneratedResultHandler(), null, "result"),
+                new HandlerCase(MessageType.CUSTOM, new GeneratedCustomHandler(), "custom-topic", "custom"),
+                new HandlerCase(MessageType.DOCUMENT, new GeneratedDocumentHandler(), "documents", "document"),
+                new HandlerCase(MessageType.SCHEDULE, new GeneratedScheduleHandler(), null, "schedule"),
+                new HandlerCase(MessageType.WEBRESPONSE, new GeneratedWebResponseHandler(), null, "webresponse"));
+    }
+
+    private record HandlerCase(MessageType messageType, Object target, String topic, String expectedResult) {
+        Class<?> handlerType() {
+            return target.getClass();
         }
     }
 
@@ -325,6 +502,90 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         @HandleCommand
         String handle() {
             return "handled";
+        }
+    }
+
+    private static class GeneratedClasspathHandler {
+        @HandleCommand
+        String handle() {
+            return "classpath";
+        }
+    }
+
+    private static class GeneratedCommandHandler {
+        @HandleCommand
+        String handle() {
+            return "command";
+        }
+    }
+
+    private static class GeneratedQueryHandler {
+        @HandleQuery
+        String handle() {
+            return "query";
+        }
+    }
+
+    private static class GeneratedEventHandler {
+        @HandleEvent
+        String handle() {
+            return "event";
+        }
+    }
+
+    private static class GeneratedNotificationHandler {
+        @HandleNotification
+        String handle() {
+            return "notification";
+        }
+    }
+
+    private static class GeneratedErrorHandler {
+        @HandleError
+        String handle() {
+            return "error";
+        }
+    }
+
+    private static class GeneratedMetricsHandler {
+        @HandleMetrics
+        String handle() {
+            return "metrics";
+        }
+    }
+
+    private static class GeneratedResultHandler {
+        @HandleResult
+        String handle() {
+            return "result";
+        }
+    }
+
+    private static class GeneratedCustomHandler {
+        @HandleCustom("custom-topic")
+        String handle() {
+            return "custom";
+        }
+    }
+
+    private static class GeneratedDocumentHandler {
+        @HandleDocument("documents")
+        String handle() {
+            return "document";
+        }
+    }
+
+    private static class GeneratedScheduleHandler {
+        @HandleSchedule
+        String handle() {
+            return "schedule";
+        }
+    }
+
+    private static class GeneratedWebResponseHandler {
+        @HandleWebResponse
+        String handle() {
+            return "webresponse";
         }
     }
 
@@ -380,6 +641,14 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    @SocketEndpoint
+    private static class GeneratedClasspathSocketEndpoint {
+        @HandleSocketOpen
+        String open() {
+            return "socket";
+        }
+    }
+
     @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(
             timeUnit = TimeUnit.MILLISECONDS, pingDelay = 7, pingTimeout = 3))
     private static class RegisteredSocketEndpoint {
@@ -388,6 +657,23 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    private static class RegisteredWebHandler {
+        @HandleGet("/generated")
+        String handle() {
+            return "web";
+        }
+    }
+
+    private static class RegisteredSocketRouteHandler {
+        @HandleSocketOpen("/generated-socket")
+        String open() {
+            return "socket";
+        }
+    }
+
     private record AllowedGeneratedOnlyCommand() {
+    }
+
+    private record MissingGeneratedOnlyInvocationParameter() {
     }
 }

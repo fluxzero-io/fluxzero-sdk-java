@@ -67,6 +67,24 @@ class DefaultWebRequestContextTest {
         assertEquals("test", part.asString());
     }
 
+    @Test
+    void bodyParameterResolvesNestedJsonPaths() {
+        DefaultWebRequestContext context = context(
+                "application/json",
+                """
+                {
+                  "booking": {
+                    "details": {
+                      "guestName": "Nested Jane"
+                    }
+                  }
+                }
+                """.getBytes(StandardCharsets.UTF_8));
+
+        assertEquals("Nested Jane", context.getBodyParameter("booking.details.guestName").as(String.class));
+        assertEquals("Nested Jane", context.getBodyParameter("booking/details/guestName").as(String.class));
+    }
+
     private static DefaultWebRequestContext context(String contentType, byte[] body) {
         Metadata metadata = WebRequest.post("/upload").contentType(contentType).build().getMetadata();
         SerializedMessage message = new SerializedMessage(

@@ -26,64 +26,78 @@ import java.util.TreeMap;
  * application semantics through an unclassified reflection path.
  */
 final class JvmBackendAccess {
-    private static final Map<String, String> ALLOWED_PREFIXES = new TreeMap<>(Map.of(
-            "io.fluxzero.sdk.registry.", "metadata producer or generated metadata bridge",
-            "io.fluxzero.sdk.common.serialization.", "JVM serialization/type resolution backend",
-            "io.fluxzero.sdk.configuration.spring.", "Spring integration backend",
-            "io.fluxzero.sdk.tracking.handling.validation.jakarta.", "Jakarta validation provider backend"
+    enum BackendStatus {
+        PLATFORM_BACKEND,
+        MIGRATION_DEBT
+    }
+
+    record BackendCategory(String description, BackendStatus status) {
+        boolean migrationDebt() {
+            return status == BackendStatus.MIGRATION_DEBT;
+        }
+    }
+
+    private static final Map<String, BackendCategory> ALLOWED_PREFIXES = new TreeMap<>(Map.of(
+            "io.fluxzero.sdk.registry.", platform("metadata producer or generated metadata bridge"),
+            "io.fluxzero.sdk.common.serialization.", platform("JVM serialization/type resolution backend"),
+            "io.fluxzero.sdk.configuration.spring.", platform("Spring integration backend"),
+            "io.fluxzero.sdk.tracking.handling.validation.jakarta.", platform("Jakarta validation provider backend")
     ));
 
-    private static final Map<String, String> ALLOWED_CLASSES = new TreeMap<>(Map.ofEntries(
-            Map.entry("io.fluxzero.sdk.Fluxzero", "JVM caller-scope memoization"),
-            Map.entry("io.fluxzero.common.handling.HandlerInspector", "current JVM executable invocation backend"),
-            Map.entry("io.fluxzero.sdk.common.ClientUtils", "runtime metadata compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.common.HasMessage", "message payload type backend"),
-            Map.entry("io.fluxzero.sdk.modeling.AnnotatedEntityHolder", "JVM entity mutation/property backend"),
-            Map.entry("io.fluxzero.sdk.modeling.DefaultEntityHelper", "JVM entity invocation backend"),
-            Map.entry("io.fluxzero.sdk.modeling.Entity", "JVM entity type backend"),
-            Map.entry("io.fluxzero.sdk.modeling.EntityParameterResolver", "JVM parameter compatibility backend"),
-            Map.entry("io.fluxzero.sdk.modeling.Id", "JVM generic id type backend"),
-            Map.entry("io.fluxzero.sdk.modeling.ModelMetadata", "JVM property compatibility backend"),
+    private static final Map<String, BackendCategory> ALLOWED_CLASSES = new TreeMap<>(Map.ofEntries(
+            Map.entry("io.fluxzero.sdk.Fluxzero", platform("JVM caller-scope memoization")),
+            Map.entry("io.fluxzero.common.handling.HandlerInspector",
+                      debt("current JVM executable invocation backend")),
+            Map.entry("io.fluxzero.sdk.common.ClientUtils", debt("runtime metadata compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.common.HasMessage", debt("message payload type backend")),
+            Map.entry("io.fluxzero.sdk.modeling.AnnotatedEntityHolder",
+                      debt("JVM entity mutation/property backend")),
+            Map.entry("io.fluxzero.sdk.modeling.DefaultEntityHelper", debt("JVM entity invocation backend")),
+            Map.entry("io.fluxzero.sdk.modeling.Entity", debt("JVM entity type backend")),
+            Map.entry("io.fluxzero.sdk.modeling.EntityParameterResolver", debt("JVM parameter compatibility backend")),
+            Map.entry("io.fluxzero.sdk.modeling.Id", debt("JVM generic id type backend")),
+            Map.entry("io.fluxzero.sdk.modeling.ModelMetadata", debt("JVM property compatibility backend")),
             Map.entry("io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository",
-                      "JVM aggregate invocation/property backend"),
-            Map.entry("io.fluxzero.sdk.persisting.search.DefaultIndexOperation", "JVM property access backend"),
-            Map.entry("io.fluxzero.sdk.persisting.search.DocumentStore", "JVM property access backend"),
-            Map.entry("io.fluxzero.sdk.publishing.DefaultResultGateway", "JVM payload type backend"),
+                      debt("JVM aggregate invocation/property backend")),
+            Map.entry("io.fluxzero.sdk.persisting.search.DefaultIndexOperation", debt("JVM property access backend")),
+            Map.entry("io.fluxzero.sdk.persisting.search.DocumentStore", debt("JVM property access backend")),
+            Map.entry("io.fluxzero.sdk.publishing.DefaultResultGateway", debt("JVM payload type backend")),
             Map.entry("io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor",
-                      "JVM property access backend"),
-            Map.entry("io.fluxzero.sdk.scheduling.PeriodicMetadata", "JVM schedule compatibility backend"),
-            Map.entry("io.fluxzero.sdk.scheduling.SchedulingInterceptor", "JVM schedule instantiation backend"),
-            Map.entry("io.fluxzero.sdk.tracking.ConsumerConfiguration", "JVM consumer compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.tracking.DefaultTracking", "JVM handler type backend"),
+                      debt("JVM property access backend")),
+            Map.entry("io.fluxzero.sdk.scheduling.PeriodicMetadata", debt("JVM schedule compatibility backend")),
+            Map.entry("io.fluxzero.sdk.scheduling.SchedulingInterceptor", debt("JVM schedule instantiation backend")),
+            Map.entry("io.fluxzero.sdk.tracking.ConsumerConfiguration", debt("JVM consumer compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.tracking.DefaultTracking", debt("JVM handler type backend")),
             Map.entry("io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory",
-                      "JVM handler construction/invocation backend"),
+                      debt("JVM handler construction/invocation backend")),
             Map.entry("io.fluxzero.sdk.tracking.handling.ExpiredRequestDecorator",
-                      "JVM handler annotation compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.HandleCustomFilter", "JVM handler filter backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.HandleDocumentFilter", "JVM handler filter backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.HandlerAssociations", "JVM handler association backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.MutableHandler", "JVM handler type backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.PayloadFilter", "JVM payload filter backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.PayloadParameterResolver", "JVM parameter backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.RequestTypeResolver", "JVM request type backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.SegmentFilter", "JVM segment filter backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.StatefulHandler", "JVM stateful handler backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.TimestampParameterResolver", "JVM parameter backend"),
-            Map.entry("io.fluxzero.sdk.tracking.handling.TriggerParameterResolver", "JVM parameter backend"),
+                      debt("JVM handler annotation compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.HandleCustomFilter", debt("JVM handler filter backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.HandleDocumentFilter", debt("JVM handler filter backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.HandlerAssociations",
+                      debt("JVM handler association backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.MutableHandler", debt("JVM handler type backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.PayloadFilter", debt("JVM payload filter backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.PayloadParameterResolver", debt("JVM parameter backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.RequestTypeResolver", debt("JVM request type backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.SegmentFilter", debt("JVM segment filter backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.StatefulHandler", debt("JVM stateful handler backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.TimestampParameterResolver", debt("JVM parameter backend")),
+            Map.entry("io.fluxzero.sdk.tracking.handling.TriggerParameterResolver", debt("JVM parameter backend")),
             Map.entry("io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor",
-                      "JVM property access backend"),
+                      debt("JVM property access backend")),
             Map.entry("io.fluxzero.sdk.tracking.handling.validation.ValidationUtils",
-                      "JVM validation compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.web.ApiDocExtractor", "JVM API-doc compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.web.ApiReferenceEndpoint", "JVM API-doc endpoint backend"),
-            Map.entry("io.fluxzero.sdk.web.DefaultWebRequestContext", "JVM web body property backend"),
-            Map.entry("io.fluxzero.sdk.web.OpenApiDocumentEndpoint", "JVM API-doc endpoint backend"),
-            Map.entry("io.fluxzero.sdk.web.OpenApiRenderer", "JVM OpenAPI compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.web.WebHandlerMatcher", "JVM web handler matcher backend"),
-            Map.entry("io.fluxzero.sdk.web.WebParamParameterResolver", "JVM web parameter backend"),
-            Map.entry("io.fluxzero.sdk.web.WebPayloadParameterResolver", "JVM web payload backend"),
-            Map.entry("io.fluxzero.sdk.web.WebUtils", "JVM web route compatibility bridge"),
-            Map.entry("io.fluxzero.sdk.web.WebsocketHandlerDecorator", "JVM websocket handler backend")
+                      debt("JVM validation compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.web.ApiDocExtractor", debt("JVM API-doc compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.web.ApiReferenceEndpoint", debt("JVM API-doc endpoint backend")),
+            Map.entry("io.fluxzero.sdk.web.DefaultWebRequestContext", debt("JVM web body property backend")),
+            Map.entry("io.fluxzero.sdk.web.OpenApiDocumentEndpoint", debt("JVM API-doc endpoint backend")),
+            Map.entry("io.fluxzero.sdk.web.OpenApiRenderer", debt("JVM OpenAPI compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.web.WebHandlerMatcher", debt("JVM web handler matcher backend")),
+            Map.entry("io.fluxzero.sdk.web.WebParamParameterResolver", debt("JVM web parameter backend")),
+            Map.entry("io.fluxzero.sdk.web.WebPayloadParameterResolver", debt("JVM web payload backend")),
+            Map.entry("io.fluxzero.sdk.web.WebUtils", debt("JVM web route compatibility bridge")),
+            Map.entry("io.fluxzero.sdk.web.WebsocketHandlerDecorator", debt("JVM websocket handler backend"))
     ));
 
     private JvmBackendAccess() {
@@ -93,20 +107,38 @@ final class JvmBackendAccess {
         if (!ComponentMetadataLookups.generatedOnlyMode()) {
             return;
         }
-        String caller = callerClassName();
-        if (category(caller).isPresent()) {
+        assertAllowed(callerClassName());
+    }
+
+    static void assertAllowed(String callerClassName) {
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            return;
+        }
+        Optional<BackendCategory> category = classification(callerClassName);
+        if (category.isPresent()) {
+            if (ComponentMetadataLookups.strictGeneratedOnlyMode() && category.orElseThrow().migrationDebt()) {
+                throw new ComponentRegistryException("""
+                        Strict generated-only metadata mode forbids migration-debt JVM backend access from %s.
+                        Replace this app-semantic fallback with generated metadata, invocation, or access plans before
+                        adding it to strict generated-only acceptance.
+                        """.formatted(callerClassName));
+            }
             return;
         }
         throw new ComponentRegistryException("""
                 Generated-only metadata mode forbids unclassified JVM introspection from %s.
                 Move Fluxzero app semantics to ComponentRegistry/generated invocation metadata, or classify this call as
                 an explicit JVM-only backend category in JvmBackendAccess.
-                """.formatted(caller));
+                """.formatted(callerClassName));
     }
 
     static Optional<String> category(String callerClassName) {
+        return classification(callerClassName).map(BackendCategory::description);
+    }
+
+    static Optional<BackendCategory> classification(String callerClassName) {
         String normalized = enclosingClassName(callerClassName);
-        String category = ALLOWED_CLASSES.get(normalized);
+        BackendCategory category = ALLOWED_CLASSES.get(normalized);
         if (category != null) {
             return Optional.of(category);
         }
@@ -114,6 +146,22 @@ final class JvmBackendAccess {
                 .filter(entry -> normalized.startsWith(entry.getKey()))
                 .map(Map.Entry::getValue)
                 .findFirst();
+    }
+
+    static Map<String, BackendCategory> migrationDebtClasses() {
+        Map<String, BackendCategory> result = new TreeMap<>();
+        ALLOWED_CLASSES.entrySet().stream()
+                .filter(entry -> entry.getValue().migrationDebt())
+                .forEach(entry -> result.put(entry.getKey(), entry.getValue()));
+        return Map.copyOf(result);
+    }
+
+    private static BackendCategory platform(String description) {
+        return new BackendCategory(description, BackendStatus.PLATFORM_BACKEND);
+    }
+
+    private static BackendCategory debt(String description) {
+        return new BackendCategory(description, BackendStatus.MIGRATION_DEBT);
     }
 
     private static String callerClassName() {

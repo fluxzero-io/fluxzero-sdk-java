@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.BulkUpdate;
@@ -26,13 +27,12 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.PropertyAccess;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
-import java.lang.reflect.AccessibleObject;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -460,14 +460,46 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
         return ComponentMetadataLookups.lookup(value.getClass())
                 .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(
                         lookup, value.getClass(), EntityId.class))
-                .flatMap(propertyName -> properties().readProperty(propertyName, value))
+                .flatMap(propertyName -> readProperty(propertyName, value))
                 .or(() -> ComponentMetadataLookups.generatedOnlyMode()
                         ? Optional.empty()
-                        : properties().annotatedPropertyValue(value, EntityId.class));
+                        : JvmComponentIntrospector.getInstance().annotatedPropertyValue(value, EntityId.class));
     }
 
-    private static PropertyAccess<Class<?>, AccessibleObject> properties() {
-        return JvmComponentIntrospector.getInstance();
+    private static Optional<Object> readProperty(String propertyPath, Object target) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        Optional<Object> generatedValue = readGeneratedProperty(propertyPath, target);
+        if (generatedValue.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return generatedValue;
+        }
+        return JvmComponentIntrospector.getInstance().readProperty(propertyPath, target);
+    }
+
+    private static Optional<Object> readGeneratedProperty(String propertyPath, Object target) {
+        Object current = target;
+        for (String segment : propertyPath.split("\\.")) {
+            if (segment.isBlank() || current == null) {
+                return Optional.empty();
+            }
+            if (current instanceof JsonNode jsonNode) {
+                JsonNode child = jsonNode.get(segment);
+                if (child == null || child.isNull()) {
+                    return Optional.empty();
+                }
+                current = child.isValueNode() ? child.asText() : child;
+                continue;
+            }
+            ComponentMetadataLookups.ensureGeneratedExecutions(current.getClass());
+            Optional<GeneratedPropertyAccesses.PropertyReader> reader =
+                    GeneratedPropertyAccesses.findReader(current.getClass(), segment);
+            if (reader.isEmpty()) {
+                return Optional.empty();
+            }
+            current = reader.orElseThrow().read(current);
+        }
+        return Optional.ofNullable(current);
     }
 
 }

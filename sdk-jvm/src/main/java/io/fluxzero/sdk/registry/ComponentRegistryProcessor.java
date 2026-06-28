@@ -361,7 +361,28 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                             name, typeName(component.asType()), component.asType().toString(), annotations,
                             typeUseDescriptor(component.asType())));
                 });
+        type.getEnclosedElements().stream()
+                .filter(element -> element.getKind() == ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(method -> method.getParameters().isEmpty())
+                .filter(method -> method.getReturnType().getKind() != TypeKind.VOID)
+                .sorted(Comparator.comparing(method -> method.getSimpleName().toString()))
+                .forEach(method -> {
+                    List<AnnotationDescriptor> annotations = annotationDescriptors(method.getAnnotationMirrors());
+                    String name = method.getSimpleName().toString();
+                    if (properties.containsKey(name) || hasSemanticAnnotation(annotations)) {
+                        properties.putIfAbsent(name, new PropertyDescriptor(
+                                name, typeName(method.getReturnType()), method.getReturnType().toString(),
+                                annotations, typeUseDescriptor(method.getReturnType())));
+                    }
+                });
         return List.copyOf(properties.values());
+    }
+
+    private static boolean hasSemanticAnnotation(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .map(AnnotationDescriptor::qualifiedName)
+                .anyMatch(name -> !name.startsWith("java.lang."));
     }
 
     private List<ExecutableElement> executableElements(TypeElement type) {
@@ -765,6 +786,9 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         }
         if (type.getKind().name().equals("VOID")) {
             return "void";
+        }
+        if (type.getKind() == TypeKind.ARRAY) {
+            return typeName(((ArrayType) type).getComponentType()) + "[]";
         }
         return processingEnv.getTypeUtils().erasure(type).toString();
     }

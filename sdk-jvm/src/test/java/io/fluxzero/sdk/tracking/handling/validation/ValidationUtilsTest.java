@@ -61,7 +61,12 @@ class ValidationUtilsTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForValidateWith() {
-        GeneratedOnlyMetadataMode.run(() -> assertTrue(isValid(new UnregisteredGeneratedOnlyValidateWith(""))));
+        @ValidateWith(GeneratedOnlyGroup.class)
+        record LocalUnregisteredGeneratedOnlyValidateWith(
+                @NotBlank(groups = GeneratedOnlyGroup.class) String value) {
+        }
+
+        GeneratedOnlyMetadataMode.run(() -> assertTrue(isValid(new LocalUnregisteredGeneratedOnlyValidateWith(""))));
     }
 
     @Test
@@ -77,8 +82,12 @@ class ValidationUtilsTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForRequiresUser() {
+        @RequiresUser
+        class LocalUnregisteredGeneratedOnlyRequiresUser {
+        }
+
         GeneratedOnlyMetadataMode.run(() -> assertDoesNotThrow(
-                () -> ValidationUtils.assertAuthorized(UnregisteredGeneratedOnlyRequiresUser.class, null)));
+                () -> ValidationUtils.assertAuthorized(LocalUnregisteredGeneratedOnlyRequiresUser.class, null)));
     }
 
     @Test
@@ -171,17 +180,8 @@ class ValidationUtilsTest {
     public interface Group1 {}
 
     @ValidateWith(GeneratedOnlyGroup.class)
-    private record UnregisteredGeneratedOnlyValidateWith(
-            @NotBlank(groups = GeneratedOnlyGroup.class) String value) {
-    }
-
-    @ValidateWith(GeneratedOnlyGroup.class)
     private record RegisteredGeneratedOnlyValidateWith(
             @NotBlank(groups = GeneratedOnlyGroup.class) String value) {
-    }
-
-    @RequiresUser
-    private static class UnregisteredGeneratedOnlyRequiresUser {
     }
 
     @RequiresUser

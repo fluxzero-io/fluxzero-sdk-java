@@ -20,7 +20,13 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.Handler.DelegatingHandler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.ParameterView;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
+import io.fluxzero.sdk.registry.RegistryExecutableViews;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -37,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,6 +100,9 @@ import static java.util.stream.Stream.concat;
 @RequiredArgsConstructor
 @Slf4j
 public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterResolver<HasMessage> {
+    private static final MetadataExecutableAnnotationResolver ANNOTATION_RESOLVER =
+            MetadataExecutableAnnotationResolver.create();
+
     private final ResultGateway webResponseGateway;
     private final Serializer serializer;
     private final TaskScheduler taskScheduler;
@@ -113,6 +123,11 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
      */
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
+        return this::getOrCreateSocketSession;
+    }
+
+    @Override
+    public Function<HasMessage, Object> resolve(ParameterView p, Annotation methodAnnotation) {
         return this::getOrCreateSocketSession;
     }
 
@@ -141,7 +156,13 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return SocketSession.class.isAssignableFrom(parameter.getType())
-               && JvmComponentIntrospector.getInstance().isOrHas(methodAnnotation, HandleWeb.class);
+               && isHandleWeb(methodAnnotation);
+    }
+
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, HasMessage value) {
+        return socketSessionParameter(parameter)
+               && isHandleWeb(methodAnnotation);
     }
 
     @Override
@@ -155,6 +176,31 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        if (ANNOTATION_RESOLVER.getAnnotation(method, HandleWeb.class).isEmpty()) {
+            return false;
+        }
+        for (ParameterView parameter : method.parameters()) {
+            if (socketSessionParameter(parameter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean socketSessionParameter(ParameterView parameter) {
+        return parameter.type().map(SocketSession.class::isAssignableFrom)
+                .orElseGet(() -> SocketSession.class.getName().equals(parameter.typeName())
+                             || SocketSession.class.getCanonicalName().equals(parameter.typeName()));
+    }
+
+    private static boolean isHandleWeb(Annotation annotation) {
+        return annotation != null
+               && (annotation.annotationType().equals(HandleWeb.class)
+                   || annotation.annotationType().isAnnotationPresent(HandleWeb.class));
     }
 
     protected void onAbort(DefaultSocketSession session, int code) {
@@ -213,10 +259,64 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
     protected List<SocketPattern> socketPatterns(Handler<DeserializingMessage> handler) {
         Class<?> type = handler.getTargetClass();
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return socketPatternsFromRegistry(type);
+        }
         return concat(JvmComponentIntrospector.getInstance().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .flatMap(m -> WebUtils.getWebPatterns(type, null, m).stream()
                         .filter(p -> isWebsocket(p.getMethod()))
                         .map(p -> new SocketPattern(m, p))).toList();
+    }
+
+    private List<SocketPattern> socketPatternsFromRegistry(Class<?> type) {
+        return ComponentMetadataLookups.registeredLookup(type)
+                .map(lookup -> metadataRouteTypes(type, lookup).stream()
+                        .flatMap(metadataType -> targetClassNames(metadataType).stream()
+                                .flatMap(name -> lookup.routes(name, WEBREQUEST).stream())
+                                .filter(route -> !route.disabled())
+                                .flatMap(route -> route.executableMetadata().stream()
+                                        .map(executable -> RegistryExecutableViews.executableView(
+                                                metadataType, executable))
+                                        .flatMap(view -> route.webRoutes().stream()
+                                                .flatMap(routeDescriptor -> routeDescriptor.paths().stream()
+                                                        .flatMap(path -> routeDescriptor.methods().stream()
+                                                                .filter(HttpRequestMethod::isWebsocket)
+                                                                .map(method -> new SocketPattern(
+                                                                        view, new WebPattern(
+                                                                                path, method,
+                                                                                routeDescriptor.autoHead(),
+                                                                                routeDescriptor.autoOptions()))))))))
+                        .toList())
+                .orElseGet(List::of);
+    }
+
+    private static List<Class<?>> metadataRouteTypes(Class<?> targetClass, ComponentMetadataLookup lookup) {
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        collectMetadataRouteTypes(targetClass, lookup, result);
+        return List.copyOf(result);
+    }
+
+    private static void collectMetadataRouteTypes(
+            Class<?> type, ComponentMetadataLookup lookup, LinkedHashSet<Class<?>> result) {
+        if (type == null || Object.class.equals(type)) {
+            return;
+        }
+        if (targetClassNames(type).stream().anyMatch(name -> lookup.component(name).isPresent())) {
+            result.add(type);
+        }
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            collectMetadataRouteTypes(interfaceType, lookup, result);
+        }
+        collectMetadataRouteTypes(type.getSuperclass(), lookup, result);
+    }
+
+    private static List<String> targetClassNames(Class<?> targetClass) {
+        Set<String> result = new LinkedHashSet<>();
+        result.add(targetClass.getName());
+        if (targetClass.getCanonicalName() != null) {
+            result.add(targetClass.getCanonicalName());
+        }
+        return List.copyOf(result);
     }
 
     protected Handler<DeserializingMessage> enableHandshake(Handler<DeserializingMessage> handler,
@@ -227,24 +327,24 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                 .distinct()
                 .filter(websocketPaths::add).toList();
         if (!pathsRequiringHandshake.isEmpty()) {
-            WebRouteMatcher<Executable> openHandlers = new WebRouteMatcher<>();
-            WebRouteMatcher<Executable> messageHandlers = new WebRouteMatcher<>();
-            WebRouteMatcher<Executable> pongHandlers = new WebRouteMatcher<>();
-            WebRouteMatcher<Executable> closeHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<SocketPattern> openHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<SocketPattern> messageHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<SocketPattern> pongHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<SocketPattern> closeHandlers = new WebRouteMatcher<>();
             socketPatterns.stream()
                     .filter(p -> pathsRequiringHandshake.contains(p.pattern().getPath()))
                     .forEach(p -> {
                         if (WS_OPEN.equals(p.pattern().getMethod())) {
-                            openHandlers.add(p.pattern(), p.executable());
+                            openHandlers.add(p.pattern(), p);
                         }
                         if (WS_MESSAGE.equals(p.pattern().getMethod())) {
-                            messageHandlers.add(p.pattern(), p.executable());
+                            messageHandlers.add(p.pattern(), p);
                         }
                         if (WS_PONG.equals(p.pattern().getMethod())) {
-                            pongHandlers.add(p.pattern(), p.executable());
+                            pongHandlers.add(p.pattern(), p);
                         }
                         if (WS_CLOSE.equals(p.pattern().getMethod())) {
-                            closeHandlers.add(p.pattern(), p.executable());
+                            closeHandlers.add(p.pattern(), p);
                         }
                     });
             Class<?> targetClass = handler.getTargetClass();
@@ -269,7 +369,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                                     .map(WebRouteMatcher.Match::value))
                             .or(() -> closeHandlers.match(WS_CLOSE, context.getOrigin(), context.getRequestPath())
                                     .map(WebRouteMatcher.Match::value))
-                            .map(method -> HandlerInvoker.noOp(targetClass, method))
+                            .map(socketPattern -> noOpInvoker(targetClass, socketPattern))
                             .orElseGet(HandlerInvoker::noOp);
                     return Optional.of(invoker);
                 }
@@ -282,6 +382,48 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             };
         }
         return handler;
+    }
+
+    private HandlerInvoker noOpInvoker(Class<?> targetClass, SocketPattern socketPattern) {
+        if (socketPattern.executable() != null) {
+            return HandlerInvoker.noOp(targetClass, socketPattern.executable());
+        }
+        return new HandlerInvoker() {
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Executable getMethod() {
+                return null;
+            }
+
+            @Override
+            public io.fluxzero.common.handling.ExecutableView getExecutableView() {
+                return socketPattern.executableView();
+            }
+
+            @Override
+            public <A extends Annotation> A getMethodAnnotation() {
+                return null;
+            }
+
+            @Override
+            public boolean expectResult() {
+                return false;
+            }
+
+            @Override
+            public boolean isPassive() {
+                return false;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> resultCombiner) {
+                return null;
+            }
+        };
     }
 
     private Throwable mapHandshakeAuthorizationFailure(Throwable failure, DefaultWebRequestContext context) {
@@ -414,7 +556,15 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
         };
     }
 
-    protected record SocketPattern(Executable executable, WebPattern pattern) {
+    protected record SocketPattern(Executable executable, io.fluxzero.common.handling.ExecutableView executableView,
+                                   WebPattern pattern) {
+        SocketPattern(Executable executable, WebPattern pattern) {
+            this(executable, null, pattern);
+        }
+
+        SocketPattern(io.fluxzero.common.handling.ExecutableView executableView, WebPattern pattern) {
+            this(null, executableView, pattern);
+        }
     }
 
 }

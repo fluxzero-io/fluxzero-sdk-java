@@ -61,6 +61,27 @@ class ComponentRegistryJsonTest {
         }
     }
 
+    @Test
+    void preservesEmptyWebRoutePaths() {
+        AnnotationDescriptor annotation = new AnnotationDescriptor(
+                "HandleWeb", "io.fluxzero.sdk.web.HandleWeb", Map.of("value", List.of("")));
+        ExecutableDescriptor executable = new ExecutableDescriptor(
+                ExecutableKind.METHOD, "web", "java.lang.String", List.of(), List.of(annotation));
+        HandlerRoute route = new HandlerRoute(
+                MessageType.WEBREQUEST, annotation, executable, false, false, false,
+                false, true, Set.of(), Set.of(), List.of(new WebRouteDescriptor(
+                List.of(""), List.of("ANY"), true, true)));
+        ComponentDescriptor component = new ComponentDescriptor(
+                null, null, ComponentKind.CLASS, "io.fluxzero.sdk.registry.json", "RootWebHandler",
+                List.of(), List.of(), List.of(), List.of(executable), Set.of(route), List.of(), null,
+                Set.of(ComponentCapability.HANDLER, ComponentCapability.WEB_REQUEST_HANDLER));
+
+        ComponentRegistry result = ComponentRegistryJson.fromJson(ComponentRegistryJson.toJson(
+                new ComponentRegistry(null, List.of(), List.of(component))));
+
+        assertEquals(List.of(""), result.components().getFirst().routes().getFirst().webRoutes().getFirst().paths());
+    }
+
     static ComponentRegistry registry() {
         AnnotationDescriptor consumerAnnotation = new AnnotationDescriptor(
                 "Consumer", "io.fluxzero.sdk.tracking.Consumer", Map.of("name", List.of("json-consumer")));

@@ -95,6 +95,15 @@ public final class JvmComponentIntrospector implements
      */
     public <T> T asInstance(Object classOrInstance) {
         guardGeneratedOnlyAccess();
+        if (classOrInstance instanceof Class<?> type) {
+            Optional<ExecutableInvocation> generatedConstructor = GeneratedExecutableInvocations.find(
+                    type, InvocationPlanDescriptor.executableId(ExecutableKind.CONSTRUCTOR, "<init>", List.of()));
+            if (generatedConstructor.isPresent()) {
+                @SuppressWarnings("unchecked")
+                T instance = (T) generatedConstructor.get().invoke(null);
+                return instance;
+            }
+        }
         return ReflectionUtils.asInstance(classOrInstance);
     }
 
@@ -331,6 +340,10 @@ public final class JvmComponentIntrospector implements
     @Override
     public <T> Optional<T> readProperty(String propertyPath, Object target) {
         guardGeneratedOnlyAccess();
+        Optional<T> generatedValue = readGeneratedProperty(propertyPath, target);
+        if (generatedValue.isPresent()) {
+            return generatedValue;
+        }
         return ReflectionUtils.readProperty(propertyPath, target);
     }
 
@@ -348,6 +361,9 @@ public final class JvmComponentIntrospector implements
     @Override
     public boolean hasProperty(String propertyPath, Object target) {
         guardGeneratedOnlyAccess();
+        if (hasGeneratedProperty(propertyPath, target)) {
+            return true;
+        }
         return ReflectionUtils.hasProperty(propertyPath, target);
     }
 
@@ -424,7 +440,61 @@ public final class JvmComponentIntrospector implements
     @Override
     public void writeProperty(String propertyPath, Object target, Object value) {
         guardGeneratedOnlyAccess();
+        if (writeGeneratedProperty(propertyPath, target, value)) {
+            return;
+        }
         ReflectionUtils.writeProperty(propertyPath, target, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Optional<T> readGeneratedProperty(String propertyPath, Object target) {
+        if (target == null || propertyPath == null || propertyPath.isBlank()) {
+            return Optional.empty();
+        }
+        int separator = propertyPath.indexOf('.');
+        String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        Optional<Object> value = GeneratedPropertyAccesses.findReader(target.getClass(), propertyName)
+                .map(reader -> reader.read(target));
+        if (value.isEmpty() || separator < 0) {
+            return (Optional<T>) value;
+        }
+        return readGeneratedProperty(propertyPath.substring(separator + 1), value.get());
+    }
+
+    private static boolean hasGeneratedProperty(String propertyPath, Object target) {
+        if (target == null || propertyPath == null || propertyPath.isBlank()) {
+            return false;
+        }
+        int separator = propertyPath.indexOf('.');
+        String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        Optional<GeneratedPropertyAccesses.PropertyReader> reader =
+                GeneratedPropertyAccesses.findReader(target.getClass(), propertyName);
+        if (reader.isEmpty()) {
+            return false;
+        }
+        return separator < 0 || Optional.ofNullable(reader.get().read(target))
+                .map(value -> hasGeneratedProperty(propertyPath.substring(separator + 1), value))
+                .orElse(false);
+    }
+
+    private static boolean writeGeneratedProperty(String propertyPath, Object target, Object value) {
+        if (target == null || propertyPath == null || propertyPath.isBlank()) {
+            return false;
+        }
+        int separator = propertyPath.indexOf('.');
+        String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        if (separator < 0) {
+            return GeneratedPropertyAccesses.findWriter(target.getClass(), propertyName)
+                    .map(writer -> {
+                        writer.write(target, value);
+                        return true;
+                    })
+                    .orElse(false);
+        }
+        return readGeneratedProperty(propertyName, target)
+                .map(nestedTarget -> writeGeneratedProperty(
+                        propertyPath.substring(separator + 1), nestedTarget, value))
+                .orElse(false);
     }
 
     /**

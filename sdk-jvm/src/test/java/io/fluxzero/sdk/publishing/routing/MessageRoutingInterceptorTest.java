@@ -167,9 +167,14 @@ class MessageRoutingInterceptorTest {
 
     @Test
     void generatedOnlyModeDoesNotUseRoutingKeyWithoutRegistryMetadata() {
+        class UnregisteredAnnotationOnField {
+            @RoutingKey
+            private final Object foo = "bar";
+        }
+
         expectedHash = null;
 
-        GeneratedOnlyMetadataMode.run(() -> testInvocation(new AnnotationOnField()));
+        GeneratedOnlyMetadataMode.run(() -> testInvocation(new UnregisteredAnnotationOnField()));
     }
 
     @Test

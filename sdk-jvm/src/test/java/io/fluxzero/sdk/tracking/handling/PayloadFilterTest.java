@@ -48,17 +48,20 @@ class PayloadFilterTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForAllowedClasses() throws Exception {
-        Executable executable = Handler.class.getDeclaredMethod("handle");
+    void generatedOnlyModeUsesGeneratedClasspathMetadataForAllowedClasses() throws Exception {
+        Executable executable = GeneratedClasspathHandler.class.getDeclaredMethod("handle");
         PayloadFilter filter = new PayloadFilter();
 
         GeneratedOnlyMetadataMode.run(() -> {
             MessageFilter<? super HasMessage> prepared =
-                    filter.prepare(executable, HandleCommand.class, Handler.class);
+                    filter.prepare(executable, HandleCommand.class, GeneratedClasspathHandler.class);
 
-            assertTrue(prepared.test(new TestMessage(OtherCommand.class), executable, HandleCommand.class,
-                                     Handler.class));
-            assertTrue(filter.getLeastSpecificAllowedClass(executable, HandleCommand.class).isEmpty());
+            assertTrue(prepared.test(new TestMessage(SpecialCommand.class), executable, HandleCommand.class,
+                                     GeneratedClasspathHandler.class));
+            assertFalse(prepared.test(new TestMessage(OtherCommand.class), executable, HandleCommand.class,
+                                      GeneratedClasspathHandler.class));
+            assertEquals(Command.class, filter.getLeastSpecificAllowedClass(
+                    executable, HandleCommand.class).orElseThrow());
         });
     }
 
@@ -87,6 +90,12 @@ class PayloadFilterTest {
     }
 
     static class Handler {
+        @HandleCommand(allowedClasses = Command.class)
+        void handle() {
+        }
+    }
+
+    static class GeneratedClasspathHandler {
         @HandleCommand(allowedClasses = Command.class)
         void handle() {
         }

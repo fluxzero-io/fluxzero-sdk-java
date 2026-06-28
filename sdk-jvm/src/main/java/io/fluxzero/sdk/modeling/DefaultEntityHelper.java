@@ -20,9 +20,12 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmGeneratedExecutionInstaller;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
@@ -84,6 +87,13 @@ public class DefaultEntityHelper implements EntityHelper {
                 : ComponentMetadataLookups.typeAnnotation(type, Aggregate.class).orElse(defaultAggregateAnnotation);
     }
 
+    /**
+     * Reads a model property through generated metadata first, with JVM reflection fallback only in compatibility mode.
+     */
+    public static Optional<Object> readModelProperty(String propertyPath, Object target) {
+        return ModelMetadata.readProperty(propertyPath, target);
+    }
+
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;
     private final BiFunction<Class<?>, Boolean, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
     private final Function<Class<?>, HandlerMatcher<Object, MessageWithEntity>> assertLegalMatchers;
@@ -115,7 +125,7 @@ public class DefaultEntityHelper implements EntityHelper {
                 .invokeMultipleMethods(true)
                 .samePriorityMethodComparator(DefaultEntityHelper::compareAssertLegalMethods)
                 .executableAnnotationResolver(annotationResolver)
-                .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
+                .executableInvocationBackend(JvmGeneratedExecutionInstaller.executableInvocationBackend())
                 .messageFilter((message, executable, handlerAnnotation, targetClass) ->
                         annotationResolver.getAnnotation(executable, AssertLegal.class)
                                 .map(AssertLegal.class::cast)
@@ -148,29 +158,62 @@ public class DefaultEntityHelper implements EntityHelper {
             boolean checkCompatibility, EntityParameterResolver entityParameterResolver) {
         return HandlerConfiguration.<DeserializingMessageWithEntity>builder().methodAnnotation(Apply.class)
                 .executableAnnotationResolver(MetadataExecutableAnnotationResolver.create())
-                .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
-                .messageFilter((hi, executable, handlerAnnotation, targetClass) -> {
-                    if (executable instanceof Method m && targetClass.isAssignableFrom(hi.getPayloadClass())) {
-                        var entity = hi.getEntity();
-                        var entityType = entity.type();
+                .executableInvocationBackend(JvmGeneratedExecutionInstaller.executableInvocationBackend())
+                .messageFilter(applyMessageFilter(checkCompatibility, entityParameterResolver)).build();
+    }
 
-                        //return type should match entity
-                        Class<?> returnType = m.getReturnType();
-                        if (!entityType.isAssignableFrom(returnType) && !returnType.isAssignableFrom(entityType)
-                            && !returnType.equals(void.class)) {
-                            return false;
-                        }
+    private static MessageFilter<DeserializingMessageWithEntity> applyMessageFilter(
+            boolean checkCompatibility, EntityParameterResolver entityParameterResolver) {
+        return new MessageFilter<>() {
+            @Override
+            public boolean test(DeserializingMessageWithEntity hi, Executable executable,
+                                Class<? extends java.lang.annotation.Annotation> handlerAnnotation,
+                                Class<?> targetClass) {
+                if (executable instanceof Method method && appliesToPayloadTarget(hi, targetClass)) {
+                    return acceptsApplyCandidate(
+                            hi, method.getReturnType(),
+                            Arrays.stream(method.getParameters())
+                                    .anyMatch(p -> entityParameterResolver.matches(p, hi.getEntity())));
+                }
+                return true;
+            }
 
-                        if (entity.isPresent() && explicitlyTargetsOtherEntity(hi.getPayload(), entity)) {
-                            return false;
-                        }
-
-                        //@Apply methods without matching entity parameters should be ignored if the entity is present
-                        return !checkCompatibility || entity.isEmpty() || Arrays.stream(m.getParameters())
-                                .anyMatch(p -> entityParameterResolver.matches(p, entity));
-                    }
+            @Override
+            public boolean test(DeserializingMessageWithEntity hi, ExecutableView executable,
+                                Class<? extends java.lang.annotation.Annotation> handlerAnnotation,
+                                Class<?> targetClass) {
+                if (!appliesToPayloadTarget(hi, targetClass)) {
                     return true;
-                }).build();
+                }
+                ClassLoader loader = targetClass == null ? null : targetClass.getClassLoader();
+                Class<?> returnType = JvmComponentMetadataLookup
+                        .classForMetadataName(executable.returnTypeName(), loader)
+                        .orElse(Object.class);
+                return acceptsApplyCandidate(
+                        hi, returnType,
+                        executable.parameters().stream()
+                                .anyMatch(p -> entityParameterResolver.matches(p, hi.getEntity())));
+            }
+
+            private boolean acceptsApplyCandidate(DeserializingMessageWithEntity hi, Class<?> returnType,
+                                                  boolean hasMatchingEntityParameter) {
+                var entity = hi.getEntity();
+                Class<?> entityType = entity.type();
+                if (!entityType.isAssignableFrom(returnType) && !returnType.isAssignableFrom(entityType)
+                    && !returnType.equals(void.class)) {
+                    return false;
+                }
+                if (entity.isPresent() && explicitlyTargetsOtherEntity(hi.getPayload(), entity)) {
+                    return false;
+                }
+                //@Apply methods without matching entity parameters should be ignored if the entity is present
+                return !checkCompatibility || entity.isEmpty() || hasMatchingEntityParameter;
+            }
+        };
+    }
+
+    private static boolean appliesToPayloadTarget(DeserializingMessageWithEntity hi, Class<?> targetClass) {
+        return targetClass != null && targetClass.isAssignableFrom(hi.getPayloadClass());
     }
 
     private static boolean explicitlyTargetsOtherEntity(Object payload, Entity<?> entity) {

@@ -94,9 +94,27 @@ class ApiDocExtractorTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForApiDocMetadata() {
-        GeneratedOnlyMetadataMode.run(() ->
-                assertTrue(ApiDocExtractor.extract(GeneratedOnlyDocHandler.class).endpoints().isEmpty()));
+    void generatedOnlyModeUsesGeneratedClasspathMetadataForApiDocMetadata() {
+        @Path("/unregistered")
+        @ApiDoc(description = "Unregistered docs")
+        class UnregisteredGeneratedOnlyDocHandler {
+            @ApiDoc(summary = "Find unregistered item")
+            @HandleGet("/items/{id}")
+            ReadingResponse find(@PathParam("id") String id) {
+                return null;
+            }
+        }
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            ApiDocCatalog catalog = ApiDocExtractor.extract(UnregisteredGeneratedOnlyDocHandler.class);
+
+            assertEquals(1, catalog.endpoints().size());
+            ApiDocEndpoint endpoint = catalog.endpoints().getFirst();
+            assertEquals("/unregistered/items/{id}", endpoint.path());
+            assertEquals("Find unregistered item", endpoint.documentation().summary());
+            assertEquals("Unregistered docs", endpoint.documentation().description());
+            assertParameter(endpoint, "id", WebParameterSource.PATH, String.class);
+        });
     }
 
     @Test
@@ -125,10 +143,32 @@ class ApiDocExtractorTest {
 
     @Test
     void generatedOnlyModeUsesRegistryMetadataForAutomaticApiDocEndpoints() throws Exception {
+        @Path("/unregistered-api")
+        @ApiDocInfo(
+                title = "Unregistered API",
+                serveOpenApi = true,
+                openApiPath = "spec.json",
+                serveApiReference = true,
+                apiReferencePath = "reference")
+        class UnregisteredGeneratedOnlyInfoHandler {
+            @ApiDoc
+            @HandleGet("/items")
+            String list() {
+                return "ok";
+            }
+        }
+
         GeneratedOnlyMetadataMode.run(() -> {
-            assertTrue(OpenApiDocumentEndpoint.forHandler(GeneratedOnlyInfoHandler.class,
-                                                          new GeneratedOnlyInfoHandler()).isEmpty());
-            assertTrue(ApiReferenceEndpoint.forHandler(GeneratedOnlyInfoHandler.class).isEmpty());
+            List<OpenApiDocumentEndpoint> documentEndpoints = OpenApiDocumentEndpoint.forHandler(
+                    UnregisteredGeneratedOnlyInfoHandler.class,
+                    new UnregisteredGeneratedOnlyInfoHandler());
+            List<ApiReferenceEndpoint> referenceEndpoints =
+                    ApiReferenceEndpoint.forHandler(UnregisteredGeneratedOnlyInfoHandler.class);
+
+            assertFalse(documentEndpoints.isEmpty());
+            assertFalse(referenceEndpoints.isEmpty());
+            assertEquals("/unregistered-api/spec.json", endpointPath(documentEndpoints.getFirst()));
+            assertEquals("/unregistered-api/reference", endpointPath(referenceEndpoints.getFirst()));
         });
 
         try {

@@ -15,17 +15,17 @@
 package io.fluxzero.sdk.scheduling;
 
 import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
-import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 
 import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,13 +36,17 @@ final class PeriodicMetadata {
     private PeriodicMetadata() {
     }
 
-    static List<Method> scheduleMethods(Class<?> targetClass) {
-        Optional<List<Method>> metadataMethods = ComponentMetadataLookups.lookup(targetClass)
+    static List<ScheduleMethod> scheduleMethods(Class<?> targetClass) {
+        Optional<List<ScheduleMethod>> metadataMethods = ComponentMetadataLookups.lookup(targetClass)
                 .map(lookup -> scheduleMethods(lookup, targetClass));
         if (metadataMethods.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadataMethods.orElseGet(List::of);
         }
-        return JvmComponentIntrospector.getInstance().getAnnotatedMethods(targetClass, HandleSchedule.class);
+        return JvmComponentIntrospector.getInstance().getAnnotatedMethods(targetClass, HandleSchedule.class).stream()
+                .filter(method -> method.getParameterCount() > 0)
+                .map(method -> new ScheduleMethod(
+                        method.toString(), method.getParameters()[0].getType(), executable(method)))
+                .toList();
     }
 
     static Optional<Periodic> executable(Executable executable) {
@@ -57,27 +61,29 @@ final class PeriodicMetadata {
         return ComponentMetadataLookups.typeAnnotation(type, Periodic.class);
     }
 
-    private static List<Method> scheduleMethods(ComponentMetadataLookup lookup, Class<?> targetClass) {
-        List<ExecutableDescriptor> descriptors = lookup.executables(targetClass.getName()).stream()
+    private static List<ScheduleMethod> scheduleMethods(ComponentMetadataLookup lookup, Class<?> targetClass) {
+        return lookup.executables(targetClass.getName()).stream()
                 .filter(descriptor -> descriptor.kind() == ExecutableKind.METHOD)
                 .filter(descriptor -> ComponentMetadataLookups.hasAnnotation(
                         descriptor.annotations(), HandleSchedule.class))
-                .toList();
-        if (descriptors.isEmpty()) {
-            return List.of();
-        }
-        return JvmComponentIntrospector.getInstance().getAllMethods(targetClass).stream()
-                .filter(method -> descriptors.stream().anyMatch(descriptor -> matches(descriptor, method)))
+                .filter(descriptor -> !descriptor.parameters().isEmpty())
+                .flatMap(descriptor -> scheduleMethod(targetClass, descriptor).stream())
                 .toList();
     }
 
-    private static boolean matches(ExecutableDescriptor descriptor, Method method) {
-        return descriptor.name().equals(method.getName())
-               && descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
-                       .equals(List.of(method.getParameterTypes()).stream().map(PeriodicMetadata::typeName).toList());
+    private static Optional<ScheduleMethod> scheduleMethod(Class<?> targetClass, ExecutableDescriptor descriptor) {
+        String payloadTypeName = descriptor.parameters().getFirst().typeName();
+        return JvmComponentMetadataLookup.classForMetadataName(payloadTypeName)
+                .map(payloadType -> new ScheduleMethod(
+                        descriptor.name() + "(" + payloadTypeName + ")",
+                        payloadType,
+                        periodic(descriptor.annotations(), targetClass)));
     }
 
-    private static String typeName(Class<?> type) {
-        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
+    private static Optional<Periodic> periodic(List<AnnotationDescriptor> annotations, Class<?> targetClass) {
+        return ComponentMetadataLookups.annotations(annotations, Periodic.class, targetClass).stream().findFirst();
+    }
+
+    record ScheduleMethod(String description, Class<?> payloadType, Optional<Periodic> periodic) {
     }
 }

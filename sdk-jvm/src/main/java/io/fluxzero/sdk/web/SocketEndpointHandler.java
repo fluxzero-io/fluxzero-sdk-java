@@ -223,7 +223,12 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
                                 targetHandler.getTargetClass());
                         throw e;
                     }
-                    invoker = targetHandler.instantiateTarget().getInvoker(message);
+                    if (targetHandler.isEmpty()) {
+                        throw new IllegalStateException(
+                                "SocketEndpoint of type %s is missing a factory handler method or default constructor."
+                                        .formatted(targetHandler.getTargetClass().getName()));
+                    }
+                    invoker = targetHandler.getInvoker(message);
                 }
                 return invoker.map(HandlerInvoker::invoke).orElse(null);
             } catch (Throwable t) {

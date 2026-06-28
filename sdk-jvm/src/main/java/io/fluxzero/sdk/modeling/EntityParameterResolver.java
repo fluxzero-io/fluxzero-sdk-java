@@ -22,7 +22,7 @@ import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -43,6 +43,8 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -75,6 +77,13 @@ import java.util.function.Supplier;
  * handler methods are present in the same target class.
  */
 public class EntityParameterResolver implements PreparedParameterResolver<Object> {
+
+    private static final List<String> NULLABLE_ANNOTATION_TYPES = List.of(
+            "jakarta.annotation.Nullable",
+            "javax.annotation.Nullable",
+            "org.jetbrains.annotations.Nullable",
+            "org.jspecify.annotations.Nullable",
+            "io.fluxzero.sdk.common.Nullable");
 
     private final boolean checkCompatibility;
     private final ExecutableAnnotationResolver annotationResolver;
@@ -411,7 +420,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         Class<?> eType = entity.type();
         Class<?> pType = getEntityParameterType(parameter);
         return entity.get() == null
-                ? (!checkCompatibility || JvmComponentIntrospector.getInstance().isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
+                ? (!checkCompatibility || isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
                   && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
                 : pType.isAssignableFrom(eType);
     }
@@ -420,48 +429,94 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         Class<?> eType = entity.type();
         Class<?> pType = getEntityParameterType(parameter);
         return entity.get() == null
-                ? (!checkCompatibility || parameter.parameter().map(JvmComponentIntrospector.getInstance()::isNullable)
-                        .orElse(false) || isEntityParameter(parameter))
+                ? (!checkCompatibility || isNullable(parameter) || isEntityParameter(parameter))
                   && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
                 : pType.isAssignableFrom(eType);
     }
 
+    private static boolean isNullable(Parameter parameter) {
+        boolean directAnnotation = Arrays.stream(parameter.getAnnotations())
+                .map(Annotation::annotationType)
+                .anyMatch(EntityParameterResolver::isNullableAnnotation);
+        if (directAnnotation) {
+            return true;
+        }
+        return ComponentMetadataLookups.lookup(parameter.getDeclaringExecutable().getDeclaringClass())
+                .map(lookup -> NULLABLE_ANNOTATION_TYPES.stream()
+                        .map(EntityParameterResolver::annotationType)
+                        .flatMap(Optional::stream)
+                        .anyMatch(annotationType ->
+                                ComponentMetadataLookups.hasParameterAnnotation(lookup, parameter, annotationType)))
+                .orElse(false);
+    }
+
+    private static boolean isNullable(ParameterView parameter) {
+        return parameter.parameter()
+                .map(EntityParameterResolver::isNullable)
+                .orElseGet(() -> NULLABLE_ANNOTATION_TYPES.stream().anyMatch(typeName -> hasAnnotation(parameter, typeName)));
+    }
+
+    private static boolean hasAnnotation(ParameterView parameter, String annotationTypeName) {
+        return annotationType(annotationTypeName)
+                .flatMap(parameter::annotation)
+                .isPresent();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Optional<Class<? extends Annotation>> annotationType(String annotationTypeName) {
+        try {
+            Class<?> type = Class.forName(annotationTypeName);
+            return Annotation.class.isAssignableFrom(type)
+                    ? Optional.of((Class<? extends Annotation>) type) : Optional.empty();
+        } catch (ClassNotFoundException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private static boolean isNullableAnnotation(Class<? extends Annotation> annotationType) {
+        return annotationType.getSimpleName().equals("Nullable") || annotationType.getName().equals("Nullable");
+    }
+
     private Class<?> getEntityParameterType(Parameter parameter) {
         if (Entity.class.equals(parameter.getType())) {
-            Type parameterizedType = parameter.getParameterizedType();
-            if (parameterizedType instanceof ParameterizedType) {
-                Type[] actualTypeArguments = ((ParameterizedType) parameterizedType).getActualTypeArguments();
-                if (actualTypeArguments.length == 1) {
-                    Type actualType = actualTypeArguments[0];
-                    if (actualType instanceof Class<?>) {
-                        return (Class<?>) actualType;
-                    } else if (actualType instanceof WildcardType) {
-                        Type[] lowerBounds = ((WildcardType) actualType).getLowerBounds();
-                        if (lowerBounds.length == 0) {
-                            return Object.class;
-                        } else {
-                            Type lowerBound = lowerBounds[0];
-                            if (lowerBound instanceof Class<?>) {
-                                return (Class<?>) lowerBound;
-                            } else if (lowerBound instanceof ParameterizedType) {
-                                lowerBound = ((ParameterizedType) lowerBound).getRawType();
-                                if (lowerBound instanceof Class<?>) {
-                                    return (Class<?>) lowerBound;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return Object.class;
+            return entityTypeArgument(parameter.getParameterizedType()).orElse(Object.class);
         }
         return parameter.getType();
     }
 
     private Class<?> getEntityParameterType(ParameterView parameter) {
         return parameter.parameter().map(this::getEntityParameterType)
-                .orElseGet(() -> isEntityParameter(parameter) ? Object.class : parameterType(parameter)
+                .orElseGet(() -> isEntityParameter(parameter)
+                        ? parameter.genericType().flatMap(this::entityTypeArgument).orElse(Object.class)
+                        : parameterType(parameter)
                         .orElse(Object.class));
+    }
+
+    private Optional<Class<?>> entityTypeArgument(Type parameterizedType) {
+        if (parameterizedType instanceof ParameterizedType type) {
+            Type[] actualTypeArguments = type.getActualTypeArguments();
+            if (actualTypeArguments.length == 1) {
+                return typeArgumentClass(actualTypeArguments[0]);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Class<?>> typeArgumentClass(Type actualType) {
+        if (actualType instanceof Class<?> type) {
+            return Optional.of(type);
+        }
+        if (actualType instanceof ParameterizedType type && type.getRawType() instanceof Class<?> rawType) {
+            return Optional.of(rawType);
+        }
+        if (actualType instanceof WildcardType wildcardType) {
+            Type[] lowerBounds = wildcardType.getLowerBounds();
+            if (lowerBounds.length == 0) {
+                return Optional.of(Object.class);
+            }
+            return typeArgumentClass(lowerBounds[0]);
+        }
+        return Optional.empty();
     }
 
     private boolean isEntityParameter(ParameterView parameter) {

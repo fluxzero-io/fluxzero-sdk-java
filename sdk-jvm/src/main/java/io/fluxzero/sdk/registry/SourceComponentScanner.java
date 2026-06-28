@@ -54,11 +54,20 @@ public class SourceComponentScanner {
     private static final Set<String> JAVA_LANG_TYPES = Set.of(
             "Boolean", "Byte", "Character", "Class", "Double", "Enum", "Float", "Integer", "Long",
             "Object", "Short", "String", "Throwable", "Void");
+    private static final Set<String> JAVA_LANG_ANNOTATIONS = Set.of(
+            "Deprecated", "FunctionalInterface", "Override", "SafeVarargs", "SuppressWarnings");
     private static final Set<String> PRIMITIVE_TYPES = Set.of(
             "boolean", "byte", "char", "double", "float", "int", "long", "short", "void");
     private static final Set<String> MODIFIERS = Set.of(
             "public", "protected", "private", "abstract", "static", "final", "strictfp", "synchronized",
             "native", "default", "transient", "volatile", "sealed", "non-sealed");
+    private static final Pattern NUMERIC_LITERAL = Pattern.compile("[-+]?\\d[\\d_]*[lL]?");
+    private static final Pattern QUALIFIED_CONSTANT = Pattern.compile(
+            "[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)+");
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_$][\\w$]*");
+    private static final Pattern SOURCE_CONSTANT_DECLARATION = Pattern.compile(
+            "\\b(?=[^;{}]*\\bfinal\\b)(?:public|protected|private|static|final|\\s)+"
+            + "(String|boolean|byte|short|int|long)\\s+([^;]+);");
 
     private static final Map<String, String> KNOWN_ANNOTATIONS = Map.ofEntries(
             entry("RegisterType", "io.fluxzero.common.serialization.RegisterType"),
@@ -68,6 +77,7 @@ public class SourceComponentScanner {
             entry("Stateful", "io.fluxzero.sdk.tracking.handling.Stateful"),
             entry("Association", "io.fluxzero.sdk.tracking.handling.Association"),
             entry("Trigger", "io.fluxzero.sdk.tracking.handling.Trigger"),
+            entry("HandleMessage", "io.fluxzero.sdk.tracking.handling.HandleMessage"),
             entry("HandleCommand", "io.fluxzero.sdk.tracking.handling.HandleCommand"),
             entry("HandleQuery", "io.fluxzero.sdk.tracking.handling.HandleQuery"),
             entry("HandleEvent", "io.fluxzero.sdk.tracking.handling.HandleEvent"),
@@ -135,6 +145,32 @@ public class SourceComponentScanner {
             entry("Timeout", "io.fluxzero.sdk.publishing.Timeout"),
             entry("Periodic", "io.fluxzero.sdk.scheduling.Periodic"),
             entry("ValidateWith", "io.fluxzero.sdk.tracking.handling.validation.ValidateWith"),
+            entry("Constraint", "jakarta.validation.Constraint"),
+            entry("ConvertGroup", "jakarta.validation.groups.ConvertGroup"),
+            entry("GroupSequence", "jakarta.validation.GroupSequence"),
+            entry("Valid", "jakarta.validation.Valid"),
+            entry("AssertFalse", "jakarta.validation.constraints.AssertFalse"),
+            entry("AssertTrue", "jakarta.validation.constraints.AssertTrue"),
+            entry("DecimalMax", "jakarta.validation.constraints.DecimalMax"),
+            entry("DecimalMin", "jakarta.validation.constraints.DecimalMin"),
+            entry("Digits", "jakarta.validation.constraints.Digits"),
+            entry("Email", "jakarta.validation.constraints.Email"),
+            entry("Future", "jakarta.validation.constraints.Future"),
+            entry("FutureOrPresent", "jakarta.validation.constraints.FutureOrPresent"),
+            entry("Max", "jakarta.validation.constraints.Max"),
+            entry("Min", "jakarta.validation.constraints.Min"),
+            entry("Negative", "jakarta.validation.constraints.Negative"),
+            entry("NegativeOrZero", "jakarta.validation.constraints.NegativeOrZero"),
+            entry("NotBlank", "jakarta.validation.constraints.NotBlank"),
+            entry("NotEmpty", "jakarta.validation.constraints.NotEmpty"),
+            entry("NotNull", "jakarta.validation.constraints.NotNull"),
+            entry("Null", "jakarta.validation.constraints.Null"),
+            entry("Past", "jakarta.validation.constraints.Past"),
+            entry("PastOrPresent", "jakarta.validation.constraints.PastOrPresent"),
+            entry("Pattern", "jakarta.validation.constraints.Pattern"),
+            entry("Positive", "jakarta.validation.constraints.Positive"),
+            entry("PositiveOrZero", "jakarta.validation.constraints.PositiveOrZero"),
+            entry("Size", "jakarta.validation.constraints.Size"),
             entry("Length", "io.fluxzero.sdk.tracking.handling.validation.constraints.Length"),
             entry("Range", "io.fluxzero.sdk.tracking.handling.validation.constraints.Range"),
             entry("URL", "io.fluxzero.sdk.tracking.handling.validation.constraints.URL"),
@@ -146,23 +182,11 @@ public class SourceComponentScanner {
             entry("NoUserRequired", "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired"),
             entry("ForbidsUser", "io.fluxzero.sdk.tracking.handling.authentication.ForbidsUser"),
             entry("ForbidsAnyRole", "io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole"));
-    private static final Map<String, AnnotationDescriptor> BUILT_IN_META_ANNOTATIONS = Map.ofEntries(
-            entry("PathParam", webParam("PATH")),
-            entry(KNOWN_ANNOTATIONS.get("PathParam"), webParam("PATH")),
-            entry("QueryParam", webParam("QUERY")),
-            entry(KNOWN_ANNOTATIONS.get("QueryParam"), webParam("QUERY")),
-            entry("HeaderParam", webParam("HEADER")),
-            entry(KNOWN_ANNOTATIONS.get("HeaderParam"), webParam("HEADER")),
-            entry("CookieParam", webParam("COOKIE")),
-            entry(KNOWN_ANNOTATIONS.get("CookieParam"), webParam("COOKIE")),
-            entry("FormParam", webParam("FORM")),
-            entry(KNOWN_ANNOTATIONS.get("FormParam"), webParam("FORM")),
-            entry("BodyParam", webParam("BODY")),
-            entry(KNOWN_ANNOTATIONS.get("BodyParam"), webParam("BODY")),
-            entry("Upcast", castMeta(1)),
-            entry(KNOWN_ANNOTATIONS.get("Upcast"), castMeta(1)),
-            entry("Downcast", castMeta(-1)),
-            entry(KNOWN_ANNOTATIONS.get("Downcast"), castMeta(-1)));
+    private static final Map<String, AnnotationDescriptor> BUILT_IN_META_ANNOTATIONS = builtInMetaAnnotations();
+    private static final Set<String> SOURCE_ONLY_ANNOTATIONS = Set.of(
+            Override.class.getName(),
+            SuppressWarnings.class.getName(),
+            SafeVarargs.class.getName());
 
     private static final Map<String, String> KNOWN_TYPES = Map.ofEntries(
             entry("Cache", "io.fluxzero.common.caching.Cache"),
@@ -206,6 +230,32 @@ public class SourceComponentScanner {
             entry("io.fluxzero.common.caching.Cache", ComponentCapability.CACHE),
             entry("io.fluxzero.common.TaskScheduler", ComponentCapability.TASK_SCHEDULER),
             entry("io.fluxzero.common.application.PropertySource", ComponentCapability.PROPERTY_SOURCE));
+    private static final Map<String, String> KNOWN_CONSTANT_VALUES = Map.ofEntries(
+            entry("Order.HIGHEST_PRECEDENCE", String.valueOf(Integer.MIN_VALUE)),
+            entry("io.fluxzero.sdk.common.Order.HIGHEST_PRECEDENCE", String.valueOf(Integer.MIN_VALUE)),
+            entry("Ordered.HIGHEST_PRECEDENCE", String.valueOf(Integer.MIN_VALUE)),
+            entry("org.springframework.core.Ordered.HIGHEST_PRECEDENCE", String.valueOf(Integer.MIN_VALUE)),
+            entry("HIGHEST_PRECEDENCE", String.valueOf(Integer.MIN_VALUE)),
+            entry("Integer.MIN_VALUE", String.valueOf(Integer.MIN_VALUE)),
+            entry("java.lang.Integer.MIN_VALUE", String.valueOf(Integer.MIN_VALUE)),
+            entry("Order.LOWEST_PRECEDENCE", String.valueOf(Integer.MAX_VALUE)),
+            entry("io.fluxzero.sdk.common.Order.LOWEST_PRECEDENCE", String.valueOf(Integer.MAX_VALUE)),
+            entry("Ordered.LOWEST_PRECEDENCE", String.valueOf(Integer.MAX_VALUE)),
+            entry("org.springframework.core.Ordered.LOWEST_PRECEDENCE", String.valueOf(Integer.MAX_VALUE)),
+            entry("LOWEST_PRECEDENCE", String.valueOf(Integer.MAX_VALUE)),
+            entry("Integer.MAX_VALUE", String.valueOf(Integer.MAX_VALUE)),
+            entry("java.lang.Integer.MAX_VALUE", String.valueOf(Integer.MAX_VALUE)),
+            entry("ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES", String.valueOf(100L * 1024L * 1024L)),
+            entry("io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES",
+                  String.valueOf(100L * 1024L * 1024L)),
+            entry("DEFAULT_MAX_FETCH_BYTES", String.valueOf(100L * 1024L * 1024L)),
+            entry("ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES", "-1"),
+            entry("io.fluxzero.sdk.tracking.ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES", "-1"),
+            entry("USE_DEFAULT_MAX_FETCH_BYTES", "-1"),
+            entry("Long.MAX_VALUE", String.valueOf(Long.MAX_VALUE)),
+            entry("java.lang.Long.MAX_VALUE", String.valueOf(Long.MAX_VALUE)),
+            entry("Long.MIN_VALUE", String.valueOf(Long.MIN_VALUE)),
+            entry("java.lang.Long.MIN_VALUE", String.valueOf(Long.MIN_VALUE)));
 
     private static final Map<String, HandlerSpec> HANDLERS = Map.ofEntries(
             entry("HandleCommand", new HandlerSpec(MessageType.COMMAND, false, false, false, List.of(), false, false)),
@@ -256,7 +306,7 @@ public class SourceComponentScanner {
             sources = enrichMetaAnnotations(sources);
             List<String> allTypeNames = sources.stream()
                     .flatMap(source -> source.types().stream())
-                    .map(TypeInfo::fullClassName)
+                    .map(TypeInfo::canonicalFullClassName)
                     .sorted()
                     .toList();
             Map<String, PackageInfo> packages = packageInfos(sources);
@@ -329,19 +379,37 @@ public class SourceComponentScanner {
 
     private TypeInfo enrichType(TypeInfo type, Map<String, List<AnnotationDescriptor>> metaAnnotations) {
         return new TypeInfo(
-                type.kind(), type.packageName(), type.className(), type.superTypeNames(),
+                type.kind(), type.packageName(), type.className(), type.canonicalName(), type.superTypeNames(),
                 enrichAnnotations(type.annotations(), metaAnnotations, new LinkedHashSet<>()),
+                type.enclosingAnnotations().stream()
+                        .map(annotations -> enrichAnnotations(annotations, metaAnnotations, new LinkedHashSet<>()))
+                        .toList(),
                 type.properties().stream().map(property -> new PropertyDescriptor(
                         property.name(), property.typeName(), property.genericTypeName(),
-                        enrichAnnotations(property.annotations(), metaAnnotations, new LinkedHashSet<>()))).toList(),
+                        enrichAnnotations(property.annotations(), metaAnnotations, new LinkedHashSet<>()),
+                        enrichTypeUse(property.typeUse(), metaAnnotations))).toList(),
                 type.executables().stream().map(executable -> new ExecutableDescriptor(
                         executable.kind(), executable.name(), executable.returnTypeName(),
+                        enrichTypeUse(executable.returnTypeUse(), metaAnnotations),
                         executable.parameters().stream().map(parameter -> new ParameterDescriptor(
                                 parameter.name(), parameter.typeName(),
-                                enrichAnnotations(parameter.annotations(), metaAnnotations, new LinkedHashSet<>())))
+                                enrichAnnotations(parameter.annotations(), metaAnnotations, new LinkedHashSet<>()),
+                                enrichTypeUse(parameter.typeUse(), metaAnnotations)))
                                 .toList(),
                         enrichAnnotations(executable.annotations(), metaAnnotations, new LinkedHashSet<>()),
                         executable.isStatic())).toList());
+    }
+
+    private TypeUseDescriptor enrichTypeUse(
+            TypeUseDescriptor typeUse, Map<String, List<AnnotationDescriptor>> metaAnnotations) {
+        if (typeUse == null || typeUse.equals(TypeUseDescriptor.EMPTY)) {
+            return typeUse;
+        }
+        return new TypeUseDescriptor(
+                typeUse.typeName(),
+                enrichAnnotations(typeUse.annotations(), metaAnnotations, new LinkedHashSet<>()),
+                typeUse.typeArguments().stream().map(argument -> enrichTypeUse(argument, metaAnnotations)).toList(),
+                enrichTypeUse(typeUse.componentType(), metaAnnotations));
     }
 
     private static List<AnnotationDescriptor> enrichAnnotations(
@@ -374,6 +442,62 @@ public class SourceComponentScanner {
         return new AnnotationDescriptor(
                 "WebParam", KNOWN_ANNOTATIONS.get("WebParam"),
                 Map.of("type", List.of(source), "value", List.of("")));
+    }
+
+    private static Map<String, AnnotationDescriptor> builtInMetaAnnotations() {
+        Map<String, AnnotationDescriptor> result = new LinkedHashMap<>();
+        addMetaAnnotation(result, "PathParam", webParam("PATH"));
+        addMetaAnnotation(result, "QueryParam", webParam("QUERY"));
+        addMetaAnnotation(result, "HeaderParam", webParam("HEADER"));
+        addMetaAnnotation(result, "CookieParam", webParam("COOKIE"));
+        addMetaAnnotation(result, "FormParam", webParam("FORM"));
+        addMetaAnnotation(result, "BodyParam", webParam("BODY"));
+        addMetaAnnotation(result, "Upcast", castMeta(1));
+        addMetaAnnotation(result, "Downcast", castMeta(-1));
+        addMetaAnnotation(result, "HandleCommand", handleMessageMeta(MessageType.COMMAND));
+        addMetaAnnotation(result, "HandleQuery", handleMessageMeta(MessageType.QUERY));
+        addMetaAnnotation(result, "HandleEvent", handleMessageMeta(MessageType.EVENT));
+        addMetaAnnotation(result, "HandleNotification", handleMessageMeta(MessageType.NOTIFICATION));
+        addMetaAnnotation(result, "HandleError", handleMessageMeta(MessageType.ERROR));
+        addMetaAnnotation(result, "HandleMetrics", handleMessageMeta(MessageType.METRICS));
+        addMetaAnnotation(result, "HandleResult", handleMessageMeta(MessageType.RESULT));
+        addMetaAnnotation(result, "HandleCustom", handleMessageMeta(MessageType.CUSTOM));
+        addMetaAnnotation(result, "HandleDocument", handleMessageMeta(MessageType.DOCUMENT));
+        addMetaAnnotation(result, "HandleSchedule", handleMessageMeta(MessageType.SCHEDULE));
+        addMetaAnnotation(result, "HandleWebResponse", handleMessageMeta(MessageType.WEBRESPONSE));
+        addMetaAnnotation(result, "HandleWeb", handleMessageMeta(MessageType.WEBREQUEST));
+        addMetaAnnotation(result, "HandleGet", handleWebMeta("GET"));
+        addMetaAnnotation(result, "HandlePost", handleWebMeta("POST"));
+        addMetaAnnotation(result, "HandlePut", handleWebMeta("PUT"));
+        addMetaAnnotation(result, "HandlePatch", handleWebMeta("PATCH"));
+        addMetaAnnotation(result, "HandleDelete", handleWebMeta("DELETE"));
+        addMetaAnnotation(result, "HandleHead", handleWebMeta("HEAD"));
+        addMetaAnnotation(result, "HandleOptions", handleWebMeta("OPTIONS"));
+        addMetaAnnotation(result, "HandleTrace", handleWebMeta("TRACE"));
+        addMetaAnnotation(result, "HandleSocketHandshake", handleWebMeta("WS_HANDSHAKE"));
+        addMetaAnnotation(result, "HandleSocketOpen", handleWebMeta("WS_OPEN"));
+        addMetaAnnotation(result, "HandleSocketMessage", handleWebMeta("WS_MESSAGE"));
+        addMetaAnnotation(result, "HandleSocketPong", handleWebMeta("WS_PONG"));
+        addMetaAnnotation(result, "HandleSocketClose", handleWebMeta("WS_CLOSE"));
+        return Map.copyOf(result);
+    }
+
+    private static void addMetaAnnotation(
+            Map<String, AnnotationDescriptor> result, String annotationName, AnnotationDescriptor metaAnnotation) {
+        result.put(annotationName, metaAnnotation);
+        result.put(KNOWN_ANNOTATIONS.get(annotationName), metaAnnotation);
+    }
+
+    private static AnnotationDescriptor handleMessageMeta(MessageType messageType) {
+        return new AnnotationDescriptor(
+                "HandleMessage", KNOWN_ANNOTATIONS.get("HandleMessage"),
+                Map.of("value", List.of(messageType.name())));
+    }
+
+    private static AnnotationDescriptor handleWebMeta(String method) {
+        return new AnnotationDescriptor(
+                "HandleWeb", KNOWN_ANNOTATIONS.get("HandleWeb"),
+                Map.of("value", List.of(""), "method", List.of(method)));
     }
 
     private static AnnotationDescriptor castMeta(int revisionDelta) {
@@ -423,7 +547,8 @@ public class SourceComponentScanner {
     private ComponentDescriptor componentDescriptor(ParsedSource source, TypeInfo type,
                                                    Map<String, PackageInfo> packageInfos, List<String> allTypeNames) {
         PackageInfo packageInfo = effectivePackageInfo(source.packageName(), packageInfos);
-        List<RegisteredTypeDescriptor> registeredTypes = registeredTypes(type.annotations(), type.fullClassName(), allTypeNames);
+        List<RegisteredTypeDescriptor> registeredTypes =
+                registeredTypes(type.annotations(), type.canonicalFullClassName(), allTypeNames);
         ConsumerDescriptor consumer = consumerDescriptor(type.annotations())
                 .orElse(packageInfo == null ? null : packageInfo.consumer());
         LocalHandlerConfig typeLocalHandler = localHandlerConfig(type.annotations()).orElse(null);
@@ -452,7 +577,7 @@ public class SourceComponentScanner {
                 Set<String> payloadTypes = !allowedClasses.isEmpty() ? allowedClasses
                         : spec.web() ? Set.of()
                         : firstPayloadType(executable).map(Set::of)
-                                .orElseGet(() -> selfHandler ? Set.of(type.fullClassName()) : Set.of());
+                                .orElseGet(() -> selfHandler ? Set.of(type.canonicalFullClassName()) : Set.of());
                 routes.add(new HandlerRoute(
                         spec.messageType(), annotation, executable, disabled, passive, skipExpiredRequests,
                         local, tracked, payloadTypes, allowedClasses,
@@ -518,6 +643,11 @@ public class SourceComponentScanner {
                                                Map<String, PackageInfo> packageInfos, TypeInfo type,
                                                ExecutableDescriptor executable) {
         List<String> packagePaths = packagePaths(type.packageName(), packageInfos);
+        List<String> rootPaths = new ArrayList<>(packagePaths);
+        for (List<AnnotationDescriptor> enclosingAnnotations : type.enclosingAnnotations()) {
+            WebRoutePaths.pathValue(enclosingAnnotations, simplePackageName(type.packageName()))
+                    .ifPresent(rootPaths::add);
+        }
         Optional<String> typePath = WebRoutePaths.pathValue(type.annotations(), simplePackageName(type.packageName()));
         Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), type.className());
         List<String> handlerPaths = annotation.values("value");
@@ -526,7 +656,7 @@ public class SourceComponentScanner {
                 ? annotation.values("method") : spec.webMethods();
         boolean autoHead = annotation.booleanValue("autoHead", spec.defaultAutoHead());
         boolean autoOptions = annotation.booleanValue("autoOptions", spec.defaultAutoOptions());
-        List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
+        List<String> paths = WebRoutePaths.paths(rootPaths, typePath, methodPath, handlerPaths);
         return List.of(new WebRouteDescriptor(paths, methods, autoHead, autoOptions));
     }
 
@@ -567,6 +697,7 @@ public class SourceComponentScanner {
     }
 
     private static Set<ComponentCapability> infrastructureCapabilities(String typeName) {
+        typeName = eraseGeneric(typeName);
         if ("io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer".equals(typeName)) {
             return Set.of(ComponentCapability.SERIALIZER, ComponentCapability.DOCUMENT_SERIALIZER);
         }
@@ -708,11 +839,16 @@ public class SourceComponentScanner {
     private record AnnotationTypeInfo(String simpleName, String qualifiedName, List<AnnotationDescriptor> annotations) {
     }
 
-    private record TypeInfo(ComponentKind kind, String packageName, String className, List<String> superTypeNames,
-                            List<AnnotationDescriptor> annotations, List<PropertyDescriptor> properties,
-                            List<ExecutableDescriptor> executables) {
+    private record TypeInfo(ComponentKind kind, String packageName, String className, String canonicalName,
+                            List<String> superTypeNames, List<AnnotationDescriptor> annotations,
+                            List<List<AnnotationDescriptor>> enclosingAnnotations,
+                            List<PropertyDescriptor> properties, List<ExecutableDescriptor> executables) {
         String fullClassName() {
             return packageName.isBlank() ? className : packageName + "." + className;
+        }
+
+        String canonicalFullClassName() {
+            return packageName.isBlank() ? canonicalName : packageName + "." + canonicalName;
         }
     }
 
@@ -722,6 +858,8 @@ public class SourceComponentScanner {
         private final String packageName;
         private final Map<String, String> imports;
         private final List<String> wildcardImports;
+        private final Map<String, String> localTypes;
+        private final Map<String, String> sourceConstants;
 
         SourceParser(Path sourceFile, String source) {
             this.sourceFile = sourceFile;
@@ -729,6 +867,8 @@ public class SourceComponentScanner {
             this.packageName = first(PACKAGE_PATTERN, this.source).orElse("");
             this.imports = imports(this.source);
             this.wildcardImports = wildcardImports(this.source);
+            this.localTypes = localTypes();
+            this.sourceConstants = sourceConstants();
         }
 
         ParsedSource parse() {
@@ -746,51 +886,117 @@ public class SourceComponentScanner {
         }
 
         private List<TypeInfo> parseTypes() {
+            return parseTypes(0, source.length(), null, null, List.of());
+        }
+
+        private List<TypeInfo> parseTypes(
+                int rangeStart, int rangeEnd, String enclosingBinaryName, String enclosingCanonicalName,
+                List<List<AnnotationDescriptor>> enclosingAnnotations) {
             List<TypeInfo> types = new ArrayList<>();
             Matcher matcher = TYPE_PATTERN.matcher(source);
+            matcher.region(rangeStart, rangeEnd);
             while (matcher.find()) {
                 if (matcher.start() > 0 && source.charAt(matcher.start() - 1) == '@'
-                    || insideAnnotation(matcher.start()) || !isTopLevel(matcher.start())) {
+                    || insideAnnotation(matcher.start()) || memberDepth(rangeStart, matcher.start()) != 0) {
                     continue;
                 }
                 ComponentKind kind = ComponentKind.valueOf(matcher.group(1).toUpperCase(Locale.ROOT));
-                String className = matcher.group(2);
-                int bodyStart = source.indexOf('{', matcher.end());
-                if (bodyStart < 0) {
+                String simpleName = matcher.group(2);
+                String className = enclosingBinaryName == null ? simpleName : enclosingBinaryName + "$" + simpleName;
+                String canonicalName = enclosingCanonicalName == null
+                        ? simpleName : enclosingCanonicalName + "." + simpleName;
+                int bodyStart = findTypeBodyStart(matcher.end(), rangeEnd);
+                if (bodyStart < 0 || bodyStart >= rangeEnd) {
                     continue;
                 }
                 int bodyEnd = matching(source, bodyStart, '{', '}');
-                if (bodyEnd < 0) {
-                    bodyEnd = source.length() - 1;
+                if (bodyEnd < 0 || bodyEnd > rangeEnd) {
+                    bodyEnd = rangeEnd;
                 }
                 List<AnnotationDescriptor> annotations = parseAnnotations(annotationsBefore(matcher.start()));
                 String declarationTail = source.substring(matcher.end(), bodyStart);
                 List<String> superTypeNames = parseSuperTypeNames(declarationTail);
-                List<PropertyDescriptor> properties = parseProperties(kind, declarationTail, bodyStart, bodyEnd);
-                List<ExecutableDescriptor> executables = parseExecutables(className, bodyStart, bodyEnd);
-                types.add(new TypeInfo(kind, packageName, className, superTypeNames, annotations, properties, executables));
+                List<ExecutableDescriptor> executables = parseExecutables(simpleName, kind, bodyStart, bodyEnd);
+                List<PropertyDescriptor> properties = mergeExecutableProperties(
+                        parseProperties(kind, declarationTail, bodyStart, bodyEnd), executables);
+                types.add(new TypeInfo(
+                        kind, packageName, className, canonicalName, superTypeNames, annotations,
+                        List.copyOf(enclosingAnnotations), properties, executables));
+                List<List<AnnotationDescriptor>> childEnclosingAnnotations = new ArrayList<>(enclosingAnnotations);
+                childEnclosingAnnotations.add(annotations);
+                types.addAll(parseTypes(
+                        bodyStart + 1, bodyEnd, className, canonicalName,
+                        List.copyOf(childEnclosingAnnotations)));
             }
             return types;
         }
 
         private List<AnnotationTypeInfo> parseAnnotationTypes() {
+            List<AnnotationTypeInfo> result = new ArrayList<>(parseAnnotationTypes(0, source.length(), null));
+            collectAnnotationTypesInTypeBodies(0, source.length(), null, result);
+            return result;
+        }
+
+        private List<AnnotationTypeInfo> parseAnnotationTypes(
+                int rangeStart, int rangeEnd, String enclosingCanonicalName) {
             List<AnnotationTypeInfo> types = new ArrayList<>();
             Matcher matcher = ANNOTATION_TYPE_PATTERN.matcher(source);
+            matcher.region(rangeStart, rangeEnd);
             while (matcher.find()) {
-                if (insideAnnotation(matcher.start()) || !isTopLevel(matcher.start())) {
+                if (insideAnnotation(matcher.start()) || memberDepth(rangeStart, matcher.start()) != 0) {
                     continue;
                 }
                 String simpleName = matcher.group(1);
+                String canonicalName = enclosingCanonicalName == null
+                        ? simpleName : enclosingCanonicalName + "." + simpleName;
                 List<AnnotationDescriptor> annotations = parseAnnotations(annotationsBefore(matcher.start()));
-                String qualifiedName = packageName.isBlank() ? simpleName : packageName + "." + simpleName;
+                String qualifiedName = packageName.isBlank() ? canonicalName : packageName + "." + canonicalName;
                 types.add(new AnnotationTypeInfo(simpleName, qualifiedName, annotations));
+                int bodyStart = findTypeBodyStart(matcher.end(), rangeEnd);
+                if (bodyStart < 0 || bodyStart >= rangeEnd) {
+                    continue;
+                }
+                int bodyEnd = matching(source, bodyStart, '{', '}');
+                if (bodyEnd < 0 || bodyEnd > rangeEnd) {
+                    bodyEnd = rangeEnd;
+                }
+                types.addAll(parseAnnotationTypes(bodyStart + 1, bodyEnd, canonicalName));
             }
             return types;
         }
 
+        private void collectAnnotationTypesInTypeBodies(
+                int rangeStart, int rangeEnd, String enclosingCanonicalName, List<AnnotationTypeInfo> result) {
+            Matcher matcher = TYPE_PATTERN.matcher(source);
+            matcher.region(rangeStart, rangeEnd);
+            while (matcher.find()) {
+                if (matcher.start() > 0 && source.charAt(matcher.start() - 1) == '@'
+                    || insideAnnotation(matcher.start()) || memberDepth(rangeStart, matcher.start()) != 0) {
+                    continue;
+                }
+                String simpleName = matcher.group(2);
+                String canonicalName = enclosingCanonicalName == null
+                        ? simpleName : enclosingCanonicalName + "." + simpleName;
+                int bodyStart = findTypeBodyStart(matcher.end(), rangeEnd);
+                if (bodyStart < 0 || bodyStart >= rangeEnd) {
+                    continue;
+                }
+                int bodyEnd = matching(source, bodyStart, '{', '}');
+                if (bodyEnd < 0 || bodyEnd > rangeEnd) {
+                    bodyEnd = rangeEnd;
+                }
+                result.addAll(parseAnnotationTypes(bodyStart + 1, bodyEnd, canonicalName));
+                collectAnnotationTypesInTypeBodies(bodyStart + 1, bodyEnd, canonicalName, result);
+            }
+        }
+
         private boolean isTopLevel(int offset) {
+            return memberDepth(0, offset) == 0;
+        }
+
+        private int memberDepth(int rangeStart, int offset) {
             int depth = 0;
-            for (int i = 0; i < offset; i++) {
+            for (int i = rangeStart; i < offset; i++) {
                 char c = source.charAt(i);
                 if (c == '"' || c == '\'') {
                     i = skipQuoted(source, i);
@@ -800,7 +1006,7 @@ public class SourceComponentScanner {
                     depth = Math.max(0, depth - 1);
                 }
             }
-            return depth == 0;
+            return depth;
         }
 
         private List<String> parseSuperTypeNames(String declarationTail) {
@@ -824,9 +1030,9 @@ public class SourceComponentScanner {
             int end = nextKeywordIndex(declarationTail, start);
             String segment = declarationTail.substring(start, end < 0 ? declarationTail.length() : end);
             for (String type : splitTopLevel(segment, ',')) {
-                String erased = eraseGeneric(type.trim());
-                if (!erased.isBlank()) {
-                    sink.add(resolveType(erased));
+                String genericType = resolveGenericType(type.trim());
+                if (!genericType.isBlank()) {
+                    sink.add(genericType);
                 }
             }
         }
@@ -868,9 +1074,6 @@ public class SourceComponentScanner {
                 if (end > at) {
                     return true;
                 }
-                if (!source.substring(end, at).isBlank()) {
-                    return false;
-                }
             }
             return false;
         }
@@ -897,7 +1100,8 @@ public class SourceComponentScanner {
             return result.trim();
         }
 
-        private List<ExecutableDescriptor> parseExecutables(String className, int bodyStart, int bodyEnd) {
+        private List<ExecutableDescriptor> parseExecutables(
+                String className, ComponentKind kind, int bodyStart, int bodyEnd) {
             List<ExecutableDescriptor> result = new ArrayList<>();
             int memberStart = bodyStart + 1;
             int i = memberStart;
@@ -930,7 +1134,27 @@ public class SourceComponentScanner {
                 }
                 i++;
             }
+            if (kind == ComponentKind.CLASS && result.stream()
+                    .noneMatch(executable -> executable.kind() == ExecutableKind.CONSTRUCTOR)) {
+                result.add(new ExecutableDescriptor(
+                        ExecutableKind.CONSTRUCTOR, "<init>", "void", List.of(), List.of(), false));
+            }
             return result;
+        }
+
+        private List<PropertyDescriptor> mergeExecutableProperties(
+                List<PropertyDescriptor> properties, List<ExecutableDescriptor> executables) {
+            Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
+            properties.forEach(property -> result.put(property.name(), property));
+            executables.stream()
+                    .filter(executable -> executable.kind() == ExecutableKind.METHOD)
+                    .filter(executable -> executable.parameters().isEmpty())
+                    .filter(executable -> !"void".equals(executable.returnTypeName()))
+                    .filter(executable -> !executable.annotations().isEmpty())
+                    .forEach(executable -> result.putIfAbsent(executable.name(), new PropertyDescriptor(
+                            executable.name(), executable.returnTypeName(), executable.returnTypeName(),
+                            executable.annotations(), executable.returnTypeUse())));
+            return List.copyOf(result.values());
         }
 
         private List<PropertyDescriptor> parseProperties(ComponentKind kind, String declarationTail,
@@ -943,7 +1167,7 @@ public class SourceComponentScanner {
                     parseParameters(tail.substring(1, end)).stream()
                             .map(parameter -> new PropertyDescriptor(
                                     parameter.name(), parameter.typeName(), parameter.typeName(),
-                                    parameter.annotations()))
+                                    parameter.annotations(), parameter.typeUse()))
                             .forEach(property -> result.put(property.name(), property));
                 }
             }
@@ -981,13 +1205,16 @@ public class SourceComponentScanner {
         }
 
         private Optional<PropertyDescriptor> parseProperty(String header) {
-            if (header.isBlank() || header.contains("(")) {
+            if (header.isBlank()) {
                 return Optional.empty();
             }
             int equals = topLevelIndexOf(header, '=');
             String declaration = equals < 0 ? header : header.substring(0, equals);
-            List<AnnotationDescriptor> annotations = parseAnnotations(declaration);
+            List<AnnotationDescriptor> annotations = parseAnnotations(leadingAnnotationText(declaration));
             String cleaned = removeAnnotations(declaration).trim();
+            if (cleaned.contains("(")) {
+                return Optional.empty();
+            }
             List<String> tokens = words(cleaned);
             tokens.removeIf(MODIFIERS::contains);
             if (tokens.size() < 2) {
@@ -1006,12 +1233,109 @@ public class SourceComponentScanner {
                 return Optional.empty();
             }
             String genericTypeName = resolveGenericType(type);
+            TypeUseDescriptor typeUse = parseTypeUse(declaration.substring(0, declaration.lastIndexOf(name)).trim());
             return Optional.of(new PropertyDescriptor(
-                    name, resolveType(eraseGeneric(type.replace("[]", ""))), genericTypeName, annotations));
+                    name, resolveErasedType(type), genericTypeName, annotations, typeUse));
+        }
+
+        private String leadingAnnotationText(String declaration) {
+            int index = 0;
+            while (index < declaration.length()) {
+                index = skipWhitespace(declaration, index);
+                if (index >= declaration.length() || declaration.charAt(index) != '@') {
+                    break;
+                }
+                int nameStart = index + 1;
+                int nameEnd = nameStart;
+                while (nameEnd < declaration.length()
+                       && (Character.isJavaIdentifierPart(declaration.charAt(nameEnd))
+                           || declaration.charAt(nameEnd) == '.')) {
+                    nameEnd++;
+                }
+                if (nameEnd == nameStart) {
+                    break;
+                }
+                int next = skipWhitespace(declaration, nameEnd);
+                if (next < declaration.length() && declaration.charAt(next) == '(') {
+                    int end = matching(declaration, next, '(', ')');
+                    if (end < 0) {
+                        break;
+                    }
+                    index = end + 1;
+                } else {
+                    index = nameEnd;
+                }
+            }
+            return declaration.substring(0, index);
+        }
+
+        private TypeUseDescriptor parseTypeUse(String typeText) {
+            typeText = stripLeadingAnnotationsAndModifiers(typeText);
+            if (typeText.isBlank()) {
+                return TypeUseDescriptor.EMPTY;
+            }
+            String typeName = resolveErasedType(removeAnnotations(typeText));
+            int genericStart = typeText.indexOf('<');
+            if (genericStart < 0) {
+                return new TypeUseDescriptor(typeName, List.of());
+            }
+            int genericEnd = matching(typeText, genericStart, '<', '>');
+            if (genericEnd < 0) {
+                return new TypeUseDescriptor(typeName, List.of());
+            }
+            List<TypeUseDescriptor> arguments = splitTopLevel(typeText.substring(genericStart + 1, genericEnd), ',')
+                    .stream()
+                    .map(this::parseTypeArgumentUse)
+                    .toList();
+            return new TypeUseDescriptor(typeName, List.of(), arguments, null);
+        }
+
+        private TypeUseDescriptor parseTypeArgumentUse(String typeText) {
+            typeText = typeText.trim();
+            List<AnnotationDescriptor> annotations = parseAnnotations(leadingAnnotationText(typeText));
+            String cleaned = stripLeadingAnnotationsAndModifiers(typeText)
+                    .replaceFirst("^\\?\\s+extends\\s+", "")
+                    .replaceFirst("^\\?\\s+super\\s+", "")
+                    .replace("?", "java.lang.Object")
+                    .trim();
+            String typeName = resolveErasedType(removeAnnotations(cleaned));
+            int genericStart = cleaned.indexOf('<');
+            if (genericStart < 0) {
+                return new TypeUseDescriptor(typeName, annotations);
+            }
+            int genericEnd = matching(cleaned, genericStart, '<', '>');
+            List<TypeUseDescriptor> arguments = genericEnd < 0 ? List.of()
+                    : splitTopLevel(cleaned.substring(genericStart + 1, genericEnd), ',').stream()
+                            .map(this::parseTypeArgumentUse)
+                            .toList();
+            return new TypeUseDescriptor(typeName, annotations, arguments, null);
+        }
+
+        private String stripLeadingAnnotationsAndModifiers(String value) {
+            String result = removeLeadingAnnotations(value).trim();
+            boolean changed;
+            do {
+                changed = false;
+                for (String modifier : MODIFIERS) {
+                    if (result.equals(modifier) || result.startsWith(modifier + " ")) {
+                        result = result.substring(modifier.length()).trim();
+                        changed = true;
+                    }
+                }
+                result = removeLeadingAnnotations(result).trim();
+            } while (changed);
+            return result;
+        }
+
+        private String removeLeadingAnnotations(String value) {
+            int annotationEnd = leadingAnnotationText(value).length();
+            return value.substring(annotationEnd);
         }
 
         private Optional<ExecutableDescriptor> parseExecutable(String header, String className) {
-            if (header.isBlank() || !header.contains("(") || topLevelIndexOf(removeAnnotations(header), '=') >= 0) {
+            String structuralHeader = removeAnnotations(header).trim();
+            if (header.isBlank() || !structuralHeader.contains("(") || topLevelIndexOf(structuralHeader, '=') >= 0
+                || structuralTypeDeclaration(structuralHeader)) {
                 return Optional.empty();
             }
             int paren = lastTopLevel(header, '(');
@@ -1027,17 +1351,43 @@ public class SourceComponentScanner {
                 return Optional.empty();
             }
             int nameStart = previousIdentifierStart(header, paren);
-            List<AnnotationDescriptor> annotations = parseAnnotations(header.substring(0, nameStart));
-            String signaturePrefix = removeAnnotations(header.substring(0, nameStart)).trim();
+            String prefix = header.substring(0, nameStart);
+            List<AnnotationDescriptor> annotations = parseAnnotations(leadingAnnotationText(prefix));
+            String signaturePrefix = removeAnnotations(prefix).trim();
             List<String> prefixTokens = words(signaturePrefix);
             boolean isStatic = prefixTokens.contains("static");
-            prefixTokens.removeIf(MODIFIERS::contains);
-            prefixTokens.removeIf(token -> token.startsWith("<") && token.endsWith(">"));
             ExecutableKind kind = name.equals(className) ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
+            String returnTypeSource = executableReturnTypeSource(prefix);
             String returnType = kind == ExecutableKind.CONSTRUCTOR || prefixTokens.isEmpty()
-                    ? "void" : resolveType(eraseGeneric(prefixTokens.get(prefixTokens.size() - 1)));
+                    ? "void" : resolveErasedType(removeAnnotations(returnTypeSource));
+            TypeUseDescriptor returnTypeUse = kind == ExecutableKind.CONSTRUCTOR
+                    ? TypeUseDescriptor.EMPTY : parseTypeUse(returnTypeSource);
             List<ParameterDescriptor> parameters = parseParameters(header.substring(paren + 1, paramEnd));
-            return Optional.of(new ExecutableDescriptor(kind, name, returnType, parameters, annotations, isStatic));
+            return Optional.of(new ExecutableDescriptor(
+                    kind, name, returnType, returnTypeUse, parameters, annotations, isStatic));
+        }
+
+        private String executableReturnTypeSource(String prefix) {
+            String result = removeLeadingAnnotations(prefix).trim();
+            boolean changed;
+            do {
+                changed = false;
+                for (String modifier : MODIFIERS) {
+                    if (result.equals(modifier) || result.startsWith(modifier + " ")) {
+                        result = result.substring(modifier.length()).trim();
+                        changed = true;
+                    }
+                }
+                if (result.startsWith("<")) {
+                    int end = matching(result, 0, '<', '>');
+                    if (end >= 0) {
+                        result = result.substring(end + 1).trim();
+                        changed = true;
+                    }
+                }
+                result = removeLeadingAnnotations(result).trim();
+            } while (changed);
+            return result;
         }
 
         private List<ParameterDescriptor> parseParameters(String parameters) {
@@ -1047,20 +1397,63 @@ public class SourceComponentScanner {
                 if (trimmed.isBlank()) {
                     continue;
                 }
-                List<AnnotationDescriptor> annotations = parseAnnotations(trimmed);
+                List<AnnotationDescriptor> annotations = parseAnnotations(leadingAnnotationText(trimmed));
                 String cleaned = removeAnnotations(trimmed).replace("final ", "").trim();
                 String name = lastIdentifier(cleaned);
                 if (name == null) {
                     continue;
                 }
                 int nameStart = cleaned.lastIndexOf(name);
-                String type = cleaned.substring(0, nameStart).trim().replace("...", "[]");
+                String typeText = cleaned.substring(0, nameStart).trim();
+                String type = typeText.replace("...", "[]");
                 if (type.isBlank()) {
                     continue;
                 }
-                result.add(new ParameterDescriptor(name, resolveType(eraseGeneric(type.replace("[]", ""))), annotations));
+                int originalNameStart = trimmed.lastIndexOf(name);
+                TypeUseDescriptor typeUse = parseTypeUse(
+                        originalNameStart < 0 ? typeText : trimmed.substring(0, originalNameStart).trim());
+                result.add(new ParameterDescriptor(
+                        name, resolveErasedType(type), annotations, typeUse));
             }
             return result;
+        }
+
+        private String resolveErasedType(String typeText) {
+            String normalized = stripLeadingAnnotationsAndModifiers(
+                    typeText == null ? "" : typeText.replace("...", "[]").trim());
+            if (normalized.isBlank()) {
+                return "java.lang.Object";
+            }
+            int dimensions = 0;
+            while (normalized.endsWith("[]")) {
+                dimensions++;
+                normalized = normalized.substring(0, normalized.length() - 2).trim();
+            }
+            String erased = eraseGeneric(normalized).trim();
+            String resolved = erased.isBlank() ? "java.lang.Object" : resolveType(erased);
+            return resolved + "[]".repeat(dimensions);
+        }
+
+        private int findTypeBodyStart(int start, int rangeEnd) {
+            int generic = 0;
+            int paren = 0;
+            for (int i = start; i < rangeEnd; i++) {
+                char c = source.charAt(i);
+                if (c == '"' || c == '\'') {
+                    i = skipQuoted(source, i);
+                } else if (c == '<') {
+                    generic++;
+                } else if (c == '>') {
+                    generic = Math.max(0, generic - 1);
+                } else if (c == '(') {
+                    paren++;
+                } else if (c == ')') {
+                    paren = Math.max(0, paren - 1);
+                } else if (c == '{' && generic == 0 && paren == 0) {
+                    return i;
+                }
+            }
+            return -1;
         }
 
         private List<AnnotationDescriptor> parseAnnotations(String text) {
@@ -1083,6 +1476,10 @@ public class SourceComponentScanner {
                 }
                 String rawName = text.substring(nameStart, nameEnd);
                 String simpleName = simpleName(rawName);
+                if (rawName.endsWith(".") || simpleName.isBlank()) {
+                    i = nameEnd;
+                    continue;
+                }
                 String qualifiedName = resolveAnnotationName(rawName);
                 AnnotationAttributes attributes = AnnotationAttributes.empty();
                 int next = skipWhitespace(text, nameEnd);
@@ -1096,6 +1493,9 @@ public class SourceComponentScanner {
                     }
                 } else {
                     i = nameEnd;
+                }
+                if (SOURCE_ONLY_ANNOTATIONS.contains(qualifiedName)) {
+                    continue;
                 }
                 result.add(new AnnotationDescriptor(
                         simpleName, qualifiedName, attributes.values(), attributes.nestedAnnotations(), List.of()));
@@ -1178,6 +1578,16 @@ public class SourceComponentScanner {
 
         private String normalizeValue(String value) {
             value = value.trim();
+            if (value.startsWith("\"\"\"") && value.endsWith("\"\"\"") && value.length() >= 6) {
+                String text = value.substring(3, value.length() - 3).stripIndent();
+                if (text.startsWith("\r\n")) {
+                    return text.substring(2);
+                }
+                if (text.startsWith("\n")) {
+                    return text.substring(1);
+                }
+                return text;
+            }
             if (value.startsWith("\"") && value.endsWith("\"") && value.length() >= 2) {
                 return value.substring(1, value.length() - 1)
                         .replace("\\\"", "\"")
@@ -1186,19 +1596,155 @@ public class SourceComponentScanner {
             if (value.endsWith(".class")) {
                 return resolveType(value.substring(0, value.length() - ".class".length()));
             }
+            String constant = constantValue(value).orElse(null);
+            if (constant != null) {
+                return constant;
+            }
+            if (NUMERIC_LITERAL.matcher(value).matches()) {
+                return value.replace("_", "").replaceFirst("[lL]$", "");
+            }
+            if (QUALIFIED_CONSTANT.matcher(value).matches()) {
+                return value.substring(value.lastIndexOf('.') + 1);
+            }
             return value;
+        }
+
+        private Optional<String> constantValue(String value) {
+            String sourceConstant = sourceConstants.get(value);
+            if (sourceConstant != null) {
+                return Optional.of(sourceConstant);
+            }
+            if (QUALIFIED_CONSTANT.matcher(value).matches()) {
+                sourceConstant = sourceConstants.get(value.substring(value.lastIndexOf('.') + 1));
+                if (sourceConstant != null) {
+                    return Optional.of(sourceConstant);
+                }
+            }
+            String direct = KNOWN_CONSTANT_VALUES.get(value);
+            if (direct != null) {
+                return Optional.of(direct);
+            }
+            String normalized = value.replace("_", "");
+            direct = KNOWN_CONSTANT_VALUES.get(normalized);
+            if (direct != null) {
+                return Optional.of(direct);
+            }
+            String imported = imports.get(value);
+            if (imported != null) {
+                return Optional.ofNullable(KNOWN_CONSTANT_VALUES.get(imported));
+            }
+            return Optional.empty();
+        }
+
+        private Map<String, String> sourceConstants() {
+            Map<String, String> result = new LinkedHashMap<>();
+            Set<String> ambiguous = new LinkedHashSet<>();
+            Matcher matcher = SOURCE_CONSTANT_DECLARATION.matcher(source);
+            while (matcher.find()) {
+                String type = matcher.group(1);
+                for (String declaration : splitTopLevel(matcher.group(2), ',')) {
+                    int assignment = declaration.indexOf('=');
+                    if (assignment <= 0) {
+                        continue;
+                    }
+                    String name = declaredConstantName(declaration.substring(0, assignment));
+                    if (name == null) {
+                        continue;
+                    }
+                    Optional<String> value = sourceConstantValue(type, declaration.substring(assignment + 1));
+                    if (value.isEmpty()) {
+                        continue;
+                    }
+                    String previous = result.putIfAbsent(name, value.orElseThrow());
+                    if (previous != null && !previous.equals(value.orElseThrow())) {
+                        ambiguous.add(name);
+                    }
+                }
+            }
+            ambiguous.forEach(result::remove);
+            return Map.copyOf(result);
+        }
+
+        private String declaredConstantName(String declarationPrefix) {
+            Matcher matcher = IDENTIFIER.matcher(declarationPrefix);
+            String name = null;
+            while (matcher.find()) {
+                name = matcher.group();
+            }
+            return name;
+        }
+
+        private Optional<String> sourceConstantValue(String type, String expression) {
+            String value = expression.trim();
+            if ("String".equals(type)) {
+                return sourceStringConstantValue(value);
+            }
+            if ("boolean".equals(type)) {
+                return "true".equals(value) || "false".equals(value) ? Optional.of(value) : Optional.empty();
+            }
+            if (NUMERIC_LITERAL.matcher(value).matches()) {
+                return Optional.of(value.replace("_", "").replaceFirst("[lL]$", ""));
+            }
+            return Optional.empty();
+        }
+
+        private Optional<String> sourceStringConstantValue(String expression) {
+            StringBuilder result = new StringBuilder();
+            for (String part : splitTopLevel(expression, '+')) {
+                String value = part.trim();
+                Optional<String> literal = stringLiteralValue(value);
+                if (literal.isPresent()) {
+                    result.append(literal.orElseThrow());
+                    continue;
+                }
+                return Optional.empty();
+            }
+            return Optional.of(result.toString());
+        }
+
+        private Optional<String> stringLiteralValue(String value) {
+            if (value.startsWith("\"\"\"") && value.endsWith("\"\"\"") && value.length() >= 6) {
+                String text = value.substring(3, value.length() - 3).stripIndent();
+                if (text.startsWith("\r\n")) {
+                    return Optional.of(text.substring(2));
+                }
+                if (text.startsWith("\n")) {
+                    return Optional.of(text.substring(1));
+                }
+                return Optional.of(text);
+            }
+            if (value.startsWith("\"") && value.endsWith("\"") && value.length() >= 2) {
+                return Optional.of(value.substring(1, value.length() - 1)
+                        .replace("\\\"", "\"")
+                        .replace("\\\\", "\\"));
+            }
+            return Optional.empty();
         }
 
         private String resolveAnnotationName(String name) {
             if (name.contains(".")) {
                 return name;
             }
-            return imports.getOrDefault(name, KNOWN_ANNOTATIONS.getOrDefault(name,
-                    packageName.isBlank() ? name : packageName + "." + name));
+            if (localTypes.containsKey(name)) {
+                return localTypes.get(name);
+            }
+            if (imports.containsKey(name)) {
+                return imports.get(name);
+            }
+            if (KNOWN_ANNOTATIONS.containsKey(name)) {
+                return KNOWN_ANNOTATIONS.get(name);
+            }
+            if (JAVA_LANG_ANNOTATIONS.contains(name)) {
+                return "java.lang." + name;
+            }
+            return packageName.isBlank() ? name : packageName + "." + name;
         }
 
         private String resolveType(String type) {
             type = type.trim();
+            if (localTypes.containsKey(type)) {
+                return localTypes.get(type);
+            }
             if (type.contains(".")) {
                 return type;
             }
@@ -1218,6 +1764,67 @@ public class SourceComponentScanner {
                 return type;
             }
             return packageName.isBlank() ? type : packageName + "." + type;
+        }
+
+        private Map<String, String> localTypes() {
+            Map<String, String> result = new LinkedHashMap<>();
+            collectLocalTypes(0, source.length(), null, result);
+            collectLocalAnnotationTypes(0, source.length(), null, result);
+            return result;
+        }
+
+        private void collectLocalTypes(
+                int rangeStart, int rangeEnd, String enclosingCanonicalName, Map<String, String> result) {
+            Matcher matcher = TYPE_PATTERN.matcher(source);
+            matcher.region(rangeStart, rangeEnd);
+            while (matcher.find()) {
+                if (matcher.start() > 0 && source.charAt(matcher.start() - 1) == '@'
+                    || insideAnnotation(matcher.start()) || memberDepth(rangeStart, matcher.start()) != 0) {
+                    continue;
+                }
+                String simpleName = matcher.group(2);
+                String canonicalName = enclosingCanonicalName == null
+                        ? simpleName : enclosingCanonicalName + "." + simpleName;
+                String fullName = packageName.isBlank() ? canonicalName : packageName + "." + canonicalName;
+                result.putIfAbsent(simpleName, fullName);
+                result.putIfAbsent(canonicalName, fullName);
+                int bodyStart = findTypeBodyStart(matcher.end(), rangeEnd);
+                if (bodyStart < 0 || bodyStart >= rangeEnd) {
+                    continue;
+                }
+                int bodyEnd = matching(source, bodyStart, '{', '}');
+                if (bodyEnd < 0 || bodyEnd > rangeEnd) {
+                    bodyEnd = rangeEnd;
+                }
+                collectLocalAnnotationTypes(bodyStart + 1, bodyEnd, canonicalName, result);
+                collectLocalTypes(bodyStart + 1, bodyEnd, canonicalName, result);
+            }
+        }
+
+        private void collectLocalAnnotationTypes(
+                int rangeStart, int rangeEnd, String enclosingCanonicalName, Map<String, String> result) {
+            Matcher matcher = ANNOTATION_TYPE_PATTERN.matcher(source);
+            matcher.region(rangeStart, rangeEnd);
+            while (matcher.find()) {
+                if (insideAnnotation(matcher.start()) || memberDepth(rangeStart, matcher.start()) != 0) {
+                    continue;
+                }
+                String simpleName = matcher.group(1);
+                String canonicalName = enclosingCanonicalName == null
+                        ? simpleName : enclosingCanonicalName + "." + simpleName;
+                String fullName = packageName.isBlank() ? canonicalName : packageName + "." + canonicalName;
+                result.putIfAbsent(simpleName, fullName);
+                result.putIfAbsent(canonicalName, fullName);
+                int bodyStart = findTypeBodyStart(matcher.end(), rangeEnd);
+                if (bodyStart < 0 || bodyStart >= rangeEnd) {
+                    continue;
+                }
+                int bodyEnd = matching(source, bodyStart, '{', '}');
+                if (bodyEnd < 0 || bodyEnd > rangeEnd) {
+                    bodyEnd = rangeEnd;
+                }
+                collectLocalAnnotationTypes(bodyStart + 1, bodyEnd, canonicalName, result);
+            }
         }
 
         private record AnnotationAttributes(
@@ -1332,6 +1939,16 @@ public class SourceComponentScanner {
         for (int i = 0; i < source.length(); i++) {
             char c = source.charAt(i);
             char next = i + 1 < source.length() ? source.charAt(i + 1) : 0;
+            if (!character && source.startsWith("\"\"\"", i)) {
+                int end = source.indexOf("\"\"\"", i + 3);
+                if (end < 0) {
+                    result.append(source.substring(i));
+                    break;
+                }
+                result.append(source, i, end + 3);
+                i = end + 2;
+                continue;
+            }
             if (!string && !character && c == '/' && next == '/') {
                 while (i < source.length() && source.charAt(i) != '\n') {
                     i++;
@@ -1384,6 +2001,16 @@ public class SourceComponentScanner {
     }
 
     private static int skipQuoted(String source, int start) {
+        if (source.startsWith("\"\"\"", start)) {
+            int i = start + 3;
+            while (i < source.length()) {
+                if (source.startsWith("\"\"\"", i)) {
+                    return i + 2;
+                }
+                i++;
+            }
+            return source.length() - 1;
+        }
         char quote = source.charAt(start);
         int i = start + 1;
         while (i < source.length()) {
@@ -1576,5 +2203,9 @@ public class SourceComponentScanner {
 
     private static boolean controlKeyword(String name) {
         return Set.of("if", "for", "while", "switch", "catch", "try", "new", "return").contains(name);
+    }
+
+    private static boolean structuralTypeDeclaration(String header) {
+        return words(header).stream().anyMatch(Set.of("class", "record", "interface", "enum")::contains);
     }
 }

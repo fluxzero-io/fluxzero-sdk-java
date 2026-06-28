@@ -18,12 +18,15 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.RequestHandler;
+import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
@@ -62,18 +65,26 @@ class ExpiredRequestDecoratorTest {
     }
 
     @Test
-    void decoratorDoesNotUseReflectionFallbackForSkipExpiredRequests() throws Exception {
-        Executable executable = SkippingCommandHandler.class.getDeclaredMethod("handle");
+    void generatedOnlyModeUsesGeneratedClasspathMetadataForSkipExpiredRequests() throws Exception {
+        class LocalSkippingCommandHandler {
+            @HandleCommand(skipExpiredRequests = true)
+            void handle() {
+            }
+        }
+        Executable executable = LocalSkippingCommandHandler.class.getDeclaredMethod("handle");
         Handler<DeserializingMessage> handler = new ExpiredRequestDecorator(
-                true, HandleCommand.class, JvmComponentIntrospector.getInstance(), (e, a) -> Optional.empty())
-                .wrap(singleInvoker(SkippingCommandHandler.class, executable));
+                true, HandleCommand.class, null, (e, a) -> Optional.empty())
+                .wrap(singleInvoker(LocalSkippingCommandHandler.class, executable));
 
-        assertTrue(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
+        assertFalse(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
     }
 
     @Test
     void generatedOnlyModeUsesRegistryMetadataForSkipExpiredRequests() {
-        try {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                SkippingCommandHandler.class,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "handle", List.of()),
+                (target, parameterCount, parameterProvider) -> null)) {
             TestFixture.create().getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(SkippingCommandHandler.class).registry());
 

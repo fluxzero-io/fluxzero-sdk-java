@@ -43,7 +43,13 @@ class ModelMetadataTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForApplyMetadata() throws Exception {
-        var method = UnregisteredGeneratedOnlyUpdate.class.getDeclaredMethod("apply");
+        class LocalUnregisteredGeneratedOnlyUpdate {
+            @Apply(disableCompatibilityCheck = true)
+            void apply() {
+            }
+        }
+
+        var method = LocalUnregisteredGeneratedOnlyUpdate.class.getDeclaredMethod("apply");
 
         GeneratedOnlyMetadataMode.run(() -> assertTrue(ModelMetadata.apply(method).isEmpty()));
     }
@@ -67,18 +73,28 @@ class ModelMetadataTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForPropertyMetadata() throws Exception {
-        var member = UnregisteredGeneratedOnlyAggregate.class.getDeclaredField("children");
-        var alias = UnregisteredGeneratedOnlyChild.class.getDeclaredField("alias");
+        class LocalUnregisteredGeneratedOnlyChild {
+            @Alias(prefix = "pre-", postfix = "-post")
+            private String alias;
+        }
+
+        class LocalUnregisteredGeneratedOnlyAggregate {
+            @Member(idProperty = "customId", wither = "withChildren")
+            private LocalUnregisteredGeneratedOnlyChild children;
+        }
+
+        var member = LocalUnregisteredGeneratedOnlyAggregate.class.getDeclaredField("children");
+        var alias = LocalUnregisteredGeneratedOnlyChild.class.getDeclaredField("alias");
 
         GeneratedOnlyMetadataMode.run(() -> {
             assertTrue(ModelMetadata.member(member).isEmpty());
             assertTrue(ModelMetadata.alias(alias).isEmpty());
             assertTrue(ModelMetadata.annotatedPropertyLocations(
-                    UnregisteredGeneratedOnlyAggregate.class, Member.class).isEmpty());
+                    LocalUnregisteredGeneratedOnlyAggregate.class, Member.class).isEmpty());
             assertTrue(ModelMetadata.annotatedPropertyName(
-                    UnregisteredGeneratedOnlyAggregate.class, Member.class).isEmpty());
+                    LocalUnregisteredGeneratedOnlyAggregate.class, Member.class).isEmpty());
             assertFalse(ModelMetadata.hasAnnotatedProperty(
-                    UnregisteredGeneratedOnlyAggregate.class, Member.class));
+                    LocalUnregisteredGeneratedOnlyAggregate.class, Member.class));
         });
     }
 
@@ -127,26 +143,10 @@ class ModelMetadataTest {
         }
     }
 
-    private static class UnregisteredGeneratedOnlyUpdate {
-        @Apply(disableCompatibilityCheck = true)
-        void apply() {
-        }
-    }
-
     private static class RegisteredGeneratedOnlyUpdate {
         @Apply(disableCompatibilityCheck = true)
         void apply() {
         }
-    }
-
-    private static class UnregisteredGeneratedOnlyAggregate {
-        @Member(idProperty = "customId", wither = "withChildren")
-        private UnregisteredGeneratedOnlyChild children;
-    }
-
-    private static class UnregisteredGeneratedOnlyChild {
-        @Alias(prefix = "pre-", postfix = "-post")
-        private String alias;
     }
 
     private static class RegisteredGeneratedOnlyAggregate {

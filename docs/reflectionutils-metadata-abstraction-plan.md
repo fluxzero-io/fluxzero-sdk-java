@@ -9,12 +9,181 @@ semantics, while reflection remains only a JVM backend implementation detail whe
 
 The active phase lists only open work. Completed slices are kept later in this file as historical evidence.
 
-## Active Phase: JVM Metadata Runtime Finalization
+## Active Phase: Generated-Only Runtime Closure
 
 Status: open.
 
-Browser-local execution is parked until this phase is complete. The JVM is the proving ground because it already has
-the broadest SDK behavior and test surface.
+Browser-local execution stays parked until generated-only JVM mode has no semantic reflection fallback left. The goal is
+not zero JVM reflection everywhere; the goal is that existing JVM tests prove Fluxzero app semantics from the generated
+application model, with reflection left only as an explicit platform/backend implementation detail.
+
+### Slice 1: Backend Debt Ledger
+
+Status: [x] implemented for this slice.
+
+Goal: split the current "allowed JVM backend" list into real platform backends and temporary migration debt, so
+generated-only green tests cannot be mistaken for semantic-complete tests.
+
+- [x] Add a machine-readable status to `JvmBackendAccess` entries:
+  - [x] `PLATFORM_BACKEND` for Java-only mechanics that may remain reflection-backed.
+  - [x] `MIGRATION_DEBT` for app-semantic fallbacks that must be replaced by generated metadata/invocation/access
+    plans.
+- [x] Add a guard test that reports the migration-debt list and fails when new debt is added implicitly.
+- [x] Update the runtime decision matrix so every `Hybrid` or `Allowed JVM backend` semantic row points to the slice
+  that removes or justifies it.
+
+Done when:
+
+- [x] We can answer "what still blocks browser reuse of JVM tests?" from one code-backed ledger, not from memory.
+
+Evidence:
+
+- `JvmBackendAccess` now classifies generated-only backend access as `PLATFORM_BACKEND` or `MIGRATION_DEBT`.
+- `ReflectionBoundaryTest.generatedOnlyBackendMigrationDebtIsExplicit` records the current 43 class-specific migration
+  debt entries.
+- `docs/metadata-runtime-decision-matrix.md` now has a `Closure` column, and `RuntimeDecisionMatrixTest` validates
+  closure targets for unfinished backend rows.
+
+### Slice 2: Handler Execution Without Semantic Fallback
+
+Status: [ ] open.
+
+Goal: generated-only handler registration, matching, parameter binding, and invocation must not need JVM executable or
+parameter reflection for Fluxzero semantics.
+
+- [ ] Make generated invocation plans the required path for generated-only handler execution.
+  - [x] Registered non-web handlers now fail in generated-only mode when matching registry metadata exists but generated
+    invocation plans are missing.
+- [x] Remove the generated-only allowance for `HandlerInspector`/`DefaultHandlerFactory` semantic fallback where a
+  generated plan exists.
+- [x] Cover command, query, event, notification, error, metrics, result, custom, document, schedule, web, and socket
+  handler execution with generated-only tests.
+
+Done when:
+
+- [ ] Existing handler tests can run in generated-only mode without relying on reflective executable discovery or
+  parameter semantics.
+
+Current evidence:
+
+- `DefaultHandlerFactory` now prefers registry-backed generated matchers, and in generated-only mode rejects registered
+  handler metadata without generated invocations instead of falling back to `HandlerInspector`.
+- `DefaultHandlerFactoryGeneratedOnlyMetadataTest.generatedOnlyModeRejectsRegisteredHandlerWithoutGeneratedInvocation`
+  covers the new failure mode.
+- `TrackSelf` handler filtering now implements both `Executable` and metadata-only `ExecutableView` filter paths, fixing
+  a view-first mismatch that reflection had hidden.
+- `WebHandlerMatcher` now builds generated-only web routes from `HandlerRoute.webRoutes()`, `ExecutableView`, and
+  registered generated invocations.
+- Registry executable/parameter views project meta-annotations to the requested semantic annotation type, so
+  `@HandleGet` can satisfy `@HandleWeb` without exposing a JVM `Method`.
+- Generated-only handler tests now cover all non-web handler annotations, HTTP web execution, and socket-route
+  execution through generated invocation functions.
+- Focused handler/web suite passed after this Slice 2 expansion:
+  `./mvnw -pl sdk-jvm -am -Dtest=DefaultHandlerFactoryGeneratedOnlyMetadataTest,HandleWebTest,WebUtilsTest,StaticFileHandlerGeneratedOnlyMetadataTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+- Full `sdk-jvm` suite passed after this Slice 2 checkpoint:
+  `./mvnw -pl sdk-jvm -am test` with 1748 tests.
+
+### Slice 3: Property And Constructor Access Plans
+
+Status: [ ] open.
+
+Goal: generated-only state/model/search/policy code should use generated property, constructor, and member access plans
+instead of reflective JVM property access.
+
+- [ ] Generate and consume property read/write plans for model ids, associations, routing keys, data protection,
+  content filtering, document indexing, search facets, and web body extraction.
+- [ ] Generate and consume constructor/factory plans for stateful entities and scheduled payload instantiation.
+- [ ] Burn down the modeling, repository, search, data-protection, content-filtering, schedule, and web-body entries in
+  the backend debt ledger.
+
+Done when:
+
+- [ ] Generated-only tests prove stateful/modeling/search/policy behavior without reflective property discovery.
+
+Current evidence:
+
+- Added `GeneratedPropertyAccesses` in `sdk-api`, a browser-safe registry for generated property readers and writers by
+  component type and property name.
+- `JvmComponentIntrospector.readProperty`, `hasProperty`, and `writeProperty` now prefer generated property accessors
+  before falling back to the JVM property backend.
+- `JvmComponentIntrospector.asInstance(Class)` now prefers a registered generated no-arg constructor invocation before
+  using reflective default construction.
+- `GeneratedInvocationPlanTest` proves virtual generated property read/write, nested generated property reads, and
+  generated construction for a class without a JVM default constructor.
+
+### Slice 4: Policy, Validation, And Web Binding Closure
+
+Status: [ ] open.
+
+Goal: app-facing policies and web bindings are enforced from generated metadata and generated binding plans.
+
+- [ ] Ensure auth, role, validation, data-protection, content-filtering, timeout, routing, and consumer decisions are
+  sourced only from registry metadata in generated-only mode.
+- [ ] Keep Jakarta provider mechanics as a platform backend, but remove app-facing validation metadata fallback.
+- [ ] Make web route, parameter, body, response mapper, and socket binding tests run against generated-only metadata.
+
+Done when:
+
+- [ ] Policy/web failures in generated-only mode point to missing generated metadata, not hidden JVM inspection.
+
+Current evidence:
+
+- `ComponentMetadataLookups.typeAnnotation`, `packageAnnotation`, and `annotations` now project matching
+  meta-annotations to the requested semantic annotation type.
+- `ComponentMetadataLookupTest.typeAnnotationProjectsMetaAnnotationToRequestedPolicyTypeInGeneratedOnlyMode` proves
+  type-level policy metadata can be consumed as `@RequiresUser` from a composed annotation in generated-only mode.
+
+### Slice 5: Type, Serialization, And Casting Boundary
+
+Status: [ ] open.
+
+Goal: generated-only mode should know Fluxzero type semantics from the registry while JVM serializers remain pure
+encoding/decoding backends.
+
+- [ ] Move payload type, request response type, routing type, registered type, upcast, and downcast decisions to
+  generated metadata/plans.
+- [ ] Keep Jackson/class resolution behind the JVM serialization backend only for object materialization and wire
+  encoding.
+- [ ] Add generated-only tests for request/response metadata, registered types, upcast/downcast chains, and serializer
+  integration.
+
+Done when:
+
+- [ ] Serialization can remain JVM-specific without owning Fluxzero app-model decisions.
+
+Current evidence:
+
+- Caster discovery already uses registry metadata for `@Upcast`/`@Downcast` in generated-only mode.
+- `UpcasterChainTest.generatedOnlyModeUsesGeneratedInvocationForCasterMethods` proves caster invocation uses registered
+  generated executable invocation instead of the JVM method body.
+
+### Slice 6: Strict Generated-Only Acceptance
+
+Status: [ ] open.
+
+Goal: turn generated-only JVM mode into the acceptance gate for browser-shared semantics.
+
+- [x] Make `MIGRATION_DEBT` backend access fail in strict generated-only mode.
+- [ ] Run the broad `sdk-jvm` test suite in strict generated-only phases.
+- [ ] Run downstream Java/Kotlin compatibility tests against generated metadata defaults.
+- [ ] Only after this passes, resume browser conformance as another executor of the same app model.
+
+Done when:
+
+- [ ] The JVM no longer proves behavior through semantic reflection fallback, so browser work can reuse JVM evidence.
+
+Current evidence:
+
+- Added `fluxzero.metadata.mode=strict-generated-only` support. Strict mode still counts as generated-only, but
+  `JvmBackendAccess` rejects `MIGRATION_DEBT` backend categories while allowing platform backends.
+- `ReflectionBoundaryTest.strictGeneratedOnlyModeRejectsMigrationDebtBackendCategories` proves the strict guard.
+
+## Completed Phase: JVM Metadata Runtime Foundation
+
+Status: [x] implemented.
+
+Browser-local execution was parked during this phase. The JVM was the proving ground because it already had the broadest
+SDK behavior and test surface.
 
 ### Slice 1: Generated-Only Semantic Lock
 

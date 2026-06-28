@@ -18,12 +18,14 @@ import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.scheduling.Schedule;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Type;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -145,8 +147,12 @@ public interface HasMessage extends HasMetadata {
             var routingProperty = metadataLookup.flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(
                     lookup, payloadType, RoutingKey.class));
             if (routingProperty.isPresent()) {
-                routingValue = JvmComponentIntrospector.getInstance().readProperty(routingProperty.get(), m.getPayload())
+                routingValue = readGeneratedProperty(routingProperty.get(), m.getPayload())
                         .map(Object::toString).orElse(null);
+                if (routingValue == null && !ComponentMetadataLookups.generatedOnlyMode()) {
+                    routingValue = JvmComponentIntrospector.getInstance().readProperty(
+                            routingProperty.get(), m.getPayload()).map(Object::toString).orElse(null);
+                }
             } else if (!ComponentMetadataLookups.generatedOnlyMode()) {
                 routingValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(
                         m.getPayload(), RoutingKey.class).map(Object::toString).orElse(null);
@@ -183,6 +189,9 @@ public interface HasMessage extends HasMetadata {
     default Optional<String> getRoutingKey(String propertyName, boolean warnIfMissing) {
         String result = getMetadata().get(propertyName);
         if (result == null) {
+            result = readGeneratedProperty(propertyName, getPayload()).map(Object::toString).orElse(null);
+        }
+        if (result == null && !ComponentMetadataLookups.generatedOnlyMode()) {
             result = JvmComponentIntrospector.getInstance().readProperty(propertyName, getPayload())
                     .map(Object::toString).orElse(null);
         }
@@ -193,5 +202,38 @@ public interface HasMessage extends HasMetadata {
                     propertyName, getPayloadClass(), toMessage().getMessageId());
         }
         return Optional.ofNullable(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Optional<T> readGeneratedProperty(String propertyPath, Object target) {
+        if (target == null || propertyPath == null || propertyPath.isBlank()) {
+            return Optional.empty();
+        }
+        int separator = propertyPath.indexOf('.');
+        String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        Optional<Object> value = propertyAccessCandidates(target.getClass()).stream()
+                .flatMap(type -> GeneratedPropertyAccesses.findReader(type, propertyName).stream())
+                .findFirst()
+                .map(reader -> reader.read(target));
+        if (value.isEmpty() || separator < 0) {
+            return (Optional<T>) value;
+        }
+        return readGeneratedProperty(propertyPath.substring(separator + 1), value.get());
+    }
+
+    private static LinkedHashSet<Class<?>> propertyAccessCandidates(Class<?> type) {
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        collectPropertyAccessCandidates(type, result);
+        return result;
+    }
+
+    private static void collectPropertyAccessCandidates(Class<?> type, LinkedHashSet<Class<?>> result) {
+        if (type == null || Object.class.equals(type) || !result.add(type)) {
+            return;
+        }
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            collectPropertyAccessCandidates(interfaceType, result);
+        }
+        collectPropertyAccessCandidates(type.getSuperclass(), result);
     }
 }

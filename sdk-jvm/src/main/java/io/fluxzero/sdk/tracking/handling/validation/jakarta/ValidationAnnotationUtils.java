@@ -45,8 +45,10 @@ import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -292,6 +294,13 @@ final class ValidationAnnotationUtils {
                     .map(PropertyDescriptor::annotations)
                     .orElseGet(List::of);
         }
+        if (element instanceof Method method) {
+            List<AnnotationDescriptor> propertyAnnotations = propertyAnnotations(lookup, method);
+            List<AnnotationDescriptor> executableAnnotations = ComponentMetadataLookups.executable(lookup, method)
+                    .map(ExecutableDescriptor::annotations)
+                    .orElseGet(List::of);
+            return mergeAnnotations(propertyAnnotations, executableAnnotations);
+        }
         if (element instanceof Executable executable) {
             return ComponentMetadataLookups.executable(lookup, executable)
                     .map(ExecutableDescriptor::annotations)
@@ -301,6 +310,58 @@ final class ValidationAnnotationUtils {
             return lookup.typeAnnotations(type.getName());
         }
         return List.of();
+    }
+
+    private static List<AnnotationDescriptor> propertyAnnotations(ComponentMetadataLookup lookup, Method method) {
+        if (method.getParameterCount() != 0 || method.getReturnType() == void.class) {
+            return List.of();
+        }
+        return methodPropertyName(method)
+                .flatMap(name -> lookup.property(method.getDeclaringClass().getName(), name))
+                .map(PropertyDescriptor::annotations)
+                .orElseGet(List::of);
+    }
+
+    private static List<AnnotationDescriptor> mergeAnnotations(
+            List<AnnotationDescriptor> preferred, List<AnnotationDescriptor> fallback) {
+        Map<String, AnnotationDescriptor> result = new LinkedHashMap<>();
+        preferred.forEach(annotation -> result.put(annotationKey(annotation), annotation));
+        fallback.forEach(annotation -> result.putIfAbsent(annotationKey(annotation), annotation));
+        return List.copyOf(result.values());
+    }
+
+    private static String annotationKey(AnnotationDescriptor annotation) {
+        return annotation.qualifiedName().replace('$', '.');
+    }
+
+    private static Optional<String> methodPropertyName(Method method) {
+        String name = method.getName();
+        if (hasPrefixedPropertyName(name, "get")) {
+            return Optional.of(decapitalize(name, 3));
+        }
+        if (isBooleanType(method.getReturnType()) && hasPrefixedPropertyName(name, "is")) {
+            return Optional.of(decapitalize(name, 2));
+        }
+        if (isBooleanType(method.getReturnType()) && hasPrefixedPropertyName(name, "has")) {
+            return Optional.of(decapitalize(name, 3));
+        }
+        return Optional.of(JakartaValidationBackend.getInstance().getPropertyName(method));
+    }
+
+    private static boolean hasPrefixedPropertyName(String name, String prefix) {
+        return name.length() > prefix.length()
+               && name.startsWith(prefix)
+               && Character.isUpperCase(name.charAt(prefix.length()));
+    }
+
+    private static boolean isBooleanType(Class<?> type) {
+        return type == boolean.class || type == Boolean.class;
+    }
+
+    private static String decapitalize(String name, int offset) {
+        char[] characters = name.toCharArray();
+        characters[offset] = Character.toLowerCase(characters[offset]);
+        return String.valueOf(characters, offset, characters.length - offset);
     }
 
     private static Optional<TypeUseDescriptor> metadataTypeUse(

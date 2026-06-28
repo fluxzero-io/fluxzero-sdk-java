@@ -31,12 +31,19 @@ class WebParamParameterResolverTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForWebParams() throws Exception {
+        class LocalUnregisteredWebParamHandler {
+            @HandleGet("/items/{id}")
+            String get(@PathParam("id") String id, @QueryParam("view") String view) {
+                return id + ":" + view;
+            }
+        }
+
         var resolver = new WebParamParameterResolver();
-        var method = WebParamHandler.class.getDeclaredMethod("get", String.class, String.class);
+        var method = LocalUnregisteredWebParamHandler.class.getDeclaredMethod("get", String.class, String.class);
         var parameter = method.getParameters()[0];
 
         GeneratedOnlyMetadataMode.run(() -> {
-            assertFalse(resolver.mayApply(method, WebParamHandler.class));
+            assertFalse(resolver.mayApply(method, LocalUnregisteredWebParamHandler.class));
             assertFalse(resolver.matches(parameter, null, message()));
         });
     }

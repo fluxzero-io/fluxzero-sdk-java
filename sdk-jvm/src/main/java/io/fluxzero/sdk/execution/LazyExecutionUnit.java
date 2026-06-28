@@ -19,6 +19,8 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.ComponentDescriptor;
+import io.fluxzero.sdk.registry.ComponentRegistry;
+import io.fluxzero.sdk.registry.JvmGeneratedExecutionInstaller;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 
 import java.time.Duration;
@@ -94,7 +96,9 @@ class LazyExecutionUnit implements AutoCloseable {
         String sourceHash = knownSourceHash == null ? sourceHash() : knownSourceHash;
         CompiledExecutionUnit compiled = compiler.compile(component, sourceHash);
         Class<?> handlerType = compiled.load(component.fullClassName());
-        activeComponent = new ActiveComponent(sourceHash, compiled, handlerType);
+        var generatedRegistration = JvmGeneratedExecutionInstaller.install(
+                new ComponentRegistry(null, List.of(), List.of(component)), compiled.classLoader());
+        activeComponent = new ActiveComponent(sourceHash, compiled, handlerType, generatedRegistration::cancel);
         return activeComponent;
     }
 
@@ -113,7 +117,7 @@ class LazyExecutionUnit implements AutoCloseable {
 
     private void closeActive() {
         if (activeComponent != null) {
-            activeComponent.compiled().close();
+            activeComponent.close();
             activeComponent = null;
         }
     }
@@ -126,12 +130,16 @@ class LazyExecutionUnit implements AutoCloseable {
         private final String sourceHash;
         private final CompiledExecutionUnit compiled;
         private final Class<?> handlerType;
+        private final AutoCloseable generatedRegistration;
         private final Map<MessageType, Handler<DeserializingMessage>> handlers = new EnumMap<>(MessageType.class);
 
-        private ActiveComponent(String sourceHash, CompiledExecutionUnit compiled, Class<?> handlerType) {
+        private ActiveComponent(
+                String sourceHash, CompiledExecutionUnit compiled, Class<?> handlerType,
+                AutoCloseable generatedRegistration) {
             this.sourceHash = sourceHash;
             this.compiled = compiled;
             this.handlerType = handlerType;
+            this.generatedRegistration = generatedRegistration;
         }
 
         private Handler<DeserializingMessage> handler(
@@ -152,6 +160,15 @@ class LazyExecutionUnit implements AutoCloseable {
 
         private CompiledExecutionUnit compiled() {
             return compiled;
+        }
+
+        private void close() {
+            try {
+                generatedRegistration.close();
+            } catch (Exception ignored) {
+                // Generated invocation registrations are tied to the lazy classloader lifecycle.
+            }
+            compiled.close();
         }
     }
 }

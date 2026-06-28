@@ -19,6 +19,9 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.DefaultHandler;
 import io.fluxzero.common.handling.ExecutableAnnotationResolver;
+import io.fluxzero.common.handling.ExecutableInvocationBackend;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerFilter;
@@ -33,6 +36,9 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ComponentRegistryException;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
@@ -49,6 +55,7 @@ import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Executable;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -153,7 +160,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     @Override
     public Optional<Handler<DeserializingMessage>> createHandler(Object target, HandlerFilter handlerFilter,
                                                                  List<HandlerInterceptor> extraInterceptors) {
-        Class<?> targetClass = JvmComponentIntrospector.getInstance().asClass(target);
+        Class<?> targetClass = asClass(target);
         HandlerDecorator handlerDecorator =
                 ObjectUtils.concat(extraInterceptors.stream(), Stream.of(defaultDecorator))
                         .reduce(HandlerDecorator::andThen).orElseThrow();
@@ -162,7 +169,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .handlerFilter(handlerFilter).messageFilter(messageFilter)
                         .methodInvocationValidator(methodInvocationValidator)
                         .executableAnnotationResolver(executableAnnotationResolver)
-                        .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
+                        .executableInvocationBackend(executableInvocationBackend())
                         .build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))
@@ -174,6 +181,22 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
     protected boolean isHandler(Class<?> targetClass,
                                 HandlerConfiguration<?> handlerConfiguration) {
+        @SuppressWarnings("unchecked")
+        HandlerConfiguration<DeserializingMessage> config =
+                (HandlerConfiguration<DeserializingMessage>) handlerConfiguration;
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            if (RegistryHandlerMatcherFactory.hasRegisteredHandlersWithoutGeneratedInvocations(
+                    targetClass, messageType, config)) {
+                throw missingGeneratedInvocationPlans(targetClass);
+            }
+            if (RegistryHandlerMatcherFactory.hasRegisteredHandlers(targetClass, messageType, config)) {
+                return true;
+            }
+            return ComponentMetadataLookups.typeAnnotation(targetClass, Stateful.class).isPresent()
+                   || ComponentMetadataLookups.typeAnnotation(targetClass, SocketEndpoint.class).isPresent()
+                   || ComponentMetadataLookups.typeOrPackageAnnotation(targetClass, TrackSelf.class).isPresent()
+                   || messageType == MessageType.WEBREQUEST && StaticFileHandler.isHandler(targetClass);
+        }
         if (hasHandlerMethods(targetClass, handlerConfiguration)) {
             return true;
         }
@@ -203,7 +226,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     protected Handler<DeserializingMessage> buildHandler(@NonNull Object target,
                                                          HandlerConfiguration<DeserializingMessage> config) {
 
-        if (JvmComponentIntrospector.getInstance().ifClass(target) instanceof Class<?> targetClass) {
+        if (ifClass(target) instanceof Class<?> targetClass) {
             {
                 Stateful handler = ComponentMetadataLookups.typeAnnotation(targetClass, Stateful.class)
                         .orElse(null);
@@ -235,9 +258,19 @@ public class DefaultHandlerFactory implements HandlerFactory {
             {
                 var trackSelf = ComponentMetadataLookups.typeOrPackageAnnotation(targetClass, TrackSelf.class);
                 if (trackSelf.isPresent()) {
-                    MessageFilter<DeserializingMessage> selfFilter =
-                            (message, method, handlerAnnotation, t) -> t.isAssignableFrom(
-                                    message.getPayloadClass());
+                    MessageFilter<DeserializingMessage> selfFilter = new MessageFilter<>() {
+                        @Override
+                        public boolean test(DeserializingMessage message, Executable method,
+                                            Class<? extends Annotation> handlerAnnotation, Class<?> t) {
+                            return t.isAssignableFrom(message.getPayloadClass());
+                        }
+
+                        @Override
+                        public boolean test(DeserializingMessage message, ExecutableView method,
+                                            Class<? extends Annotation> handlerAnnotation, Class<?> t) {
+                            return t.isAssignableFrom(message.getPayloadClass());
+                        }
+                    };
                     config = config.toBuilder().messageFilter(selfFilter.and(config.messageFilter())).build();
                     return createDefaultHandler(targetClass, DeserializingMessage::getPayload, config);
                 }
@@ -249,6 +282,16 @@ public class DefaultHandlerFactory implements HandlerFactory {
     }
 
     protected Function<DeserializingMessage, ?> createTargetSupplier(Class<?> targetClass) {
+        Optional<Supplier<Object>> generatedConstructor = generatedNoArgConstructor(targetClass)
+                .map(invocation -> memoize(() -> invocation.invoke(null)));
+        if (generatedConstructor.isPresent()) {
+            Supplier<Object> instanceSupplier = generatedConstructor.orElseThrow();
+            return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : instanceSupplier.get();
+        }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            // Null makes instance methods ineligible for non-self payloads without trying a reflective constructor.
+            return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : null;
+        }
         if (JvmComponentIntrospector.getInstance().getDefaultConstructor(targetClass).isEmpty()) {
             // Null makes instance methods ineligible for non-self payloads without trying to instantiate the class.
             return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : null;
@@ -257,10 +300,16 @@ public class DefaultHandlerFactory implements HandlerFactory {
         return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : instanceSupplier.get();
     }
 
+    private static Optional<io.fluxzero.common.handling.ExecutableInvocation> generatedNoArgConstructor(
+            Class<?> targetClass) {
+        return GeneratedExecutableInvocations.find(targetClass, InvocationPlanDescriptor.executableId(
+                ExecutableKind.CONSTRUCTOR, "<init>", List.of()));
+    }
+
     protected Handler<DeserializingMessage> createDefaultHandler(
             Object target, Function<DeserializingMessage, ?> targetSupplier,
             HandlerConfiguration<DeserializingMessage> config) {
-        Class<?> targetClass = JvmComponentIntrospector.getInstance().asClass(target);
+        Class<?> targetClass = asClass(target);
         Handler<DeserializingMessage> handler
                 = target instanceof Class<?>
                   ? new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config))
@@ -279,19 +328,37 @@ public class DefaultHandlerFactory implements HandlerFactory {
             }
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
-                    var messageFilter = config.messageFilter().and((m, e, a, t)-> {
-                        if (m instanceof DeserializingMessage dm) {
-                            var context = DefaultWebRequestContext.getWebRequestContext(dm);
-                            return context != null && !context.matchesAny(h.getIgnorePaths());
-                        }
-                        return true;
-                    });
+                    @SuppressWarnings("unchecked")
+                    MessageFilter<DeserializingMessage> baseFilter =
+                            (MessageFilter<DeserializingMessage>) config.messageFilter();
+                    var messageFilter = baseFilter.and(ignorePathsFilter(h));
                     var staticHandlerConfig = config.toBuilder().messageFilter(messageFilter).build();
                     handler = handler.or(createDefaultHandler(h, m -> h, staticHandlerConfig));
                 }
             }
         }
         return handler;
+    }
+
+    private static MessageFilter<DeserializingMessage> ignorePathsFilter(StaticFileHandler handler) {
+        return new MessageFilter<>() {
+            @Override
+            public boolean test(DeserializingMessage message, Executable executable,
+                                Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+                return accepts(message);
+            }
+
+            @Override
+            public boolean test(DeserializingMessage message, ExecutableView executable,
+                                Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+                return accepts(message);
+            }
+
+            private boolean accepts(DeserializingMessage message) {
+                var context = DefaultWebRequestContext.getWebRequestContext(message);
+                return context == null || !context.matchesAny(handler.getIgnorePaths());
+            }
+        };
     }
 
     protected Class<? extends Annotation> getHandlerAnnotation(MessageType messageType) {
@@ -323,11 +390,45 @@ public class DefaultHandlerFactory implements HandlerFactory {
         return switch (messageType) {
             case WEBREQUEST -> WebHandlerMatcher.create(target, parameterResolvers, config, webRouteRegistry);
             default -> {
-                Class<?> targetClass = JvmComponentIntrospector.getInstance().asClass(target);
-                yield RegistryHandlerMatcherFactory.create(targetClass, parameterResolvers, config)
-                        .orElseGet(() -> HandlerInspector.inspect(targetClass, parameterResolvers, config));
+                Class<?> targetClass = asClass(target);
+                if (ComponentMetadataLookups.generatedOnlyMode()) {
+                    Optional<HandlerMatcher<Object, DeserializingMessage>> registryMatcher =
+                            RegistryHandlerMatcherFactory.create(targetClass, parameterResolvers, config);
+                    if (registryMatcher.isPresent()) {
+                        yield registryMatcher.orElseThrow();
+                    }
+                    if (RegistryHandlerMatcherFactory.hasRegisteredHandlersWithoutGeneratedInvocations(
+                            targetClass, messageType, config)) {
+                        throw missingGeneratedInvocationPlans(targetClass);
+                    }
+                }
+                yield HandlerInspector.inspect(targetClass, parameterResolvers, config);
             }
         };
+    }
+
+    private static ComponentRegistryException missingGeneratedInvocationPlans(Class<?> targetClass) {
+        return new ComponentRegistryException("""
+                Generated-only handler execution for %s requires generated invocation plans.
+                Register generated invocations for the matching handler executables or run outside generated-only mode \
+                for JVM reflection compatibility.
+                """.formatted(targetClass.getName()));
+    }
+
+    private static ExecutableInvocationBackend executableInvocationBackend() {
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            return JvmComponentIntrospector.getInstance().executableInvocationBackend();
+        }
+        return executable -> GeneratedExecutableInvocations.find(executable)
+                .orElseThrow(() -> missingGeneratedInvocationPlans(executable.getDeclaringClass()));
+    }
+
+    private static Class<?> ifClass(Object value) {
+        return value instanceof Class<?> type ? type : null;
+    }
+
+    private static Class<?> asClass(Object value) {
+        return value instanceof Class<?> type ? type : value.getClass();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

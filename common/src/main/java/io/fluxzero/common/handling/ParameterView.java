@@ -17,6 +17,7 @@ package io.fluxzero.common.handling;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -55,6 +56,13 @@ public interface ParameterView {
      * JVM parameter type when available.
      */
     Optional<Class<?>> type();
+
+    /**
+     * Generic JVM parameter type when available.
+     */
+    default Optional<Type> genericType() {
+        return type().map(type -> type);
+    }
 
     /**
      * JVM parameter when this view is backed by reflection.
@@ -103,6 +111,11 @@ public interface ParameterView {
         @Override
         public Optional<Class<?>> type() {
             return Optional.of(parameter.getType());
+        }
+
+        @Override
+        public Optional<Type> genericType() {
+            return Optional.of(parameter.getParameterizedType());
         }
 
         @Override

@@ -19,6 +19,7 @@ import io.fluxzero.common.handling.ExecutableAnnotationResolver;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import lombok.Value;
@@ -26,6 +27,7 @@ import lombok.Value;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -59,19 +61,22 @@ import java.util.Optional;
 public class PayloadFilter implements MessageFilter<HasMessage> {
 
     private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
-    private final JvmComponentIntrospector introspector;
+    private static final Comparator<Class<?>> CLASS_SPECIFICITY_COMPARATOR = PayloadFilter::compareSpecificity;
     private final ExecutableAnnotationResolver annotationResolver;
 
     public PayloadFilter() {
-        this(JvmComponentIntrospector.getInstance());
+        this(MetadataExecutableAnnotationResolver.create());
     }
 
     PayloadFilter(JvmComponentIntrospector introspector) {
-        this(introspector, MetadataExecutableAnnotationResolver.create());
+        this(MetadataExecutableAnnotationResolver.create());
     }
 
     PayloadFilter(JvmComponentIntrospector introspector, ExecutableAnnotationResolver annotationResolver) {
-        this.introspector = Objects.requireNonNull(introspector, "introspector");
+        this(annotationResolver);
+    }
+
+    PayloadFilter(ExecutableAnnotationResolver annotationResolver) {
         this.annotationResolver = Objects.requireNonNull(annotationResolver, "annotationResolver");
     }
 
@@ -85,7 +90,7 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
         }
         Class<?>[] allowedClasses = annotation.getAllowedClasses().toArray(Class[]::new);
         Class<?> leastSpecificAllowedClass = Arrays.stream(allowedClasses)
-                .max(introspector.typeSpecificityComparator()).orElse(null);
+                .max(CLASS_SPECIFICITY_COMPARATOR).orElse(null);
         return new PreparedPayloadFilter(allowedClasses, leastSpecificAllowedClass);
     }
 
@@ -99,7 +104,7 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
         }
         Class<?>[] allowedClasses = annotation.getAllowedClasses().toArray(Class[]::new);
         Class<?> leastSpecificAllowedClass = Arrays.stream(allowedClasses)
-                .max(introspector.typeSpecificityComparator()).orElse(null);
+                .max(CLASS_SPECIFICITY_COMPARATOR).orElse(null);
         return new PreparedPayloadFilter(allowedClasses, leastSpecificAllowedClass);
     }
 
@@ -128,7 +133,7 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
                                                            Class<? extends Annotation> handlerAnnotation) {
         return Optional.ofNullable(lookupHandleAnnotation(executable, handlerAnnotation))
                 .flatMap(a -> a.getAllowedClasses().stream()
-                        .max(introspector.typeSpecificityComparator()));
+                        .max(CLASS_SPECIFICITY_COMPARATOR));
     }
 
     @Override
@@ -136,26 +141,40 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
                                                            Class<? extends Annotation> handlerAnnotation) {
         return Optional.ofNullable(lookupHandleAnnotation(executable, handlerAnnotation))
                 .flatMap(a -> a.getAllowedClasses().stream()
-                        .max(introspector.typeSpecificityComparator()));
+                        .max(CLASS_SPECIFICITY_COMPARATOR));
     }
 
     private HandleAnnotation lookupHandleAnnotation(Executable executable,
                                                     Class<? extends Annotation> handlerAnnotation) {
+        if (annotationResolver instanceof MetadataExecutableAnnotationResolver metadataResolver) {
+            Optional<HandleAnnotation> metadata = metadataResolver.getAnnotationAs(
+                    executable, handlerAnnotation, HandleAnnotation.class);
+            if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+                return metadata.orElse(null);
+            }
+        }
         return annotationResolver.getAnnotation(executable, handlerAnnotation)
-                .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
-                                                                    HandleAnnotation.class))
+                .flatMap(annotation -> JvmComponentIntrospector.getInstance()
+                        .getAnnotationAs(annotation, handlerAnnotation, HandleAnnotation.class))
                 .orElse(null);
     }
 
     private HandleAnnotation lookupHandleAnnotation(ExecutableView executable,
                                                     Class<? extends Annotation> handlerAnnotation) {
+        if (annotationResolver instanceof MetadataExecutableAnnotationResolver metadataResolver) {
+            Optional<HandleAnnotation> metadata = metadataResolver.getAnnotationAs(
+                    executable, handlerAnnotation, HandleAnnotation.class);
+            if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+                return metadata.orElse(null);
+            }
+        }
         Optional<Executable> method = executable.executable();
         if (method.isPresent()) {
             return lookupHandleAnnotation(method.orElseThrow(), handlerAnnotation);
         }
         return executable.annotation(handlerAnnotation)
-                .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
-                                                                    HandleAnnotation.class))
+                .flatMap(annotation -> JvmComponentIntrospector.getInstance()
+                        .getAnnotationAs(annotation, handlerAnnotation, HandleAnnotation.class))
                 .orElse(null);
     }
 
@@ -194,6 +213,48 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
             }
         }
         return false;
+    }
+
+    private static int compareSpecificity(Class<?> left, Class<?> right) {
+        if (Objects.equals(left, right)) {
+            return 0;
+        }
+        if (left == null) {
+            return 1;
+        }
+        if (right == null) {
+            return -1;
+        }
+        if (left.isAssignableFrom(right)) {
+            return 1;
+        }
+        if (right.isAssignableFrom(left)) {
+            return -1;
+        }
+        if (left.isInterface() && !right.isInterface()) {
+            return 1;
+        }
+        if (!left.isInterface() && right.isInterface()) {
+            return -1;
+        }
+        return specificity(right) - specificity(left);
+    }
+
+    private static int specificity(Class<?> type) {
+        int depth = 0;
+        Class<?> current = type;
+        if (type.isInterface()) {
+            while (current.getInterfaces().length > 0) {
+                depth++;
+                current = current.getInterfaces()[0];
+            }
+        } else {
+            while (current != null) {
+                depth++;
+                current = current.getSuperclass();
+            }
+        }
+        return depth;
     }
 
     @Value

@@ -85,13 +85,14 @@ class TriggerParameterResolverTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForMethodTrigger() throws Exception {
-        var method = UnregisteredGeneratedOnlyTriggerHandler.class.getDeclaredMethod("handle", String.class);
+    void generatedOnlyModeUsesGeneratedClasspathMetadataForMethodTrigger() throws Exception {
+        var method = GeneratedClasspathTriggerHandler.class.getDeclaredMethod("handle", String.class);
         var resolver = new TriggerParameterResolver(null, null);
 
-        GeneratedOnlyMetadataMode.run(() -> assertTrue(resolver.prepare(
-                method, HandleResult.class, UnregisteredGeneratedOnlyTriggerHandler.class)
-                .test(new Message("result"), method, HandleResult.class, UnregisteredGeneratedOnlyTriggerHandler.class)));
+        GeneratedOnlyMetadataMode.run(() -> assertFalse(resolver.prepare(
+                method, HandleResult.class, GeneratedClasspathTriggerHandler.class)
+                .test(new Message("result"), method, HandleResult.class,
+                      GeneratedClasspathTriggerHandler.class)));
     }
 
     @Test
@@ -172,14 +173,14 @@ class TriggerParameterResolverTest {
         }
     }
 
-    static class UnregisteredGeneratedOnlyTriggerHandler {
+    static class RegisteredGeneratedOnlyTriggerHandler {
         @HandleResult
         @Trigger(TriggerAsPayload.class)
         void handle(String result) {
         }
     }
 
-    static class RegisteredGeneratedOnlyTriggerHandler {
+    static class GeneratedClasspathTriggerHandler {
         @HandleResult
         @Trigger(TriggerAsPayload.class)
         void handle(String result) {

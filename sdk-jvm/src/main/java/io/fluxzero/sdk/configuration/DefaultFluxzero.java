@@ -74,6 +74,7 @@ import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ComponentRegistryBlueprint;
 import io.fluxzero.sdk.registry.ComponentRegistryGenerator;
 import io.fluxzero.sdk.registry.ComponentRegistryJson;
+import io.fluxzero.sdk.registry.JvmGeneratedExecutionInstaller;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
 import io.fluxzero.sdk.scheduling.ScheduledCommandHandler;
@@ -214,6 +215,7 @@ public class DefaultFluxzero implements Fluxzero {
     private final FluxzeroConfiguration configuration;
     private final Client client;
     private final Collection<ComponentRegistry> componentRegistries;
+    private final AtomicReference<ComponentRegistry> mergedComponentRegistry = new AtomicReference<>();
     private final Path componentRegistryBlueprintOutput;
     private final ThrowingRunnable shutdownHandler;
 
@@ -254,17 +256,31 @@ public class DefaultFluxzero implements Fluxzero {
 
     @Override
     public ComponentRegistry componentRegistry() {
-        return ComponentRegistry.merge(componentRegistries);
+        ComponentRegistry cached = mergedComponentRegistry.get();
+        if (cached != null) {
+            return cached;
+        }
+        ComponentRegistry merged = ComponentRegistry.merge(componentRegistries);
+        return mergedComponentRegistry.compareAndSet(null, merged) ? merged : mergedComponentRegistry.get();
     }
 
     @Override
     public Registration registerComponentRegistry(@NonNull ComponentRegistry registry) {
+        Registration generatedExecutionRegistration = JvmGeneratedExecutionInstaller.install(registry);
         componentRegistries.add(registry);
+        mergedComponentRegistry.set(null);
         writeComponentRegistryBlueprint();
         return () -> {
+            generatedExecutionRegistration.cancel();
             componentRegistries.remove(registry);
+            mergedComponentRegistry.set(null);
             writeComponentRegistryBlueprint();
         };
+    }
+
+    private void installGeneratedComponentRegistryExecutions() {
+        // Generated registry resources are app-model metadata. JVM execution handles are installed lazily per
+        // component through ComponentMetadataLookups.ensureGeneratedExecutions(type).
     }
 
     private void writeComponentRegistryBlueprint() {
@@ -282,8 +298,15 @@ public class DefaultFluxzero implements Fluxzero {
     @Override
     public Registration registerHandlers(@NonNull List<?> handlers) {
         ComponentRegistry handlerRegistry = componentRegistry(handlers);
-        Registration registration = Fluxzero.super.registerHandlers(handlers);
-        return handlerRegistry.isEmpty() ? registration : registration.merge(registerComponentRegistry(handlerRegistry));
+        Registration registryRegistration = handlerRegistry.isEmpty()
+                                            ? Registration.noOp() : registerComponentRegistry(handlerRegistry);
+        try {
+            Registration handlerRegistration = Fluxzero.super.registerHandlers(handlers);
+            return handlerRegistration.merge(registryRegistration);
+        } catch (RuntimeException | Error e) {
+            registryRegistration.cancel();
+            throw e;
+        }
     }
 
     private static ComponentRegistry componentRegistry(List<?> handlers) {
@@ -1137,6 +1160,7 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             if (fluxzero instanceof DefaultFluxzero defaultFluxzero) {
+                defaultFluxzero.installGeneratedComponentRegistryExecutions();
                 defaultFluxzero.writeComponentRegistryBlueprint();
             }
 

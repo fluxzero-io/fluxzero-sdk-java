@@ -16,14 +16,19 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -90,7 +95,12 @@ public class MutableHandler<M> implements Handler<M> {
     }
 
     public MutableHandler<M> instantiateTarget() {
-        target = JvmComponentIntrospector.getInstance().asInstance(targetClass);
+        target = GeneratedExecutableInvocations.find(targetClass, InvocationPlanDescriptor.executableId(
+                        ExecutableKind.CONSTRUCTOR, "<init>", List.of()))
+                .map(invocation -> invocation.invoke(null))
+                .orElseGet(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? null
+                        : JvmComponentIntrospector.getInstance().asInstance(targetClass));
         return this;
     }
 

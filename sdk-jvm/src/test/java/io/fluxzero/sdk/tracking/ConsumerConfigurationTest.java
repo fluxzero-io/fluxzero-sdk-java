@@ -99,6 +99,10 @@ public class ConsumerConfigurationTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForConsumerAnnotations() {
+        @Consumer(name = "generated-only")
+        class UnregisteredGeneratedOnlyConsumer {
+        }
+
         GeneratedOnlyMetadataMode.run(() ->
                 assertTrue(ConsumerConfiguration.configurations(List.of(UnregisteredGeneratedOnlyConsumer.class))
                                    .toList().isEmpty()));
@@ -544,10 +548,6 @@ public class ConsumerConfigurationTest {
 
     @Consumer(name = "flow-regulated", flowRegulator = PositiveFlowRegulator.class)
     static class FlowRegulatedConsumer {
-    }
-
-    @Consumer(name = "generated-only")
-    static class UnregisteredGeneratedOnlyConsumer {
     }
 
     public static class PositiveFlowRegulator implements FlowRegulator {

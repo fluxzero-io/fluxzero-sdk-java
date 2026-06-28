@@ -19,7 +19,9 @@ import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -42,13 +44,13 @@ import java.util.Optional;
  * @see ClientUtils#getTopic(HandleDocument, Executable)
  */
 public class HandleDocumentFilter implements MessageFilter<DeserializingMessage> {
-    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
+    private final MetadataExecutableAnnotationResolver annotationResolver = MetadataExecutableAnnotationResolver.create();
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return introspector.executableAnnotation(executable, HandleDocument.class).map(
-                        handleDocument -> ClientUtils.getTopic(handleDocument, executable))
+        return documentAnnotation(executable)
+                .map(handleDocument -> ClientUtils.getTopic(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);
     }
@@ -61,11 +63,20 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
                 .orElse(false);
     }
 
+    private Optional<HandleDocument> documentAnnotation(Executable executable) {
+        Optional<HandleDocument> metadata = annotationResolver.getAnnotation(executable, HandleDocument.class)
+                .map(HandleDocument.class::cast);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return JvmComponentIntrospector.getInstance().executableAnnotation(executable, HandleDocument.class);
+    }
+
     private Optional<String> documentTopic(ExecutableView executable) {
-        Optional<Executable> method = executable.executable();
-        if (method.isPresent()) {
-            return introspector.executableAnnotation(method.orElseThrow(), HandleDocument.class)
-                    .map(handleDocument -> ClientUtils.getTopic(handleDocument, method.orElseThrow()));
+        Optional<HandleDocument> metadata = annotationResolver.getAnnotation(executable, HandleDocument.class)
+                .map(HandleDocument.class::cast);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.map(handleDocument -> ClientUtils.getTopic(handleDocument, executable));
         }
         return executable.annotation(HandleDocument.class)
                 .filter(h -> !h.disabled())

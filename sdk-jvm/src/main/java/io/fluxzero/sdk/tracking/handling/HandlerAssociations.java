@@ -21,12 +21,14 @@ import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
@@ -136,7 +138,7 @@ public class HandlerAssociations {
                     Stream<Map.Entry<Object, String>> propertyAssociations = getAssociationProperties().entrySet()
                             .stream()
                             .filter(entry -> includedPayload(payload, entry.getValue()))
-                            .flatMap(entry -> JvmComponentIntrospector.getInstance().readProperty(entry.getKey(), payload)
+                            .flatMap(entry -> readProperty(entry.getKey(), payload)
                                     .or(() -> entry.getValue().isExcludeMetadata() ? empty()
                                             : ofNullable(message.getMetadata().get(entry.getKey())))
                                     .map(this::normalizeAssociationValue)
@@ -162,7 +164,7 @@ public class HandlerAssociations {
                     Stream<Map.Entry<Object, String>> propertyAssociations = getAssociationProperties().entrySet()
                             .stream()
                             .filter(entry -> includedPayload(payload, entry.getValue()))
-                            .flatMap(entry -> JvmComponentIntrospector.getInstance().readProperty(entry.getKey(), payload)
+                            .flatMap(entry -> readProperty(entry.getKey(), payload)
                                     .or(() -> entry.getValue().isExcludeMetadata() ? empty()
                                             : ofNullable(message.getMetadata().get(entry.getKey())))
                                     .map(this::normalizeAssociationValue)
@@ -178,7 +180,7 @@ public class HandlerAssociations {
      */
     public boolean matchesTarget(Object target, Map<Object, String> associations) {
         return !associations.isEmpty() && associations.entrySet().stream()
-                .anyMatch(entry -> matchesValue(JvmComponentIntrospector.getInstance().readProperty(entry.getValue(), target).orElse(null),
+                .anyMatch(entry -> matchesValue(readProperty(entry.getValue(), target).orElse(null),
                                                 entry.getKey()));
     }
 
@@ -315,11 +317,53 @@ public class HandlerAssociations {
                ? Stream.empty() : Stream.of(parameter.name());
     }
 
+    private static Optional<Object> readProperty(String propertyPath, Object target) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        if (propertyPath == null || propertyPath.isBlank()) {
+            return Optional.of(target);
+        }
+        Optional<Object> generatedValue = readGeneratedProperty(propertyPath, target);
+        if (generatedValue.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return generatedValue;
+        }
+        return JvmComponentIntrospector.getInstance().readProperty(propertyPath, target);
+    }
+
+    private static Optional<Object> readGeneratedProperty(String propertyPath, Object target) {
+        Object current = target;
+        for (String segment : propertyPath.split("[./]")) {
+            if (segment.isBlank() || current == null) {
+                return Optional.empty();
+            }
+            if (current instanceof Map<?, ?> map) {
+                current = map.get(segment);
+                continue;
+            }
+            ComponentMetadataLookups.ensureGeneratedExecutions(current.getClass());
+            Optional<GeneratedPropertyAccesses.PropertyReader> reader =
+                    GeneratedPropertyAccesses.findReader(current.getClass(), segment);
+            if (reader.isEmpty()) {
+                return Optional.empty();
+            }
+            current = reader.orElseThrow().read(current);
+        }
+        return Optional.ofNullable(current);
+    }
+
     @Value
     @Builder(toBuilder = true)
     public static class AssociationValue {
         static AssociationValue valueOf(Association association) {
-            return JvmComponentIntrospector.getInstance().convertAnnotation(association, AssociationValue.class);
+            return AssociationValue.builder()
+                    .value(List.of(association.value()))
+                    .path(association.path())
+                    .includedClasses(List.of(association.includedClasses()))
+                    .excludedClasses(List.of(association.excludedClasses()))
+                    .excludeMetadata(association.excludeMetadata())
+                    .always(association.always())
+                    .build();
         }
 
         static AssociationValue valueOf(AnnotationDescriptor annotation) {
@@ -378,7 +422,7 @@ public class HandlerAssociations {
                 return message.computeRoutingKey().map(v -> v);
             }
             Object source = parameterValueResolver == null ? payload : parameterValueResolver.apply(message);
-            return ofNullable(source).flatMap(resolvedValue -> JvmComponentIntrospector.getInstance().readProperty(propertyName, resolvedValue)
+            return ofNullable(source).flatMap(resolvedValue -> readProperty(propertyName, resolvedValue)
                             .or(() -> associationValue.isExcludeMetadata() ? empty()
                                     : ofNullable(message.getMetadata().get(propertyName))))
                     .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v);
@@ -463,6 +507,7 @@ public class HandlerAssociations {
 
         private Stream<Map.Entry<String, AssociationValue>> associationPropertyEntries(PropertyDescriptor property) {
             return association(property.annotations())
+                    .or(() -> entityIdAssociation(property))
                     .stream()
                     .flatMap(associationValue -> {
                         String propertyName = property.name();
@@ -473,6 +518,23 @@ public class HandlerAssociations {
                         return (aliases == null || aliases.isEmpty() ? Stream.of(propertyName) : aliases.stream())
                                 .map(name -> Map.entry(name, mappedValue));
                     });
+        }
+
+        private Optional<AssociationValue> entityIdAssociation(PropertyDescriptor property) {
+            boolean entityId = property.annotations().stream()
+                    .anyMatch(annotation -> annotation.qualifiedName().equals(EntityId.class.getName())
+                                            || annotation.name().equals(EntityId.class.getSimpleName()));
+            if (!entityId) {
+                return Optional.empty();
+            }
+            return Optional.of(AssociationValue.builder()
+                                       .value(List.of(property.name()))
+                                       .path(property.name())
+                                       .includedClasses(List.of())
+                                       .excludedClasses(List.of())
+                                       .excludeMetadata(false)
+                                       .always(false)
+                                       .build());
         }
 
         private List<MethodAssociationProperty> computeExecutableAssociationProperties(Executable executable) {

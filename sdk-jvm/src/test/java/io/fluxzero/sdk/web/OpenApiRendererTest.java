@@ -130,15 +130,24 @@ class OpenApiRendererTest {
 
     @Test
     void generatedOnlyModeUsesRegistryMetadataForDocumentInfo() throws Exception {
-        ApiDocCatalog catalog = manualCatalog(InfoHandler.class, "info");
+        @ApiDocInfo(title = "Unscanned API", security = "bearerAuth")
+        class LocalInfoHandler {
+            @HandleGet("/info")
+            String info() {
+                return null;
+            }
+        }
+        ApiDocCatalog localCatalog = manualCatalog(LocalInfoHandler.class, "info");
 
         GeneratedOnlyMetadataMode.run(() -> {
-            JsonNode document = OpenApiRenderer.render(catalog);
+            JsonNode document = OpenApiRenderer.render(localCatalog);
 
-            assertEquals("Fluxzero API", document.path("info").path("title").asText());
+            assertEquals("Unscanned API", document.path("info").path("title").asText());
+            assertEquals("bearerAuth", document.path("security").get(0).fieldNames().next());
             assertFalse(document.path("components").path("securitySchemes").has("bearerAuth"));
         });
 
+        ApiDocCatalog catalog = manualCatalog(InfoHandler.class, "info");
         try {
             TestFixture.create().getFluxzero().registerComponentRegistry(
                     JvmComponentMetadataLookup.scan(InfoHandler.class).registry());
@@ -159,6 +168,45 @@ class OpenApiRendererTest {
 
     @Test
     void generatedOnlyModeUsesRegistryMetadataForSchemaAnnotations() throws Exception {
+        record LocalSchemaMetadataDto(
+                @ApiDoc(description = "Metadata label", required = true) String label,
+                @Range(min = 2, max = 7) int amount,
+                @UniqueElements List<String> tags,
+                @ApiDocExclude String hidden) {
+        }
+        class LocalSchemaMetadataHandler {
+            @HandleGet("/schema/{id}")
+            LocalSchemaMetadataDto schema(@ApiDoc(description = "Metadata id") @PathParam("id") String id) {
+                return null;
+            }
+        }
+        Method localMethod = LocalSchemaMetadataHandler.class.getDeclaredMethod("schema", String.class);
+        ApiDocCatalog localCatalog = new ApiDocCatalog(List.of(new ApiDocEndpoint(
+                LocalSchemaMetadataHandler.class,
+                localMethod,
+                "",
+                "/schema/{id}",
+                HttpRequestMethod.GET,
+                false,
+                false,
+                new ApiDocDetails("", "", "", List.of(), false, List.of()),
+                List.of(new ApiDocParameter("id", WebParameterSource.PATH, String.class,
+                                            localMethod.getParameters()[0])),
+                List.of(),
+                localMethod.getGenericReturnType(),
+                List.of())));
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            JsonNode document = OpenApiRenderer.render(localCatalog);
+            JsonNode id = document.path("paths").path("/schema/{id}").path("get").path("parameters").get(0);
+            JsonNode schema = document.path("components").path("schemas").path("LocalSchemaMetadataDto");
+            JsonNode properties = schema.path("properties");
+
+            assertEquals("Metadata id", id.path("description").asText());
+            assertFalse(properties.path("label").has("description"));
+            assertTrue(properties.has("hidden"));
+        });
+
         Method method = SchemaMetadataHandler.class.getDeclaredMethod("schema", String.class);
         ApiDocCatalog catalog = new ApiDocCatalog(List.of(new ApiDocEndpoint(
                 SchemaMetadataHandler.class,
@@ -173,16 +221,6 @@ class OpenApiRendererTest {
                 List.of(),
                 method.getGenericReturnType(),
                 List.of())));
-
-        GeneratedOnlyMetadataMode.run(() -> {
-            JsonNode document = OpenApiRenderer.render(catalog);
-            JsonNode id = document.path("paths").path("/schema/{id}").path("get").path("parameters").get(0);
-            JsonNode schema = document.path("components").path("schemas").path("SchemaMetadataDto");
-
-            assertFalse(id.has("description"));
-            assertFalse(schema.path("properties").path("label").has("description"));
-            assertTrue(schema.path("properties").has("hidden"));
-        });
 
         try {
             TestFixture.create().getFluxzero().registerComponentRegistry(

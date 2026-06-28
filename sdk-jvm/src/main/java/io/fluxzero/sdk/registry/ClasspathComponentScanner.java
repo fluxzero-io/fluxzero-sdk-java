@@ -247,7 +247,59 @@ public class ClasspathComponentScanner {
                                 component.getGenericType().getTypeName(), annotations, typeUse));
                     });
         }
+        Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> !method.isSynthetic())
+                .filter(method -> method.getParameterCount() == 0)
+                .filter(method -> method.getReturnType() != void.class)
+                .sorted(Comparator.comparing(Method::getName))
+                .forEach(method -> {
+                    Optional<String> propertyName = methodPropertyName(method);
+                    List<AnnotationDescriptor> annotations =
+                            annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(method));
+                    propertyName.filter(name -> properties.containsKey(name) || !annotations.isEmpty()).ifPresent(name -> {
+                        PropertyDescriptor existing = properties.get(name);
+                        List<AnnotationDescriptor> mergedAnnotations = mergeAnnotations(
+                                Optional.ofNullable(existing).map(PropertyDescriptor::annotations).orElse(List.of()),
+                                annotations);
+                        properties.put(name, existing == null
+                                ? new PropertyDescriptor(
+                                        name, typeName(method.getReturnType()),
+                                        method.getGenericReturnType().getTypeName(), mergedAnnotations,
+                                        typeUseDescriptor(method.getAnnotatedReturnType()))
+                                : new PropertyDescriptor(
+                                        existing.name(), existing.typeName(), existing.genericTypeName(),
+                                        mergedAnnotations, existing.typeUse()));
+                    });
+                });
         return List.copyOf(properties.values());
+    }
+
+    private Optional<String> methodPropertyName(Method method) {
+        String methodName = method.getName();
+        if (methodName.equals("getClass") || methodName.equals("hashCode") || methodName.equals("toString")) {
+            return Optional.empty();
+        }
+        if (methodName.startsWith("get") && methodName.length() > 3
+            && Character.isUpperCase(methodName.charAt(3))) {
+            return Optional.of(decapitalize(methodName.substring(3)));
+        }
+        if (methodName.startsWith("is") && methodName.length() > 2
+            && Character.isUpperCase(methodName.charAt(2))
+            && (method.getReturnType().equals(boolean.class) || method.getReturnType().equals(Boolean.class))) {
+            return Optional.of(decapitalize(methodName.substring(2)));
+        }
+        return Optional.of(methodName);
+    }
+
+    private static String decapitalize(String value) {
+        if (value.isEmpty()) {
+            return value;
+        }
+        if (value.length() > 1 && Character.isUpperCase(value.charAt(0))
+            && Character.isUpperCase(value.charAt(1))) {
+            return value;
+        }
+        return Character.toLowerCase(value.charAt(0)) + value.substring(1);
     }
 
     private PackageDescriptor packageDescriptor(Package p, List<String> allTypeNames) {
@@ -575,12 +627,13 @@ public class ClasspathComponentScanner {
         Arrays.stream(annotation.annotationType().getDeclaredMethods())
                 .sorted(Comparator.comparing(Method::getName))
                 .forEach(method -> {
-                    Object value = invoke(method, annotation);
-                    attributes.put(method.getName(), values(value));
-                    List<AnnotationDescriptor> nested = nestedAnnotations(value);
-                    if (!nested.isEmpty()) {
-                        nestedAnnotations.put(method.getName(), nested);
-                    }
+                    invoke(method, annotation).ifPresent(value -> {
+                        attributes.put(method.getName(), values(value));
+                        List<AnnotationDescriptor> nested = nestedAnnotations(value);
+                        if (!nested.isEmpty()) {
+                            nestedAnnotations.put(method.getName(), nested);
+                        }
+                    });
                 });
         visited.add(annotation.annotationType());
         List<AnnotationDescriptor> metaAnnotations = Arrays.stream(annotation.annotationType().getAnnotations())
@@ -600,11 +653,13 @@ public class ClasspathComponentScanner {
                && !visited.contains(annotationType);
     }
 
-    private static Object invoke(Method method, Annotation annotation) {
+    private static Optional<Object> invoke(Method method, Annotation annotation) {
         try {
-            return method.invoke(annotation);
+            return Optional.ofNullable(method.invoke(annotation));
         } catch (ReflectiveOperationException e) {
-            throw new ComponentRegistryException("Failed to read annotation metadata: " + annotation, e);
+            return Optional.empty();
+        } catch (RuntimeException e) {
+            return Optional.empty();
         }
     }
 

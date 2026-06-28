@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import jakarta.annotation.Nullable;
+
 import java.lang.reflect.Executable;
 import java.lang.reflect.Type;
 import java.util.List;
@@ -23,7 +26,7 @@ import java.util.List;
  */
 public record ApiDocEndpoint(
         Class<?> handlerType,
-        Executable executable,
+        @Nullable Executable executable,
         String origin,
         String path,
         String method,
@@ -33,8 +36,26 @@ public record ApiDocEndpoint(
         List<ApiDocParameter> parameters,
         List<ApiDocRequestBody> requestBodies,
         Type responseType,
-        List<ApiDocResponseDescriptor> responses
+        List<ApiDocResponseDescriptor> responses,
+        @Nullable ExecutableDescriptor executableMetadata
 ) {
+    public ApiDocEndpoint(
+            Class<?> handlerType,
+            @Nullable Executable executable,
+            String origin,
+            String path,
+            String method,
+            boolean autoHead,
+            boolean autoOptions,
+            ApiDocDetails documentation,
+            List<ApiDocParameter> parameters,
+            List<ApiDocRequestBody> requestBodies,
+            Type responseType,
+            List<ApiDocResponseDescriptor> responses) {
+        this(handlerType, executable, origin, path, method, autoHead, autoOptions, documentation, parameters,
+             requestBodies, responseType, responses, null);
+    }
+
     public ApiDocEndpoint {
         parameters = List.copyOf(parameters);
         requestBodies = List.copyOf(requestBodies);

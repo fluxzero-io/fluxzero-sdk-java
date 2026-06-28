@@ -18,7 +18,6 @@ package io.fluxzero.sdk.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -178,14 +177,44 @@ public class DefaultWebRequestContext implements WebRequestContext {
                 case COOKIE -> new ParameterValue(cookieMap.get(name));
                 case FORM -> new ParameterValue(firstOrListObject(formParameterValues().get(name)));
                 case QUERY -> new ParameterValue(firstOrList(queryParameters.get(name)));
-                case BODY -> JvmComponentIntrospector.getInstance().readProperty(name, jsonBody())
-                        .map(ParameterValue::new).orElseGet(() -> new ParameterValue(null));
+                case BODY -> new ParameterValue(jsonBodyValue(name));
             };
             if (value.hasValue()) {
                 return value;
             }
         }
         return new ParameterValue(null);
+    }
+
+    private Object jsonBodyValue(String name) {
+        JsonNode body = jsonBody();
+        if (body == null || name == null || name.isBlank()) {
+            return null;
+        }
+        JsonNode value = body.get(name);
+        if (isPresent(value)) {
+            return value;
+        }
+        value = nestedJsonBodyValue(body, name);
+        return isPresent(value) ? value : null;
+    }
+
+    private static JsonNode nestedJsonBodyValue(JsonNode body, String name) {
+        JsonNode value = body;
+        for (String segment : name.split("[./]")) {
+            if (segment.isBlank()) {
+                continue;
+            }
+            value = value == null ? null : value.get(segment);
+            if (!isPresent(value)) {
+                return null;
+            }
+        }
+        return value;
+    }
+
+    private static boolean isPresent(JsonNode value) {
+        return value != null && !value.isMissingNode() && !value.isNull();
     }
 
     public boolean matches(String urlPattern) {

@@ -94,6 +94,10 @@ class SchedulingInterceptorTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForPeriodicPayloads() throws Exception {
+        @Periodic(delay = 1000, initialDelay = 0)
+        class UnregisteredGeneratedOnlyPeriodicSchedule {
+        }
+
         try {
             TestFixture fixture = TestFixture.create().atFixedTime(START);
 
@@ -125,6 +129,17 @@ class SchedulingInterceptorTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForPeriodicHandlerMethods() throws Exception {
+        class UnregisteredGeneratedOnlyMethodSchedule {
+            public UnregisteredGeneratedOnlyMethodSchedule() {
+            }
+        }
+        class UnregisteredGeneratedOnlyPeriodicHandler {
+            @HandleSchedule
+            @Periodic(delay = 1000, initialDelay = 0)
+            void handle(UnregisteredGeneratedOnlyMethodSchedule schedule) {
+            }
+        }
+
         try {
             TestFixture fixture = TestFixture.create().withProperty(Periodic.USE_DEFAULT_INITIAL_DELAY_PROPERTY, true)
                     .atFixedTime(START);
@@ -228,24 +243,8 @@ class SchedulingInterceptorTest {
         }
     }
 
-    @Periodic(delay = 1000, initialDelay = 0)
-    static class UnregisteredGeneratedOnlyPeriodicSchedule {
-    }
-
     @Periodic(delay = 1000, initialDelay = 0, scheduleId = "registered-periodic")
     static class RegisteredGeneratedOnlyPeriodicSchedule {
-    }
-
-    static class UnregisteredGeneratedOnlyMethodSchedule {
-        public UnregisteredGeneratedOnlyMethodSchedule() {
-        }
-    }
-
-    static class UnregisteredGeneratedOnlyPeriodicHandler {
-        @HandleSchedule
-        @Periodic(delay = 1000, initialDelay = 0)
-        void handle(UnregisteredGeneratedOnlyMethodSchedule schedule) {
-        }
     }
 
     static class RegisteredGeneratedOnlyMethodSchedule {

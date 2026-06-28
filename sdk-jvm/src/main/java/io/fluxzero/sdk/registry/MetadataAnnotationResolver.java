@@ -38,6 +38,18 @@ final class MetadataAnnotationResolver {
                 .map(descriptor -> annotationView(annotationType, descriptor, declaringClass));
     }
 
+    static <A extends Annotation> Optional<A> annotationProjection(
+            List<AnnotationDescriptor> annotations, Class<A> annotationType, Class<?> declaringClass) {
+        return descriptors(annotations, annotationType).stream()
+                .findFirst()
+                .map(descriptor -> annotationViewAs(annotationType, descriptor, declaringClass));
+    }
+
+    static <A extends Annotation> A annotationProjection(
+            AnnotationDescriptor descriptor, Class<A> annotationType, Class<?> declaringClass) {
+        return annotationViewAs(annotationType, descriptor, declaringClass);
+    }
+
     static <T> Optional<T> annotationAs(
             List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType,
             Class<T> projectionType, Class<?> declaringClass) {
@@ -60,6 +72,17 @@ final class MetadataAnnotationResolver {
             Class<?> declaringClass) {
         Class<? extends Annotation> annotationType =
                 annotationType(requestedAnnotationType, descriptor, declaringClass.getClassLoader());
+        return annotationViewForType(annotationType, descriptor, declaringClass);
+    }
+
+    private static <A extends Annotation> A annotationViewAs(
+            Class<A> annotationType, AnnotationDescriptor descriptor, Class<?> declaringClass) {
+        return annotationType.cast(annotationViewForType(annotationType, descriptor, declaringClass));
+    }
+
+    private static Annotation annotationViewForType(
+            Class<? extends Annotation> annotationType, AnnotationDescriptor descriptor,
+            Class<?> declaringClass) {
         InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
             case "annotationType" -> annotationType;
             case "toString" -> descriptor.toString();
@@ -227,6 +250,20 @@ final class MetadataAnnotationResolver {
         try {
             return Optional.of(Class.forName(value, false, classLoader));
         } catch (ClassNotFoundException e) {
+            String[] segments = value.split("\\.");
+            for (int typeStart = segments.length - 1; typeStart >= 0; typeStart--) {
+                String packageName = String.join(".", java.util.Arrays.copyOfRange(segments, 0, typeStart));
+                String binaryName = String.join("$", java.util.Arrays.copyOfRange(segments, typeStart, segments.length));
+                String candidate = packageName.isEmpty() ? binaryName : packageName + "." + binaryName;
+                if (candidate.equals(value)) {
+                    continue;
+                }
+                try {
+                    return Optional.of(Class.forName(candidate, false, classLoader));
+                } catch (ClassNotFoundException ignored) {
+                    // Try the next possible nested-type split.
+                }
+            }
             return Optional.empty();
         }
     }

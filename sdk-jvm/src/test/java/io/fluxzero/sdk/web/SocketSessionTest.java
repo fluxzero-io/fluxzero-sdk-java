@@ -33,9 +33,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class SocketSessionTest {
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForRequestTimeout() throws Exception {
+        @Timeout(value = 2, timeUnit = TimeUnit.SECONDS)
+        class LocalUnregisteredTimeoutRequest implements Request<String> {
+        }
+
         CapturingSocketSession session = new CapturingSocketSession();
 
-        GeneratedOnlyMetadataMode.run(() -> session.sendRequest(new UnregisteredTimeoutRequest()));
+        GeneratedOnlyMetadataMode.run(() -> session.sendRequest(new LocalUnregisteredTimeoutRequest()));
 
         assertEquals(Duration.ofSeconds(30), session.timeout.get());
     }
@@ -53,10 +57,6 @@ class SocketSessionTest {
         } finally {
             TestFixture.shutDownActiveFixtures();
         }
-    }
-
-    @Timeout(value = 2, timeUnit = TimeUnit.SECONDS)
-    static class UnregisteredTimeoutRequest implements Request<String> {
     }
 
     @Timeout(value = 2, timeUnit = TimeUnit.SECONDS)

@@ -29,6 +29,7 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
 import io.fluxzero.sdk.unguarded.UnclassifiedJvmIntrospection;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HttpRequestMethod;
@@ -134,12 +135,15 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
-    void resolverRefusesJvmFallbackInGeneratedOnlyMode() {
-        assertInstanceOf(JvmComponentMetadataLookup.class,
-                         ComponentMetadataLookups.lookup(UnregisteredPlainComponent.class).orElseThrow());
+    void resolverUsesGeneratedRegistryForCompiledClasspathComponentsInGeneratedOnlyMode() {
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            assertInstanceOf(RegistryComponentMetadataLookup.class,
+                             ComponentMetadataLookups.lookup(RegisteredTimeoutRequest.class).orElseThrow());
+        }
 
-        GeneratedOnlyMetadataMode.run(() ->
-                assertTrue(ComponentMetadataLookups.lookup(UnregisteredPlainComponent.class).isEmpty()));
+        GeneratedOnlyMetadataMode.run(() -> assertInstanceOf(
+                RegistryComponentMetadataLookup.class,
+                ComponentMetadataLookups.lookup(RegisteredTimeoutRequest.class).orElseThrow()));
     }
 
     @Test
@@ -149,11 +153,14 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
-    void registryProducerRefusesJvmFallbackInGeneratedOnlyMode() {
-        assertFalse(ComponentMetadataLookups.registryFor(Set.of(UnregisteredPlainComponent.class)).isEmpty());
+    void registryProducerUsesGeneratedRegistryForCompiledClasspathComponentsInGeneratedOnlyMode() {
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            assertFalse(ComponentMetadataLookups.registryFor(Set.of(RegisteredTimeoutRequest.class)).isEmpty());
+        }
 
         GeneratedOnlyMetadataMode.run(() ->
-                assertTrue(ComponentMetadataLookups.registryFor(Set.of(UnregisteredPlainComponent.class)).isEmpty()));
+                assertFalse(ComponentMetadataLookups.registryFor(Set.of(RegisteredTimeoutRequest.class))
+                                   .isEmpty()));
     }
 
     @Test
@@ -170,13 +177,15 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
-    void typeAnnotationRefusesJvmFallbackInGeneratedOnlyMode() {
-        assertTrue(ComponentMetadataLookups.typeAnnotation(
-                UnregisteredTimeoutRequest.class, Timeout.class).isPresent());
+    void typeAnnotationUsesGeneratedRegistryForCompiledClasspathComponentInGeneratedOnlyMode() {
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            assertTrue(ComponentMetadataLookups.typeAnnotation(
+                    RegisteredTimeoutRequest.class, Timeout.class).isPresent());
+        }
 
         GeneratedOnlyMetadataMode.run(() ->
                 assertTrue(ComponentMetadataLookups.typeAnnotation(
-                        UnregisteredTimeoutRequest.class, Timeout.class).isEmpty()));
+                        RegisteredTimeoutRequest.class, Timeout.class).isPresent()));
     }
 
     @Test
@@ -191,6 +200,23 @@ class ComponentMetadataLookupTest {
 
                 assertEquals(15, timeout.value());
                 assertEquals(TimeUnit.SECONDS, timeout.timeUnit());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void typeAnnotationProjectsMetaAnnotationToRequestedPolicyTypeInGeneratedOnlyMode() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredMetaUserRequest.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                RequiresUser requiresUser = ComponentMetadataLookups.typeAnnotation(
+                        RegisteredMetaUserRequest.class, RequiresUser.class).orElseThrow();
+
+                assertTrue(requiresUser.throwIfUnauthorized());
             });
         } finally {
             TestFixture.shutDownActiveFixtures();
@@ -325,15 +351,18 @@ class ComponentMetadataLookupTest {
         }
     }
 
-    static class UnregisteredPlainComponent {
-    }
-
-    @Timeout(10)
-    static class UnregisteredTimeoutRequest {
-    }
-
     @Timeout(value = 15, timeUnit = TimeUnit.SECONDS)
     static class RegisteredTimeoutRequest {
+    }
+
+    @MetaRequiresUser
+    static class RegisteredMetaUserRequest {
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @RequiresUser
+    @interface MetaRequiresUser {
     }
 
     @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(

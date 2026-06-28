@@ -16,6 +16,7 @@ package io.fluxzero.sdk.scheduling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
@@ -23,11 +24,14 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
@@ -79,16 +83,15 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
-        for (var method : PeriodicMetadata.scheduleMethods(handler.getTargetClass())) {
-            Periodic periodic = PeriodicMetadata.executable(method).orElse(null);
-            if (method.getParameterCount() > 0) {
-                Class<?> type = method.getParameters()[0].getType();
-                periodic = periodic == null ? PeriodicMetadata.type(type).orElse(null) : periodic;
-                try {
-                    initializePeriodicSchedule(type, periodic);
-                } catch (Exception e) {
-                    log.error("Failed to initialize periodic schedule on method {}. Continuing...", method, e);
-                }
+        for (var scheduleMethod : PeriodicMetadata.scheduleMethods(handler.getTargetClass())) {
+            Class<?> type = scheduleMethod.payloadType();
+            Periodic periodic = scheduleMethod.periodic().orElse(null);
+            periodic = periodic == null ? PeriodicMetadata.type(type).orElse(null) : periodic;
+            try {
+                initializePeriodicSchedule(type, periodic);
+            } catch (Exception e) {
+                log.error("Failed to initialize periodic schedule on method {}. Continuing...",
+                          scheduleMethod.description(), e);
             }
         }
         return HandlerInterceptor.super.wrap(handler);
@@ -108,20 +111,37 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                 return; //cron schedule is disabled
             }
             String scheduleId = periodic.scheduleId().isEmpty() ? payloadType.getName() : periodic.scheduleId();
-            Object payload;
-            try {
-                payload = JvmComponentIntrospector.getInstance().ensureAccessible(payloadType.getConstructor()).newInstance();
-            } catch (Exception e) {
+            Optional<Object> payload = createInitialPayload(payloadType);
+            if (payload.isEmpty()) {
                 log.error("No default constructor found on @Periodic type: {}. "
                           + "Add a public default constructor or initialize this periodic schedule by hand",
-                          payloadType, e);
+                          payloadType);
                 return;
             }
             Metadata metadata = ofNullable(fluxzero.userProvider()).flatMap(
                             p -> ofNullable(p.getSystemUser()).map(u -> p.addToMetadata(Metadata.empty(), u)))
                     .orElse(Metadata.empty());
-            Schedule schedule = new Schedule(payload, markCron(metadata, periodic), scheduleId, firstDeadline);
+            Schedule schedule = new Schedule(payload.orElseThrow(), markCron(metadata, periodic), scheduleId,
+                                             firstDeadline);
             initializePeriodicSchedule(fluxzero.messageScheduler(), schedule, periodic);
+        }
+    }
+
+    private Optional<Object> createInitialPayload(Class<?> payloadType) {
+        Optional<Object> generated = GeneratedExecutableInvocations.find(
+                        payloadType,
+                        InvocationPlanDescriptor.executableId(ExecutableKind.CONSTRUCTOR, "<init>", List.of()))
+                .map(invocation -> invocation.invoke(null));
+        if (generated.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return generated;
+        }
+        try {
+            Constructor<?> constructor = payloadType.getConstructor();
+            constructor.setAccessible(true);
+            return Optional.of(constructor.newInstance());
+        } catch (ReflectiveOperationException e) {
+            log.debug("No default constructor found on @Periodic type {}", payloadType, e);
+            return Optional.empty();
         }
     }
 

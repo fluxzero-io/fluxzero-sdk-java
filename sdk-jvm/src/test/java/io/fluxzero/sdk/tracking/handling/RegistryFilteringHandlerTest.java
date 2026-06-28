@@ -78,13 +78,13 @@ class RegistryFilteringHandlerTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseClasspathScannerFallback() {
+    void generatedOnlyModeUsesGeneratedClasspathMetadata() {
         GeneratedOnlyMetadataMode.run(() -> {
-            CountingHandler delegate = new CountingHandler(UnregisteredGeneratedOnlyCommandHandler.class);
+            CountingHandler delegate = new CountingHandler(GeneratedClasspathCommandHandler.class);
             Handler<DeserializingMessage> handler = RegistryFilteringHandler.wrap(delegate, MessageType.COMMAND);
 
             handler.getInvokerOrNull(command(new OtherRegistryCommand("miss")));
-            assertEquals(1, delegate.invocations());
+            assertEquals(0, delegate.invocations());
         });
     }
 
@@ -192,13 +192,13 @@ class RegistryFilteringHandlerTest {
         }
     }
 
-    private static class UnregisteredGeneratedOnlyCommandHandler {
+    private static class RegisteredGeneratedOnlyCommandHandler {
         @HandleCommand
         void handle(RegistryCommand command) {
         }
     }
 
-    private static class RegisteredGeneratedOnlyCommandHandler {
+    private static class GeneratedClasspathCommandHandler {
         @HandleCommand
         void handle(RegistryCommand command) {
         }

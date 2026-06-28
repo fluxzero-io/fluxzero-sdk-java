@@ -18,11 +18,13 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A {@link MessageFilter} implementation that filters {@link DeserializingMessage} instances
@@ -35,12 +37,12 @@ import java.util.Objects;
  * @see DeserializingMessage
  */
 public class HandleCustomFilter implements MessageFilter<DeserializingMessage> {
-    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
+    private final MetadataExecutableAnnotationResolver annotationResolver = MetadataExecutableAnnotationResolver.create();
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return introspector.executableAnnotation(executable, HandleCustom.class)
+        return customAnnotation(executable)
                 .map(c -> Objects.equals(customTopic(c), message.getTopic()))
                 .orElse(false);
     }
@@ -48,11 +50,27 @@ public class HandleCustomFilter implements MessageFilter<DeserializingMessage> {
     @Override
     public boolean test(DeserializingMessage message, ExecutableView executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return executable.executable()
-                .flatMap(method -> introspector.executableAnnotation(method, HandleCustom.class))
-                .or(() -> executable.annotation(HandleCustom.class))
+        return customAnnotation(executable)
                 .map(c -> Objects.equals(customTopic(c), message.getTopic()))
                 .orElse(false);
+    }
+
+    private Optional<HandleCustom> customAnnotation(Executable executable) {
+        Optional<HandleCustom> metadata = annotationResolver.getAnnotation(executable, HandleCustom.class)
+                .map(HandleCustom.class::cast);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return Optional.empty();
+    }
+
+    private Optional<HandleCustom> customAnnotation(ExecutableView executable) {
+        Optional<HandleCustom> metadata = annotationResolver.getAnnotation(executable, HandleCustom.class)
+                .map(HandleCustom.class::cast);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return executable.annotation(HandleCustom.class);
     }
 
     private static String customTopic(HandleCustom annotation) {

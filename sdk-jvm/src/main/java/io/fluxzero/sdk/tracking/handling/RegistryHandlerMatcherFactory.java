@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.ExecutableInvocation;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.GeneratedExecutableInvocations;
@@ -22,10 +23,15 @@ import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.HandlerRoute;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.RegistryExecutableViews;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,27 +44,118 @@ final class RegistryHandlerMatcherFactory {
             Class<?> targetClass,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config) {
-        return ComponentMetadataLookups.registeredLookup(targetClass)
-                .flatMap(lookup -> {
-                    List<ExecutableView> executableViews = lookup.executables(targetClass.getName()).stream()
-                            .map(descriptor -> RegistryExecutableViews.executableView(targetClass, descriptor))
-                            .filter(view -> config.methodMatches(targetClass, view))
-                            .toList();
-                    if (executableViews.isEmpty()) {
+        return registeredExecutableViews(targetClass, config)
+                .filter(views -> !views.isEmpty())
+                .flatMap(views -> {
+                    Map<ExecutableView, ExecutableInvocation> invocations = new LinkedHashMap<>();
+                    for (RegisteredExecutableView view : views) {
+                        generatedInvocation(view).ifPresent(invocation -> invocations.put(view.view(), invocation));
+                    }
+                    if (invocations.isEmpty()) {
                         return Optional.empty();
                     }
-                    Map<String, ExecutableInvocation> invocations = new LinkedHashMap<>();
-                    for (ExecutableView view : executableViews) {
-                        Optional<ExecutableInvocation> invocation =
-                                GeneratedExecutableInvocations.find(targetClass, view.executableId());
-                        if (invocation.isEmpty()) {
-                            return Optional.empty();
-                        }
-                        invocations.put(view.executableId(), invocation.orElseThrow());
-                    }
                     return Optional.of(HandlerInspector.inspectViews(
-                            targetClass, executableViews, view -> invocations.get(view.executableId()),
+                            targetClass, invocations.keySet().stream().toList(), invocations::get,
                             parameterResolvers, config));
                 });
+    }
+
+    static boolean hasRegisteredHandlersWithoutGeneratedInvocations(
+            Class<?> targetClass,
+            MessageType messageType,
+            HandlerConfiguration<DeserializingMessage> config) {
+        return registeredExecutableViews(targetClass, config)
+                .map(views -> !views.isEmpty() && views.stream().noneMatch(
+                        view -> generatedInvocation(view).isPresent()))
+                .orElse(false);
+    }
+
+    static boolean hasRegisteredHandlers(
+            Class<?> targetClass,
+            MessageType messageType,
+            HandlerConfiguration<DeserializingMessage> config) {
+        return registeredExecutableViews(targetClass, config)
+                .filter(views -> views.stream().anyMatch(view -> generatedInvocation(view).isPresent()))
+                .isPresent();
+    }
+
+    private static List<RegisteredRoute> registeredRoutes(Class<?> targetClass, MessageType messageType) {
+        return ComponentMetadataLookups.registeredLookup(targetClass)
+                .map(lookup -> metadataRouteTypes(targetClass, lookup).stream()
+                        .flatMap(metadataType -> targetClassNames(metadataType).stream()
+                                .flatMap(name -> lookup.routes(name, messageType).stream())
+                                .filter(route -> !route.disabled())
+                                .map(route -> new RegisteredRoute(metadataType, route)))
+                        .toList())
+                .orElseGet(List::of);
+    }
+
+    private static boolean routeHasMissingGeneratedInvocation(Class<?> targetClass, HandlerRoute route) {
+        return route.executableMetadata()
+                .map(executable -> GeneratedExecutableInvocations.find(
+                        targetClass, executableId(executable)).isEmpty())
+                .orElse(true);
+    }
+
+    private static Optional<ExecutableInvocation> generatedInvocation(RegisteredExecutableView view) {
+        ComponentMetadataLookups.ensureGeneratedExecutions(view.metadataType());
+        return GeneratedExecutableInvocations.find(view.metadataType(), view.view().executableId());
+    }
+
+    private static String executableId(ExecutableDescriptor executable) {
+        return InvocationPlanDescriptor.executableId(
+                executable.kind(),
+                executable.name(),
+                executable.parameters().stream()
+                        .map(parameter -> parameter.typeName())
+                        .toList());
+    }
+
+    private static Optional<List<RegisteredExecutableView>> registeredExecutableViews(
+            Class<?> targetClass,
+            HandlerConfiguration<DeserializingMessage> config) {
+        return ComponentMetadataLookups.registeredLookup(targetClass)
+                .map(lookup -> metadataRouteTypes(targetClass, lookup).stream()
+                        .flatMap(metadataType -> targetClassNames(metadataType).stream()
+                                .flatMap(name -> lookup.executables(name).stream())
+                                .distinct()
+                                .map(descriptor -> new RegisteredExecutableView(
+                                        metadataType,
+                                        RegistryExecutableViews.executableView(metadataType, descriptor))))
+                        .filter(view -> config.methodMatches(targetClass, view.view()))
+                        .toList());
+    }
+
+    private static List<Class<?>> metadataRouteTypes(Class<?> targetClass, ComponentMetadataLookup lookup) {
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        collectMetadataRouteTypes(targetClass, lookup, result);
+        return List.copyOf(result);
+    }
+
+    private static void collectMetadataRouteTypes(
+            Class<?> type, ComponentMetadataLookup lookup, LinkedHashSet<Class<?>> result) {
+        if (type == null || Object.class.equals(type)) {
+            return;
+        }
+        if (targetClassNames(type).stream().anyMatch(name -> lookup.component(name).isPresent())) {
+            result.add(type);
+        }
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            collectMetadataRouteTypes(interfaceType, lookup, result);
+        }
+        collectMetadataRouteTypes(type.getSuperclass(), lookup, result);
+    }
+
+    private static List<String> targetClassNames(Class<?> targetClass) {
+        String canonicalName = targetClass.getCanonicalName();
+        return canonicalName == null || canonicalName.equals(targetClass.getName())
+               ? List.of(targetClass.getName())
+               : List.of(targetClass.getName(), canonicalName);
+    }
+
+    private record RegisteredRoute(Class<?> metadataType, HandlerRoute route) {
+    }
+
+    private record RegisteredExecutableView(Class<?> metadataType, ExecutableView view) {
     }
 }

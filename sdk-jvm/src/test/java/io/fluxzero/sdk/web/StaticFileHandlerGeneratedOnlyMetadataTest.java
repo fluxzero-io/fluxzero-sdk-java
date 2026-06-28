@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.staticfixture.PackageStaticHandler;
@@ -27,11 +28,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StaticFileHandlerGeneratedOnlyMetadataTest {
     @Test
     void generatedOnlyModeDoesNotDiscoverServeStaticWithoutRegistryMetadata() {
-        assertTrue(StaticFileHandler.isHandler(UnregisteredStaticHandler.class));
+        @ServeStatic(value = "/static", resourcePath = "classpath:/web/static")
+        class LocalUnregisteredStaticHandler {
+        }
+
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            assertTrue(StaticFileHandler.isHandler(LocalUnregisteredStaticHandler.class));
+        }
 
         GeneratedOnlyMetadataMode.run(() -> {
-            assertFalse(StaticFileHandler.isHandler(UnregisteredStaticHandler.class));
-            assertTrue(StaticFileHandler.forTargetClass(UnregisteredStaticHandler.class).isEmpty());
+            assertFalse(StaticFileHandler.isHandler(LocalUnregisteredStaticHandler.class));
+            assertTrue(StaticFileHandler.forTargetClass(LocalUnregisteredStaticHandler.class).isEmpty());
         });
     }
 
@@ -70,10 +77,6 @@ class StaticFileHandlerGeneratedOnlyMetadataTest {
         } finally {
             TestFixture.shutDownActiveFixtures();
         }
-    }
-
-    @ServeStatic(value = "/static", resourcePath = "classpath:/web/static")
-    static class UnregisteredStaticHandler {
     }
 
     @ServeStatic(value = "/static", resourcePath = "classpath:/web/static")

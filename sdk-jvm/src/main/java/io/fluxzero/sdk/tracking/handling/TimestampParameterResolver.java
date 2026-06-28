@@ -22,7 +22,6 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -44,8 +43,6 @@ import java.util.function.Function;
  * @see ParameterResolver
  */
 public class TimestampParameterResolver implements ParameterResolver<Object> {
-    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
-
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         if (Instant.class.isAssignableFrom(p.getType())) {
@@ -55,7 +52,7 @@ public class TimestampParameterResolver implements ParameterResolver<Object> {
             };
         }
         if (Clock.class.isAssignableFrom(p.getType())) {
-            if (introspector.isOrHas(methodAnnotation, Apply.class)) {
+            if (isApply(methodAnnotation)) {
                 return m -> {
                     var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
                     return Clock.fixed(dm.getTimestamp(), ZoneOffset.UTC);
@@ -122,7 +119,7 @@ public class TimestampParameterResolver implements ParameterResolver<Object> {
             };
         }
         if (Clock.class.isAssignableFrom(parameterType)) {
-            if (introspector.isOrHas(methodAnnotation, Apply.class)) {
+            if (isApply(methodAnnotation)) {
                 return m -> {
                     var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
                     return Clock.fixed(dm.getTimestamp(), ZoneOffset.UTC);
@@ -151,6 +148,11 @@ public class TimestampParameterResolver implements ParameterResolver<Object> {
 
     private boolean supports(Class<?> parameterType) {
         return Instant.class.isAssignableFrom(parameterType) || Clock.class.isAssignableFrom(parameterType);
+    }
+
+    private static boolean isApply(Annotation methodAnnotation) {
+        return methodAnnotation instanceof Apply
+               || methodAnnotation != null && methodAnnotation.annotationType().equals(Apply.class);
     }
 
     private static String typeName(Class<?> type) {

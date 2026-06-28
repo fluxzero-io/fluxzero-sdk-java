@@ -238,6 +238,17 @@ public class DeserializingMessage implements HasMessage {
                                                        serializer));
     }
 
+    /**
+     * Returns a message that exposes the supplied deserialized payload while preserving this message's original
+     * serialized envelope.
+     */
+    public DeserializingMessage withPayloadPreservingSerializedObject(Object payload) {
+        DeserializingMessage result = new DeserializingMessage(
+                toMessage().withPayload(payload), messageType, topic, serializer);
+        result.serializedMessage = getSerializedObject();
+        return withSameContext(result);
+    }
+
     @Override
     public String getMessageId() {
         if (delegate != null) {

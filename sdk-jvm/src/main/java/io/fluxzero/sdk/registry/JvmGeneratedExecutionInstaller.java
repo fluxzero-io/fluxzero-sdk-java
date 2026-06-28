@@ -1,0 +1,309 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.registry;
+
+import io.fluxzero.common.Registration;
+import io.fluxzero.common.handling.ExecutableInvocation;
+import io.fluxzero.common.handling.ExecutableInvocationBackend;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * JVM bridge that lowers registry invocation plans to executable invocation handles.
+ * <p>
+ * Build/browser targets should eventually emit direct generated invocations. The JVM can install equivalent handles
+ * from the same registry metadata so generated-only tests prove the same matching and binding model while retaining a
+ * Java-specific invocation backend.
+ */
+public final class JvmGeneratedExecutionInstaller {
+    private static final ExecutableInvocationBackend JVM_BACKEND = ExecutableInvocationBackend.reflection();
+
+    private JvmGeneratedExecutionInstaller() {
+    }
+
+    public static Registration install(ComponentRegistry registry) {
+        return install(registry, null);
+    }
+
+    public static Registration install(ComponentRegistry registry, ClassLoader preferredLoader) {
+        return install(registry, preferredLoader, List.of());
+    }
+
+    public static Registration install(
+            ComponentRegistry registry, ClassLoader preferredLoader, Collection<String> componentNames) {
+        Objects.requireNonNull(registry, "registry");
+        Objects.requireNonNull(componentNames, "componentNames");
+        Set<String> requestedNames = new HashSet<>(componentNames);
+        ComponentRegistry normalized = requestedNames.isEmpty() ? registry.normalized()
+                : new ComponentRegistry(
+                        registry.sourceRoot(),
+                        List.of(),
+                        registry.components().stream()
+                                .filter(component -> requestedNames.contains(component.fullClassName()))
+                                .toList()).normalized();
+        if (normalized.isEmpty()) {
+            return Registration.noOp();
+        }
+        List<AutoCloseable> registrations = new ArrayList<>();
+        for (ComponentDescriptor component : normalized.components()) {
+            Optional<Class<?>> targetClass = JvmComponentMetadataLookup.classForMetadataName(
+                    component.fullClassName(), preferredLoader);
+            if (targetClass.isEmpty()) {
+                continue;
+            }
+            installInvocations(component, targetClass.orElseThrow(), registrations);
+            installPropertyAccesses(component, targetClass.orElseThrow(), registrations);
+        }
+        return () -> {
+            for (int i = registrations.size() - 1; i >= 0; i--) {
+                try {
+                    registrations.get(i).close();
+                } catch (Exception ignored) {
+                    // Generated bridge registrations are best-effort lifecycle cleanup.
+                }
+            }
+        };
+    }
+
+    /**
+     * Returns a JVM invocation backend that prefers generated invocation registrations.
+     * <p>
+     * Hybrid mode falls back to the JVM reflection backend when no generated invocation is available. Strict
+     * generated-only mode requires an installed invocation plan and fails clearly if one is missing.
+     */
+    public static ExecutableInvocationBackend executableInvocationBackend() {
+        return JvmGeneratedExecutionInstaller::prepareInvocation;
+    }
+
+    private static ExecutableInvocation prepareInvocation(Executable executable) {
+        ComponentMetadataLookups.ensureGeneratedExecutions(executable.getDeclaringClass());
+        Optional<ExecutableInvocation> generatedInvocation = GeneratedExecutableInvocations.find(executable);
+        if (generatedInvocation.isPresent()) {
+            return generatedInvocation.orElseThrow();
+        }
+        if (ComponentMetadataLookups.strictGeneratedOnlyMode()) {
+            throw new ComponentRegistryException(
+                    "Strict generated-only metadata mode requires generated invocation metadata for %s"
+                            .formatted(executable));
+        }
+        return JVM_BACKEND.prepare(executable);
+    }
+
+    private static void installInvocations(
+            ComponentDescriptor component, Class<?> targetClass, List<AutoCloseable> registrations) {
+        for (InvocationPlanDescriptor plan : invocationPlans(component)) {
+            if (GeneratedExecutableInvocations.find(targetClass, plan.executableId()).isPresent()) {
+                continue;
+            }
+            executable(targetClass, plan).ifPresent(executable -> registrations.add(
+                    GeneratedExecutableInvocations.register(
+                            targetClass, plan.executableId(),
+                            JVM_BACKEND.prepare(executable))));
+        }
+    }
+
+    private static List<InvocationPlanDescriptor> invocationPlans(ComponentDescriptor component) {
+        List<PropertyAccessPlanDescriptor> propertyAccesses = component.properties().stream()
+                .map(JvmGeneratedExecutionInstaller::propertyAccessPlan)
+                .toList();
+        return component.executables().stream()
+                .map(executable -> invocationPlan(component.fullClassName(), executable, propertyAccesses))
+                .toList();
+    }
+
+    private static InvocationPlanDescriptor invocationPlan(
+            String targetComponentName, ExecutableDescriptor executable,
+            List<PropertyAccessPlanDescriptor> propertyAccesses) {
+        List<String> parameterTypes = executable.parameters().stream()
+                .map(ParameterDescriptor::typeName)
+                .toList();
+        return new InvocationPlanDescriptor(
+                targetComponentName,
+                InvocationPlanDescriptor.executableId(executable.kind(), executable.name(), parameterTypes),
+                executable.kind(),
+                executable.name(),
+                executable.returnTypeName(),
+                parameterBindings(executable),
+                propertyAccesses,
+                List.of());
+    }
+
+    private static List<ParameterBindingDescriptor> parameterBindings(ExecutableDescriptor executable) {
+        List<ParameterDescriptor> parameters = executable.parameters();
+        List<ParameterBindingDescriptor> result = new ArrayList<>(parameters.size());
+        for (int i = 0; i < parameters.size(); i++) {
+            ParameterDescriptor parameter = parameters.get(i);
+            result.add(new ParameterBindingDescriptor(
+                    i, parameter.name(), parameter.typeName(), annotationNames(parameter.annotations())));
+        }
+        return List.copyOf(result);
+    }
+
+    private static PropertyAccessPlanDescriptor propertyAccessPlan(PropertyDescriptor property) {
+        return new PropertyAccessPlanDescriptor(
+                property.name(),
+                property.typeName(),
+                property.genericTypeName(),
+                true,
+                true,
+                annotationNames(property.annotations()));
+    }
+
+    private static List<String> annotationNames(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .map(AnnotationDescriptor::qualifiedName)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private static void installPropertyAccesses(
+            ComponentDescriptor component, Class<?> targetClass, List<AutoCloseable> registrations) {
+        for (PropertyDescriptor property : component.properties()) {
+            propertyReader(targetClass, property.name()).ifPresent(reader -> registrations.add(
+                    GeneratedPropertyAccesses.registerReader(targetClass, property.name(), reader)));
+            propertyWriter(targetClass, property.name()).ifPresent(writer -> registrations.add(
+                    GeneratedPropertyAccesses.registerWriter(targetClass, property.name(), writer)));
+        }
+    }
+
+    private static Optional<GeneratedPropertyAccesses.PropertyReader> propertyReader(
+            Class<?> targetClass, String propertyName) {
+        return propertyAccessor(targetClass, propertyName)
+                .<GeneratedPropertyAccesses.PropertyReader>map(method -> target -> invoke(method, target))
+                .or(() -> propertyField(targetClass, propertyName)
+                        .map(field -> target -> get(field, target)));
+    }
+
+    private static Optional<GeneratedPropertyAccesses.PropertyWriter> propertyWriter(
+            Class<?> targetClass, String propertyName) {
+        String setterName = "set" + capitalize(propertyName);
+        Optional<Method> setter = allMethods(targetClass).stream()
+                .filter(method -> method.getName().equals(setterName))
+                .filter(method -> method.getParameterCount() == 1)
+                .findFirst();
+        if (setter.isPresent()) {
+            Method method = setter.orElseThrow();
+            method.setAccessible(true);
+            return Optional.of((target, value) -> invoke(method, target, value));
+        }
+        return propertyField(targetClass, propertyName)
+                .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                .map(field -> (target, value) -> set(field, target, value));
+    }
+
+    private static Optional<Method> propertyAccessor(Class<?> targetClass, String propertyName) {
+        List<String> names = List.of(propertyName, "get" + capitalize(propertyName), "is" + capitalize(propertyName));
+        return allMethods(targetClass).stream()
+                .filter(method -> names.contains(method.getName()))
+                .filter(method -> method.getParameterCount() == 0)
+                .filter(method -> method.getReturnType() != void.class)
+                .findFirst()
+                .map(method -> {
+                    method.setAccessible(true);
+                    return method;
+                });
+    }
+
+    private static Optional<Field> propertyField(Class<?> targetClass, String propertyName) {
+        for (Class<?> current = targetClass; current != null; current = current.getSuperclass()) {
+            try {
+                Field field = current.getDeclaredField(propertyName);
+                field.setAccessible(true);
+                return Optional.of(field);
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        return Arrays.stream(targetClass.getInterfaces())
+                .map(type -> propertyField(type, propertyName))
+                .flatMap(Optional::stream)
+                .findFirst();
+    }
+
+    private static List<Method> allMethods(Class<?> targetClass) {
+        List<Method> result = new ArrayList<>();
+        result.addAll(List.of(targetClass.getMethods()));
+        for (Class<?> current = targetClass; current != null; current = current.getSuperclass()) {
+            result.addAll(List.of(current.getDeclaredMethods()));
+        }
+        Arrays.stream(targetClass.getInterfaces()).flatMap(type -> allMethods(type).stream()).forEach(result::add);
+        return result;
+    }
+
+    private static Object invoke(Method method, Object target, Object... args) {
+        try {
+            return method.invoke(Modifier.isStatic(method.getModifiers()) ? null : target, args);
+        } catch (ReflectiveOperationException e) {
+            throw new ComponentRegistryException(
+                    "Failed to invoke generated JVM property accessor %s".formatted(method), e);
+        }
+    }
+
+    private static Object get(Field field, Object target) {
+        try {
+            return field.get(Modifier.isStatic(field.getModifiers()) ? null : target);
+        } catch (IllegalAccessException e) {
+            throw new ComponentRegistryException(
+                    "Failed to read generated JVM property %s".formatted(field), e);
+        }
+    }
+
+    private static void set(Field field, Object target, Object value) {
+        try {
+            field.set(Modifier.isStatic(field.getModifiers()) ? null : target, value);
+        } catch (IllegalAccessException e) {
+            throw new ComponentRegistryException(
+                    "Failed to write generated JVM property %s".formatted(field), e);
+        }
+    }
+
+    private static String capitalize(String value) {
+        return value.isEmpty() ? value : Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private static Optional<Executable> executable(Class<?> targetClass, InvocationPlanDescriptor plan) {
+        return switch (plan.kind()) {
+            case METHOD -> JvmComponentIntrospector.getInstance().getAllMethods(targetClass).stream()
+                    .filter(method -> matches(method, plan))
+                    .<Executable>map(method -> method)
+                    .findFirst();
+            case CONSTRUCTOR -> List.of(targetClass.getDeclaredConstructors()).stream()
+                    .filter(constructor -> matches(constructor, plan))
+                    .<Executable>map(constructor -> constructor)
+                    .findFirst();
+        };
+    }
+
+    private static boolean matches(Method method, InvocationPlanDescriptor plan) {
+        return plan.name().equals(method.getName())
+               && plan.executableId().equals(GeneratedExecutableInvocations.executableId(method));
+    }
+
+    private static boolean matches(Constructor<?> constructor, InvocationPlanDescriptor plan) {
+        return plan.executableId().equals(GeneratedExecutableInvocations.executableId(constructor));
+    }
+}

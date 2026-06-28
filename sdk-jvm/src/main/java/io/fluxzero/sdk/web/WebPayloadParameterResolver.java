@@ -21,7 +21,9 @@ import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
@@ -57,7 +59,8 @@ import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.ignor
  */
 @AllArgsConstructor
 public class WebPayloadParameterResolver implements ParameterResolver<HasMessage> {
-    private static final JvmComponentIntrospector INTROSPECTOR = JvmComponentIntrospector.getInstance();
+    private static final MetadataExecutableAnnotationResolver ANNOTATION_RESOLVER =
+            MetadataExecutableAnnotationResolver.create();
     private final boolean validatePayload;
     private final boolean authoriseUser;
 
@@ -91,7 +94,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
         if (reflectionParameter.isPresent()) {
             return resolve(reflectionParameter.orElseThrow(), methodAnnotation);
         }
-        return p.type().<Function<HasMessage, Object>>map(type -> m -> {
+        return p.genericType().<Function<HasMessage, Object>>map(type -> m -> {
             Object payload = resolvePayload(m, p, type);
             if (payload != null) {
                 if (validatePayload) {
@@ -123,7 +126,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
             return test(m, reflectionParameter.orElseThrow());
         }
         if (authoriseUser && !hasStreamingPayload(m)) {
-            Object payload = p.type().map(type -> resolvePayload(m, p, type)).orElse(null);
+            Object payload = p.genericType().map(type -> resolvePayload(m, p, type)).orElse(null);
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
@@ -146,23 +149,32 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
-        return INTROSPECTOR.isOrHas(methodAnnotation, HandleWeb.class);
+        return isWebHandlerAnnotation(methodAnnotation);
     }
 
     @Override
     public boolean matches(ParameterView parameter, Annotation methodAnnotation, HasMessage value) {
-        return INTROSPECTOR.isOrHas(methodAnnotation, HandleWeb.class);
+        return isWebHandlerAnnotation(methodAnnotation);
     }
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        return INTROSPECTOR.isExecutableAnnotationPresent(method, HandleWeb.class);
+        var metadata = ANNOTATION_RESOLVER.getAnnotation(method, HandleWeb.class);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.isPresent();
+        }
+        return JvmComponentIntrospector.getInstance().isExecutableAnnotationPresent(method, HandleWeb.class);
     }
 
     @Override
     public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        var metadata = ANNOTATION_RESOLVER.getAnnotation(method, HandleWeb.class);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.isPresent();
+        }
         return method.executable()
-                .map(executable -> INTROSPECTOR.isExecutableAnnotationPresent(executable, HandleWeb.class))
+                .map(executable -> JvmComponentIntrospector.getInstance()
+                        .isExecutableAnnotationPresent(executable, HandleWeb.class))
                 .orElseGet(() -> method.annotation(HandleWeb.class).isPresent());
     }
 
@@ -234,5 +246,11 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
         }
         normalized = normalized.trim();
         return "application/x-www-form-urlencoded".equals(normalized) || "multipart/form-data".equals(normalized);
+    }
+
+    private static boolean isWebHandlerAnnotation(Annotation annotation) {
+        return annotation != null
+               && (annotation.annotationType().equals(HandleWeb.class)
+                   || annotation.annotationType().isAnnotationPresent(HandleWeb.class));
     }
 }

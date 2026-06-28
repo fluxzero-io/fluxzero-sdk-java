@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.sdk.registry.ParameterDescriptor;
 import jakarta.annotation.Nullable;
 
 import java.lang.reflect.Parameter;
@@ -26,6 +27,10 @@ public record ApiDocParameter(
         String name,
         WebParameterSource source,
         Type type,
-        @Nullable Parameter parameter
+        @Nullable Parameter parameter,
+        @Nullable ParameterDescriptor parameterMetadata
 ) {
+    public ApiDocParameter(String name, WebParameterSource source, Type type, @Nullable Parameter parameter) {
+        this(name, source, type, parameter, null);
+    }
 }

@@ -16,21 +16,35 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.handling.ExecutableInvocation;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.HandlerConfiguration;
+import io.fluxzero.common.handling.HandlerInspector.ExecutableViewHandlerMatcher;
 import io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ComponentRegistryException;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
+import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.MessageDescription;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
+import io.fluxzero.sdk.registry.RegistryExecutableViews;
+import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 
 import java.lang.reflect.Executable;
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
@@ -95,7 +109,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
     public static WebHandlerMatcher create(
             Object handler, List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config) {
-        return create(handler, JvmComponentIntrospector.getInstance().asClass(handler), parameterResolvers, config);
+        return create(handler, asClass(handler), parameterResolvers, config);
     }
 
     public static Object createRouteRegistry() {
@@ -115,13 +129,16 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
             throw new IllegalArgumentException(
                     "Route registry must be created by WebHandlerMatcher.createRouteRegistry()");
         }
-        return create(handler, JvmComponentIntrospector.getInstance().asClass(handler), parameterResolvers, config, webRouteRegistry);
+        return create(handler, asClass(handler), parameterResolvers, config, webRouteRegistry);
     }
 
     protected static WebHandlerMatcher create(Object handler, Class<?> type,
                                               List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                               HandlerConfiguration<DeserializingMessage> config,
                                               WebRouteRegistry routeRegistry) {
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return createFromRegistry(handler, type, parameterResolvers, config, routeRegistry);
+        }
         var matchers = concat(JvmComponentIntrospector.getInstance().getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .filter(m -> config.methodMatches(type, m))
                 .flatMap(m -> Stream.of(new MethodHandlerMatcher<>(m, type, parameterResolvers, config))).toList();
@@ -131,21 +148,168 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
     protected WebHandlerMatcher(Object handler,
                                 List<MethodHandlerMatcher<DeserializingMessage>> methodHandlerMatchers,
                                 WebRouteRegistry routeRegistry) {
+        this(handler, routeRegistry, webMethodMatchers(handler, methodHandlerMatchers));
+    }
+
+    private WebHandlerMatcher(Object handler, WebRouteRegistry routeRegistry,
+                              List<WebMethodMatcher> methodHandlerMatchers) {
         this.routeRegistry = routeRegistry;
         boolean hasAnyHandlers = false;
         List<WebPattern> registeredPatterns = new ArrayList<>();
-        for (MethodHandlerMatcher<DeserializingMessage> m : methodHandlerMatchers) {
-            List<WebPattern> webPatterns = getWebPatterns(JvmComponentIntrospector.getInstance().asClass(handler), handler, m.getExecutable());
+        for (WebMethodMatcher m : methodHandlerMatchers) {
+            List<WebPattern> webPatterns = List.of(m.pattern());
             registeredPatterns.addAll(webPatterns);
             for (WebPattern pattern : webPatterns) {
                 if (ANY.equals(pattern.getMethod())) {
                     hasAnyHandlers = true;
                 }
-                routes.add(pattern, new WebMethodMatcher(m, pattern));
+                routes.add(pattern, m);
             }
         }
         routeRegistry.register(this, registeredPatterns);
         this.hasAnyHandlers = hasAnyHandlers;
+    }
+
+    private static List<WebMethodMatcher> webMethodMatchers(
+            Object handler, List<MethodHandlerMatcher<DeserializingMessage>> methodHandlerMatchers) {
+        List<WebMethodMatcher> result = new ArrayList<>();
+        Class<?> targetClass = asClass(handler);
+        for (MethodHandlerMatcher<DeserializingMessage> matcher : methodHandlerMatchers) {
+            for (WebPattern pattern : getWebPatterns(targetClass, handler, matcher.getExecutable())) {
+                result.add(new WebMethodMatcher(matcher, pattern));
+            }
+        }
+        return result;
+    }
+
+    private static WebHandlerMatcher createFromRegistry(
+            Object handler, Class<?> type,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            HandlerConfiguration<DeserializingMessage> config,
+            WebRouteRegistry routeRegistry) {
+        List<WebMethodMatcher> matchers = ComponentMetadataLookups.registeredLookup(type)
+                .map(lookup -> metadataRouteTypes(type, lookup).stream()
+                        .flatMap(metadataType -> targetClassNames(metadataType).stream()
+                                .flatMap(name -> lookup.routes(name, MessageType.WEBREQUEST).stream())
+                                .filter(route -> !route.disabled())
+                                .flatMap(route -> webMethodMatchers(
+                                        handler, metadataType, route, parameterResolvers, config, lookup)))
+                        .toList())
+                .orElseGet(List::of);
+        return new WebHandlerMatcher(handler, routeRegistry, matchers);
+    }
+
+    private static Stream<WebMethodMatcher> webMethodMatchers(
+            Object handler, Class<?> type, HandlerRoute route,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            HandlerConfiguration<DeserializingMessage> config,
+            ComponentMetadataLookup lookup) {
+        return route.executableMetadata().stream()
+                .map(executable -> RegistryExecutableViews.executableView(type, executable))
+                .filter(view -> config.methodMatches(type, view))
+                .flatMap(view -> generatedInvocation(type, view).stream()
+                        .flatMap(invocation -> webPatterns(handler, type, route, lookup)
+                                .map(pattern -> new WebMethodMatcher(new ExecutableViewHandlerMatcher<>(
+                                        0, view, type, invocation, parameterResolvers, config), pattern))));
+    }
+
+    private static Optional<ExecutableInvocation> generatedInvocation(Class<?> type, io.fluxzero.common.handling.ExecutableView view) {
+        ComponentMetadataLookups.ensureGeneratedExecutions(type);
+        Optional<ExecutableInvocation> invocation = GeneratedExecutableInvocations.find(type, view.executableId());
+        if (invocation.isEmpty()) {
+            throw new ComponentRegistryException("""
+                    Generated-only web handler execution for %s requires generated invocation plans.
+                    Register generated invocations for matching web handler executables or run outside generated-only \
+                    mode for JVM reflection compatibility.
+                    """.formatted(type.getName()));
+        }
+        return invocation;
+    }
+
+    private static Stream<WebPattern> webPatterns(WebRouteDescriptor route) {
+        return route.paths().stream()
+                .flatMap(path -> route.methods().stream()
+                        .map(method -> new WebPattern(
+                                path, normalizeMethod(method), route.autoHead(), route.autoOptions())));
+    }
+
+    private static Stream<WebPattern> webPatterns(
+            Object handler, Class<?> metadataType, HandlerRoute route, ComponentMetadataLookup lookup) {
+        Optional<String> dynamicRoot = dynamicHandlerPath(handler, metadataType, lookup);
+        if (dynamicRoot.isEmpty()) {
+            return route.webRoutes().stream().flatMap(WebHandlerMatcher::webPatterns);
+        }
+        AnnotationDescriptor handlerAnnotation = route.annotationMetadata().orElse(null);
+        return route.webRoutes().stream()
+                .flatMap(webRoute -> dynamicWebPatterns(handlerAnnotation, webRoute, dynamicRoot.orElseThrow()));
+    }
+
+    private static Stream<WebPattern> dynamicWebPatterns(
+            AnnotationDescriptor handlerAnnotation, WebRouteDescriptor route, String root) {
+        List<String> paths = handlerAnnotation == null || handlerAnnotation.values("value").isEmpty()
+                ? List.of("") : handlerAnnotation.values("value");
+        return paths.stream()
+                .flatMap(path -> route.methods().stream()
+                        .map(method -> new WebPattern(
+                                WebUtils.concatenateUrlParts(root, path),
+                                normalizeMethod(method), route.autoHead(), route.autoOptions())));
+    }
+
+    private static String normalizeMethod(String method) {
+        return "ANY".equals(method) ? ANY : method;
+    }
+
+    private static Optional<String> dynamicHandlerPath(
+            Object handler, Class<?> metadataType, ComponentMetadataLookup lookup) {
+        if (handler == null || handler instanceof Class<?>) {
+            return Optional.empty();
+        }
+        return ComponentMetadataLookups.annotatedProperties(lookup, metadataType, Path.class).stream()
+                .filter(WebHandlerMatcher::isDynamicPathProperty)
+                .findFirst()
+                .flatMap(property -> GeneratedPropertyAccesses.findReader(handler.getClass(), property.name())
+                        .map(reader -> reader.read(handler)))
+                .map(String::valueOf);
+    }
+
+    private static boolean isDynamicPathProperty(PropertyDescriptor property) {
+        return property.annotations().stream()
+                .map(annotation -> annotation.find(Path.class.getSimpleName(), Path.class.getName()))
+                .flatMap(Optional::stream)
+                .anyMatch(annotation -> annotation.firstValue("value").orElse("").isBlank());
+    }
+
+    private static List<Class<?>> metadataRouteTypes(Class<?> targetClass, ComponentMetadataLookup lookup) {
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        collectMetadataRouteTypes(targetClass, lookup, result);
+        return List.copyOf(result);
+    }
+
+    private static void collectMetadataRouteTypes(
+            Class<?> type, ComponentMetadataLookup lookup, LinkedHashSet<Class<?>> result) {
+        if (type == null || Object.class.equals(type)) {
+            return;
+        }
+        if (targetClassNames(type).stream().anyMatch(name -> lookup.component(name).isPresent())) {
+            result.add(type);
+        }
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            collectMetadataRouteTypes(interfaceType, lookup, result);
+        }
+        collectMetadataRouteTypes(type.getSuperclass(), lookup, result);
+    }
+
+    private static List<String> targetClassNames(Class<?> targetClass) {
+        Set<String> result = new LinkedHashSet<>();
+        result.add(targetClass.getName());
+        if (targetClass.getCanonicalName() != null) {
+            result.add(targetClass.getCanonicalName());
+        }
+        return List.copyOf(result);
+    }
+
+    private static Class<?> asClass(Object value) {
+        return value instanceof Class<?> type ? type : value.getClass();
     }
 
     @Override
@@ -232,7 +396,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         Optional<HandlerInvoker> getInvoker(Object target, DeserializingMessage message);
     }
 
-    record WebMethodMatcher(MethodHandlerMatcher<DeserializingMessage> matcher, WebPattern pattern)
+    record WebMethodMatcher(HandlerMatcher<Object, DeserializingMessage> matcher, WebPattern pattern)
             implements WebRouteHandler {
         @Override
         public boolean canHandle(DeserializingMessage message) {

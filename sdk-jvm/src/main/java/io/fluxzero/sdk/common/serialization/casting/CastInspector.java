@@ -31,7 +31,9 @@ import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -135,7 +137,10 @@ public class CastInspector {
                 .flatMap(container -> container.nestedAnnotations("value").stream())
                 .filter(annotation -> annotation.isOrHas(castAnnotation.getSimpleName(), castAnnotation.getName()))
                 .flatMap(annotation -> castParameters(annotation, castAnnotation).stream());
-        return Stream.concat(direct, repeatableParameters);
+        Map<CastParameterKey, CastParameters> result = new LinkedHashMap<>();
+        Stream.concat(direct, repeatableParameters)
+                .forEach(parameters -> result.putIfAbsent(CastParameterKey.of(parameters), parameters));
+        return result.values().stream();
     }
 
     private static Optional<CastParameters> castParameters(
@@ -167,6 +172,12 @@ public class CastInspector {
             return Optional.of(DowncastRepeatable.class);
         }
         return Optional.empty();
+    }
+
+    private record CastParameterKey(String type, int revision, int revisionDelta) {
+        private static CastParameterKey of(CastParameters parameters) {
+            return new CastParameterKey(parameters.type(), parameters.revision(), parameters.revisionDelta());
+        }
     }
 
     private static <T> AnnotatedCaster<T> createCaster(CastParameters castParameters, Method method, Object target,

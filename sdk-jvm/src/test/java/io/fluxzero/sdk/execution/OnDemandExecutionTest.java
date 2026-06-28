@@ -1359,7 +1359,7 @@ public class OnDemandExecutionTest {
             writeHandlerSource(tempDir, "CommandLogic", commandHandlerSource("added", "@LocalHandler"));
 
             assertTrue(execution.refresh());
-            assertEquals(1, fixture.getFluxzero().componentRegistry().handlerRoutes().count());
+            assertEquals(1, sourceHandlerRouteCount(fixture.getFluxzero().componentRegistry(), tempDir));
             fixture.whenCommand(new ExecutionCommand("after")).expectResult("added:after");
         }
     }
@@ -1382,10 +1382,19 @@ public class OnDemandExecutionTest {
             Files.delete(source);
 
             assertTrue(execution.refresh());
-            assertEquals(0, fixture.getFluxzero().componentRegistry().handlerRoutes().count());
+            assertEquals(0, sourceHandlerRouteCount(fixture.getFluxzero().componentRegistry(), tempDir));
             fixture.whenCommand(new ExecutionCommand("after"))
                     .expectExceptionalResult(TimeoutException.class);
         }
+    }
+
+    private static long sourceHandlerRouteCount(ComponentRegistry registry, Path sourceRoot) {
+        Path root = sourceRoot.toAbsolutePath().normalize();
+        return registry.components().stream()
+                .filter(component -> component.sourceFile() != null)
+                .filter(component -> component.sourceFile().toAbsolutePath().normalize().startsWith(root))
+                .flatMap(component -> component.handlerRoutes().stream())
+                .count();
     }
 
     @Test

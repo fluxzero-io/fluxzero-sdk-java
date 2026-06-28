@@ -18,7 +18,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.tracking.TrackSelf;
 
-import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
+import static io.fluxzero.sdk.common.ClientUtils.localHandlerFilter;
 
 /**
  * Base interface for gateways that support registering local message handlers.
@@ -49,7 +49,7 @@ public interface HasLocalHandlers {
      * @return a {@link Registration} which can be used to unregister the handlers
      */
     default Registration registerHandler(Object target) {
-        return registerHandler(target, (t, m) -> getLocalHandlerAnnotation(t, m).isPresent());
+        return registerHandler(target, localHandlerFilter());
     }
 
     /**

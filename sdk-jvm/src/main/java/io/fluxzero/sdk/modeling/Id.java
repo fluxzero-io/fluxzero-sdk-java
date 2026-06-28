@@ -27,13 +27,20 @@ import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fluxzero.common.Leaf;
 import io.fluxzero.common.api.HasId;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.Getter;
 import lombok.NonNull;
 
 import java.io.IOException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -163,8 +170,18 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
      */
     public Id(@NonNull String functionalId, @NonNull String prefix, boolean caseSensitive) {
         this.functionalId = functionalId;
-        this.type = JvmComponentIntrospector.getInstance().getFirstTypeArgument(this.getClass().getGenericSuperclass());
+        this.type = firstTypeArgument(this.getClass().getGenericSuperclass());
         this.repositoryId = caseSensitive ? prefix + this.functionalId : prefix + this.functionalId.toLowerCase();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Class<T> firstTypeArgument(Type genericType) {
+        if (genericType instanceof ParameterizedType parameterizedType
+            && parameterizedType.getActualTypeArguments().length > 0
+            && parameterizedType.getActualTypeArguments()[0] instanceof Class<?> type) {
+            return (Class<T>) type;
+        }
+        return null;
     }
 
     /**
@@ -285,6 +302,20 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
                 functionalId = functionalIdNode.asText();
             }
             try {
+                ComponentMetadataLookups.ensureGeneratedExecutions(targetType);
+                var generatedConstructor = GeneratedExecutableInvocations.find(
+                        targetType,
+                        InvocationPlanDescriptor.executableId(
+                                ExecutableKind.CONSTRUCTOR, "<init>", List.of(String.class.getName())));
+                if (generatedConstructor.isPresent()) {
+                    return (Id<?>) generatedConstructor.orElseThrow().invoke(null, functionalId);
+                }
+                if (ComponentMetadataLookups.generatedOnlyMode()) {
+                    return context.reportInputMismatch(
+                            targetType,
+                            "Id subtype %s must have generated metadata for a single String constructor",
+                            targetType.getName());
+                }
                 return (Id<?>) JvmComponentIntrospector.getInstance().getTypeMetadata(targetType)
                         .invoker(targetType.getDeclaredConstructor(String.class), true)
                         .invoke(null, functionalId);

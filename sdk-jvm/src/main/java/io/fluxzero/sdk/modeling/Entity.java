@@ -18,12 +18,13 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.Relationship;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import jakarta.annotation.Nullable;
 
 import java.beans.Transient;
@@ -66,9 +67,9 @@ public interface Entity<T> {
     ClassValue<Boolean> selfReferentialMemberCache = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> entityType) {
-            for (var location : ModelMetadata.annotatedPropertyLocations(entityType, Member.class)) {
-                Class<?> childType = ModelMetadata.collectionElementType(location)
-                        .orElse(ModelMetadata.propertyType(location));
+            for (PropertyDescriptor property : ModelMetadata.annotatedProperties(entityType, Member.class)) {
+                Class<?> childType = ModelMetadata.collectionElementType(entityType, property)
+                        .orElse(ModelMetadata.propertyType(entityType, property));
                 if (Objects.equals(entityType, childType)) {
                     return true;
                 }
@@ -152,7 +153,7 @@ public interface Entity<T> {
     @Nullable
     static Class<?> getAggregateType(HasMetadata message) {
         return Optional.ofNullable(message.getMetadata().get(AGGREGATE_TYPE_METADATA_KEY))
-                .map(c -> JvmComponentIntrospector.getInstance().classForName(c, null)).orElse(null);
+                .map(c -> JvmComponentMetadataLookup.classForMetadataName(c, (Class<?>) null)).orElse(null);
     }
 
     /**

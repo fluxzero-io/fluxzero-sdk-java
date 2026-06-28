@@ -20,6 +20,8 @@ import io.fluxzero.common.handling.ParameterView;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -90,9 +92,7 @@ public final class RegistryExecutableViews {
 
         @Override
         public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
-            return MetadataAnnotationResolver.annotation(descriptor.annotations(), annotationType, targetClass)
-                    .filter(annotationType::isInstance)
-                    .map(annotationType::cast);
+            return MetadataAnnotationResolver.annotationProjection(descriptor.annotations(), annotationType, targetClass);
         }
 
         @Override
@@ -133,15 +133,63 @@ public final class RegistryExecutableViews {
         }
 
         @Override
+        public Optional<Type> genericType() {
+            TypeUseDescriptor typeUse = descriptor.typeUse();
+            if (typeUse.typeArguments().isEmpty() && typeUse.componentType() == null) {
+                return type().map(type -> type);
+            }
+            return typeFrom(typeUse);
+        }
+
+        @Override
         public Optional<Parameter> parameter() {
             return Optional.empty();
         }
 
         @Override
         public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
-            return MetadataAnnotationResolver.annotation(descriptor.annotations(), annotationType, targetClass)
-                    .filter(annotationType::isInstance)
-                    .map(annotationType::cast);
+            return MetadataAnnotationResolver.annotationProjection(descriptor.annotations(), annotationType, targetClass);
+        }
+
+        private static Optional<Type> typeFrom(TypeUseDescriptor typeUse) {
+            Optional<Class<?>> rawType = JvmComponentMetadataLookup.classForMetadataName(typeUse.typeName());
+            if (rawType.isEmpty()) {
+                return Optional.empty();
+            }
+            if (typeUse.typeArguments().isEmpty()) {
+                return rawType.map(type -> type);
+            }
+            Type[] arguments = typeUse.typeArguments().stream()
+                    .map(RegistryParameterView::typeFrom)
+                    .flatMap(Optional::stream)
+                    .toArray(Type[]::new);
+            if (arguments.length != typeUse.typeArguments().size()) {
+                return rawType.map(type -> type);
+            }
+            return Optional.of(new RegistryParameterizedType(rawType.orElseThrow(), arguments));
+        }
+    }
+
+    private record RegistryParameterizedType(Class<?> rawType, Type[] actualTypeArguments)
+            implements ParameterizedType {
+        private RegistryParameterizedType {
+            Objects.requireNonNull(rawType, "rawType");
+            actualTypeArguments = actualTypeArguments.clone();
+        }
+
+        @Override
+        public Type[] getActualTypeArguments() {
+            return actualTypeArguments.clone();
+        }
+
+        @Override
+        public Type getRawType() {
+            return rawType;
+        }
+
+        @Override
+        public Type getOwnerType() {
+            return rawType.getDeclaringClass();
         }
     }
 }

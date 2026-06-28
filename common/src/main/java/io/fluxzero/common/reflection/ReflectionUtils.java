@@ -1418,7 +1418,7 @@ public class ReflectionUtils {
                         .invoker(method, true).invoke(annotation));
             }
         }
-        return Map.copyOf(result);
+        return Collections.unmodifiableMap(result);
     }
 
     /**

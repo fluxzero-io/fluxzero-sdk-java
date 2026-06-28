@@ -125,9 +125,17 @@ public class SearchTest {
     void generatedOnlyModeDoesNotUseReflectionFallbackForIndexEntityId() {
         TestFixture.create()
                 .whenApplying(fc -> {
+                    class LocalUnregisteredGeneratedOnlySearchable {
+                        @EntityId
+                        final String id;
+
+                        LocalUnregisteredGeneratedOnlySearchable(String id) {
+                            this.id = id;
+                        }
+                    }
                     AtomicReference<Object> id = new AtomicReference<>();
                     GeneratedOnlyMetadataMode.run(() -> id.set(
-                            prepareIndex(new UnregisteredGeneratedOnlySearchable("entity-id")).id()));
+                            prepareIndex(new LocalUnregisteredGeneratedOnlySearchable("entity-id")).id()));
                     return id.get();
                 })
                 .expectResult(id -> !"entity-id".equals(id));
@@ -193,15 +201,9 @@ public class SearchTest {
 
     @Test
     void storeEntity() {
-        @Value
-        class Parent {
-            @EntityId String parentId = "myParent";
-            @Member SomeSearchable child;
-        }
-
         TestFixture testFixture = TestFixture.create();
-        Parent value = new Parent(new SomeSearchable("foo", Instant.now()));
-        Entity<Parent> entity = Fluxzero.asEntity(value);
+        SearchParent value = new SearchParent(new SomeSearchable("foo", Instant.now()));
+        Entity<SearchParent> entity = Fluxzero.asEntity(value);
         testFixture.given(fc -> prepareIndex(entity.getEntity("foo").orElseThrow())
                         .addMetadata("metafoo", "metabar").indexAndWait())
                 .whenSearching(SomeSearchable.class, s -> s.matchMetadata("parentId", "myParent"))
@@ -304,9 +306,15 @@ public class SearchTest {
     }
 
     @Value
-    static class UnregisteredGeneratedOnlySearchable {
+    static class SearchParent {
         @EntityId
-        String id;
+        String parentId = "myParent";
+        @Member
+        SomeSearchable child;
+    }
+
+    @Searchable(collection = "c1")
+    static class C1SearchCollection {
     }
 
     @Test
@@ -987,10 +995,7 @@ public class SearchTest {
 
         @Test
         void searchViaSearchable() {
-            @Searchable(collection = "c1")
-            class Annotated {
-            }
-            testFixture.whenApplying(fc -> Fluxzero.search(List.of(Annotated.class, "c2")).fetchAll())
+            testFixture.whenApplying(fc -> Fluxzero.search(List.of(C1SearchCollection.class, "c2")).fetchAll())
                     .expectResult(result -> result.contains(a) && result.contains(b));
         }
 

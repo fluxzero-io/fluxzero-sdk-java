@@ -47,6 +47,28 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
         return getAnnotations(executable, annotationType).stream().findFirst();
     }
 
+    /**
+     * Projects executable annotation metadata to another shape, preferring generated registry metadata.
+     */
+    public <T> Optional<T> getAnnotationAs(
+            Executable executable, Class<? extends Annotation> annotationType, Class<T> projectionType) {
+        Objects.requireNonNull(executable, "executable");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Objects.requireNonNull(projectionType, "projectionType");
+        Optional<T> metadata = lookup(executable.getDeclaringClass())
+                .flatMap(lookup -> ComponentMetadataLookups.executable(lookup, executable))
+                .flatMap(executableMetadata -> MetadataAnnotationResolver.annotationAs(
+                        executableMetadata.annotations(), annotationType, projectionType,
+                        executable.getDeclaringClass()));
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return getAnnotations(executable, annotationType).stream()
+                .flatMap(annotation -> JvmComponentIntrospector.getInstance()
+                        .getAnnotationAs(annotation, annotationType, projectionType).stream())
+                .findFirst();
+    }
+
     @Override
     public List<? extends Annotation> getAnnotations(
             Executable executable, Class<? extends Annotation> annotationType) {
@@ -72,6 +94,30 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
     public Optional<? extends Annotation> getAnnotation(
             ExecutableView executable, Class<? extends Annotation> annotationType) {
         return getAnnotations(executable, annotationType).stream().findFirst();
+    }
+
+    /**
+     * Projects executable-view annotation metadata to another shape, preferring generated registry metadata.
+     */
+    public <T> Optional<T> getAnnotationAs(
+            ExecutableView executable, Class<? extends Annotation> annotationType, Class<T> projectionType) {
+        Objects.requireNonNull(executable, "executable");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Objects.requireNonNull(projectionType, "projectionType");
+        Optional<Class<?>> targetClass = executable.targetClass();
+        Optional<T> metadata = targetClass
+                .flatMap(this::lookup)
+                .flatMap(lookup -> ComponentMetadataLookups.executable(lookup, executable))
+                .flatMap(executableMetadata -> MetadataAnnotationResolver.annotationAs(
+                        executableMetadata.annotations(), annotationType, projectionType,
+                        targetClass.orElse(Object.class)));
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return getAnnotations(executable, annotationType).stream()
+                .flatMap(annotation -> JvmComponentIntrospector.getInstance()
+                        .getAnnotationAs(annotation, annotationType, projectionType).stream())
+                .findFirst();
     }
 
     @Override

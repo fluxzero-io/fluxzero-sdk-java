@@ -16,8 +16,10 @@ package io.fluxzero.common.handling;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,7 +33,7 @@ import java.util.concurrent.ConcurrentMap;
  * handler matching and result/error semantics.
  */
 public final class GeneratedExecutableInvocations {
-    private static final ConcurrentMap<Key, ExecutableInvocation> INVOCATIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Key, Deque<ExecutableInvocation>> INVOCATIONS = new ConcurrentHashMap<>();
 
     private GeneratedExecutableInvocations() {
     }
@@ -39,13 +41,13 @@ public final class GeneratedExecutableInvocations {
     /**
      * Registers a generated invocation for a target class and executable id.
      */
-    public static Registration register(
+    public static synchronized Registration register(
             Class<?> targetClass, String executableId, ExecutableInvocation invocation) {
         Objects.requireNonNull(targetClass, "targetClass");
         Objects.requireNonNull(executableId, "executableId");
         Objects.requireNonNull(invocation, "invocation");
         Key key = new Key(typeName(targetClass), executableId);
-        INVOCATIONS.put(key, invocation);
+        INVOCATIONS.computeIfAbsent(key, ignored -> new ArrayDeque<>()).addLast(invocation);
         return new Registration(key, invocation);
     }
 
@@ -63,7 +65,13 @@ public final class GeneratedExecutableInvocations {
     public static Optional<ExecutableInvocation> find(Class<?> targetClass, String executableId) {
         Objects.requireNonNull(targetClass, "targetClass");
         Objects.requireNonNull(executableId, "executableId");
-        return Optional.ofNullable(INVOCATIONS.get(new Key(typeName(targetClass), executableId)));
+        return find(new Key(typeName(targetClass), executableId));
+    }
+
+    private static synchronized Optional<ExecutableInvocation> find(Key key) {
+        Deque<ExecutableInvocation> invocations = INVOCATIONS.get(key);
+        return invocations == null || invocations.isEmpty()
+                ? Optional.empty() : Optional.of(invocations.peekLast());
     }
 
     /**
@@ -100,8 +108,20 @@ public final class GeneratedExecutableInvocations {
         }
 
         @Override
-        public void close() {
-            INVOCATIONS.remove(key, invocation);
+        public synchronized void close() {
+            Deque<ExecutableInvocation> invocations = INVOCATIONS.get(key);
+            if (invocations == null) {
+                return;
+            }
+            for (Iterator<ExecutableInvocation> iterator = invocations.descendingIterator(); iterator.hasNext(); ) {
+                if (iterator.next() == invocation) {
+                    iterator.remove();
+                    break;
+                }
+            }
+            if (invocations.isEmpty()) {
+                INVOCATIONS.remove(key, invocations);
+            }
         }
     }
 }

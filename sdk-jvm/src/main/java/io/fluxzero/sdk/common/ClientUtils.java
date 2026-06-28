@@ -25,6 +25,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
@@ -33,6 +34,8 @@ import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
@@ -177,6 +180,23 @@ public class ClientUtils {
     }
 
     /**
+     * Returns a handler filter that includes only executables with effective {@link LocalHandler} metadata.
+     */
+    public static HandlerFilter localHandlerFilter() {
+        return new HandlerFilter() {
+            @Override
+            public boolean test(Class<?> ownerType, Executable executable) {
+                return getLocalHandlerAnnotation(ownerType, executable).isPresent();
+            }
+
+            @Override
+            public boolean test(Class<?> ownerType, ExecutableView executable) {
+                return getLocalHandlerAnnotation(ownerType, executable).isPresent();
+            }
+        };
+    }
+
+    /**
      * Retrieves the {@link LocalHandler} annotation associated with a given handler descriptor, from its executable
      * metadata, its declaring class, or ancestral package, if present.
      */
@@ -263,20 +283,76 @@ public class ClientUtils {
     private static Optional<LocalHandler> getLocalHandlerAnnotationFromMetadata(Class<?> target, Executable method) {
         return ComponentMetadataLookups.lookup(target)
                 .flatMap(lookup -> {
-                    Optional<LocalHandler> methodAnnotation = method == null
-                            ? Optional.empty() : localHandler(
-                            ComponentMetadataLookups.executableAnnotations(lookup, method));
-                    return methodAnnotation
-                            .or(() -> localHandler(lookup.typeAnnotations(target.getName())))
-                            .or(() -> localHandler(lookup.packageAnnotations(target.getPackageName())));
+                    Optional<LocalHandler> routeLocalHandler = method == null
+                            ? Optional.empty() : routeLocalHandler(lookup, target, method);
+                    if (routeLocalHandler.isPresent()) {
+                        return localHandlerAnnotation(lookup, target, method).or(() -> routeLocalHandler);
+                    }
+                    return localHandlerAnnotation(lookup, target, method);
                 });
     }
 
     private static Optional<LocalHandler> getLocalHandlerAnnotationFromMetadata(Class<?> target, ExecutableView executable) {
         return ComponentMetadataLookups.lookup(target)
-                .flatMap(lookup -> localHandler(ComponentMetadataLookups.executableAnnotations(lookup, executable))
-                        .or(() -> localHandler(lookup.typeAnnotations(target.getName())))
-                        .or(() -> localHandler(lookup.packageAnnotations(target.getPackageName()))));
+                .flatMap(lookup -> {
+                    Optional<LocalHandler> routeLocalHandler = routeLocalHandler(lookup, target, executable);
+                    if (routeLocalHandler.isPresent()) {
+                        return localHandlerAnnotation(lookup, target, executable).or(() -> routeLocalHandler);
+                    }
+                    return localHandlerAnnotation(lookup, target, executable);
+                });
+    }
+
+    private static Optional<LocalHandler> localHandlerAnnotation(
+            ComponentMetadataLookup lookup, Class<?> target, Executable method) {
+        Optional<LocalHandler> methodAnnotation = method == null
+                ? Optional.empty() : localHandler(
+                ComponentMetadataLookups.executableAnnotations(lookup, method));
+        return methodAnnotation
+                .or(() -> localHandler(lookup.typeAnnotations(target.getName())))
+                .or(() -> localHandler(lookup.packageAnnotations(target.getPackageName())));
+    }
+
+    private static Optional<LocalHandler> localHandlerAnnotation(
+            ComponentMetadataLookup lookup, Class<?> target, ExecutableView executable) {
+        return localHandler(ComponentMetadataLookups.executableAnnotations(lookup, executable))
+                .or(() -> localHandler(lookup.typeAnnotations(target.getName())))
+                .or(() -> localHandler(lookup.packageAnnotations(target.getPackageName())));
+    }
+
+    private static Optional<LocalHandler> routeLocalHandler(
+            ComponentMetadataLookup lookup, Class<?> target, Executable executable) {
+        return ComponentMetadataLookups.executable(lookup, executable)
+                .flatMap(metadata -> matchingRoute(lookup, target, metadata))
+                .flatMap(ClientUtils::routeLocalHandler);
+    }
+
+    private static Optional<LocalHandler> routeLocalHandler(
+            ComponentMetadataLookup lookup, Class<?> target, ExecutableView executable) {
+        return ComponentMetadataLookups.executable(lookup, executable)
+                .flatMap(metadata -> matchingRoute(lookup, target, metadata))
+                .flatMap(ClientUtils::routeLocalHandler);
+    }
+
+    private static Optional<HandlerRoute> matchingRoute(
+            ComponentMetadataLookup lookup, Class<?> target, ExecutableDescriptor executable) {
+        return targetClassNames(target).stream()
+                .flatMap(typeName -> lookup.handlerRoutes(typeName).stream())
+                .filter(route -> !route.disabled())
+                .filter(route -> route.executableMetadata().filter(executable::equals).isPresent())
+                .findFirst();
+    }
+
+    private static Optional<LocalHandler> routeLocalHandler(HandlerRoute route) {
+        return route.local()
+                ? Optional.of(new LocalHandlerMetadata(true, false, false, route.tracked()))
+                : Optional.empty();
+    }
+
+    private static List<String> targetClassNames(Class<?> target) {
+        String canonicalName = target.getCanonicalName();
+        return canonicalName == null || canonicalName.equals(target.getName())
+               ? List.of(target.getName()) : List.of(target.getName(), canonicalName);
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotationFromMetadata(Class<?> target, Executable method) {
@@ -424,6 +500,16 @@ public class ClientUtils {
     }
 
     private static int computeOrder(Class<?> type) {
+        Optional<Integer> metadataOrder = ComponentMetadataLookups.lookup(type)
+                .flatMap(lookup -> lookup.typeAnnotations(type.getName()).stream()
+                        .filter(annotation -> annotation.isOrHas(Order.class.getSimpleName(), Order.class.getName()))
+                        .findFirst())
+                .flatMap(annotation -> annotation.find(Order.class.getSimpleName(), Order.class.getName()))
+                .flatMap(annotation -> annotation.firstValue("value"))
+                .map(Integer::parseInt);
+        if (metadataOrder.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadataOrder.orElse(0);
+        }
         return JvmComponentIntrospector.getInstance().typeAnnotation(type, Order.class)
                 .map(Order::value)
                 .or(() -> springOrderOf(type)).orElse(0);
@@ -503,7 +589,7 @@ public class ClientUtils {
      * type.
      */
     public static String determineSearchCollection(@NonNull Object c) {
-        return JvmComponentIntrospector.getInstance().ifClass(c) instanceof Class<?> type
+        return c instanceof Class<?> type
                 ? getSearchParameters(type).getCollection() : c.toString();
     }
 
@@ -539,7 +625,7 @@ public class ClientUtils {
      * @return a set of topic names associated with the handler and message type
      */
     public static Set<String> getTopics(MessageType messageType, Object handler) {
-        return getTopics(messageType, Collections.singleton(JvmComponentIntrospector.getInstance().asClass(handler)));
+        return getTopics(messageType, Collections.singleton(handler instanceof Class<?> type ? type : handler.getClass()));
     }
 
     /**
@@ -550,6 +636,14 @@ public class ClientUtils {
      * @return a set of topic names
      */
     public static Set<String> getTopics(MessageType messageType, Collection<Class<?>> handlerClasses) {
+        Set<String> metadataTopics = handlerClasses.stream()
+                .flatMap(handlerClass -> ComponentMetadataLookups.lookup(handlerClass).stream()
+                        .flatMap(lookup -> lookup.routes(handlerClass.getName(), messageType).stream()
+                                .flatMap(route -> routeTopic(messageType, route, handlerClass).stream())))
+                .collect(Collectors.toSet());
+        if (!metadataTopics.isEmpty() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadataTopics;
+        }
         var annotationResolver = MetadataExecutableAnnotationResolver.create();
         return switch (messageType) {
             case DOCUMENT -> handlerClasses.stream()
@@ -569,6 +663,44 @@ public class ClientUtils {
                     .collect(Collectors.toSet());
             default -> Collections.emptySet();
         };
+    }
+
+    private static Optional<String> routeTopic(MessageType messageType, HandlerRoute route, Class<?> handlerClass) {
+        return switch (messageType) {
+            case DOCUMENT -> route.annotationMetadata()
+                    .flatMap(annotation -> ComponentMetadataLookups.annotationAs(
+                            List.of(annotation), HandleDocument.class, HandleDocument.class, handlerClass))
+                    .flatMap(annotation -> documentRouteTopic(annotation, route));
+            case CUSTOM -> route.annotationMetadata()
+                    .flatMap(annotation -> ComponentMetadataLookups.annotationAs(
+                            List.of(annotation), HandleCustom.class, HandleCustom.class, handlerClass))
+                    .filter(annotation -> !annotation.disabled())
+                    .map(ClientUtils::getTopic);
+            default -> Optional.empty();
+        };
+    }
+
+    private static Optional<String> documentRouteTopic(HandleDocument annotation, HandlerRoute route) {
+        if (annotation.disabled()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(annotation.value()).filter(s -> !s.isBlank())
+                .or(() -> Optional.ofNullable(annotation.collection()).filter(s -> !s.isBlank()))
+                .or(() -> Void.class.equals(annotation.documentClass()) ? Optional.empty()
+                        : Optional.of(getSearchParameters(annotation.documentClass()).getCollection()))
+                .or(() -> route.payloadTypeNames().stream().findFirst()
+                        .map(ClientUtils::determineSearchCollectionFromTypeName));
+    }
+
+    private static String determineSearchCollectionFromTypeName(String typeName) {
+        return JvmComponentMetadataLookup.classForMetadataName(typeName)
+                .map(type -> getSearchParameters(type).getCollection())
+                .orElseGet(() -> simpleName(typeName));
+    }
+
+    private static String simpleName(String typeName) {
+        int separator = Math.max(typeName.lastIndexOf('.'), typeName.lastIndexOf('$'));
+        return separator < 0 ? typeName : typeName.substring(separator + 1);
     }
 
     /**

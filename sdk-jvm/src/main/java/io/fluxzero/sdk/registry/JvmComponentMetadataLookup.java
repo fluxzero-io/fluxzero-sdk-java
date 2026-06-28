@@ -17,12 +17,14 @@ package io.fluxzero.sdk.registry;
 import io.fluxzero.common.MessageType;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +36,18 @@ import java.util.Set;
  * `ClasspathComponentScanner` and `JvmComponentIntrospector`; callers consume metadata-shaped descriptors.
  */
 public final class JvmComponentMetadataLookup implements ComponentMetadataLookup {
+    private static final Map<String, Class<?>> PRIMITIVE_TYPES = Map.of(
+            "boolean", boolean.class,
+            "byte", byte.class,
+            "char", char.class,
+            "double", double.class,
+            "float", float.class,
+            "int", int.class,
+            "long", long.class,
+            "short", short.class,
+            "void", void.class
+    );
+
     private final RegistryComponentMetadataLookup delegate;
 
     private JvmComponentMetadataLookup(ComponentRegistry registry) {
@@ -71,10 +85,24 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
      * Resolves a source/registry type name to a JVM class, including canonical nested class names.
      */
     public static Optional<Class<?>> classForMetadataName(String className) {
+        return classForMetadataName(className, (ClassLoader) null);
+    }
+
+    /**
+     * Resolves a source/registry type name to a JVM class using the supplied loader first.
+     */
+    public static Optional<Class<?>> classForMetadataName(String className, ClassLoader preferredLoader) {
         Objects.requireNonNull(className, "className");
-        Class<?> result = JvmComponentIntrospector.getInstance().classForName(className, null);
-        if (result != null) {
-            return Optional.of(result);
+        if (PRIMITIVE_TYPES.containsKey(className)) {
+            return Optional.of(PRIMITIVE_TYPES.get(className));
+        }
+        if (className.endsWith("[]")) {
+            return classForMetadataName(className.substring(0, className.length() - 2), preferredLoader)
+                    .map(componentType -> Array.newInstance(componentType, 0).getClass());
+        }
+        Optional<Class<?>> result = loadClass(className, preferredLoader);
+        if (result.isPresent()) {
+            return result;
         }
         String[] segments = className.split("\\.");
         for (int typeStart = segments.length - 1; typeStart >= 0; typeStart--) {
@@ -84,12 +112,32 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
             if (candidate.equals(className)) {
                 continue;
             }
-            result = JvmComponentIntrospector.getInstance().classForName(candidate, null);
-            if (result != null) {
-                return Optional.of(result);
+            result = loadClass(candidate, preferredLoader);
+            if (result.isPresent()) {
+                return result;
             }
         }
         return Optional.empty();
+    }
+
+    private static Optional<Class<?>> loadClass(String className, ClassLoader preferredLoader) {
+        ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
+        ClassLoader ownLoader = JvmComponentMetadataLookup.class.getClassLoader();
+        for (ClassLoader loader : new ClassLoader[]{preferredLoader, contextLoader, ownLoader}) {
+            if (loader == null) {
+                continue;
+            }
+            try {
+                return Optional.of(Class.forName(className, false, loader));
+            } catch (ClassNotFoundException ignored) {
+                // Try the next available loader.
+            }
+        }
+        try {
+            return Optional.of(Class.forName(className));
+        } catch (ClassNotFoundException ignored) {
+            return Optional.empty();
+        }
     }
 
     /**

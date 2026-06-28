@@ -217,12 +217,15 @@ class DataProtectionInterceptorTest {
 
     @Test
     void generatedOnlyModeDoesNotUseReflectionFallbackForProtectedFields() {
+        record LocalUnregisteredGeneratedOnlyProtectedPayload(@ProtectData String secret) {
+        }
+
         KeyValueStore keyValueStore = mock(KeyValueStore.class);
         DataProtectionInterceptor interceptor = new DataProtectionInterceptor(keyValueStore, new JacksonSerializer());
         AtomicReference<Message> result = new AtomicReference<>();
 
         GeneratedOnlyMetadataMode.run(() -> result.set(interceptor.interceptDispatch(
-                new Message(new UnregisteredGeneratedOnlyProtectedPayload("secret")), MessageType.EVENT, null)));
+                new Message(new LocalUnregisteredGeneratedOnlyProtectedPayload("secret")), MessageType.EVENT, null)));
 
         assertFalse(result.get().getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
         verifyNoInteractions(keyValueStore);
@@ -337,9 +340,6 @@ class DataProtectionInterceptorTest {
     }
 
     private record ProtectedSensitiveDetails(@ProtectData String socialSecurityNumber, String displayName) {
-    }
-
-    private record UnregisteredGeneratedOnlyProtectedPayload(@ProtectData String secret) {
     }
 
     private record RegisteredGeneratedOnlyProtectedPayload(@ProtectData String secret) {

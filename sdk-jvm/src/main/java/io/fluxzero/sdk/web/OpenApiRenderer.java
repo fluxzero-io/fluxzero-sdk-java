@@ -24,8 +24,10 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
+import io.fluxzero.sdk.registry.TypeUseDescriptor;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -184,13 +186,12 @@ public final class OpenApiRenderer {
 
     private static void applyDocumentInfo(DocumentInfoBuilder builder, Class<?> handlerType) {
         Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(handlerType);
-        if (lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
-            lookup.ifPresent(l -> {
-                l.packageMetadataChain(handlerType.getPackageName()).reversed().stream()
-                        .map(descriptor -> descriptor.annotations())
-                        .forEach(annotations -> applyDocumentInfo(builder, annotations, handlerType));
-                applyDocumentInfo(builder, l.typeAnnotations(handlerType.getName()), handlerType);
-            });
+        if (lookup.isPresent()) {
+            ComponentMetadataLookup l = lookup.orElseThrow();
+            l.packageMetadataChain(handlerType.getPackageName()).reversed().stream()
+                    .map(descriptor -> descriptor.annotations())
+                    .forEach(annotations -> applyDocumentInfo(builder, annotations, handlerType));
+            applyDocumentInfo(builder, l.typeAnnotations(handlerType.getName()), handlerType);
             return;
         }
         packages(handlerType).forEach(p -> builder.apply(p.getAnnotation(ApiDocInfo.class)));
@@ -291,22 +292,21 @@ public final class OpenApiRenderer {
         ArrayNode result = JSON.arrayNode();
         for (ApiDocParameter parameter : endpoint.parameters()) {
             if (parameter.source() == WebParameterSource.BODY || parameter.source() == WebParameterSource.FORM
-                || isHidden(parameter.parameter())) {
+                || isHidden(parameter, endpoint.handlerType())) {
                 continue;
             }
             ObjectNode node = object();
             node.put("name", parameter.name());
             node.put("in", location(parameter.source()));
-            if (parameter.source() == WebParameterSource.PATH || isRequired(parameter.parameter())) {
+            if (parameter.source() == WebParameterSource.PATH || isRequired(parameter, endpoint.handlerType())) {
                 node.put("required", true);
             }
-            ObjectNode schema = parameter.parameter() == null
-                    ? schema(parameter.type(), schemaContext) : schema(parameter.parameter().getAnnotatedType(),
-                                                                       schemaContext);
-            applySchemaMetadata(schema, metadata(parameter.parameter()), schemaContext);
+            SchemaMetadata metadata = metadata(parameter, endpoint.handlerType());
+            ObjectNode schema = schema(parameter, endpoint.handlerType(), schemaContext);
+            applySchemaMetadata(schema, metadata, schemaContext);
             removeDeclarationApiDocMetadata(schema, parameter.parameter());
             node.set("schema", schema);
-            applyParameterMetadata(node, parameter.parameter());
+            applyParameterMetadata(node, metadata);
             result.add(node);
         }
         return result;
@@ -314,54 +314,56 @@ public final class OpenApiRenderer {
 
     private static Optional<ObjectNode> requestBody(ApiDocEndpoint endpoint, SchemaContext schemaContext) {
         List<ApiDocRequestBody> requestBodies = endpoint.requestBodies().stream()
-                .filter(body -> !isHidden(body.parameter())).toList();
+                .filter(body -> !isHidden(body, endpoint.handlerType())).toList();
         if (!requestBodies.isEmpty()) {
-            return Optional.of(fullRequestBody(requestBodies, schemaContext));
+            return Optional.of(fullRequestBody(requestBodies, endpoint.handlerType(), schemaContext));
         }
         List<ApiDocParameter> bodyParameters = endpoint.parameters().stream()
-                .filter(p -> p.source() == WebParameterSource.BODY && !isHidden(p.parameter())).toList();
+                .filter(p -> p.source() == WebParameterSource.BODY && !isHidden(p, endpoint.handlerType())).toList();
         if (!bodyParameters.isEmpty()) {
-            return Optional.of(parameterObjectRequestBody("application/json", bodyParameters, schemaContext));
+            return Optional.of(parameterObjectRequestBody(
+                    "application/json", bodyParameters, endpoint.handlerType(), schemaContext));
         }
         List<ApiDocParameter> formParameters = endpoint.parameters().stream()
-                .filter(p -> p.source() == WebParameterSource.FORM && !isHidden(p.parameter())).toList();
+                .filter(p -> p.source() == WebParameterSource.FORM && !isHidden(p, endpoint.handlerType())).toList();
         if (!formParameters.isEmpty()) {
             String mediaType = formParameters.stream().anyMatch(p -> isBinaryType(p.type()))
                     ? "multipart/form-data" : "application/x-www-form-urlencoded";
-            return Optional.of(parameterObjectRequestBody(mediaType, formParameters, schemaContext));
+            return Optional.of(parameterObjectRequestBody(mediaType, formParameters, endpoint.handlerType(),
+                                                          schemaContext));
         }
         return Optional.empty();
     }
 
-    private static ObjectNode fullRequestBody(List<ApiDocRequestBody> requestBodies, SchemaContext schemaContext) {
+    private static ObjectNode fullRequestBody(List<ApiDocRequestBody> requestBodies, Class<?> handlerType,
+                                              SchemaContext schemaContext) {
         if (requestBodies.size() == 1) {
             ApiDocRequestBody body = requestBodies.getFirst();
-            ObjectNode schema = schema(body.type(), schemaContext);
-            applySchemaMetadata(schema, metadata(body.parameter()), schemaContext);
+            ObjectNode schema = schema(body, handlerType, schemaContext);
+            applySchemaMetadata(schema, metadata(body, handlerType), schemaContext);
             return requestBody(inferMediaType(body.type()), schema);
         }
         ObjectNode schema = object().put("type", "object");
         ObjectNode properties = schema.putObject("properties");
         for (ApiDocRequestBody body : requestBodies) {
-            ObjectNode property = schema(body.parameter().getAnnotatedType(), schemaContext);
-            applySchemaMetadata(property, metadata(body.parameter()), schemaContext);
-            properties.set(parameterName(body.parameter()), property);
+            ObjectNode property = schema(body, handlerType, schemaContext);
+            applySchemaMetadata(property, metadata(body, handlerType), schemaContext);
+            properties.set(parameterName(body), property);
         }
         return requestBody("application/json", schema);
     }
 
     private static ObjectNode parameterObjectRequestBody(String mediaType, List<ApiDocParameter> parameters,
+                                                         Class<?> handlerType,
                                                          SchemaContext schemaContext) {
         ObjectNode schema = object().put("type", "object");
         ObjectNode properties = schema.putObject("properties");
         ArrayNode required = JSON.arrayNode();
         for (ApiDocParameter parameter : parameters) {
-            ObjectNode property = parameter.parameter() == null
-                    ? schema(parameter.type(), schemaContext) : schema(parameter.parameter().getAnnotatedType(),
-                                                                       schemaContext);
-            applySchemaMetadata(property, metadata(parameter.parameter()), schemaContext);
+            ObjectNode property = schema(parameter, handlerType, schemaContext);
+            applySchemaMetadata(property, metadata(parameter, handlerType), schemaContext);
             properties.set(parameter.name(), property);
-            if (isRequired(parameter.parameter())) {
+            if (isRequired(parameter, handlerType)) {
                 required.add(parameter.name());
             }
         }
@@ -404,11 +406,17 @@ public final class OpenApiRenderer {
         }
         ObjectNode response = object().put("description", "OK");
         if (!isDynamicWebResponse(responseType)) {
-            ObjectNode schema = endpoint.executable() instanceof Method method
+            ObjectNode schema = endpoint.executableMetadata() != null
+                    ? responseSchema(endpoint.executableMetadata().returnTypeUse(), responseType,
+                                     endpoint.handlerType(), schemaContext)
+                    : endpoint.executable() instanceof Method method
                     ? responseSchema(method.getAnnotatedReturnType(), schemaContext)
                     : responseSchema(responseType, schemaContext);
             if (endpoint.executable() instanceof Method method) {
                 removeDeclarationApiDocMetadata(schema, method);
+            } else if (endpoint.executableMetadata() != null) {
+                removeDeclarationApiDocMetadata(schema, endpoint.executableMetadata().annotations(),
+                                                endpoint.handlerType());
             }
             addContent(response, inferMediaType(responseType), schema);
         }
@@ -479,6 +487,60 @@ public final class OpenApiRenderer {
 
     private static ObjectNode responseSchema(AnnotatedType annotatedType, SchemaContext schemaContext) {
         return schema(annotatedType, new LinkedHashSet<>(), schemaContext, true);
+    }
+
+    private static ObjectNode schema(ApiDocParameter parameter, Class<?> handlerType, SchemaContext schemaContext) {
+        if (parameter.parameterMetadata() != null) {
+            return schema(parameter.parameterMetadata().typeUse(), parameter.type(), handlerType, schemaContext, false);
+        }
+        return parameter.parameter() == null ? schema(parameter.type(), schemaContext)
+                : schema(parameter.parameter().getAnnotatedType(), schemaContext);
+    }
+
+    private static ObjectNode schema(ApiDocRequestBody body, Class<?> handlerType, SchemaContext schemaContext) {
+        if (body.parameterMetadata() != null) {
+            return schema(body.parameterMetadata().typeUse(), body.type(), handlerType, schemaContext, false);
+        }
+        return body.parameter() == null ? schema(body.type(), schemaContext)
+                : schema(body.parameter().getAnnotatedType(), schemaContext);
+    }
+
+    private static ObjectNode responseSchema(TypeUseDescriptor typeUse, Type fallbackType, Class<?> handlerType,
+                                             SchemaContext schemaContext) {
+        return schema(typeUse, fallbackType, handlerType, schemaContext, true);
+    }
+
+    private static ObjectNode schema(TypeUseDescriptor typeUse, Type fallbackType, Class<?> handlerType,
+                                     SchemaContext schemaContext, boolean responseSchema) {
+        if (typeUse == null || TypeUseDescriptor.EMPTY.equals(typeUse)) {
+            return schema(fallbackType, new LinkedHashSet<>(), schemaContext, responseSchema);
+        }
+        Class<?> rawType = classForTypeName(typeUse.typeName()).orElseGet(() -> rawClass(fallbackType));
+        if (rawType == null) {
+            rawType = Object.class;
+        }
+        ObjectNode schema;
+        if (Optional.class.isAssignableFrom(rawType)) {
+            TypeUseDescriptor valueType = typeUse.typeArguments().isEmpty() ? TypeUseDescriptor.EMPTY
+                    : typeUse.typeArguments().getFirst();
+            schema = nullableSchema(schema(valueType, Object.class, handlerType, schemaContext, responseSchema),
+                                    schemaContext);
+        } else if (Collection.class.isAssignableFrom(rawType)) {
+            TypeUseDescriptor itemType = typeUse.typeArguments().isEmpty() ? TypeUseDescriptor.EMPTY
+                    : typeUse.typeArguments().getFirst();
+            schema = object().put("type", "array")
+                    .set("items", schema(itemType, Object.class, handlerType, schemaContext, responseSchema));
+        } else if (Map.class.isAssignableFrom(rawType)) {
+            TypeUseDescriptor valueType = typeUse.typeArguments().size() > 1 ? typeUse.typeArguments().get(1)
+                    : TypeUseDescriptor.EMPTY;
+            schema = object().put("type", "object")
+                    .set("additionalProperties",
+                         schema(valueType, Object.class, handlerType, schemaContext, responseSchema));
+        } else {
+            schema = schema(rawType, new LinkedHashSet<>(), schemaContext, responseSchema);
+        }
+        applySchemaMetadata(schema, metadata(typeUse, handlerType), schemaContext);
+        return schema;
     }
 
     private static ObjectNode schema(AnnotatedType annotatedType, Set<Type> visiting, SchemaContext schemaContext,
@@ -796,6 +858,17 @@ public final class OpenApiRenderer {
     }
 
     private static boolean isJsonValue(AnnotatedElement element) {
+        List<AnnotationDescriptor> metadataAnnotations = metadataAnnotations(element);
+        Optional<AnnotationDescriptor> metadataJsonValue = metadataAnnotations.stream()
+                .filter(annotation -> annotation.isOrHas(
+                        "JsonValue", "com.fasterxml.jackson.annotation.JsonValue"))
+                .findFirst();
+        if (metadataJsonValue.isPresent()) {
+            return metadataJsonValue.orElseThrow().booleanValue("value", true);
+        }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return false;
+        }
         Annotation jsonValue = annotation(element, "com.fasterxml.jackson.annotation.JsonValue");
         if (jsonValue == null) {
             return false;
@@ -879,11 +952,7 @@ public final class OpenApiRenderer {
         }
     }
 
-    private static void applyParameterMetadata(ObjectNode node, Parameter parameter) {
-        if (parameter == null) {
-            return;
-        }
-        SchemaMetadata metadata = metadata(parameter);
+    private static void applyParameterMetadata(ObjectNode node, SchemaMetadata metadata) {
         if (!isBlank(metadata.description)) {
             node.put("description", metadata.description);
         }
@@ -907,6 +976,22 @@ public final class OpenApiRenderer {
         });
     }
 
+    private static void removeDeclarationApiDocMetadata(
+            ObjectNode schema, List<AnnotationDescriptor> annotations, Class<?> declaringClass) {
+        ComponentMetadataLookups.annotationAs(annotations, ApiDoc.class, ApiDoc.class, declaringClass)
+                .ifPresent(apiDoc -> removeDeclarationApiDocMetadata(schema, apiDoc));
+    }
+
+    private static void removeDeclarationApiDocMetadata(ObjectNode schema, ApiDoc apiDoc) {
+        if (!isBlank(apiDoc.description())
+            && apiDoc.description().trim().equals(schema.path("description").asText("").trim())) {
+            schema.remove("description");
+        }
+        if (apiDoc.deprecated() && schema.path("deprecated").asBoolean(false)) {
+            schema.remove("deprecated");
+        }
+    }
+
     private static Optional<Type> implementationType(AnnotatedElement element) {
         return metadata(element).implementationType();
     }
@@ -915,8 +1000,20 @@ public final class OpenApiRenderer {
         return metadata(element).hidden;
     }
 
+    private static boolean isHidden(ApiDocParameter parameter, Class<?> handlerType) {
+        return metadata(parameter, handlerType).hidden;
+    }
+
+    private static boolean isHidden(ApiDocRequestBody body, Class<?> handlerType) {
+        return metadata(body, handlerType).hidden;
+    }
+
     private static boolean isRequired(AnnotatedElement element) {
         return metadata(element).required;
+    }
+
+    private static boolean isRequired(ApiDocParameter parameter, Class<?> handlerType) {
+        return metadata(parameter, handlerType).required;
     }
 
     private static void applySchemaMetadata(ObjectNode schema, SchemaMetadata metadata,
@@ -1086,6 +1183,55 @@ public final class OpenApiRenderer {
         return builder.build();
     }
 
+    private static SchemaMetadata metadata(ApiDocParameter parameter, Class<?> handlerType) {
+        if (parameter.parameterMetadata() != null) {
+            return metadata(parameter.parameterMetadata().annotations(), handlerType);
+        }
+        if (ComponentMetadataLookups.generatedOnlyMode()
+            && parameter.parameter() != null
+            && ComponentMetadataLookups.lookup(handlerType).isEmpty()) {
+            return declarationMetadata(parameter.parameter());
+        }
+        return metadata(parameter.parameter());
+    }
+
+    private static SchemaMetadata metadata(ApiDocRequestBody body, Class<?> handlerType) {
+        if (body.parameterMetadata() != null) {
+            return metadata(body.parameterMetadata().annotations(), handlerType);
+        }
+        return metadata(body.parameter());
+    }
+
+    private static SchemaMetadata metadata(TypeUseDescriptor typeUse, Class<?> handlerType) {
+        return typeUse == null ? new SchemaMetadata.Builder().build()
+                : metadata(typeUse.annotations(), handlerType);
+    }
+
+    private static SchemaMetadata metadata(List<AnnotationDescriptor> annotations, Class<?> declaringClass) {
+        SchemaMetadata.Builder builder = new SchemaMetadata.Builder();
+        if (hasAnnotation(annotations, "Hidden", "io.swagger.v3.oas.annotations.Hidden")
+            || ComponentMetadataLookups.hasAnnotation(annotations, ApiDocExclude.class)) {
+            builder.hidden(true);
+        }
+        annotations.forEach(builder::applyValidation);
+        ComponentMetadataLookups.annotationAs(annotations, ApiDoc.class, ApiDoc.class, declaringClass)
+                .ifPresent(builder::apply);
+        return builder.build();
+    }
+
+    private static SchemaMetadata declarationMetadata(AnnotatedElement element) {
+        SchemaMetadata.Builder builder = new SchemaMetadata.Builder();
+        if (element == null) {
+            return builder.build();
+        }
+        builder.hidden(element.isAnnotationPresent(ApiDocExclude.class));
+        for (Annotation annotation : element.getAnnotations()) {
+            builder.applyValidation(annotation);
+        }
+        Optional.ofNullable(element.getAnnotation(ApiDoc.class)).ifPresent(builder::apply);
+        return builder.build();
+    }
+
     private static Optional<ApiDoc> apiDoc(AnnotatedElement element) {
         Optional<Class<?>> declaringClass = metadataDeclaringClass(element);
         if (declaringClass.isPresent()) {
@@ -1251,7 +1397,7 @@ public final class OpenApiRenderer {
 
     private static String uniqueOperationId(ApiDocEndpoint endpoint, Map<String, Integer> operationIds) {
         String base = !isBlank(endpoint.documentation().operationId())
-                ? endpoint.documentation().operationId() : endpoint.executable().getName();
+                ? endpoint.documentation().operationId() : executableName(endpoint);
         if ("<init>".equals(base)) {
             base = endpoint.handlerType().getSimpleName();
         }
@@ -1259,8 +1405,22 @@ public final class OpenApiRenderer {
         return count == 1 ? base : base + count;
     }
 
+    private static String executableName(ApiDocEndpoint endpoint) {
+        if (endpoint.executableMetadata() != null) {
+            return endpoint.executableMetadata().name();
+        }
+        return endpoint.executable() == null ? endpoint.handlerType().getSimpleName() : endpoint.executable().getName();
+    }
+
     private static String parameterName(Parameter parameter) {
         return parameter.isNamePresent() ? parameter.getName() : "body";
+    }
+
+    private static String parameterName(ApiDocRequestBody body) {
+        if (body.parameterMetadata() != null && !isBlank(body.parameterMetadata().name())) {
+            return body.parameterMetadata().name();
+        }
+        return body.parameter() == null ? "body" : parameterName(body.parameter());
     }
 
     private static String inferMediaType(Type type) {
@@ -1296,6 +1456,21 @@ public final class OpenApiRenderer {
             case ParameterizedType p when p.getRawType() instanceof Class<?> c -> c;
             case GenericArrayType ignored -> null;
             case null, default -> null;
+        };
+    }
+
+    private static Optional<Class<?>> classForTypeName(String typeName) {
+        return switch (typeName) {
+            case "boolean" -> Optional.of(boolean.class);
+            case "byte" -> Optional.of(byte.class);
+            case "short" -> Optional.of(short.class);
+            case "int" -> Optional.of(int.class);
+            case "long" -> Optional.of(long.class);
+            case "float" -> Optional.of(float.class);
+            case "double" -> Optional.of(double.class);
+            case "char" -> Optional.of(char.class);
+            case "void" -> Optional.of(void.class);
+            default -> JvmComponentMetadataLookup.classForMetadataName(typeName);
         };
     }
 

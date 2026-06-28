@@ -21,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -224,6 +225,94 @@ class SourceComponentScannerTest {
     }
 
     @Test
+    void webRoutesResolveUniqueFinalStringPathConstants(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceWebPathHandler", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.web.HandleGet;
+                import io.fluxzero.sdk.web.Path;
+
+                public class SourceWebPathHandler {
+                    static final String endpointUrl = "/endpoint";
+
+                    @Path(endpointUrl)
+                    static class Endpoint {
+                        @HandleGet
+                        public String get() {
+                            return "ok";
+                        }
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceWebPathHandler$Endpoint").orElseThrow();
+
+        assertEquals(List.of("/endpoint"), webRoute(component, "get").paths());
+    }
+
+    @Test
+    void webRoutesUsePackageSegmentForBlankTypePathDefault(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceWebPathHandler", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.web.HandleGet;
+                import io.fluxzero.sdk.web.Path;
+
+                @Path
+                public class SourceWebPathHandler {
+                    @HandleGet("items")
+                    public String get() {
+                        return "ok";
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceWebPathHandler").orElseThrow();
+
+        assertEquals(List.of("/generated/items"), webRoute(component, "get").paths());
+    }
+
+    @Test
+    void webRoutesInheritEnclosingTypePathForNestedHandlers(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceSocketEndpoint", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.web.HandleSocketMessage;
+                import io.fluxzero.sdk.web.HandleSocketOpen;
+                import io.fluxzero.sdk.web.Path;
+                import io.fluxzero.sdk.web.SocketEndpoint;
+                import io.fluxzero.sdk.web.SocketSession;
+
+                public class SourceSocketEndpoint {
+                    @Path("/endpoint")
+                    static class EndpointContainer {
+                        @SocketEndpoint
+                        static class Endpoint {
+                            @HandleSocketOpen
+                            Object onOpen(SocketSession session) {
+                                return "open";
+                            }
+
+                            @HandleSocketMessage
+                            Object onMessage(SocketSession session) {
+                                return "message";
+                            }
+                        }
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceSocketEndpoint$EndpointContainer$Endpoint")
+                .orElseThrow();
+
+        assertEquals(List.of("/endpoint"), webRoute(component, "onOpen").paths());
+        assertEquals(List.of("/endpoint"), webRoute(component, "onMessage").paths());
+    }
+
+    @Test
     void indexesNestedAnnotationAttributesFromSource(@TempDir Path tempDir) throws Exception {
         writeSource(tempDir, "SourceSocketEndpoint", """
                 package io.fluxzero.sdk.registry.generated;
@@ -254,6 +343,170 @@ class SourceComponentScannerTest {
         assertEquals(List.of("MILLISECONDS"), aliveCheck.values("timeUnit"));
         assertEquals(List.of("7"), aliveCheck.values("pingDelay"));
         assertEquals(List.of("3"), aliveCheck.values("pingTimeout"));
+    }
+
+    @Test
+    void resolvesPrimitiveSourceConstantsInNestedAnnotationAttributes(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceSocketEndpoint", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.web.HandleSocketOpen;
+                import io.fluxzero.sdk.web.SocketEndpoint;
+                import io.fluxzero.sdk.web.SocketEndpoint.AliveCheck;
+
+                @SocketEndpoint(aliveCheck = @AliveCheck(pingDelay = pingDelay, pingTimeout = pingTimeout))
+                public class SourceSocketEndpoint {
+                    static final int pingDelay = 30, pingTimeout = 10;
+
+                    @HandleSocketOpen
+                    public void open() {
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceSocketEndpoint").orElseThrow();
+        AnnotationDescriptor socketEndpoint = component.annotations().stream()
+                .filter(annotation -> annotation.qualifiedName().equals("io.fluxzero.sdk.web.SocketEndpoint"))
+                .findFirst().orElseThrow();
+        AnnotationDescriptor aliveCheck = socketEndpoint.nestedAnnotations("aliveCheck").getFirst();
+
+        assertEquals(List.of("30"), aliveCheck.values("pingDelay"));
+        assertEquals(List.of("10"), aliveCheck.values("pingTimeout"));
+    }
+
+    @Test
+    void indexesNestedAnnotationTextBlockValuesFromSource(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceApiDocHandler", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.web.ApiDocComponent;
+                import io.fluxzero.sdk.web.ApiDocInfo;
+                import io.fluxzero.sdk.web.HandleGet;
+
+                @ApiDocInfo(components = @ApiDocComponent(path = "responses.error", json = \"\"\"
+                        {"description":"Invalid request"}
+                        \"\"\"))
+                public class SourceApiDocHandler {
+                    @HandleGet("/info")
+                    public String info() {
+                        return "ok";
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceApiDocHandler").orElseThrow();
+        AnnotationDescriptor apiDocInfo = component.annotations().stream()
+                .filter(annotation -> annotation.qualifiedName().equals("io.fluxzero.sdk.web.ApiDocInfo"))
+                .findFirst().orElseThrow();
+        AnnotationDescriptor componentMetadata = apiDocInfo.nestedAnnotations("components").getFirst();
+
+        assertEquals(List.of("responses.error"), componentMetadata.values("path"));
+        assertEquals(List.of("{\"description\":\"Invalid request\"}\n"), componentMetadata.values("json"));
+    }
+
+    @Test
+    void ignoresFullyQualifiedAnnotationsOnNestedTypesWhenParsingExecutables(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "NestedAnnotatedType", """
+                package io.fluxzero.sdk.registry.generated;
+
+                public class NestedAnnotatedType {
+                    @org.springframework.core.annotation.Order(-20)
+                    static class Nested {
+                        String value() {
+                            return "nested";
+                        }
+                    }
+                }
+                """);
+
+        ComponentRegistry registry = new SourceComponentScanner().scan(tempDir);
+        ComponentDescriptor component = registry
+                .findComponent("io.fluxzero.sdk.registry.generated.NestedAnnotatedType").orElseThrow();
+
+        assertTrue(component.executables().stream().noneMatch(executable -> executable.name().equals("Order")));
+        ComponentRegistryJson.fromJson(ComponentRegistryJson.toJson(registry));
+    }
+
+    @Test
+    void indexesNestedTypesWithJvmComponentNamesAndCanonicalPayloadNames(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "NestedHandlerFixture", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.tracking.handling.HandleCommand;
+
+                public class NestedHandlerFixture {
+                    static class Command {
+                    }
+
+                    static class Handler {
+                        @HandleCommand
+                        String handle(Command command) {
+                            return "ok";
+                        }
+                    }
+                }
+                """);
+
+        ComponentRegistry registry = new SourceComponentScanner().scan(tempDir);
+        ComponentDescriptor handler = registry
+                .findComponent("io.fluxzero.sdk.registry.generated.NestedHandlerFixture$Handler").orElseThrow();
+        HandlerRoute route = route(handler, MessageType.COMMAND);
+
+        assertEquals("io.fluxzero.sdk.registry.generated.NestedHandlerFixture$Handler", handler.fullClassName());
+        assertEquals(Set.of("io.fluxzero.sdk.registry.generated.NestedHandlerFixture.Command"),
+                     route.payloadTypeNames());
+        assertEquals("io.fluxzero.sdk.registry.generated.NestedHandlerFixture.Command",
+                     route.executableMetadata().orElseThrow().parameters().getFirst().typeName());
+        ComponentRegistryJson.fromJson(ComponentRegistryJson.toJson(registry));
+    }
+
+    @Test
+    void preservesGenericSuperTypeNames(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceRequest", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.tracking.handling.Request;
+
+                public class SourceRequest implements Request<SourceResponse> {
+                }
+
+                class SourceResponse {
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceRequest").orElseThrow();
+
+        assertEquals(List.of(
+                "io.fluxzero.sdk.tracking.handling.Request<io.fluxzero.sdk.registry.generated.SourceResponse>"),
+                     component.superTypeNames());
+    }
+
+    @Test
+    void indexesImplicitDefaultConstructorsForClasses(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "ImplicitConstructorHandler", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.tracking.handling.HandleCommand;
+
+                public class ImplicitConstructorHandler {
+                    @HandleCommand
+                    String handle(String command) {
+                        return command;
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.ImplicitConstructorHandler").orElseThrow();
+
+        ExecutableDescriptor constructor = component.executables().stream()
+                .filter(executable -> executable.kind() == ExecutableKind.CONSTRUCTOR)
+                .findFirst().orElseThrow();
+        assertEquals("<init>", constructor.name());
+        assertTrue(constructor.parameters().isEmpty());
     }
 
     @Test
@@ -493,6 +746,75 @@ class SourceComponentScannerTest {
     }
 
     @Test
+    void indexesRecordComponentsWithPatternBracesAndTypeUseAnnotations(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "ValidatedRecord", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import jakarta.validation.constraints.NotBlank;
+                import jakarta.validation.constraints.NotEmpty;
+                import jakarta.validation.constraints.Pattern;
+                import jakarta.validation.constraints.Size;
+                import java.util.List;
+
+                public record ValidatedRecord(@NotBlank String name,
+                                              @NotEmpty List<@Size(min = 2, max = 2) String> values,
+                                              @Pattern(regexp = "[A-Z]{2}") String code) {
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.ValidatedRecord").orElseThrow();
+
+        assertTrue(hasAnnotation(property(component, "name").annotations(),
+                                 "jakarta.validation.constraints.NotBlank"));
+        assertTrue(hasAnnotation(property(component, "values").annotations(),
+                                 "jakarta.validation.constraints.NotEmpty"));
+        TypeUseDescriptor valuesTypeUse = property(component, "values").typeUse();
+        assertEquals("java.util.List", valuesTypeUse.typeName());
+        assertEquals("java.lang.String", valuesTypeUse.typeArguments().getFirst().typeName());
+        assertTrue(hasAnnotation(valuesTypeUse.typeArguments().getFirst().annotations(),
+                                 "jakarta.validation.constraints.Size"));
+        assertEquals(List.of("2"), valuesTypeUse.typeArguments().getFirst()
+                .annotations().getFirst().values("min"));
+        assertTrue(hasAnnotation(property(component, "code").annotations(),
+                                 "jakarta.validation.constraints.Pattern"));
+    }
+
+    @Test
+    void resolvesNestedSourceDeclaredConstraintAnnotations(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "NestedConstraintHost", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import jakarta.validation.Constraint;
+
+                public class NestedConstraintHost {
+                    @Constraint(validatedBy = NestedConstraintHost.NestedValidator.class)
+                    @interface NestedConstraint {
+                        String message() default "invalid";
+                    }
+
+                    record Payload(@NestedConstraint String value) {
+                    }
+
+                    static class NestedValidator {
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.NestedConstraintHost$Payload").orElseThrow();
+        AnnotationDescriptor annotation = property(component, "value").annotations().getFirst();
+
+        assertEquals("io.fluxzero.sdk.registry.generated.NestedConstraintHost.NestedConstraint",
+                     annotation.qualifiedName());
+        AnnotationDescriptor constraint = annotation.metaAnnotations().stream()
+                .filter(meta -> meta.qualifiedName().equals("jakarta.validation.Constraint"))
+                .findFirst().orElseThrow();
+        assertEquals(List.of("io.fluxzero.sdk.registry.generated.NestedConstraintHost.NestedValidator"),
+                     constraint.values("validatedBy"));
+    }
+
+    @Test
     void indexesSourcePayloadSelfHandlersAsLocalComponentRoutes(@TempDir Path tempDir) throws Exception {
         writeSource(tempDir, "SelfQuery", """
                 package io.fluxzero.sdk.registry.generated;
@@ -586,6 +908,39 @@ class SourceComponentScannerTest {
         assertTrue(component.capabilities().contains(ComponentCapability.CACHE));
         assertTrue(component.capabilities().contains(ComponentCapability.TASK_SCHEDULER));
         assertTrue(component.capabilities().contains(ComponentCapability.PROPERTY_SOURCE));
+    }
+
+    @Test
+    void normalizesAnnotationEnumAndKnownConstantValues(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "ConstantAnnotatedComponent", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.common.Order;
+                import io.fluxzero.sdk.tracking.Consumer;
+                import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+                import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
+
+                @Order(Order.LOWEST_PRECEDENCE)
+                @Consumer(name = "constant-consumer",
+                        handlingMode = ConsumerHandlingMode.ASYNC,
+                        maxFetchBytes = ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES,
+                        durationUnit = java.time.temporal.ChronoUnit.MILLIS)
+                public class ConstantAnnotatedComponent {
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.ConstantAnnotatedComponent").orElseThrow();
+
+        AnnotationDescriptor order = component.annotations().stream()
+                .filter(annotation -> annotation.name().equals("Order"))
+                .findFirst().orElseThrow();
+        AnnotationDescriptor consumer = component.consumerMetadata().orElseThrow().annotation();
+
+        assertEquals(String.valueOf(Integer.MAX_VALUE), order.firstValue("value").orElseThrow());
+        assertEquals("ASYNC", consumer.firstValue("handlingMode").orElseThrow());
+        assertEquals(String.valueOf(100L * 1024L * 1024L), consumer.firstValue("maxFetchBytes").orElseThrow());
+        assertEquals("MILLIS", consumer.firstValue("durationUnit").orElseThrow());
     }
 
     @Test

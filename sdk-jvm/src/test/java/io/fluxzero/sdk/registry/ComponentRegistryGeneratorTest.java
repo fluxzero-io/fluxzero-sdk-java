@@ -25,6 +25,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComponentRegistryGeneratorTest {
@@ -66,6 +67,21 @@ class ComponentRegistryGeneratorTest {
         assertEquals(sourceRoot, registry.sourceRoot());
         assertTrue(Files.isRegularFile(output));
         ComponentRegistry read = ComponentRegistryJson.read(output);
+        assertTrue(read.findComponent("io.fluxzero.sdk.registry.generatorfixture.GeneratorHandler").isPresent());
+    }
+
+    @Test
+    void canGenerateMetadataOnlyRegistryForCompiledSources(@TempDir Path tempDir) throws Exception {
+        Path sourceRoot = tempDir.resolve("src/test/java");
+        writeGeneratorFixture(sourceRoot);
+        Path output = tempDir.resolve(ComponentRegistryGenerator.DEFAULT_TEST_OUTPUT);
+
+        ComponentRegistry registry = ComponentRegistryGenerator.generate(
+                sourceRoot, output, null, "Compiled Test Registry", false, false, true);
+
+        assertNull(registry.sourceRoot());
+        ComponentRegistry read = ComponentRegistryJson.read(output);
+        assertNull(read.sourceRoot());
         assertTrue(read.findComponent("io.fluxzero.sdk.registry.generatorfixture.GeneratorHandler").isPresent());
     }
 

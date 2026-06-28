@@ -27,9 +27,13 @@ class DefaultHandlerRepositoryGeneratedOnlyMetadataTest {
 
     @Test
     void generatedOnlyModeDoesNotReadStatefulAnnotationWithoutRegistryMetadata() {
+        @Stateful(commitInBatch = true)
+        class LocalUnregisteredGeneratedOnlyBatchingHandler {
+        }
+
         GeneratedOnlyMetadataMode.run(() -> {
             HandlerRepository repository = DefaultHandlerRepository.handlerRepositorySupplier(
-                    () -> null, null).apply(GeneratedOnlyBatchingHandler.class);
+                    () -> null, null).apply(LocalUnregisteredGeneratedOnlyBatchingHandler.class);
 
             assertEquals(DefaultHandlerRepository.class, repository.getClass());
         });

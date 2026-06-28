@@ -15,7 +15,9 @@
 package io.fluxzero.sdk.publishing.dataprotection;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.Leaf;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.handling.Handler;
@@ -31,6 +33,7 @@ import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.PropertyAccess;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
@@ -40,8 +43,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -103,7 +109,6 @@ import java.util.stream.Stream;
 public class DataProtectionInterceptor implements DispatchInterceptor, HandlerInterceptor {
 
     public static String METADATA_KEY = "$protectedData";
-    private static final PropertyAccess<Class<?>, AccessibleObject> PROPERTIES = JvmComponentIntrospector.getInstance();
 
     private final KeyValueStore keyValueStore;
     private final Serializer serializer;
@@ -202,11 +207,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         Object payload = m.getPayload();
         Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
         boolean dropProtectedData = shouldDropProtectedData(invoker);
-        if (payload != null && payload.getClass().isRecord()) {
+        if (payload != null && (payload.getClass().isRecord() || ComponentMetadataLookups.generatedOnlyMode())) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
             protectedFields.forEach((fieldName, key) -> restoreProtectedField(payloadTree, fieldName, key,
                                                                               dropProtectedData));
-            return m.withPayload(serializer.convert(payloadTree, payload.getClass()));
+            return m.withPayloadPreservingSerializedObject(serializer.convert(payloadTree, payload.getClass()));
         }
         protectedFields.forEach((fieldName, key) -> restoreProtectedField(payload, fieldName, key, dropProtectedData));
         return m;
@@ -225,7 +230,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
         try {
-            PROPERTIES.writeProperty(fieldName, payload, keyValueStore.get(key));
+            writeProperty(fieldName, payload, keyValueStore.get(key));
         } catch (Exception e) {
             log.warn("Failed to set field {}", fieldName, e);
         }
@@ -235,13 +240,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private Object sanitizePayload(Object payload, Map<String, String> protectedFields) {
-        if (payload != null && payload.getClass().isRecord()) {
+        if (payload != null && (payload.getClass().isRecord() || ComponentMetadataLookups.generatedOnlyMode())) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
-            protectedFields.forEach((name, key) -> PROPERTIES.writeProperty(name, payloadTree, null));
+            protectedFields.forEach((name, key) -> writeProperty(name, payloadTree, null));
             return serializer.convert(payloadTree, payload.getClass());
         }
         Object payloadCopy = serializer.deserialize(serializer.serialize(payload));
-        protectedFields.forEach((name, key) -> PROPERTIES.writeProperty(name, payloadCopy, null));
+        protectedFields.forEach((name, key) -> writeProperty(name, payloadCopy, null));
         return payloadCopy;
     }
 
@@ -251,15 +256,15 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         }
         Map<String, String> protectedFields = new LinkedHashMap<>();
         Optional<Stream<Map.Entry<String, String>>> metadata = ComponentMetadataLookups.lookup(value.getClass())
-                .map(lookup -> lookup.properties(value.getClass().getName()).stream()
+                .map(lookup -> typeNames(value.getClass()).stream()
+                        .flatMap(typeName -> lookup.properties(typeName).stream())
                         .filter(property -> hasAnnotation(property, ProtectData.class))
-                        .flatMap(property -> PROPERTIES
-                                .readProperty(property.name(), value).stream()
+                        .flatMap(property -> readProperty(property.name(), value).stream()
                                 .flatMap(propertyValue -> getProtectedFields(property.name(), propertyValue))));
         metadata.orElseGet(() -> ComponentMetadataLookups.generatedOnlyMode() ? Stream.empty()
-                : PROPERTIES.annotatedProperties(value.getClass(), ProtectData.class).stream()
-                .flatMap(property -> Optional.ofNullable(PROPERTIES.propertyValue(property, value, true)).stream()
-                        .flatMap(propertyValue -> getProtectedFields(PROPERTIES.propertyName(property), propertyValue))))
+                : properties().annotatedProperties(value.getClass(), ProtectData.class).stream()
+                .flatMap(property -> Optional.ofNullable(properties().propertyValue(property, value, true)).stream()
+                        .flatMap(propertyValue -> getProtectedFields(properties().propertyName(property), propertyValue))))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
     }
@@ -269,7 +274,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (propertyValue == null) {
             return Stream.empty();
         }
-        if (JvmComponentIntrospector.getInstance().isLeafValue(propertyValue)
+        if (isLeafValue(propertyValue)
             || propertyValue instanceof JsonNode
             || propertyValue instanceof Data<?>
             || propertyValue instanceof Iterable<?>
@@ -283,7 +288,8 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private boolean isProtectedType(Class<?> type) {
         Optional<Boolean> metadata = ComponentMetadataLookups.lookup(type)
-                .map(lookup -> hasAnnotation(lookup.typeAnnotations(type.getName()), ProtectData.class));
+                .map(lookup -> typeNames(type).stream()
+                        .anyMatch(typeName -> hasAnnotation(lookup.typeAnnotations(typeName), ProtectData.class)));
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.orElse(false);
         }
@@ -295,6 +301,103 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         keyValueStore.store(key, value, Guarantee.STORED);
         return key;
     }
+
+    private static PropertyAccess<Class<?>, AccessibleObject> properties() {
+        return JvmComponentIntrospector.getInstance();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Optional<T> readProperty(String propertyPath, Object target) {
+        Optional<T> generatedValue = readGeneratedProperty(propertyPath, target);
+        if (generatedValue.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return generatedValue;
+        }
+        return properties().readProperty(propertyPath, target);
+    }
+
+    private boolean writeProperty(String propertyPath, Object target, Object value) {
+        if (writeGeneratedProperty(propertyPath, target, value) || writeJsonProperty(propertyPath, target, value)) {
+            return true;
+        }
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            properties().writeProperty(propertyPath, target, value);
+            return true;
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Optional<T> readGeneratedProperty(String propertyPath, Object target) {
+        if (target == null || propertyPath == null || propertyPath.isBlank()) {
+            return Optional.empty();
+        }
+        int separator = propertyPath.indexOf('.');
+        String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        Optional<Object> value = GeneratedPropertyAccesses.findReader(target.getClass(), propertyName)
+                .map(reader -> reader.read(target));
+        if (value.isEmpty() || separator < 0) {
+            return (Optional<T>) value;
+        }
+        return readGeneratedProperty(propertyPath.substring(separator + 1), value.get());
+    }
+
+    private static boolean writeGeneratedProperty(String propertyPath, Object target, Object value) {
+        if (target == null || propertyPath == null || propertyPath.isBlank()) {
+            return false;
+        }
+        int separator = propertyPath.indexOf('.');
+        String propertyName = separator < 0 ? propertyPath : propertyPath.substring(0, separator);
+        if (separator < 0) {
+            return GeneratedPropertyAccesses.findWriter(target.getClass(), propertyName)
+                    .map(writer -> {
+                        writer.write(target, value);
+                        return true;
+                    })
+                    .orElse(false);
+        }
+        return readGeneratedProperty(propertyName, target)
+                .map(nestedTarget -> writeGeneratedProperty(propertyPath.substring(separator + 1), nestedTarget, value))
+                .orElse(false);
+    }
+
+    private boolean writeJsonProperty(String propertyPath, Object target, Object value) {
+        if (!(target instanceof ObjectNode objectNode) || propertyPath == null || propertyPath.isBlank()) {
+            return false;
+        }
+        String normalized = propertyPath.replace('.', '/');
+        int separator = normalized.indexOf('/');
+        if (separator < 0) {
+            if (value == null) {
+                objectNode.remove(normalized);
+            } else {
+                objectNode.set(normalized, serializer.convert(value, JsonNode.class));
+            }
+            return true;
+        }
+        JsonNode child = objectNode.get(normalized.substring(0, separator));
+        return writeJsonProperty(normalized.substring(separator + 1), child, value);
+    }
+
+    private static boolean isLeafValue(Object value) {
+        if (value == null) {
+            return true;
+        }
+        Class<?> type = value.getClass();
+        for (Class<?> leafValueType : leafValueTypes) {
+            if (leafValueType.isAssignableFrom(type)) {
+                return true;
+            }
+        }
+        return type.isEnum() || Leaf.class.isAssignableFrom(type);
+    }
+
+    private static final Set<Class<?>> leafValueTypes = Set.of(
+            String.class, Number.class, Boolean.class, Character.class,
+            java.util.UUID.class, java.net.URI.class,
+            java.net.URL.class, java.util.Locale.class,
+            java.util.Currency.class, java.time.temporal.Temporal.class,
+            java.time.temporal.TemporalAmount.class
+    );
 
     private static boolean hasAnnotation(PropertyDescriptor property, Class<?> annotationType) {
         return hasAnnotation(property.annotations(), annotationType);
@@ -308,5 +411,15 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             }
         }
         return false;
+    }
+
+    private static List<String> typeNames(Class<?> type) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        result.add(type.getName());
+        String canonicalName = type.getCanonicalName();
+        if (canonicalName != null) {
+            result.add(canonicalName);
+        }
+        return List.copyOf(result);
     }
 }

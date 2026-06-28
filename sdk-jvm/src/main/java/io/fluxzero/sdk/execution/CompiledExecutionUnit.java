@@ -39,6 +39,10 @@ class CompiledExecutionUnit implements AutoCloseable {
         }
     }
 
+    ClassLoader classLoader() {
+        return classLoader;
+    }
+
     Instant lastUsed() {
         return lastUsed;
     }

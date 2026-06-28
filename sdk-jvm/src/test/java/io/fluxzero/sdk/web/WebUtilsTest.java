@@ -50,12 +50,27 @@ class WebUtilsTest {
     }
 
     @Test
-    void generatedOnlyModeDoesNotUseReflectionFallbackForDynamicHandlerPath() throws Exception {
-        var handler = new DynamicPathHandler("/tenant");
-        var method = DynamicPathHandler.class.getDeclaredMethod("get");
+    void generatedOnlyModeUsesGeneratedClasspathRegistryForCompiledDynamicHandlerPath() throws Exception {
+        class LocalDynamicPathHandler {
+            @Path
+            private final String root = "/tenant";
 
-        GeneratedOnlyMetadataMode.run(() ->
-                assertTrue(WebUtils.getWebPatterns(DynamicPathHandler.class, handler, method).isEmpty()));
+            @HandleGet("items")
+            String get() {
+                return "ok";
+            }
+        }
+
+        var handler = new LocalDynamicPathHandler();
+        var method = LocalDynamicPathHandler.class.getDeclaredMethod("get");
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            var result = WebUtils.getWebPatterns(LocalDynamicPathHandler.class, handler, method);
+
+            assertEquals(1, result.size());
+            assertEquals("/tenant/items", result.getFirst().getUri());
+            assertEquals(GET, result.getFirst().getMethod());
+        });
     }
 
     @Test

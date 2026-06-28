@@ -16,15 +16,19 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentRegistryException;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ConsumerDescriptor;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PackageDescriptor;
@@ -69,8 +73,6 @@ import java.util.stream.Stream;
 @Value
 @Builder(builderClassName = "Builder", toBuilder = true)
 public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
-    private static final JvmComponentIntrospector INTROSPECTOR = JvmComponentIntrospector.getInstance();
-
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
      * <p>
@@ -494,18 +496,22 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
 
     private static Stream<ConsumerConfiguration> classConfigurations(ComponentMetadataLookup lookup, Class<?> type) {
         return consumerDescriptor(lookup.typeAnnotations(type.getName()))
-                .map(c -> getConfiguration(c, h -> INTROSPECTOR.typeOf(h).equals(type))).stream();
+                .map(c -> getConfiguration(c, h -> handlerType(h).equals(type))).stream();
     }
 
     private static Stream<ConsumerConfiguration> packageConfigurations(PackageDescriptor descriptor) {
         return descriptor.consumerMetadata()
                 .map(c -> getConfiguration(
                         c, h -> {
-                            Class<?> type = INTROSPECTOR.typeOf(h);
+                            Class<?> type = handlerType(h);
                             String packageName = type.getPackageName();
                             return packageName.equals(descriptor.packageName())
                                    || packageName.startsWith(descriptor.packageName() + ".");
                         })).stream();
+    }
+
+    private static Class<?> handlerType(Object handler) {
+        return handler instanceof Class<?> type ? type : handler.getClass();
     }
 
     private static Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
@@ -556,10 +562,14 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     @SuppressWarnings("unchecked")
     private static <T> List<T> instantiateAll(ConsumerDescriptor consumer, String attribute) {
         return consumer.annotation().values(attribute).stream()
-                .map(className -> (T) INTROSPECTOR.instantiate(
+                .map(className -> (T) instantiateComponent(
                         JvmComponentMetadataLookup.classForMetadataName(className)
-                                .orElseGet(() -> INTROSPECTOR.classForName(className))))
+                                .orElseGet(() -> introspector().classForName(className))))
                 .collect(Collectors.toList());
+    }
+
+    private static JvmComponentIntrospector introspector() {
+        return JvmComponentIntrospector.getInstance();
     }
 
     private static String stringAttribute(ConsumerDescriptor consumer, String attribute, String defaultValue) {
@@ -598,10 +608,26 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     }
 
     private static ErrorHandler errorHandler(Class<?> type) {
-        return Object.class.equals(type) ? new LoggingErrorHandler() : INTROSPECTOR.instantiate(type);
+        return Object.class.equals(type) ? new LoggingErrorHandler() : instantiateComponent(type);
     }
 
     private static FlowRegulator flowRegulator(Class<?> type) {
-        return Object.class.equals(type) ? NoOpFlowRegulator.getInstance() : INTROSPECTOR.instantiate(type);
+        return Object.class.equals(type) ? NoOpFlowRegulator.getInstance() : instantiateComponent(type);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T instantiateComponent(Class<?> type) {
+        ComponentMetadataLookups.ensureGeneratedExecutions(type);
+        var generatedConstructor = GeneratedExecutableInvocations.find(
+                type, InvocationPlanDescriptor.executableId(ExecutableKind.CONSTRUCTOR, "<init>", List.of()));
+        if (generatedConstructor.isPresent()) {
+            return (T) generatedConstructor.orElseThrow().invoke(null);
+        }
+        if (ComponentMetadataLookups.strictGeneratedOnlyMode()) {
+            throw new ComponentRegistryException(
+                    "Generated-only metadata mode cannot instantiate %s without a generated no-arg constructor"
+                            .formatted(type.getName()));
+        }
+        return introspector().instantiate(type);
     }
 }

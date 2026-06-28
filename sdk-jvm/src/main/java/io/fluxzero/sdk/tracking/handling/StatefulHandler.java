@@ -40,6 +40,8 @@ import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
+import io.fluxzero.sdk.registry.TypeUseDescriptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -167,8 +169,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
         var alwaysMatch = matchingExecutables.stream().anyMatch(handlerAssociations::alwaysAssociate);
         var alwaysInvoke = alwaysMatch && matchingExecutables.stream()
-                .allMatch(method -> method.executable()
-                        .map(JvmComponentIntrospector.getInstance()::isStatic).orElse(false));
+                .allMatch(ExecutableView::isStatic);
         var memberAlwaysMatch = memberCandidates.stream().anyMatch(StatefulMemberCandidate::alwaysAssociate);
         Map<Object, String> associations = handlerAssociations.associationsFromViews(
                 message, matchingExecutables.stream());
@@ -244,13 +245,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return List.of();
         }
         List<StatefulMember> result = new ArrayList<>();
-        for (AccessibleObject location : memberLocations(ownerType)) {
-            Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
-                    .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
+        for (StatefulMemberLocation location : memberLocations(ownerType)) {
+            Class<?> memberType = location.memberType();
             if (Object.class.equals(memberType)) {
                 continue;
             }
-            String propertyName = JvmComponentIntrospector.getInstance().getPropertyName(location);
+            String propertyName = location.propertyName();
             String memberPath = ownerPath.isBlank() ? propertyName : ownerPath + "/" + propertyName;
             List<ParameterResolver<? super DeserializingMessage>> memberResolvers =
                     memberParameterResolvers(ownerType, memberType);
@@ -259,8 +259,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             HandlerAssociations memberAssociations =
                     new HandlerAssociations(memberType, memberResolvers, methodAnnotationProvider);
             AnnotatedEntityHolder holder =
-                    AnnotatedEntityHolder.getEntityHolder(ownerType, location, entityHelper, serializer);
-            boolean mapHolder = Map.class.isAssignableFrom(JvmComponentIntrospector.getInstance().getPropertyType(location));
+                    location.descriptor()
+                            .map(descriptor -> AnnotatedEntityHolder.getEntityHolder(
+                                    ownerType, descriptor, entityHelper, serializer))
+                            .orElseGet(() -> AnnotatedEntityHolder.getEntityHolder(
+                                    ownerType, location.accessible().orElseThrow(), entityHelper, serializer));
+            boolean mapHolder = location.mapHolder();
             result.add(new StatefulMember(ownerType, memberPath, memberType, mapHolder, holder, memberMatcher,
                                           memberAssociations));
             result.addAll(discoverStatefulMembers(memberType, memberPath, new HashSet<>(visitedTypes)));
@@ -305,28 +309,58 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                   && i.getExecutableView().annotation(RoutingKey.class).isPresent();
     }
 
-    private static List<AccessibleObject> memberLocations(Class<?> ownerType) {
-        Optional<List<AccessibleObject>> metadataLocations = ComponentMetadataLookups.lookup(ownerType)
+    private record StatefulMemberLocation(
+            Optional<PropertyDescriptor> descriptor,
+            Optional<AccessibleObject> accessible,
+            String propertyName,
+            Class<?> holderType,
+            Class<?> memberType,
+            boolean mapHolder) {
+
+        static StatefulMemberLocation fromDescriptor(Class<?> ownerType, PropertyDescriptor property) {
+            Class<?> holderType = JvmComponentMetadataLookup.classForMetadataName(
+                    property.typeName(), ownerType.getClassLoader()).orElse(Object.class);
+            Optional<Class<?>> elementType = elementType(ownerType, property, holderType);
+            return new StatefulMemberLocation(
+                    Optional.of(property), Optional.empty(), property.name(), holderType,
+                    elementType.orElse(holderType), Map.class.isAssignableFrom(holderType));
+        }
+
+        static StatefulMemberLocation fromAccessible(AccessibleObject location) {
+            Class<?> holderType = JvmComponentIntrospector.getInstance().getPropertyType(location);
+            Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
+                    .orElse(holderType);
+            return new StatefulMemberLocation(
+                    Optional.empty(), Optional.of(location),
+                    JvmComponentIntrospector.getInstance().getPropertyName(location), holderType, memberType,
+                    Map.class.isAssignableFrom(holderType));
+        }
+
+        private static Optional<Class<?>> elementType(
+                Class<?> ownerType, PropertyDescriptor property, Class<?> holderType) {
+            TypeUseDescriptor typeUse = property.typeUse();
+            int elementIndex = Map.class.isAssignableFrom(holderType) ? 1 : 0;
+            if (typeUse.typeArguments().size() <= elementIndex) {
+                return Optional.empty();
+            }
+            return JvmComponentMetadataLookup.classForMetadataName(
+                            typeUse.typeArguments().get(elementIndex).typeName(), ownerType.getClassLoader())
+                    .or(() -> Optional.of(Object.class));
+        }
+    }
+
+    private static List<StatefulMemberLocation> memberLocations(Class<?> ownerType) {
+        Optional<List<StatefulMemberLocation>> metadataLocations = ComponentMetadataLookups.lookup(ownerType)
                 .map(lookup -> ComponentMetadataLookups.annotatedProperties(lookup, ownerType, Member.class).stream()
-                        .flatMap(property -> annotatedPropertyLocation(
-                                ownerType, property.name(), Member.class).stream())
+                        .map(property -> StatefulMemberLocation.fromDescriptor(ownerType, property))
                         .toList());
         if (metadataLocations.filter(locations -> !locations.isEmpty()).isPresent()
             || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadataLocations.orElseGet(List::of);
         }
         return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class).stream()
-                .map(AccessibleObject.class::cast)
+                .map(location -> StatefulMemberLocation.fromAccessible((AccessibleObject) location))
                 .toList();
-    }
-
-    private static Optional<AccessibleObject> annotatedPropertyLocation(
-            Class<?> ownerType, String propertyName, Class<? extends java.lang.annotation.Annotation> annotationType) {
-        return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, annotationType).stream()
-                .filter(location -> JvmComponentIntrospector.getInstance().getPropertyName(location)
-                        .equals(propertyName))
-                .map(AccessibleObject.class::cast)
-                .findFirst();
     }
 
     private static Optional<String> entityIdPropertyName(Class<?> type) {
@@ -343,13 +377,24 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return Optional.empty();
         }
         return entityIdPropertyName(value.getClass())
-                .flatMap(propertyName -> JvmComponentIntrospector.getInstance().readProperty(propertyName, value))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(value, EntityId.class));
+                .flatMap(propertyName -> DefaultEntityHelper.readModelProperty(propertyName, value));
     }
 
     protected Boolean canTrackerHandle(DeserializingMessage message, String routingKey) {
         return Tracker.current().filter(tracker -> tracker.getConfiguration().ignoreSegment())
                 .map(tracker -> tracker.canHandle(message, routingKey)).orElse(true);
+    }
+
+    private boolean returnsTargetType(HandlerInvoker invoker, Class<?> type) {
+        if (!invoker.expectResult()) {
+            return false;
+        }
+        Optional<Class<?>> returnType = invoker.getMethod() instanceof Method method
+                ? Optional.of(method.getReturnType())
+                : JvmComponentMetadataLookup.classForMetadataName(
+                        invoker.getExecutableView().returnTypeName(), type.getClassLoader());
+        return returnType.map(resultType -> type.isAssignableFrom(resultType)
+                                           || resultType.isAssignableFrom(type)).orElse(false);
     }
 
     @Override
@@ -410,9 +455,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                     }
                 }
             } else if (result == null) {
-                if (expectResult() && getMethod() instanceof Method m
-                    && (getTargetClass().isAssignableFrom(m.getReturnType())
-                    || m.getReturnType().isAssignableFrom(getTargetClass()))) {
+                if (returnsTargetType(this, getTargetClass())) {
                     if (currentEntry != null) {
                         repository.delete(currentEntry.getId()).get();
                     }
@@ -661,9 +704,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                     }
                 }
             } else if (result == null) {
-                if (expectResult() && getMethod() instanceof Method method
-                    && (getTargetClass().isAssignableFrom(method.getReturnType())
-                        || method.getReturnType().isAssignableFrom(getTargetClass()))) {
+                if (returnsTargetType(this, getTargetClass())) {
                     state.delete();
                 }
             } else {
@@ -880,9 +921,20 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         private boolean shouldDeleteTarget() {
-            return target.isPresent() && expectResult() && getMethod() instanceof Method method
-                   && (target.type().isAssignableFrom(method.getReturnType())
-                       || method.getReturnType().isAssignableFrom(target.type()));
+            if (!target.isPresent() || !expectResult()) {
+                return false;
+            }
+            return resultType().map(resultType -> target.type().isAssignableFrom(resultType)
+                                             || resultType.isAssignableFrom(target.type()))
+                    .orElse(false);
+        }
+
+        private Optional<Class<?>> resultType() {
+            if (getMethod() instanceof Method method) {
+                return Optional.of(method.getReturnType());
+            }
+            return JvmComponentMetadataLookup.classForMetadataName(
+                    getExecutableView().returnTypeName(), target.type().getClassLoader());
         }
 
         private void deleteTarget() {

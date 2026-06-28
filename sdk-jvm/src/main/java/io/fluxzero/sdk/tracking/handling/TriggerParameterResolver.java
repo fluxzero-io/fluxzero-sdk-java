@@ -28,6 +28,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AllArgsConstructor;
@@ -312,7 +313,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     static Optional<Class<?>> getTriggerClass(HasMessage message,
                                               DefaultCorrelationDataProvider correlationDataProvider) {
         return ofNullable(message.getMetadata().get(correlationDataProvider.getTriggerKey()))
-                .flatMap(s -> Optional.ofNullable(JvmComponentIntrospector.getInstance().classForName(s, null)));
+                .flatMap(JvmComponentMetadataLookup::classForMetadataName);
     }
 
     private static final class TriggerMetadata {

@@ -21,8 +21,12 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.RequestHandler;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.HandlerRoute;
+import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent;
@@ -34,8 +38,10 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.annotation.Annotation;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 
@@ -44,24 +50,27 @@ class ExpiredRequestDecorator implements HandlerDecorator {
     private static final Duration REQUEST_TIMEOUT_GRACE = Duration.ofSeconds(30);
     private final boolean publishMetrics;
     private final Class<? extends Annotation> handlerAnnotation;
-    private final JvmComponentIntrospector introspector;
     private final ExecutableAnnotationResolver annotationResolver;
 
     ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation) {
-        this(publishMetrics, handlerAnnotation, JvmComponentIntrospector.getInstance());
+        this(publishMetrics, handlerAnnotation, MetadataExecutableAnnotationResolver.create());
     }
 
     ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation,
-                            JvmComponentIntrospector introspector) {
-        this(publishMetrics, handlerAnnotation, introspector, MetadataExecutableAnnotationResolver.create());
+                            Object ignoredIntrospector) {
+        this(publishMetrics, handlerAnnotation, MetadataExecutableAnnotationResolver.create());
     }
 
     ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation,
-                            JvmComponentIntrospector introspector,
+                            Object ignoredIntrospector,
                             ExecutableAnnotationResolver annotationResolver) {
+        this(publishMetrics, handlerAnnotation, annotationResolver);
+    }
+
+    private ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation,
+                                    ExecutableAnnotationResolver annotationResolver) {
         this.publishMetrics = publishMetrics;
         this.handlerAnnotation = Objects.requireNonNull(handlerAnnotation, "handlerAnnotation");
-        this.introspector = Objects.requireNonNull(introspector, "introspector");
         this.annotationResolver = Objects.requireNonNull(annotationResolver, "annotationResolver");
     }
 
@@ -90,7 +99,7 @@ class ExpiredRequestDecorator implements HandlerDecorator {
 
     private boolean isExpiredForHandler(DeserializingMessage message, HandlerInvoker invoker) {
         if (!message.getMessageType().isRequest() || message.getIndex() == null
-            || !skipExpiredRequests(invoker.getExecutableView())) {
+            || !skipExpiredRequests(invoker.getExecutableView(), invoker.getTargetClass())) {
             return false;
         }
         Optional<Duration> timeout = requestTimeout(message);
@@ -101,11 +110,52 @@ class ExpiredRequestDecorator implements HandlerDecorator {
         return deadline.isBefore(Fluxzero.currentTime());
     }
 
-    private boolean skipExpiredRequests(ExecutableView executable) {
-        return annotationResolver.getAnnotation(executable, handlerAnnotation)
-                .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
-                                                                    HandleAnnotation.class))
+    private boolean skipExpiredRequests(ExecutableView executable, Class<?> targetClass) {
+        Optional<Boolean> routeMetadata = routeMetadata(executable, targetClass).map(HandlerRoute::skipExpiredRequests);
+        if (routeMetadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return routeMetadata.orElse(false);
+        }
+        return handleAnnotation(executable)
                 .map(HandleAnnotation::isSkipExpiredRequests).orElse(false);
+    }
+
+    private Optional<HandlerRoute> routeMetadata(ExecutableView executable, Class<?> targetClass) {
+        String executableId = executable.executableId();
+        return ComponentMetadataLookups.lookup(targetClass)
+                .stream()
+                .flatMap(lookup -> targetTypeNames(targetClass).flatMap(typeName -> lookup.handlerRoutes(typeName).stream()))
+                .filter(route -> !route.disabled())
+                .filter(route -> route.annotationMetadata()
+                        .map(annotation -> annotation.isOrHas(handlerAnnotation.getSimpleName(), handlerAnnotation.getName()))
+                        .orElse(true))
+                .filter(route -> route.executableMetadata()
+                        .map(metadata -> executableId(metadata).equals(executableId))
+                        .orElse(false))
+                .findFirst();
+    }
+
+    private static Stream<String> targetTypeNames(Class<?> targetClass) {
+        String canonicalName = targetClass.getCanonicalName();
+        return canonicalName == null || canonicalName.equals(targetClass.getName())
+                ? Stream.of(targetClass.getName())
+                : Stream.of(targetClass.getName(), canonicalName);
+    }
+
+    private static String executableId(ExecutableDescriptor executable) {
+        ExecutableKind kind = executable.kind();
+        List<String> parameterTypes = executable.parameters().stream()
+                .map(parameter -> parameter.typeName())
+                .toList();
+        return InvocationPlanDescriptor.executableId(kind, executable.name(), parameterTypes);
+    }
+
+    private Optional<HandleAnnotation> handleAnnotation(ExecutableView executable) {
+        if (annotationResolver instanceof MetadataExecutableAnnotationResolver metadataResolver) {
+            return metadataResolver.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class);
+        }
+        return annotationResolver.getAnnotation(executable, handlerAnnotation)
+                .filter(HandleAnnotation.class::isInstance)
+                .map(HandleAnnotation.class::cast);
     }
 
     private Optional<Duration> requestTimeout(DeserializingMessage message) {

@@ -15,8 +15,10 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.handling.ExecutableInvocation;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmGeneratedExecutionInstaller;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.Value;
@@ -24,6 +26,7 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -39,6 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -75,6 +79,7 @@ import static io.fluxzero.common.ObjectUtils.call;
 @Slf4j
 public class AnnotatedEntityHolder {
     private static final Map<AccessibleObject, AnnotatedEntityHolder> cache = new ConcurrentHashMap<>();
+    private static final Map<String, AnnotatedEntityHolder> descriptorCache = new ConcurrentHashMap<>();
     /**
      * Replay-local cache for wrapper reuse while event sourcing an aggregate.
      * <p>
@@ -88,6 +93,8 @@ public class AnnotatedEntityHolder {
             loadingRouteValuesCache = ThreadLocal.withInitial(IdentityHashMap::new);
 
     private final AccessibleObject location;
+    private final String propertyName;
+    private final String locationDescription;
     private final BiFunction<Object, Object, Object> wither;
     private final Class<?> holderType;
     private final boolean collectionHolder;
@@ -121,6 +128,16 @@ public class AnnotatedEntityHolder {
                                                         EntityHelper entityHelper, Serializer serializer) {
         return cache.computeIfAbsent(location,
                                      l -> new AnnotatedEntityHolder(ownerType, l, entityHelper, serializer));
+    }
+
+    /**
+     * Retrieves or creates a cached holder from generated property metadata.
+     */
+    public static AnnotatedEntityHolder getEntityHolder(Class<?> ownerType, PropertyDescriptor property,
+                                                        EntityHelper entityHelper, Serializer serializer) {
+        String key = ownerType.getName() + "#" + property.name();
+        return descriptorCache.computeIfAbsent(
+                key, ignored -> new AnnotatedEntityHolder(ownerType, property, entityHelper, serializer));
     }
 
     public static Map<?, ?> snapshotLoadingEntityCache() {
@@ -164,6 +181,8 @@ public class AnnotatedEntityHolder {
         this.entityHelper = entityHelper;
         this.serializer = serializer;
         this.location = location;
+        this.propertyName = ModelMetadata.propertyName(location);
+        this.locationDescription = location.toString();
         this.holderType = ModelMetadata.propertyType(location);
         this.collectionHolder = Collection.class.isAssignableFrom(holderType);
         this.mapHolder = Map.class.isAssignableFrom(holderType);
@@ -173,14 +192,33 @@ public class AnnotatedEntityHolder {
         this.idProvider = pathToId.isBlank() ?
                 AnnotatedEntityHolder::entityId :
                 v -> new Id(ModelMetadata.readProperty(pathToId, v).orElse(null), pathToId);
-        this.wither = computeWither(ownerType, location, serializer, member);
+        this.wither = lazyWither(ownerType, propertyName, holderType, serializer, member, locationDescription);
+    }
+
+    private AnnotatedEntityHolder(Class<?> ownerType, PropertyDescriptor property,
+                                  EntityHelper entityHelper, Serializer serializer) {
+        this.entityHelper = entityHelper;
+        this.serializer = serializer;
+        this.location = null;
+        this.propertyName = property.name();
+        this.locationDescription = ownerType.getName() + "." + property.name();
+        this.holderType = ModelMetadata.propertyType(ownerType, property);
+        this.collectionHolder = Collection.class.isAssignableFrom(holderType);
+        this.mapHolder = Map.class.isAssignableFrom(holderType);
+        this.entityType = ModelMetadata.collectionElementType(ownerType, property).orElse(holderType);
+        ModelMetadata.MemberConfig member = ModelMetadata.member(property).orElseThrow();
+        String pathToId = member.idProperty();
+        this.idProvider = pathToId.isBlank() ?
+                AnnotatedEntityHolder::entityId :
+                v -> new Id(ModelMetadata.readProperty(pathToId, v).orElse(null), pathToId);
+        this.wither = lazyWither(ownerType, propertyName, holderType, serializer, member, locationDescription);
     }
 
     private static Id entityId(Object value) {
         if (value == null) {
             return new Id(null, null);
         }
-        if (JvmComponentIntrospector.getInstance().ifClass(value) instanceof Class<?> type) {
+        if (value instanceof Class<?> type) {
             return new Id(null, ModelMetadata.annotatedPropertyName(type, EntityId.class).orElse(null));
         }
         Optional<String> propertyName = ModelMetadata.annotatedPropertyName(value.getClass(), EntityId.class);
@@ -188,11 +226,23 @@ public class AnnotatedEntityHolder {
                               .orElse(null), propertyName.orElse(null));
     }
 
+    private static BiFunction<Object, Object, Object> lazyWither(
+            Class<?> ownerType, String propertyName, Class<?> holderType, Serializer serializer,
+            ModelMetadata.MemberConfig member, String locationDescription) {
+        AtomicReference<BiFunction<Object, Object, Object>> computed = new AtomicReference<>();
+        return (owner, holder) -> {
+            BiFunction<Object, Object, Object> wither = computed.updateAndGet(existing -> existing == null
+                    ? computeWither(ownerType, propertyName, holderType, serializer, member, locationDescription)
+                    : existing);
+            return wither.apply(owner, holder);
+        };
+    }
+
     private static BiFunction<Object, Object, Object> computeWither(
-            Class<?> ownerType, AccessibleObject location, Serializer serializer, ModelMetadata.MemberConfig member) {
-        String propertyName = ModelMetadata.propertyName(location);
-        Class<?>[] witherParams = new Class<?>[]{ModelMetadata.propertyType(location)};
-        Stream<Method> witherCandidates = JvmComponentIntrospector.getInstance().getAllMethods(ownerType).stream().filter(
+            Class<?> ownerType, String propertyName, Class<?> holderType, Serializer serializer,
+            ModelMetadata.MemberConfig member, String locationDescription) {
+        Class<?>[] witherParams = new Class<?>[]{holderType};
+        Stream<Method> witherCandidates = allMethods(ownerType).stream().filter(
                 m -> m.getReturnType().isAssignableFrom(ownerType) || m.getReturnType().equals(void.class));
         witherCandidates = member.wither().isBlank() ?
                 witherCandidates.filter(m -> Arrays.equals(witherParams, m.getParameterTypes())
@@ -201,13 +251,13 @@ public class AnnotatedEntityHolder {
         Optional<BiFunction<Object, Object, Object>> wither =
                 witherCandidates.findFirst()
                         .map(method -> (BiFunction<Object, Object, Object>) (o, h) ->
-                                JvmComponentIntrospector.getInstance().invoke(method, o, h));
+                                invoke(method, o, h));
         return wither
                 .or(() -> computeRecordWither(ownerType, propertyName))
                 .or(() -> computeCopyMethodWither(ownerType, propertyName))
                 .orElseGet(() -> {
                     AtomicBoolean warningIssued = new AtomicBoolean();
-                    boolean fieldExists = JvmComponentIntrospector.getInstance().getField(ownerType, propertyName).isPresent();
+                    boolean fieldExists = getField(ownerType, propertyName).isPresent();
                     Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
                     return (o, h) -> {
                         if (warningIssued.get()) {
@@ -216,7 +266,7 @@ public class AnnotatedEntityHolder {
                         if (!fieldExists) {
                             if (warningIssued.compareAndSet(false, true)) {
                                 log.warn("No update function found for @Member {}. {}",
-                                         location, updateFunctionAdvice(ownerType, propertyName));
+                                         locationDescription, updateFunctionAdvice(ownerType, propertyName));
                             }
                         } else {
                             try {
@@ -224,7 +274,7 @@ public class AnnotatedEntityHolder {
                                 ModelMetadata.writeProperty(propertyName, o, h);
                             } catch (Exception e) {
                                 if (warningIssued.compareAndSet(false, true)) {
-                                    log.warn("Not able to update @Member {}. {}", location,
+                                    log.warn("Not able to update @Member {}. {}", locationDescription,
                                              updateFunctionAdvice(ownerType, propertyName), e);
                                 }
                             }
@@ -251,7 +301,7 @@ public class AnnotatedEntityHolder {
             return Optional.empty();
         }
         int updateIndex = memberIndex;
-        return JvmComponentIntrospector.getInstance().getAllMethods(ownerType).stream()
+        return allMethods(ownerType).stream()
                 .filter(method -> "copy".equals(method.getName()))
                 .filter(method -> ownerType.isAssignableFrom(method.getReturnType()))
                 .filter(method -> matchesCopyParameters(method, fields))
@@ -261,7 +311,7 @@ public class AnnotatedEntityHolder {
                     for (int i = 0; i < fields.size(); i++) {
                         args[i] = i == updateIndex ? holder : ModelMetadata.propertyValue(fields.get(i), owner, true);
                     }
-                    return JvmComponentIntrospector.getInstance().invoke(method, owner, args);
+                    return invoke(method, owner, args);
                 }));
     }
 
@@ -311,7 +361,7 @@ public class AnnotatedEntityHolder {
                 for (int i = 0; i < components.length; i++) {
                     args[i] = i == updateIndex ? holder : ModelMetadata.propertyValue(accessors[i], owner, true);
                 }
-                return JvmComponentIntrospector.getInstance().instantiate(constructor, args);
+                return instantiate(constructor, args);
             }));
         });
     }
@@ -319,8 +369,7 @@ public class AnnotatedEntityHolder {
     private static Function<Object, Object> computeOwnerCloner(Class<?> ownerType, Serializer serializer) {
         try {
             var constructor = ownerType.getDeclaredConstructor();
-            return owner -> JvmComponentIntrospector.getInstance()
-                    .copyFields(owner, JvmComponentIntrospector.getInstance().instantiate(constructor));
+            return owner -> copyFields(owner, instantiate(constructor));
         } catch (Exception ignored) {
             return serializer::clone;
         }
@@ -348,7 +397,7 @@ public class AnnotatedEntityHolder {
         if (parent.get() == null) {
             return List.of();
         }
-        Object holderValue = ModelMetadata.propertyValue(location, parent.get(), false);
+        Object holderValue = holderValue(parent.get(), false);
         ImmutableEntity<?> emptyEntity = getEmptyEntity().toBuilder().parent(parent).build();
         if (holderValue == null) {
             return List.of(emptyEntity);
@@ -386,7 +435,7 @@ public class AnnotatedEntityHolder {
         if (parent.get() == null) {
             return null;
         }
-        Object holderValue = ModelMetadata.propertyValue(location, parent.get(), false);
+        Object holderValue = holderValue(parent.get(), false);
         if (holderValue == null) {
             return null;
         }
@@ -449,8 +498,8 @@ public class AnnotatedEntityHolder {
         if (id.value() != null) {
             addRouteValue(results, id.value().toString());
         }
-        for (AccessibleObject aliasLocation : ModelMetadata.annotatedPropertyLocations(member.getClass(), Alias.class)) {
-            Object aliasValue = ModelMetadata.propertyValue(aliasLocation, member, false);
+        for (PropertyDescriptor aliasLocation : ModelMetadata.annotatedProperties(member.getClass(), Alias.class)) {
+            Object aliasValue = ModelMetadata.propertyValue(aliasLocation, member);
             if (aliasValue == null) {
                 continue;
             }
@@ -538,7 +587,7 @@ public class AnnotatedEntityHolder {
         if (updateList.isEmpty()) {
             return owner;
         }
-        Object holder = ModelMetadata.propertyValue(location, owner, true);
+        Object holder = holderValue(owner, true);
         if (collectionHolder) {
             Collection<Object> collection = serializer.clone(holder);
             if (collection == null) {
@@ -589,8 +638,8 @@ public class AnnotatedEntityHolder {
                             .orElseGet(() -> idProvider.apply(update.after().get()).value());
                     if (id == null) {
                         throw new IllegalStateException(
-                                "Cannot add @Member map value without a member id. Add @EntityId to the member type "
-                                + "or configure @Member(idProperty = \"...\") on " + location + ".");
+                            "Cannot add @Member map value without a member id. Add @EntityId to the member type "
+                                + "or configure @Member(idProperty = \"...\") on " + locationDescription + ".");
                     }
                     if (previousId != null && !Objects.equals(previousId, id)) {
                         map.remove(previousId);
@@ -631,6 +680,67 @@ public class AnnotatedEntityHolder {
 
     private void removeEntityId(Collection<Object> collection, Object id) {
         collection.removeIf(candidate -> candidate != null && Objects.equals(idProvider.apply(candidate).value(), id));
+    }
+
+    private Object holderValue(Object owner, boolean forceAccess) {
+        if (location != null) {
+            return ModelMetadata.propertyValue(location, owner, forceAccess);
+        }
+        return ModelMetadata.readProperty(propertyName, owner).orElse(null);
+    }
+
+    private static List<Method> allMethods(Class<?> ownerType) {
+        List<Method> result = new ArrayList<>();
+        result.addAll(List.of(ownerType.getMethods()));
+        for (Class<?> current = ownerType; current != null; current = current.getSuperclass()) {
+            result.addAll(List.of(current.getDeclaredMethods()));
+        }
+        Arrays.stream(ownerType.getInterfaces()).flatMap(type -> allMethods(type).stream()).forEach(result::add);
+        return result;
+    }
+
+    private static Optional<Field> getField(Class<?> ownerType, String propertyName) {
+        for (Class<?> current = ownerType; current != null; current = current.getSuperclass()) {
+            try {
+                Field field = current.getDeclaredField(propertyName);
+                field.setAccessible(true);
+                return Optional.of(field);
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Object invoke(Method method, Object target, Object... args) {
+        method.setAccessible(true);
+        ExecutableInvocation invocation = JvmGeneratedExecutionInstaller.executableInvocationBackend().prepare(method);
+        return invocation.invoke(Modifier.isStatic(method.getModifiers()) ? null : target, args.length, i -> args[i]);
+    }
+
+    private static <T> T instantiate(Constructor<T> constructor, Object... args) {
+        constructor.setAccessible(true);
+        ExecutableInvocation invocation = JvmGeneratedExecutionInstaller.executableInvocationBackend()
+                .prepare(constructor);
+        @SuppressWarnings("unchecked")
+        T result = (T) invocation.invoke(null, args.length, i -> args[i]);
+        return result;
+    }
+
+    private static Object copyFields(Object source, Object target) {
+        for (Class<?> current = source.getClass(); current != null; current = current.getSuperclass()) {
+            for (Field field : current.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    field.set(target, field.get(source));
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException("Could not copy field " + field, e);
+                }
+            }
+        }
+        return target;
     }
 
     /**

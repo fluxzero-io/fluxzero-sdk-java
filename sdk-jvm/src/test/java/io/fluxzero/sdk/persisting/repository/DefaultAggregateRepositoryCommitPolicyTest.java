@@ -74,8 +74,12 @@ class DefaultAggregateRepositoryCommitPolicyTest {
 
     @Test
     void generatedOnlyModeDoesNotUseAggregatePolicyWithoutRegistryMetadata() {
+        @Aggregate(commitPolicy = AggregateCommitPolicy.ASYNC_AFTER_HANDLER)
+        class LocalUnregisteredGeneratedOnlyAggregate {
+        }
+
         GeneratedOnlyMetadataMode.run(() ->
-                assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(ExplicitAggregate.class)));
+                assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(LocalUnregisteredGeneratedOnlyAggregate.class)));
     }
 
     @Test

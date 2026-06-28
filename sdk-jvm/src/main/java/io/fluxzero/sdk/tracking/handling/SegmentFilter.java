@@ -20,7 +20,9 @@ import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -56,14 +58,13 @@ import java.lang.reflect.Executable;
  */
 public class SegmentFilter implements MessageFilter<HasMessage> {
     private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
-    private final JvmComponentIntrospector introspector = JvmComponentIntrospector.getInstance();
+    private final MetadataExecutableAnnotationResolver annotationResolver = MetadataExecutableAnnotationResolver.create();
 
     @Override
     public MessageFilter<? super HasMessage> prepare(Executable executable,
                                                      Class<? extends Annotation> handlerAnnotation,
                                                      Class<?> targetClass) {
-        RoutingKey routingKey = introspector.executableAnnotation(executable, RoutingKey.class)
-                .orElse(null);
+        RoutingKey routingKey = routingKey(executable);
         return routingKey == null ? ALLOW_ALL : new PreparedSegmentFilter(routingKey.value());
     }
 
@@ -84,8 +85,7 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
             || !tracker.getConfiguration().ignoreSegment()) {
             return true;
         }
-        RoutingKey routingKey = introspector.executableAnnotation(executable, RoutingKey.class)
-                .orElse(null);
+        RoutingKey routingKey = routingKey(executable);
         if (routingKey == null) {
             return true;
         }
@@ -114,9 +114,26 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
         return tracker.canHandle(dm, routingValue);
     }
 
+    private RoutingKey routingKey(Executable executable) {
+        var metadata = annotationResolver.getAnnotation(executable, RoutingKey.class)
+                .map(RoutingKey.class::cast);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
+        return JvmComponentIntrospector.getInstance()
+                .executableAnnotation(executable, RoutingKey.class)
+                .orElse(null);
+    }
+
     private RoutingKey routingKey(ExecutableView executable) {
+        var metadata = annotationResolver.getAnnotation(executable, RoutingKey.class)
+                .map(RoutingKey.class::cast);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
         return executable.executable()
-                .flatMap(method -> introspector.executableAnnotation(method, RoutingKey.class))
+                .flatMap(method -> JvmComponentIntrospector.getInstance()
+                        .executableAnnotation(method, RoutingKey.class))
                 .or(() -> executable.annotation(RoutingKey.class))
                 .orElse(null);
     }
