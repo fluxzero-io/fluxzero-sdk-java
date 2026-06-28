@@ -38,10 +38,84 @@ class ComponentRegistryJsonTest {
 
         assertEquals(registry.normalized(), result.normalized());
         String json = ComponentRegistryJson.toJson(registry);
-        assertTrue(json.contains("\"componentKind\""));
+        assertFalse(json.contains("\n"));
+        assertFalse(json.contains("\"componentKind\":\"CLASS\""));
+        assertTrue(json.contains("\"annotations\""));
+        assertTrue(json.contains("\"ref\""));
+        assertTrue(json.contains("\"executableId\""));
         assertTrue(json.contains("\"properties\""));
         assertTrue(json.contains("\"nestedAnnotations\""));
         assertFalse(json.contains("@class"));
+    }
+
+    @Test
+    void readsLegacyEmbeddedRouteJson() {
+        String json = """
+                {
+                  "components": [
+                    {
+                      "componentKind": "CLASS",
+                      "packageName": "io.fluxzero.sdk.registry.json",
+                      "className": "LegacyHandler",
+                      "executables": [
+                        {
+                          "kind": "METHOD",
+                          "name": "handle",
+                          "returnTypeName": "void",
+                          "parameters": [],
+                          "annotations": [
+                            {
+                              "name": "HandleCommand",
+                              "qualifiedName": "io.fluxzero.sdk.tracking.handling.HandleCommand",
+                              "attributes": {},
+                              "nestedAnnotations": {},
+                              "metaAnnotations": []
+                            }
+                          ],
+                          "isStatic": false
+                        }
+                      ],
+                      "handlerRoutes": [
+                        {
+                          "messageType": "COMMAND",
+                          "annotation": {
+                            "name": "HandleCommand",
+                            "qualifiedName": "io.fluxzero.sdk.tracking.handling.HandleCommand",
+                            "attributes": {},
+                            "nestedAnnotations": {},
+                            "metaAnnotations": []
+                          },
+                          "executable": {
+                            "kind": "METHOD",
+                            "name": "handle",
+                            "returnTypeName": "void",
+                            "parameters": [],
+                            "annotations": [],
+                            "isStatic": false
+                          },
+                          "disabled": false,
+                          "passive": false,
+                          "skipExpiredRequests": false,
+                          "local": true,
+                          "tracked": false,
+                          "payloadTypeNames": ["java.lang.String"],
+                          "allowedClassNames": [],
+                          "webRoutes": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+
+        ComponentRegistry result = ComponentRegistryJson.fromJson(json);
+
+        HandlerRoute route = result.components().getFirst().routes().getFirst();
+        assertEquals(MessageType.COMMAND, route.messageType());
+        assertEquals("handle", route.executableMetadata().orElseThrow().name());
+        assertEquals("HandleCommand", route.annotationMetadata().orElseThrow().name());
+        assertTrue(route.local());
+        assertEquals(Set.of("java.lang.String"), route.payloadTypeNames());
     }
 
     @Test

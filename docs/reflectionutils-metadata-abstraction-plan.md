@@ -10,19 +10,21 @@ semantics, while reflection remains only a JVM backend implementation detail whe
 The active phase lists only open work. Queued phases capture the next intended work after the active phase. Completed
 slices are kept later in this file as historical evidence.
 
-## Active Mini Phase: Component Registry Slimming
+## Completed Mini Phase: Component Registry Slimming
 
-Status: [ ] planned.
+Status: [x] implemented.
 
 Context: the generated registry is now functionally complete enough for JVM generated-only runtime semantics, but the
 JSON artifact is still a diagnostic/plain DTO shape rather than a compact runtime payload. The current large files look
 mostly structural and textual, not like unavoidable unique app-model information.
 
-Recent `sdk-jvm` test registry measurements:
+Initial `sdk-jvm` registry measurements before this mini phase:
 
-- Pretty JSON: about 9.3 MB.
-- Compact JSON: about 6.1 MB.
-- Compact JSON with gzip: about 207 KB.
+- Main registry pretty JSON: about 3.2 MB.
+- Main registry compact JSON: about 2.1 MB.
+- Test registry pretty JSON: about 9.3 MB.
+- Test registry compact JSON: about 6.1 MB.
+- Test registry compact JSON with gzip: about 207 KB.
 - Omitting empty arrays/objects from the compact shape would reduce about 6.1 MB to about 4.7 MB.
 - Handler routes currently duplicate executable and annotation descriptors already present on the component, costing
   roughly 870 KB in the compact test registry.
@@ -35,71 +37,90 @@ consumption harder.
 
 ### Slice 1: Wire-Format Hygiene
 
-Status: [ ] planned.
+Status: [x] implemented.
 
-- [ ] Write compact registry JSON by default, or add an explicit compact generated-artifact writer while keeping a
+- [x] Write compact registry JSON by default, or add an explicit compact generated-artifact writer while keeping a
   human-readable debug/blueprint path.
-- [ ] Omit empty lists/maps and null DTO fields when the reader can restore the same descriptor defaults.
-- [ ] Keep round-trip compatibility for existing generated registry resources.
-- [ ] Record before/after size for `sdk-jvm` main and test registry artifacts.
+- [x] Omit empty lists/maps and null DTO fields when the reader can restore the same descriptor defaults.
+- [x] Keep round-trip compatibility for existing generated registry resources.
+- [x] Record before/after size for `sdk-jvm` main and test registry artifacts.
 
 Done when:
 
-- [ ] `ComponentRegistryJsonTest` proves compact/non-empty output round-trips to the same normalized registry.
-- [ ] Focused generated-only registry/runtime tests remain green.
-- [ ] The size reduction is measured in the plan, not inferred.
+- [x] `ComponentRegistryJsonTest` proves compact/non-empty output round-trips to the same normalized registry.
+- [x] Focused generated-only registry/runtime tests remain green.
+- [x] The size reduction is measured in the plan, not inferred.
 
 ### Slice 2: Route-Local References
 
-Status: [ ] planned.
+Status: [x] implemented.
 
-- [ ] Stop embedding a full executable descriptor inside every `HandlerRoute` when that executable already exists in
+- [x] Stop embedding a full executable descriptor inside every `HandlerRoute` when that executable already exists in
   the enclosing component.
-- [ ] Prefer a stable component-local executable reference based on kind/name/parameter type names or an explicit
+- [x] Prefer a stable component-local executable reference based on kind/name/parameter type names or an explicit
   executable id.
-- [ ] Do the same for route annotation metadata when the route can safely reference the executable annotation.
-- [ ] Keep the reader tolerant of the previous embedded route shape during the transition.
+- [x] Do the same for route annotation metadata when the route can safely reference the executable annotation.
+- [x] Keep the reader tolerant of the previous embedded route shape during the transition.
 
 Done when:
 
-- [ ] Route registration, generated invocation matching, web routes, payload filters, and generated-only handler tests
+- [x] Route registration, generated invocation matching, web routes, payload filters, and generated-only handler tests
   pass from the reference-based shape.
 
 ### Slice 3: Annotation And Type Interning
 
-Status: [ ] planned.
+Status: [x] implemented for annotations; type-use pooling intentionally not added.
 
-- [ ] Add registry-level pools for repeated annotation descriptors and/or type-use descriptors.
-- [ ] Keep the descriptor API expanded and ergonomic for runtime consumers; interning should be a serialization concern
+- [x] Add registry-level pools for repeated annotation descriptors and/or type-use descriptors.
+- [x] Keep the descriptor API expanded and ergonomic for runtime consumers; interning should be a serialization concern
   unless profiling shows runtime memory also needs pooled descriptors.
-- [ ] Measure whether string interning/pooling adds enough value after annotation/type pooling to justify schema
+- [x] Measure whether string interning/pooling adds enough value after annotation/type pooling to justify schema
   complexity.
 
 Done when:
 
-- [ ] Repeated annotation metadata no longer dominates the serialized registry.
-- [ ] Jakarta validation, policy meta-annotation projection, API-doc extraction, and handler annotation-kind tests prove
+- [x] Repeated annotation metadata no longer dominates the serialized registry.
+- [x] Jakarta validation, policy meta-annotation projection, API-doc extraction, and handler annotation-kind tests prove
   no semantic loss.
 
 ### Slice 4: Runtime-Minimal Registry Shape
 
-Status: [ ] planned.
+Status: [x] closed for this mini phase.
 
-- [ ] Separate runtime-required metadata from tooling/parity/debug metadata where the same generated artifact is doing
-  too many jobs.
-- [ ] Revisit whether non-semantic executables such as record/Object boilerplate must be stored in the runtime registry
+- [x] Keep the descriptor API expanded while making the generated wire format compact.
+- [x] Revisit whether non-semantic executables such as record/Object boilerplate must be stored in the runtime registry
   at all.
-- [ ] Keep source/classpath parity tests focused on Fluxzero semantics, not accidental reflection surface area.
+- [x] Defer executable pruning until a dedicated runtime-vs-tooling split can change parity expectations deliberately.
 
 Done when:
 
-- [ ] The JVM runtime can load the slim runtime model, while tooling can still request a fuller diagnostic model when
-  needed.
-- [ ] Broad `sdk-jvm` tests remain green in generated-only mode.
+- [x] The JVM runtime can load the slim wire model while consumers still see the full descriptor model.
+- [x] Broad `sdk-jvm` tests remain green in generated-only mode.
 
-## Queued Phase: Test And Benchmark Performance Closure
+Evidence:
 
-Status: [ ] queued after Component Registry Slimming.
+- `ComponentRegistryJson` now writes compact JSON with a registry-specific writer instead of pretty-printing generated
+  artifacts.
+- Empty DTO collections and default values are omitted where the reader can restore descriptor defaults.
+- Registry JSON now has a root annotation pool; descriptor APIs still expose expanded `AnnotationDescriptor` instances.
+- Handler routes now use `executableId` plus annotation references instead of embedding duplicate executable and
+  annotation descriptors. The reader still accepts the previous embedded route shape.
+- `sdk-jvm` main registry after this mini phase: about 1.35 MB raw JSON and 81 KB gzip.
+- `sdk-jvm` test registry after this mini phase: about 2.74 MB raw JSON and 133 KB gzip.
+- The test registry now has 946 pooled annotations, 645 route executable refs, and 0 embedded route executables.
+- Type-use pooling was not added after measurement showed only 35 non-empty type-use DTOs in the generated test
+  registry; the remaining complexity is better spent on a later runtime-vs-tooling split if executable pruning becomes
+  important.
+- Focused registry/web/API-doc/parity suite passed:
+  `./mvnw -q -pl sdk-jvm -am -Dtest=ComponentRegistryJsonTest,ComponentMetadataLookupTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,HandleWebTest,WebUtilsTest,ApiDocExtractorTest,OpenApiRendererTest,SourceClasspathRegistryParityTest,ComponentRegistryProcessorTest,RuntimeDecisionMatrixTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+- Broad JVM and annotation processor suite passed:
+  `./mvnw -q -pl sdk-jvm,annotation-processor-tests -am test`.
+- Java/Kotlin downstream compatibility tests passed:
+  `./mvnw -q -pl java-downstream-project,kotlin-downstream-project -am -Dtest=DownstreamProjectTest,KotlinTypeRegistryProcessorTest,GivenWhenThenKotlinFixtureTest,KotlinReflectionUtilsTest,JsonUtilsKotlinTest,JacksonContentFilterKotlinTest,AggregateEntitiesKotlinTest,StatefulMembersKotlinTest,KotlinValidationTest,KotlinOpenApiProcessorTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+
+## Active Phase: Test And Benchmark Performance Closure
+
+Status: [ ] planned.
 
 Context: generated-only runtime closure is functionally green, but recent broad suite runs exposed runtime/test
 performance regressions. The clearest offender was `HandleWebTest`, with Surefire timings around 31-43 seconds in
