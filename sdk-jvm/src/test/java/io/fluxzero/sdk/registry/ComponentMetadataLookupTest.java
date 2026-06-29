@@ -167,17 +167,23 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
-    void metadataModePropertySupportsExplicitJvmCompatibilityNames() throws Exception {
+    void metadataModePropertySupportsOnlyExplicitJvmCompatibilityName() throws Exception {
         withMetadataModeProperty(ComponentMetadataLookups.JVM_COMPATIBILITY_MODE, () -> {
             assertFalse(ComponentMetadataLookups.generatedOnlyMode());
             assertFalse(ComponentMetadataLookups.strictGeneratedOnlyMode());
             assertTrue(ComponentMetadataLookups.jvmCompatibilityMode());
             assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode());
         });
-        withMetadataModeProperty(ComponentMetadataLookups.COMPATIBILITY_MODE,
-                                 () -> assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode()));
-        withMetadataModeProperty(ComponentMetadataLookups.HYBRID_MODE,
-                                 () -> assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode()));
+        withMetadataModeProperty("compatibility", () -> {
+            assertTrue(ComponentMetadataLookups.generatedOnlyMode());
+            assertFalse(ComponentMetadataLookups.jvmCompatibilityMode());
+            assertFalse(ComponentMetadataLookups.configuredJvmCompatibilityMode());
+        });
+        withMetadataModeProperty("hybrid", () -> {
+            assertTrue(ComponentMetadataLookups.generatedOnlyMode());
+            assertFalse(ComponentMetadataLookups.jvmCompatibilityMode());
+            assertFalse(ComponentMetadataLookups.configuredJvmCompatibilityMode());
+        });
     }
 
     @Test

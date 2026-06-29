@@ -114,9 +114,9 @@ generated or registered component registry; missing generated metadata fails ins
 reflection-backed classpath scanning.
 
 Set `fluxzero.metadata.mode=jvm-compatibility` to opt in to the legacy JVM compatibility backend during migration.
-The aliases `compatibility` and `hybrid` are accepted for the same mode. For SDK validation and migration tests,
-`fluxzero.metadata.mode=strict-generated-only` additionally rejects JVM backend categories that are still tracked as
-migration debt.
+This is the only compatibility value; shorthand values such as `compatibility` or `hybrid` do not enable reflection
+fallback. For SDK validation and migration tests, `fluxzero.metadata.mode=strict-generated-only` additionally rejects
+JVM backend categories that are still tracked as migration debt.
 
 The same value can be supplied through the `FLUXZERO_METADATA_MODE` environment variable.
 

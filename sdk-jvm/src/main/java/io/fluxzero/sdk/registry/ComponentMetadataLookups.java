@@ -80,16 +80,6 @@ public final class ComponentMetadataLookups {
      */
     public static final String JVM_COMPATIBILITY_MODE = "jvm-compatibility";
 
-    /**
-     * Alias for {@link #JVM_COMPATIBILITY_MODE}.
-     */
-    public static final String COMPATIBILITY_MODE = "compatibility";
-
-    /**
-     * Alias for {@link #JVM_COMPATIBILITY_MODE}.
-     */
-    public static final String HYBRID_MODE = "hybrid";
-
     private static final ConcurrentMap<GeneratedRegistryClassLoaderKey, ComponentRegistry> generatedRegistries =
             new ConcurrentHashMap<>();
     private static final ConcurrentMap<GeneratedRegistryClassLoaderKey, ComponentMetadataLookup>
@@ -149,7 +139,7 @@ public final class ComponentMetadataLookups {
     /**
      * Returns registry metadata for the supplied component types.
      * <p>
-     * Generated registry resources win. JVM classpath scanning is used only in hybrid/compatibility mode.
+     * Generated registry resources win. JVM classpath scanning is used only in explicit JVM compatibility mode.
      */
     public static ComponentRegistry registryFor(Collection<Class<?>> types) {
         List<Class<?>> componentTypes = componentTypes(types).stream()
@@ -706,9 +696,7 @@ public final class ComponentMetadataLookups {
     }
 
     private static boolean configuredGeneratedOnlyMode(String configured) {
-        return configuredStrictGeneratedOnlyMode(configured)
-               || GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
-               || "generatedOnly".equalsIgnoreCase(configured);
+        return !explicitJvmCompatibilityMode(configured);
     }
 
     private static boolean configuredStrictGeneratedOnlyMode(String configured) {
@@ -727,8 +715,8 @@ public final class ComponentMetadataLookups {
     /**
      * Runs a narrow scope in JVM compatibility mode.
      * <p>
-     * This is an explicit opt-in for migration and test-harness cases that still need JVM reflection metadata while the
-     * ambient runtime remains generated-only.
+     * This method exists for migration and shared test-harness code that must keep the ambient runtime generated-only
+     * while registering anonymous/local handlers that cannot be represented in generated metadata.
      */
     public static void runInJvmCompatibilityMode(ThrowingRunnable runnable) throws Exception {
         runWithMetadataMode(RuntimeMetadataMode.JVM_COMPATIBILITY, runnable);
@@ -785,9 +773,7 @@ public final class ComponentMetadataLookups {
             return false;
         }
         String normalized = mode.trim();
-        return JVM_COMPATIBILITY_MODE.equalsIgnoreCase(normalized)
-               || COMPATIBILITY_MODE.equalsIgnoreCase(normalized)
-               || HYBRID_MODE.equalsIgnoreCase(normalized);
+        return JVM_COMPATIBILITY_MODE.equalsIgnoreCase(normalized);
     }
 
     static boolean configuredJvmCompatibilityMode() {

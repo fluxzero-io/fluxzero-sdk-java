@@ -10,9 +10,9 @@ semantics, while reflection remains only a JVM backend implementation detail whe
 The active phase lists only open work. Queued phases capture the next intended work after the active phase. Completed
 slices are kept later in this file as historical evidence.
 
-## Active Phase: Reflection Opt-In Migration
+## Completed Phase: Reflection Opt-In Migration
 
-Status: [ ] active.
+Status: [x] closed.
 
 Context: generated-only mode is being made the ordinary JVM default. Generated/registered metadata wins, and
 reflection-backed classpath metadata is available only through an explicit compatibility opt-in. A direct default flip
@@ -29,8 +29,7 @@ by name.
 Status: [x] implemented.
 
 - [x] Add an explicit compatibility mode for reflection fallback, for example
-  `fluxzero.metadata.mode=jvm-compatibility`, with short aliases such as `compatibility` or `hybrid` only if they make
-  migration clearer.
+  `fluxzero.metadata.mode=jvm-compatibility`.
 - [x] Keep the current default until the migration slices below have isolated legacy/TestFixture behavior.
 - [x] Add scoped test helpers for compatibility mode so tests do not rely on ambient fallback.
 - [x] Document the supported modes and the generated-metadata error text.
@@ -38,13 +37,15 @@ Status: [x] implemented.
 
 Done when:
 
-- [x] Existing hybrid behavior is reachable through a named mode/helper/property in tests and docs.
+- [x] Legacy reflection behavior is reachable only through the exact `jvm-compatibility` mode/helper/property in tests
+  and docs.
 - [x] Generated-only failures explain the missing registry/invocation/access metadata instead of falling back.
 
 Evidence:
 
-- Added `fluxzero.metadata.mode=jvm-compatibility` plus `compatibility` and `hybrid` aliases.
-- Added scoped JVM compatibility mode override for tests, while `GeneratedOnlyMetadataMode.run(...)` still uses strict
+- Added `fluxzero.metadata.mode=jvm-compatibility` as the only reflection fallback opt-in; `compatibility` and `hybrid`
+  intentionally remain generated-only.
+- Added a test-scoped JVM compatibility mode override, while `GeneratedOnlyMetadataMode.run(...)` still uses strict
   generated-only mode.
 - `JvmCompatibilityBackend` errors now name the explicit compatibility opt-in for intentional JVM migration fallback.
 - Verification passed:
@@ -119,25 +120,26 @@ Notes:
 Status: [x] implemented.
 
 - [x] Audit the strict-default failure clusters from the attempted flip.
-- [ ] For each legacy/TestFixture case, either add the generated registry/invocation/access metadata it is missing or
+- [x] For each legacy/TestFixture case, either add the generated registry/invocation/access metadata it is missing or
   move the case into the explicit legacy JVM compatibility test surface.
 - [x] Avoid broad hidden fallback inside `TestFixture`; compatibility should be visible at the call site, fixture
-  option, or scoped test helper.
+  option, or scoped test helper, except for the narrow testing-only anonymous/local handler registration fallback.
 - [x] Preserve the existing green `sdk-jvm` behavior while making the runtime mode choice explicit.
 
 Done when:
 
-- [ ] Legacy compatibility tests are isolated to explicit legacy JVM compatibility coverage.
+- [x] Legacy compatibility tests are isolated to explicit legacy JVM compatibility coverage.
 - [x] Tests that are meant to prove generated metadata run without semantic reflection fallback.
 
 Evidence:
 
-- Added explicit `TestFixture.createJvmCompatibility(...)` / `createAsyncJvmCompatibility(...)` factories and a scoped
-  `JvmCompatibilityMetadataMode.call(...)` helper for legacy fixture and direct metadata tests.
+- Added a scoped `JvmCompatibilityMetadataMode.call(...)` helper for direct metadata tests. The underlying scoped
+  runner remains public because the shared `TestFixture` test-jar is consumed by proxy tests, but it does not change the
+  ambient runtime default and is used only for the narrow anonymous/local handler registration fallback.
 - `DefaultFluxzero.Builder.build(...)` now scopes builder-level property sources while resolving metadata mode, so
   Spring/TestFixture compatibility settings are visible before an active `Fluxzero` instance exists.
-- Spring fixture tests currently declare `fluxzero.metadata.mode=jvm-compatibility` explicitly; this is migration debt
-  unless the test is specifically about legacy JVM reflection compatibility.
+- The remaining Spring `fluxzero.metadata.mode=jvm-compatibility` test is limited to explicit stateful include-scan
+  compatibility coverage.
 - `kotlin-downstream-project` now generates main and test component registries via KAPT plus
   `ComponentRegistryGenerator` and does not rely on a Surefire JVM compatibility metadata mode.
 - Targeted generated-only Kotlin proof passed:
@@ -181,7 +183,7 @@ Evidence:
 
 ### Slice 5: Default Flip And Release Boundary
 
-Status: [ ] active.
+Status: [x] implemented.
 
 - [x] Change the default runtime mode from hybrid to generated metadata first.
 - [x] Require explicit opt-in for reflection-backed compatibility.
@@ -191,8 +193,8 @@ Status: [ ] active.
 
 Done when:
 
-- [ ] Ordinary JVM runtime startup no longer has silent reflection fallback for Fluxzero app semantics.
-- [ ] Compatibility mode remains available only as an explicit JVM migration/backend choice and not as broad test-suite
+- [x] Ordinary JVM runtime startup no longer has silent reflection fallback for Fluxzero app semantics.
+- [x] Compatibility mode remains available only as an explicit JVM migration/backend choice and not as broad test-suite
   masking.
 - [x] Performance and behavioral baselines are recorded before and after the flip.
 
@@ -239,6 +241,27 @@ Evidence:
     band as the LambdaMetafactory-backed path: raw lambda executable 6.836ms vs generated registry 6.827ms;
     handler lambda get+invoke 26.243ms vs generated metadata get+invoke 22.676ms; cached lambda invoke 9.964ms vs
     cached generated registry invoke 9.900ms.
+- Follow-up opt-in hardening on June 29, 2026:
+  - Only exact `fluxzero.metadata.mode=jvm-compatibility` enables reflection fallback; shorthand values such as
+    `compatibility` and `hybrid` remain generated-only.
+  - `ComponentMetadataLookups.runInJvmCompatibilityMode(...)` remains public only because the shared `TestFixture`
+    test-jar is consumed by proxy tests; ordinary startup still defaults to generated-only, and the fixture uses it
+    only for anonymous/local test handlers that cannot have generated metadata.
+  - Targeted verification passed:
+    `./mvnw -q -pl sdk-jvm -Dtest=ComponentMetadataLookupTest,FluxzeroSpringConfigTest -Dsurefire.failIfNoSpecifiedTests=false test`
+    and
+    `./mvnw -q -pl proxy -am -Dtest=ProxyServerTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+  - Full `./mvnw -B clean install` passed in 37.917s Maven wall clock / 38.79s real time.
+  - `./mvnw -q -pl sdk-jvm -am test` passed in 12.42s real time. Top Surefire classes were
+    `OnDemandExecutionTest` 5.046s, `GivenWhenThenSpringTest` 2.076s, `HandleWebTest` 1.727s,
+    `AggregateEntitiesTest` 1.416s, `SearchTest` 1.227s, `EventSourcingRepositoryTest` 1.212s, and
+    `GivenWhenThenSchedulingTest` 1.152s.
+  - Current branch default app-level benchmark:
+    `build+register.20Handlers` 1203.597ms / 830.8 ops/sec; `warmDispatch.20Handlers` 622.675ms /
+    481792.0 ops/sec.
+  - Current branch `HandlerInvocationBackendBenchmark` with 2M iterations/2 warmups:
+    raw lambda executable 6.836ms vs generated registry 6.826ms; handler lambda get+invoke 25.935ms vs generated
+    metadata get+invoke 21.902ms; cached lambda invoke 10.024ms vs cached generated registry invoke 9.988ms.
 
 ## Completed Mini Phase: Component Registry Slimming
 
