@@ -41,6 +41,7 @@ import lombok.With;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 import java.lang.annotation.ElementType;
@@ -1570,7 +1571,7 @@ public class AggregateEntitiesTest {
                 fc -> loadAggregate("test", MutableAggregate.class)
                         .update(s -> new MutableAggregate(null)));
 
-        @Test
+        @RepeatedTest(100)
         void createMutableEntity() {
             testFixture.whenCommand(new CreateMutableEntity("childId")).expectThat(
                     fc -> expectEntity(MutableAggregate.class, e -> "childId".equals(e.id())));
@@ -1586,7 +1587,15 @@ public class AggregateEntitiesTest {
         class CommandHandler {
             @HandleCommand
             void handle(Object command) {
-                loadAggregate("test", MutableAggregate.class).apply(command);
+                try {
+                    loadAggregate("test", MutableAggregate.class).apply(command);
+                } catch (RuntimeException e) {
+                    log.error("FLUXZERO_MUTABLE_ENTITY_DIAGNOSTIC commandHandlerFailure command={} commandClass={} "
+                              + "thread={} loading={} applying={}", command,
+                              command == null ? "<null>" : command.getClass().getName(),
+                              Thread.currentThread().getName(), Entity.isLoading(), Entity.isApplying(), e);
+                    throw e;
+                }
             }
         }
 

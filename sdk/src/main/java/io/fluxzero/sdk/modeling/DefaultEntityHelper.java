@@ -30,6 +30,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -65,7 +66,9 @@ import static java.util.stream.Collectors.joining;
  * The class supports efficient handler resolution through memoized lookups, enabling fast, repeatable application of
  * complex domain behaviors.
  */
+@Slf4j
 public class DefaultEntityHelper implements EntityHelper {
+    private static final String MUTABLE_ENTITY_DIAGNOSTIC = "FLUXZERO_MUTABLE_ENTITY_DIAGNOSTIC";
 
     /**
      * Default aggregate annotation used when no explicit @Aggregate is found.
@@ -245,11 +248,14 @@ public class DefaultEntityHelper implements EntityHelper {
                                                  boolean checkCompatibility) {
         var message = new DeserializingMessageWithEntity(event, entity);
         Class<?> entityType = entity.type();
-        Optional<HandlerInvoker> result =
-                applyMatchers.apply(entityType, checkCompatibility).getInvoker(entity.get(), message)
-                        .or(() -> applyMatchers.apply(message.getPayloadClass(), checkCompatibility)
-                                .getInvoker(message.getPayload(), message))
-                        .map(i -> new HandlerInvoker.DelegatingHandlerInvoker(i) {
+        Optional<HandlerInvoker> entityInvoker =
+                applyMatchers.apply(entityType, checkCompatibility).getInvoker(entity.get(), message);
+        Optional<HandlerInvoker> payloadInvoker = entityInvoker.isPresent()
+                ? Optional.empty()
+                : applyMatchers.apply(message.getPayloadClass(), checkCompatibility)
+                        .getInvoker(message.getPayload(), message);
+        Optional<HandlerInvoker> result = entityInvoker.or(() -> payloadInvoker)
+                .map(i -> new HandlerInvoker.DelegatingHandlerInvoker(i) {
                             @Override
                             public Object invoke(BiFunction<Object, Object, Object> combiner) {
                                 return message.apply(m -> {
@@ -267,8 +273,19 @@ public class DefaultEntityHelper implements EntityHelper {
                                 });
                             }
                         });
+        boolean diagnose = shouldDiagnose(event, checkCompatibility);
+        if (diagnose) {
+            log.error("{} applyInvoker payload={} entity={} searchChildren={} checkCompatibility={} entityInvoker={} "
+                      + "payloadInvoker={} selected={}", MUTABLE_ENTITY_DIAGNOSTIC, payloadDescription(event),
+                      entityDescription(entity), searchChildren, checkCompatibility, invokerDescription(entityInvoker),
+                      invokerDescription(payloadInvoker), invokerDescription(result));
+        }
         if (result.isEmpty() && searchChildren) {
             for (Entity<?> e : entity.possibleTargets(event.getPayload())) {
+                if (diagnose) {
+                    log.error("{} applyInvoker childCandidate payload={} child={}", MUTABLE_ENTITY_DIAGNOSTIC,
+                              payloadDescription(event), entityDescription(e));
+                }
                 result = applyInvoker(event, e, true, checkCompatibility);
                 if (result.isPresent()) {
                     return result;
@@ -276,6 +293,53 @@ public class DefaultEntityHelper implements EntityHelper {
             }
         }
         return result;
+    }
+
+    private static boolean shouldDiagnose(DeserializingMessage event, boolean checkCompatibility) {
+        return isMutableEntityDiagnosticPayload(event)
+               && (!checkCompatibility || Boolean.getBoolean("fluxzero.diagnostic.apply.verbose"));
+    }
+
+    private static boolean isMutableEntityDiagnosticPayload(DeserializingMessage event) {
+        Class<?> payloadClass = event.getPayloadClass();
+        return Boolean.getBoolean("fluxzero.diagnostic.apply")
+               || payloadClass != null
+                  && payloadClass.getName().contains("AggregateEntitiesTest$CreateMutableEntity");
+    }
+
+    private static String payloadDescription(DeserializingMessage event) {
+        Object payload = event.getPayload();
+        Class<?> payloadClass = event.getPayloadClass();
+        return "class=" + className(payloadClass)
+               + ", payload=" + payload
+               + ", payloadIdentity=" + System.identityHashCode(payload);
+    }
+
+    private static String entityDescription(Entity<?> entity) {
+        return "id=" + entity.id()
+               + ", idProperty=" + entity.idProperty()
+               + ", type=" + className(entity.type())
+               + ", present=" + entity.isPresent()
+               + ", empty=" + entity.isEmpty()
+               + ", valueClass=" + className(entity.get() == null ? null : entity.get().getClass())
+               + ", entityIdentity=" + System.identityHashCode(entity);
+    }
+
+    private static String invokerDescription(Optional<HandlerInvoker> invoker) {
+        return invoker.map(DefaultEntityHelper::invokerDescription).orElse("<empty>");
+    }
+
+    private static String invokerDescription(HandlerInvoker invoker) {
+        Executable method = invoker.getMethod();
+        return invoker.getTargetClass().getName()
+               + "#" + method.getName()
+               + "(" + parameterTypeNames(method) + ")"
+               + ", expectResult=" + invoker.expectResult()
+               + ", passive=" + invoker.isPassive();
+    }
+
+    private static String className(Class<?> type) {
+        return type == null ? "<null>" : type.getName();
     }
 
     /**

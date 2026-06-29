@@ -111,6 +111,7 @@ import static java.util.Collections.emptyList;
 @Accessors(fluent = true)
 @Slf4j
 public class ImmutableEntity<T> implements Entity<T> {
+    private static final String MUTABLE_ENTITY_DIAGNOSTIC = "FLUXZERO_MUTABLE_ENTITY_DIAGNOSTIC";
     private static final ThreadLocal<Map<RouteCacheKey, String>> loadingRouteCache = ThreadLocal.withInitial(HashMap::new);
     private static final Map<RoutingKeyOverlapCacheKey, Boolean> routingKeyOverlapsCurrentIdCache =
             new ConcurrentHashMap<>();
@@ -246,7 +247,20 @@ public class ImmutableEntity<T> implements Entity<T> {
         }
         if (result == this && !Entity.isLoading()
             && getBooleanProperty("fluxzero.assert.apply-compatibility", true)) {
-            assertApplyCompatibility(message, this);
+            try {
+                assertApplyCompatibility(message, this);
+            } catch (RuntimeException e) {
+                if (isMutableEntityDiagnosticPayload(message)) {
+                    log.error("{} compatibilityFailure payloadClass={} payload={} currentEntity={} resultEntity={} "
+                              + "directInvoker={} finalInvoker={} explicitTarget={} possibleTargets={} "
+                              + "thread={} loading={} applying={}", MUTABLE_ENTITY_DIAGNOSTIC,
+                              className(message.getPayloadClass()), message.getPayload(), entityDescription(this),
+                              entityDescription(result), invokerDescription(directInvoker), invokerDescription(invoker),
+                              explicitTarget(message.getPayload()), possibleTargetsDescription(this, message.getPayload()),
+                              Thread.currentThread().getName(), Entity.isLoading(), Entity.isApplying(), e);
+                }
+                throw e;
+            }
         }
         return result;
     }
@@ -296,6 +310,50 @@ public class ImmutableEntity<T> implements Entity<T> {
             return false;
         }
         return ReflectionUtils.readProperty(idProperty(), payload).map(id()::equals).orElse(false);
+    }
+
+    private static boolean isMutableEntityDiagnosticPayload(DeserializingMessage message) {
+        Class<?> payloadClass = message.getPayloadClass();
+        return Boolean.getBoolean("fluxzero.diagnostic.apply")
+               || payloadClass != null
+                  && payloadClass.getName().contains("AggregateEntitiesTest$CreateMutableEntity");
+    }
+
+    private static String entityDescription(Entity<?> entity) {
+        return "id=" + entity.id()
+               + ", idProperty=" + entity.idProperty()
+               + ", type=" + className(entity.type())
+               + ", present=" + entity.isPresent()
+               + ", empty=" + entity.isEmpty()
+               + ", valueClass=" + className(entity.get() == null ? null : entity.get().getClass())
+               + ", entityIdentity=" + System.identityHashCode(entity);
+    }
+
+    private static String possibleTargetsDescription(Entity<?> entity, Object payload) {
+        try {
+            List<String> descriptions = new ArrayList<>();
+            for (Entity<?> target : entity.possibleTargets(payload)) {
+                descriptions.add(entityDescription(target));
+            }
+            return String.join(" | ", descriptions);
+        } catch (RuntimeException e) {
+            return "<failed: " + e.getClass().getName() + ": " + e.getMessage() + ">";
+        }
+    }
+
+    private static String invokerDescription(Optional<HandlerInvoker> invoker) {
+        return invoker.map(ImmutableEntity::invokerDescription).orElse("<empty>");
+    }
+
+    private static String invokerDescription(HandlerInvoker invoker) {
+        return invoker.getTargetClass().getName()
+               + "#" + invoker.getMethod().getName()
+               + ", expectResult=" + invoker.expectResult()
+               + ", passive=" + invoker.isPassive();
+    }
+
+    private static String className(Class<?> type) {
+        return type == null ? "<null>" : type.getName();
     }
 
     private ExplicitTarget explicitTarget(Object payload) {
