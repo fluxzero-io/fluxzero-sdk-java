@@ -23,6 +23,7 @@ import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.HandlerRoute;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.RegisteredTypeDescriptor;
 import io.fluxzero.sdk.registry.RegistryComponentMetadataLookup;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
@@ -180,5 +181,73 @@ class BrowserApplicationGeneratorTest {
         assertTrue(source.contains("AuthorizationPolicy.evaluate"));
         assertTrue(source.contains("new io.fluxzero.sdk.tracking.handling.authentication.AuthorizationRule(\"admin\""));
         assertTrue(source.contains("generatedUserMetadata(\"admin\")"));
+    }
+
+    @Test
+    void generatedApplicationInvokesSourceAccessibleHandlersDirectly() {
+        ExecutableDescriptor command = new ExecutableDescriptor(
+                ExecutableKind.METHOD,
+                "create",
+                "example.app.OrderCreated",
+                List.of(new ParameterDescriptor("command", "example.app.CreateOrder", List.of())),
+                List.of());
+        ExecutableDescriptor web = new ExecutableDescriptor(
+                ExecutableKind.METHOD,
+                "post",
+                "example.app.OrderCreated",
+                List.of(new ParameterDescriptor(
+                        "command",
+                        "example.app.CreateOrder",
+                        List.of(new AnnotationDescriptor(
+                                "BodyParam", "io.fluxzero.sdk.web.BodyParam", Map.of())))),
+                List.of());
+        ComponentRegistry registry = new ComponentRegistry(null, List.of(), List.of(new ComponentDescriptor(
+                null,
+                null,
+                ComponentKind.CLASS,
+                "example.app",
+                "BrowserApp",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(command, web),
+                Set.of(
+                        new HandlerRoute(
+                                MessageType.COMMAND,
+                                new AnnotationDescriptor("HandleCommand", "io.fluxzero.sdk.HandleCommand", Map.of()),
+                                command,
+                                false,
+                                false,
+                                false,
+                                true,
+                                true,
+                                Set.of("example.app.CreateOrder"),
+                                Set.of(),
+                                List.of()),
+                        new HandlerRoute(
+                                MessageType.WEBREQUEST,
+                                new AnnotationDescriptor("HandlePost", "io.fluxzero.sdk.web.HandlePost", Map.of()),
+                                web,
+                                false,
+                                false,
+                                false,
+                                true,
+                                false,
+                                Set.of("example.app.CreateOrder"),
+                                Set.of(),
+                                List.of(new WebRouteDescriptor(List.of("/orders"), List.of("POST"), false, true)))),
+                List.of(),
+                null,
+                Set.of(ComponentCapability.HANDLER, ComponentCapability.WEB_REQUEST_HANDLER))));
+
+        String source = new BrowserApplicationGenerator().generate(
+                registry, new BrowserGeneratorOptions("example.app", "GeneratedBrowserApp")).sources().getFirst()
+                .content();
+
+        assertTrue(source.contains("private final example.app.BrowserApp browserApp = new example.app.BrowserApp();"));
+        assertTrue(source.contains("browserApp.create(((example.app.CreateOrder) message.payload()))"));
+        assertTrue(source.contains("core.webRouter().register(\"POST\", \"/orders\""));
+        assertTrue(source.contains("browserApp.post(((example.app.CreateOrder) exchange.body()))"));
+        assertTrue(source.contains("dispatchResults"));
     }
 }

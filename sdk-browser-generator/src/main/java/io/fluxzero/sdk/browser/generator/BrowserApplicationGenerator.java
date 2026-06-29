@@ -17,14 +17,18 @@ package io.fluxzero.sdk.browser.generator;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentDescriptor;
+import io.fluxzero.sdk.registry.ComponentKind;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.registry.RegisteredTypeDescriptor;
 import io.fluxzero.sdk.registry.RegistryComponentMetadataLookup;
+import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationMetadata;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationRule;
 
@@ -34,6 +38,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
 
@@ -306,13 +312,14 @@ public final class BrowserApplicationGenerator {
                 ? registry.components().stream()
                         .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
                         .flatMap(component -> component.routes().stream()
-                                .map(route -> routeRegistration(registry, component, route)))
+                                .map(route -> routeRegistration(registry, options, component, route)))
                         .filter(line -> !line.isBlank())
                         .collect(joining("\n"))
                 : "        // Route registration is disabled for this generated target.";
         if (routeRegistration.isBlank()) {
             routeRegistration = "        // No handler routes were present in the registry.";
         }
+        String handlerFields = generatedHandlerFields(registry, options);
         String authorizationEvidence = authorizationEvidence(registry);
         return """
                 /*
@@ -341,6 +348,7 @@ public final class BrowserApplicationGenerator {
                     private final BrowserExecutionCore core = BrowserExecutionCore.create(
                             Clock.systemUTC(), generatedRegistry());
                     private final GeneratedErrorReporter errorReporter = new GeneratedErrorReporter();
+                %s
 
                     public %s() {
                 %s
@@ -363,6 +371,7 @@ public final class BrowserApplicationGenerator {
 
                     private Map<String, Object> runGeneratedRoutes() {
                         Map<String, Object> evidence = new LinkedHashMap<>();
+                %s
                 %s
                         evidence.put("invocations", core.messageBus().invocations());
                         evidence.put("metadata.handlers",
@@ -569,6 +578,7 @@ public final class BrowserApplicationGenerator {
                             String name, Map<String, Object> routeEvidence, Map<String, Object> coreEvidence) {
                         Map<String, Object> evidence = new LinkedHashMap<>();
                         if (name.startsWith("handler.")) {
+                            evidence.put("dispatchResults", routeEvidence);
                             evidence.put("invocations", routeEvidence.get("invocations"));
                             evidence.put("metadataHandlers", routeEvidence.get("metadata.handlers"));
                             evidence.put("metadataSnapshot", routeEvidence.get("metadata.snapshot"));
@@ -789,8 +799,10 @@ public final class BrowserApplicationGenerator {
                         }
                     }
                 }
-                """.formatted(options.packageName(), options.className(), options.className(), routeRegistration,
-                              generatedRegistrySource(registry), featureList, routeDispatches(registry),
+                """.formatted(options.packageName(), options.className(), handlerFields, options.className(),
+                              routeRegistration,
+                              generatedRegistrySource(registry), featureList, routeDispatches(registry, options),
+                              generatedWebDispatches(registry, options),
                               authorizationEvidence,
                               metadataEvidence(metadataCounters));
     }
@@ -959,46 +971,562 @@ public final class BrowserApplicationGenerator {
     private record AuthorizationScenario(String action, List<AuthorizationRule> rules) {
     }
 
-    private static String routeRegistration(ComponentRegistry registry, ComponentDescriptor component,
-                                            HandlerRoute route) {
+    private static String generatedHandlerFields(ComponentRegistry registry, BrowserGeneratorOptions options) {
+        List<String> fields = new ArrayList<>();
+        Set<String> fieldNames = new java.util.LinkedHashSet<>();
+        for (ComponentDescriptor component : registry.components().stream()
+                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
+                .toList()) {
+            if (!sourceAccessible(component, options) || component.componentKind() != ComponentKind.CLASS
+                || !hasNoArgConstructor(component)) {
+                continue;
+            }
+            boolean needsField = component.routes().stream()
+                    .filter(route -> !route.disabled())
+                    .map(HandlerRoute::executableMetadata)
+                    .flatMap(Optional::stream)
+                    .anyMatch(executable -> executable.kind() == ExecutableKind.METHOD && !executable.isStatic());
+            if (needsField && fieldNames.add(fieldName(component))) {
+                fields.add("    private final " + sourceTypeName(registry, component.fullClassName(), options)
+                           + " " + fieldName(component) + " = new "
+                           + sourceTypeName(registry, component.fullClassName(), options) + "();");
+            }
+        }
+        return fields.isEmpty() ? "" : String.join("\n", fields);
+    }
+
+    private static String routeRegistration(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                            ComponentDescriptor component, HandlerRoute route) {
         if (route.disabled()) {
             return "";
         }
-        String payloadType = route.allowedClassNames().stream().findFirst()
-                .or(() -> route.payloadTypeNames().stream().findFirst())
-                .orElse("");
+        String payloadType = routePayloadType(component, route).orElse("");
         List<AuthorizationRule> rules = effectiveRules(registry, component, route);
-        String handler = "new GeneratedRouteHandler(\"" + escapeJava(route.messageType().name().toLowerCase()) + "\")";
+        String handler = directMessageHandler(registry, options, component, route)
+                .orElse("new GeneratedRouteHandler(\"" + escapeJava(route.messageType().name().toLowerCase())
+                        + "\")");
         if (rules != null) {
             handler = "new GeneratedAuthorizedHandler(\"" + escapeJava(action(component, route)) + "\", "
                       + rulesLiteral(rules) + ", " + handler + ")";
         }
-        return "        core.register(\"" + escapeJava(component.fullClassName()) + "\", MessageType."
-               + route.messageType().name() + ", \"" + escapeJava(payloadType) + "\", " + handler + ");";
+        String registration = "        core.register(\"" + escapeJava(component.fullClassName()) + "\", MessageType."
+                              + route.messageType().name() + ", \"" + escapeJava(payloadType) + "\", "
+                              + handler + ");";
+        String webRegistrations = directWebRegistrations(registry, options, component, route);
+        return webRegistrations.isBlank() ? registration : registration + "\n" + webRegistrations;
     }
 
-    private static String routeDispatches(ComponentRegistry registry) {
+    private static String routeDispatches(ComponentRegistry registry, BrowserGeneratorOptions options) {
         List<String> dispatches = new ArrayList<>();
-        for (ComponentDescriptor component : registry.components()) {
+        for (ComponentDescriptor component : registry.components().stream()
+                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName)).toList()) {
             for (HandlerRoute route : component.routes()) {
-                if (route.disabled()) {
+                if (route.disabled() || route.messageType() == MessageType.WEBREQUEST) {
                     continue;
                 }
-                String payloadType = route.allowedClassNames().stream().findFirst()
-                        .or(() -> route.payloadTypeNames().stream().findFirst())
-                        .orElse("");
+                String payloadType = routePayloadType(component, route).orElse("");
                 if (!payloadType.isBlank()) {
+                    boolean direct = directMessageHandler(registry, options, component, route).isPresent();
+                    String payloadExpression = direct
+                            ? sampleValueExpression(registry, options, payloadType, "payload", 0)
+                                    .orElse("new Object()")
+                            : "new Object()";
                     String role = dispatchRole(effectiveRules(registry, component, route));
                     dispatches.add("        evidence.put(\"" + escapeJava(route.messageType().name()) + ":"
                                   + escapeJava(payloadType) + "\", core.messageBus().dispatch(MessageType."
                                   + route.messageType().name() + ", \"\", \"" + escapeJava(payloadType)
-                                  + "\", new Object(), generatedUserMetadata(\"" + escapeJava(role) + "\")));");
+                                  + "\", " + payloadExpression + ", generatedUserMetadata(\"" + escapeJava(role)
+                                  + "\")));");
                 }
             }
         }
         return dispatches.isEmpty()
                 ? "        // No generated route dispatches were present."
                 : String.join("\n", dispatches);
+    }
+
+    private static String generatedWebDispatches(ComponentRegistry registry, BrowserGeneratorOptions options) {
+        List<String> dispatches = new ArrayList<>();
+        int index = 0;
+        for (ComponentDescriptor component : registry.components().stream()
+                .sorted(Comparator.comparing(ComponentDescriptor::fullClassName)).toList()) {
+            for (HandlerRoute route : component.routes()) {
+                if (route.disabled() || directWebRegistrations(registry, options, component, route).isBlank()) {
+                    continue;
+                }
+                Optional<ExecutableDescriptor> executable = route.executableMetadata();
+                if (executable.isEmpty()) {
+                    continue;
+                }
+                for (WebRouteDescriptor webRoute : route.webRoutes()) {
+                    for (String method : webRoute.methods()) {
+                        if (!isHttpMethod(method)) {
+                            continue;
+                        }
+                        for (String path : webRoute.paths()) {
+                            String responseName = "generatedWebResponse" + index++;
+                            String actualPath = actualPath(path, executable.get());
+                            String body = webBodyExpression(registry, options, executable.get()).orElse("null");
+                            dispatches.add("""
+                                    io.fluxzero.sdk.browser.BrowserWebExchange %s = core.webRouter().handle(
+                                            new io.fluxzero.sdk.browser.BrowserWebExchange("%s", "%s", %s, Map.of(),
+                                                    %s, %s, %s, %s, 0, null));
+                                    evidence.put("WEB:%s:%s", %s.status() + ":" + %s.responseBody());"""
+                                    .formatted(responseName, escapeJava(method), escapeJava(actualPath), body,
+                                               webMapExpression(executable.get(), "HeaderParam"),
+                                               webMapExpression(executable.get(), "QueryParam"),
+                                               webMapExpression(executable.get(), "CookieParam"),
+                                               webMapExpression(executable.get(), "FormParam"),
+                                               escapeJava(method), escapeJava(path), responseName, responseName)
+                                    .indent(8).stripTrailing());
+                        }
+                    }
+                }
+            }
+        }
+        return dispatches.isEmpty()
+                ? "        // No generated web route dispatches were present."
+                : String.join("\n", dispatches);
+    }
+
+    private static Optional<String> directMessageHandler(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                        ComponentDescriptor component, HandlerRoute route) {
+        if (!sourceAccessible(component, options) || route.messageType() == MessageType.WEBREQUEST) {
+            return Optional.empty();
+        }
+        Optional<ExecutableDescriptor> executable = route.executableMetadata();
+        if (executable.isEmpty() || executable.get().kind() != ExecutableKind.METHOD) {
+            return Optional.empty();
+        }
+        Optional<String> target = messageTargetExpression(registry, options, component, route, executable.get());
+        Optional<List<String>> arguments = messageArguments(component, route, executable.get());
+        if (target.isEmpty() || arguments.isEmpty()) {
+            return Optional.empty();
+        }
+        String call = target.get() + "." + executable.get().name() + "(" + String.join(", ", arguments.get()) + ")";
+        if ("void".equals(executable.get().returnTypeName())) {
+            return Optional.of("message -> { " + call + "; return null; }");
+        }
+        return Optional.of("message -> { return " + call + "; }");
+    }
+
+    private static Optional<String> messageTargetExpression(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                           ComponentDescriptor component, HandlerRoute route,
+                                                           ExecutableDescriptor executable) {
+        if (executable.isStatic()) {
+            return Optional.of(sourceTypeName(registry, component.fullClassName(), options));
+        }
+        if (executable.parameters().isEmpty() && component.componentKind() == ComponentKind.RECORD) {
+            String payloadType = routePayloadType(component, route).orElse(component.fullClassName());
+            return Optional.of("((" + sourceTypeName(registry, payloadType, options) + ") message.payload())");
+        }
+        if (component.componentKind() == ComponentKind.CLASS && hasNoArgConstructor(component)) {
+            return Optional.of(fieldName(component));
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<List<String>> messageArguments(ComponentDescriptor component, HandlerRoute route,
+                                                          ExecutableDescriptor executable) {
+        if (executable.parameters().isEmpty()) {
+            return Optional.of(List.of());
+        }
+        if (executable.parameters().size() != 1) {
+            return Optional.empty();
+        }
+        String payloadType = routePayloadType(component, route)
+                .orElse(executable.parameters().getFirst().typeName());
+        ParameterDescriptor parameter = executable.parameters().getFirst();
+        if (!payloadMatchesParameter(payloadType, parameter.typeName())) {
+            return Optional.empty();
+        }
+        return Optional.of(List.of("((" + sourceTypeName(null, parameter.typeName(), null) + ") message.payload())"));
+    }
+
+    private static boolean payloadMatchesParameter(String payloadType, String parameterType) {
+        String payload = erasedType(payloadType);
+        String parameter = erasedType(parameterType);
+        return payload.equals(parameter)
+               || simpleName(payload).equals(simpleName(parameter))
+               || "java.lang.Object".equals(parameter)
+               || "Object".equals(parameter);
+    }
+
+    private static String directWebRegistrations(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                ComponentDescriptor component, HandlerRoute route) {
+        if (!sourceAccessible(component, options) || route.webRoutes().isEmpty()) {
+            return "";
+        }
+        Optional<ExecutableDescriptor> executable = route.executableMetadata();
+        if (executable.isEmpty() || executable.get().kind() != ExecutableKind.METHOD) {
+            return "";
+        }
+        Optional<String> target = webTargetExpression(registry, options, component, executable.get());
+        Optional<List<String>> arguments = webArguments(registry, options, executable.get());
+        if (target.isEmpty() || arguments.isEmpty()) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        for (WebRouteDescriptor webRoute : route.webRoutes()) {
+            for (String method : webRoute.methods()) {
+                if (!isHttpMethod(method)) {
+                    continue;
+                }
+                for (String path : webRoute.paths()) {
+                    String call = target.get() + "." + executable.get().name()
+                                  + "(" + String.join(", ", arguments.get()) + ")";
+                    String handler = "void".equals(executable.get().returnTypeName())
+                            ? "exchange -> { " + call + "; return exchange.withResponse(204, null); }"
+                            : "exchange -> { return exchange.withResponse(200, " + call + "); }";
+                    lines.add("        core.webRouter().register(\"" + escapeJava(method) + "\", \""
+                              + escapeJava(path) + "\", " + handler + ");");
+                }
+            }
+        }
+        return String.join("\n", lines);
+    }
+
+    private static Optional<String> webTargetExpression(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                       ComponentDescriptor component,
+                                                       ExecutableDescriptor executable) {
+        if (executable.isStatic()) {
+            return Optional.of(sourceTypeName(registry, component.fullClassName(), options));
+        }
+        if (component.componentKind() == ComponentKind.CLASS && hasNoArgConstructor(component)) {
+            return Optional.of(fieldName(component));
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<List<String>> webArguments(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                      ExecutableDescriptor executable) {
+        List<String> arguments = new ArrayList<>();
+        for (ParameterDescriptor parameter : executable.parameters()) {
+            Optional<String> expression = webArgument(registry, options, parameter);
+            if (expression.isEmpty()) {
+                return Optional.empty();
+            }
+            arguments.add(expression.get());
+        }
+        return Optional.of(arguments);
+    }
+
+    private static Optional<String> webArgument(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                               ParameterDescriptor parameter) {
+        if (parameterAnnotation(parameter, "BodyParam").isPresent()) {
+            return Optional.of("((" + sourceTypeName(registry, parameter.typeName(), options) + ") exchange.body())");
+        }
+        return webMapArgument(parameter, "PathParam", "pathParameters")
+                .or(() -> webMapArgument(parameter, "QueryParam", "query"))
+                .or(() -> webMapArgument(parameter, "HeaderParam", "headers"))
+                .or(() -> webMapArgument(parameter, "CookieParam", "cookies"))
+                .or(() -> webMapArgument(parameter, "FormParam", "form"));
+    }
+
+    private static Optional<String> webMapArgument(ParameterDescriptor parameter, String annotationName,
+                                                  String exchangeAccessor) {
+        Optional<AnnotationDescriptor> annotation = parameterAnnotation(parameter, annotationName);
+        if (annotation.isEmpty()) {
+            return Optional.empty();
+        }
+        String valueExpression = "exchange." + exchangeAccessor + "().get(\""
+                                 + escapeJava(annotationValue(annotation.get(), parameter.name())) + "\")";
+        return Optional.of(convertStringExpression(parameter.typeName(), valueExpression));
+    }
+
+    private static Optional<AnnotationDescriptor> parameterAnnotation(ParameterDescriptor parameter,
+                                                                     String annotationName) {
+        return parameter.annotations().stream()
+                .map(annotation -> annotation.find(annotationName, "io.fluxzero.sdk.web." + annotationName))
+                .flatMap(Optional::stream)
+                .findFirst();
+    }
+
+    private static String annotationValue(AnnotationDescriptor annotation, String fallback) {
+        return annotation.firstValue("value").filter(value -> !value.isBlank()).orElse(fallback);
+    }
+
+    private static String convertStringExpression(String typeName, String expression) {
+        String type = erasedType(typeName);
+        return switch (type) {
+            case "java.lang.String", "String" -> expression;
+            case "int", "java.lang.Integer", "Integer" -> "Integer.parseInt(" + expression + ")";
+            case "long", "java.lang.Long", "Long" -> "Long.parseLong(" + expression + ")";
+            case "boolean", "java.lang.Boolean", "Boolean" -> "Boolean.parseBoolean(" + expression + ")";
+            case "double", "java.lang.Double", "Double" -> "Double.parseDouble(" + expression + ")";
+            default -> "((" + type + ") " + expression + ")";
+        };
+    }
+
+    private static Optional<String> routePayloadType(ComponentDescriptor component, HandlerRoute route) {
+        Optional<String> explicit = route.allowedClassNames().stream().findFirst()
+                .or(() -> route.payloadTypeNames().stream().findFirst());
+        if (explicit.isPresent()) {
+            return explicit;
+        }
+        return route.executableMetadata()
+                .flatMap(executable -> executable.parameters().stream()
+                        .filter(parameter -> parameterAnnotation(parameter, "BodyParam").isPresent()
+                                             || parameter.annotations().isEmpty())
+                        .map(ParameterDescriptor::typeName)
+                        .findFirst())
+                .or(() -> route.executableMetadata()
+                        .filter(executable -> executable.parameters().isEmpty()
+                                              && component.componentKind() == ComponentKind.RECORD)
+                        .map(executable -> component.fullClassName()));
+    }
+
+    private static Optional<String> webBodyExpression(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                     ExecutableDescriptor executable) {
+        return executable.parameters().stream()
+                .filter(parameter -> parameterAnnotation(parameter, "BodyParam").isPresent())
+                .findFirst()
+                .flatMap(parameter -> sampleValueExpression(registry, options, parameter.typeName(), parameter.name(),
+                                                            0));
+    }
+
+    private static String webMapExpression(ExecutableDescriptor executable, String annotationName) {
+        List<String> entries = new ArrayList<>();
+        for (ParameterDescriptor parameter : executable.parameters()) {
+            Optional<AnnotationDescriptor> annotation = parameterAnnotation(parameter, annotationName);
+            if (annotation.isPresent()) {
+                String name = annotationValue(annotation.get(), parameter.name());
+                entries.add(stringLiteral(name));
+                entries.add(stringLiteral(sampleString(name)));
+            }
+        }
+        return entries.isEmpty() ? "Map.of()" : "Map.of(" + String.join(", ", entries) + ")";
+    }
+
+    private static String actualPath(String path, ExecutableDescriptor executable) {
+        String result = path;
+        for (ParameterDescriptor parameter : executable.parameters()) {
+            Optional<AnnotationDescriptor> annotation = parameterAnnotation(parameter, "PathParam");
+            if (annotation.isPresent()) {
+                String name = annotationValue(annotation.get(), parameter.name());
+                result = result.replace("{" + name + "}", sampleString(name));
+            }
+        }
+        while (result.contains("{") && result.contains("}")) {
+            int start = result.indexOf('{');
+            int end = result.indexOf('}', start);
+            if (end < start) {
+                break;
+            }
+            result = result.substring(0, start) + "value" + result.substring(end + 1);
+        }
+        return result;
+    }
+
+    private static Optional<String> sampleValueExpression(ComponentRegistry registry, BrowserGeneratorOptions options,
+                                                         String typeName, String valueName, int depth) {
+        String type = erasedType(sourceTypeName(registry, typeName, options));
+        if (depth > 4) {
+            return Optional.empty();
+        }
+        switch (type) {
+            case "java.lang.String", "String" -> {
+                return Optional.of(stringLiteral(sampleString(valueName)));
+            }
+            case "int", "java.lang.Integer", "Integer" -> {
+                return Optional.of("1");
+            }
+            case "long", "java.lang.Long", "Long" -> {
+                return Optional.of("1L");
+            }
+            case "boolean", "java.lang.Boolean", "Boolean" -> {
+                return Optional.of("true");
+            }
+            case "double", "java.lang.Double", "Double" -> {
+                return Optional.of("1.0d");
+            }
+            case "java.time.Instant", "Instant" -> {
+                return Optional.of("Instant.EPOCH");
+            }
+            case "java.lang.RuntimeException", "RuntimeException" -> {
+                return Optional.of("new RuntimeException(\"browser-error\")");
+            }
+            case "java.lang.Throwable", "Throwable" -> {
+                return Optional.of("new RuntimeException(\"browser-error\")");
+            }
+            case "java.util.Map", "Map" -> {
+                return Optional.of("Map.of()");
+            }
+            case "java.util.List", "List" -> {
+                return Optional.of("List.of()");
+            }
+            case "java.util.Set", "Set" -> {
+                return Optional.of("Set.of()");
+            }
+            case "java.lang.Object", "Object" -> {
+                return Optional.of("new Object()");
+            }
+            default -> {
+                Optional<ComponentDescriptor> component = componentByType(registry, typeName, options);
+                if (component.isEmpty()) {
+                    return Optional.empty();
+                }
+                if (component.get().componentKind() == ComponentKind.RECORD) {
+                    Optional<ExecutableDescriptor> constructor = component.get().executables().stream()
+                            .filter(executable -> executable.kind() == ExecutableKind.CONSTRUCTOR)
+                            .max(Comparator.comparingInt(executable -> executable.parameters().size()));
+                    if (constructor.isPresent()) {
+                        List<String> arguments = new ArrayList<>();
+                        for (ParameterDescriptor parameter : constructor.get().parameters()) {
+                            Optional<String> argument = sampleValueExpression(registry, options, parameter.typeName(),
+                                                                              parameter.name(), depth + 1);
+                            if (argument.isEmpty()) {
+                                return Optional.empty();
+                            }
+                            arguments.add(argument.get());
+                        }
+                        return Optional.of("new " + sourceTypeName(registry, component.get().fullClassName(), options)
+                                           + "(" + String.join(", ", arguments) + ")");
+                    }
+                }
+                if (component.get().componentKind() == ComponentKind.RECORD && !component.get().properties().isEmpty()) {
+                    Set<String> zeroArgumentMethodNames = component.get().executables().stream()
+                            .filter(executable -> executable.kind() == ExecutableKind.METHOD)
+                            .filter(executable -> executable.parameters().isEmpty())
+                            .map(ExecutableDescriptor::name)
+                            .collect(java.util.stream.Collectors.toSet());
+                    List<PropertyDescriptor> recordComponents = component.get().properties().stream()
+                            .filter(property -> !zeroArgumentMethodNames.contains(property.name()))
+                            .toList();
+                    if (recordComponents.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    List<String> arguments = new ArrayList<>();
+                    for (PropertyDescriptor property : recordComponents) {
+                        Optional<String> argument = sampleValueExpression(registry, options, property.typeName(),
+                                                                          property.name(), depth + 1);
+                        if (argument.isEmpty()) {
+                            return Optional.empty();
+                        }
+                        arguments.add(argument.get());
+                    }
+                    return Optional.of("new " + sourceTypeName(registry, component.get().fullClassName(), options)
+                                       + "(" + String.join(", ", arguments) + ")");
+                }
+                if (component.get().componentKind() == ComponentKind.CLASS && hasNoArgConstructor(component.get())) {
+                    return Optional.of("new " + sourceTypeName(registry, component.get().fullClassName(), options)
+                                       + "()");
+                }
+                return Optional.empty();
+            }
+        }
+    }
+
+    private static String sampleString(String name) {
+        String lower = name == null ? "" : name.toLowerCase();
+        if (lower.contains("order") || "id".equals(lower)) {
+            return "order-1";
+        }
+        if (lower.contains("email")) {
+            return "browser@example.test";
+        }
+        if (lower.contains("include")) {
+            return "details";
+        }
+        if (lower.contains("correlation")) {
+            return "corr-1";
+        }
+        if (lower.contains("session")) {
+            return "s1";
+        }
+        if (lower.contains("source")) {
+            return "browser";
+        }
+        if (lower.contains("status")) {
+            return "created";
+        }
+        if (lower.contains("name")) {
+            return "browser-metric";
+        }
+        return "browser-value";
+    }
+
+    private static Optional<ComponentDescriptor> componentByType(ComponentRegistry registry, String typeName,
+                                                                BrowserGeneratorOptions options) {
+        if (registry == null) {
+            return Optional.empty();
+        }
+        String erased = erasedType(typeName);
+        return registry.components().stream()
+                .filter(component -> component.fullClassName().equals(erased)
+                                     || component.className().equals(erased)
+                                     || options != null && component.packageName().equals(options.packageName())
+                                        && component.className().equals(simpleName(erased)))
+                .findFirst();
+    }
+
+    private static String sourceTypeName(ComponentRegistry registry, String typeName, BrowserGeneratorOptions options) {
+        String erased = erasedType(typeName);
+        if (registry != null && options != null) {
+            Optional<ComponentDescriptor> component = componentByType(registry, erased, options);
+            if (component.isPresent()) {
+                return component.get().fullClassName();
+            }
+        }
+        return javaLangTypeName(erased).orElse(erased);
+    }
+
+    private static Optional<String> javaLangTypeName(String typeName) {
+        String simpleName = simpleName(typeName);
+        return switch (simpleName) {
+            case "Boolean", "Byte", "Character", "Class", "Double", "Enum", "Float", "Integer", "Long", "Number",
+                 "Object", "RuntimeException", "Short", "String", "Throwable", "Void" ->
+                    Optional.of("java.lang." + simpleName);
+            default -> Optional.empty();
+        };
+    }
+
+    private static boolean sourceAccessible(ComponentDescriptor component, BrowserGeneratorOptions options) {
+        return component.packageName().equals(options.packageName());
+    }
+
+    private static boolean hasNoArgConstructor(ComponentDescriptor component) {
+        if (component.componentKind() != ComponentKind.CLASS) {
+            return false;
+        }
+        List<ExecutableDescriptor> constructors = component.executables().stream()
+                .filter(executable -> executable.kind() == ExecutableKind.CONSTRUCTOR)
+                .toList();
+        return constructors.isEmpty() || constructors.stream().anyMatch(executable -> executable.parameters().isEmpty());
+    }
+
+    private static boolean isHttpMethod(String method) {
+        return Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+                .contains(method.toUpperCase(java.util.Locale.ROOT));
+    }
+
+    private static String fieldName(ComponentDescriptor component) {
+        String simpleName = component.className();
+        String candidate = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+        return sanitizeIdentifier(candidate);
+    }
+
+    private static String sanitizeIdentifier(String value) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (i == 0) {
+                result.append(Character.isJavaIdentifierStart(c) ? c : '_');
+            } else {
+                result.append(Character.isJavaIdentifierPart(c) ? c : '_');
+            }
+        }
+        return result.toString();
+    }
+
+    private static String erasedType(String typeName) {
+        int generic = typeName.indexOf('<');
+        return generic < 0 ? typeName : typeName.substring(0, generic);
+    }
+
+    private static String simpleName(String typeName) {
+        int dot = typeName.lastIndexOf('.');
+        return dot < 0 ? typeName : typeName.substring(dot + 1);
     }
 
     private static List<AuthorizationRule> effectiveRules(ComponentRegistry registry, ComponentDescriptor component,

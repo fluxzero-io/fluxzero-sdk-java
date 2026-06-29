@@ -591,6 +591,53 @@ Notes:
   472.9k op/s. This is within noise of the prior generated-metadata checkpoint (1203.597ms build+register and
   622.675ms warm dispatch) and keeps the remaining default-flip performance gate focused on broader app-level runs.
 
+## Completed Mini Phase: Browser Direct Runtime Parity
+
+Status: [x] implemented for the current browser conformance app.
+
+Context: the earlier browser conformance path proved that the browser runtime could consume lowered registry metadata,
+but generated routes still used synthetic handlers. After the generated direct invocation JVM slice, the browser needed
+to prove the same plain-source invocation shape: no JVM reflection, no method handles, no `LambdaMetafactory`, and no
+browser-side classpath scanning for app semantics.
+
+Goal: make the browser generated app invoke real app methods from the scanned `ComponentRegistry`, including web
+parameter binding, so browser execution becomes another backend for the same generated app model rather than a separate
+dummy proof.
+
+Implemented:
+
+- [x] `BrowserApplicationGenerator` now emits direct browser message handlers for same-package,
+  source-accessible components when executable metadata is complete enough to bind the payload.
+- [x] Self-handling record routes are invoked through the payload instance, while ordinary app handlers are invoked
+  through generated package-local fields.
+- [x] HTTP web routes are registered in `BrowserWebRouter` from `WebRouteDescriptor` metadata and bind
+  path/query/header/cookie/form/body parameters from `BrowserWebExchange`.
+- [x] Generated route evidence now includes dispatch results, so conformance can assert actual app return values
+  instead of only metadata-backed invocation counts.
+- [x] Browser conformance now compiles the real conformance app source package alongside the generated app and `Main`,
+  with the generated app emitted into the app package for package-private Java access.
+
+Evidence:
+
+- The Playwright/TeaVM E2E now asserts real app outputs from generated direct browser invocation:
+  `OrderCreated[orderId=order-1, email=browser@example.test...]`,
+  `WEB:GET:/orders/{orderId}`, and `OrderView[orderId=order-1, status=details:corr-1:s1]`.
+- Focused verification passed:
+  `./mvnw -q -pl sdk-browser,sdk-browser-generator -am test`.
+- Full browser profile verification passed:
+  `./mvnw -q -Pbrowser-conformance -pl browser-conformance -am test`.
+- The browser E2E report passed 64/64 features, with TeaVM javac compile and WASM generation completed in-browser.
+
+Notes:
+
+- The `ComponentRegistry` is still scanned from the original annotated source. The browser source bundle currently
+  strips Fluxzero annotations from the runtime copy of the conformance app because the TeaVM playground javac stack
+  overflows on the raw annotated source. This is acceptable for the direct-invocation proof because the registry already
+  carries the app semantics, but it remains a browser productization item.
+- Direct browser generation is intentionally conservative. If the generator cannot prove source access or parameter
+  binding from registry metadata, it keeps the existing synthetic conformance handler path instead of producing source
+  that would fail at browser compile time.
+
 ## Queued Architecture Decisions
 
 Status: [ ] queued.
@@ -1119,15 +1166,18 @@ Evidence:
   `firstValue`, and `ProxyServerTest` CORS checks now create their own proxy with the CORS property set before handler
   construction.
 
-## Parked Browser Backlog
+## Browser Productization Backlog
 
-Status: parked until the active JVM phase is complete.
+Status: [ ] open after browser direct runtime parity.
 
-Browser is still strategically important, but it should consume the same generated app model and invocation shape after
-the JVM has proved them.
+Browser now consumes the same generated app model for the conformance app and proves direct source invocation in a real
+TeaVM/Playwright run. The remaining work is productization and expansion beyond the curated conformance harness.
 
 Remaining browser work:
 
+- [ ] Productize browser source lowering for raw customer sources with Fluxzero annotations. The current E2E strips
+  Fluxzero annotations from the runtime source bundle after scanning the original annotated source, because TeaVM
+  playground javac stack-overflows on the raw annotated conformance app.
 - [ ] Publish or package a browser-safe Fluxzero SDK plus browser `LocalClient` artifact that is compiled ahead of
   customer app code.
 - [ ] Keep browser-local execution scoped to `LocalClient`; do not model this as a connection to a remote Fluxzero
@@ -1371,10 +1421,12 @@ Acceptance evidence:
 
 ### Slice 6: Browser Runtime Parity
 
-Status: [x] implemented for the previous browser conformance target.
+Status: [x] implemented historically for the first browser conformance target; strengthened by
+`Completed Mini Phase: Browser Direct Runtime Parity`.
 
-Current caveat: this proved the browser path can execute registry-lowered metadata, but it is not the final
-generated-only shared runtime parity target. That stricter target is parked in B1 through B4.
+Current caveat: the original slice proved the browser path could execute registry-lowered metadata. The later direct
+runtime parity mini phase now proves real app method invocation for the curated conformance app. Productization work is
+tracked in `Browser Productization Backlog`.
 
 Context: browser execution should be a backend problem, not a copied Fluxzero implementation. The browser can have
 generated invokers, generated codecs, browser stores, and browser-safe IO, but the Fluxzero rules should be shared with

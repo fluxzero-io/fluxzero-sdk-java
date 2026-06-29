@@ -77,6 +77,14 @@ class BrowserConformanceE2ETest {
             assertTrue(((String) report.get("raw")).contains(
                     "BrowserConformanceApplication:COMMAND:io.fluxzero.browser.conformance.app.CreateOrder"),
                        String.valueOf(report));
+            assertTrue(((String) report.get("raw")).contains(
+                    "OrderCreated[orderId=order-1, email=browser@example.test"),
+                       String.valueOf(report));
+            assertTrue(((String) report.get("raw")).contains("WEB:GET:/orders/{orderId}"),
+                       String.valueOf(report));
+            assertTrue(((String) report.get("raw")).contains(
+                    "OrderView[orderId=order-1, status=details:corr-1:s1]"),
+                       String.valueOf(report));
             assertTrue(((String) report.get("raw")).contains("\"metadataHandlers\":"),
                        String.valueOf(report));
             assertTrue(((String) report.get("raw")).contains("\"metadataSnapshot\""),
@@ -163,9 +171,10 @@ class BrowserConformanceE2ETest {
         addSource(sources, "../sdk-api/src/main/java/io/fluxzero/sdk/tracking/handling/authentication/AuthorizationDecision.java");
         addSource(sources, "../sdk-api/src/main/java/io/fluxzero/sdk/tracking/handling/authentication/AuthorizationPolicy.java");
         addSources(sources, "../sdk-browser/src/main/java");
+        addSources(sources, "src/test/fluxzero");
         BrowserGenerationResult generated = new BrowserApplicationGenerator().generate(
                 sourceRegistry(),
-                new BrowserGeneratorOptions("io.fluxzero.browser.generated",
+                new BrowserGeneratorOptions("io.fluxzero.browser.conformance.app",
                                             "GeneratedFluxzeroBrowserApplication", true));
         for (BrowserGeneratedSource source : generated.sources()) {
             if (source.path().endsWith(".java")) {
@@ -180,7 +189,8 @@ class BrowserConformanceE2ETest {
                     }
 
                     public static void main(String[] args) {
-                        System.out.println(new GeneratedFluxzeroBrowserApplication().runAll());
+                        System.out.println(new io.fluxzero.browser.conformance.app.GeneratedFluxzeroBrowserApplication()
+                                .runAll());
                     }
                 }
                 """);
@@ -204,12 +214,17 @@ class BrowserConformanceE2ETest {
                     .filter(Files::isRegularFile)
                     .sorted()
                     .toList()) {
-                addSource(sources, path.toString());
+                addSource(sources, path.toString(), Path.of(sourceRoot).endsWith(Path.of("src/test/fluxzero")));
             }
         }
     }
 
     private static void addSource(Map<String, String> sources, String source) throws IOException {
+        addSource(sources, source, false);
+    }
+
+    private static void addSource(Map<String, String> sources, String source,
+                                  boolean stripFluxzeroAnnotations) throws IOException {
         Path path = Path.of(source);
         int javaIndex = -1;
         for (int i = 0; i < path.getNameCount(); i++) {
@@ -218,10 +233,66 @@ class BrowserConformanceE2ETest {
             }
         }
         if (javaIndex < 0) {
+            for (int i = 0; i < path.getNameCount(); i++) {
+                if ("fluxzero".equals(path.getName(i).toString())) {
+                    javaIndex = i;
+                    break;
+                }
+            }
+        }
+        if (javaIndex < 0) {
             throw new IOException("Cannot derive Java source path for " + source);
         }
+        String content = Files.readString(path);
+        if (stripFluxzeroAnnotations) {
+            content = stripFluxzeroAnnotations(content);
+        }
         sources.put(path.subpath(javaIndex + 1, path.getNameCount()).toString().replace('\\', '/'),
-                    Files.readString(path));
+                    content);
+    }
+
+    private static String stripFluxzeroAnnotations(String source) {
+        StringBuilder result = new StringBuilder();
+        int annotationBalance = 0;
+        for (String line : source.split("\\R", -1)) {
+            String trimmed = line.trim();
+            if (annotationBalance > 0) {
+                annotationBalance += balance(trimmed);
+                if (annotationBalance <= 0) {
+                    annotationBalance = 0;
+                }
+                continue;
+            }
+            if (trimmed.startsWith("import io.fluxzero.")) {
+                continue;
+            }
+            if (trimmed.startsWith("@") && balance(trimmed) > 0) {
+                annotationBalance = balance(trimmed);
+                continue;
+            }
+            String strippedLine = stripAnnotationTokens(line);
+            if (trimmed.startsWith("@") && strippedLine.trim().isBlank()) {
+                continue;
+            }
+            result.append(strippedLine).append('\n');
+        }
+        return result.toString();
+    }
+
+    private static String stripAnnotationTokens(String line) {
+        return line.replaceAll("@[A-Za-z0-9_.]+(\\([^)]*\\))?\\s*", "");
+    }
+
+    private static int balance(String line) {
+        int balance = 0;
+        for (int i = 0; i < line.length(); i++) {
+            if (line.charAt(i) == '(') {
+                balance++;
+            } else if (line.charAt(i) == ')') {
+                balance--;
+            }
+        }
+        return balance;
     }
 
     private static ComponentRegistry sourceRegistry() {
