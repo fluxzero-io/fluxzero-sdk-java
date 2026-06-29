@@ -26,9 +26,9 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableDescriptorEquivalence;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.RegistryExecutableViews;
 
 import java.util.LinkedHashMap;
@@ -123,42 +123,8 @@ final class RegistryHandlerMatcherFactory {
     }
 
     private static boolean equivalentExecutable(RegisteredExecutableView first, RegisteredExecutableView second) {
-        ExecutableDescriptor left = first.descriptor();
-        ExecutableDescriptor right = second.descriptor();
-        if (left.kind() != right.kind()
-            || !left.name().equals(right.name())
-            || left.parameters().size() != right.parameters().size()) {
-            return false;
-        }
-        for (int i = 0; i < left.parameters().size(); i++) {
-            if (!equivalentParameterType(
-                    first.metadataType(), left.parameters().get(i).typeName(),
-                    second.metadataType(), right.parameters().get(i).typeName())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean equivalentParameterType(
-            Class<?> leftMetadataType, String leftTypeName, Class<?> rightMetadataType, String rightTypeName) {
-        if (leftTypeName.equals(rightTypeName)) {
-            return true;
-        }
-        Optional<Class<?>> leftType = JvmComponentMetadataLookup.classForMetadataName(
-                leftTypeName, leftMetadataType.getClassLoader());
-        Optional<Class<?>> rightType = JvmComponentMetadataLookup.classForMetadataName(
-                rightTypeName, rightMetadataType.getClassLoader());
-        if (leftType.isPresent() && leftType.equals(rightType)) {
-            return true;
-        }
-        return simpleTypeName(leftTypeName).equals(simpleTypeName(rightTypeName))
-               && (leftType.isPresent() || rightType.isPresent());
-    }
-
-    private static String simpleTypeName(String typeName) {
-        int lastDot = typeName.lastIndexOf('.');
-        return lastDot < 0 ? typeName : typeName.substring(lastDot + 1);
+        return ExecutableDescriptorEquivalence.equivalent(
+                first.metadataType(), first.descriptor(), second.metadataType(), second.descriptor());
     }
 
     private static String executableId(ExecutableDescriptor executable) {

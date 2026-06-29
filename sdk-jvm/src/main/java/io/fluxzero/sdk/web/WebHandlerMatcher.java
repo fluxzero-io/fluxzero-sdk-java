@@ -28,6 +28,8 @@ import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ComponentRegistryException;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableDescriptorEquivalence;
 import io.fluxzero.sdk.registry.GeneratedPropertyAccesses;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
@@ -188,42 +190,87 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
             HandlerConfiguration<DeserializingMessage> config,
             WebRouteRegistry routeRegistry) {
         List<WebMethodMatcher> matchers = ComponentMetadataLookups.registeredLookup(type)
-                .map(lookup -> metadataRouteTypes(type, lookup).stream()
-                        .flatMap(metadataType -> targetClassNames(metadataType).stream()
-                                .flatMap(name -> lookup.routes(name, MessageType.WEBREQUEST).stream())
-                                .filter(route -> !route.disabled())
-                                .flatMap(route -> webMethodMatchers(
-                                        handler, metadataType, route, parameterResolvers, config, lookup)))
-                        .toList())
+                .map(lookup -> webMethodMatchers(
+                        handler, registeredWebRoutes(type, config, lookup), parameterResolvers, config, lookup))
                 .orElseGet(List::of);
         return new WebHandlerMatcher(handler, routeRegistry, matchers);
     }
 
-    private static Stream<WebMethodMatcher> webMethodMatchers(
-            Object handler, Class<?> type, HandlerRoute route,
+    private static List<RegisteredWebRoute> registeredWebRoutes(
+            Class<?> type,
+            HandlerConfiguration<DeserializingMessage> config,
+            ComponentMetadataLookup lookup) {
+        return metadataRouteTypes(type, lookup).stream()
+                .flatMap(metadataType -> targetClassNames(metadataType).stream()
+                        .flatMap(name -> lookup.routes(name, MessageType.WEBREQUEST).stream())
+                        .filter(route -> !route.disabled())
+                        .flatMap(route -> route.executableMetadata().stream()
+                                .map(executable -> {
+                                    var view = RegistryExecutableViews.executableView(metadataType, executable);
+                                    return new RegisteredWebRoute(
+                                            metadataType, route, executable, view, generatedInvocation(
+                                                    metadataType, view));
+                                }))
+                        .filter(route -> config.methodMatches(metadataType, route.view())))
+                .toList();
+    }
+
+    private static List<WebMethodMatcher> webMethodMatchers(
+            Object handler, List<RegisteredWebRoute> routes,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config,
             ComponentMetadataLookup lookup) {
-        return route.executableMetadata().stream()
-                .map(executable -> RegistryExecutableViews.executableView(type, executable))
-                .filter(view -> config.methodMatches(type, view))
-                .flatMap(view -> generatedInvocation(type, view).stream()
-                        .flatMap(invocation -> webPatterns(handler, type, route, lookup)
-                                .map(pattern -> new WebMethodMatcher(new ExecutableViewHandlerMatcher<>(
-                                        0, view, type, invocation, parameterResolvers, config), pattern))));
+        List<WebMethodMatcher> result = new ArrayList<>();
+        for (RegisteredWebRoute route : routes) {
+            RegisteredWebRoute invocationRoute = route;
+            if (invocationRoute.invocation().isEmpty()) {
+                Optional<RegisteredWebRoute> equivalentRoute = generatedEquivalent(route, routes);
+                if (equivalentRoute.filter(candidate -> sameWebRoutes(route, candidate)).isPresent()) {
+                    continue;
+                }
+                invocationRoute = equivalentRoute.orElseThrow(() -> missingGeneratedInvocation(route.metadataType()));
+            }
+            RegisteredWebRoute executableRoute = invocationRoute;
+            webPatterns(handler, route.metadataType(), route.route(), lookup)
+                    .map(pattern -> new WebMethodMatcher(new ExecutableViewHandlerMatcher<>(
+                            0, executableRoute.view(), executableRoute.metadataType(),
+                            executableRoute.invocation().orElseThrow(),
+                            parameterResolvers, config), pattern))
+                    .forEach(result::add);
+        }
+        return result;
     }
 
-    private static Optional<ExecutableInvocation> generatedInvocation(Class<?> type, io.fluxzero.common.handling.ExecutableView view) {
+    private static Optional<ExecutableInvocation> generatedInvocation(
+            Class<?> type, io.fluxzero.common.handling.ExecutableView view) {
         ComponentMetadataLookups.ensureGeneratedExecutions(type);
-        Optional<ExecutableInvocation> invocation = GeneratedExecutableInvocations.find(type, view.executableId());
-        if (invocation.isEmpty()) {
-            throw new ComponentRegistryException("""
-                    Generated-only web handler execution for %s requires generated invocation plans.
-                    Register generated invocations for matching web handler executables or run outside generated-only \
-                    mode for JVM reflection compatibility.
-                    """.formatted(type.getName()));
-        }
-        return invocation;
+        return GeneratedExecutableInvocations.find(type, view.executableId());
+    }
+
+    private static ComponentRegistryException missingGeneratedInvocation(Class<?> type) {
+        return new ComponentRegistryException("""
+                Generated-only web handler execution for %s requires generated invocation plans.
+                Register generated invocations for matching web handler executables or run outside generated-only \
+                mode for JVM reflection compatibility.
+                """.formatted(type.getName()));
+    }
+
+    private static Optional<RegisteredWebRoute> generatedEquivalent(
+            RegisteredWebRoute missingRoute, List<RegisteredWebRoute> routes) {
+        return routes.stream()
+                .filter(candidate -> candidate != missingRoute)
+                .filter(candidate -> candidate.invocation().isPresent())
+                .filter(candidate -> equivalentExecutable(missingRoute, candidate))
+                .findFirst();
+    }
+
+    private static boolean sameWebRoutes(RegisteredWebRoute first, RegisteredWebRoute second) {
+        return first.route().webRoutes().equals(second.route().webRoutes());
+    }
+
+    private static boolean equivalentExecutable(RegisteredWebRoute first, RegisteredWebRoute second) {
+        return ExecutableDescriptorEquivalence.equivalent(
+                first.metadataType(), first.executable(), second.metadataType(), second.executable());
     }
 
     private static Stream<WebPattern> webPatterns(WebRouteDescriptor route) {
@@ -412,6 +459,14 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         public Optional<HandlerInvoker> getInvoker(Object target, DeserializingMessage message) {
             return matcher.getInvoker(target, message);
         }
+    }
+
+    private record RegisteredWebRoute(
+            Class<?> metadataType,
+            HandlerRoute route,
+            ExecutableDescriptor executable,
+            io.fluxzero.common.handling.ExecutableView view,
+            Optional<ExecutableInvocation> invocation) {
     }
 
     record AutomaticOptionsMatcher(List<String> allowedMethods) implements WebRouteHandler {

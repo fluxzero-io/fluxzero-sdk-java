@@ -16,10 +16,12 @@ package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 import io.fluxzero.sdk.registry.PackageDescriptor;
+import io.fluxzero.sdk.registry.RegistryComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 import lombok.SneakyThrows;
 
@@ -27,7 +29,10 @@ import java.io.InputStream;
 import java.lang.reflect.AnnotatedElement;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -42,13 +47,16 @@ public final class OpenApiDocumentEndpoint {
     @Path
     private final String path;
     private final Class<?> handlerType;
-    private final Object handler;
+    private final Optional<ComponentMetadataLookup> metadataLookup;
+    private final Map<Class<?>, Object> handlers = Collections.synchronizedMap(new LinkedHashMap<>());
     private volatile String documentJson;
 
-    private OpenApiDocumentEndpoint(String path, Class<?> handlerType, Object handler) {
+    private OpenApiDocumentEndpoint(
+            String path, Class<?> handlerType, Object handler, Optional<ComponentMetadataLookup> metadataLookup) {
         this.path = path;
         this.handlerType = handlerType;
-        this.handler = handler instanceof Class<?> ? null : handler;
+        this.metadataLookup = Objects.requireNonNull(metadataLookup, "metadataLookup");
+        includeHandler(handlerType, handler);
     }
 
     public static List<OpenApiDocumentEndpoint> forHandler(Class<?> handlerType, Object handler) {
@@ -63,17 +71,19 @@ public final class OpenApiDocumentEndpoint {
             for (PackageDescriptor currentPackage : lookup.orElseThrow()
                     .packageMetadataChain(handlerType.getPackageName()).reversed()) {
                 path = appendPath(path, WebUtils.pathValues(currentPackage).toList());
-                addIfEnabled(endpoints, apiDocInfo(handlerType, currentPackage), path, handlerType, handler);
+                addIfEnabled(endpoints, apiDocInfo(handlerType, currentPackage), path, handlerType, handler, lookup);
             }
         } else {
             for (Package currentPackage : JvmCompatibilityBackend.introspector()
                     .getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
                 path = appendPath(path, pathValues.apply(currentPackage).toList());
-                addIfEnabled(endpoints, apiDocInfo(lookup, handlerType, currentPackage), path, handlerType, handler);
+                addIfEnabled(
+                        endpoints, apiDocInfo(lookup, handlerType, currentPackage), path, handlerType, handler,
+                        lookup);
             }
         }
         path = appendPath(path, pathValues.apply(handlerType).toList());
-        addIfEnabled(endpoints, apiDocInfo(lookup, handlerType), path, handlerType, handler);
+        addIfEnabled(endpoints, apiDocInfo(lookup, handlerType), path, handlerType, handler, lookup);
         return endpoints;
     }
 
@@ -103,11 +113,13 @@ public final class OpenApiDocumentEndpoint {
     }
 
     private static void addIfEnabled(List<OpenApiDocumentEndpoint> endpoints, ApiDocInfo info, String basePath,
-                                     Class<?> handlerType, Object handler) {
+                                     Class<?> handlerType, Object handler,
+                                     Optional<ComponentMetadataLookup> metadataLookup) {
         if (info == null || !(info.serveOpenApi() || info.serveApiReference())) {
             return;
         }
-        endpoints.add(new OpenApiDocumentEndpoint(resolvePath(basePath, info.openApiPath()), handlerType, handler));
+        endpoints.add(new OpenApiDocumentEndpoint(
+                resolvePath(basePath, info.openApiPath()), handlerType, handler, metadataLookup));
     }
 
     private static String appendPath(String base, List<String> parts) {
@@ -162,7 +174,36 @@ public final class OpenApiDocumentEndpoint {
     }
 
     private String renderRuntimeDocument() {
-        return OpenApiRenderer.renderPrettyJson(ApiDocExtractor.extract(handlerType, handler), null);
+        return OpenApiRenderer.renderPrettyJson(
+                ApiDocExtractor.extractWebHandlers(handlerScope(), documentMetadataLookup()), null);
+    }
+
+    private Optional<ComponentMetadataLookup> documentMetadataLookup() {
+        return Fluxzero.getOptionally()
+                .map(Fluxzero::componentRegistry)
+                .filter(registry -> !registry.isEmpty())
+                .map(RegistryComponentMetadataLookup::of)
+                .map(ComponentMetadataLookup.class::cast)
+                .or(() -> metadataLookup);
+    }
+
+    /**
+     * Internal hook used while deduplicating document endpoints by path.
+     */
+    public void include(OpenApiDocumentEndpoint endpoint) {
+        Objects.requireNonNull(endpoint, "endpoint");
+        endpoint.handlerScope().forEach(this::includeHandler);
+        documentJson = null;
+    }
+
+    private void includeHandler(Class<?> handlerType, Object handler) {
+        handlers.putIfAbsent(handlerType, handler instanceof Class<?> ? null : handler);
+    }
+
+    private Map<Class<?>, Object> handlerScope() {
+        synchronized (handlers) {
+            return new LinkedHashMap<>(handlers);
+        }
     }
 
     @Override

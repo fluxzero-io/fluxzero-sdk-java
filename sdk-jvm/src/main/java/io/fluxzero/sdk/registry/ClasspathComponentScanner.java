@@ -174,9 +174,18 @@ public class ClasspathComponentScanner {
                 .filter(descriptor -> !descriptor.annotations().isEmpty())
                 .toList();
         List<ComponentDescriptor> components = types.stream()
-                .map(type -> componentDescriptor(type, allTypeNames))
+                .map(type -> componentDescriptorIfLoadable(type, allTypeNames))
+                .flatMap(Optional::stream)
                 .toList();
         return new ComponentRegistry(null, packageDescriptors, components);
+    }
+
+    private Optional<ComponentDescriptor> componentDescriptorIfLoadable(Class<?> type, List<String> allTypeNames) {
+        try {
+            return Optional.of(componentDescriptor(type, allTypeNames));
+        } catch (LinkageError | TypeNotPresentException e) {
+            return Optional.empty();
+        }
     }
 
     private ComponentDescriptor componentDescriptor(Class<?> type, List<String> allTypeNames) {
@@ -779,7 +788,7 @@ public class ClasspathComponentScanner {
     private static void loadPackageInfo(ClassLoader classLoader, String packageName) {
         try {
             Class.forName(packageName + ".package-info", false, classLoader);
-        } catch (ClassNotFoundException ignored) {
+        } catch (ClassNotFoundException | LinkageError ignored) {
         }
     }
 

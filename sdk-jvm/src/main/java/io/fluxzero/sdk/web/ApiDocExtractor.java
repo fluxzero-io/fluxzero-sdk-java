@@ -86,7 +86,27 @@ public final class ApiDocExtractor {
      * Extracts API documentation metadata from a handler class and optional handler instance.
      */
     public static ApiDocCatalog extract(Class<?> handlerType, Object handler) {
-        MetadataContext metadata = MetadataContext.of(handlerType);
+        return extract(handlerType, handler, MetadataContext.of(handlerType));
+    }
+
+    static ApiDocCatalog extract(
+            Class<?> handlerType, Object handler, Optional<ComponentMetadataLookup> metadataLookup) {
+        return extract(handlerType, handler, new MetadataContext(handlerType, metadataLookup));
+    }
+
+    static ApiDocCatalog extractWebHandlers(
+            Map<Class<?>, Object> handlers, Optional<ComponentMetadataLookup> metadataLookup) {
+        List<ApiDocEndpoint> endpoints = new ArrayList<>();
+        handlers.forEach((handlerType, handler) -> {
+            ApiDocCatalog catalog = metadataLookup.isPresent()
+                    ? extractFromMetadata(handlerType, new MetadataContext(handlerType, metadataLookup))
+                    : extract(handlerType, handler);
+            endpoints.addAll(catalog.endpoints());
+        });
+        return new ApiDocCatalog(endpoints);
+    }
+
+    private static ApiDocCatalog extract(Class<?> handlerType, Object handler, MetadataContext metadata) {
         if (ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.available() ? extractFromMetadata(handlerType, metadata) : new ApiDocCatalog(List.of());
         }

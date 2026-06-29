@@ -60,6 +60,7 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Executable;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -135,7 +136,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final Serializer serializer;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
-    private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
+    private final Map<OpenApiDocumentEndpoint, OpenApiDocumentEndpoint> openApiDocumentEndpoints =
+            new ConcurrentHashMap<>();
     private final Set<ApiReferenceEndpoint> apiReferenceEndpoints = ConcurrentHashMap.newKeySet();
     private final Object webRouteRegistry = WebHandlerMatcher.createRouteRegistry();
 
@@ -327,8 +329,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
         handler = RegistryFilteringHandler.wrap(handler, messageType);
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
-                if (openApiDocumentEndpoints.add(endpoint)) {
+                OpenApiDocumentEndpoint existingEndpoint = openApiDocumentEndpoints.putIfAbsent(endpoint, endpoint);
+                if (existingEndpoint == null) {
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                } else {
+                    existingEndpoint.include(endpoint);
                 }
             }
             for (ApiReferenceEndpoint endpoint : ApiReferenceEndpoint.forHandler(targetClass)) {
