@@ -26,7 +26,9 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.registry.ComponentDescriptor;
 import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.registry.ComponentRegistryException;
@@ -426,6 +428,31 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeCreatesStatefulMemberHandlerWhenOwnerHasNoOwnHandlers() {
+        try {
+            TestFixture fixture = TestFixture.create();
+            fixture.getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
+                    RegisteredGeneratedOnlyMemberOwner.class,
+                    RegisteredGeneratedOnlyMemberPayment.class,
+                    RegisteredGeneratedOnlyMemberStarted.class,
+                    RegisteredGeneratedOnlyMemberCaptured.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = fixture.getFluxzero().apply(f -> statefulFactory(
+                        MessageType.EVENT).createHandler(
+                                RegisteredGeneratedOnlyMemberOwner.class, (c, e) -> true, List.of())
+                        .orElseThrow());
+
+                assertEquals(
+                        "StatefulHandler[%s]".formatted(RegisteredGeneratedOnlyMemberOwner.class),
+                        handler.toString());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static GeneratedExecutableInvocations.Registration registerGeneratedHandle(
             Class<?> handlerType, Object result) {
         return GeneratedExecutableInvocations.register(
@@ -519,8 +546,12 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
     }
 
     private static DefaultHandlerFactory statefulFactory() {
+        return statefulFactory(MessageType.COMMAND);
+    }
+
+    private static DefaultHandlerFactory statefulFactory(MessageType messageType) {
         return new DefaultHandlerFactory(
-                MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
+                messageType, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
                 c -> emptyRepository(), null, false, null);
     }
 
@@ -735,6 +766,37 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         @HandleCommand
         void handle(String command) {
         }
+    }
+
+    @Stateful
+    private record RegisteredGeneratedOnlyMemberOwner(
+            @EntityId @Association String customerId,
+            @Member List<RegisteredGeneratedOnlyMemberPayment> payments) {
+    }
+
+    private record RegisteredGeneratedOnlyMemberPayment(
+            @EntityId @Association String paymentId,
+            int captureCount,
+            String customerContext) {
+        @HandleEvent
+        static RegisteredGeneratedOnlyMemberPayment create(
+                RegisteredGeneratedOnlyMemberStarted event,
+                RegisteredGeneratedOnlyMemberOwner owner) {
+            return new RegisteredGeneratedOnlyMemberPayment(event.paymentId(), 0, owner.customerId());
+        }
+
+        @HandleEvent
+        RegisteredGeneratedOnlyMemberPayment capture(
+                RegisteredGeneratedOnlyMemberCaptured event,
+                RegisteredGeneratedOnlyMemberOwner owner) {
+            return new RegisteredGeneratedOnlyMemberPayment(paymentId, captureCount + 1, owner.customerId());
+        }
+    }
+
+    private record RegisteredGeneratedOnlyMemberStarted(String customerId, String paymentId) {
+    }
+
+    private record RegisteredGeneratedOnlyMemberCaptured(String paymentId) {
     }
 
     @SocketEndpoint

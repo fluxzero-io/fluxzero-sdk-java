@@ -33,6 +33,7 @@ import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -274,39 +275,6 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     /**
-     * Creates a synchronous fixture that explicitly opts into JVM compatibility metadata mode.
-     * <p>
-     * This mode is intended for legacy fixture tests that still exercise reflection-backed JVM semantics while the
-     * default runtime migrates to generated metadata.
-     */
-    public static TestFixture createJvmCompatibility(Object... handlers) {
-        return create(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlers);
-    }
-
-    /**
-     * Creates a synchronous fixture with a custom builder that explicitly opts into JVM compatibility metadata mode.
-     */
-    public static TestFixture createJvmCompatibility(FluxzeroBuilder fluxzeroBuilder, Object... handlers) {
-        return create(jvmCompatibilityMetadata(fluxzeroBuilder), handlers);
-    }
-
-    /**
-     * Creates a synchronous fixture with a handler factory that explicitly opts into JVM compatibility metadata mode.
-     */
-    public static TestFixture createJvmCompatibility(Function<Fluxzero, List<?>> handlersFactory) {
-        return create(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlersFactory);
-    }
-
-    /**
-     * Creates a synchronous fixture with a custom builder and handler factory that explicitly opts into JVM
-     * compatibility metadata mode.
-     */
-    public static TestFixture createJvmCompatibility(FluxzeroBuilder fluxzeroBuilder,
-                                                     Function<Fluxzero, List<?>> handlersFactory) {
-        return create(jvmCompatibilityMetadata(fluxzeroBuilder), handlersFactory);
-    }
-
-    /**
      * Creates an asynchronous {@code TestFixture} with the given handlers.
      * <p>
      * In async mode, messages are dispatched to handlers in separate threads unless they are marked with
@@ -355,36 +323,6 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     /**
-     * Creates an asynchronous fixture that explicitly opts into JVM compatibility metadata mode.
-     */
-    public static TestFixture createAsyncJvmCompatibility(Object... handlers) {
-        return createAsync(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlers);
-    }
-
-    /**
-     * Creates an asynchronous fixture with a custom builder that explicitly opts into JVM compatibility metadata mode.
-     */
-    public static TestFixture createAsyncJvmCompatibility(FluxzeroBuilder fluxzeroBuilder, Object... handlers) {
-        return createAsync(jvmCompatibilityMetadata(fluxzeroBuilder), handlers);
-    }
-
-    /**
-     * Creates an asynchronous fixture with a handler factory that explicitly opts into JVM compatibility metadata mode.
-     */
-    public static TestFixture createAsyncJvmCompatibility(Function<Fluxzero, List<?>> handlersFactory) {
-        return createAsync(jvmCompatibilityMetadata(DefaultFluxzero.builder()), handlersFactory);
-    }
-
-    /**
-     * Creates an asynchronous fixture with a custom builder and handler factory that explicitly opts into JVM
-     * compatibility metadata mode.
-     */
-    public static TestFixture createAsyncJvmCompatibility(FluxzeroBuilder fluxzeroBuilder,
-                                                         Function<Fluxzero, List<?>> handlersFactory) {
-        return createAsync(jvmCompatibilityMetadata(fluxzeroBuilder), handlersFactory);
-    }
-
-    /**
      * Creates an asynchronous {@code TestFixture} using a custom {@link FluxzeroBuilder}, a handler factory, and a
      * preconfigured {@link Client}.
      * <p>
@@ -399,23 +337,6 @@ public class TestFixture implements Given<TestFixture>, When {
     public static TestFixture createAsync(FluxzeroBuilder fluxzeroBuilder, Client client,
                                           Object... handlers) {
         return new TestFixture(fluxzeroBuilder, fc -> Arrays.asList(handlers), client, false);
-    }
-
-    /**
-     * Creates an asynchronous fixture with a custom builder, client and explicit JVM compatibility metadata mode.
-     */
-    public static TestFixture createAsyncJvmCompatibility(FluxzeroBuilder fluxzeroBuilder, Client client,
-                                                          Object... handlers) {
-        return createAsync(jvmCompatibilityMetadata(fluxzeroBuilder), client, handlers);
-    }
-
-    /**
-     * Prepends the JVM compatibility metadata-mode property to a builder.
-     */
-    public static FluxzeroBuilder jvmCompatibilityMetadata(FluxzeroBuilder fluxzeroBuilder) {
-        return fluxzeroBuilder.replacePropertySource(source -> new SimplePropertySource(Map.of(
-                ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.JVM_COMPATIBILITY_MODE))
-                .andThen(source));
     }
 
     public static Duration defaultResultTimeout = Duration.ofSeconds(2L);
@@ -505,19 +426,23 @@ public class TestFixture implements Given<TestFixture>, When {
         withClock(fixtureClock);
         List<Object> handlers = new ArrayList<>();
         if (synchronous) {
-            handlers.add(new Object() {
-                @HandleSchedule
-                void handle(ScheduledCommand schedule) {
-                    SerializedMessage command = schedule.getCommand();
-                    command.setTimestamp(Fluxzero.currentTime().toEpochMilli());
-                    fluxzero.serializer()
-                            .deserializeMessages(Stream.of(command), MessageType.COMMAND).findFirst().map(
-                                    DeserializingMessage::toMessage).ifPresent(Fluxzero::sendAndForgetCommand);
-                }
-            });
+            handlers.add(new SynchronousScheduledCommandHandler());
         }
         handlers.addAll(handlerFactory.apply(fluxzero));
         registerHandlers(handlers);
+    }
+
+    static class SynchronousScheduledCommandHandler {
+        @HandleSchedule
+        void handle(ScheduledCommand schedule) {
+            SerializedMessage command = schedule.getCommand();
+            command.setTimestamp(Fluxzero.currentTime().toEpochMilli());
+            Fluxzero.get().serializer()
+                    .deserializeMessages(Stream.of(command), MessageType.COMMAND)
+                    .findFirst()
+                    .map(DeserializingMessage::toMessage)
+                    .ifPresent(Fluxzero::sendAndForgetCommand);
+        }
     }
 
     protected TestFixture(TestFixture currentFixture, boolean synchronous, boolean spying,
@@ -547,8 +472,22 @@ public class TestFixture implements Given<TestFixture>, When {
                 : fluxzeroBuilder.build(newClient);
         Fluxzero.instance.set(this.fluxzero);
         localHandlerRegistries(this.fluxzero).forEach(r -> r.setSelfHandlerFilter(
-                synchronous ? HandlerFilter.ALWAYS_HANDLE : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
+                synchronous ? HandlerFilter.ALWAYS_HANDLE : nonSelfTrackingFilter()));
         currentFixture.modifiers.forEach(this::modifyFixture);
+    }
+
+    private static HandlerFilter nonSelfTrackingFilter() {
+        return new HandlerFilter() {
+            @Override
+            public boolean test(Class<?> ownerType, Executable executable) {
+                return !ClientUtils.isSelfTracking(ownerType, executable);
+            }
+
+            @Override
+            public boolean test(Class<?> ownerType, ExecutableView executable) {
+                return !ClientUtils.isSelfTracking(ownerType, executable);
+            }
+        };
     }
 
     /*
@@ -664,38 +603,52 @@ public class TestFixture implements Given<TestFixture>, When {
     @SuppressWarnings("ResultOfMethodCallIgnored")
     public TestFixture registerHandlers(List<?> handlers) {
         return modifyFixture(fixture -> {
-            Fluxzero fc = fixture.getFluxzero();
-            if (handlers.isEmpty()) {
+            if (fixture.containsAnonymousOrLocalHandler(handlers)) {
+                ComponentMetadataLookups.runInJvmCompatibilityMode(() -> fixture.registerHandlersInFixture(handlers));
                 return;
             }
-            warnIfDuplicateHandlers(handlers);
-            handlers.stream().map(this::handlerType)
-                    .filter(ClientUtils::isSelfTracking)
-                    .forEach(registeredTrackSelfHandlers::add);
-            if (fixture.synchronous) {
-                fixture.rememberConsumerAssignments(handlers);
-            }
-            if (!fixture.synchronous) {
-                fixture.registration = fixture.registration.merge(fc.registerHandlers(handlers));
-                return;
-            }
-            HandlerFilter handlerFilter = (c, e) -> true;
-            var registration = fc.apply(f -> {
-                Registration local = handlers.stream().flatMap(
-                                h -> Stream.concat(nonScheduleLocalHandlerRegistries(f)
-                                                           .map(r -> r.registerHandler(h, handlerFilter)),
-                                                   ClientUtils.getTopics(CUSTOM, h).stream()
-                                                           .map(topic -> f.customGateway(topic)
-                                                                   .registerHandler(h, handlerFilter))))
-                        .reduce(Registration::merge).orElse(Registration.noOp());
-                Registration schedules = scheduleLocalHandlerRegistry(f)
-                        .map(s -> handlers.stream().map(h -> s.registerHandler(h, handlerFilter))
-                                .reduce(Registration::merge).orElse(Registration.noOp()))
-                        .orElse(Registration.noOp());
-                return local.merge(schedules);
-            });
-            fixture.registration = fixture.registration.merge(registration);
+            fixture.registerHandlersInFixture(handlers);
         });
+    }
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private void registerHandlersInFixture(List<?> handlers) {
+        Fluxzero fc = getFluxzero();
+        if (handlers.isEmpty()) {
+            return;
+        }
+        warnIfDuplicateHandlers(handlers);
+        handlers.stream().map(this::handlerType)
+                .filter(ClientUtils::isSelfTracking)
+                .forEach(registeredTrackSelfHandlers::add);
+        if (synchronous) {
+            rememberConsumerAssignments(handlers);
+        }
+        if (!synchronous) {
+            registration = registration.merge(fc.registerHandlers(handlers));
+            return;
+        }
+        HandlerFilter handlerFilter = (c, e) -> true;
+        var registration = fc.apply(f -> {
+            Registration local = handlers.stream().flatMap(
+                            h -> Stream.concat(nonScheduleLocalHandlerRegistries(f)
+                                                       .map(r -> r.registerHandler(h, handlerFilter)),
+                                               ClientUtils.getTopics(CUSTOM, h).stream()
+                                                       .map(topic -> f.customGateway(topic)
+                                                               .registerHandler(h, handlerFilter))))
+                    .reduce(Registration::merge).orElse(Registration.noOp());
+            Registration schedules = scheduleLocalHandlerRegistry(f)
+                    .map(s -> handlers.stream().map(h -> s.registerHandler(h, handlerFilter))
+                            .reduce(Registration::merge).orElse(Registration.noOp()))
+                    .orElse(Registration.noOp());
+            return local.merge(schedules);
+        });
+        this.registration = this.registration.merge(registration);
+    }
+
+    private boolean containsAnonymousOrLocalHandler(List<?> handlers) {
+        return handlers.stream().map(this::handlerType)
+                .anyMatch(type -> type.isAnonymousClass() || type.isLocalClass());
     }
 
     private void warnIfDuplicateHandlers(List<?> handlers) {
@@ -1747,6 +1700,14 @@ public class TestFixture implements Given<TestFixture>, When {
         return simpleName.isBlank() ? type.getName() : simpleName;
     }
 
+    private static String simpleTypeName(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return "Unknown";
+        }
+        int separator = Math.max(typeName.lastIndexOf('.'), typeName.lastIndexOf('$'));
+        return separator < 0 ? typeName : typeName.substring(separator + 1);
+    }
+
     private static String describeHandlerMethod(Executable executable) {
         String parameters = Arrays.stream(executable.getParameterTypes())
                 .map(TestFixture::simpleTypeName)
@@ -1756,6 +1717,25 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         return "%s(%s)".formatted(simpleTypeName(executable.getDeclaringClass()), parameters);
     }
+
+    private static String describeHandlerMethod(ExecutableView executable) {
+        if (executable == null) {
+            return "Unknown";
+        }
+        String parameters = executable.parameters().stream()
+                .map(parameter -> parameter.type().map(TestFixture::simpleTypeName)
+                        .orElseGet(() -> simpleTypeName(parameter.typeName())))
+                .collect(Collectors.joining(", "));
+        if (executable.kind() == ExecutableView.Kind.METHOD) {
+            return "%s(%s)".formatted(executable.name(), parameters);
+        }
+        return "%s(%s)".formatted(simpleTypeName(executable.targetTypeName()), parameters);
+    }
+
+    private static String describeHandlerMethod(Executable executable, ExecutableView executableView) {
+        return executable == null ? describeHandlerMethod(executableView) : describeHandlerMethod(executable);
+    }
+
 
     protected void setClock(Clock clock) {
         SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
@@ -1829,7 +1809,7 @@ public class TestFixture implements Given<TestFixture>, When {
         return new ActiveHandler(
                 message.getMessageId(),
                 message.getPayloadClass(),
-                invoker.getTargetClass(), invoker.getMethod(), invoker.isPassive(),
+                invoker.getTargetClass(), invoker.getMethod(), invoker.getExecutableView(), invoker.isPassive(),
                 message.getMessageType(), message.getTopic(), trackedConsumers(message, invoker));
     }
 
@@ -1843,13 +1823,13 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private boolean handledLocallyWithoutTracking(DeserializingMessage message, HandlerInvoker invoker) {
-        if (getLocalHandlerAnnotation(invoker.getTargetClass(), invoker.getMethod())
+        if (getLocalHandlerAnnotation(invoker)
                 .filter(LocalHandler::value)
                 .isPresent()) {
             return true;
         }
         return invoker.getTargetClass().isAssignableFrom(message.getPayloadClass())
-               && !ClientUtils.isSelfTracking(invoker.getTargetClass());
+               && !ClientUtils.isSelfTracking(invoker.getTargetClass(), invoker.getExecutableView());
     }
 
     private Set<ConsumerIdentity> possibleConsumers(Class<?> handlerType, MessageType messageType) {
@@ -2289,8 +2269,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                         .map(batch -> batch.getMessages().stream()
                                                 .noneMatch(bm -> bm.getMessageId().equals(m.getMessageId())))
                                         .orElse(true)
-                                && getLocalHandlerAnnotation(
-                                        invoker.getTargetClass(), invoker.getMethod())
+                                && getLocalHandlerAnnotation(invoker)
                                         .map(l -> !l.logMessage()).orElse(true)
                         ) {
                             synchronized (testFixture.consumers) {
@@ -2420,13 +2399,14 @@ public class TestFixture implements Given<TestFixture>, When {
         Class<?> payloadType;
         Class<?> handlerType;
         Executable method;
+        ExecutableView executableView;
         boolean passive;
         MessageType messageType;
         String topic;
         Set<ConsumerIdentity> consumers;
 
         String describe() {
-            return "%s#%s".formatted(simpleTypeName(handlerType), describeHandlerMethod(method));
+            return "%s#%s".formatted(simpleTypeName(handlerType), describeHandlerMethod(method, executableView));
         }
 
         String messageDescription() {

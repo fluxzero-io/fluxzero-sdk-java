@@ -19,6 +19,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -75,6 +76,14 @@ public interface ParameterView {
     <A extends Annotation> Optional<A> annotation(Class<A> annotationType);
 
     /**
+     * Direct or projected annotation views for the parameter.
+     */
+    default List<Annotation> annotationViews() {
+        return parameter().map(parameter -> List.of(parameter.getAnnotations()))
+                .orElseGet(List::of);
+    }
+
+    /**
      * Returns whether a runtime value can be assigned to this parameter.
      */
     default boolean isAssignableFrom(Object value) {
@@ -126,6 +135,11 @@ public interface ParameterView {
         @Override
         public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
             return Optional.ofNullable(parameter.getAnnotation(annotationType));
+        }
+
+        @Override
+        public List<Annotation> annotationViews() {
+            return List.of(parameter.getAnnotations());
         }
 
         private static int parameterIndex(Parameter parameter) {

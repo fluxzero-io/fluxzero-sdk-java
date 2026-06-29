@@ -45,7 +45,7 @@ import static org.mockito.Mockito.*;
 class GivenWhenThenTest {
 
     private final CommandHandler commandHandler = spy(new CommandHandler());
-    private TestFixture testFixture = TestFixture.createJvmCompatibility(commandHandler);
+    private TestFixture testFixture = TestFixture.create(commandHandler);
 
     @Test
     void testInjectingMockBeans() {
@@ -80,14 +80,14 @@ class GivenWhenThenTest {
 
     @Test
     void registeringHandlerAsClassWorks() {
-        TestFixture.createJvmCompatibility(CommandHandler.class).whenCommand(new YieldsEventAndResult())
+        TestFixture.create(CommandHandler.class).whenCommand(new YieldsEventAndResult())
                 .expectOnlyEvents(new YieldsEventAndResult())
                 .expectResult(String.class);
     }
 
     @Test
     void registeringHandlerAsClassWorks_async() {
-        TestFixture.createAsyncJvmCompatibility(CommandHandler.class).whenCommand(new YieldsEventAndResult())
+        TestFixture.createAsync(CommandHandler.class).whenCommand(new YieldsEventAndResult())
                 .expectOnlyEvents(new YieldsEventAndResult())
                 .expectResult(String.class);
     }
@@ -204,7 +204,7 @@ class GivenWhenThenTest {
 
     @Test
     void testMultiHandler() {
-        testFixture = TestFixture.createJvmCompatibility(commandHandler, new EventHandler());
+        testFixture = TestFixture.create(commandHandler, new EventHandler());
         testFixture.whenCommand(new YieldsEventAndNoResult())
                 .expectEvents(new YieldsEventAndNoResult())
                 .expectCommands(new YieldsNoResult());
@@ -212,7 +212,7 @@ class GivenWhenThenTest {
 
     @Test
     void testExpectNoCommandLike_predicate() {
-        testFixture = TestFixture.createJvmCompatibility(commandHandler, new EventHandler());
+        testFixture = TestFixture.create(commandHandler, new EventHandler());
         // EventHandler sends a YieldsNoResult command; predicate does not match
         testFixture.whenCommand(new YieldsEventAndNoResult())
                 .expectNoCommandLike(o -> o instanceof String);
@@ -220,7 +220,7 @@ class GivenWhenThenTest {
 
     @Test
     void testMultiHandlerWithExceptionInEventHandler() {
-        testFixture = TestFixture.createJvmCompatibility(commandHandler, new ThrowingEventHandler());
+        testFixture = TestFixture.create(commandHandler, new ThrowingEventHandler());
         testFixture.whenCommand(new YieldsEventAndNoResult())
                 .expectEvents(new YieldsEventAndNoResult())
                 .expectSuccessfulResult()
@@ -273,19 +273,19 @@ class GivenWhenThenTest {
 
     @Test
     void testExpectMetrics() {
-        TestFixture.createAsyncJvmCompatibility(commandHandler).whenCommand(new YieldsNoResult())
+        TestFixture.createAsync(commandHandler).whenCommand(new YieldsNoResult())
                 .expectMetrics(ProcessBatchEvent.class);
     }
 
     @Test
     void testExpectNoMetricsLike() {
-        TestFixture.createAsyncJvmCompatibility(commandHandler).whenCommand(new YieldsNoResult()).expectNoMetricsLike(String.class);
+        TestFixture.createAsync(commandHandler).whenCommand(new YieldsNoResult()).expectNoMetricsLike(String.class);
     }
 
     @Test
     void testExpectNoMetricLike_predicate() {
         // ProcessBatchEvent metric is emitted by async fixture; predicate must not match
-        TestFixture.createAsyncJvmCompatibility(commandHandler)
+        TestFixture.createAsync(commandHandler)
                 .whenCommand(new YieldsNoResult())
                 .expectNoMetricLike(o -> o instanceof String);
     }
@@ -293,7 +293,7 @@ class GivenWhenThenTest {
     @Test
     void testGivenMetrics() {
         MetricHandler handler = new MetricHandler();
-        TestFixture.createJvmCompatibility(handler)
+        TestFixture.create(handler)
                 .givenMetrics(new ManualMetric("given"))
                 .whenApplying(fc -> null)
                 .expectThat(fc -> assertEquals(1, handler.count))
@@ -302,7 +302,7 @@ class GivenWhenThenTest {
 
     @Test
     void testWhenMetric() {
-        TestFixture.createJvmCompatibility(new MetricHandler())
+        TestFixture.create(new MetricHandler())
                 .whenMetric(new ManualMetric("alpha"))
                 .expectOnlyEvents("metric:alpha")
                 .expectMetrics(new DerivedMetric("alpha"));
@@ -310,7 +310,7 @@ class GivenWhenThenTest {
 
     @Test
     void testWhenMetricAsJson() {
-        TestFixture.createJvmCompatibility(new MetricHandler())
+        TestFixture.create(new MetricHandler())
                 .whenMetric("manual-metric.json")
                 .expectOnlyEvents("metric:json")
                 .expectMetric((DerivedMetric metric) -> metric.getName().equals("json"));
@@ -319,23 +319,13 @@ class GivenWhenThenTest {
     @Test
     void testTimestampInject() {
         Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
-        TestFixture.createJvmCompatibility(new Object() {
-            @HandleCommand
-            Instant handle(String payload, Instant timestamp) {
-                return timestamp;
-            }
-        }).atFixedTime(time).whenCommand("test").expectResult(time);
+        TestFixture.create(new TimestampInjectionHandler()).atFixedTime(time).whenCommand("test").expectResult(time);
     }
 
     @Test
     void testClockInject() {
         Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
-        TestFixture.createJvmCompatibility(new Object() {
-            @HandleCommand
-            Instant handle(String payload, Clock clock) {
-                return clock.instant();
-            }
-        }).atFixedTime(time)
+        TestFixture.create(new ClockInjectionHandler()).atFixedTime(time)
                 .whenCommand("test").expectResult(time);
     }
 
@@ -415,6 +405,20 @@ class GivenWhenThenTest {
         @HandleQuery
         public int handle(MetricCountQuery query) {
             return count;
+        }
+    }
+
+    private static class TimestampInjectionHandler {
+        @HandleCommand
+        Instant handle(String payload, Instant timestamp) {
+            return timestamp;
+        }
+    }
+
+    private static class ClockInjectionHandler {
+        @HandleCommand
+        Instant handle(String payload, Clock clock) {
+            return clock.instant();
         }
     }
 

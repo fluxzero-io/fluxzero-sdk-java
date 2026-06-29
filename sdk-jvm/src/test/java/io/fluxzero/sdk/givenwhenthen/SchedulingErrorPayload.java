@@ -12,13 +12,7 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.tracking.handling;
+package io.fluxzero.sdk.givenwhenthen;
 
-import io.fluxzero.sdk.test.TestFixture;
-
-public class HandleDocumentAsyncTest extends HandleDocumentTest {
-
-    public HandleDocumentAsyncTest() {
-        testFixture = TestFixture.createAsync();
-    }
+class SchedulingErrorPayload {
 }

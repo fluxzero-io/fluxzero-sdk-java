@@ -69,7 +69,17 @@ public interface HandlerFilter {
      * @return a new {@code HandlerFilter} representing the conjunction of both filters
      */
     default HandlerFilter and(@NonNull HandlerFilter other) {
-        return (o, e) -> test(o, e) && other.test(o, e);
+        return new HandlerFilter() {
+            @Override
+            public boolean test(Class<?> ownerType, Executable executable) {
+                return HandlerFilter.this.test(ownerType, executable) && other.test(ownerType, executable);
+            }
+
+            @Override
+            public boolean test(Class<?> ownerType, ExecutableView executable) {
+                return HandlerFilter.this.test(ownerType, executable) && other.test(ownerType, executable);
+            }
+        };
     }
 
     /**
@@ -78,7 +88,17 @@ public interface HandlerFilter {
      * @return a new {@code HandlerFilter} representing the logical negation of this filter
      */
     default HandlerFilter negate() {
-        return (o, e) -> !test(o, e);
+        return new HandlerFilter() {
+            @Override
+            public boolean test(Class<?> ownerType, Executable executable) {
+                return !HandlerFilter.this.test(ownerType, executable);
+            }
+
+            @Override
+            public boolean test(Class<?> ownerType, ExecutableView executable) {
+                return !HandlerFilter.this.test(ownerType, executable);
+            }
+        };
     }
 
     /**
@@ -88,6 +108,16 @@ public interface HandlerFilter {
      * @return a new {@code HandlerFilter} representing the disjunction of both filters
      */
     default HandlerFilter or(@NonNull HandlerFilter other) {
-        return (o, e) -> test(o, e) || other.test(o, e);
+        return new HandlerFilter() {
+            @Override
+            public boolean test(Class<?> ownerType, Executable executable) {
+                return HandlerFilter.this.test(ownerType, executable) || other.test(ownerType, executable);
+            }
+
+            @Override
+            public boolean test(Class<?> ownerType, ExecutableView executable) {
+                return HandlerFilter.this.test(ownerType, executable) || other.test(ownerType, executable);
+            }
+        };
     }
 }

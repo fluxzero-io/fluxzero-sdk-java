@@ -28,6 +28,7 @@ import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.HandlerRoute;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.RegistryExecutableViews;
 
 import java.util.LinkedHashMap;
@@ -47,9 +48,10 @@ final class RegistryHandlerMatcherFactory {
 
     static Optional<HandlerMatcher<Object, DeserializingMessage>> create(
             Class<?> targetClass,
+            MessageType messageType,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config) {
-        return registeredExecutableViews(targetClass, config)
+        return registeredExecutableViews(targetClass, messageType, config)
                 .filter(views -> !views.isEmpty())
                 .flatMap(views -> {
                     Map<ExecutableView, ExecutableInvocation> invocations = new LinkedHashMap<>();
@@ -69,9 +71,10 @@ final class RegistryHandlerMatcherFactory {
             Class<?> targetClass,
             MessageType messageType,
             HandlerConfiguration<DeserializingMessage> config) {
-        return registeredExecutableViews(targetClass, config)
+        return registeredExecutableViews(targetClass, messageType, config)
                 .map(views -> !views.isEmpty() && views.stream().anyMatch(
-                        view -> generatedInvocation(view).isEmpty()))
+                        view -> generatedInvocation(view).isEmpty()
+                                && !hasGeneratedEquivalent(view, views)))
                 .orElse(false);
     }
 
@@ -79,9 +82,13 @@ final class RegistryHandlerMatcherFactory {
             Class<?> targetClass,
             MessageType messageType,
             HandlerConfiguration<DeserializingMessage> config) {
-        return registeredExecutableViews(targetClass, config)
+        return registeredExecutableViews(targetClass, messageType, config)
                 .filter(views -> views.stream().anyMatch(view -> generatedInvocation(view).isPresent()))
                 .isPresent();
+    }
+
+    static boolean hasRegisteredHandlerMetadata(Class<?> targetClass, MessageType messageType) {
+        return !registeredRoutes(targetClass, messageType).isEmpty();
     }
 
     private static List<RegisteredRoute> registeredRoutes(Class<?> targetClass, MessageType messageType) {
@@ -107,6 +114,53 @@ final class RegistryHandlerMatcherFactory {
         return GeneratedExecutableInvocations.find(view.metadataType(), view.view().executableId());
     }
 
+    private static boolean hasGeneratedEquivalent(
+            RegisteredExecutableView missingView, List<RegisteredExecutableView> views) {
+        return views.stream()
+                .filter(candidate -> candidate != missingView)
+                .filter(candidate -> generatedInvocation(candidate).isPresent())
+                .anyMatch(candidate -> equivalentExecutable(missingView, candidate));
+    }
+
+    private static boolean equivalentExecutable(RegisteredExecutableView first, RegisteredExecutableView second) {
+        ExecutableDescriptor left = first.descriptor();
+        ExecutableDescriptor right = second.descriptor();
+        if (left.kind() != right.kind()
+            || !left.name().equals(right.name())
+            || left.parameters().size() != right.parameters().size()) {
+            return false;
+        }
+        for (int i = 0; i < left.parameters().size(); i++) {
+            if (!equivalentParameterType(
+                    first.metadataType(), left.parameters().get(i).typeName(),
+                    second.metadataType(), right.parameters().get(i).typeName())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean equivalentParameterType(
+            Class<?> leftMetadataType, String leftTypeName, Class<?> rightMetadataType, String rightTypeName) {
+        if (leftTypeName.equals(rightTypeName)) {
+            return true;
+        }
+        Optional<Class<?>> leftType = JvmComponentMetadataLookup.classForMetadataName(
+                leftTypeName, leftMetadataType.getClassLoader());
+        Optional<Class<?>> rightType = JvmComponentMetadataLookup.classForMetadataName(
+                rightTypeName, rightMetadataType.getClassLoader());
+        if (leftType.isPresent() && leftType.equals(rightType)) {
+            return true;
+        }
+        return simpleTypeName(leftTypeName).equals(simpleTypeName(rightTypeName))
+               && (leftType.isPresent() || rightType.isPresent());
+    }
+
+    private static String simpleTypeName(String typeName) {
+        int lastDot = typeName.lastIndexOf('.');
+        return lastDot < 0 ? typeName : typeName.substring(lastDot + 1);
+    }
+
     private static String executableId(ExecutableDescriptor executable) {
         return InvocationPlanDescriptor.executableId(
                 executable.kind(),
@@ -118,33 +172,36 @@ final class RegistryHandlerMatcherFactory {
 
     private static Optional<List<RegisteredExecutableView>> registeredExecutableViews(
             Class<?> targetClass,
+            MessageType messageType,
             HandlerConfiguration<DeserializingMessage> config) {
         return ComponentMetadataLookups.registeredLookup(targetClass)
-                .map(lookup -> registeredExecutableViews(targetClass, lookup).stream()
+                .map(lookup -> registeredExecutableViews(targetClass, messageType, lookup).stream()
                         .filter(view -> config.methodMatches(targetClass, view.view()))
                         .toList());
     }
 
     private static List<RegisteredExecutableView> registeredExecutableViews(
-            Class<?> targetClass, ComponentMetadataLookup lookup) {
+            Class<?> targetClass, MessageType messageType, ComponentMetadataLookup lookup) {
         return executableViewsByLookup.computeIfAbsent(
-                new RegisteredExecutableViewsKey(targetClass, lookup),
-                ignored -> computeRegisteredExecutableViews(targetClass, lookup));
+                new RegisteredExecutableViewsKey(targetClass, messageType, lookup),
+                ignored -> computeRegisteredExecutableViews(targetClass, messageType, lookup));
     }
 
     private static List<RegisteredExecutableView> computeRegisteredExecutableViews(
-            Class<?> targetClass, ComponentMetadataLookup lookup) {
+            Class<?> targetClass, MessageType messageType, ComponentMetadataLookup lookup) {
         Map<String, RegisteredExecutableView> result = new LinkedHashMap<>();
-        for (Class<?> metadataType : metadataRouteTypes(targetClass, lookup)) {
-            for (String name : targetClassNames(metadataType)) {
-                for (ExecutableDescriptor descriptor : lookup.executables(name)) {
-                    result.putIfAbsent(
-                            metadataType.getName() + ":" + executableId(descriptor),
-                            new RegisteredExecutableView(
-                                    metadataType,
-                                    RegistryExecutableViews.executableView(metadataType, descriptor)));
-                }
+        for (RegisteredRoute registeredRoute : registeredRoutes(targetClass, messageType)) {
+            ExecutableDescriptor descriptor = registeredRoute.route().executableMetadata().orElse(null);
+            if (descriptor == null) {
+                continue;
             }
+            Class<?> metadataType = registeredRoute.metadataType();
+            result.putIfAbsent(
+                    metadataType.getName() + ":" + executableId(descriptor),
+                    new RegisteredExecutableView(
+                            metadataType,
+                            RegistryExecutableViews.executableView(metadataType, descriptor),
+                            descriptor));
         }
         return List.copyOf(result.values());
     }
@@ -179,24 +236,30 @@ final class RegistryHandlerMatcherFactory {
     private record RegisteredRoute(Class<?> metadataType, HandlerRoute route) {
     }
 
-    private record RegisteredExecutableView(Class<?> metadataType, ExecutableView view) {
+    private record RegisteredExecutableView(
+            Class<?> metadataType, ExecutableView view, ExecutableDescriptor descriptor) {
     }
 
     private static final class RegisteredExecutableViewsKey {
         private final Class<?> targetClass;
+        private final MessageType messageType;
         private final ComponentMetadataLookup lookup;
         private final int hashCode;
 
-        private RegisteredExecutableViewsKey(Class<?> targetClass, ComponentMetadataLookup lookup) {
+        private RegisteredExecutableViewsKey(
+                Class<?> targetClass, MessageType messageType, ComponentMetadataLookup lookup) {
             this.targetClass = targetClass;
+            this.messageType = messageType;
             this.lookup = lookup;
-            this.hashCode = 31 * System.identityHashCode(targetClass) + System.identityHashCode(lookup);
+            this.hashCode = 31 * (31 * System.identityHashCode(targetClass) + messageType.hashCode())
+                            + System.identityHashCode(lookup);
         }
 
         @Override
         public boolean equals(Object other) {
             return this == other || other instanceof RegisteredExecutableViewsKey that
                                   && targetClass == that.targetClass
+                                  && messageType == that.messageType
                                   && lookup == that.lookup;
         }
 

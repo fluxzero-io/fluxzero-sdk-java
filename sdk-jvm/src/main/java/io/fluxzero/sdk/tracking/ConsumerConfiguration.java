@@ -49,8 +49,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -471,16 +473,21 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      */
     public static Stream<ConsumerConfiguration> configurations(Collection<Class<?>> handlerClasses) {
         List<Class<?>> types = handlerClasses.stream().distinct().toList();
-        List<Class<?>> scannableTypes = types.stream().filter(JvmComponentMetadataLookup::isScannable).toList();
-        Optional<ComponentMetadataLookup> lookup =
-                ComponentMetadataLookups.lookup(scannableTypes.toArray(Class<?>[]::new));
-        if (lookup.isEmpty()) {
-            return Stream.empty();
-        }
+        List<TypeLookup> lookups = types.stream()
+                .filter(JvmComponentMetadataLookup::isScannable)
+                .flatMap(type -> ComponentMetadataLookups.lookup(type)
+                        .map(lookup -> new TypeLookup(type, lookup)).stream())
+                .toList();
         Stream<ConsumerConfiguration> classConfigurations =
-                scannableTypes.stream().flatMap(type -> classConfigurations(lookup.get(), type));
-        return Stream.concat(classConfigurations, packageMetadata(scannableTypes, lookup.get())
-                .flatMap(ConsumerConfiguration::packageConfigurations));
+                lookups.stream().flatMap(entry -> classConfigurations(entry.lookup(), entry.type()));
+        Map<String, PackageDescriptor> packageDescriptors = lookups.stream()
+                .flatMap(entry -> packageMetadata(List.of(entry.type()), entry.lookup()))
+                .collect(Collectors.toMap(
+                        PackageDescriptor::packageName, Function.identity(), (a, b) -> a, LinkedHashMap::new));
+        Stream<ConsumerConfiguration> packageConfigurations = packageDescriptors.values().stream()
+                .sorted(Comparator.comparing(PackageDescriptor::packageName).reversed())
+                .flatMap(ConsumerConfiguration::packageConfigurations);
+        return Stream.concat(classConfigurations, packageConfigurations);
     }
 
     private static Stream<PackageDescriptor> packageMetadata(
@@ -495,9 +502,26 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .sorted(Comparator.comparing(PackageDescriptor::packageName).reversed());
     }
 
+    private record TypeLookup(Class<?> type, ComponentMetadataLookup lookup) {
+    }
+
     private static Stream<ConsumerConfiguration> classConfigurations(ComponentMetadataLookup lookup, Class<?> type) {
-        return consumerDescriptor(lookup.typeAnnotations(type.getName()))
+        return typeNames(type).stream()
+                .map(lookup::typeAnnotations)
+                .map(ConsumerConfiguration::consumerDescriptor)
+                .flatMap(Optional::stream)
+                .findFirst()
                 .map(c -> getConfiguration(c, h -> handlerType(h).equals(type))).stream();
+    }
+
+    private static List<String> typeNames(Class<?> type) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        result.add(type.getName());
+        String canonicalName = type.getCanonicalName();
+        if (canonicalName != null) {
+            result.add(canonicalName);
+        }
+        return List.copyOf(result);
     }
 
     private static Stream<ConsumerConfiguration> packageConfigurations(PackageDescriptor descriptor) {

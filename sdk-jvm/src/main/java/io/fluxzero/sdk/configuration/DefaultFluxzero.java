@@ -26,6 +26,7 @@ import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.DefaultMemoization;
@@ -132,6 +133,7 @@ import lombok.NonNull;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Executable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -1450,8 +1452,19 @@ public class DefaultFluxzero implements Fluxzero {
         public MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator(
                 MessageType messageType) {
             if (messageType == WEBREQUEST && !disableWebParameterValidation) {
-                return (message, target, executable, arguments) ->
+                return new MethodInvocationValidator<>() {
+                    @Override
+                    public void validate(
+                            DeserializingMessage message, Object target, Executable executable, Object[] arguments) {
                         validator.assertValidParameters(target, executable, arguments);
+                    }
+
+                    @Override
+                    public void validate(
+                            DeserializingMessage message, Object target, ExecutableView executable, Object[] arguments) {
+                        validator.assertValidParameters(target, executable, arguments);
+                    }
+                };
             }
             return MethodInvocationValidator.noOp();
         }

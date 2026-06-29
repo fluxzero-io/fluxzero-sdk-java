@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling.validation;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
+import jakarta.validation.Valid;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -73,25 +74,42 @@ public class ValidatingInterceptor implements HandlerInterceptor {
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        Optional<Executable> returnValidationExecutable = returnValidationExecutable(invoker);
+        Optional<ReturnValidation> returnValidation = returnValidation(invoker);
         return m -> {
             if (validatePayload) {
                 ValidationUtils.assertValid(m.getPayload(), validator);
             }
             Object result = function.apply(m);
-            if (returnValidationExecutable.isPresent() && m.getMessageType().isRequest()) {
-                validator.assertValidReturnValue(null, returnValidationExecutable.get(), result);
+            if (returnValidation.isPresent() && m.getMessageType().isRequest()) {
+                returnValidation.orElseThrow().assertValid(validator, result);
             }
             return result;
         };
     }
 
-    private Optional<Executable> returnValidationExecutable(HandlerInvoker invoker) {
+    private Optional<ReturnValidation> returnValidation(HandlerInvoker invoker) {
         Annotation methodAnnotation = invoker.getMethodAnnotation();
         if (methodAnnotation == null || invoker.isPassive() || !invoker.expectResult()) {
             return Optional.empty();
         }
-        return invoker.getExecutableView().executable()
+        Optional<Executable> executable = invoker.getExecutableView().executable()
                 .filter(validator::hasReturnValueValidation);
+        if (executable.isPresent()) {
+            return Optional.of(new ReturnValidation(executable, false));
+        }
+        if (invoker.getExecutableView().annotation(Valid.class).isPresent()) {
+            return Optional.of(new ReturnValidation(Optional.empty(), true));
+        }
+        return Optional.empty();
+    }
+
+    private record ReturnValidation(Optional<Executable> executable, boolean cascaded) {
+        private void assertValid(Validator validator, Object result) {
+            if (executable.isPresent()) {
+                validator.assertValidReturnValue(null, executable.orElseThrow(), result);
+            } else if (cascaded) {
+                ValidationUtils.assertValid(result, validator);
+            }
+        }
     }
 }

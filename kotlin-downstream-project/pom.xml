@@ -22,6 +22,7 @@
         <logback.version>1.5.34</logback.version>
         <maven.deploy.version>3.1.4</maven.deploy.version>
         <maven.enforcer.version>3.6.3</maven.enforcer.version>
+        <maven.exec.version>3.6.3</maven.exec.version>
         <maven.install.version>3.1.4</maven.install.version>
         <maven.resources.version>3.5.0</maven.resources.version>
         <maven.surefire.version>3.5.6</maven.surefire.version>
@@ -175,6 +176,25 @@
                         </configuration>
                     </execution>
                     <execution>
+                        <id>test-kapt</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>test-kapt</goal>
+                        </goals>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <annotationProcessorPath>
+                                    <groupId>io.fluxzero</groupId>
+                                    <artifactId>common</artifactId>
+                                </annotationProcessorPath>
+                                <annotationProcessorPath>
+                                    <groupId>io.fluxzero</groupId>
+                                    <artifactId>sdk-jvm</artifactId>
+                                </annotationProcessorPath>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>compile</id>
                         <phase>compile</phase>
                         <goals>
@@ -192,6 +212,58 @@
                 <configuration>
                     <jvmTarget>${maven.compiler.release}</jvmTarget>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${maven.exec.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-fluxzero-main-registry</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>io.fluxzero.sdk.registry.ComponentRegistryGenerator</mainClass>
+                            <classpathScope>runtime</classpathScope>
+                            <arguments>
+                                <argument>--source-root</argument>
+                                <argument>${project.basedir}/src/main/kotlin</argument>
+                                <argument>--class-root</argument>
+                                <argument>${project.build.outputDirectory}</argument>
+                                <argument>--output</argument>
+                                <argument>${project.build.outputDirectory}/META-INF/fluxzero/component-registry.json</argument>
+                                <argument>--merge-existing</argument>
+                                <argument>--metadata-only</argument>
+                                <argument>--skip-if-current</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-fluxzero-test-registry</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>io.fluxzero.sdk.registry.ComponentRegistryGenerator</mainClass>
+                            <classpathScope>test</classpathScope>
+                            <arguments>
+                                <argument>--test</argument>
+                                <argument>--source-root</argument>
+                                <argument>${project.basedir}/src/test/kotlin</argument>
+                                <argument>--class-root</argument>
+                                <argument>${project.build.testOutputDirectory}</argument>
+                                <argument>--output</argument>
+                                <argument>${project.build.testOutputDirectory}/META-INF/fluxzero/component-registry.json</argument>
+                                <argument>--merge-existing</argument>
+                                <argument>--metadata-only</argument>
+                                <argument>--skip-if-current</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

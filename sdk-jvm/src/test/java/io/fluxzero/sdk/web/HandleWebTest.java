@@ -105,7 +105,7 @@ public class HandleWebTest {
 
     @Nested
     class GenericTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(
+        private final TestFixture testFixture = TestFixture.create(DefaultFluxzero.builder().registerUserProvider(
                 new FixedUserProvider(() -> null)), new Handler());
 
         @Test
@@ -149,7 +149,7 @@ public class HandleWebTest {
 
         @Test
         void testExplicitHeadInOtherHandlerWinsOverAutomaticGetHead() {
-            TestFixture.createJvmCompatibility(new GetHeadFallbackHandler(), new ExplicitHeadHandler())
+            TestFixture.create(new GetHeadFallbackHandler(), new ExplicitHeadHandler())
                     .whenWebRequest(WebRequest.builder().method(HEAD).url("/sharedHead").build())
                     .expectWebResult(r -> r.getStatus() == 209
                                           && "explicitHead".equals(r.getHeader("X-Handler"))
@@ -158,7 +158,7 @@ public class HandleWebTest {
 
         @Test
         void testExplicitWildcardHeadInOtherHandlerWinsOverAutomaticGetHead() {
-            TestFixture.createJvmCompatibility(new GetHeadFallbackHandler(), new ExplicitWildcardHeadHandler())
+            TestFixture.create(new GetHeadFallbackHandler(), new ExplicitWildcardHeadHandler())
                     .whenWebRequest(WebRequest.builder().method(HEAD).url("/wildcardHead/value").build())
                     .expectWebResult(r -> r.getStatus() == 210
                                           && "explicitWildcardHead".equals(r.getHeader("X-Handler"))
@@ -167,7 +167,7 @@ public class HandleWebTest {
 
         @Test
         void testAnyHandlerInOtherHandlerWinsOverAutomaticGetHead() {
-            TestFixture.createJvmCompatibility(new GetHeadFallbackHandler(), new ExplicitAnyHandler())
+            TestFixture.create(new GetHeadFallbackHandler(), new ExplicitAnyHandler())
                     .whenWebRequest(WebRequest.builder().method(HEAD).url("/anyHead").build())
                     .expectWebResult(r -> r.getStatus() == 211
                                           && "anyHead".equals(r.getHeader("X-Handler"))
@@ -189,28 +189,28 @@ public class HandleWebTest {
 
         @Test
         void testExplicitOptionsInOtherHandlerWinsOverAutomaticOptions() {
-            TestFixture.createJvmCompatibility(new GetOptionsFallbackHandler(), new ExplicitOptionsHandler())
+            TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitOptionsHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/sharedOptions").build())
                     .expectResult("explicitOptions");
         }
 
         @Test
         void testExplicitWildcardOptionsInOtherHandlerWinsOverAutomaticOptions() {
-            TestFixture.createJvmCompatibility(new GetOptionsFallbackHandler(), new ExplicitWildcardOptionsHandler())
+            TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitWildcardOptionsHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/wildcardOptions/value").build())
                     .expectResult("explicitWildcardOptions");
         }
 
         @Test
         void testAnyHandlerInOtherHandlerWinsOverAutomaticOptions() {
-            TestFixture.createJvmCompatibility(new GetOptionsFallbackHandler(), new ExplicitAnyHandler())
+            TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitAnyHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/anyOptions").build())
                     .expectResult("anyOptions");
         }
 
         @Test
         void testApiDocInfoServesOpenApiBelowClassPath() {
-            TestFixture.createJvmCompatibility(new OpenApiEndpointHandler())
+            TestFixture.create(new OpenApiEndpointHandler())
                     .whenGet("/classDocs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -224,7 +224,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesRedocReferenceBelowClassPath() {
-            TestFixture.createJvmCompatibility(new OpenApiEndpointHandler())
+            TestFixture.create(new OpenApiEndpointHandler())
                     .whenGet("/classDocs/docs")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -237,7 +237,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesOpenApiAtConfiguredAbsolutePath() {
-            TestFixture.createJvmCompatibility(new AbsoluteOpenApiEndpointHandler())
+            TestFixture.create(new AbsoluteOpenApiEndpointHandler())
                     .whenGet("/docs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -250,7 +250,7 @@ public class HandleWebTest {
 
         @Test
         void testApiReferenceAlsoServesOpenApiDocument() {
-            TestFixture.createJvmCompatibility(new ScalarReferenceEndpointHandler())
+            TestFixture.create(new ScalarReferenceEndpointHandler())
                     .whenGet("/scalarDocs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -263,7 +263,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesScalarReference() {
-            TestFixture.createJvmCompatibility(new ScalarReferenceEndpointHandler())
+            TestFixture.create(new ScalarReferenceEndpointHandler())
                     .whenGet("/scalarDocs/reference")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -275,7 +275,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesSwaggerUiReferenceAtConfiguredAbsolutePath() {
-            TestFixture.createJvmCompatibility(new SwaggerUiReferenceEndpointHandler())
+            TestFixture.create(new SwaggerUiReferenceEndpointHandler())
                     .whenGet("/swagger-ui")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -288,7 +288,7 @@ public class HandleWebTest {
 
         @Test
         void testApiReferenceUsesConfiguredAssetUrls() {
-            TestFixture.createJvmCompatibility(new CustomReferenceAssetEndpointHandler())
+            TestFixture.create(new CustomReferenceAssetEndpointHandler())
                     .whenGet("/customDocs/docs")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -301,7 +301,7 @@ public class HandleWebTest {
 
         @Test
         void testPackageApiDocInfoServesOpenApiBelowPackagePath() {
-            TestFixture.createJvmCompatibility(new PackageDocHandler())
+            TestFixture.create(new PackageDocHandler())
                     .whenGet("/packageDocs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -314,7 +314,7 @@ public class HandleWebTest {
 
         @Test
         void testAutomaticOptionsIncludesAutomaticOpenApiEndpoint() {
-            TestFixture.createJvmCompatibility(new OpenApiEndpointHandler())
+            TestFixture.create(new OpenApiEndpointHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/openapi.json").build())
                     .expectWebResult(response -> response.getStatus() == 204
                                                  && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));
@@ -322,7 +322,7 @@ public class HandleWebTest {
 
         @Test
         void testAutomaticOptionsIncludesAutomaticApiReferenceEndpoint() {
-            TestFixture.createJvmCompatibility(new OpenApiEndpointHandler())
+            TestFixture.create(new OpenApiEndpointHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/docs").build())
                     .expectWebResult(response -> response.getStatus() == 204
                                                  && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));
@@ -380,17 +380,7 @@ public class HandleWebTest {
             CompletableFuture<String> firstBytesRead = new CompletableFuture<>();
             CompletableFuture<String> completed = new CompletableFuture<>();
             AtomicBoolean headerSeen = new AtomicBoolean();
-            TestFixture.createAsyncJvmCompatibility(new Object() {
-                @HandlePost("/stream/request")
-                String stream(InputStream payload, WebRequest request) throws Exception {
-                    headerSeen.set("yes".equals(request.getHeader("X-Chunked-Test")));
-                    String first = new String(payload.readNBytes(6), StandardCharsets.UTF_8);
-                    firstBytesRead.complete(first);
-                    String rest = new String(payload.readAllBytes(), StandardCharsets.UTF_8);
-                    completed.complete(rest);
-                    return first + rest;
-                }
-            }).whenApplying(fc -> {
+            TestFixture.createAsync(new StreamRequestHandler(firstBytesRead, completed, headerSeen)).whenApplying(fc -> {
                 WebRequest request = WebRequest.builder().method(POST).url("/stream/request")
                         .payload(new byte[0]).header("Content-Type", "application/octet-stream")
                         .header("X-Chunked-Test", "yes").build();
@@ -432,19 +422,13 @@ public class HandleWebTest {
             for (int i = 0; i < payload.length; i++) {
                 payload[i] = (byte) (i % 251);
             }
-            TestFixture asyncFixture = TestFixture.createAsyncJvmCompatibility().resultTimeout(Duration.ofSeconds(1))
+            TestFixture asyncFixture = TestFixture.createAsync().resultTimeout(Duration.ofSeconds(1))
                     .consumerTimeout(Duration.ofSeconds(1));
             List<SerializedMessage> observed = new ArrayList<>();
             var registration = asyncFixture.getFluxzero().client().getGatewayClient(MessageType.WEBRESPONSE)
                     .registerMonitor(observed::addAll);
             try {
-                asyncFixture.registerHandlers(new Object() {
-                            @HandleGet("/chunkedResponse")
-                            WebResponse chunkedResponse() {
-                                return WebResponse.ok(() -> new java.io.ByteArrayInputStream(payload),
-                                                      Map.of("Content-Type", "application/octet-stream"));
-                            }
-                        })
+                asyncFixture.registerHandlers(new ChunkedResponseHandler(payload))
                         .whenGet("/chunkedResponse")
                         .expectThat(fc -> {
                             assertEquals(2, observed.size());
@@ -503,7 +487,7 @@ public class HandleWebTest {
 
         @Test
         void testGetStreamingSearchResponse() {
-            TestFixture.createJvmCompatibility(new StreamingSearchHandler())
+            TestFixture.create(new StreamingSearchHandler())
                     .givenDocument(new StreamingSearchDocument("foo", Instant.parse("2024-01-01T00:00:00Z")))
                     .givenDocument(new StreamingSearchDocument("bar", Instant.parse("2024-01-01T00:00:01Z")))
                     .whenGet("/searchStream")
@@ -616,7 +600,7 @@ public class HandleWebTest {
         @Test
         void testPostPayloadRequiringUser_validWithUser() {
             PayloadRequiringUser object = new PayloadRequiringUser();
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(
+            TestFixture.create(DefaultFluxzero.builder().registerUserProvider(
                             new FixedUserProvider(new MockUser())), new Handler())
                     .whenWebRequest(WebRequest.builder().method(POST).url("/requiresUser").payload(object).build())
                     .expectResult(object);
@@ -631,7 +615,7 @@ public class HandleWebTest {
 
         @Test
         void testGetUser_validWithUser() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(
+            TestFixture.create(DefaultFluxzero.builder().registerUserProvider(
                             new FixedUserProvider(new MockUser())), new Handler())
                     .whenGet("/getUser")
                     .expectResult(User.class)
@@ -652,11 +636,7 @@ public class HandleWebTest {
 
         @Test
         void testExpectWebRequestEmptyPayload() {
-            TestFixture.createJvmCompatibility(new Object() {
-                        @HandlePost("/foo")
-                        void foo() {
-                        }
-                    }).whenApplying(fc -> fc.webRequestGateway().sendAndWait(
+            TestFixture.create(new EmptyPayloadHandler()).whenApplying(fc -> fc.webRequestGateway().sendAndWait(
                             WebRequest.builder().method(POST).url("/foo").build()))
                     .expectWebRequest(r -> r.getMethod() == POST);
 
@@ -670,7 +650,7 @@ public class HandleWebTest {
                 return error;
             };
 
-            TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder().configureDefaultConsumer(
+            TestFixture.createAsync(DefaultFluxzero.builder().configureDefaultConsumer(
                                     MessageType.WEBREQUEST,
                                     c -> c.toBuilder().errorHandler(errorHandler).build()),
                                new Handler())
@@ -686,7 +666,7 @@ public class HandleWebTest {
             AtomicReference<Thread> batchThread = new AtomicReference<>();
             AtomicReference<Thread> handlerThread = new AtomicReference<>();
 
-            TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.createAsync(DefaultFluxzero.builder()
                                             .replacePropertySource(existing -> new SimplePropertySource(Map.of(
                                                     ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
                                                     "2026.06.20")).andThen(existing))
@@ -708,7 +688,7 @@ public class HandleWebTest {
             AtomicReference<Thread> batchThread = new AtomicReference<>();
             AtomicReference<Thread> handlerThread = new AtomicReference<>();
 
-            TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.createAsync(DefaultFluxzero.builder()
                                             .replacePropertySource(existing -> new SimplePropertySource(Map.of(
                                                     ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
                                                     "2026.06.20")).andThen(existing))
@@ -1107,7 +1087,7 @@ public class HandleWebTest {
     @Nested
     class PathTests {
 
-        final TestFixture testFixture = TestFixture.createJvmCompatibility(
+        final TestFixture testFixture = TestFixture.create(
                 new ClassPathHandler(),
                 new PackagePathHandler(),
                 new SubPathHandler(),
@@ -1159,7 +1139,7 @@ public class HandleWebTest {
 
     @Nested
     class AnnotationOverrides {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler());
+        private final TestFixture testFixture = TestFixture.create(new Handler());
 
         @Test
         void testGet() {
@@ -1250,7 +1230,7 @@ public class HandleWebTest {
 
     @Nested
     class StaticFileTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new ClasspathHandler(), new FileSystemHandler());
+        private final TestFixture testFixture = TestFixture.create(new ClasspathHandler(), new FileSystemHandler());
 
         @Test
         void normalGet() {
@@ -1271,7 +1251,7 @@ public class HandleWebTest {
 
         @Test
         void serveLogo_relative() {
-            TestFixture.createJvmCompatibility(new RelativeClasspathHandler()).whenGet("/web/static/assets/logo.svg")
+            TestFixture.create(new RelativeClasspathHandler()).whenGet("/web/static/assets/logo.svg")
                     .expectResult(testContents("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
         }
 
@@ -1297,14 +1277,14 @@ public class HandleWebTest {
 
         @Test
         void rejectTraversalSegmentFromStaticRoot() {
-            TestFixture.createJvmCompatibility(new NoFallbackClasspathHandler())
+            TestFixture.create(new NoFallbackClasspathHandler())
                     .whenGet("/static/../index.html")
                     .expectWebResult(r -> r.getStatus() == 404);
         }
 
         @Test
         void rejectNestedTraversalSegment() {
-            TestFixture.createJvmCompatibility(new NoFallbackClasspathHandler())
+            TestFixture.create(new NoFallbackClasspathHandler())
                     .whenGet("/static/assets/../index.html")
                     .expectWebResult(r -> r.getStatus() == 404);
         }
@@ -1317,37 +1297,37 @@ public class HandleWebTest {
 
         @Test
         void serveCleanUrlHtmlFromRootStaticHandler() {
-            TestFixture.createJvmCompatibility(new RootClasspathHandler()).whenGet("/about")
+            TestFixture.create(new RootClasspathHandler()).whenGet("/about")
                     .expectWebResult(testContents("About clean URL"));
         }
 
         @Test
         void serveCleanUrlNestedHtmlFromRootStaticHandler() {
-            TestFixture.createJvmCompatibility(new RootClasspathHandler()).whenGet("/docs/intro")
+            TestFixture.create(new RootClasspathHandler()).whenGet("/docs/intro")
                     .expectWebResult(testContents("Docs intro clean URL"));
         }
 
         @Test
         void serveCleanUrlDirectoryIndexFromRootStaticHandler() {
-            TestFixture.createJvmCompatibility(new RootClasspathHandler()).whenGet("/docs")
+            TestFixture.create(new RootClasspathHandler()).whenGet("/docs")
                     .expectWebResult(testContents("Docs index clean URL"));
         }
 
         @Test
         void serveCleanUrlFallbackFromRootStaticHandler() {
-            TestFixture.createJvmCompatibility(new RootClasspathHandler()).whenGet("/unknown-route")
+            TestFixture.create(new RootClasspathHandler()).whenGet("/unknown-route")
                     .expectWebResult(testContents("<!DOCTYPE html>"));
         }
 
         @Test
         void cleanUrlsCanBeDisabled() {
-            TestFixture.createJvmCompatibility(new CleanUrlsDisabledClasspathHandler()).whenGet("/clean-disabled/about")
+            TestFixture.create(new CleanUrlsDisabledClasspathHandler()).whenGet("/clean-disabled/about")
                     .expectWebResult(r -> r.getStatus() == 404);
         }
 
         @Test
         void dontServeRootStaticHandlerForDefaultApiIgnorePath() {
-            TestFixture.createJvmCompatibility(new RootClasspathHandler()).whenGet("/api/whatever")
+            TestFixture.create(new RootClasspathHandler()).whenGet("/api/whatever")
                     .expectExceptionalResult(TimeoutException.class);
         }
 
@@ -1381,7 +1361,7 @@ public class HandleWebTest {
 
         @Test
         void serveUsingBasicStaticHandler() {
-            TestFixture.createJvmCompatibility(new BasicStaticHandler()).whenGet("/abc.txt")
+            TestFixture.create(new BasicStaticHandler()).whenGet("/abc.txt")
                     .expectWebResult(testContents("123"))
                     .andThen()
                     .whenGet("")
@@ -1393,7 +1373,7 @@ public class HandleWebTest {
             CompletableFuture<Thread> batchThread = new CompletableFuture<>();
             CompletableFuture<Thread> handlerThread = new CompletableFuture<>();
 
-            TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.createAsync(DefaultFluxzero.builder()
                                             .replacePropertySource(existing -> new SimplePropertySource(Map.of(
                                                     ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
                                                     "2026.06.20")).andThen(existing))
@@ -1474,7 +1454,7 @@ public class HandleWebTest {
 
     @Nested
     class StaticAndWebSocketTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new CombinedHandler());
+        private final TestFixture testFixture = TestFixture.create(new CombinedHandler());
 
         @Test
         void serveStaticAndHandleSocketOpenFromSameClass() {
@@ -1508,7 +1488,7 @@ public class HandleWebTest {
 
         @Nested
         class Sync {
-            private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler());
+            private final TestFixture testFixture = TestFixture.create(new Handler());
 
             @Test
             void testOpen() {
@@ -1537,7 +1517,7 @@ public class HandleWebTest {
 
         @Nested
         class Async {
-            private final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility(new Handler())
+            private final TestFixture testFixture = TestFixture.createAsync(new Handler())
                     .resultTimeout(Duration.ofSeconds(1)).consumerTimeout(Duration.ofSeconds(1)).spy();
 
             @Test
@@ -1576,7 +1556,7 @@ public class HandleWebTest {
         @Nested
         class SocketEndpointTests {
             static final String endpointUrl = "/endpoint";
-            private final TestFixture testFixture = TestFixture.createJvmCompatibility();
+            private final TestFixture testFixture = TestFixture.create();
 
             @Nested
             class ConstructorTests {
@@ -1933,7 +1913,7 @@ public class HandleWebTest {
 
                 @Test
                 void testOpenRequiresUser_withUser() {
-                    TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(new FixedUserProvider(new MockUser())), Endpoint.class)
+                    TestFixture.create(DefaultFluxzero.builder().registerUserProvider(new FixedUserProvider(new MockUser())), Endpoint.class)
                             .whenWebRequest(toWebRequest(WS_OPEN).toBuilder().url(endpointUrl + "/user").build())
                             .expectSuccessfulResult()
                             .expectWebResponses("open with user: testSession");
@@ -2025,7 +2005,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeRequiresUserFromOpenHandler() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
                         .expectExceptionalResult(UnauthenticatedException.class);
@@ -2033,7 +2013,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeAuthFailureNamesHandshakePathAndHandlerReason() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
                         .expectExceptionalResult((UnauthenticatedException e) ->
@@ -2043,7 +2023,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeRequiresUserFromMessageHandlerWhenOpenIsMissing() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/message").build())
                         .expectExceptionalResult(UnauthenticatedException.class);
@@ -2051,7 +2031,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeSilentlySkipsWhenRequirementIsSilent() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/silent").build())
                         .expectExceptionalResult(TimeoutException.class);
@@ -2059,7 +2039,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeRequiresUserFromPongHandlerWhenOpenAndMessageAreMissing() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/pong").build())
                         .expectExceptionalResult(UnauthenticatedException.class);
@@ -2067,7 +2047,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeRequiresUserFromCloseHandlerWhenOtherLifecycleHandlersAreMissing() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/close").build())
                         .expectExceptionalResult(UnauthenticatedException.class);
@@ -2075,7 +2055,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeUsesOpenBeforeMoreRestrictiveLifecycleHandlers() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE)
                                                 .url("/secured/openPriority").build())
@@ -2084,7 +2064,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeUsesMessageBeforeMoreRestrictiveLifecycleHandlersWhenOpenIsMissing() {
-                TestFixture.createJvmCompatibility(new SecuredHandshakeHandler())
+                TestFixture.create(new SecuredHandshakeHandler())
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE)
                                                 .url("/secured/messagePriority").build())
@@ -2093,7 +2073,7 @@ public class HandleWebTest {
 
             @Test
             void testAutoHandshakeAllowedWithUser() {
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(
                                 new FixedUserProvider(new MockUser())), new SecuredHandshakeHandler())
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
                         .expectSuccessfulResult();
@@ -2170,7 +2150,7 @@ public class HandleWebTest {
             void testSocketSessionPinsUserForMessages() {
                 BlockingUserProvider userProvider = new BlockingUserProvider();
 
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
                                    new SessionUserHandler())
                         .givenWebRequest(toSessionUserRequest(WS_OPEN))
                         .given(fc -> userProvider.disableUserResolution())
@@ -2182,7 +2162,7 @@ public class HandleWebTest {
             void testSocketSessionPinsUserForPong() {
                 BlockingUserProvider userProvider = new BlockingUserProvider();
 
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
                                    new SessionUserHandler())
                         .givenWebRequest(toSessionUserRequest(WS_OPEN))
                         .given(fc -> userProvider.disableUserResolution())
@@ -2194,7 +2174,7 @@ public class HandleWebTest {
             void testSocketSessionPinsUserForClose() {
                 BlockingUserProvider userProvider = new BlockingUserProvider();
 
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
                                    new SessionUserHandler())
                         .givenWebRequest(toSessionUserRequest(WS_OPEN))
                         .given(fc -> userProvider.disableUserResolution())
@@ -2206,7 +2186,7 @@ public class HandleWebTest {
             void testSocketSessionRefreshesPinnedUserWhenProviderSupportsIt() {
                 RefreshingSocketUserProvider userProvider = new RefreshingSocketUserProvider();
 
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
                                    new RefreshingSessionUserHandler())
                         .givenWebRequest(toRefreshUserRequest(WS_OPEN))
                         .given(fc -> userProvider.disableUserResolution())
@@ -2216,7 +2196,7 @@ public class HandleWebTest {
 
             @Test
             void testSocketOpenUsesRequestUserWhenSessionAlreadyExists() {
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().registerUserProvider(new HeaderUserProvider()),
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(new HeaderUserProvider()),
                                    new ReopeningSessionUserHandler())
                         .givenWebRequest(toHeaderUserRequest(WS_OPEN, "first"))
                         .whenWebRequest(toHeaderUserRequest(WS_OPEN, "second"))
@@ -2432,70 +2412,123 @@ public class HandleWebTest {
 
         @Test
         void testWithHeader() {
-            TestFixture.createJvmCompatibility(new Object() {
-                @HandleGet("/checkHeader")
-                String check(WebRequest request) {
-                    return Optional.ofNullable(request.getHeader("foo")).orElseThrow();
-                }
-            }).withHeader("foo", "bar").whenGet("/checkHeader").expectResult("bar");
+            TestFixture.create(new HeaderValueHandler())
+                    .withHeader("foo", "bar").whenGet("/checkHeader").expectResult("bar");
         }
 
         @Test
         void testValidCookieHeader() {
-            TestFixture.createJvmCompatibility(new Object() {
-                        @HandleGet("/checkHeader")
-                        String check(WebRequest request) {
-                            return request.getCookie("foo").map(HttpCookie::getValue).orElse(null);
-                        }
-                    }).withHeader("cookie", "foo=bar=bar").whenGet("/checkHeader")
+            TestFixture.create(new HeaderCookieHandler())
+                    .withHeader("cookie", "foo=bar=bar").whenGet("/checkHeader")
                     .expectResult("bar=bar");
         }
 
         @Test
         void testInvalidCookieHeader() {
-            TestFixture.createJvmCompatibility(new Object() {
-                        @HandleGet("/checkHeader")
-                        String check(WebRequest request) {
-                            return request.getCookie("").map(HttpCookie::getValue).orElse(null);
-                        }
-                    }).withHeader("cookie", "bar").whenGet("/checkHeader")
+            TestFixture.create(new InvalidHeaderCookieHandler())
+                    .withHeader("cookie", "bar").whenGet("/checkHeader")
                     .expectNoResult().expectNoErrors();
         }
 
         @Test
         void testWithoutHeader() {
-            TestFixture.createJvmCompatibility(new Object() {
-                        @HandleGet("/checkHeader")
-                        String check(WebRequest request) {
-                            return Optional.ofNullable(request.getHeader("foo")).orElseThrow();
-                        }
-                    }).withHeader("foo", "bar")
+            TestFixture.create(new HeaderValueHandler()).withHeader("foo", "bar")
                     .withoutHeader("foo").whenGet("/checkHeader").expectExceptionalResult();
         }
 
         @Test
         void testWithCookie() {
-            TestFixture.createJvmCompatibility(new Object() {
-                @HandleGet("/checkCookie")
-                String check(WebRequest request) {
-                    return request.getCookie("foo").orElseThrow().getValue();
-                }
-            }).withCookie("foo", "bar").whenGet("/checkCookie").expectResult("bar");
+            TestFixture.create(new CookieValueHandler())
+                    .withCookie("foo", "bar").whenGet("/checkCookie").expectResult("bar");
         }
 
         @Test
         void returnedCookieIsUsed() {
-            TestFixture.createJvmCompatibility(new Object() {
-                @HandlePost("/signIn")
-                WebResponse signIn(String userName) {
-                    return WebResponse.builder().cookie(new HttpCookie("user", userName)).build();
-                }
+            TestFixture.create(new ReturnedCookieHandler())
+                    .givenPost("signIn", "testUser").whenGet("getUser").expectResult("testUser");
+        }
+    }
 
-                @HandleGet("/getUser")
-                String getUser(WebRequest request) {
-                    return request.getCookie("user").orElseThrow().getValue();
-                }
-            }).givenPost("signIn", "testUser").whenGet("getUser").expectResult("testUser");
+    static class StreamRequestHandler {
+        private final CompletableFuture<String> firstBytesRead;
+        private final CompletableFuture<String> completed;
+        private final AtomicBoolean headerSeen;
+
+        StreamRequestHandler(CompletableFuture<String> firstBytesRead, CompletableFuture<String> completed,
+                             AtomicBoolean headerSeen) {
+            this.firstBytesRead = firstBytesRead;
+            this.completed = completed;
+            this.headerSeen = headerSeen;
+        }
+
+        @HandlePost("/stream/request")
+        String stream(InputStream payload, WebRequest request) throws Exception {
+            headerSeen.set("yes".equals(request.getHeader("X-Chunked-Test")));
+            String first = new String(payload.readNBytes(6), StandardCharsets.UTF_8);
+            firstBytesRead.complete(first);
+            String rest = new String(payload.readAllBytes(), StandardCharsets.UTF_8);
+            completed.complete(rest);
+            return first + rest;
+        }
+    }
+
+    static class ChunkedResponseHandler {
+        private final byte[] payload;
+
+        ChunkedResponseHandler(byte[] payload) {
+            this.payload = payload;
+        }
+
+        @HandleGet("/chunkedResponse")
+        WebResponse chunkedResponse() {
+            return WebResponse.ok(() -> new java.io.ByteArrayInputStream(payload),
+                                  Map.of("Content-Type", "application/octet-stream"));
+        }
+    }
+
+    static class EmptyPayloadHandler {
+        @HandlePost("/foo")
+        void foo() {
+        }
+    }
+
+    static class HeaderValueHandler {
+        @HandleGet("/checkHeader")
+        String check(WebRequest request) {
+            return Optional.ofNullable(request.getHeader("foo")).orElseThrow();
+        }
+    }
+
+    static class HeaderCookieHandler {
+        @HandleGet("/checkHeader")
+        String check(WebRequest request) {
+            return request.getCookie("foo").map(HttpCookie::getValue).orElse(null);
+        }
+    }
+
+    static class InvalidHeaderCookieHandler {
+        @HandleGet("/checkHeader")
+        String check(WebRequest request) {
+            return request.getCookie("").map(HttpCookie::getValue).orElse(null);
+        }
+    }
+
+    static class CookieValueHandler {
+        @HandleGet("/checkCookie")
+        String check(WebRequest request) {
+            return request.getCookie("foo").orElseThrow().getValue();
+        }
+    }
+
+    static class ReturnedCookieHandler {
+        @HandlePost("/signIn")
+        WebResponse signIn(String userName) {
+            return WebResponse.builder().cookie(new HttpCookie("user", userName)).build();
+        }
+
+        @HandleGet("/getUser")
+        String getUser(WebRequest request) {
+            return request.getCookie("user").orElseThrow().getValue();
         }
     }
 

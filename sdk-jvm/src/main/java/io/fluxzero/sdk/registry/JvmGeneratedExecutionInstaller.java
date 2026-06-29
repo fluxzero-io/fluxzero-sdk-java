@@ -24,14 +24,19 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * JVM bridge that lowers registry invocation plans to executable invocation handles.
@@ -58,14 +63,17 @@ public final class JvmGeneratedExecutionInstaller {
             ComponentRegistry registry, ClassLoader preferredLoader, Collection<String> componentNames) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(componentNames, "componentNames");
-        Set<String> requestedNames = new HashSet<>(componentNames);
-        ComponentRegistry normalized = requestedNames.isEmpty() ? registry.normalized()
-                : new ComponentRegistry(
+        Set<String> rootNames = resolveRequestedComponentNames(registry, componentNames);
+        Set<String> requestedNames = expandRequestedComponentNames(registry, rootNames);
+        boolean limitedInstall = !componentNames.isEmpty();
+        ComponentRegistry normalized = limitedInstall
+                ? new ComponentRegistry(
                         registry.sourceRoot(),
                         List.of(),
                         registry.components().stream()
                                 .filter(component -> requestedNames.contains(component.fullClassName()))
-                                .toList()).normalized();
+                                .toList()).normalized()
+                : registry.normalized();
         if (normalized.isEmpty()) {
             return Registration.noOp();
         }
@@ -76,7 +84,9 @@ public final class JvmGeneratedExecutionInstaller {
             if (targetClass.isEmpty()) {
                 continue;
             }
-            installInvocations(component, targetClass.orElseThrow(), registrations);
+            if (!limitedInstall || rootNames.contains(component.fullClassName())) {
+                installInvocations(component, targetClass.orElseThrow(), registrations);
+            }
             installPropertyAccesses(component, targetClass.orElseThrow(), registrations);
         }
         return () -> {
@@ -88,6 +98,96 @@ public final class JvmGeneratedExecutionInstaller {
                 }
             }
         };
+    }
+
+    private static Set<String> resolveRequestedComponentNames(
+            ComponentRegistry registry, Collection<String> componentNames) {
+        if (componentNames.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, ComponentDescriptor> componentsByName = new LinkedHashMap<>();
+        registry.components().forEach(component -> componentsByName.put(component.fullClassName(), component));
+        return componentNames.stream()
+                .map(componentName -> resolveComponentName(componentsByName, componentName))
+                .flatMap(Optional::stream)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private static Set<String> expandRequestedComponentNames(
+            ComponentRegistry registry, Collection<String> componentNames) {
+        Map<String, ComponentDescriptor> componentsByName = new LinkedHashMap<>();
+        registry.components().forEach(component -> componentsByName.put(component.fullClassName(), component));
+        if (componentNames.isEmpty() || componentsByName.isEmpty()) {
+            return Set.copyOf(componentNames);
+        }
+        Set<String> requestedNames = new LinkedHashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        componentNames.stream()
+                .map(componentName -> resolveComponentName(componentsByName, componentName))
+                .flatMap(Optional::stream)
+                .forEach(componentName -> enqueue(componentName, requestedNames, queue));
+        while (!queue.isEmpty()) {
+            ComponentDescriptor component = componentsByName.get(queue.removeFirst());
+            if (component == null) {
+                continue;
+            }
+            referencedTypeNames(component)
+                    .map(componentName -> resolveComponentName(componentsByName, componentName))
+                    .flatMap(Optional::stream)
+                    .forEach(componentName -> enqueue(componentName, requestedNames, queue));
+        }
+        return requestedNames;
+    }
+
+    private static void enqueue(String componentName, Set<String> requestedNames, Deque<String> queue) {
+        if (requestedNames.add(componentName)) {
+            queue.add(componentName);
+        }
+    }
+
+    private static Optional<String> resolveComponentName(
+            Map<String, ComponentDescriptor> componentsByName, String componentName) {
+        if (componentName == null || componentName.isBlank()) {
+            return Optional.empty();
+        }
+        String current = componentName;
+        while (true) {
+            if (componentsByName.containsKey(current)) {
+                return Optional.of(current);
+            }
+            int separator = current.lastIndexOf('.');
+            if (separator < 0) {
+                return Optional.empty();
+            }
+            current = current.substring(0, separator) + "$" + current.substring(separator + 1);
+        }
+    }
+
+    private static Stream<String> referencedTypeNames(ComponentDescriptor component) {
+        List<String> result = new ArrayList<>();
+        result.addAll(component.superTypeNames());
+        component.properties().forEach(property -> {
+            result.add(property.typeName());
+            result.add(property.genericTypeName());
+            collectTypeUseNames(property.typeUse(), result);
+        });
+        component.handlerRoutes().forEach(route -> {
+            result.addAll(route.payloadTypeNames());
+            result.addAll(route.allowedClassNames());
+        });
+        component.registeredTypes().stream()
+                .flatMap(registeredType -> registeredType.candidateTypeNames().stream())
+                .forEach(result::add);
+        return result.stream().filter(Objects::nonNull).distinct();
+    }
+
+    private static void collectTypeUseNames(TypeUseDescriptor typeUse, List<String> result) {
+        if (typeUse == null || typeUse == TypeUseDescriptor.EMPTY) {
+            return;
+        }
+        result.add(typeUse.typeName());
+        typeUse.typeArguments().forEach(argument -> collectTypeUseNames(argument, result));
+        collectTypeUseNames(typeUse.componentType(), result);
     }
 
     /**
@@ -117,13 +217,16 @@ public final class JvmGeneratedExecutionInstaller {
     private static void installInvocations(
             ComponentDescriptor component, Class<?> targetClass, List<AutoCloseable> registrations) {
         for (InvocationPlanDescriptor plan : invocationPlans(component)) {
-            if (GeneratedExecutableInvocations.find(targetClass, plan.executableId()).isPresent()) {
-                continue;
-            }
-            executable(targetClass, plan).ifPresent(executable -> registrations.add(
-                    GeneratedExecutableInvocations.register(
-                            targetClass, plan.executableId(),
-                            JVM_BACKEND.prepare(executable))));
+            executable(targetClass, plan).ifPresent(executable -> {
+                ExecutableInvocation invocation = JVM_BACKEND.prepare(executable);
+                boolean hasActiveInvocation = GeneratedExecutableInvocations.find(
+                        targetClass, plan.executableId()).isPresent();
+                registrations.add(hasActiveInvocation
+                        ? GeneratedExecutableInvocations.registerFallback(
+                                targetClass, plan.executableId(), invocation)
+                        : GeneratedExecutableInvocations.register(
+                                targetClass, plan.executableId(), invocation));
+            });
         }
     }
 
@@ -246,11 +349,23 @@ public final class JvmGeneratedExecutionInstaller {
 
     private static List<Method> allMethods(Class<?> targetClass) {
         List<Method> result = new ArrayList<>();
-        result.addAll(List.of(targetClass.getMethods()));
-        for (Class<?> current = targetClass; current != null; current = current.getSuperclass()) {
-            result.addAll(List.of(current.getDeclaredMethods()));
+        try {
+            result.addAll(List.of(targetClass.getMethods()));
+        } catch (NoClassDefFoundError | TypeNotPresentException ignored) {
+            return result;
         }
-        Arrays.stream(targetClass.getInterfaces()).flatMap(type -> allMethods(type).stream()).forEach(result::add);
+        for (Class<?> current = targetClass; current != null; current = current.getSuperclass()) {
+            try {
+                result.addAll(List.of(current.getDeclaredMethods()));
+            } catch (NoClassDefFoundError | TypeNotPresentException ignored) {
+                return result;
+            }
+        }
+        try {
+            Arrays.stream(targetClass.getInterfaces()).flatMap(type -> allMethods(type).stream()).forEach(result::add);
+        } catch (NoClassDefFoundError | TypeNotPresentException ignored) {
+            return result;
+        }
         return result;
     }
 

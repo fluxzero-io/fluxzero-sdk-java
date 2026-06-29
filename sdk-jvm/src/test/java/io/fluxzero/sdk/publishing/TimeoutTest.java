@@ -48,15 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TimeoutTest {
     @Test
     void testHandleSelf() {
-        @Timeout(10)
-        class HandleSelfRequest {
-            @HandleQuery
-            CompletableFuture<String> handle() {
-                return new CompletableFuture<>();
-            }
-        }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         fixture.whenApplying(fc -> Fluxzero.queryAndWait(new HandleSelfRequest()))
                 .expectExceptionalResult(TimeoutException.class);
         assertEmptyEventually(gatewayCallbacks(fixture.getFluxzero().queryGateway()));
@@ -64,15 +56,7 @@ class TimeoutTest {
 
     @Test
     void testHandleSelfAsync() {
-        @Timeout(10)
-        class HandleSelfRequest {
-            @HandleQuery
-            CompletableFuture<String> handle() {
-                return new CompletableFuture<>();
-            }
-        }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         fixture.whenApplying(fc -> fc.queryGateway().send(new HandleSelfRequest()))
                 .expectExceptionalResult(java.util.concurrent.TimeoutException.class);
         assertEmptyEventually(gatewayCallbacks(fixture.getFluxzero().queryGateway()));
@@ -80,11 +64,8 @@ class TimeoutTest {
 
     @Test
     void testUnhandled() {
-        @Timeout(10)
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
-        fixture.whenApplying(fc -> Fluxzero.queryAndWait(new UnhandledRequest()))
+        TestFixture fixture = TestFixture.create();
+        fixture.whenApplying(fc -> Fluxzero.queryAndWait(new TimeoutUnhandledRequest()))
                 .verifyExceptionalResult((TimeoutException e) -> {
                     assertTrue(e.getMessage().contains("FZ-SDK-0002"));
                     assertTrue(e.getMessage().contains("What happened:"));
@@ -96,25 +77,19 @@ class TimeoutTest {
 
     @Test
     void testUnhandledAsync() {
-        @Timeout(10)
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
-        fixture.whenApplying(fc -> fc.queryGateway().send(new UnhandledRequest()))
+        TestFixture fixture = TestFixture.create();
+        fixture.whenApplying(fc -> fc.queryGateway().send(new TimeoutUnhandledRequest()))
                 .expectExceptionalResult(java.util.concurrent.TimeoutException.class);
         assertEmptyEventually(requestHandlerCallbacks(fixture.getFluxzero().queryGateway()));
     }
 
     @Test
     void testTimeoutMetadataIsStoredForAsyncRequest() {
-        @Timeout(10)
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         AtomicReference<SerializedMessage> appended = new AtomicReference<>();
         Registration registration = ((LocalTrackingClient) fixture.getFluxzero().client()
                 .getTrackingClient(MessageType.QUERY)).registerMonitor(messages -> appended.set(messages.getFirst()));
-        fixture.getFluxzero().queryGateway().send(new UnhandledRequest());
+        fixture.getFluxzero().queryGateway().send(new TimeoutUnhandledRequest());
         try {
             assertNotNull(appended.get());
             assertEquals("10", appended.get().getMetadata().get(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY));
@@ -126,15 +101,12 @@ class TimeoutTest {
 
     @Test
     void testCustomRequestTimeoutOverridesAnnotatedTimeoutMetadata() {
-        @Timeout(10)
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         AtomicReference<SerializedMessage> appended = new AtomicReference<>();
         Registration registration = ((LocalTrackingClient) fixture.getFluxzero().client()
                 .getTrackingClient(MessageType.QUERY)).registerMonitor(messages -> appended.set(messages.getFirst()));
         DefaultGenericGateway gateway = getField(fixture.getFluxzero().queryGateway(), "delegate");
-        gateway.sendForMessage(new Message(new UnhandledRequest()), Duration.ofMillis(25));
+        gateway.sendForMessage(new Message(new TimeoutUnhandledRequest()), Duration.ofMillis(25));
         try {
             assertNotNull(appended.get());
             assertEquals("25", appended.get().getMetadata().get(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY));
@@ -146,13 +118,11 @@ class TimeoutTest {
 
     @Test
     void testDefaultRequestHandlerTimeoutMetadataIsStored() {
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT);
         SerializedMessage request = new SerializedMessage(
-                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                new Data<>(new byte[0], DefaultTimeoutRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
         CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, null, null);
         try {
@@ -165,14 +135,12 @@ class TimeoutTest {
 
     @Test
     void defaultRequestHandlerCancelsTimeoutTaskAfterCompletion() throws Exception {
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
                 "timeout-cancel-test");
         SerializedMessage request = new SerializedMessage(
-                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                new Data<>(new byte[0], DefaultTimeoutRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
         CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(60),
                                                                                     null);
@@ -192,14 +160,12 @@ class TimeoutTest {
 
     @Test
     void defaultRequestHandlerCompletesPendingRequestsWhenClosed() throws Exception {
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
                 "timeout-close-test");
         SerializedMessage request = new SerializedMessage(
-                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                new Data<>(new byte[0], DefaultTimeoutRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
         CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(60),
                                                                                     null);
@@ -223,15 +189,13 @@ class TimeoutTest {
 
     @Test
     void defaultRequestHandlerProcessesChunkedResponsesInOrder() throws Exception {
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         ExecutorService responseExecutor = Executors.newFixedThreadPool(2);
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(1),
                 "chunk-order-test", responseExecutor);
         SerializedMessage request = new SerializedMessage(
-                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                new Data<>(new byte[0], DefaultTimeoutRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
         CountDownLatch intermediateStarted = new CountDownLatch(1);
         CountDownLatch releaseIntermediate = new CountDownLatch(1);
@@ -261,15 +225,13 @@ class TimeoutTest {
 
     @Test
     void defaultRequestHandlerAggregatesChunkedResponsesWithoutIntermediateCallback() throws Exception {
-        class UnhandledRequest { }
-
-        TestFixture fixture = TestFixture.createJvmCompatibility();
+        TestFixture fixture = TestFixture.create();
         ExecutorService responseExecutor = Executors.newSingleThreadExecutor();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(1),
                 "chunk-aggregate-test", responseExecutor);
         SerializedMessage request = new SerializedMessage(
-                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                new Data<>(new byte[0], DefaultTimeoutRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
         CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(1),
                                                                                     null);
@@ -288,6 +250,21 @@ class TimeoutTest {
 
     private static Map<?, ?> gatewayCallbacks(Object gateway) {
         return getField(getField(gateway, "delegate"), "callbacks");
+    }
+
+    @Timeout(10)
+    private static class HandleSelfRequest {
+        @HandleQuery
+        CompletableFuture<String> handle() {
+            return new CompletableFuture<>();
+        }
+    }
+
+    @Timeout(10)
+    private static class TimeoutUnhandledRequest {
+    }
+
+    private static class DefaultTimeoutRequest {
     }
 
     private static Map<?, ?> requestHandlerCallbacks(Object gateway) {

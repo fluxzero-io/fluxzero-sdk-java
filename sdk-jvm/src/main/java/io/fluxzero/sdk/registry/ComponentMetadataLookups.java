@@ -45,12 +45,13 @@ import java.util.stream.Stream;
 /**
  * Resolves component metadata lookup backends for JVM runtime code.
  * <p>
- * Generated or registered component registries win. JVM classpath scanning is the compatibility fallback.
+ * Generated or registered component registries win. JVM classpath scanning is available only through explicit
+ * compatibility mode.
  */
 public final class ComponentMetadataLookups {
     /**
-     * Runtime metadata mode property. The current default is JVM compatibility mode: generated/registered metadata
-     * wins, with JVM classpath scanning as compatibility fallback.
+     * Runtime metadata mode property. The default is generated-only mode: generated/registered metadata wins, and JVM
+     * classpath scanning requires explicit compatibility opt-in.
      */
     public static final String METADATA_MODE_PROPERTY = "fluxzero.metadata.mode";
 
@@ -63,6 +64,11 @@ public final class ComponentMetadataLookups {
      * Metadata mode that forbids classpath/reflection fallback in the central resolver.
      */
     public static final String GENERATED_ONLY_MODE = "generated-only";
+
+    /**
+     * Default runtime metadata mode.
+     */
+    public static final String DEFAULT_METADATA_MODE = GENERATED_ONLY_MODE;
 
     /**
      * Metadata mode that also forbids migration-debt JVM backend categories.
@@ -691,7 +697,8 @@ public final class ComponentMetadataLookups {
 
     private static String configuredGlobalMetadataMode() {
         String configured = System.getProperty(METADATA_MODE_PROPERTY);
-        return configured == null || configured.isBlank() ? CONFIGURED_METADATA_MODE_ENV : configured.trim();
+        String global = configured == null || configured.isBlank() ? CONFIGURED_METADATA_MODE_ENV : configured.trim();
+        return global == null || global.isBlank() ? DEFAULT_METADATA_MODE : global;
     }
 
     private static String normalizedMode(String mode) {
@@ -717,7 +724,13 @@ public final class ComponentMetadataLookups {
         runWithMetadataMode(RuntimeMetadataMode.STRICT_GENERATED_ONLY, runnable);
     }
 
-    static void runInJvmCompatibilityMode(ThrowingRunnable runnable) throws Exception {
+    /**
+     * Runs a narrow scope in JVM compatibility mode.
+     * <p>
+     * This is an explicit opt-in for migration and test-harness cases that still need JVM reflection metadata while the
+     * ambient runtime remains generated-only.
+     */
+    public static void runInJvmCompatibilityMode(ThrowingRunnable runnable) throws Exception {
         runWithMetadataMode(RuntimeMetadataMode.JVM_COMPATIBILITY, runnable);
     }
 

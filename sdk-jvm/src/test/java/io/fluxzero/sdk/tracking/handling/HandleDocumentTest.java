@@ -30,37 +30,17 @@ import java.util.List;
 
 public class HandleDocumentTest {
 
-    protected TestFixture testFixture = TestFixture.createJvmCompatibility();
+    protected TestFixture testFixture = TestFixture.create();
 
     @Test
     void handleDocument_class() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument(documentClass = SomeDocument.class)
-                    void handleClass() {
-                        Fluxzero.publishEvent("someDocument");
-                    }
-
-                    @HandleDocument("otherDoc")
-                    void handleName() {
-                        Fluxzero.publishEvent("otherDocument");
-                    }
-                }).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
+        testFixture.registerHandlers(new DocumentClassHandler()).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
                 .expectOnlyEvents("someDocument");
     }
 
     @Test
     void handleDocument_collectionName() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument("someDoc")
-                    void handleName() {
-                        Fluxzero.publishEvent("someDocument");
-                    }
-
-                    @HandleDocument("otherDoc")
-                    void handleOther() {
-                        Fluxzero.publishEvent("otherDocument");
-                    }
-                }).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
+        testFixture.registerHandlers(new DocumentCollectionHandler()).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
                 .expectOnlyEvents("someDocument")
                 .andThen()
                 .whenExecuting(fc -> Fluxzero.index("foo", "otherDoc").get())
@@ -70,12 +50,7 @@ public class HandleDocumentTest {
     @Test
     void handleDocument_firstParam() {
         testFixture
-                .registerHandlers(new Object() {
-                    @HandleDocument
-                    void handle(SomeDocument document) {
-                        Fluxzero.publishEvent("someDocument");
-                    }
-                })
+                .registerHandlers(new DocumentFirstParamHandler())
                 .whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
                 .expectTrue(fc -> Fluxzero.search(SomeDocument.class).count() == 1)
                 .expectEvents("someDocument");
@@ -83,36 +58,22 @@ public class HandleDocumentTest {
 
     @Test
     void deletingDocument() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument
-                    Object handle(SomeDocument doc) {
-                        return null;
-                    }
-                }).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
+        testFixture.registerHandlers(new DeletingDocumentHandler()).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
                 .expectNoErrors()
                 .expectTrue(fc -> Fluxzero.search(SomeDocument.class).count() == 0);
     }
 
     @Test
     void notDeletingDocumentIfReturnTypeIsWrong() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument
-                    String handle(SomeDocument doc) {
-                        return null;
-                    }
-                }).whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
+        testFixture.registerHandlers(new WrongReturnTypeDocumentHandler())
+                .whenExecuting(fc -> Fluxzero.index(new SomeDocument()).get())
                 .expectNoErrors()
                 .expectTrue(fc -> Fluxzero.search(SomeDocument.class).count() == 1);
     }
 
     @Test
     void updateRevision() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument
-                    MyDocument handleClass(MyDocument document) {
-                        return document.toBuilder().value("bar").build();
-                    }
-                }).whenExecuting(fc -> {
+        testFixture.registerHandlers(new RevisionUpdatingDocumentHandler()).whenExecuting(fc -> {
                     var serializedDocument = fc.documentStore().getSerializer().toDocument(
                             new MyDocument("foo"), "123", MyDocument.class.getSimpleName(), null, null);
                     Data<byte[]> data = serializedDocument.getDocument();
@@ -130,13 +91,8 @@ public class HandleDocumentTest {
 
     @Test
     void noUpdateIfSameRevision() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument
-                    MyDocument handleClass(MyDocument document) {
-                        Fluxzero.publishEvent("got here");
-                        return document.toBuilder().value("bar").build();
-                    }
-                }).whenExecuting(fc -> Fluxzero.index(new MyDocument("foo")).get())
+        testFixture.registerHandlers(new SameRevisionDocumentHandler())
+                .whenExecuting(fc -> Fluxzero.index(new MyDocument("foo")).get())
                 .expectEvents("got here")
                 .expectFalse(fc -> Fluxzero.search(MyDocument.class).<MyDocument>fetchFirst().orElseThrow()
                         .getValue().equals("bar"));
@@ -144,14 +100,76 @@ public class HandleDocumentTest {
 
     @Test
     void handleDocumentWithIdSubtype() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleDocument
-                    void handle(DocumentWithId document) {
-                        Fluxzero.publishEvent(document.identifier().getFunctionalId());
-                    }
-                })
+        testFixture.registerHandlers(new DocumentWithIdSubtypeHandler())
                 .whenExecuting(fc -> Fluxzero.index(new DocumentWithId(new DocumentId("CMA"))).get())
                 .expectOnlyEvents("CMA");
+    }
+
+    static class DocumentClassHandler {
+        @HandleDocument(documentClass = SomeDocument.class)
+        void handleClass() {
+            Fluxzero.publishEvent("someDocument");
+        }
+
+        @HandleDocument("otherDoc")
+        void handleName() {
+            Fluxzero.publishEvent("otherDocument");
+        }
+    }
+
+    static class DocumentCollectionHandler {
+        @HandleDocument("someDoc")
+        void handleName() {
+            Fluxzero.publishEvent("someDocument");
+        }
+
+        @HandleDocument("otherDoc")
+        void handleOther() {
+            Fluxzero.publishEvent("otherDocument");
+        }
+    }
+
+    static class DocumentFirstParamHandler {
+        @HandleDocument
+        void handle(SomeDocument document) {
+            Fluxzero.publishEvent("someDocument");
+        }
+    }
+
+    static class DeletingDocumentHandler {
+        @HandleDocument
+        Object handle(SomeDocument doc) {
+            return null;
+        }
+    }
+
+    static class WrongReturnTypeDocumentHandler {
+        @HandleDocument
+        String handle(SomeDocument doc) {
+            return null;
+        }
+    }
+
+    static class RevisionUpdatingDocumentHandler {
+        @HandleDocument
+        MyDocument handleClass(MyDocument document) {
+            return document.toBuilder().value("bar").build();
+        }
+    }
+
+    static class SameRevisionDocumentHandler {
+        @HandleDocument
+        MyDocument handleClass(MyDocument document) {
+            Fluxzero.publishEvent("got here");
+            return document.toBuilder().value("bar").build();
+        }
+    }
+
+    static class DocumentWithIdSubtypeHandler {
+        @HandleDocument
+        void handle(DocumentWithId document) {
+            Fluxzero.publishEvent(document.identifier().getFunctionalId());
+        }
     }
 
     @Revision(1)

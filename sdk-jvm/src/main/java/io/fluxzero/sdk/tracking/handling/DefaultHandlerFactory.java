@@ -26,6 +26,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.MethodInvocationValidator;
@@ -40,6 +41,7 @@ import io.fluxzero.sdk.registry.ComponentRegistryException;
 import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.InvocationPlanDescriptor;
 import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
+import io.fluxzero.sdk.registry.JvmGeneratedExecutionInstaller;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.ApiReferenceEndpoint;
@@ -193,9 +195,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 return true;
             }
             return ComponentMetadataLookups.typeAnnotation(targetClass, Stateful.class).isPresent()
-                   || ComponentMetadataLookups.typeAnnotation(targetClass, SocketEndpoint.class).isPresent()
-                   || ComponentMetadataLookups.typeOrPackageAnnotation(targetClass, TrackSelf.class).isPresent()
-                   || messageType == MessageType.WEBREQUEST && StaticFileHandler.isHandler(targetClass);
+                   || messageType == MessageType.WEBREQUEST
+                   && (ComponentMetadataLookups.typeAnnotation(targetClass, SocketEndpoint.class).isPresent()
+                       || StaticFileHandler.isHandler(targetClass));
         }
         if (hasHandlerMethods(targetClass, handlerConfiguration)) {
             return true;
@@ -232,11 +234,12 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .orElse(null);
                 if (handler != null) {
                     var statefulConfig = config;
-                    return new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
+                    return new StatefulHandler(targetClass, createStatefulHandlerMatcher(
+                                               targetClass, config, parameterResolvers),
                                                handlerRepositorySupplier.apply(targetClass),
                                                parameterResolvers,
                                                e -> statefulConfig.getAnnotation(e).orElse(null),
-                                               (memberType, resolvers) -> createHandlerMatcher(
+                                               (memberType, resolvers) -> createStatefulHandlerMatcher(
                                                        memberType, statefulConfig, resolvers),
                                                serializer);
                 }
@@ -248,8 +251,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 if (handler != null) {
                     var socketConfig = config;
                     return new SocketEndpointHandler(
-                            targetClass, createHandlerMatcher(targetClass, socketConfig),
-                            createHandlerMatcher(SocketEndpointHandler.SocketEndpointWrapper.class, socketConfig),
+                            targetClass, createHandlerMatcherOrEmpty(targetClass, socketConfig, parameterResolvers),
+                            socketEndpointWrapperMatcher(socketConfig),
                             repositoryProvider, parameterResolvers,
                             e -> socketConfig.getAnnotation(e).orElse(null));
                 }
@@ -309,11 +312,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
     protected Handler<DeserializingMessage> createDefaultHandler(
             Object target, Function<DeserializingMessage, ?> targetSupplier,
             HandlerConfiguration<DeserializingMessage> config) {
+        return createDefaultHandler(target, targetSupplier, config, createHandlerMatcher(target, config));
+    }
+
+    protected Handler<DeserializingMessage> createDefaultHandler(
+            Object target, Function<DeserializingMessage, ?> targetSupplier,
+            HandlerConfiguration<DeserializingMessage> config,
+            HandlerMatcher<Object, DeserializingMessage> handlerMatcher) {
         Class<?> targetClass = asClass(target);
         Handler<DeserializingMessage> handler
                 = target instanceof Class<?>
-                  ? new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config))
-                  : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
+                  ? new DefaultHandler<>(targetClass, targetSupplier, handlerMatcher)
+                  : DefaultHandler.forTarget(targetClass, target, handlerMatcher);
         handler = RegistryFilteringHandler.wrap(handler, messageType);
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
@@ -397,13 +407,70 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         throw missingGeneratedInvocationPlans(targetClass);
                     }
                     Optional<HandlerMatcher<Object, DeserializingMessage>> registryMatcher =
-                            RegistryHandlerMatcherFactory.create(targetClass, parameterResolvers, config);
+                            RegistryHandlerMatcherFactory.create(targetClass, messageType, parameterResolvers, config);
                     if (registryMatcher.isPresent()) {
                         yield registryMatcher.orElseThrow();
                     }
-                    throw missingGeneratedInvocationPlans(targetClass);
+                    if (!RegistryHandlerMatcherFactory.hasRegisteredHandlerMetadata(targetClass, messageType)) {
+                        throw missingGeneratedInvocationPlans(targetClass);
+                    }
+                    yield emptyHandlerMatcher();
                 }
                 yield HandlerInspector.inspect(targetClass, parameterResolvers, config);
+            }
+        };
+    }
+
+    private HandlerMatcher<Object, DeserializingMessage> createStatefulHandlerMatcher(
+            Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
+        return createHandlerMatcherOrEmpty(targetClass, config, parameterResolvers);
+    }
+
+    private HandlerMatcher<Object, DeserializingMessage> createHandlerMatcherOrEmpty(
+            Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
+        if (!ComponentMetadataLookups.generatedOnlyMode()) {
+            return createHandlerMatcher(targetClass, config, parameterResolvers);
+        }
+        if (messageType == MessageType.WEBREQUEST) {
+            return WebHandlerMatcher.create(targetClass, parameterResolvers, config, webRouteRegistry);
+        }
+        if (RegistryHandlerMatcherFactory.hasRegisteredHandlersWithoutGeneratedInvocations(
+                targetClass, messageType, config)) {
+            throw missingGeneratedInvocationPlans(targetClass);
+        }
+        return RegistryHandlerMatcherFactory.create(targetClass, messageType, parameterResolvers, config)
+                .orElseGet(DefaultHandlerFactory::emptyHandlerMatcher);
+    }
+
+    private HandlerMatcher<Object, DeserializingMessage> socketEndpointWrapperMatcher(
+            HandlerConfiguration<DeserializingMessage> config) {
+        return messageType == MessageType.WEBREQUEST
+               ? createHandlerMatcher(SocketEndpointHandler.SocketEndpointWrapper.class, config)
+               : emptyHandlerMatcher();
+    }
+
+    private static HandlerMatcher<Object, DeserializingMessage> emptyHandlerMatcher() {
+        return new HandlerMatcher<>() {
+            @Override
+            public boolean canHandle(DeserializingMessage message) {
+                return false;
+            }
+
+            @Override
+            public Stream<Executable> matchingMethods(DeserializingMessage message) {
+                return Stream.empty();
+            }
+
+            @Override
+            public Stream<ExecutableView> matchingExecutableViews(DeserializingMessage message) {
+                return Stream.empty();
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(Object target, DeserializingMessage message) {
+                return Optional.empty();
             }
         };
     }
@@ -420,8 +487,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (!ComponentMetadataLookups.generatedOnlyMode()) {
             return JvmCompatibilityBackend.introspector().executableInvocationBackend();
         }
-        return executable -> GeneratedExecutableInvocations.find(executable)
-                .orElseThrow(() -> missingGeneratedInvocationPlans(executable.getDeclaringClass()));
+        return JvmGeneratedExecutionInstaller.executableInvocationBackend();
     }
 
     private static Class<?> ifClass(Object value) {

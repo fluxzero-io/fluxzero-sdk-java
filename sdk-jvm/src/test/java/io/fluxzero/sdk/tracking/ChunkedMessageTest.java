@@ -62,18 +62,8 @@ class ChunkedMessageTest {
         CompletableFuture<String> completed = new CompletableFuture<>();
         CompletableFuture<Boolean> fluxzeroPresent = new CompletableFuture<>();
         CompletableFuture<Boolean> currentMessagePresent = new CompletableFuture<>();
-        TestFixture.createAsyncJvmCompatibility(new Object() {
-            @HandleEvent
-            void handle(DeserializingMessage message) throws Exception {
-                assertEquals(MessageType.EVENT, Tracker.current().orElseThrow().getMessageType());
-                fluxzeroPresent.complete(Fluxzero.getOptionally().isPresent());
-                currentMessagePresent.complete(DeserializingMessage.getCurrent() == message);
-                InputStream stream = message.getPayloadAs(InputStream.class);
-                byte[] firstPart = stream.readNBytes(6);
-                firstBytesRead.complete(new String(firstPart, StandardCharsets.UTF_8));
-                completed.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
-            }
-        }).spy().whenExecuting(fc -> {
+        TestFixture.createAsync(new ChunkedStreamHandler(
+                firstBytesRead, completed, fluxzeroPresent, currentMessagePresent)).spy().whenExecuting(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             SerializedMessage secondChunk = chunk(fc, "world", firstChunk.getMessageId(), false, true, 1);
             fc.client().getGatewayClient(MessageType.EVENT).append(Guarantee.SENT, firstChunk).get();
@@ -90,12 +80,7 @@ class ChunkedMessageTest {
     void deserializesChunkedJsonPayloadIntoSingleObjectAfterFinalChunk() {
         LargePayload expected = new LargePayload("hello world", 42);
         CompletableFuture<LargePayload> handled = new CompletableFuture<>();
-        TestFixture.createAsyncJvmCompatibility(new Object() {
-            @HandleEvent
-            void handle(LargePayload payload) {
-                handled.complete(payload);
-            }
-        }).whenExecuting(fc -> {
+        TestFixture.createAsync(new LargePayloadHandler(handled)).whenExecuting(fc -> {
             Data<byte[]> serialized = fc.serializer().serialize(expected);
             int split = serialized.getValue().length / 2;
             SerializedMessage firstChunk = chunk(fc, serialized, 0, split, null, true, false, 0);
@@ -113,17 +98,7 @@ class ChunkedMessageTest {
         LargePayload expected = new LargePayload("hello world", 42);
         CompletableFuture<LargePayload> handled = new CompletableFuture<>();
         CompletableFuture<String> pingHandled = new CompletableFuture<>();
-        TestFixture.createAsyncJvmCompatibility(new Object() {
-            @HandleEvent
-            void handle(LargePayload payload) {
-                handled.complete(payload);
-            }
-
-            @HandleEvent
-            void handle(String payload) {
-                pingHandled.complete(payload);
-            }
-        }).whenExecuting(fc -> {
+        TestFixture.createAsync(new LargePayloadAndPingHandler(handled, pingHandled)).whenExecuting(fc -> {
             Data<byte[]> serialized = fc.serializer().serialize(expected);
             int split = serialized.getValue().length / 2;
             SerializedMessage firstChunk = chunk(fc, serialized, 0, split, null, true, false, 0);
@@ -142,13 +117,7 @@ class ChunkedMessageTest {
     @Test
     void skipsChunkWhenFirstChunkWasNotObserved() {
         CompletableFuture<String> handled = new CompletableFuture<>();
-        TestFixture.createAsyncJvmCompatibility(new Object() {
-            @HandleEvent
-            void handle(DeserializingMessage message) throws Exception {
-                InputStream stream = message.getPayloadAs(InputStream.class);
-                handled.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
-            }
-        }).spy().whenExecuting(fc -> fc.client().getGatewayClient(MessageType.EVENT)
+        TestFixture.createAsync(new OrphanChunkHandler(handled)).spy().whenExecuting(fc -> fc.client().getGatewayClient(MessageType.EVENT)
                 .append(Guarantee.SENT, chunk(fc, "orphan", null, false, true, 1)).get())
                 .expectThat(fc -> {
                     verify(fc.client().getTrackingClient(MessageType.EVENT), timeout(100))
@@ -159,7 +128,7 @@ class ChunkedMessageTest {
 
     @Test
     void buffersOutOfSequenceObservedContinuationUntilMissingChunkArrives() {
-        TestFixture.createJvmCompatibility().whenApplying(fc -> {
+        TestFixture.create().whenApplying(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             firstChunk.setIndex(0L);
             SerializedMessage missing = chunk(fc, "middle ", firstChunk.getMessageId(), false, false, 1);
@@ -182,7 +151,7 @@ class ChunkedMessageTest {
 
     @Test
     void observedContinuationCompletesWithoutReadingMessageIndex() throws Exception {
-        TestFixture.createJvmCompatibility().whenApplying(fc -> {
+        TestFixture.create().whenApplying(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             firstChunk.setIndex(0L);
             SerializedMessage secondChunk = chunk(fc, "world", firstChunk.getMessageId(), false, true, 1);
@@ -200,7 +169,7 @@ class ChunkedMessageTest {
 
     @Test
     void recoversFirstChunkFromPagedEarlierRangeWhenContinuationArrivesAfterRestart() throws Exception {
-        TestFixture.createJvmCompatibility().whenApplying(fc -> {
+        TestFixture.create().whenApplying(fc -> {
             long timestamp = 1_764_000_000_000L;
             long timestampIndex = IndexUtils.indexFromMillis(timestamp);
             SerializedMessage noise1 = message(fc, "noise-1");
@@ -248,7 +217,7 @@ class ChunkedMessageTest {
 
     @Test
     void failsStreamReadWhenFinalChunkDoesNotArriveBeforeRequestTimeout() {
-        TestFixture.createJvmCompatibility().whenApplying(fc -> {
+        TestFixture.create().whenApplying(fc -> {
             SerializedMessage firstChunk = chunk(fc, "hello ", null, true, false, 0);
             firstChunk.setIndex(0L);
             firstChunk.setMetadata(firstChunk.getMetadata().with(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY, "50"));
@@ -290,6 +259,81 @@ class ChunkedMessageTest {
                 System.currentTimeMillis());
         message.setSegment(0);
         return message;
+    }
+
+    private static class ChunkedStreamHandler {
+        private final CompletableFuture<String> firstBytesRead;
+        private final CompletableFuture<String> completed;
+        private final CompletableFuture<Boolean> fluxzeroPresent;
+        private final CompletableFuture<Boolean> currentMessagePresent;
+
+        private ChunkedStreamHandler(CompletableFuture<String> firstBytesRead, CompletableFuture<String> completed,
+                                     CompletableFuture<Boolean> fluxzeroPresent,
+                                     CompletableFuture<Boolean> currentMessagePresent) {
+            this.firstBytesRead = firstBytesRead;
+            this.completed = completed;
+            this.fluxzeroPresent = fluxzeroPresent;
+            this.currentMessagePresent = currentMessagePresent;
+        }
+
+        @HandleEvent
+        void handle(DeserializingMessage message) throws Exception {
+            assertEquals(MessageType.EVENT, Tracker.current().orElseThrow().getMessageType());
+            fluxzeroPresent.complete(Fluxzero.getOptionally().isPresent());
+            currentMessagePresent.complete(DeserializingMessage.getCurrent() == message);
+            InputStream stream = message.getPayloadAs(InputStream.class);
+            byte[] firstPart = stream.readNBytes(6);
+            firstBytesRead.complete(new String(firstPart, StandardCharsets.UTF_8));
+            completed.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    private static class LargePayloadHandler {
+        private final CompletableFuture<LargePayload> handled;
+
+        private LargePayloadHandler(CompletableFuture<LargePayload> handled) {
+            this.handled = handled;
+        }
+
+        @HandleEvent
+        void handle(LargePayload payload) {
+            handled.complete(payload);
+        }
+    }
+
+    private static class LargePayloadAndPingHandler {
+        private final CompletableFuture<LargePayload> handled;
+        private final CompletableFuture<String> pingHandled;
+
+        private LargePayloadAndPingHandler(CompletableFuture<LargePayload> handled,
+                                           CompletableFuture<String> pingHandled) {
+            this.handled = handled;
+            this.pingHandled = pingHandled;
+        }
+
+        @HandleEvent
+        void handle(LargePayload payload) {
+            handled.complete(payload);
+        }
+
+        @HandleEvent
+        void handle(String payload) {
+            pingHandled.complete(payload);
+        }
+    }
+
+    private static class OrphanChunkHandler {
+        private final CompletableFuture<String> handled;
+
+        private OrphanChunkHandler(CompletableFuture<String> handled) {
+            this.handled = handled;
+        }
+
+        @HandleEvent
+        void handle(DeserializingMessage message) throws Exception {
+            InputStream stream = message.getPayloadAs(InputStream.class);
+            handled.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     private record LargePayload(String value, int count) {

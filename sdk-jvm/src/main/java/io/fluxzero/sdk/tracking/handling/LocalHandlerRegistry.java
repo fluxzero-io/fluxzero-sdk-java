@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -33,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Executable;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -97,7 +99,17 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     @Setter
     @Getter
     @NonNull
-    private HandlerFilter selfHandlerFilter = (t, m) -> !ClientUtils.isSelfTracking(t, m);
+    private HandlerFilter selfHandlerFilter = new HandlerFilter() {
+        @Override
+        public boolean test(Class<?> ownerType, Executable executable) {
+            return !ClientUtils.isSelfTracking(ownerType, executable);
+        }
+
+        @Override
+        public boolean test(Class<?> ownerType, ExecutableView executable) {
+            return !ClientUtils.isSelfTracking(ownerType, executable);
+        }
+    };
 
     private final Function<Class<?>, Optional<Handler<DeserializingMessage>>> selfHandlers
             = memoize(payloadType -> getHandlerFactory().createHandler(payloadType, getSelfHandlerFilter(), List.of()));

@@ -24,12 +24,8 @@ import java.time.temporal.ChronoUnit;
 
 class HandleNotificationTests {
 
-    TestFixture testFixture = TestFixture.createAsyncJvmCompatibility(new Object() {
-        @HandleNotification
-        void handle(Integer event) {
-            Fluxzero.publishEvent(String.valueOf(event));
-        }
-    }).atFixedTime(Instant.now().minus(1, ChronoUnit.DAYS));
+    TestFixture testFixture = TestFixture.createAsync(new IntegerNotificationHandler())
+            .atFixedTime(Instant.now().minus(1, ChronoUnit.DAYS));
 
     @Test
     void handlerReceivesNotification() {
@@ -38,14 +34,14 @@ class HandleNotificationTests {
 
     @Test
     void handlerReceivesEventAndNotification() {
-        TestFixture.createAsyncJvmCompatibility(new CombinedHandler())
+        TestFixture.createAsync(new CombinedHandler())
                 .whenEvent(new CombinedInput(1))
                 .expectOnlyEvents(new EventHandled(1), new NotificationHandled(1));
     }
 
     @Test
     void consumerAnnotatedHandlerReceivesEventAndNotification() {
-        TestFixture.createAsyncJvmCompatibility(new ConsumerAnnotatedCombinedHandler())
+        TestFixture.createAsync(new ConsumerAnnotatedCombinedHandler())
                 .whenEvent(new CombinedInput(2))
                 .expectOnlyEvents(new EventHandled(2), new NotificationHandled(2));
     }
@@ -57,6 +53,13 @@ class HandleNotificationTests {
     }
 
     record NotificationHandled(int value) {
+    }
+
+    static class IntegerNotificationHandler {
+        @HandleNotification
+        void handle(Integer event) {
+            Fluxzero.publishEvent(String.valueOf(event));
+        }
     }
 
     static class CombinedHandler {

@@ -62,6 +62,7 @@ class TestServerTest {
     private static Server server;
     private static int port;
     private static volatile CountDownLatch scheduleHandled = new CountDownLatch(0);
+    private static final String METRICS_CONSUMER = "MetricsBlocked-consumer";
 
     @BeforeAll
     static void beforeAll() {
@@ -118,33 +119,17 @@ class TestServerTest {
 
     @Test
     void allowMetrics() {
-        final String consumerName = "MetricsBlocked-consumer";
-        @Consumer(name = consumerName)
-        class Handler {
-            @HandleEvent
-            void handle(String ignored) {
-                Fluxzero.search("mock").fetchAll();
-            }
-        }
-        testFixture.registerHandlers(new Handler()).whenEvent("test")
+        testFixture.registerHandlers(new MetricsAllowedHandler()).whenEvent("test")
                 .expectMetrics(SearchDocumentsResult.Metric.class, SearchDocuments.class)
-                .<ProcessBatchEvent>expectMetric(e -> consumerName.equals(e.getConsumer()));
+                .<ProcessBatchEvent>expectMetric(e -> METRICS_CONSUMER.equals(e.getConsumer()));
     }
 
     @Test
     void blockHandlerMetrics() {
-        final String consumerName = "MetricsBlocked-consumer";
-        @Consumer(name = consumerName, handlerInterceptors = DisableMetrics.class)
-        class Handler {
-            @HandleEvent
-            void handle(String ignored) {
-                Fluxzero.search("mock").fetchAll();
-            }
-        }
-        testFixture.registerHandlers(new Handler()).whenEvent("test")
+        testFixture.registerHandlers(new MetricsBlockedHandler()).whenEvent("test")
                 .expectNoMetricsLike(SearchDocumentsResult.Metric.class)
                 .expectNoMetricsLike(SearchDocuments.class)
-                .<ProcessBatchEvent>expectMetric(e -> consumerName.equals(e.getConsumer()));
+                .<ProcessBatchEvent>expectMetric(e -> METRICS_CONSUMER.equals(e.getConsumer()));
     }
 
     @Test
@@ -268,6 +253,22 @@ class TestServerTest {
         public void handle(String schedule) {
             Fluxzero.publishEvent(schedule);
             scheduleHandled.countDown();
+        }
+    }
+
+    @Consumer(name = METRICS_CONSUMER)
+    static class MetricsAllowedHandler {
+        @HandleEvent
+        void handle(String ignored) {
+            Fluxzero.search("mock").fetchAll();
+        }
+    }
+
+    @Consumer(name = METRICS_CONSUMER, handlerInterceptors = DisableMetrics.class)
+    static class MetricsBlockedHandler {
+        @HandleEvent
+        void handle(String ignored) {
+            Fluxzero.search("mock").fetchAll();
         }
     }
 

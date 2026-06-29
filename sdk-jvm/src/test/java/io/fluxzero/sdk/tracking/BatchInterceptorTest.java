@@ -82,16 +82,10 @@ class BatchInterceptorTest {
     void ordersCustomBatchInterceptorsAroundBuiltIns() {
         List<String> invocationOrder = new ArrayList<>();
 
-        TestFixture.createAsyncJvmCompatibility(DefaultFluxzero.builder()
+        TestFixture.createAsync(DefaultFluxzero.builder()
                         .addBatchInterceptor(new PositiveBatchInterceptor(invocationOrder), COMMAND)
                         .addBatchInterceptor(new HigherPriorityBatchInterceptor(invocationOrder), COMMAND),
-                new Object() {
-                    @HandleCommand
-                    String handle(String command) {
-                        invocationOrder.add("handler");
-                        return command;
-                    }
-                })
+                new OrderingCommandHandler(invocationOrder))
                 .whenCommand("foo")
                 .expectResult("foo")
                 .expectNoErrors();
@@ -140,6 +134,20 @@ class BatchInterceptorTest {
                 invocationOrder.add("positive");
                 consumer.accept(messages);
             };
+        }
+    }
+
+    static class OrderingCommandHandler {
+        private final List<String> invocationOrder;
+
+        OrderingCommandHandler(List<String> invocationOrder) {
+            this.invocationOrder = invocationOrder;
+        }
+
+        @HandleCommand
+        String handle(String command) {
+            invocationOrder.add("handler");
+            return command;
         }
     }
 

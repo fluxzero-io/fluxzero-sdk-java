@@ -124,7 +124,7 @@ final class JakartaValidationBackend {
     }
 
     boolean isLeafValue(Object value) {
-        return introspector().isLeafValue(value);
+        return JvmComponentIntrospector.isPlatformLeafValue(value);
     }
 
     List<Annotation> getAnnotations(AnnotatedElement element) {

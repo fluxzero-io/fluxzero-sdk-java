@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
+import io.fluxzero.common.handling.ExecutableView;
 import jakarta.annotation.Nullable;
 
 import java.lang.reflect.Executable;
@@ -135,6 +136,20 @@ public interface Validator {
     }
 
     /**
+     * Validates invocation arguments for a method or constructor metadata view and returns an optional
+     * {@link ValidationException} when constraints are violated.
+     *
+     * @param target     the method target instance (ignored for constructors)
+     * @param executable the executable metadata view being invoked
+     * @param arguments  invocation arguments
+     * @return an optional validation exception
+     */
+    default Optional<ValidationException> checkParameterValidity(
+            @Nullable Object target, ExecutableView executable, Object[] arguments) {
+        return executable.executable().flatMap(method -> checkParameterValidity(target, method, arguments));
+    }
+
+    /**
      * Validates invocation arguments for a method or constructor and throws when constraints are violated.
      *
      * @param target     the method target instance (ignored for constructors)
@@ -150,6 +165,21 @@ public interface Validator {
     }
 
     /**
+     * Validates invocation arguments for a method or constructor metadata view and throws when constraints are violated.
+     *
+     * @param target     the method target instance (ignored for constructors)
+     * @param executable the executable metadata view being invoked
+     * @param arguments  invocation arguments
+     * @throws ValidationException if arguments are invalid
+     */
+    default void assertValidParameters(@Nullable Object target, ExecutableView executable, Object[] arguments)
+            throws ValidationException {
+        checkParameterValidity(target, executable, arguments).ifPresent(e -> {
+            throw e;
+        });
+    }
+
+    /**
      * Returns whether invocation arguments for a method or constructor satisfy declared constraints.
      *
      * @param target     the method target instance (ignored for constructors)
@@ -158,6 +188,18 @@ public interface Validator {
      * @return {@code true} if valid, {@code false} otherwise
      */
     default boolean areParametersValid(@Nullable Object target, Executable executable, Object[] arguments) {
+        return checkParameterValidity(target, executable, arguments).isEmpty();
+    }
+
+    /**
+     * Returns whether invocation arguments for a method or constructor metadata view satisfy declared constraints.
+     *
+     * @param target     the method target instance (ignored for constructors)
+     * @param executable the executable metadata view being invoked
+     * @param arguments  invocation arguments
+     * @return {@code true} if valid, {@code false} otherwise
+     */
+    default boolean areParametersValid(@Nullable Object target, ExecutableView executable, Object[] arguments) {
         return checkParameterValidity(target, executable, arguments).isEmpty();
     }
 

@@ -47,6 +47,8 @@ final class JvmBackendAccess {
     private static final Map<String, BackendCategory> ALLOWED_CLASSES = new TreeMap<>(Map.ofEntries(
             Map.entry("io.fluxzero.sdk.Fluxzero", platform("JVM caller-scope memoization"))
     ));
+    private static final StackWalker CALLER_WALKER =
+            StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
 
     private JvmBackendAccess() {
     }
@@ -113,20 +115,20 @@ final class JvmBackendAccess {
     }
 
     private static String callerClassName() {
-        StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-        for (StackTraceElement frame : trace) {
-            String className = frame.getClassName();
-            if (className.equals(Thread.class.getName())
-                || className.equals(JvmBackendAccess.class.getName())
-                || className.equals(JvmComponentIntrospector.class.getName())
-                || className.startsWith("java.")
-                || className.startsWith("jdk.")
-                || className.startsWith("sun.")) {
-                continue;
-            }
-            return className;
-        }
-        return "<unknown>";
+        return CALLER_WALKER.walk(frames -> frames
+                .map(StackWalker.StackFrame::getDeclaringClass)
+                .map(Class::getName)
+                .filter(JvmBackendAccess::isCallerFrame)
+                .findFirst()
+                .orElse("<unknown>"));
+    }
+
+    private static boolean isCallerFrame(String className) {
+        return !className.equals(JvmBackendAccess.class.getName())
+               && !className.equals(JvmComponentIntrospector.class.getName())
+               && !className.startsWith("java.")
+               && !className.startsWith("jdk.")
+               && !className.startsWith("sun.");
     }
 
     private static String enclosingClassName(String className) {

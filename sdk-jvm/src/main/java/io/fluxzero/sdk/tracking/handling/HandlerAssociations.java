@@ -345,6 +345,10 @@ public class HandlerAssociations {
                 current = map.get(segment);
                 continue;
             }
+            if (current instanceof io.fluxzero.sdk.modeling.Entity<?> entity && "get".equals(segment)) {
+                current = entity.get();
+                continue;
+            }
             ComponentMetadataLookups.ensureGeneratedExecutions(current.getClass());
             Optional<GeneratedPropertyAccesses.PropertyReader> reader =
                     GeneratedPropertyAccesses.findReader(current.getClass(), segment);

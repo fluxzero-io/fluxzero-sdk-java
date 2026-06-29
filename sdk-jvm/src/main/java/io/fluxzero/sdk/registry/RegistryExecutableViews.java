@@ -153,6 +153,7 @@ public final class RegistryExecutableViews {
         private final Optional<Type> genericType;
         private final ConcurrentMap<Class<? extends Annotation>, Optional<? extends Annotation>> annotationCache =
                 new ConcurrentHashMap<>();
+        private final List<Annotation> annotations;
 
         private RegistryParameterView(Class<?> targetClass, ParameterDescriptor descriptor, int index) {
             this.targetClass = Objects.requireNonNull(targetClass, "targetClass");
@@ -160,6 +161,7 @@ public final class RegistryExecutableViews {
             this.index = index;
             this.type = JvmComponentMetadataLookup.classForMetadataName(descriptor.typeName());
             this.genericType = genericType(descriptor.typeUse(), type);
+            this.annotations = ComponentMetadataLookups.annotationViews(descriptor.annotations(), targetClass);
         }
 
         @Override
@@ -199,6 +201,11 @@ public final class RegistryExecutableViews {
                     annotationType,
                     type -> MetadataAnnotationResolver.annotationProjection(
                             descriptor.annotations(), type, targetClass));
+        }
+
+        @Override
+        public List<Annotation> annotationViews() {
+            return annotations;
         }
 
         private static Optional<Type> genericType(TypeUseDescriptor typeUse, Optional<Class<?>> type) {

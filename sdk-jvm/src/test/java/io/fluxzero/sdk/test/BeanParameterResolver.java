@@ -15,7 +15,9 @@
 package io.fluxzero.sdk.test;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import lombok.NonNull;
 
@@ -26,6 +28,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Parameter;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 /**
@@ -78,6 +81,25 @@ public class BeanParameterResolver implements ParameterResolver<Object> {
                 () -> new IllegalStateException("No qualifying bean of type '" + p.getType() + "' available"));
     }
 
+    @Override
+    public Function<Object, Object> resolve(ParameterView parameter, Annotation methodAnnotation) {
+        if (!matches(parameter, methodAnnotation, null)) {
+            return null;
+        }
+        return parameter.type()
+                .map(type -> (Function<Object, Object>) v -> beans.stream()
+                        .filter(bean -> type.isAssignableFrom(bean.getClass()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException(
+                                "No qualifying bean of type '" + type + "' available")))
+                .orElse(null);
+    }
+
+    @Override
+    public Function<Object, Object> prepare(ParameterView parameter, Annotation methodAnnotation) {
+        return resolve(parameter, methodAnnotation);
+    }
+
     /**
      * Determines whether this resolver supports resolving the given parameter.
      *
@@ -89,6 +111,16 @@ public class BeanParameterResolver implements ParameterResolver<Object> {
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return ReflectionUtils.has(autowiredClass, parameter);
+    }
+
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, Object value) {
+        return parameter.annotation(autowiredClass).isPresent();
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView executable, Class<?> targetClass) {
+        return executable.parameters().stream().anyMatch(parameter -> parameter.annotation(autowiredClass).isPresent());
     }
 
     /**

@@ -23,6 +23,7 @@ import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
@@ -42,6 +43,7 @@ import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.Request;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import io.fluxzero.sdk.tracking.handling.validation.Validator;
@@ -498,6 +500,12 @@ public class ClasspathComponentScanner {
             }
             if (WebResponseMapper.class.isAssignableFrom(type)) {
                 result.add(ComponentCapability.WEB_RESPONSE_MAPPER);
+            }
+            if (Request.class.isAssignableFrom(type)) {
+                result.add(ComponentCapability.REQUEST_PAYLOAD);
+            }
+            if (Id.class.isAssignableFrom(type)) {
+                result.add(ComponentCapability.ID_SUBTYPE);
             }
             if (Validator.class.isAssignableFrom(type)) {
                 result.add(ComponentCapability.VALIDATOR);

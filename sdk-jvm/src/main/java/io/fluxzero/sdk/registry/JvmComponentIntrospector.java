@@ -74,6 +74,16 @@ public final class JvmComponentIntrospector implements
         return INSTANCE;
     }
 
+    /**
+     * Returns whether a value should be treated as a terminal scalar inside a classified JVM platform backend.
+     * <p>
+     * This keeps the leaf-value rule behind the central JVM introspector boundary without making hot validation paths
+     * pay for a generated-only backend classification walk on every payload.
+     */
+    public static boolean isPlatformLeafValue(Object value) {
+        return ReflectionUtils.isLeafValue(value);
+    }
+
     private static void guardGeneratedOnlyAccess() {
         JvmBackendAccess.assertAllowed();
     }

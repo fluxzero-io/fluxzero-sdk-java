@@ -107,6 +107,19 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
   props > application.properties).
 - Integrates with `ApplicationProperties` for encrypted or templated config values.
 
+### Metadata runtime mode
+
+Fluxzero runs with generated metadata by default. Runtime decisions for Fluxzero app semantics are made from the
+generated or registered component registry; missing generated metadata fails instead of silently falling back to
+reflection-backed classpath scanning.
+
+Set `fluxzero.metadata.mode=jvm-compatibility` to opt in to the legacy JVM compatibility backend during migration.
+The aliases `compatibility` and `hybrid` are accepted for the same mode. For SDK validation and migration tests,
+`fluxzero.metadata.mode=strict-generated-only` additionally rejects JVM backend categories that are still tracked as
+migration debt.
+
+The same value can be supplied through the `FLUXZERO_METADATA_MODE` environment variable.
+
 ### Task scheduling and execution
 
 - `replaceTaskScheduler(...)` to inject a custom scheduler for async or delayed task execution.

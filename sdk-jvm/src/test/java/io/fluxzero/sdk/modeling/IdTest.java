@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static io.fluxzero.sdk.registry.JvmCompatibilityMetadataMode.call;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -37,23 +36,23 @@ class IdTest {
 
     @Test
     void deserializeId() {
-        assertEquals(defaultOwner, call(() -> JsonUtils.fromJson("{\"id\":\"fooBar\"}", Owner.class)));
+        assertEquals(defaultOwner, JsonUtils.fromJson("{\"id\":\"fooBar\"}", Owner.class));
     }
 
     @Test
     void deserializeIdSubtypeFromScalarString() {
-        assertEquals(new MockId("fooBar"), call(() -> JsonUtils.fromJson("\"fooBar\"", MockId.class)));
+        assertEquals(new MockId("fooBar"), JsonUtils.fromJson("\"fooBar\"", MockId.class));
     }
 
     @Test
     void deserializeIdSubtypeFromScalarStringInCollection() {
         assertEquals(new OwnerIds(List.of(new MockId("fooBar"))),
-                     call(() -> JsonUtils.fromJson("{\"ids\":[\"fooBar\"]}", OwnerIds.class)));
+                     JsonUtils.fromJson("{\"ids\":[\"fooBar\"]}", OwnerIds.class));
     }
 
     @Test
     void convert() {
-        assertEquals(defaultOwner, call(() -> JsonUtils.convertValue(defaultOwner, Owner.class)));
+        assertEquals(defaultOwner, JsonUtils.convertValue(defaultOwner, Owner.class));
     }
 
     @Test

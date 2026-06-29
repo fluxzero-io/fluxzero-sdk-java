@@ -187,11 +187,15 @@ public class SourceComponentScanner {
             Override.class.getName(),
             SuppressWarnings.class.getName(),
             SafeVarargs.class.getName());
+    private static final String REQUEST = "io.fluxzero.sdk.tracking.handling.Request";
+    private static final String ID = "io.fluxzero.sdk.modeling.Id";
 
     private static final Map<String, String> KNOWN_TYPES = Map.ofEntries(
             entry("Cache", "io.fluxzero.common.caching.Cache"),
             entry("PropertySource", "io.fluxzero.common.application.PropertySource"),
             entry("TaskScheduler", "io.fluxzero.common.TaskScheduler"),
+            entry("Request", REQUEST),
+            entry("Id", ID),
             entry("DispatchInterceptor", "io.fluxzero.sdk.publishing.DispatchInterceptor"),
             entry("HandlerDecorator", "io.fluxzero.sdk.tracking.handling.HandlerDecorator"),
             entry("HandlerInterceptor", "io.fluxzero.sdk.tracking.handling.HandlerInterceptor"),
@@ -678,6 +682,12 @@ public class SourceComponentScanner {
         if (routes.stream().anyMatch(route -> route.messageType() == MessageType.WEBREQUEST)) {
             result.add(ComponentCapability.WEB_REQUEST_HANDLER);
         }
+        if (superTypeNames.stream().map(SourceComponentScanner::eraseGeneric).anyMatch(REQUEST::equals)) {
+            result.add(ComponentCapability.REQUEST_PAYLOAD);
+        }
+        if (superTypeNames.stream().map(SourceComponentScanner::eraseGeneric).anyMatch(ID::equals)) {
+            result.add(ComponentCapability.ID_SUBTYPE);
+        }
         if (!registeredTypes.isEmpty()) {
             result.add(ComponentCapability.REGISTERED_TYPE);
         }
@@ -1011,6 +1021,10 @@ public class SourceComponentScanner {
 
         private List<String> parseSuperTypeNames(String declarationTail) {
             String tail = declarationTail.trim();
+            if (tail.startsWith("<")) {
+                int end = matching(tail, 0, '<', '>');
+                tail = end < 0 || end + 1 >= tail.length() ? "" : tail.substring(end + 1).trim();
+            }
             if (tail.startsWith("(")) {
                 int end = matching(tail, 0, '(', ')');
                 tail = end < 0 || end + 1 >= tail.length() ? "" : tail.substring(end + 1).trim();
@@ -1844,6 +1858,7 @@ public class SourceComponentScanner {
                 String token = matcher.group();
                 String replacement = switch (token) {
                     case "extends", "super" -> token;
+                    case "T", "R", "E", "K", "V" -> token;
                     default -> resolveType(token);
                 };
                 matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));

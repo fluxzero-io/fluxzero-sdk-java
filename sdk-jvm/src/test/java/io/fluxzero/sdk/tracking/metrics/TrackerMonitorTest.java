@@ -22,13 +22,7 @@ import org.junit.jupiter.api.Test;
 class TrackerMonitorTest {
     @Test
     void trackerMetricsPublished() {
-        @Consumer(name = "custom-consumer")
-        class Handler {
-            @HandleEvent
-            void handle(String ignored) {
-            }
-        }
-        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test")
+        TestFixture.createAsync(new CustomConsumerHandler()).whenEvent("test")
                 .<ProcessBatchEvent>expectMetric(
                         e -> e.getConsumer().equals("custom-consumer") && e.getBatchSize() == 1)
                 .expectMetrics(HandleMessageEvent.class);
@@ -36,39 +30,49 @@ class TrackerMonitorTest {
 
     @Test
     void blockHandlerMetrics() {
-        @Consumer(name = "MetricsBlocked-consumer", handlerInterceptors = DisableMetrics.class)
-        class Handler {
-            @HandleEvent
-            void handle(String ignored) {
-            }
-        }
-        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test").expectNoMetricsLike(HandleMessageEvent.class);
+        TestFixture.createAsync(new HandlerMetricsBlockedHandler())
+                .whenEvent("test").expectNoMetricsLike(HandleMessageEvent.class);
     }
 
     @Test
     void blockBatchMetrics() {
-        @Consumer(name = "MetricsBlocked-consumer", batchInterceptors = DisableMetrics.class)
-        class Handler {
-            @HandleEvent
-            void handle(String ignored) {
-            }
-        }
-        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test")
+        TestFixture.createAsync(new BatchMetricsBlockedHandler()).whenEvent("test")
                 .expectNoMetricsLike(HandleMessageEvent.class)
                 .expectNoMetricsLike(ProcessBatchEvent.class);
     }
 
     @Test
     void blockDispatchMetrics() {
-        @Consumer(name = "MetricsBlocked-consumer", dispatchInterceptors = DisableMetrics.class)
-        class Handler {
-            @HandleEvent
-            void handle(String ignored) {
-            }
-        }
-        TestFixture.createAsyncJvmCompatibility(new Handler()).whenEvent("test")
+        TestFixture.createAsync(new DispatchMetricsBlockedHandler()).whenEvent("test")
                 .expectNoMetricsLike(HandleMessageEvent.class)
                 .expectNoMetricsLike(ProcessBatchEvent.class);
     }
 
+    @Consumer(name = "custom-consumer")
+    static class CustomConsumerHandler {
+        @HandleEvent
+        void handle(String ignored) {
+        }
+    }
+
+    @Consumer(name = "MetricsBlocked-consumer", handlerInterceptors = DisableMetrics.class)
+    static class HandlerMetricsBlockedHandler {
+        @HandleEvent
+        void handle(String ignored) {
+        }
+    }
+
+    @Consumer(name = "MetricsBlocked-consumer", batchInterceptors = DisableMetrics.class)
+    static class BatchMetricsBlockedHandler {
+        @HandleEvent
+        void handle(String ignored) {
+        }
+    }
+
+    @Consumer(name = "MetricsBlocked-consumer", dispatchInterceptors = DisableMetrics.class)
+    static class DispatchMetricsBlockedHandler {
+        @HandleEvent
+        void handle(String ignored) {
+        }
+    }
 }

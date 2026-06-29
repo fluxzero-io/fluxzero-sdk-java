@@ -76,7 +76,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = FluxzeroSpringConfigTest.Config.class)
-@TestPropertySource(properties = {"existingProperty=test", "emptyProperty=", "fluxzero.metadata.mode=jvm-compatibility"})
+@TestPropertySource(properties = {"existingProperty=test", "emptyProperty="})
 @Slf4j
 public class FluxzeroSpringConfigTest {
     private static final User mockUser = mock(User.class);

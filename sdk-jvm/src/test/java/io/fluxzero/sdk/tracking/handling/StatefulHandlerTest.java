@@ -36,7 +36,6 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
-import io.fluxzero.sdk.registry.JvmCompatibilityMetadataMode;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.Builder;
 import lombok.With;
@@ -65,7 +64,7 @@ public class StatefulHandlerTest {
 
     @Nested
     class StaticTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(StaticHandler.class);
+        private final TestFixture testFixture = TestFixture.create(StaticHandler.class);
 
         @Test
         void handlerIsCreated() {
@@ -465,7 +464,7 @@ public class StatefulHandlerTest {
 
     @Nested
     class ConstructorTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(ConstructorHandler.class);
+        private final TestFixture testFixture = TestFixture.create(ConstructorHandler.class);
 
         @Test
         void handlerIsCreated() {
@@ -484,7 +483,7 @@ public class StatefulHandlerTest {
 
         @Test
         void handlerIsUpdated_async() {
-            TestFixture.createAsyncJvmCompatibility(ConstructorHandler.class).givenEvents(new SomeEvent("foo"))
+            TestFixture.createAsync(ConstructorHandler.class).givenEvents(new SomeEvent("foo"))
                     .whenEvent(new SomeEvent("foo"))
                     .expectCommands(2);
         }
@@ -510,7 +509,7 @@ public class StatefulHandlerTest {
 
     @Nested
     class EntityIdAssociationTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(EntityIdAssociationHandler.class);
+        private final TestFixture testFixture = TestFixture.create(EntityIdAssociationHandler.class);
 
         @Test
         void handlerIsUpdatedViaEntityIdAssociation() {
@@ -553,7 +552,7 @@ public class StatefulHandlerTest {
 
     @Nested
     class CustomAssociationProperty {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(SomeHandler.class);
+        private final TestFixture testFixture = TestFixture.create(SomeHandler.class);
 
         @Test
         void handlerIsCreated() {
@@ -598,7 +597,7 @@ public class StatefulHandlerTest {
 
         @Test
         void mappingTest() {
-            TestFixture.createJvmCompatibility(MappingHandler.class).whenEvent("foo")
+            TestFixture.create(MappingHandler.class).whenEvent("foo")
                     .expectTrue(fc -> Fluxzero.search(MappingHandler.class).fetchAll().size() == 1);
         }
     }
@@ -616,7 +615,7 @@ public class StatefulHandlerTest {
             }
         }
 
-        TestFixture fixture = TestFixture.createJvmCompatibility(LimitedValidity.class).givenEvents(
+        TestFixture fixture = TestFixture.create(LimitedValidity.class).givenEvents(
                         new LimitedValidity("no-end", start, null),
                         new LimitedValidity("no-start", null, end));
 
@@ -645,7 +644,7 @@ public class StatefulHandlerTest {
 
     @Nested
     class TriggerAssociationTests {
-        private final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility(
+        private final TestFixture testFixture = TestFixture.createAsync(
                 TriggerAssociationHandler.class, new TriggerAssociationCommandHandler());
 
         @Test
@@ -695,7 +694,7 @@ public class StatefulHandlerTest {
 
     @Nested
     class MemberTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(Customer.class);
+        private final TestFixture testFixture = TestFixture.create(Customer.class);
 
         @Test
         void memberIsCreatedInsideParent() {
@@ -783,7 +782,7 @@ public class StatefulHandlerTest {
     class AdvancedMemberTests {
         @Test
         void nestedMemberIsUpdatedViaGrandchildAssociationOnly() {
-            TestFixture.createJvmCompatibility(NestedCustomer.class)
+            TestFixture.create(NestedCustomer.class)
                     .givenStateful(new NestedCustomer("customer-1", List.of(
                             new NestedPayment("payment-1", List.of(new PaymentAttempt("attempt-1", "psp-1", 0))))))
                     .whenEvent(new PaymentAttemptSettled("psp-1"))
@@ -799,7 +798,7 @@ public class StatefulHandlerTest {
 
         @Test
         void mapAndSingleMembersCanHandleMessages() {
-            TestFixture.createJvmCompatibility(StructuredCustomer.class)
+            TestFixture.create(StructuredCustomer.class)
                     .givenStateful(new StructuredCustomer(
                             "customer-1", new StructuredPayment("primary", 0),
                             Map.of("secondary", new StructuredPayment("secondary", 10))))
@@ -820,7 +819,7 @@ public class StatefulHandlerTest {
 
         @Test
         void memberUpdatesWorkWithCommitInBatch() {
-            TestFixture.createAsyncJvmCompatibility(BatchedCustomer.class)
+            TestFixture.createAsync(BatchedCustomer.class)
                     .givenStateful(new BatchedCustomer(
                             "customer-1", List.of(new BatchedPayment("payment-1", 0))))
                     .whenApplying(fc -> {
@@ -841,7 +840,7 @@ public class StatefulHandlerTest {
 
         @Test
         void memberIsMatchedViaParameterAssociation() {
-            TestFixture.createAsyncJvmCompatibility(ParameterAssociationCustomer.class, new ParameterAssociationCommandHandler())
+            TestFixture.createAsync(ParameterAssociationCustomer.class, new ParameterAssociationCommandHandler())
                     .givenStateful(new ParameterAssociationCustomer(
                             "customer-1", List.of(new ParameterAssociationPayment("line-1", "payment-1", 0))))
                     .whenCommand(new CapturePaymentCommand("payment-1"))
@@ -859,7 +858,7 @@ public class StatefulHandlerTest {
 
         @Test
         void parentAndMemberMutationsAreComposedFromUpdatedRoot() {
-            TestFixture.createJvmCompatibility(CombinedCustomer.class)
+            TestFixture.create(CombinedCustomer.class)
                     .givenStateful(new CombinedCustomer(
                             "customer-1", 0, List.of(new CombinedPayment("line-1", "payment-1", 0, 0))))
                     .whenEvent(new CombinedCustomerAndPaymentChanged("customer-1", "payment-1"))
@@ -877,7 +876,7 @@ public class StatefulHandlerTest {
 
         @Test
         void matchingAssociationCanUpdateMultipleChildrenAcrossParents() {
-            TestFixture.createJvmCompatibility(SharedPaymentCustomer.class)
+            TestFixture.create(SharedPaymentCustomer.class)
                     .givenStateful(new SharedPaymentCustomer("customer-1", List.of(
                             new SharedPayment("line-1", "shared-payment", 0),
                             new SharedPayment("line-2", "shared-payment", 10),
@@ -904,7 +903,7 @@ public class StatefulHandlerTest {
 
         @Test
         void staticMemberCreateWithoutParentAssociationDoesNotCreateMember() {
-            TestFixture.createJvmCompatibility(UnroutableCreateCustomer.class)
+            TestFixture.create(UnroutableCreateCustomer.class)
                     .givenStateful(new UnroutableCreateCustomer("customer-1", List.of()))
                     .whenEvent(new UnroutablePaymentStarted("payment-1"))
                     .expectNoCommands()
@@ -917,7 +916,7 @@ public class StatefulHandlerTest {
 
         @Test
         void staticMemberCreateWithAlwaysAssociationFansOutToAllParents() {
-            TestFixture.createJvmCompatibility(FanoutCreateCustomer.class)
+            TestFixture.create(FanoutCreateCustomer.class)
                     .givenStateful(new FanoutCreateCustomer("customer-1", List.of()))
                     .givenStateful(new FanoutCreateCustomer("customer-2", List.of()))
                     .whenEvent(new FanoutPaymentStarted("payment-1"))
@@ -934,7 +933,7 @@ public class StatefulHandlerTest {
 
         @Test
         void memberCollectionReturnCanAddMultipleMembersToListAndMap() {
-            TestFixture.createJvmCompatibility(BulkCreateCustomer.class)
+            TestFixture.create(BulkCreateCustomer.class)
                     .givenStateful(new BulkCreateCustomer("customer-1", List.of(), Map.of()))
                     .whenEvent(new BulkListPaymentsStarted("customer-1", List.of("list-1", "list-2")))
                     .expectNoErrors()
@@ -956,7 +955,7 @@ public class StatefulHandlerTest {
 
         @Test
         void memberCanReturnDifferentEntityIdForListAndMap() {
-            TestFixture.createJvmCompatibility(RenamedPaymentCustomer.class)
+            TestFixture.create(RenamedPaymentCustomer.class)
                     .givenStateful(new RenamedPaymentCustomer(
                             "customer-1",
                             List.of(new RenamedListPayment("old-payment", 0)),
@@ -978,7 +977,7 @@ public class StatefulHandlerTest {
 
         @Test
         void memberCollectionReturnCanReplaceExistingMemberWithMultipleMembers() {
-            TestFixture.createJvmCompatibility(SplitPaymentCustomer.class)
+            TestFixture.create(SplitPaymentCustomer.class)
                     .givenStateful(new SplitPaymentCustomer(
                             "customer-1", List.of(new SplitPayment("payment-1", 0))))
                     .whenEvent(new PaymentSplit("payment-1", "payment-1-a", "payment-1-b"))
@@ -994,7 +993,7 @@ public class StatefulHandlerTest {
 
         @Test
         void memberAddedByParentCanHandleSameMessageFromUpdatedRoot() {
-            TestFixture.createJvmCompatibility(ParentCreatesChildCustomer.class)
+            TestFixture.create(ParentCreatesChildCustomer.class)
                     .givenStateful(new ParentCreatesChildCustomer("customer-1", List.of()))
                     .whenEvent(new ParentCreatesMatchingPayment("customer-1", "payment-1"))
                     .expectOnlyCommands("parent-created-child:customer-1:payment-1:1")
@@ -1010,7 +1009,7 @@ public class StatefulHandlerTest {
 
         @Test
         void recordMembersCanBeUpdatedWithoutExplicitWither() {
-            TestFixture.createJvmCompatibility(ConstructorBackedCustomer.class)
+            TestFixture.create(ConstructorBackedCustomer.class)
                     .givenStateful(new ConstructorBackedCustomer(
                             "customer-1", List.of(new ConstructorBackedPayment("payment-1", 0))))
                     .whenEvent(new ConstructorBackedPaymentCaptured("payment-1"))
@@ -1025,7 +1024,7 @@ public class StatefulHandlerTest {
 
         @Test
         void duplicateNonNullEntityIdsInStatefulMemberListDoNotBreakLoading() {
-            TestFixture.createJvmCompatibility(DuplicateStatefulMemberCustomer.class)
+            TestFixture.create(DuplicateStatefulMemberCustomer.class)
                     .givenStateful(new DuplicateStatefulMemberCustomer(
                             "customer-1",
                             List.of(new DuplicateStatefulMemberPayment("payment-1"),
@@ -1432,24 +1431,22 @@ public class StatefulHandlerTest {
 
         @Test
         void entityAssociationParameterIsResolvedBeforeStatefulRepositoryMatch() {
-            JvmCompatibilityMetadataMode.run(() -> {
-                FixedEntityParameterResolver resolver =
-                        new FixedEntityParameterResolver(new Foo("customer-1"));
-                AssociationLookupRepository repository =
-                        new AssociationLookupRepository(() -> resolver.resolutionCount);
-                repository.add("customer-1", new EntityAssociationCustomer("customer-1"));
+            FixedEntityParameterResolver resolver =
+                    new FixedEntityParameterResolver(new Foo("customer-1"));
+            AssociationLookupRepository repository =
+                    new AssociationLookupRepository(() -> resolver.resolutionCount);
+            repository.add("customer-1", new EntityAssociationCustomer("customer-1"));
 
-                statefulHandler(EntityAssociationCustomer.class, repository,
-                                new PayloadParameterResolver(), resolver)
-                        .getInvoker(message(
-                                new EntityAssociationChanged(),
-                                Metadata.of(Entity.AGGREGATE_ID_METADATA_KEY, "foo-1",
-                                            Entity.AGGREGATE_TYPE_METADATA_KEY, Foo.class.getName())))
-                        .orElseThrow();
+            statefulHandler(EntityAssociationCustomer.class, repository,
+                            new PayloadParameterResolver(), resolver)
+                    .getInvoker(message(
+                            new EntityAssociationChanged(),
+                            Metadata.of(Entity.AGGREGATE_ID_METADATA_KEY, "foo-1",
+                                        Entity.AGGREGATE_TYPE_METADATA_KEY, Foo.class.getName())))
+                    .orElseThrow();
 
-                assertTrue(repository.resolvedBeforeLookup);
-                assertEquals(Map.of("customer-1", "customerId"), repository.lastAssociations);
-            });
+            assertTrue(repository.resolvedBeforeLookup);
+            assertEquals(Map.of("customer-1", "customerId"), repository.lastAssociations);
         }
 
         @Test

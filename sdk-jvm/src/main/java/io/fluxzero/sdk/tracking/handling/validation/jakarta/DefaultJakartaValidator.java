@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -272,6 +273,27 @@ public class DefaultJakartaValidator implements Validator {
         }
         Object[] args = arguments == null ? new Object[0] : arguments;
         ValidationRun run = new ValidationRun(target, false, settings);
+        ExecutableValidationMetadata.of(executable).validate(run, target, executable, args,
+                                                   ValidationAnnotationUtils.DEFAULT_GROUPS);
+        return run.hasViolations() ? Optional.of(newValidationException(run.violations())) : Optional.empty();
+    }
+
+    /**
+     * Validates method or constructor arguments against executable metadata parameter constraints.
+     *
+     * @param target     target instance for methods, or {@code null} for constructors/static methods
+     * @param executable executable metadata view declaring the constraints
+     * @param arguments  argument values in declaration order
+     * @return an optional validation exception when constraints fail
+     */
+    @Override
+    public Optional<ValidationException> checkParameterValidity(
+            @Nullable Object target, ExecutableView executable, Object[] arguments) {
+        if (executable.kind() == ExecutableView.Kind.METHOD && target == null && !executable.isStatic()) {
+            return Optional.empty();
+        }
+        Object[] args = arguments == null ? new Object[0] : arguments;
+        ValidationRun run = new ValidationRun(target == null ? executable : target, false, settings);
         ExecutableValidationMetadata.of(executable).validate(run, target, executable, args,
                                                    ValidationAnnotationUtils.DEFAULT_GROUPS);
         return run.hasViolations() ? Optional.of(newValidationException(run.violations())) : Optional.empty();

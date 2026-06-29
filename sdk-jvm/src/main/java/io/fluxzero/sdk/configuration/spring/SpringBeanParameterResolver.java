@@ -15,7 +15,9 @@
 
 package io.fluxzero.sdk.configuration.spring;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +56,8 @@ import static org.springframework.beans.factory.annotation.BeanFactoryAnnotation
 @RequiredArgsConstructor
 @Slf4j
 public class SpringBeanParameterResolver implements ParameterResolver<Object> {
-    private final Function<Parameter, UnaryOperator<Object>> resolverFunction = memoize(this::computeParameterResolver);
+    private final Function<Parameter, UnaryOperator<Object>> resolverFunction =
+            memoize((Function<Parameter, UnaryOperator<Object>>) this::computeParameterResolver);
 
     private final ApplicationContext applicationContext;
 
@@ -64,21 +67,42 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
     }
 
     @Override
+    public Function<Object, Object> resolve(ParameterView parameter, Annotation methodAnnotation) {
+        return parameter.type()
+                .filter(ignored -> isAutowired(parameter))
+                .map(type -> computeParameterResolver(type, parameter.annotation(Qualifier.class).orElse(null)))
+                .orElse(null);
+    }
+
+    @Override
+    public Function<Object, Object> prepare(ParameterView parameter, Annotation methodAnnotation) {
+        return resolve(parameter, methodAnnotation);
+    }
+
+    @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return JvmComponentIntrospector.getInstance().has(Autowired.class, parameter);
     }
 
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, Object value) {
+        return isAutowired(parameter);
+    }
+
     protected UnaryOperator<Object> computeParameterResolver(Parameter p) {
-        String[] beanNames = applicationContext.getBeanNamesForType(p.getType());
+        return computeParameterResolver(p.getType(), p.getAnnotation(Qualifier.class));
+    }
+
+    protected UnaryOperator<Object> computeParameterResolver(Class<?> type, Qualifier qualifier) {
+        String[] beanNames = applicationContext.getBeanNamesForType(type);
         return switch (beanNames.length) {
-            case 0 -> throw new NoSuchBeanDefinitionException(p.getType());
+            case 0 -> throw new NoSuchBeanDefinitionException(type);
             case 1 -> {
                 String beanName = beanNames[0];
                 yield v -> applicationContext.getAutowireCapableBeanFactory().getBean(beanName);
             }
             default -> {
                 if (applicationContext.getAutowireCapableBeanFactory() instanceof ConfigurableListableBeanFactory f) {
-                    Qualifier qualifier = p.getAnnotation(Qualifier.class);
                     if (qualifier != null) {
                         for (String beanName : beanNames) {
                             if (isQualifierMatch(qualifier.value()::equals, beanName, f)) {
@@ -94,7 +118,7 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
                 }
                 log.warn("{} beans of type {} were detected. However, none of them were designated as primary, "
                          + "and the parameter lacks @Qualifier. Consequently, this parameter will not be injected.",
-                         beanNames.length, p.getType().getSimpleName());
+                         beanNames.length, type.getSimpleName());
                 yield v -> null;
             }
         };
@@ -108,5 +132,14 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView executable, Class<?> targetClass) {
+        return executable.parameters().stream().anyMatch(this::isAutowired);
+    }
+
+    private boolean isAutowired(ParameterView parameter) {
+        return parameter.annotation(Autowired.class).isPresent();
     }
 }

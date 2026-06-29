@@ -56,7 +56,7 @@ import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER
 @ExtendWith(SpringExtension.class)
 @DirtiesContext(classMode = AFTER_EACH_TEST_METHOD)
 @ContextConfiguration(classes = {FluxzeroTestConfig.class, GivenWhenThenSpringTest.FooConfig.class, GivenWhenThenSpringTest.BarConfig.class})
-@TestPropertySource(properties = {"stateful-disabled=true", "trackself-disabled=true", "fluxzero.metadata.mode=jvm-compatibility"})
+@TestPropertySource(properties = {"stateful-disabled=true", "trackself-disabled=true"})
 class GivenWhenThenSpringTest {
 
     private static final AtomicReference<CountDownLatch> slowCommandHandlerStarted = new AtomicReference<>();

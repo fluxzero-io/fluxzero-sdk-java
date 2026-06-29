@@ -76,7 +76,7 @@ public class AggregateEntitiesTest {
 
     @BeforeEach
     void setUp() {
-        testFixture = TestFixture.createJvmCompatibility().given(
+        testFixture = TestFixture.create().given(
                 fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()));
     }
 
@@ -167,6 +167,126 @@ public class AggregateEntitiesTest {
                 .orElse(null);
     }
 
+    static class ApplyingCommandHandler {
+        private final Object aggregateId;
+        private final Class<?> aggregateType;
+
+        ApplyingCommandHandler(Object aggregateId, Class<?> aggregateType) {
+            this.aggregateId = aggregateId;
+            this.aggregateType = aggregateType;
+        }
+
+        @HandleCommand
+        void handle(Object command) {
+            loadAggregate(aggregateId, (Class) aggregateType).apply(command);
+        }
+    }
+
+    static class AssertingCommandHandler {
+        private final Object aggregateId;
+        private final Class<?> aggregateType;
+
+        AssertingCommandHandler(Object aggregateId, Class<?> aggregateType) {
+            this.aggregateId = aggregateId;
+            this.aggregateType = aggregateType;
+        }
+
+        @HandleCommand
+        void handle(Object command) {
+            loadAggregate(aggregateId, (Class) aggregateType).assertAndApply(command);
+        }
+    }
+
+    record GrandChildRouteCommand(@RoutingKey String grandChildId) {
+        @HandleCommand
+        void handle() {
+            Entity<Aggregate> entity = loadAggregate("test", Aggregate.class);
+            entity.assertAndApply(this);
+        }
+
+        @Apply
+        GrandChild apply(GrandChild grandChild) {
+            throw new MockException();
+        }
+
+    }
+
+    static class AssertLegalOnLoadedEntityHandler {
+        @HandleCommand
+        void handle(CommandWithRoutingKey command) {
+            loadEntity(command.target()).assertLegal(command);
+        }
+    }
+
+    static class ExceptionPreventsEventHandler {
+        @HandleCommand
+        void handle(Object command) {
+            Entity<Aggregate> entity = loadAggregate("test", Aggregate.class);
+            entity.apply(command);
+            throw new MockException();
+        }
+    }
+
+    static class CommitBeforeThrowHandler {
+        @HandleCommand
+        void handle(Object command) {
+            Entity<Aggregate> entity = loadAggregate("test", Aggregate.class);
+            entity.apply(command);
+            entity.commit();
+            throw new MockException();
+        }
+    }
+
+    static class OtherAggregateFailureHandler {
+        @HandleCommand
+        void handle(Object command) {
+            loadAggregate("test", Aggregate.class).apply("first").commit();
+            loadAggregate("test2", Aggregate.class).apply("second");
+            throw new MockException();
+        }
+    }
+
+    static class WrongEntityInjectionHandler {
+        @HandleEvent
+        void shouldNotBeInvoked(Entity<String> entity) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    record WrongEntityInjectionEvent(@RoutingKey String someKey) {
+    }
+
+    static class FindChildAfterAddingHandler {
+        @HandleCommand
+        Entity<?> handle(ApplyTests.SingletonTests.AddChild command) {
+            loadAggregate("test", Aggregate.class).apply(command);
+            return loadEntity(command.getMissingChildId());
+        }
+    }
+
+    static class ChildEntityApplyHandler {
+        @HandleCommand
+        void handle(ApplyTests.UpdateChild command) {
+            loadEntity(command.getChildId()).assertAndApply(command);
+        }
+    }
+
+    static class AddStringAliasCommand {
+        @Apply
+        Aggregate apply(Aggregate aggregate) {
+            return aggregate.toBuilder().clientReference("clientRef").build();
+        }
+    }
+
+    static class AddStringAliasesCommand {
+        @Apply
+        Aggregate apply(Aggregate aggregate) {
+            return aggregate.toBuilder()
+                    .otherReference("clientRef1").otherReference("clientRef2")
+                    .otherReference(null).build();
+        }
+    }
+
     @Nested
     class FindEntityTests {
 
@@ -248,7 +368,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void getEntityByAliasPrefersAliasOwnerOverEntityIdMatch() {
-            TestFixture.createJvmCompatibility()
+            TestFixture.create()
                     .given(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
                             .update(ignored -> new AliasCollisionAggregate(
                                     "alias-collision",
@@ -261,7 +381,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void loadEntityByAliasPrefersAliasOwnerOverEntityIdMatch() {
-            TestFixture.createJvmCompatibility()
+            TestFixture.create()
                     .given(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
                             .update(ignored -> new AliasCollisionAggregate(
                                     "alias-collision",
@@ -290,7 +410,7 @@ public class AggregateEntitiesTest {
     class AssertLegalTests {
         @BeforeEach
         void setUp() {
-            testFixture.registerHandlers(new CommandHandler());
+            testFixture.registerHandlers(new AssertingCommandHandler("test", Aggregate.class));
         }
 
         @Test
@@ -301,24 +421,9 @@ public class AggregateEntitiesTest {
 
         @Test
         void testRouteToGrandchild() {
-            testFixture = TestFixture.createJvmCompatibility().given(
+            testFixture = TestFixture.create().given(
                     fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()));
-            testFixture.whenCommand(new Object() {
-                        @HandleCommand
-                        void handle() {
-                            Entity<Aggregate> entity = loadAggregate("test", Aggregate.class);
-                            entity.assertAndApply(this);
-                        }
-
-                        @Apply
-                        GrandChild apply(GrandChild grandChild) {
-                            throw new MockException();
-                        }
-
-                        String getGrandChildId() {
-                            return "grandChild";
-                        }
-                    })
+            testFixture.whenCommand(new GrandChildRouteCommand("grandChild"))
                     .expectExceptionalResult(MockException.class);
         }
 
@@ -365,12 +470,7 @@ public class AggregateEntitiesTest {
         @Test
         void assertLegalOnChildEntity() {
             AggregateEntitiesTest.this.setUp();
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handle(CommandWithRoutingKey command) {
-                    loadEntity(command.target()).assertLegal(command);
-                }
-            });
+            testFixture.registerHandlers(new AssertLegalOnLoadedEntityHandler());
             testFixture.whenCommand(new CommandWithRoutingKey("list0"))
                     .expectExceptionalResult(IllegalCommandException.class).expectNoEvents();
         }
@@ -380,25 +480,13 @@ public class AggregateEntitiesTest {
             testFixture.whenCommand(new CommandWithRoutingKeyHandledByEntity("id"))
                     .expectExceptionalResult(IllegalCommandException.class).expectNoEvents();
         }
-
-        class CommandHandler {
-            @HandleCommand
-            void handle(Object command) {
-                loadAggregate("test", Aggregate.class).assertAndApply(command);
-            }
-        }
     }
 
     @Nested
     class InterceptApplyTests {
         @BeforeEach
         void setUp() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handle(Object command) {
-                    loadAggregate("test", Aggregate.class).assertAndApply(command);
-                }
-            });
+            testFixture.registerHandlers(new AssertingCommandHandler("test", Aggregate.class));
         }
 
         @Test
@@ -408,53 +496,29 @@ public class AggregateEntitiesTest {
 
         @Test
         void ignoreApplyByReturningVoid() {
-            testFixture.whenCommand(new FailingCommand() {
-                @InterceptApply
-                void intercept() {
-                }
-            }).expectNoResult();
+            testFixture.whenCommand(new IgnoreApplyReturningVoidCommand()).expectNoResult();
         }
 
         @Test
         void ignoreApplyByReturningNull() {
-            testFixture.whenCommand(new FailingCommand() {
-                @InterceptApply
-                Object intercept() {
-                    return null;
-                }
-            }).expectNoResult();
+            testFixture.whenCommand(new IgnoreApplyReturningNullCommand()).expectNoResult();
         }
 
         @Test
         void ignoreApplyByReturningEmptyStream() {
-            testFixture.whenCommand(new FailingCommand() {
-                @InterceptApply
-                Stream<?> intercept() {
-                    return Stream.empty();
-                }
-            }).expectNoResult();
+            testFixture.whenCommand(new IgnoreApplyReturningEmptyStreamCommand()).expectNoResult();
         }
 
         @Test
         void ignoreApplyByReturningEmptyCollection() {
-            testFixture.whenCommand(new FailingCommand() {
-                @InterceptApply
-                Collection<?> intercept() {
-                    return List.of();
-                }
-            }).expectNoResult().expectNoEvents();
+            testFixture.whenCommand(new IgnoreApplyReturningEmptyCollectionCommand()).expectNoResult().expectNoEvents();
         }
 
         @Test
         void returnDifferentCommand() {
             MissingChildId childId = new MissingChildId("missing");
-            testFixture.whenEventsAreApplied("test", Aggregate.class, new Message(new FailingCommand() {
-                        @InterceptApply
-                        Object intercept(FailingCommand input) {
-                            return Message.asMessage(new AddChild(childId))
-                                    .addMetadata("fooNew", "barNew");
-                        }
-                    }, Metadata.of("foo", "bar")))
+            testFixture.whenEventsAreApplied("test", Aggregate.class, new Message(
+                            new ReturnDifferentCommandCommand(childId), Metadata.of("foo", "bar")))
                     .expectEvents((Predicate<Message>) m -> m.getMetadata().containsKey("foo"))
                     .expectEvents((Predicate<Message>) m -> m.getMetadata().containsKey("fooNew"))
                     .expectThat(fc -> expectEntity(e -> e.get() instanceof MissingChild && childId.equals(e.id())));
@@ -463,34 +527,20 @@ public class AggregateEntitiesTest {
         @Test
         void returnTwoCommands() {
             MissingChildId childId = new MissingChildId("missing");
-            testFixture.whenCommand(new FailingCommand() {
-                @InterceptApply
-                List<?> intercept() {
-                    return List.of(new AddChild(childId), new UpdateChild("id", "data"));
-                }
-            }).expectThat(fc -> expectEntity(
+            testFixture.whenCommand(new ReturnTwoCommandsCommand(childId)).expectThat(fc -> expectEntity(
                     e -> e.get() instanceof Child && ((Child) e.get()).getData().equals("data")));
         }
 
         @Test
         void returnTwoCommandsSecondFails() {
             MissingChildId childId = new MissingChildId("missing");
-            testFixture.whenCommand(new FailingCommand() {
-                @InterceptApply
-                List<?> intercept() {
-                    return List.of(new AddChild(childId), new FailingCommand());
-                }
-            }).expectExceptionalResult(MockException.class);
+            testFixture.whenCommand(new ReturnTwoCommandsSecondFailsCommand(childId))
+                    .expectExceptionalResult(MockException.class);
         }
 
         @Test
         void returnNestedCommands() {
-            testFixture.whenCommand(new Object() {
-                @InterceptApply
-                Object intercept() {
-                    return new UpdateChildNested();
-                }
-            }).expectThat(fc -> expectEntity(
+            testFixture.whenCommand(new ReturnNestedCommandsCommand()).expectThat(fc -> expectEntity(
                     e -> e.get() instanceof Child && ((Child) e.get()).getData().equals("data")));
         }
 
@@ -501,7 +551,7 @@ public class AggregateEntitiesTest {
                     .expectNoEvents().expectNoErrors();
         }
 
-        class FailingCommand {
+        static class FailingCommand {
             @Getter
             private final String missingChildId = "123";
 
@@ -511,8 +561,73 @@ public class AggregateEntitiesTest {
             }
         }
 
+        static class IgnoreApplyReturningVoidCommand extends FailingCommand {
+            @InterceptApply
+            void intercept() {
+            }
+        }
+
+        static class IgnoreApplyReturningNullCommand extends FailingCommand {
+            @InterceptApply
+            Object intercept() {
+                return null;
+            }
+        }
+
+        static class IgnoreApplyReturningEmptyStreamCommand extends FailingCommand {
+            @InterceptApply
+            Stream<?> intercept() {
+                return Stream.empty();
+            }
+        }
+
+        static class IgnoreApplyReturningEmptyCollectionCommand extends FailingCommand {
+            @InterceptApply
+            Collection<?> intercept() {
+                return List.of();
+            }
+        }
+
         @Value
-        class AddChild {
+        static class ReturnDifferentCommandCommand extends FailingCommand {
+            MissingChildId childId;
+
+            @InterceptApply
+            Object intercept(FailingCommand input) {
+                return Message.asMessage(new AddChild(childId))
+                        .addMetadata("fooNew", "barNew");
+            }
+        }
+
+        @Value
+        static class ReturnTwoCommandsCommand extends FailingCommand {
+            MissingChildId childId;
+
+            @InterceptApply
+            List<?> intercept() {
+                return List.of(new AddChild(childId), new UpdateChild("id", "data"));
+            }
+        }
+
+        @Value
+        static class ReturnTwoCommandsSecondFailsCommand extends FailingCommand {
+            MissingChildId childId;
+
+            @InterceptApply
+            List<?> intercept() {
+                return List.of(new AddChild(childId), new FailingCommand());
+            }
+        }
+
+        static class ReturnNestedCommandsCommand {
+            @InterceptApply
+            Object intercept() {
+                return new UpdateChildNested();
+            }
+        }
+
+        @Value
+        static class AddChild {
             MissingChildId missingChildId;
 
             @InterceptApply
@@ -527,7 +642,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class UpdateChild {
+        static class UpdateChild {
             @RoutingKey
             Object childId;
             Object data;
@@ -539,7 +654,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class UpdateChildNested {
+        static class UpdateChildNested {
             @InterceptApply
             List<?> intercept() {
                 return List.of(new AddChild(new MissingChildId("missing")), new UpdateChild("id", "data"));
@@ -554,39 +669,17 @@ public class AggregateEntitiesTest {
 
         @Test
         void exceptionPreventsEvent() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handle(Object command) {
-                    Entity<Aggregate> entity = loadAggregate("test", Aggregate.class);
-                    entity.apply(command);
-                    throw new MockException();
-                }
-            }).whenCommand(event).expectNoEvents();
+            testFixture.registerHandlers(new ExceptionPreventsEventHandler()).whenCommand(event).expectNoEvents();
         }
 
         @Test
         void commitBeforeHandlerEndYieldsEvent() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handle(Object command) {
-                    Entity<Aggregate> entity = loadAggregate("test", Aggregate.class);
-                    entity.apply(command);
-                    entity.commit();
-                    throw new MockException();
-                }
-            }).whenCommand(event).expectOnlyEvents(event);
+            testFixture.registerHandlers(new CommitBeforeThrowHandler()).whenCommand(event).expectOnlyEvents(event);
         }
 
         @Test
         void exceptionOtherAggregatePreventsEvent() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handle(Object command) {
-                    loadAggregate("test", Aggregate.class).apply("first").commit();
-                    loadAggregate("test2", Aggregate.class).apply("second");
-                    throw new MockException();
-                }
-            }).whenCommand(event).expectOnlyEvents("first");
+            testFixture.registerHandlers(new OtherAggregateFailureHandler()).whenCommand(event).expectOnlyEvents("first");
         }
     }
 
@@ -623,7 +716,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class CreateAggregate {
+        static class CreateAggregate {
 
             @Apply
             Aggregate apply() {
@@ -632,7 +725,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class AddChild {
+        static class AddChild {
             MissingChildId missingChildId;
 
             @Apply
@@ -646,17 +739,8 @@ public class AggregateEntitiesTest {
     class EntityInjectionTests {
         @Test
         void entityShouldNotGetInjectedIfItIsOfTheWrongType() {
-            testFixture.registerHandlers(
-                            new Object() {
-                                @HandleEvent
-                                void shouldNotBeInvoked(Entity<String> entity) {
-                                    throw new UnsupportedOperationException();
-                                }
-                            }
-                    ).whenEvent(new Object() {
-                        @RoutingKey
-                        private final String someKey = "whatever";
-                    })
+            testFixture.registerHandlers(new WrongEntityInjectionHandler())
+                    .whenEvent(new WrongEntityInjectionEvent("whatever"))
                     .expectNoErrors();
         }
     }
@@ -666,12 +750,7 @@ public class AggregateEntitiesTest {
 
         @BeforeEach
         void setUp() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handle(Object command) {
-                    loadAggregate("test", Aggregate.class).apply(command);
-                }
-            });
+            testFixture.registerHandlers(new ApplyingCommandHandler("test", Aggregate.class));
         }
 
         @Nested
@@ -688,13 +767,8 @@ public class AggregateEntitiesTest {
             @Test
             void testAddSingleton_illegalWhenParentMissing() {
                 MissingChildId childId = new MissingChildId("missing");
-                TestFixture.createJvmCompatibility()
-                        .registerHandlers(new Object() {
-                            @HandleCommand
-                            void handle(Object command) {
-                                loadAggregate("test", Aggregate.class).apply(command);
-                            }
-                        })
+                TestFixture.create()
+                        .registerHandlers(new ApplyingCommandHandler("test", Aggregate.class))
                         .whenCommand(new AddChild(childId))
                         .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION)
                         .andThen()
@@ -725,15 +799,9 @@ public class AggregateEntitiesTest {
             @Test
             void findChildJustAfterAdding() {
                 MissingChildId childId = new MissingChildId("missing");
-                TestFixture.createJvmCompatibility().given(
+                TestFixture.create().given(
                                 fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()))
-                        .registerHandlers(new Object() {
-                            @HandleCommand
-                            Entity<?> handle(AddChild command) {
-                                loadAggregate("test", Aggregate.class).apply(command);
-                                return loadEntity(command.getMissingChildId());
-                            }
-                        })
+                        .registerHandlers(new FindChildAfterAddingHandler())
                         .whenCommand(new AddChild(childId))
                         .<Entity<?>>expectResult(e -> e.get() instanceof MissingChild && childId.equals(e.id()));
             }
@@ -781,14 +849,9 @@ public class AggregateEntitiesTest {
 
             @Test
             void testAddListChildAndRootInSingleApplyWhenPayloadContainsAggregateAndChildId() {
-                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("payment", PaymentAggregate.class)
+                TestFixture.create().given(fc -> loadAggregate("payment", PaymentAggregate.class)
                                 .update(s -> PaymentAggregate.builder().paymentId("payment").build()))
-                        .registerHandlers(new Object() {
-                            @HandleCommand
-                            void handle(Object command) {
-                                loadAggregate("payment", PaymentAggregate.class).apply(command);
-                            }
-                        })
+                        .registerHandlers(new ApplyingCommandHandler("payment", PaymentAggregate.class))
                         .whenCommand(new CreatePaymentAttempt("payment", "attempt-1"))
                         .expectTrue(fc -> {
                             PaymentAggregate payment = loadAggregate("payment", PaymentAggregate.class).get();
@@ -802,7 +865,7 @@ public class AggregateEntitiesTest {
             void testAddTypedListChildAndRootInSingleApplyWithTimestampParameters() {
                 TypedPaymentId paymentId = new TypedPaymentId("payment");
                 TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
-                TestFixture.createJvmCompatibility()
+                TestFixture.create()
                         .whenCommand(new CreateTypedPayment(paymentId))
                         .andThen()
                         .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
@@ -820,7 +883,7 @@ public class AggregateEntitiesTest {
             void testReplayTypedListChildAndRootInSingleApplyWithTimestampParameters() {
                 TypedPaymentId paymentId = new TypedPaymentId("payment");
                 TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
-                TestFixture.createJvmCompatibility()
+                TestFixture.create()
                         .givenCommands(new CreateTypedPayment(paymentId),
                                        new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
                         .whenApplying(fc -> loadAggregate(paymentId, TypedPaymentAggregate.class).get())
@@ -835,7 +898,7 @@ public class AggregateEntitiesTest {
             void testReplayTypedListChildAndRootInSingleApplyRejectsDuplicateAttemptId() {
                 TypedPaymentId paymentId = new TypedPaymentId("payment");
                 TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
-                TestFixture.createJvmCompatibility()
+                TestFixture.create()
                         .givenCommands(new CreateTypedPayment(paymentId),
                                        new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
                         .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
@@ -844,16 +907,11 @@ public class AggregateEntitiesTest {
 
             @Test
             void addNestedChildWithParentRoutingKeyUsesMatchingParent() {
-                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("organisation", Organisation.class)
+                TestFixture.create().given(fc -> loadAggregate("organisation", Organisation.class)
                                 .update(s -> new Organisation("organisation",
                                                               List.of(new Location("location-1", List.of()),
                                                                       new Location("location-2", List.of())))))
-                        .registerHandlers(new Object() {
-                            @HandleCommand
-                            void handle(AddConnection command) {
-                                loadAggregate("organisation", Organisation.class).apply(command);
-                            }
-                        })
+                        .registerHandlers(new ApplyingCommandHandler("organisation", Organisation.class))
                         .whenCommand(new AddConnection("location-2", "connection-2"))
                         .expectTrue(fc -> {
                             Organisation organisation = loadAggregate("organisation", Organisation.class).get();
@@ -869,12 +927,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithParentRoutingKeyUsesMatchingParent() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(Object command) {
-                                loadAggregate("organisation", Organisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", Organisation.class))
                         .givenCommands(
                                 new CreateOrganisation("organisation", List.of("location-1", "location-2")),
                                 new AddConnection("location-2", "connection-2"))
@@ -892,17 +945,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithAggregateRoutingKeyAndParentIdUsesMatchingParent() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateOrganisation command) {
-                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddConnectionRoutedByOrganisation command) {
-                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", Organisation.class))
                         .givenCommands(
                                 new CreateOrganisation("organisation", List.of("location-1", "location-2")),
                                 new AddConnectionRoutedByOrganisation("organisation", "location-2", "connection-2"))
@@ -920,17 +963,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithTypedParentIdFallsBackFromAggregateRoutingKeyToParentId() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateTypedOrganisation command) {
-                                loadAggregate(command.organisationId(), TypedOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddTypedConnectionRoutedByOrganisation command) {
-                                loadAggregate(command.organisationId(), TypedOrganisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", TypedOrganisation.class))
                         .givenCommands(
                                 new CreateTypedOrganisation("organisation", List.of("location-1", "location-2")),
                                 new AddTypedConnectionRoutedByOrganisation("organisation", "location-2", "connection-2"))
@@ -949,17 +982,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithAggregateRoutingKeyCanUseParentAlias() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateAliasOrganisation command) {
-                                loadAggregate(command.organisationId(), AliasOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddAliasConnectionRoutedByOrganisation command) {
-                                loadAggregate(command.organisationId(), AliasOrganisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", AliasOrganisation.class))
                         .givenCommands(
                                 new CreateAliasOrganisation("organisation"),
                                 new AddAliasConnectionRoutedByOrganisation("organisation", "loc-alias-2", "connection-2"))
@@ -977,17 +1000,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayNestedChildWithChildRoutingKeyAndParentIdUsesMatchingParent() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateOrganisation command) {
-                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddConnectionRoutedByConnection command) {
-                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", Organisation.class))
                         .givenCommands(
                                 new CreateOrganisation("organisation", List.of("location-1", "location-2")),
                                 new AddConnectionRoutedByConnection("organisation", "location-2", "connection-2"))
@@ -1005,17 +1018,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayDeepNestedChildWithRootRoutingKeyUsesMatchingGrandParentAndParent() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateEndpointOrganisation command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddEndpointRoutedByOrganisation command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", EndpointOrganisation.class))
                         .givenCommands(
                                 new CreateEndpointOrganisation("organisation"),
                                 new AddEndpointRoutedByOrganisation("organisation", "location-2", "connection-2",
@@ -1030,17 +1033,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayDeepNestedChildWithParentRoutingKeyUsesMatchingParent() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateEndpointOrganisation command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddEndpointRoutedByConnection command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", EndpointOrganisation.class))
                         .givenCommands(
                                 new CreateEndpointOrganisation("organisation"),
                                 new AddEndpointRoutedByConnection("organisation", "connection-2", "endpoint-2"))
@@ -1054,22 +1047,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayDeepNestedChildWithChildRoutingKeyUpdatesExistingChild() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateEndpointOrganisation command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddEndpointRoutedByConnection command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(UpdateEndpointRoutedByEndpoint command) {
-                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", EndpointOrganisation.class))
                         .givenCommands(
                                 new CreateEndpointOrganisation("organisation"),
                                 new AddEndpointRoutedByConnection("organisation", "connection-2", "endpoint-2"),
@@ -1085,17 +1063,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void replayFourthLevelChildWithRootRoutingKeyUsesAllIntermediateIds() {
-                TestFixture.createJvmCompatibility(new Object() {
-                            @HandleCommand
-                            void handle(CreateCredentialOrganisation command) {
-                                loadAggregate(command.organisationId(), CredentialOrganisation.class).apply(command);
-                            }
-
-                            @HandleCommand
-                            void handle(AddCredentialRoutedByOrganisation command) {
-                                loadAggregate(command.organisationId(), CredentialOrganisation.class).apply(command);
-                            }
-                        })
+                TestFixture.create(new ApplyingCommandHandler("organisation", CredentialOrganisation.class))
                         .givenCommands(
                                 new CreateCredentialOrganisation("organisation"),
                                 new AddCredentialRoutedByOrganisation("organisation", "location-2", "connection-2",
@@ -1112,16 +1080,11 @@ public class AggregateEntitiesTest {
 
             @Test
             void testUpdateNestedMemberInRecordOwnerUsingWithMethod() {
-                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("record", RecordAggregate.class)
+                TestFixture.create().given(fc -> loadAggregate("record", RecordAggregate.class)
                                 .update(s -> new RecordAggregate("record",
                                                                  new RecordChild("recordChild",
                                                                                  new RecordGrandChild("gc0")))))
-                        .registerHandlers(new Object() {
-                            @HandleCommand
-                            void handle(Object command) {
-                                loadAggregate("record", RecordAggregate.class).apply(command);
-                            }
-                        })
+                        .registerHandlers(new ApplyingCommandHandler("record", RecordAggregate.class))
                         .whenCommand(new UpdateRecordGrandChild("gc0", "gc1"))
                         .expectTrue(fc -> "gc1".equals(loadAggregate("record", RecordAggregate.class)
                                                                .get().child().grandChild().recordGrandChildId()));
@@ -1129,17 +1092,12 @@ public class AggregateEntitiesTest {
 
             @Test
             void testUpdateNestedMemberInRecordOwnerUsingCanonicalConstructor() {
-                TestFixture.createJvmCompatibility().given(fc -> loadAggregate("constructor-record", ConstructorRecordAggregate.class)
+                TestFixture.create().given(fc -> loadAggregate("constructor-record", ConstructorRecordAggregate.class)
                                 .update(s -> new ConstructorRecordAggregate(
                                         "constructor-record",
                                         new ConstructorRecordChild("recordChild",
                                                                    new ConstructorRecordGrandChild("gc0")))))
-                        .registerHandlers(new Object() {
-                            @HandleCommand
-                            void handle(Object command) {
-                                loadAggregate("constructor-record", ConstructorRecordAggregate.class).apply(command);
-                            }
-                        })
+                        .registerHandlers(new ApplyingCommandHandler("constructor-record", ConstructorRecordAggregate.class))
                         .whenCommand(new UpdateConstructorRecordGrandChild("gc0", "gc1"))
                         .expectTrue(fc -> "gc1".equals(loadAggregate(
                                 "constructor-record", ConstructorRecordAggregate.class)
@@ -1180,12 +1138,7 @@ public class AggregateEntitiesTest {
             @Test
             void applyOnChildEntity() {
                 AggregateEntitiesTest.this.setUp();
-                testFixture.registerHandlers(new Object() {
-                    @HandleCommand
-                    void handle(UpdateChild command) {
-                        loadEntity(command.getChildId()).assertAndApply(command);
-                    }
-                });
+                testFixture.registerHandlers(new ChildEntityApplyHandler());
                 testFixture.whenCommand(new UpdateChild("id", "data"))
                         .expectThat(fc -> expectEntity(
                                 e -> e.get() instanceof Child && ((Child) e.get()).getData().equals("data")));
@@ -1193,12 +1146,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void addStringAlias() {
-                testFixture.whenCommand(new Object() {
-                            @Apply
-                            Aggregate apply(Aggregate aggregate) {
-                                return aggregate.toBuilder().clientReference("clientRef").build();
-                            }
-                        })
+                testFixture.whenCommand(new AddStringAliasCommand())
                         .expectTrue(fc -> {
                             Entity<Object> entity = loadEntity("clientRef");
                             return entity.isPresent() && entity.isRoot();
@@ -1207,14 +1155,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void addStringAliases() {
-                testFixture.whenCommand(new Object() {
-                            @Apply
-                            Aggregate apply(Aggregate aggregate) {
-                                return aggregate.toBuilder()
-                                        .otherReference("clientRef1").otherReference("clientRef2")
-                                        .otherReference(null).build();
-                            }
-                        })
+                testFixture.whenCommand(new AddStringAliasesCommand())
                         .expectFalse(fc -> loadEntity("other-clientRef").isPresent())
                         .expectFalse(fc -> loadEntity("other-null").isPresent())
                         .expectTrue(fc -> loadEntity("other-clientRef1").isPresent())
@@ -1255,7 +1196,7 @@ public class AggregateEntitiesTest {
             }
 
             @Value
-            class AddChild {
+            static class AddChild {
                 MissingChildId missingChildId;
 
                 @Apply
@@ -1265,7 +1206,7 @@ public class AggregateEntitiesTest {
             }
 
             @Value
-            class AddChildAndGrandChild {
+            static class AddChildAndGrandChild {
                 MissingChildId missingChildId;
                 String missingGrandChildId;
 
@@ -1276,7 +1217,7 @@ public class AggregateEntitiesTest {
                 }
             }
 
-            class EventHandler {
+            static class EventHandler {
                 @HandleEvent
                 void handle(Entity<Aggregate> entity) {
                     Fluxzero.publishEvent("added child to: " + entity.id());
@@ -1288,14 +1229,14 @@ public class AggregateEntitiesTest {
                 }
             }
 
-            class WrongEventHandler {
+            static class WrongEventHandler {
                 @HandleEvent
                 void handle(Entity<String> entity) {
                     Fluxzero.publishEvent("added child to: " + entity.id());
                 }
             }
 
-            class SingleParameterSpecificityHandler {
+            static class SingleParameterSpecificityHandler {
                 @HandleEvent
                 void handle(Aggregate aggregate) {
                     Fluxzero.publishEvent("entity handler");
@@ -1342,7 +1283,7 @@ public class AggregateEntitiesTest {
 
             @Test
             void duplicateNonNullEntityIdsInOneListCanStillBeTraversed() {
-                TestFixture.createJvmCompatibility()
+                TestFixture.create()
                         .whenApplying(fc -> loadAggregate("duplicate-list", DuplicateListAggregate.class)
                                 .update(s -> new DuplicateListAggregate(
                                         "duplicate-list",
@@ -1383,7 +1324,7 @@ public class AggregateEntitiesTest {
             }
 
             @Value
-            class AddListChild {
+            static class AddListChild {
                 String listChildId;
 
                 @Apply
@@ -1393,7 +1334,7 @@ public class AggregateEntitiesTest {
             }
 
             @Value
-            class AddNullListChild {
+            static class AddNullListChild {
                 String nullListChildId;
 
                 @Apply
@@ -1442,7 +1383,7 @@ public class AggregateEntitiesTest {
             }
 
             @Value
-            class AddMapChild {
+            static class AddMapChild {
                 Key mapChildId;
 
                 @Apply
@@ -1452,7 +1393,7 @@ public class AggregateEntitiesTest {
             }
 
             @Value
-            class StoreOnlyAddMapChild {
+            static class StoreOnlyAddMapChild {
                 Key mapChildId;
 
                 @Apply(publicationStrategy = EventPublicationStrategy.STORE_ONLY)
@@ -1463,7 +1404,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class RemoveChild {
+        static class RemoveChild {
             @RoutingKey
             Object id;
 
@@ -1474,7 +1415,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class UpdateChild {
+        static class UpdateChild {
             @RoutingKey
             Object childId;
             Object data;
@@ -1486,7 +1427,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class UpdateChildAndAggregate {
+        static class UpdateChildAndAggregate {
             @RoutingKey
             String childId;
             String data;
@@ -1503,7 +1444,7 @@ public class AggregateEntitiesTest {
         }
 
         @Value
-        class UpdateGrandChildHierarchy {
+        static class UpdateGrandChildHierarchy {
             @RoutingKey
             String grandChildId;
             String newGrandChildId;
@@ -1566,7 +1507,7 @@ public class AggregateEntitiesTest {
 
     @Nested
     class MutableEntityTests {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new CommandHandler()).given(
+        private final TestFixture testFixture = TestFixture.create(new CommandHandler()).given(
                 fc -> loadAggregate("test", MutableAggregate.class)
                         .update(s -> new MutableAggregate(null)));
 
@@ -1583,7 +1524,7 @@ public class AggregateEntitiesTest {
                             fc -> expectNoEntity(MutableAggregate.class, e -> "childId".equals(e.id())));
         }
 
-        class CommandHandler {
+        static class CommandHandler {
             @HandleCommand
             void handle(Object command) {
                 loadAggregate("test", MutableAggregate.class).apply(command);
@@ -1693,12 +1634,9 @@ public class AggregateEntitiesTest {
 
     @Nested
     class RecursiveRootAggregateTests {
-        private final TestFixture recursiveFixture = TestFixture.createJvmCompatibility(new Object() {
-            @HandleCommand
-            void handle(Object command) {
-                loadAggregate("root", Folder.class).apply(command);
-            }
-        }).givenCommands(new CreateFolder("root"));
+        private final TestFixture recursiveFixture =
+                TestFixture.create(new ApplyingCommandHandler("root", Folder.class))
+                        .givenCommands(new CreateFolder("root"));
 
         @Test
         void canAddNestedFolderWithoutReplacingParent() {
@@ -1946,13 +1884,10 @@ public class AggregateEntitiesTest {
 
     @Nested
     class RecursiveWrappedAggregateTests {
-        private final TestFixture wrappedFixture = TestFixture.createJvmCompatibility(new Object() {
-            @HandleCommand
-            void handle(Object command) {
-                loadAggregate("tree", FolderAggregate.class).apply(command);
-            }
-        }).given(fc -> loadAggregate("tree", FolderAggregate.class)
-                .update(s -> new FolderAggregate("tree", null)));
+        private final TestFixture wrappedFixture =
+                TestFixture.create(new ApplyingCommandHandler("tree", FolderAggregate.class))
+                        .given(fc -> loadAggregate("tree", FolderAggregate.class)
+                                .update(s -> new FolderAggregate("tree", null)));
 
         @Test
         void wrappedAggregateCanCreateRootFolder() {

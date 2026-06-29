@@ -15,9 +15,12 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.ParameterView;
 import jakarta.validation.ElementKind;
 import jakarta.validation.Valid;
 
+import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -30,15 +33,31 @@ import java.util.stream.Stream;
 record ExecutableValidationMetadata(List<ConstraintMeta> crossParameterConstraints, ReturnValueMetadata returnValue,
                           List<ParameterMetadata> parameters, String name, ElementKind kind) {
     private static final ConcurrentHashMap<Executable, ExecutableValidationMetadata> cache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<ExecutableView, ExecutableValidationMetadata> viewCache =
+            new ConcurrentHashMap<>();
 
     static ExecutableValidationMetadata of(Executable executable) {
         return cache.computeIfAbsent(executable, ExecutableValidationMetadata::new);
+    }
+
+    static ExecutableValidationMetadata of(ExecutableView executable) {
+        return viewCache.computeIfAbsent(executable, ExecutableValidationMetadata::new);
     }
 
     private ExecutableValidationMetadata(Executable executable) {
         this(executableConstraints(executable), ReturnValueMetadata.of(executable), parameters(executable),
              executableName(executable),
              executable instanceof Constructor<?> ? ElementKind.CONSTRUCTOR : ElementKind.METHOD);
+    }
+
+    private ExecutableValidationMetadata(ExecutableView executable) {
+        this(List.of(), new ReturnValueMetadata(List.of(), TypeUseValidationMetadata.of((AnnotatedType) null),
+                                                false, List.of()),
+             parameters(executable),
+             executable.kind() == ExecutableView.Kind.CONSTRUCTOR
+                     ? executable.targetClass().map(Class::getSimpleName).orElse(executable.targetTypeName())
+                     : executable.name(),
+             executable.kind() == ExecutableView.Kind.CONSTRUCTOR ? ElementKind.CONSTRUCTOR : ElementKind.METHOD);
     }
 
     void validate(ValidationRun run, Object target, Executable executable, Object[] arguments,
@@ -55,6 +74,23 @@ record ExecutableValidationMetadata(List<ConstraintMeta> crossParameterConstrain
                 String parameterName = i < parameterNames.size() ? parameterNames.get(i) : parameters.get(i).name();
                 parameters.get(i).validate(run, target == null ? executable : target, value, group, executablePath,
                                            parameterName);
+            }
+        }
+    }
+
+    void validate(ValidationRun run, Object target, ExecutableView executable, Object[] arguments,
+                  Class<?>[] groups) {
+        ValidationPath executablePath = ValidationPath.root().appendExecutable(name, kind);
+        List<String> parameterNames = executable.parameters().stream().map(ParameterView::name).toList();
+        Object owner = target == null ? executable : target;
+        for (Class<?> group : groups) {
+            for (ConstraintMeta constraint : crossParameterConstraints) {
+                run.validateValue(owner, constraint, arguments, group, executablePath.appendCrossParameter());
+            }
+            for (int i = 0; i < parameters.size(); i++) {
+                Object value = i < arguments.length ? arguments[i] : null;
+                String parameterName = i < parameterNames.size() ? parameterNames.get(i) : parameters.get(i).name();
+                parameters.get(i).validate(run, owner, value, group, executablePath, parameterName);
             }
         }
     }
@@ -90,6 +126,15 @@ record ExecutableValidationMetadata(List<ConstraintMeta> crossParameterConstrain
         List<ParameterMetadata> result = new ArrayList<>(parameters.length);
         for (int i = 0; i < parameters.length; i++) {
             result.add(ParameterMetadata.of(parameters[i], i));
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<ParameterMetadata> parameters(ExecutableView executable) {
+        List<? extends ParameterView> parameters = executable.parameters();
+        List<ParameterMetadata> result = new ArrayList<>(parameters.size());
+        for (int i = 0; i < parameters.size(); i++) {
+            result.add(ParameterMetadata.of(parameters.get(i), i));
         }
         return List.copyOf(result);
     }
@@ -165,6 +210,20 @@ record ParameterMetadata(String name, int index, List<ConstraintMeta> constraint
                                                                     cascaded, conversions),
                                      cascaded,
                                      conversions);
+    }
+
+    static ParameterMetadata of(ParameterView parameter, int index) {
+        List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintAnnotations(parameter.annotationViews())
+                .stream()
+                .map(ConstraintMeta::new)
+                .distinct()
+                .toList();
+        boolean cascaded = ValidationAnnotationUtils.hasAnnotation(parameter.annotationViews(), Valid.class);
+        List<ValidationAnnotationUtils.GroupConversion> conversions =
+                ValidationAnnotationUtils.groupConversions(parameter.annotationViews());
+        return new ParameterMetadata(parameter.name(), index, constraints,
+                                     TypeUseValidationMetadata.of((AnnotatedType) null),
+                                     cascaded, conversions);
     }
 
     void validate(ValidationRun run, Object owner, Object value, Class<?> group,

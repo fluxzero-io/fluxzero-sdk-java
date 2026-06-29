@@ -20,6 +20,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerFilter;
@@ -50,6 +51,7 @@ import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Executable;
 import java.time.LocalDate;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -130,8 +132,19 @@ public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
     private static final CompletionStage<Void> completedReport = CompletableFuture.completedFuture(null);
 
-    private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
-            .map(LocalHandler::allowExternalMessages).orElse(true);
+    private final HandlerFilter handlerFilter = new HandlerFilter() {
+        @Override
+        public boolean test(Class<?> ownerType, Executable executable) {
+            return getLocalHandlerAnnotation(ownerType, executable)
+                    .map(LocalHandler::allowExternalMessages).orElse(true);
+        }
+
+        @Override
+        public boolean test(Class<?> ownerType, ExecutableView executable) {
+            return getLocalHandlerAnnotation(ownerType, executable)
+                    .map(LocalHandler::allowExternalMessages).orElse(true);
+        }
+    };
     private final MessageType messageType;
     private final ResultGateway resultGateway;
     private final List<ConsumerConfiguration> customConfigurations;

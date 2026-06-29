@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 
-class GivenWhenThenWebTest {
+class GivenWhenThenWebProcessorTest {
 
     @Nested
     class WhenTests {

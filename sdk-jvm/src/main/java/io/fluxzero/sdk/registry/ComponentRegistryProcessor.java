@@ -82,6 +82,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     private static final String CONSUMER = "io.fluxzero.sdk.tracking.Consumer";
     private static final String TRACK_SELF = "io.fluxzero.sdk.tracking.TrackSelf";
     private static final String LOCAL_HANDLER = "io.fluxzero.sdk.tracking.handling.LocalHandler";
+    private static final String REQUEST = "io.fluxzero.sdk.tracking.handling.Request";
+    private static final String ID = "io.fluxzero.sdk.modeling.Id";
     private static final Map<String, ComponentCapability> INFRASTRUCTURE_CAPABILITIES = Map.ofEntries(
             entry("io.fluxzero.sdk.publishing.DispatchInterceptor", ComponentCapability.DISPATCH_INTERCEPTOR),
             entry("io.fluxzero.sdk.tracking.handling.HandlerDecorator", ComponentCapability.HANDLER_DECORATOR),
@@ -726,6 +728,12 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 result.add(capability);
             }
         });
+        if (isAssignable(type, REQUEST)) {
+            result.add(ComponentCapability.REQUEST_PAYLOAD);
+        }
+        if (isAssignable(type, ID)) {
+            result.add(ComponentCapability.ID_SUBTYPE);
+        }
         if (result.contains(ComponentCapability.HANDLER_INTERCEPTOR)) {
             result.add(ComponentCapability.HANDLER_DECORATOR);
         }

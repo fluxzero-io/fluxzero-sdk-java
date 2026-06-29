@@ -37,6 +37,8 @@ import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -54,7 +56,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+@ResourceLock(Resources.SYSTEM_PROPERTIES)
 class ComponentMetadataLookupTest {
 
     @Test
@@ -174,6 +178,21 @@ class ComponentMetadataLookupTest {
                                  () -> assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode()));
         withMetadataModeProperty(ComponentMetadataLookups.HYBRID_MODE,
                                  () -> assertTrue(ComponentMetadataLookups.configuredJvmCompatibilityMode()));
+    }
+
+    @Test
+    void defaultMetadataModeIsGeneratedOnlyUnlessGlobalCompatibilityIsExplicit() throws Exception {
+        String envMode = System.getenv(ComponentMetadataLookups.METADATA_MODE_ENV);
+        assumeTrue(envMode == null || envMode.isBlank(),
+                   "Global metadata-mode environment override is set");
+
+        withoutMetadataModeProperty(() -> {
+            assertTrue(ComponentMetadataLookups.generatedOnlyMode());
+            assertFalse(ComponentMetadataLookups.strictGeneratedOnlyMode());
+            assertFalse(ComponentMetadataLookups.jvmCompatibilityMode());
+            assertFalse(ComponentMetadataLookups.configuredJvmCompatibilityMode());
+            assertThrows(ComponentRegistryException.class, JvmCompatibilityBackend::introspector);
+        });
     }
 
     @Test
@@ -357,6 +376,18 @@ class ComponentMetadataLookupTest {
             if (previous == null) {
                 System.clearProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY);
             } else {
+                System.setProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY, previous);
+            }
+        }
+    }
+
+    private static void withoutMetadataModeProperty(ThrowingRunnable runnable) throws Exception {
+        String previous = System.getProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY);
+        System.clearProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY);
+        try {
+            runnable.run();
+        } finally {
+            if (previous != null) {
                 System.setProperty(ComponentMetadataLookups.METADATA_MODE_PROPERTY, previous);
             }
         }

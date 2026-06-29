@@ -22,20 +22,22 @@ import org.junit.jupiter.api.Test;
 
 class JsonPayloadParameterResolverTest {
 
-    TestFixture testFixture = TestFixture.createJvmCompatibility();
+    TestFixture testFixture = TestFixture.create();
 
     @Test
     void payloadToJsonNode() {
-        testFixture.registerHandlers(new Object() {
-                    @HandleCommand(allowedClasses = TestPayload.class)
-                    void handle(ObjectNode payload) {
-                        Fluxzero.publishEvent(payload.get("foo").textValue());
-                    }
-                })
+        testFixture.registerHandlers(new JsonNodePayloadHandler())
                 .whenCommand(new TestPayload("bar"))
                 .expectEvents("bar");
     }
 
     record TestPayload(String foo) {
+    }
+
+    static class JsonNodePayloadHandler {
+        @HandleCommand(allowedClasses = TestPayload.class)
+        void handle(ObjectNode payload) {
+            Fluxzero.publishEvent(payload.get("foo").textValue());
+        }
     }
 }

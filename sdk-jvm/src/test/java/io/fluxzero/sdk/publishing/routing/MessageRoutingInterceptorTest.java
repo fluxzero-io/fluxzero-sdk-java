@@ -52,26 +52,26 @@ class MessageRoutingInterceptorTest {
 
     @Nested
     class HandlerTests {
-        final Object handler = new Object() {
-            @HandleEvent
-            @RoutingKey("bar")
-            void handle(Foo event) {
-                if (Tracker.current().map(tracker -> !ConsistentHashing.fallsInRange(
-                        event.bar, tracker.getMessageBatch().getSegment())).orElseThrow()) {
-                    throw new MockException();
-                }
-            }
-        };
-
         final TestFixture testFixture = TestFixture.createAsync(
                 DefaultFluxzero.builder().configureDefaultConsumer(EVENT, c -> c.toBuilder()
-                        .threads(2).ignoreSegment(true).build()), handler);
+                        .threads(2).ignoreSegment(true).build()), new RoutingSegmentHandler());
 
         @Test
         void ensureHandlerFiltering() {
             testFixture.whenExecuting(fc -> IntStream.range(0, 64).mapToObj(i -> new Foo(UUID.randomUUID().toString())).forEach(
                     e -> run(() -> fc.eventGateway().publish(Message.asMessage(e), Guarantee.STORED).get())))
                     .expectNoErrors();
+        }
+    }
+
+    private static class RoutingSegmentHandler {
+        @HandleEvent
+        @RoutingKey("bar")
+        void handle(Foo event) {
+            if (Tracker.current().map(tracker -> !ConsistentHashing.fallsInRange(
+                    event.bar, tracker.getMessageBatch().getSegment())).orElseThrow()) {
+                throw new MockException();
+            }
         }
     }
 

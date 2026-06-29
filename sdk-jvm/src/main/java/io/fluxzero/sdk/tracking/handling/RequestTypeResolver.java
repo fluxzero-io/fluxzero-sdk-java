@@ -15,6 +15,8 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ComponentDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.JvmCompatibilityBackend;
 
@@ -22,13 +24,21 @@ import java.lang.reflect.Array;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * JVM runtime helper for resolving the response type declared by {@link Request}.
  */
 public final class RequestTypeResolver {
+    private static final Pattern TYPE_TOKEN = Pattern.compile("\\b[A-Za-z_$][\\w$]*\\b");
 
     private RequestTypeResolver() {
     }
@@ -60,10 +70,100 @@ public final class RequestTypeResolver {
                 .flatMap(lookup -> typeNames(requestClass).stream()
                         .map(lookup::component)
                         .flatMap(Optional::stream)
-                        .findFirst())
-                .flatMap(component -> component.superTypeNames().stream()
-                        .flatMap(superType -> requestResponseType(superType, requestClass.getClassLoader()).stream())
-                        .findFirst());
+                        .findFirst()
+                        .flatMap(component -> metadataResponseType(
+                                lookup, component, requestClass.getClassLoader(), Map.of(), new HashSet<>())));
+    }
+
+    private static Optional<Type> metadataResponseType(ComponentMetadataLookup lookup, ComponentDescriptor component,
+                                                       ClassLoader classLoader, Map<String, String> substitutions,
+                                                       Set<String> visiting) {
+        String visitKey = component.fullClassName() + substitutions;
+        if (!visiting.add(visitKey)) {
+            return Optional.empty();
+        }
+        try {
+            for (String superTypeName : component.superTypeNames()) {
+                String substitutedSuperType = substituteTypeVariables(superTypeName, substitutions);
+                Optional<Type> responseType = requestResponseType(substitutedSuperType, classLoader);
+                if (responseType.isPresent()) {
+                    return responseType;
+                }
+                Optional<ComponentDescriptor> superComponent = component(lookup, eraseGeneric(superTypeName), classLoader);
+                if (superComponent.isEmpty()) {
+                    continue;
+                }
+                Optional<Type> nested = metadataResponseType(
+                        lookup, superComponent.orElseThrow(), classLoader,
+                        superTypeSubstitutions(superComponent.orElseThrow(), substitutedSuperType), visiting);
+                if (nested.isPresent()) {
+                    return nested;
+                }
+            }
+            return Optional.empty();
+        } finally {
+            visiting.remove(visitKey);
+        }
+    }
+
+    private static Optional<ComponentDescriptor> component(
+            ComponentMetadataLookup lookup, String typeName, ClassLoader classLoader) {
+        return lookup.component(typeName)
+                .or(() -> JvmComponentMetadataLookup.classForMetadataName(typeName, classLoader)
+                        .flatMap(type -> typeNames(type).stream()
+                                .map(lookup::component)
+                                .flatMap(Optional::stream)
+                                .findFirst()));
+    }
+
+    private static Map<String, String> superTypeSubstitutions(
+            ComponentDescriptor superComponent, String superTypeName) {
+        List<String> arguments = genericArguments(superTypeName);
+        if (arguments.isEmpty()) {
+            return Map.of();
+        }
+        List<String> parameters = inferredTypeParameters(superComponent);
+        Map<String, String> result = new LinkedHashMap<>();
+        for (int i = 0; i < Math.min(parameters.size(), arguments.size()); i++) {
+            result.put(parameters.get(i), arguments.get(i));
+        }
+        return Map.copyOf(result);
+    }
+
+    private static List<String> inferredTypeParameters(ComponentDescriptor component) {
+        Set<String> result = new LinkedHashSet<>();
+        component.superTypeNames().forEach(typeName -> collectTypeVariables(typeName, result));
+        return List.copyOf(result);
+    }
+
+    private static void collectTypeVariables(String typeName, Set<String> sink) {
+        for (String argument : genericArguments(typeName)) {
+            String normalized = argument.trim()
+                    .replaceFirst("^\\?\\s+extends\\s+", "")
+                    .replaceFirst("^\\?\\s+super\\s+", "");
+            if (isTypeVariable(normalized)) {
+                sink.add(normalized);
+            }
+            collectTypeVariables(normalized, sink);
+        }
+    }
+
+    private static boolean isTypeVariable(String typeName) {
+        return typeName.matches("[A-Z][A-Za-z0-9_$]*");
+    }
+
+    private static String substituteTypeVariables(String typeName, Map<String, String> substitutions) {
+        if (substitutions.isEmpty()) {
+            return typeName;
+        }
+        Matcher matcher = TYPE_TOKEN.matcher(typeName);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            matcher.appendReplacement(result, Matcher.quoteReplacement(
+                    substitutions.getOrDefault(matcher.group(), matcher.group())));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     private static Optional<Type> requestResponseType(String superTypeName, ClassLoader classLoader) {
@@ -77,6 +177,18 @@ public final class RequestTypeResolver {
             return Optional.empty();
         }
         return metadataType(superTypeName.substring(genericStart + 1, genericEnd), classLoader);
+    }
+
+    private static List<String> genericArguments(String typeName) {
+        int genericStart = typeName.indexOf('<');
+        if (genericStart < 0) {
+            return List.of();
+        }
+        int genericEnd = matchingGeneric(typeName, genericStart);
+        if (genericEnd < 0) {
+            return List.of();
+        }
+        return splitTopLevel(typeName.substring(genericStart + 1, genericEnd), ',');
     }
 
     private static Optional<Type> metadataType(String typeName, ClassLoader classLoader) {

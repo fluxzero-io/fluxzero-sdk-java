@@ -85,7 +85,7 @@ class EventSourcingRepositoryTest {
     @Nested
     class Normal {
         private final TestFixture testFixture =
-                TestFixture.createJvmCompatibility(DefaultFluxzero.builder().disableAutomaticAggregateCaching(), new Handler())
+                TestFixture.create(DefaultFluxzero.builder().disableAutomaticAggregateCaching(), new Handler())
                         .spy();
         private final EventStoreClient eventStoreClient = testFixture.getFluxzero().client().getEventStoreClient();
 
@@ -132,7 +132,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void applySeesDispatchInterceptedMetadataDuringApplyAndReplay() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .disableAutomaticAggregateCaching()
                                        .addDispatchInterceptor((message, messageType, topic) ->
                                                                        message.withMetadata(
@@ -156,7 +156,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void applySeesUserDuringApplyAndReplay() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .disableAutomaticAggregateCaching()
                                        .registerUserProvider(new FixedUserProvider(new MockUser("apply"))),
                                new UserAwareHandler())
@@ -170,7 +170,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void notNullProtectedDataIsValidatedBeforeDispatchInterceptionAndApplySeesSanitizedEvent() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder().disableAutomaticAggregateCaching(),
+            TestFixture.create(DefaultFluxzero.builder().disableAutomaticAggregateCaching(),
                                new ProtectedDataHandler())
                     .whenCommand(new ProtectedDataEvent("top-secret"))
                     .expectEvents(new ProtectedDataEvent(null))
@@ -182,7 +182,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void dispatchBlockedEventIsNotApplied() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .disableAutomaticAggregateCaching()
                                        .addDispatchInterceptor((message, messageType, topic) ->
                                                                        message.getPayload() instanceof UpdateModel
@@ -269,7 +269,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void testRollbackAllAppliedEventsAfterException_async() {
-            TestFixture.createAsyncJvmCompatibility(new Handler())
+            TestFixture.createAsync(new Handler())
                     .whenCommand(new FailsAfterApply())
                     .expectThat(fc -> verify(eventStoreClient, never()).storeEvents(anyString(), anyList(),
                                                                                     eq(false)))
@@ -347,14 +347,14 @@ class EventSourcingRepositoryTest {
 
         @Test
         void defaultAggregateEventRoutingUsesMessageRoutingKey() {
-            TestFixture.createJvmCompatibility(new AggregateEventRoutingHandler(MessageRoutedAggregate.class))
+            TestFixture.create(new AggregateEventRoutingHandler(MessageRoutedAggregate.class))
                     .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
                     .expectThat(fc -> assertStoredSegment(fc, aggregateId, eventRoutingKey));
         }
 
         @Test
         void aggregateIdEventRoutingUsesAggregateId() {
-            TestFixture.createJvmCompatibility(new AggregateEventRoutingHandler(AggregateIdRoutedAggregate.class))
+            TestFixture.create(new AggregateEventRoutingHandler(AggregateIdRoutedAggregate.class))
                     .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
                     .expectThat(fc -> assertStoredSegment(fc, aggregateId, aggregateId));
         }
@@ -362,7 +362,7 @@ class EventSourcingRepositoryTest {
         @Test
         void aggregateIdEventRoutingSetsSegmentBeforeSerializedDispatchInterceptors() {
             AtomicReference<Integer> observedSegment = new AtomicReference<>();
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .addDispatchInterceptor(new DispatchInterceptor() {
                                            @Override
                                            public Message interceptDispatch(Message message, MessageType messageType,
@@ -386,14 +386,14 @@ class EventSourcingRepositoryTest {
 
         @Test
         void applyEventRoutingCanUseAggregateId() {
-            TestFixture.createJvmCompatibility(new AggregateEventRoutingHandler(MessageRoutedAggregateWithApplyOverride.class))
+            TestFixture.create(new AggregateEventRoutingHandler(MessageRoutedAggregateWithApplyOverride.class))
                     .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
                     .expectThat(fc -> assertStoredSegment(fc, aggregateId, aggregateId));
         }
 
         @Test
         void applyEventRoutingCanUseMessageRoutingKey() {
-            TestFixture.createJvmCompatibility(new AggregateEventRoutingHandler(AggregateIdRoutedAggregateWithApplyOverride.class))
+            TestFixture.create(new AggregateEventRoutingHandler(AggregateIdRoutedAggregateWithApplyOverride.class))
                     .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
                     .expectThat(fc -> assertStoredSegment(fc, aggregateId, eventRoutingKey));
         }
@@ -408,7 +408,7 @@ class EventSourcingRepositoryTest {
     @Nested
     class EventPublicationTests {
 
-        final TestFixture testFixture = TestFixture.createJvmCompatibility();
+        final TestFixture testFixture = TestFixture.create();
 
         @Test
         void publishIfModified_newAggregate() {
@@ -471,7 +471,7 @@ class EventSourcingRepositoryTest {
         @Test
         void publishNeverIsNotBlockedByDispatchInterceptor() {
             var command = new SelfApplyingCommand(PublishNeverModel.class);
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .addDispatchInterceptor((message, messageType, topic) -> null,
                                                                MessageType.EVENT))
                     .whenCommand(command)
@@ -488,7 +488,7 @@ class EventSourcingRepositoryTest {
 
     @Nested
     class DepthTests {
-        final TestFixture testFixture = TestFixture.createJvmCompatibility().spy();
+        final TestFixture testFixture = TestFixture.create().spy();
 
         @Test
         void reloadLazilyAfterDepth() {
@@ -575,20 +575,29 @@ class EventSourcingRepositoryTest {
         }
     }
 
+    static class ThrowingEventHandler {
+        @HandleEvent
+        void handle(Object event) {
+            throw new MockException();
+        }
+    }
+
+    static class SuccessMetricEventHandler {
+        @HandleEvent
+        void handle(Object event) {
+            Fluxzero.publishMetrics("success");
+        }
+    }
+
     @Nested
     class PublicationStrategyTests {
 
-        final TestFixture testFixture = TestFixture.createJvmCompatibility().spy();
+        final TestFixture testFixture = TestFixture.create().spy();
 
         @Test
         void storeOnly() {
             testFixture
-                    .registerHandlers(new Object() {
-                        @HandleEvent
-                        void handle(Object event) {
-                            throw new MockException();
-                        }
-                    })
+                    .registerHandlers(new ThrowingEventHandler())
                     .whenCommand(new SelfApplyingCommand(StoreOnlyModel.class)).expectNoErrors()
                     .expectThat(
                             fc -> verify(fc.client().getEventStoreClient()).storeEvents(any(), anyList(), eq(true)));
@@ -597,12 +606,7 @@ class EventSourcingRepositoryTest {
         @Test
         void publishOnly() {
             testFixture
-                    .registerHandlers(new Object() {
-                        @HandleEvent
-                        void handle(Object event) {
-                            Fluxzero.publishMetrics("success");
-                        }
-                    })
+                    .registerHandlers(new SuccessMetricEventHandler())
                     .whenCommand(new SelfApplyingCommand(PublishOnlyModel.class))
                     .expectMetrics("success")
                     .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.EVENT)).append(any(), any()))
@@ -614,12 +618,7 @@ class EventSourcingRepositoryTest {
         @Test
         void publishOnlyDocumentBackedUpdatesState() {
             testFixture
-                    .registerHandlers(new Object() {
-                        @HandleEvent
-                        void handle(Object event) {
-                            Fluxzero.publishMetrics("success");
-                        }
-                    })
+                    .registerHandlers(new SuccessMetricEventHandler())
                     .whenCommand(new SelfApplyingCommand(PublishOnlyDocumentModel.class))
                     .expectMetrics("success")
                     .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.EVENT)).append(any(), any()))
@@ -699,7 +698,7 @@ class EventSourcingRepositoryTest {
     class SnapshotTests {
         SnapshotTestModelId aggregateId = new SnapshotTestModelId("test");
 
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler()).spy();
+        private final TestFixture testFixture = TestFixture.create(new Handler()).spy();
 
         @Test
         void testSnapshotRetrieved() {
@@ -931,7 +930,7 @@ class EventSourcingRepositoryTest {
 
     @Nested
     class NotEventSourced {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler()).spy();
+        private final TestFixture testFixture = TestFixture.create(new Handler()).spy();
 
         @Test
         void testIgnoreSnapshotPeriodWhenNotEventSourced() {
@@ -951,7 +950,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void notEventSourcedAggregateIsNotBlockedByDispatchInterceptor() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .addDispatchInterceptor((message, messageType, topic) -> null,
                                                                MessageType.EVENT),
                                new SearchableHandler())
@@ -965,7 +964,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void notEventSourcedAggregatePublishesDispatchInterceptedEventAfterApply() {
-            TestFixture.createJvmCompatibility(DefaultFluxzero.builder()
+            TestFixture.create(DefaultFluxzero.builder()
                                        .addDispatchInterceptor((message, messageType, topic) ->
                                                                        message.getPayload() instanceof UpdateModel
                                                                                ? message.withPayload(new CreateModel())
@@ -985,7 +984,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void searchableNotEventSourcedAggregatePublishesInterceptApplyResult() {
-            TestFixture.createJvmCompatibility(new UpsertSearchableHandler())
+            TestFixture.create(new UpsertSearchableHandler())
                     .whenCommand(new UpsertSearchableModel())
                     .expectEvents(new AddSearchableModel())
                     .expectThat(fc -> {
@@ -997,7 +996,7 @@ class EventSourcingRepositoryTest {
 
         @Test
         void searchableNotEventSourcedAggregateDoesNotPublishInterceptedUpdateWithNeverPublication() {
-            TestFixture.createJvmCompatibility(new UpsertSearchableHandler())
+            TestFixture.create(new UpsertSearchableHandler())
                     .givenCommands(new UpsertSearchableModel())
                     .whenCommand(new UpsertSearchableModel())
                     .expectNoEvents()
@@ -1101,7 +1100,7 @@ class EventSourcingRepositoryTest {
 
     @Nested
     class WithFactoryMethod {
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler()).spy();
+        private final TestFixture testFixture = TestFixture.create(new Handler()).spy();
 
         @Test
         void testCreateUsingFactoryMethod() {
@@ -1129,7 +1128,7 @@ class EventSourcingRepositoryTest {
     @Nested
     class WithFactoryMethodAndSameInstanceMethod {
 
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler()).spy();
+        private final TestFixture testFixture = TestFixture.create(new Handler()).spy();
 
         @Test
         void testCreateUsingFactoryMethodIfInstanceMethodForSamePayloadExists() {
@@ -1165,7 +1164,7 @@ class EventSourcingRepositoryTest {
     @Nested
     class WithoutFactoryMethodOrConstructor {
 
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler());
+        private final TestFixture testFixture = TestFixture.create(new Handler());
 
         private class Handler {
             @HandleCommand
@@ -1187,7 +1186,7 @@ class EventSourcingRepositoryTest {
     @Nested
     class WithoutApplyEvent {
 
-        private final TestFixture testFixture = TestFixture.createJvmCompatibility(new Handler());
+        private final TestFixture testFixture = TestFixture.create(new Handler());
 
         @Test
         void testCreateViaEvent() {
@@ -1262,17 +1261,6 @@ class EventSourcingRepositoryTest {
 
         @Test
         void testApplyInApply() {
-            @Value
-            class CreateAnotherAggregateInApply {
-                String nextAggregate;
-
-                @Apply
-                TestModelWithoutApplyEvent apply() {
-                    loadAggregate(nextAggregate, TestModelWithoutApplyEvent.class).apply(new CreateModelFromEvent());
-                    return TestModelWithoutApplyEvent.builder().firstEvent(this).build();
-                }
-            }
-
             testFixture
                     .whenCommand(new CreateAnotherAggregateInApply("another"))
                     .expectOnlyEvents(new CreateAnotherAggregateInApply("another"),
@@ -1296,6 +1284,14 @@ class EventSourcingRepositoryTest {
                 return loadAggregate(aggregateId.toString(), TestModelWithoutApplyEvent.class)
                         .playBackToCondition(a -> false);
             }
+        }
+    }
+
+    record CreateAnotherAggregateInApply(String nextAggregate) {
+        @Apply
+        TestModelWithoutApplyEvent apply() {
+            loadAggregate(nextAggregate, TestModelWithoutApplyEvent.class).apply(new CreateModelFromEvent());
+            return TestModelWithoutApplyEvent.builder().firstEvent(this).build();
         }
     }
 

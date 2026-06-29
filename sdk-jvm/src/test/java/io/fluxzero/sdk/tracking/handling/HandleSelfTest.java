@@ -35,174 +35,173 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class HandleSelfTest {
 
-    final TestFixture testFixture = TestFixture.createJvmCompatibility();
+    final TestFixture testFixture = TestFixture.create();
 
     @Test
     void query() {
-        testFixture.whenQuery(new Object() {
-            @HandleQuery
-            String handleSelf() {
-                return "foo";
-            }
-        }).expectResult("foo").expectNoMetrics();
+        testFixture.whenQuery(new SelfQuery()).expectResult("foo").expectNoMetrics();
     }
 
     @Test
     void command() {
-        Object payload = new Object() {
-            @HandleCommand
-            void handleSelf() {
-                Fluxzero.publishEvent(this);
-            }
-        };
+        Object payload = new SelfCommand();
         testFixture.whenCommand(payload).expectNoResult().expectEvents(payload);
     }
 
     @Test
     void disabled() {
-        class DisabledHandleSelf {
-            @HandleCommand(disabled = true)
-            void handle() {
-                Fluxzero.publishEvent("foo");
-            }
-        }
-
-        testFixture.registerHandlers(new Object() {
-            @HandleCommand
-            void handleCommand(Object command) {
-                Fluxzero.publishEvent(true);
-            }
-        }).whenCommand(new DisabledHandleSelf()).expectOnlyEvents(true).expectNoErrors();
+        testFixture.registerHandlers(new ObjectCommandHandler())
+                .whenCommand(new DisabledHandleSelf()).expectOnlyEvents(true).expectNoErrors();
     }
 
     @Test
     void handleSelfIgnoredIfEvent() {
-        Object payload = new Object() {
-            @HandleEvent
-            void handleSelf() {
-                Fluxzero.publishEvent("foo");
-            }
-        };
+        Object payload = new SelfEvent();
         testFixture.whenEvent(payload).expectNoErrors().expectNoEvents();
     }
 
     @Test
     void logHandlerMetricsIfExplicitlyEnabled() {
-        testFixture.whenQuery(new Object() {
-            @HandleQuery
-            @LocalHandler(logMetrics = true)
-            String handleSelf() {
-                return "foo";
-            }
-        }).expectResult("foo").expectMetrics(HandleMessageEvent.class);
+        testFixture.whenQuery(new MetricsSelfQuery()).expectResult("foo").expectMetrics(HandleMessageEvent.class);
     }
 
     @Test
     void logNoHandlerMetricsByDefault() {
-        testFixture.whenQuery(new Object() {
-            @HandleQuery
-            String handleSelf() {
-                return "foo";
-            }
-        }).expectResult("foo").expectNoMetricsLike(HandleMessageEvent.class);
+        testFixture.whenQuery(new SelfQuery()).expectResult("foo").expectNoMetricsLike(HandleMessageEvent.class);
     }
 
     @Test
     void triggersException() {
-        testFixture.whenQuery(new Object() {
-            @HandleQuery
-            String handleSelf() {
-                throw new MockException();
-            }
-        }).expectExceptionalResult(MockException.class);
+        testFixture.whenQuery(new FailingSelfQuery()).expectExceptionalResult(MockException.class);
     }
 
     @Test
     void triggersValidationException() {
-        testFixture.whenQuery(new Object() {
-            @NotBlank
-            private final String foo = null;
-
-            @HandleQuery
-            String handleSelf() {
-                return "bar";
-            }
-        }).expectExceptionalResult(ValidationException.class);
+        testFixture.whenQuery(new InvalidSelfQuery()).expectExceptionalResult(ValidationException.class);
     }
 
     @Test
     void syncTrackSelfHandledWithoutRegistration() {
-        @TrackSelf
-        @AllArgsConstructor
-        class SelfTracked {
-            String input;
-
-            @HandleQuery
-            String handleSelf() {
-                return "bar";
-            }
-        }
-
-        testFixture.whenQuery(new SelfTracked("foo")).expectResult("bar");
+        testFixture.whenQuery(new SyncSelfTracked("foo")).expectResult("bar");
     }
 
     @Test
     void registeringLocalSelfHandlerClassDoesNotHandleOtherMessages() {
-        record LocalSelfCommand(String input) {
-            @HandleCommand
-            void handleSelf() {
-                Fluxzero.publishEvent(input);
-            }
-        }
-        record OtherCommand() {
-        }
-
-        testFixture.registerHandlers(LocalSelfCommand.class, new Object() {
-            @HandleCommand
-            void handle(OtherCommand command) {
-                Fluxzero.publishEvent("other");
-            }
-        }).whenCommand(new OtherCommand()).expectOnlyEvents("other").expectNoErrors();
+        testFixture.registerHandlers(LocalSelfCommand.class, new OtherCommandHandler())
+                .whenCommand(new OtherCommand()).expectOnlyEvents("other").expectNoErrors();
     }
 
     @Test
     void registeringLocalSelfHandlerClassDoesNotHandleSelfTwice() {
-        record LocalSelfCommand(String input) {
-            @HandleCommand
-            void handleSelf() {
-                Fluxzero.publishEvent(input);
-            }
-        }
-
         testFixture.registerHandlers(LocalSelfCommand.class)
                 .whenCommand(new LocalSelfCommand("foo"))
                 .expectOnlyEvents("foo")
                 .expectNoErrors();
     }
 
+    static class SelfQuery {
+        @HandleQuery
+        String handleSelf() {
+            return "foo";
+        }
+    }
+
+    static class MetricsSelfQuery {
+        @HandleQuery
+        @LocalHandler(logMetrics = true)
+        String handleSelf() {
+            return "foo";
+        }
+    }
+
+    static class FailingSelfQuery {
+        @HandleQuery
+        String handleSelf() {
+            throw new MockException();
+        }
+    }
+
+    static class InvalidSelfQuery {
+        @NotBlank
+        private final String foo = null;
+
+        @HandleQuery
+        String handleSelf() {
+            return "bar";
+        }
+    }
+
+    static class SelfCommand {
+        @HandleCommand
+        void handleSelf() {
+            Fluxzero.publishEvent(this);
+        }
+    }
+
+    static class DisabledHandleSelf {
+        @HandleCommand(disabled = true)
+        void handle() {
+            Fluxzero.publishEvent("foo");
+        }
+    }
+
+    static class SelfEvent {
+        @HandleEvent
+        void handleSelf() {
+            Fluxzero.publishEvent("foo");
+        }
+    }
+
+    @TrackSelf
+    @AllArgsConstructor
+    static class SyncSelfTracked {
+        String input;
+
+        @HandleQuery
+        String handleSelf() {
+            return "bar";
+        }
+    }
+
+    record LocalSelfCommand(String input) {
+        @HandleCommand
+        void handleSelf() {
+            Fluxzero.publishEvent(input);
+        }
+    }
+
+    record OtherCommand() {
+    }
+
+    static class OtherCommandHandler {
+        @HandleCommand
+        void handle(OtherCommand command) {
+            Fluxzero.publishEvent("other");
+        }
+    }
+
+    static class ObjectCommandHandler {
+        @HandleCommand
+        void handleCommand(Object command) {
+            Fluxzero.publishEvent(true);
+        }
+    }
+
     @Nested
     class AsyncTests {
 
-        final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility();
+        final TestFixture testFixture = TestFixture.createAsync();
 
         @Test
         void logMessage() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handleCommand(Object command) {
-                    Fluxzero.publishEvent(true);
-                }
-            }).whenCommand(new MessageLoggingHandleSelf()).expectEvents("foo", true);
+            testFixture.registerHandlers(new ObjectCommandHandler())
+                    .whenCommand(new MessageLoggingHandleSelf()).expectEvents("foo", true);
         }
 
         @Test
         void doNotLogMessage() {
-            testFixture.registerHandlers(new Object() {
-                @HandleCommand
-                void handleCommand(Object command) {
-                    Fluxzero.publishEvent(true);
-                }
-            }).whenCommand(new EventPublishingHandleSelf()).expectEvents("foo").expectNoEventsLike(true);
+            testFixture.registerHandlers(new ObjectCommandHandler())
+                    .whenCommand(new EventPublishingHandleSelf()).expectEvents("foo").expectNoEventsLike(true);
         }
 
         static class EventPublishingHandleSelf {
@@ -224,7 +223,7 @@ class HandleSelfTest {
     @Nested
     class TrackSelfTests {
 
-        final TestFixture testFixture = TestFixture.createAsyncJvmCompatibility();
+        final TestFixture testFixture = TestFixture.createAsync();
 
         @TrackSelf
         @Consumer(name = "SelfTracked")
@@ -282,39 +281,12 @@ class HandleSelfTest {
 
         @Test
         void queryTrackedWithoutRegistration() {
-            @TrackSelf
-            @Consumer(name = "AutomaticallySelfTracked")
-            record AutomaticallySelfTracked(String input) {
-                @HandleQuery
-                String handleSelf() {
-                    return Tracker.current()
-                            .map(Tracker::getName)
-                            .map(name -> name + ":" + input)
-                            .orElse("no tracker");
-                }
-            }
-
             testFixture.whenQuery(new AutomaticallySelfTracked("foo"))
                     .expectResult("AutomaticallySelfTracked:foo");
         }
 
         @Test
         void multipleTrackedHandlersCanBeDiscoveredIncrementally() {
-            @TrackSelf
-            record FirstSelfTracked(String input) {
-                @HandleQuery
-                String handleSelf() {
-                    return "first:" + input;
-                }
-            }
-            @TrackSelf
-            record SecondSelfTracked(String input) {
-                @HandleQuery
-                String handleSelf() {
-                    return "second:" + input;
-                }
-            }
-
             testFixture.whenQuery(new FirstSelfTracked("foo")).expectResult("first:foo")
                     .andThen()
                     .whenQuery(new SecondSelfTracked("bar")).expectResult("second:bar");
@@ -322,23 +294,7 @@ class HandleSelfTest {
 
         @Test
         void cancellingEarlierRegistrationKeepsLaterSharedTrackerRunning() {
-            @TrackSelf
-            record FirstSelfTracked(String input) {
-                @HandleQuery
-                String handleSelf() {
-                    return "first:" + input;
-                }
-            }
-            @TrackSelf
-            record SecondSelfTracked(String input) {
-                @HandleQuery
-                String handleSelf() {
-                    return "second:" + input;
-                }
-            }
-
-            Fluxzero fluxzero = TestFixture.jvmCompatibilityMetadata(DefaultFluxzero.builder())
-                    .build(LocalClient.newInstance(null));
+            Fluxzero fluxzero = DefaultFluxzero.builder().build(LocalClient.newInstance(null));
             Registration firstRegistration = fluxzero.registerHandlers(FirstSelfTracked.class);
             Registration secondRegistration = fluxzero.registerHandlers(SecondSelfTracked.class);
             try {
@@ -348,6 +304,34 @@ class HandleSelfTest {
                 firstRegistration.cancel();
                 secondRegistration.cancel();
                 fluxzero.close(true);
+            }
+        }
+
+        @TrackSelf
+        @Consumer(name = "AutomaticallySelfTracked")
+        record AutomaticallySelfTracked(String input) {
+            @HandleQuery
+            String handleSelf() {
+                return Tracker.current()
+                        .map(Tracker::getName)
+                        .map(name -> name + ":" + input)
+                        .orElse("no tracker");
+            }
+        }
+
+        @TrackSelf
+        record FirstSelfTracked(String input) {
+            @HandleQuery
+            String handleSelf() {
+                return "first:" + input;
+            }
+        }
+
+        @TrackSelf
+        record SecondSelfTracked(String input) {
+            @HandleQuery
+            String handleSelf() {
+                return "second:" + input;
             }
         }
     }

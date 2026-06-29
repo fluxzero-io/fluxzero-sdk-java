@@ -181,19 +181,7 @@ class RestTests {
         void testChunkedBodyParamWaitsForFinalChunkWithoutBlockingTracker() {
             AtomicReference<String> handled = new AtomicReference<>();
             CountDownLatch handledLatch = new CountDownLatch(1);
-            TestFixture.createAsync(new Object() {
-                @HandlePost("/bodyParam/chunked")
-                String post(@BodyParam("message") String message) {
-                    handled.set(message);
-                    handledLatch.countDown();
-                    return message;
-                }
-
-                @HandlePost("/ping")
-                String ping() {
-                    return "pong";
-                }
-            }).whenApplying(fc -> {
+            TestFixture.createAsync(new ChunkedBodyParamHandler(handled, handledLatch)).whenApplying(fc -> {
                 sendChunkedWebRequest(
                         fc, "/bodyParam/chunked", "application/json",
                         "{\"message\":\"hello ".getBytes(StandardCharsets.UTF_8),
@@ -265,19 +253,7 @@ class RestTests {
         void testChunkedFormParamWaitsForFinalChunkWithoutBlockingTracker() {
             AtomicReference<String> handled = new AtomicReference<>();
             CountDownLatch handledLatch = new CountDownLatch(1);
-            TestFixture.createAsync(new Object() {
-                @HandlePost("/formParam/chunked")
-                String post(@FormParam("message") String message) {
-                    handled.set(message);
-                    handledLatch.countDown();
-                    return message;
-                }
-
-                @HandlePost("/ping")
-                String ping() {
-                    return "pong";
-                }
-            }).whenApplying(fc -> {
+            TestFixture.createAsync(new ChunkedFormParamHandler(handled, handledLatch)).whenApplying(fc -> {
                 sendChunkedWebRequest(
                         fc, "/formParam/chunked", "application/x-www-form-urlencoded",
                         "message=hello+".getBytes(StandardCharsets.UTF_8),
@@ -292,19 +268,7 @@ class RestTests {
         void testChunkedFormObjectParamWaitsForFinalChunkWithoutBlockingTracker() {
             AtomicReference<String> handled = new AtomicReference<>();
             CountDownLatch handledLatch = new CountDownLatch(1);
-            TestFixture.createAsync(new Object() {
-                @HandlePost("/formParam/object-chunked")
-                String post(TokenForm form) {
-                    handled.set(form.clientId + "|" + form.clientSecret + "|" + form.redirectUri + "|" + form.code);
-                    handledLatch.countDown();
-                    return handled.get();
-                }
-
-                @HandlePost("/ping")
-                String ping() {
-                    return "pong";
-                }
-            }).whenApplying(fc -> {
+            TestFixture.createAsync(new ChunkedFormObjectParamHandler(handled, handledLatch)).whenApplying(fc -> {
                 sendChunkedWebRequest(
                         fc, "/formParam/object-chunked", "application/x-www-form-urlencoded",
                         "clientId=google-managed-client&clientSecret=google-managed-secret".getBytes(StandardCharsets.UTF_8),
@@ -321,19 +285,7 @@ class RestTests {
         void testChunkedMultipartFormParamWaitsForFinalChunkWithoutBlockingTracker() {
             AtomicReference<String> handled = new AtomicReference<>();
             CountDownLatch handledLatch = new CountDownLatch(1);
-            TestFixture.createAsync(new Object() {
-                @HandlePost("/formParam/multipart")
-                String post(@FormParam("message") String message) {
-                    handled.set(message);
-                    handledLatch.countDown();
-                    return message;
-                }
-
-                @HandlePost("/ping")
-                String ping() {
-                    return "pong";
-                }
-            }).whenApplying(fc -> {
+            TestFixture.createAsync(new ChunkedMultipartFormParamHandler(handled, handledLatch)).whenApplying(fc -> {
                 String boundary = "chunkedBoundary";
                 sendChunkedWebRequest(
                         fc, "/formParam/multipart", "multipart/form-data; boundary=" + boundary,
@@ -354,23 +306,7 @@ class RestTests {
                               + Base64.getEncoder().encodeToString(fileBytes);
             AtomicReference<String> handled = new AtomicReference<>();
             CountDownLatch handledLatch = new CountDownLatch(1);
-            TestFixture.createAsync(new Object() {
-                @HandlePost("/formParam/multipart-file")
-                String post(@FormParam("document") byte[] document,
-                            @FormParam("document") InputStream stream,
-                            @FormParam("document") WebFormPart part) throws Exception {
-                    handled.set(part.getFileName() + "|" + part.getContentType() + "|"
-                                + Base64.getEncoder().encodeToString(document) + "|"
-                                + Base64.getEncoder().encodeToString(stream.readAllBytes()));
-                    handledLatch.countDown();
-                    return handled.get();
-                }
-
-                @HandlePost("/ping")
-                String ping() {
-                    return "pong";
-                }
-            }).whenApplying(fc -> {
+            TestFixture.createAsync(new ChunkedMultipartFileParamHandler(handled, handledLatch)).whenApplying(fc -> {
                 String boundary = "chunkedFileBoundary";
                 sendChunkedWebRequest(
                         fc, "/formParam/multipart-file", "multipart/form-data; boundary=" + boundary,
@@ -389,36 +325,24 @@ class RestTests {
         void testChunkedMultipartMultipleFilePartsBySameKey() {
             AtomicReference<String> handled = new AtomicReference<>();
             CountDownLatch handledLatch = new CountDownLatch(1);
-            TestFixture.createAsync(new Object() {
-                @HandlePost("/multipart/multi-file-chunked")
-                String post(@FormParam("document") List<WebFormPart> documents) {
-                    handled.set(documents.stream().map(WebFormPart::asString).reduce((a, b) -> a + "|" + b)
-                                        .orElse(""));
-                    handledLatch.countDown();
-                    return handled.get();
-                }
-
-                @HandlePost("/ping")
-                String ping() {
-                    return "pong";
-                }
-            }).whenApplying(fc -> {
-                String boundary = "chunkedMultiBoundary";
-                sendChunkedWebRequest(
-                        fc, "/multipart/multi-file-chunked", "multipart/form-data; boundary=" + boundary,
-                        ("--" + boundary + "\r\n"
-                         + "Content-Disposition: form-data; name=\"document\"; filename=\"one.pdf\"\r\n"
-                         + "Content-Type: application/pdf\r\n\r\n"
-                         + "first-file\r\n"
-                         + "--" + boundary + "\r\n"
-                         + "Content-Disposition: form-data; name=\"document\"; filename=\"two.pdf\"\r\n"
-                         + "Content-Type: application/pdf\r\n\r\n")
-                                .getBytes(StandardCharsets.ISO_8859_1),
-                        ("second-file\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1),
-                        handledLatch, handled, "chunked-multipart-multi-file-test");
-                assertEquals("first-file|second-file", handled.get());
-                return null;
-            }).expectNoErrors();
+            TestFixture.createAsync(new ChunkedMultipartMultiFileParamHandler(handled, handledLatch))
+                    .whenApplying(fc -> {
+                        String boundary = "chunkedMultiBoundary";
+                        sendChunkedWebRequest(
+                                fc, "/multipart/multi-file-chunked", "multipart/form-data; boundary=" + boundary,
+                                ("--" + boundary + "\r\n"
+                                 + "Content-Disposition: form-data; name=\"document\"; filename=\"one.pdf\"\r\n"
+                                 + "Content-Type: application/pdf\r\n\r\n"
+                                 + "first-file\r\n"
+                                 + "--" + boundary + "\r\n"
+                                 + "Content-Disposition: form-data; name=\"document\"; filename=\"two.pdf\"\r\n"
+                                 + "Content-Type: application/pdf\r\n\r\n")
+                                        .getBytes(StandardCharsets.ISO_8859_1),
+                                ("second-file\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1),
+                                handledLatch, handled, "chunked-multipart-multi-file-test");
+                        assertEquals("first-file|second-file", handled.get());
+                        return null;
+                    }).expectNoErrors();
         }
 
         @Path("https://mock-google.test")
@@ -438,6 +362,143 @@ class RestTests {
             String clientSecret;
             String redirectUri;
             String code;
+        }
+    }
+
+    static class ChunkedBodyParamHandler {
+        private final AtomicReference<String> handled;
+        private final CountDownLatch handledLatch;
+
+        ChunkedBodyParamHandler(AtomicReference<String> handled, CountDownLatch handledLatch) {
+            this.handled = handled;
+            this.handledLatch = handledLatch;
+        }
+
+        @HandlePost("/bodyParam/chunked")
+        String post(@BodyParam("message") String message) {
+            handled.set(message);
+            handledLatch.countDown();
+            return message;
+        }
+
+        @HandlePost("/ping")
+        String ping() {
+            return "pong";
+        }
+    }
+
+    static class ChunkedFormParamHandler {
+        private final AtomicReference<String> handled;
+        private final CountDownLatch handledLatch;
+
+        ChunkedFormParamHandler(AtomicReference<String> handled, CountDownLatch handledLatch) {
+            this.handled = handled;
+            this.handledLatch = handledLatch;
+        }
+
+        @HandlePost("/formParam/chunked")
+        String post(@FormParam("message") String message) {
+            handled.set(message);
+            handledLatch.countDown();
+            return message;
+        }
+
+        @HandlePost("/ping")
+        String ping() {
+            return "pong";
+        }
+    }
+
+    static class ChunkedFormObjectParamHandler {
+        private final AtomicReference<String> handled;
+        private final CountDownLatch handledLatch;
+
+        ChunkedFormObjectParamHandler(AtomicReference<String> handled, CountDownLatch handledLatch) {
+            this.handled = handled;
+            this.handledLatch = handledLatch;
+        }
+
+        @HandlePost("/formParam/object-chunked")
+        String post(FormParamTests.TokenForm form) {
+            handled.set(form.clientId + "|" + form.clientSecret + "|" + form.redirectUri + "|" + form.code);
+            handledLatch.countDown();
+            return handled.get();
+        }
+
+        @HandlePost("/ping")
+        String ping() {
+            return "pong";
+        }
+    }
+
+    static class ChunkedMultipartFormParamHandler {
+        private final AtomicReference<String> handled;
+        private final CountDownLatch handledLatch;
+
+        ChunkedMultipartFormParamHandler(AtomicReference<String> handled, CountDownLatch handledLatch) {
+            this.handled = handled;
+            this.handledLatch = handledLatch;
+        }
+
+        @HandlePost("/formParam/multipart")
+        String post(@FormParam("message") String message) {
+            handled.set(message);
+            handledLatch.countDown();
+            return message;
+        }
+
+        @HandlePost("/ping")
+        String ping() {
+            return "pong";
+        }
+    }
+
+    static class ChunkedMultipartFileParamHandler {
+        private final AtomicReference<String> handled;
+        private final CountDownLatch handledLatch;
+
+        ChunkedMultipartFileParamHandler(AtomicReference<String> handled, CountDownLatch handledLatch) {
+            this.handled = handled;
+            this.handledLatch = handledLatch;
+        }
+
+        @HandlePost("/formParam/multipart-file")
+        String post(@FormParam("document") byte[] document,
+                    @FormParam("document") InputStream stream,
+                    @FormParam("document") WebFormPart part) throws Exception {
+            handled.set(part.getFileName() + "|" + part.getContentType() + "|"
+                        + Base64.getEncoder().encodeToString(document) + "|"
+                        + Base64.getEncoder().encodeToString(stream.readAllBytes()));
+            handledLatch.countDown();
+            return handled.get();
+        }
+
+        @HandlePost("/ping")
+        String ping() {
+            return "pong";
+        }
+    }
+
+    static class ChunkedMultipartMultiFileParamHandler {
+        private final AtomicReference<String> handled;
+        private final CountDownLatch handledLatch;
+
+        ChunkedMultipartMultiFileParamHandler(AtomicReference<String> handled, CountDownLatch handledLatch) {
+            this.handled = handled;
+            this.handledLatch = handledLatch;
+        }
+
+        @HandlePost("/multipart/multi-file-chunked")
+        String post(@FormParam("document") List<WebFormPart> documents) {
+            handled.set(documents.stream().map(WebFormPart::asString).reduce((a, b) -> a + "|" + b)
+                                .orElse(""));
+            handledLatch.countDown();
+            return handled.get();
+        }
+
+        @HandlePost("/ping")
+        String ping() {
+            return "pong";
         }
     }
 

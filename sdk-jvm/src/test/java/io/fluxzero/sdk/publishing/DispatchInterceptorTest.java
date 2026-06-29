@@ -31,17 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class DispatchInterceptorTest {
 
-    private final Object commandHandler = new Object() {
-        @HandleCommand
-        Object handle(Object command) {
-            Fluxzero.publishEvent(command);
-            return command;
-        }
-    };
+    private final Object commandHandler = new CommandHandler();
 
     @Test
     void changeMessageType() {
-        TestFixture.createJvmCompatibility(
+        TestFixture.create(
                         DefaultFluxzero.builder().addDispatchInterceptor(
                                 (message, messageType, topic) -> message.withPayload(new DifferentCommand()), COMMAND),
                         commandHandler)
@@ -51,7 +45,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void changeMessageContent() {
-        TestFixture.createAsyncJvmCompatibility(
+        TestFixture.createAsync(
                         DefaultFluxzero.builder().addDispatchInterceptor(
                                 (message, messageType, topic) -> message.withPayload(new Command("intercepted")), COMMAND),
                         commandHandler)
@@ -61,7 +55,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void blockMessagePublication() {
-        TestFixture.createJvmCompatibility(
+        TestFixture.create(
                 DefaultFluxzero.builder().addDispatchInterceptor((message, messageType, topic) -> null, COMMAND),
                 commandHandler)
                 .whenCommand(new Command("whatever"))
@@ -70,7 +64,7 @@ public class DispatchInterceptorTest {
 
     @Test
     void throwException() {
-        TestFixture.createJvmCompatibility(
+        TestFixture.create(
                         DefaultFluxzero.builder().addDispatchInterceptor((message, messageType, topic) -> {
                             throw new MockException();
                         }, COMMAND), commandHandler)
@@ -82,7 +76,7 @@ public class DispatchInterceptorTest {
     void ordersCustomInterceptorsUsingOrderAnnotation() {
         List<String> invocationOrder = new ArrayList<>();
 
-        TestFixture.createJvmCompatibility(
+        TestFixture.create(
                         DefaultFluxzero.builder()
                                 .disableMessageCorrelation()
                                 .replaceMessageRoutingInterceptor(DispatchInterceptor.noOp)
@@ -101,7 +95,7 @@ public class DispatchInterceptorTest {
     void acceptsSpringOrderAnnotationWhenPresent() {
         List<String> invocationOrder = new ArrayList<>();
 
-        TestFixture.createJvmCompatibility(
+        TestFixture.create(
                         DefaultFluxzero.builder()
                                 .disableMessageCorrelation()
                                 .replaceMessageRoutingInterceptor(DispatchInterceptor.noOp)
@@ -124,6 +118,14 @@ public class DispatchInterceptorTest {
 
     @Value
     static class DifferentCommand {
+    }
+
+    static class CommandHandler {
+        @HandleCommand
+        Object handle(Object command) {
+            Fluxzero.publishEvent(command);
+            return command;
+        }
     }
 
     @Order(10)

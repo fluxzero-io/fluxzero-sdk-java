@@ -43,11 +43,32 @@ public final class GeneratedExecutableInvocations {
      */
     public static synchronized Registration register(
             Class<?> targetClass, String executableId, ExecutableInvocation invocation) {
+        return register(targetClass, executableId, invocation, false);
+    }
+
+    /**
+     * Registers a generated invocation underneath any existing invocation for the same executable.
+     * <p>
+     * This is useful for classpath or registry-provided fallback handles: an explicit generated invocation remains the
+     * active handle until it is closed, after which the fallback becomes visible.
+     */
+    public static synchronized Registration registerFallback(
+            Class<?> targetClass, String executableId, ExecutableInvocation invocation) {
+        return register(targetClass, executableId, invocation, true);
+    }
+
+    private static Registration register(
+            Class<?> targetClass, String executableId, ExecutableInvocation invocation, boolean fallback) {
         Objects.requireNonNull(targetClass, "targetClass");
         Objects.requireNonNull(executableId, "executableId");
         Objects.requireNonNull(invocation, "invocation");
         Key key = new Key(targetClass, executableId);
-        INVOCATIONS.computeIfAbsent(key, ignored -> new ArrayDeque<>()).addLast(invocation);
+        Deque<ExecutableInvocation> invocations = INVOCATIONS.computeIfAbsent(key, ignored -> new ArrayDeque<>());
+        if (fallback) {
+            invocations.addFirst(invocation);
+        } else {
+            invocations.addLast(invocation);
+        }
         return new Registration(key, invocation);
     }
 

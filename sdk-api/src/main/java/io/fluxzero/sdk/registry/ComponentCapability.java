@@ -49,6 +49,16 @@ public enum ComponentCapability {
     WEB_REQUEST_HANDLER,
 
     /**
+     * Component implements a Fluxzero request payload contract.
+     */
+    REQUEST_PAYLOAD,
+
+    /**
+     * Component implements a strongly typed Fluxzero identifier.
+     */
+    ID_SUBTYPE,
+
+    /**
      * Package metadata contributes local handler defaults.
      */
     PACKAGE_LOCAL_HANDLER,
