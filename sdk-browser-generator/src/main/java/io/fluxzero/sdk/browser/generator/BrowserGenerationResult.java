@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.browser.generator;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,21 +24,37 @@ import java.util.Objects;
 /**
  * Generated browser application output and manifest metadata.
  *
- * @param sources generated Java/resource files
- * @param manifestJson JavaScript-readable conformance manifest
- * @param features coverage matrix features
- * @param counters generated model counters
  */
-public record BrowserGenerationResult(
-        List<BrowserGeneratedSource> sources,
-        String manifestJson,
-        List<BrowserConformanceFeature> features,
-        Map<String, Integer> counters) {
+public final class BrowserGenerationResult {
+    private final List<BrowserGeneratedSource> sources;
+    private final String manifestJson;
+    private final List<BrowserConformanceFeature> features;
+    private final Map<String, Integer> counters;
 
-    public BrowserGenerationResult {
-        sources = List.copyOf(Objects.requireNonNull(sources, "sources"));
-        manifestJson = Objects.requireNonNull(manifestJson, "manifestJson");
-        features = List.copyOf(Objects.requireNonNull(features, "features"));
-        counters = Map.copyOf(Objects.requireNonNull(counters, "counters"));
+    public BrowserGenerationResult(
+            List<BrowserGeneratedSource> sources,
+            String manifestJson,
+            List<BrowserConformanceFeature> features,
+            Map<String, Integer> counters) {
+        this.sources = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(sources, "sources")));
+        this.manifestJson = Objects.requireNonNull(manifestJson, "manifestJson");
+        this.features = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(features, "features")));
+        this.counters = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(counters, "counters")));
+    }
+
+    public List<BrowserGeneratedSource> sources() {
+        return sources;
+    }
+
+    public String manifestJson() {
+        return manifestJson;
+    }
+
+    public List<BrowserConformanceFeature> features() {
+        return features;
+    }
+
+    public Map<String, Integer> counters() {
+        return counters;
     }
 }

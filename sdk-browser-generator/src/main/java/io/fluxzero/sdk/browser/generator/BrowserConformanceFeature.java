@@ -19,15 +19,27 @@ import java.util.Objects;
 /**
  * A browser conformance feature that must be represented by generated metadata or an executable scenario.
  *
- * @param name stable feature key
- * @param category high-level feature group
- * @param description human-readable intent
  */
-public record BrowserConformanceFeature(String name, String category, String description) {
+public final class BrowserConformanceFeature {
+    private final String name;
+    private final String category;
+    private final String description;
 
-    public BrowserConformanceFeature {
-        name = Objects.requireNonNull(name, "name");
-        category = Objects.requireNonNull(category, "category");
-        description = Objects.requireNonNull(description, "description");
+    public BrowserConformanceFeature(String name, String category, String description) {
+        this.name = Objects.requireNonNull(name, "name");
+        this.category = Objects.requireNonNull(category, "category");
+        this.description = Objects.requireNonNull(description, "description");
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String category() {
+        return category;
+    }
+
+    public String description() {
+        return description;
     }
 }

@@ -638,6 +638,61 @@ Notes:
   binding from registry metadata, it keeps the existing synthetic conformance handler path instead of producing source
   that would fail at browser compile time.
 
+## Completed Mini Phase: Browser-Local Customer Source Pipeline
+
+Status: [x] implemented for the current browser conformance harness.
+
+Context: browser direct runtime parity still depended on host-side generated registry/application sources. The product
+target is stricter: paste customer Java source into the browser, then scan, generate, compile, and run without an
+external JVM/Maven/customer-app compile step.
+
+Implemented:
+
+- [x] The Playwright/TeaVM E2E now ships only runtime sources and raw customer sources to the browser harness; no
+  host-generated `GeneratedFluxzeroBrowserApplication` or `Main` source is bundled.
+- [x] Browser JavaScript scans customer source text for packages, top-level classes/records, annotations, record
+  components, and annotated method signatures.
+- [x] The browser scanner lowers that model into generated Java source with direct package-local handler invocation,
+  including command, self-handling, query, web GET/POST parameter binding, socket message, schedule, aggregate `@Apply`,
+  and stateful event examples from the conformance app.
+- [x] The generated app and final `Main` are compiled by TeaVM playground javac in the browser and then generated to
+  WASM in the same browser run.
+- [x] The E2E also injects a second arbitrary inline `CustomerApp` source with different class/record names and verifies
+  the browser-generated command invocation result, so the proof is no longer hard-coded to the conformance fixture name.
+
+Evidence:
+
+- Focused browser E2E passed:
+  `./mvnw -q -Pbrowser-conformance -pl browser-conformance -am -Dtest=BrowserConformanceE2ETest -Dsurefire.failIfNoSpecifiedTests=false test`.
+- Full browser profile verification passed:
+  `./mvnw -q -Pbrowser-conformance -pl browser-conformance -am test`.
+- Full multi-module browser-profile install passed:
+  `./mvnw -q -Pbrowser-conformance install`.
+- Test performance after the full install: 2228 Surefire tests, 0 failures/errors, cumulative class time 53.109s. Top
+  classes were `OnDemandExecutionTest` 6.403s, `BrowserConformanceE2ETest` 3.638s, `GivenWhenThenSpringTest` 2.370s,
+  `ProxyServerTest` 2.252s, `TestServerTest` 2.167s, and `HandleWebTest` 1.902s.
+- Stable direct invocation benchmark, 10M iterations / 5 warmups: raw source-generated invocation 30.254ms,
+  raw generated-registry invocation 30.141ms, raw lambda executable invocation 37.329ms, and raw plain reflection
+  54.818ms. Cached handler invocation was 65.514ms for generated registry, 40.168ms for generated metadata,
+  72.206ms for lambda, and 106.001ms for plain reflection.
+- App-level benchmark, 300k dispatch iterations / 5 warmups / 1000 setup iterations:
+  `build+register.20Handlers` 1299.468ms and `warmDispatch.20Handlers` 634.568ms. Warm dispatch is within noise of the
+  previous checkpoint; build+register is higher than the previous 1178.834ms/1203.597ms local checkpoints and should
+  stay visible in future runs.
+- On-demand comparison benchmark at handler counts 1/10/100 with 50 flow iterations and 4 routes/handler: source scan
+  and registry generation stayed light at 100 handlers (41.577ms scan, 40.931ms generation), on-demand register was
+  59.582ms, prewarmed warm-flow throughput was 10.8k op/s, and no-hot warm-flow throughput was 10.4k op/s. Prewarm
+  compile/load at 100 handlers was 5376.493ms versus the previous 2368.431ms local baseline, so this remains a
+  benchmark-watch item even though it is outside the browser E2E hot path.
+
+Notes:
+
+- The browser scanner is intentionally a small source-model scanner for the conformance/productization path, not a full
+  Java parser. Productization should replace or harden it before claiming arbitrary Java syntax coverage.
+- The browser final compile still strips Fluxzero annotation tokens after scanning because the TeaVM playground javac
+  path has previously stack-overflowed on the full annotated SDK/customer source graph. The browser now owns the app
+  semantics before that strip step, so no host compile/generation is needed for the customer app.
+
 ## Queued Architecture Decisions
 
 Status: [ ] queued.
@@ -1168,22 +1223,27 @@ Evidence:
 
 ## Browser Productization Backlog
 
-Status: [ ] open after browser direct runtime parity.
+Status: [ ] open after browser-local customer source pipeline.
 
-Browser now consumes the same generated app model for the conformance app and proves direct source invocation in a real
-TeaVM/Playwright run. The remaining work is productization and expansion beyond the curated conformance harness.
+Browser now proves the target shape in the conformance harness: raw customer source is delivered to the browser, scanned
+there, lowered into generated direct-invocation Java source, compiled by TeaVM playground javac, and executed as WASM
+without host-side customer-app compilation. The remaining work is productization and expansion beyond the curated source
+patterns covered by the harness.
 
 Remaining browser work:
 
-- [ ] Productize browser source lowering for raw customer sources with Fluxzero annotations. The current E2E strips
-  Fluxzero annotations from the runtime source bundle after scanning the original annotated source, because TeaVM
-  playground javac stack-overflows on the raw annotated conformance app.
+- [x] Prove browser-local source lowering for raw customer sources with Fluxzero annotations in Playwright/TeaVM E2E.
+  The browser now scans the original annotated source before stripping annotation tokens for final javac.
+- [ ] Replace or harden the lightweight browser source scanner before claiming broad arbitrary Java syntax coverage
+  outside the covered app/source patterns.
 - [ ] Publish or package a browser-safe Fluxzero SDK plus browser `LocalClient` artifact that is compiled ahead of
   customer app code.
 - [ ] Keep browser-local execution scoped to `LocalClient`; do not model this as a connection to a remote Fluxzero
   runtime.
-- [ ] Productize the existing `teavm-javac` browser-source spike so customer Java production sources compile and
-  execute on the fly in the browser without an external JVM, Maven, javac, TeaVM CLI, or server-side app compile.
+- [x] Prove `teavm-javac` browser-source flow for customer Java sources without an external JVM, Maven, javac, TeaVM
+  CLI, or server-side app compile.
+- [ ] Productize the `teavm-javac` browser-source flow as a reusable browser tool/runtime surface rather than only a
+  conformance harness.
 - [ ] Add a JUnit-compatible browser test runner for common Java test semantics, with Fluxzero `TestFixture` available
   as a normal library/DSL inside those tests.
 - [ ] Define browser-local consumers as local execution contexts, with Web Workers only as an optional backend.
@@ -1514,6 +1574,10 @@ Work:
 - [x] Phase 3 registry lifecycle focused tests passed for `ComponentRegistryGeneratorTest` and `DownstreamProjectTest`.
 - [x] Phase 3 real-app registry corpus and focused registry cluster passed.
 - [x] Full multi-module install passed after the current Phase 3 parity changes.
+- [x] Browser-local customer source pipeline passed focused Playwright/TeaVM E2E, full browser profile verification, and
+  full `./mvnw -q -Pbrowser-conformance install`.
+- [x] Post-browser-source-pipeline benchmarks were rerun. Direct invocation and warm dispatch remained in-family;
+  app-level build+register and 100-handler on-demand prewarm compile/load are recorded above as future watch items.
 
 ## Reference: Boundary Shape
 

@@ -37,6 +37,6 @@ public record ParameterBindingDescriptor(
         }
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(typeName, "typeName");
-        annotationNames = List.copyOf(Objects.requireNonNull(annotationNames, "annotationNames"));
+        annotationNames = RegistryCollections.immutableList(Objects.requireNonNull(annotationNames, "annotationNames"));
     }
 }

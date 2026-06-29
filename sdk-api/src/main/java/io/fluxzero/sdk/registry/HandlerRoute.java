@@ -57,7 +57,7 @@ public record HandlerRoute(
                 new LinkedHashSet<>(Objects.requireNonNull(payloadTypeNames, "payloadTypeNames")));
         allowedClassNames = Collections.unmodifiableSet(
                 new LinkedHashSet<>(Objects.requireNonNull(allowedClassNames, "allowedClassNames")));
-        webRoutes = List.copyOf(Objects.requireNonNull(webRoutes, "webRoutes"));
+        webRoutes = RegistryCollections.immutableList(Objects.requireNonNull(webRoutes, "webRoutes"));
     }
 
     public HandlerRoute(MessageType messageType, boolean local, boolean tracked, Set<String> payloadTypeNames) {

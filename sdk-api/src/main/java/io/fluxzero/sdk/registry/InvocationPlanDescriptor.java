@@ -48,9 +48,9 @@ public record InvocationPlanDescriptor(
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(returnTypeName, "returnTypeName");
-        parameters = List.copyOf(Objects.requireNonNull(parameters, "parameters"));
-        propertyAccesses = List.copyOf(Objects.requireNonNull(propertyAccesses, "propertyAccesses"));
-        codecHookNames = List.copyOf(Objects.requireNonNull(codecHookNames, "codecHookNames"));
+        parameters = RegistryCollections.immutableList(Objects.requireNonNull(parameters, "parameters"));
+        propertyAccesses = RegistryCollections.immutableList(Objects.requireNonNull(propertyAccesses, "propertyAccesses"));
+        codecHookNames = RegistryCollections.immutableList(Objects.requireNonNull(codecHookNames, "codecHookNames"));
     }
 
     /**

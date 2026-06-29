@@ -33,7 +33,7 @@ public record WebRouteDescriptor(
         boolean autoOptions) {
 
     public WebRouteDescriptor {
-        paths = List.copyOf(Objects.requireNonNull(paths, "paths"));
-        methods = List.copyOf(Objects.requireNonNull(methods, "methods"));
+        paths = RegistryCollections.immutableList(Objects.requireNonNull(paths, "paths"));
+        methods = RegistryCollections.immutableList(Objects.requireNonNull(methods, "methods"));
     }
 }

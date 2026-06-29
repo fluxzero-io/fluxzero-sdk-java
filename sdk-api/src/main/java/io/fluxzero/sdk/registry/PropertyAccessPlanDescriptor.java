@@ -39,6 +39,6 @@ public record PropertyAccessPlanDescriptor(
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(typeName, "typeName");
         Objects.requireNonNull(genericTypeName, "genericTypeName");
-        annotationNames = List.copyOf(Objects.requireNonNull(annotationNames, "annotationNames"));
+        annotationNames = RegistryCollections.immutableList(Objects.requireNonNull(annotationNames, "annotationNames"));
     }
 }

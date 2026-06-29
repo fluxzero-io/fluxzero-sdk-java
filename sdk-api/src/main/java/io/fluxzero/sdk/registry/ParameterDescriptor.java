@@ -35,7 +35,7 @@ public record ParameterDescriptor(
     public ParameterDescriptor {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(typeName, "typeName");
-        annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
+        annotations = RegistryCollections.immutableList(Objects.requireNonNull(annotations, "annotations"));
         typeUse = typeUse == null ? TypeUseDescriptor.EMPTY : typeUse;
     }
 

@@ -51,7 +51,7 @@ public record AnnotationDescriptor(
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         attributes = copyAttributes(attributes);
         nestedAnnotations = copyNestedAnnotations(nestedAnnotations);
-        metaAnnotations = List.copyOf(Objects.requireNonNull(metaAnnotations, "metaAnnotations"));
+        metaAnnotations = RegistryCollections.immutableList(Objects.requireNonNull(metaAnnotations, "metaAnnotations"));
     }
 
     /**
@@ -122,6 +122,6 @@ public record AnnotationDescriptor(
         Objects.requireNonNull(nestedAnnotations, "nestedAnnotations");
         return nestedAnnotations.entrySet().stream()
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(
-                        Map.Entry::getKey, entry -> List.copyOf(entry.getValue())));
+                        Map.Entry::getKey, entry -> RegistryCollections.immutableList(entry.getValue())));
     }
 }

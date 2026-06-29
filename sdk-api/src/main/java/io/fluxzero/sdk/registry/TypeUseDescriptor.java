@@ -36,8 +36,8 @@ public record TypeUseDescriptor(
 
     public TypeUseDescriptor {
         Objects.requireNonNull(typeName, "typeName");
-        annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
-        typeArguments = List.copyOf(Objects.requireNonNull(typeArguments, "typeArguments"));
+        annotations = RegistryCollections.immutableList(Objects.requireNonNull(annotations, "annotations"));
+        typeArguments = RegistryCollections.immutableList(Objects.requireNonNull(typeArguments, "typeArguments"));
     }
 
     public TypeUseDescriptor(String typeName, List<AnnotationDescriptor> annotations) {

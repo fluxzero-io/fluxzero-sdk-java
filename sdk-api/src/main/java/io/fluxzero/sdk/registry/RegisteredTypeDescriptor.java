@@ -34,8 +34,8 @@ public record RegisteredTypeDescriptor(
 
     public RegisteredTypeDescriptor {
         Objects.requireNonNull(root, "root");
-        contains = List.copyOf(Objects.requireNonNull(contains, "contains"));
-        candidateTypeNames = List.copyOf(Objects.requireNonNull(candidateTypeNames, "candidateTypeNames"));
+        contains = RegistryCollections.immutableList(Objects.requireNonNull(contains, "contains"));
+        candidateTypeNames = RegistryCollections.immutableList(Objects.requireNonNull(candidateTypeNames, "candidateTypeNames"));
         Objects.requireNonNull(annotation, "annotation");
     }
 }

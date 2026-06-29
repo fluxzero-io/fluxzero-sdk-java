@@ -33,7 +33,7 @@ public record ConsumerDescriptor(
 
     public ConsumerDescriptor {
         Objects.requireNonNull(name, "name");
-        attributes = Map.copyOf(Objects.requireNonNull(attributes, "attributes"));
+        attributes = RegistryCollections.immutableMap(Objects.requireNonNull(attributes, "attributes"));
         Objects.requireNonNull(annotation, "annotation");
     }
 }

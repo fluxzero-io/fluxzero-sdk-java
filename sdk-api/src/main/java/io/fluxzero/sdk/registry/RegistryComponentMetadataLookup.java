@@ -186,7 +186,7 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
                             byMessageType.computeIfAbsent(messageType, ignored -> new ArrayList<>()).add(component));
                 });
         return new RegistryIndexes(
-                Map.copyOf(result), copyLists(byCapability), copyLists(byMessageType), copyLists(routesByMessageType));
+                RegistryCollections.immutableMap(result), copyLists(byCapability), copyLists(byMessageType), copyLists(routesByMessageType));
     }
 
     private static Map<String, PackageDescriptor> packagesByName(ComponentRegistry registry) {
@@ -194,7 +194,7 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
         registry.packages().stream()
                 .sorted(Comparator.comparing(PackageDescriptor::packageName))
                 .forEach(descriptor -> result.putIfAbsent(descriptor.packageName(), descriptor));
-        return Map.copyOf(result);
+        return RegistryCollections.immutableMap(result);
     }
 
     private Optional<ExecutableDescriptor> findExecutable(String fullClassName, String executableId) {
@@ -254,7 +254,7 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
             result.add(new ParameterBindingDescriptor(
                     i, parameter.name(), parameter.typeName(), annotationNames(parameter.annotations())));
         }
-        return List.copyOf(result);
+        return RegistryCollections.immutableList(result);
     }
 
     private static PropertyAccessPlanDescriptor propertyAccessPlan(PropertyDescriptor property) {
@@ -277,7 +277,7 @@ public final class RegistryComponentMetadataLookup implements ComponentMetadataL
     private static <K, V> Map<K, List<V>> copyLists(Map<K, List<V>> source) {
         return source.entrySet().stream()
                 .collect(LinkedHashMap::new,
-                         (map, entry) -> map.put(entry.getKey(), List.copyOf(entry.getValue())),
+                         (map, entry) -> map.put(entry.getKey(), RegistryCollections.immutableList(entry.getValue())),
                          Map::putAll);
     }
 

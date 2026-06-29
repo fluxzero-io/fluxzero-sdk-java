@@ -27,7 +27,6 @@ import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.registry.RegisteredTypeDescriptor;
-import io.fluxzero.sdk.registry.RegistryComponentMetadataLookup;
 import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationMetadata;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationRule;
@@ -52,21 +51,24 @@ public final class BrowserApplicationGenerator {
      * Generates a browser application using default package and class names.
      */
     public BrowserGenerationResult generate(ComponentRegistry registry) {
-        return generate(RegistryComponentMetadataLookup.of(registry), BrowserGeneratorOptions.defaults());
+        return generate(registry, BrowserGeneratorOptions.defaults());
     }
 
     /**
      * Generates a browser application from the shared component metadata lookup facade.
      */
     public BrowserGenerationResult generate(ComponentMetadataLookup metadataLookup) {
-        return generate(metadataLookup, BrowserGeneratorOptions.defaults());
+        Objects.requireNonNull(metadataLookup, "metadataLookup");
+        return generate(metadataLookup.registry(), BrowserGeneratorOptions.defaults());
     }
 
     /**
      * Generates browser application sources and a JavaScript conformance manifest.
      */
     public BrowserGenerationResult generate(ComponentRegistry registry, BrowserGeneratorOptions options) {
-        return generate(RegistryComponentMetadataLookup.of(registry), options);
+        Objects.requireNonNull(registry, "registry");
+        Objects.requireNonNull(options, "options");
+        return generateRegistry(registry, options);
     }
 
     /**
@@ -75,7 +77,10 @@ public final class BrowserApplicationGenerator {
     public BrowserGenerationResult generate(ComponentMetadataLookup metadataLookup, BrowserGeneratorOptions options) {
         Objects.requireNonNull(metadataLookup, "metadataLookup");
         Objects.requireNonNull(options, "options");
-        ComponentRegistry registry = metadataLookup.registry();
+        return generateRegistry(metadataLookup.registry(), options);
+    }
+
+    private BrowserGenerationResult generateRegistry(ComponentRegistry registry, BrowserGeneratorOptions options) {
         List<BrowserConformanceFeature> features = defaultConformanceFeatures();
         Map<String, Integer> counters = counters(registry);
         Map<String, Integer> metadataCounters = metadataCounters(registry);
@@ -1067,7 +1072,7 @@ public final class BrowserApplicationGenerator {
                             String responseName = "generatedWebResponse" + index++;
                             String actualPath = actualPath(path, executable.get());
                             String body = webBodyExpression(registry, options, executable.get()).orElse("null");
-                            dispatches.add("""
+                            dispatches.add(indent("""
                                     io.fluxzero.sdk.browser.BrowserWebExchange %s = core.webRouter().handle(
                                             new io.fluxzero.sdk.browser.BrowserWebExchange("%s", "%s", %s, Map.of(),
                                                     %s, %s, %s, %s, 0, null));
@@ -1077,8 +1082,8 @@ public final class BrowserApplicationGenerator {
                                                webMapExpression(executable.get(), "QueryParam"),
                                                webMapExpression(executable.get(), "CookieParam"),
                                                webMapExpression(executable.get(), "FormParam"),
-                                               escapeJava(method), escapeJava(path), responseName, responseName)
-                                    .indent(8).stripTrailing());
+                                               escapeJava(method), escapeJava(path), responseName, responseName),
+                                                  8));
                         }
                     }
                 }
@@ -1135,8 +1140,8 @@ public final class BrowserApplicationGenerator {
             return Optional.empty();
         }
         String payloadType = routePayloadType(component, route)
-                .orElse(executable.parameters().getFirst().typeName());
-        ParameterDescriptor parameter = executable.parameters().getFirst();
+                .orElse(executable.parameters().get(0).typeName());
+        ParameterDescriptor parameter = executable.parameters().get(0);
         if (!payloadMatchesParameter(payloadType, parameter.typeName())) {
             return Optional.empty();
         }
@@ -1557,9 +1562,8 @@ public final class BrowserApplicationGenerator {
     }
 
     private static String metadataEvidence(Map<String, Integer> metadataCounters) {
-        return metadataCounters.entrySet().stream()
-                .map(entry -> "        evidence.put(\"" + escapeJava(entry.getKey()) + "\", " + entry.getValue()
-                              + ");")
+        return metadataCounters.keySet().stream()
+                .map(key -> "        evidence.put(\"" + escapeJava(key) + "\", " + metadataCounters.get(key) + ");")
                 .collect(joining("\n"));
     }
 
@@ -1607,9 +1611,9 @@ public final class BrowserApplicationGenerator {
     private static void appendCounters(StringBuilder json, Map<String, Integer> counters, int indent) {
         json.append(spaces(indent)).append("\"counters\": {\n");
         int index = 0;
-        for (Map.Entry<String, Integer> entry : counters.entrySet()) {
+        for (String key : counters.keySet()) {
             json.append(spaces(indent + 2));
-            appendStringPair(json, entry.getKey(), entry.getValue());
+            appendStringPair(json, key, counters.get(key));
             if (++index < counters.size()) {
                 json.append(',');
             }
@@ -1665,7 +1669,32 @@ public final class BrowserApplicationGenerator {
     }
 
     private static String spaces(int count) {
-        return " ".repeat(count);
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            result.append(' ');
+        }
+        return result.toString();
+    }
+
+    private static String indent(String value, int count) {
+        String prefix = spaces(count);
+        String[] lines = value.split("\\R", -1);
+        StringBuilder result = new StringBuilder();
+        for (String line : lines) {
+            if (!line.isEmpty()) {
+                result.append(prefix);
+            }
+            result.append(line).append('\n');
+        }
+        return stripTrailing(result.toString());
+    }
+
+    private static String stripTrailing(String value) {
+        int end = value.length();
+        while (end > 0 && Character.isWhitespace(value.charAt(end - 1))) {
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     private static String escapeJava(String value) {

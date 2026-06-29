@@ -19,13 +19,21 @@ import java.util.Objects;
 /**
  * Generated browser source or resource.
  *
- * @param path relative output path
- * @param content generated content
  */
-public record BrowserGeneratedSource(String path, String content) {
+public final class BrowserGeneratedSource {
+    private final String path;
+    private final String content;
 
-    public BrowserGeneratedSource {
-        path = Objects.requireNonNull(path, "path");
-        content = Objects.requireNonNull(content, "content");
+    public BrowserGeneratedSource(String path, String content) {
+        this.path = Objects.requireNonNull(path, "path");
+        this.content = Objects.requireNonNull(content, "content");
+    }
+
+    public String path() {
+        return path;
+    }
+
+    public String content() {
+        return content;
     }
 }

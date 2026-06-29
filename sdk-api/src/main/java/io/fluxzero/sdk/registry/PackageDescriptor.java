@@ -33,24 +33,84 @@ import java.util.Set;
  * @param consumer source consumer metadata declared by the package
  * @param capabilities capabilities contributed by the package metadata
  */
-public record PackageDescriptor(
-        String packageName,
-        Path sourceFile,
-        List<AnnotationDescriptor> annotations,
-        List<RegisteredTypeDescriptor> registeredTypes,
-        ConsumerDescriptor consumer,
-        Set<ComponentCapability> capabilities) {
+public final class PackageDescriptor {
+    private final String packageName;
+    private final String sourceFileName;
+    private final List<AnnotationDescriptor> annotations;
+    private final List<RegisteredTypeDescriptor> registeredTypes;
+    private final ConsumerDescriptor consumer;
+    private final Set<ComponentCapability> capabilities;
 
-    public PackageDescriptor {
-        Objects.requireNonNull(packageName, "packageName");
-        annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
-        registeredTypes = List.copyOf(Objects.requireNonNull(registeredTypes, "registeredTypes"));
-        capabilities = Collections.unmodifiableSet(new LinkedHashSet<>(
-                Objects.requireNonNull(capabilities, "capabilities")));
+    public PackageDescriptor(
+            String packageName,
+            Path sourceFile,
+            List<AnnotationDescriptor> annotations,
+            List<RegisteredTypeDescriptor> registeredTypes,
+            ConsumerDescriptor consumer,
+            Set<ComponentCapability> capabilities) {
+        this(packageName, pathName(sourceFile), annotations, registeredTypes, consumer, capabilities);
     }
 
     public PackageDescriptor(String packageName, Path sourceFile, Set<ComponentCapability> capabilities) {
         this(packageName, sourceFile, List.of(), List.of(), null, capabilities);
+    }
+
+    private PackageDescriptor(
+            String packageName,
+            String sourceFileName,
+            List<AnnotationDescriptor> annotations,
+            List<RegisteredTypeDescriptor> registeredTypes,
+            ConsumerDescriptor consumer,
+            Set<ComponentCapability> capabilities) {
+        this.packageName = Objects.requireNonNull(packageName, "packageName");
+        this.sourceFileName = sourceFileName;
+        this.annotations = RegistryCollections.immutableList(Objects.requireNonNull(annotations, "annotations"));
+        this.registeredTypes = RegistryCollections.immutableList(
+                Objects.requireNonNull(registeredTypes, "registeredTypes"));
+        this.consumer = consumer;
+        this.capabilities = Collections.unmodifiableSet(new LinkedHashSet<>(
+                Objects.requireNonNull(capabilities, "capabilities")));
+    }
+
+    /**
+     * Creates a descriptor from a browser-safe source label.
+     */
+    public static PackageDescriptor fromSourceName(
+            String packageName,
+            String sourceFileName,
+            List<AnnotationDescriptor> annotations,
+            List<RegisteredTypeDescriptor> registeredTypes,
+            ConsumerDescriptor consumer,
+            Set<ComponentCapability> capabilities) {
+        return new PackageDescriptor(packageName, sourceFileName, annotations, registeredTypes, consumer, capabilities);
+    }
+
+    public String packageName() {
+        return packageName;
+    }
+
+    public Path sourceFile() {
+        return path(sourceFileName);
+    }
+
+    public String sourceFileName() {
+        return sourceFileName;
+    }
+
+    public List<AnnotationDescriptor> annotations() {
+        return annotations;
+    }
+
+    public List<RegisteredTypeDescriptor> registeredTypes() {
+        return registeredTypes;
+    }
+
+    public ConsumerDescriptor consumer() {
+        return consumer;
+    }
+
+    public Set<ComponentCapability> capabilities() {
+        return capabilities;
     }
 
     /**
@@ -58,5 +118,44 @@ public record PackageDescriptor(
      */
     public Optional<ConsumerDescriptor> consumerMetadata() {
         return Optional.ofNullable(consumer);
+    }
+
+    private static String pathName(Path path) {
+        return path == null ? null : path.toString();
+    }
+
+    private static Path path(String pathName) {
+        return pathName == null ? null : Path.of(pathName);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof PackageDescriptor that)) {
+            return false;
+        }
+        return packageName.equals(that.packageName)
+               && Objects.equals(sourceFileName, that.sourceFileName)
+               && annotations.equals(that.annotations)
+               && registeredTypes.equals(that.registeredTypes)
+               && Objects.equals(consumer, that.consumer)
+               && capabilities.equals(that.capabilities);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(packageName, sourceFileName, annotations, registeredTypes, consumer, capabilities);
+    }
+
+    @Override
+    public String toString() {
+        return "PackageDescriptor[packageName=" + packageName
+               + ", sourceFile=" + sourceFileName
+               + ", annotations=" + annotations
+               + ", registeredTypes=" + registeredTypes
+               + ", consumer=" + consumer
+               + ", capabilities=" + capabilities + "]";
     }
 }

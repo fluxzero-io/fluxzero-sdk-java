@@ -43,8 +43,8 @@ public record ExecutableDescriptor(
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(returnTypeName, "returnTypeName");
         returnTypeUse = returnTypeUse == null ? TypeUseDescriptor.EMPTY : returnTypeUse;
-        parameters = List.copyOf(Objects.requireNonNull(parameters, "parameters"));
-        annotations = List.copyOf(Objects.requireNonNull(annotations, "annotations"));
+        parameters = RegistryCollections.immutableList(Objects.requireNonNull(parameters, "parameters"));
+        annotations = RegistryCollections.immutableList(Objects.requireNonNull(annotations, "annotations"));
     }
 
     public ExecutableDescriptor(

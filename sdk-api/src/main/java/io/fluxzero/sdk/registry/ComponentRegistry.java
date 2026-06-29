@@ -41,10 +41,7 @@ import static java.util.stream.Collectors.toSet;
  * @param packages package-level metadata discovered from source
  * @param components component metadata discovered from source
  */
-public record ComponentRegistry(
-        Path sourceRoot,
-        List<PackageDescriptor> packages,
-        List<ComponentDescriptor> components) {
+public final class ComponentRegistry {
     private static final int REGISTRY_CACHE_SIZE = 512;
     private static final Map<IdentityRegistryListKey, ComponentRegistry> mergeCache =
             Collections.synchronizedMap(new LinkedHashMap<>(REGISTRY_CACHE_SIZE, 0.75f, true) {
@@ -63,16 +60,56 @@ public record ComponentRegistry(
                 }
             });
 
-    public ComponentRegistry {
-        packages = List.copyOf(Objects.requireNonNull(packages, "packages"));
-        components = List.copyOf(Objects.requireNonNull(components, "components"));
+    private final String sourceRootName;
+    private final List<PackageDescriptor> packages;
+    private final List<ComponentDescriptor> components;
+
+    public ComponentRegistry(Path sourceRoot, List<PackageDescriptor> packages, List<ComponentDescriptor> components) {
+        this(pathName(sourceRoot), packages, components);
+    }
+
+    private ComponentRegistry(
+            String sourceRootName, List<PackageDescriptor> packages, List<ComponentDescriptor> components) {
+        this.sourceRootName = sourceRootName;
+        this.packages = RegistryCollections.immutableList(Objects.requireNonNull(packages, "packages"));
+        this.components = RegistryCollections.immutableList(Objects.requireNonNull(components, "components"));
+    }
+
+    /**
+     * Creates a registry from a browser-safe source-root label.
+     */
+    public static ComponentRegistry fromSourceRootName(
+            String sourceRootName, List<PackageDescriptor> packages, List<ComponentDescriptor> components) {
+        return new ComponentRegistry(sourceRootName, packages, components);
+    }
+
+    /**
+     * Returns the source root as a JVM path, or {@code null} for classpath-scanned or merged registries.
+     */
+    public Path sourceRoot() {
+        return path(sourceRootName);
+    }
+
+    /**
+     * Returns the source root as a browser-safe source label.
+     */
+    public String sourceRootName() {
+        return sourceRootName;
+    }
+
+    public List<PackageDescriptor> packages() {
+        return packages;
+    }
+
+    public List<ComponentDescriptor> components() {
+        return components;
     }
 
     /**
      * Returns an empty component registry.
      */
     public static ComponentRegistry empty() {
-        return new ComponentRegistry(null, List.of(), List.of());
+        return fromSourceRootName(null, List.of(), List.of());
     }
 
     /**
@@ -98,7 +135,7 @@ public record ComponentRegistry(
     private static ComponentRegistry mergeUncached(List<ComponentRegistry> registries) {
         List<Path> sourceRoots = registries.stream().map(ComponentRegistry::sourceRoot)
                 .filter(Objects::nonNull).distinct().toList();
-        Path sourceRoot = sourceRoots.size() == 1 ? sourceRoots.getFirst() : null;
+        Path sourceRoot = sourceRoots.size() == 1 ? sourceRoots.get(0) : null;
         return new ComponentRegistry(sourceRoot,
                                      registries.stream().flatMap(r -> r.packages().stream()).toList(),
                                      registries.stream().flatMap(r -> r.components().stream()).toList()).normalized();
@@ -122,8 +159,8 @@ public record ComponentRegistry(
         components.stream()
                 .sorted(Comparator.comparing(ComponentDescriptor::fullClassName))
                 .forEach(c -> componentsByName.merge(c.fullClassName(), c, ComponentRegistry::mergeComponent));
-        return new ComponentRegistry(sourceRoot, List.copyOf(packagesByName.values()),
-                                     List.copyOf(componentsByName.values()));
+        return new ComponentRegistry(sourceRootName, RegistryCollections.immutableList(packagesByName.values()),
+                                     RegistryCollections.immutableList(componentsByName.values()));
     }
 
     private static ComponentDescriptor mergeComponent(ComponentDescriptor first, ComponentDescriptor second) {
@@ -149,7 +186,7 @@ public record ComponentRegistry(
         first.forEach(annotation -> result.put(annotationKey(annotation), annotation));
         second.forEach(annotation -> result.merge(
                 annotationKey(annotation), annotation, ComponentRegistry::mergeAnnotation));
-        return List.copyOf(result.values());
+        return RegistryCollections.immutableList(result.values());
     }
 
     private static String annotationKey(AnnotationDescriptor annotation) {
@@ -171,7 +208,7 @@ public record ComponentRegistry(
         Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
         first.forEach(property -> result.put(property.name(), property));
         second.forEach(property -> result.merge(property.name(), property, ComponentRegistry::mergeProperty));
-        return List.copyOf(result.values());
+        return RegistryCollections.immutableList(result.values());
     }
 
     private static PropertyDescriptor mergeProperty(PropertyDescriptor first, PropertyDescriptor second) {
@@ -189,7 +226,7 @@ public record ComponentRegistry(
         first.forEach(executable -> result.put(executableKey(executable), executable));
         second.forEach(executable -> result.merge(
                 executableKey(executable), executable, ComponentRegistry::mergeExecutable));
-        return List.copyOf(result.values());
+        return RegistryCollections.immutableList(result.values());
     }
 
     private static ExecutableDescriptor mergeExecutable(ExecutableDescriptor first, ExecutableDescriptor second) {
@@ -211,7 +248,7 @@ public record ComponentRegistry(
         Map<String, HandlerRoute> result = new LinkedHashMap<>();
         first.forEach(route -> result.put(handlerRouteKey(route), route));
         second.forEach(route -> result.putIfAbsent(handlerRouteKey(route), route));
-        return Set.copyOf(result.values());
+        return RegistryCollections.immutableSet(result.values());
     }
 
     private static String handlerRouteKey(HandlerRoute route) {
@@ -226,13 +263,13 @@ public record ComponentRegistry(
     private static <T> List<T> mergeValues(List<T> first, List<T> second) {
         LinkedHashSet<T> result = new LinkedHashSet<>(first);
         result.addAll(second);
-        return List.copyOf(result);
+        return RegistryCollections.immutableList(result);
     }
 
     private static <T> Set<T> mergeSet(Set<T> first, Set<T> second) {
         LinkedHashSet<T> result = new LinkedHashSet<>(first);
         result.addAll(second);
-        return Set.copyOf(result);
+        return RegistryCollections.immutableSet(result);
     }
 
     /**
@@ -291,12 +328,45 @@ public record ComponentRegistry(
         return findComponent(type.getName());
     }
 
+    private static String pathName(Path path) {
+        return path == null ? null : path.toString();
+    }
+
+    private static Path path(String pathName) {
+        return pathName == null ? null : Path.of(pathName);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof ComponentRegistry that)) {
+            return false;
+        }
+        return Objects.equals(sourceRootName, that.sourceRootName)
+               && packages.equals(that.packages)
+               && components.equals(that.components);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sourceRootName, packages, components);
+    }
+
+    @Override
+    public String toString() {
+        return "ComponentRegistry[sourceRoot=" + sourceRootName
+               + ", packages=" + packages
+               + ", components=" + components + "]";
+    }
+
     private static final class IdentityRegistryListKey {
         private final List<ComponentRegistry> registries;
         private final int hashCode;
 
         private IdentityRegistryListKey(List<ComponentRegistry> registries) {
-            this.registries = List.copyOf(registries);
+            this.registries = RegistryCollections.immutableList(registries);
             int result = 1;
             for (ComponentRegistry registry : registries) {
                 result = 31 * result + System.identityHashCode(registry);

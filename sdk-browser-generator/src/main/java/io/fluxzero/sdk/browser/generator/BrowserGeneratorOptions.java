@@ -19,19 +19,32 @@ import java.util.Objects;
 /**
  * Options for browser application source generation.
  *
- * @param packageName generated Java package
- * @param className generated application class name
- * @param registerRoutes whether generated source should register lazy route handlers in the browser core
  */
-public record BrowserGeneratorOptions(String packageName, String className, boolean registerRoutes) {
+public final class BrowserGeneratorOptions {
+    private final String packageName;
+    private final String className;
+    private final boolean registerRoutes;
 
-    public BrowserGeneratorOptions {
-        packageName = Objects.requireNonNull(packageName, "packageName");
-        className = Objects.requireNonNull(className, "className");
+    public BrowserGeneratorOptions(String packageName, String className, boolean registerRoutes) {
+        this.packageName = Objects.requireNonNull(packageName, "packageName");
+        this.className = Objects.requireNonNull(className, "className");
+        this.registerRoutes = registerRoutes;
     }
 
     public BrowserGeneratorOptions(String packageName, String className) {
         this(packageName, className, true);
+    }
+
+    public String packageName() {
+        return packageName;
+    }
+
+    public String className() {
+        return className;
+    }
+
+    public boolean registerRoutes() {
+        return registerRoutes;
     }
 
     /**
