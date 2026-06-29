@@ -17,6 +17,7 @@ package io.fluxzero.sdk.registry;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.ExecutableInvocation;
 import io.fluxzero.common.handling.ExecutableInvocationBackend;
+import io.fluxzero.common.handling.GeneratedExecutableInvocationRegistrar;
 import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 
 import java.lang.reflect.Constructor;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -78,6 +81,7 @@ public final class JvmGeneratedExecutionInstaller {
             return Registration.noOp();
         }
         List<AutoCloseable> registrations = new ArrayList<>();
+        installGeneratedInvocations(preferredLoader, rootNames, registrations);
         for (ComponentDescriptor component : normalized.components()) {
             Optional<Class<?>> targetClass = JvmComponentMetadataLookup.classForMetadataName(
                     component.fullClassName(), preferredLoader);
@@ -98,6 +102,29 @@ public final class JvmGeneratedExecutionInstaller {
                 }
             }
         };
+    }
+
+    private static void installGeneratedInvocations(
+            ClassLoader preferredLoader, Collection<String> componentNames, List<AutoCloseable> registrations) {
+        ClassLoader loader = preferredLoader != null ? preferredLoader : Thread.currentThread().getContextClassLoader();
+        if (loader == null) {
+            loader = JvmGeneratedExecutionInstaller.class.getClassLoader();
+        }
+        java.util.Iterator<GeneratedExecutableInvocationRegistrar> registrars =
+                ServiceLoader.load(GeneratedExecutableInvocationRegistrar.class, loader).iterator();
+        while (true) {
+            GeneratedExecutableInvocationRegistrar registrar;
+            try {
+                if (!registrars.hasNext()) {
+                    return;
+                }
+                registrar = registrars.next();
+            } catch (ServiceConfigurationError ignored) {
+                continue;
+            }
+            Registration registration = registrar.register(componentNames);
+            registrations.add(registration::cancel);
+        }
     }
 
     private static Set<String> resolveRequestedComponentNames(

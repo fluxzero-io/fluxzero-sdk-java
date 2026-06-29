@@ -371,7 +371,7 @@ Evidence:
 - Java/Kotlin downstream compatibility tests passed:
   `./mvnw -q -pl java-downstream-project,kotlin-downstream-project -am -Dtest=DownstreamProjectTest,KotlinTypeRegistryProcessorTest,GivenWhenThenKotlinFixtureTest,KotlinReflectionUtilsTest,JsonUtilsKotlinTest,JacksonContentFilterKotlinTest,AggregateEntitiesKotlinTest,StatefulMembersKotlinTest,KotlinValidationTest,KotlinOpenApiProcessorTest -Dsurefire.failIfNoSpecifiedTests=false test`.
 
-## Active Phase: Test And Benchmark Performance Closure
+## Completed Phase: Test And Benchmark Performance Closure
 
 Status: [x] closed for this pass.
 
@@ -519,7 +519,8 @@ Notes:
   `getInvokerOrNull+invoke`, generated metadata handler matching, and cached handler invokers.
 - Stable handler invocation command:
   `./mvnw -q -pl sdk-jvm -DskipTests test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=io.fluxzero.sdk.benchmark.HandlerInvocationBackendBenchmark -Diterations=10000000 -Dwarmup=5`.
-- Stable handler invocation result, local wall time 6.77s: raw lambda member invoker 31.042ms / 322.1M op/s, raw
+- Pre-direct-invocation stable handler invocation result, local wall time 6.77s: raw lambda member invoker 31.042ms /
+  322.1M op/s, raw
   lambda `ExecutableInvocation` 34.208ms / 292.3M op/s, raw generated-registry invocation 34.466ms / 290.1M op/s,
   and raw plain reflection 51.950ms / 192.5M op/s. Full handler `getInvokerOrNull+invoke` was 118.659ms / 84.3M op/s
   for the lambda backend, 118.492ms / 84.4M op/s for generated registry, 114.875ms / 87.1M op/s for generated metadata,
@@ -530,6 +531,65 @@ Notes:
   generated invocation registry does not make it redundant; it gives generated metadata a stable semantic binding while
   still benefiting from the optimized JVM invocation handle. Do not expose this as app-semantics reflection fallback and
   do not remove or gate it without a future benchmark showing startup or native-image costs outweigh hot-path gains.
+
+## Completed Mini Phase: Generated Direct Invocation Backend
+
+Status: [x] implemented for javac-generated JVM components.
+
+Context: the registry now owns handler discovery and binding semantics, and `GeneratedExecutableInvocations` is the
+common runtime contract. Before this mini phase, the JVM installed registry-backed invocation functions only by lowering
+invocation plans to the optimized JVM `LambdaMetafactory`/method-handle backend. That was fast and kept app semantics
+generated, but it was not yet the browser-portable source-generated invoker shape we want as the shared mental model.
+
+Goal: generate direct invocation functions from the same component registry/invocation plan model, so JVM can prove the
+same invocation shape the browser backend will use. The JVM may keep `LambdaMetafactory` as an internal compatibility or
+optimization backend, but generated-only runtime should be able to invoke through generated source functions without
+reflective/member-handle preparation.
+
+Implemented:
+
+- [x] Add a source-generated invocation registrar for compiled JVM components that registers
+  `GeneratedExecutableInvocations` entries by stable executable id.
+- [x] Cover method and constructor invocation for source-accessible handlers/modeling/casting paths that are currently
+  installed by `JvmGeneratedExecutionInstaller`.
+- [x] Make generated-only verification prove at least one real compiled handler path uses a generated direct invocation
+  function rather than an installer-created JVM backend handle.
+- [x] Keep the generated function shape TeaVM/browser-friendly: plain Java source, no reflection, no method handles, no
+  `LambdaMetafactory`, and no dynamic classpath scanning.
+- [x] Benchmark generated direct invocation against the current JVM backend and app-level generated metadata numbers
+  before relying on it as the default javac generated-invocation path.
+
+Notes:
+
+- The SPI is `GeneratedExecutableInvocationRegistrar`; javac-generated providers are written to
+  `META-INF/services/io.fluxzero.common.handling.GeneratedExecutableInvocationRegistrar`.
+- `JvmGeneratedExecutionInstaller` installs service-loaded generated invocations first and then registers the existing
+  optimized JVM backend as fallback underneath them. That preserves generated-only strictness while keeping an honest JVM
+  fallback for source shapes javac cannot directly call.
+- Source generation intentionally skips private/local/anonymous/non-static-inner construction and executables whose
+  parameter or return types are not source-accessible from the generated provider package. Those cases continue to use
+  the existing JVM backend and should be treated as compatibility/platform limits, not browser-portable semantics.
+- KAPT can emit service descriptors without compiled Java providers; the installer tolerates those descriptors so Kotlin
+  generated-metadata runtime keeps working while Kotlin-specific direct invocation remains a future enhancement.
+- Verification: `ComponentRegistryProcessorTest#generatesDirectInvocationRegistrarDuringJavac` compiles a real javac
+  fixture, loads generated registrars through `ServiceLoader`, installs the registry through
+  `JvmGeneratedExecutionInstaller`, and asserts the active invocation class comes from `FluxzeroGeneratedInvocations_*`.
+- Verification: `./mvnw -B clean install` passed on 2026-06-29, Maven wall time 45.885s / local real 46.86s.
+- Test speed check: `./mvnw -q -pl sdk-jvm -am test` passed, local real 12.61s. Top classes were
+  `OnDemandExecutionTest` 4.970s, `GivenWhenThenSpringTest` 2.068s, `HandleWebTest` 1.715s,
+  `AggregateEntitiesTest` 1.586s, and `EventSourcingRepositoryTest` 1.280s.
+- Stable direct invocation benchmark command:
+  `./mvnw -q -pl sdk-jvm -DskipTests test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=io.fluxzero.sdk.benchmark.HandlerInvocationBackendBenchmark -Diterations=10000000 -Dwarmup=5`.
+- Stable direct invocation result, local wall time 7.77s: raw lambda `ExecutableInvocation` 33.997ms / 294.1M op/s,
+  raw source-generated invocation 27.277ms / 366.6M op/s, raw generated-registry invocation 28.003ms / 357.1M op/s,
+  and raw plain reflection 52.393ms / 190.9M op/s. Full handler `getInvokerOrNull+invoke` was 119.584ms / 83.6M op/s
+  for the lambda backend, 112.962ms / 88.5M op/s for generated registry, 109.708ms / 91.2M op/s for generated
+  metadata, and 176.656ms / 56.6M op/s for plain reflection.
+- App-level benchmark command:
+  `./mvnw -q -pl sdk-jvm -DskipTests test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=io.fluxzero.sdk.benchmark.CrossVersionFluxzeroHandlerBenchmark -Diterations=300000 -Dwarmup=5 -DsetupIterations=1000`.
+- App-level result, local wall time 6.67s: build+register 1178.834ms / 848.3 op/s and warm dispatch 634.436ms /
+  472.9k op/s. This is within noise of the prior generated-metadata checkpoint (1203.597ms build+register and
+  622.675ms warm dispatch) and keeps the remaining default-flip performance gate focused on broader app-level runs.
 
 ## Queued Architecture Decisions
 
@@ -554,6 +614,22 @@ Acceptance questions:
 - [x] Does JIT still improve hot handler throughput or startup enough to justify the complexity?
 - [x] Does generated invocation make JIT redundant for normal SDK usage?
 - [x] Should JIT become a benchmark-proven opt-in, an internal optimization, or be removed?
+
+### On-Demand Handler Compilation After Generated Registry
+
+Status: [ ] open.
+
+Question: does on-demand compilation of handlers still earn its complexity now that the component registry and generated
+invocation plans can describe the app model?
+
+Decision to make later:
+
+- [ ] Does on-demand compilation still provide a product-level advantage for IDE/local/browser source workflows after
+  registry-driven startup exists?
+- [ ] Should on-demand compilation remain a first-class runtime mode, become tooling/prewarm infrastructure, or be
+  narrowed to local development only?
+- [ ] Can it share generated direct invocation output with the compiled registry path instead of maintaining a separate
+  invocation story?
 
 ## Completed Phase: Generated-Only Runtime Closure
 
@@ -877,7 +953,7 @@ Remaining work:
   downcasters.
 - [x] Keep reflection invocation only behind the explicit JVM backend seam for missing plans or intentionally JVM-only
   mechanics.
-- [ ] Replace handler discovery/matching dependence on JVM `Executable`/`Parameter` with generated plan/view contracts.
+- [x] Replace handler discovery/matching dependence on JVM `Executable`/`Parameter` with generated plan/view contracts.
   - [x] Add `ExecutableView` and `ParameterView` contracts in `common`.
   - [x] Add compatibility bridges on `HandlerDescriptor`, `HandlerMatcher`, `ParameterResolver`,
     `PreparedParameterResolver`, `HandlerFilter`, `MessageFilter`, and `MethodInvocationValidator`.

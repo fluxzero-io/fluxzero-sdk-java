@@ -15,6 +15,9 @@
 package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Registration;
+import io.fluxzero.common.handling.GeneratedExecutableInvocationRegistrar;
+import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ServiceLoader;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -156,6 +160,73 @@ class ComponentRegistryProcessorTest {
             )).normalized();
 
             ComponentRegistryParityAssertions.assertSemanticParity(classpath, generated);
+        }
+    }
+
+    @Test
+    void generatesDirectInvocationRegistrarDuringJavac(@TempDir Path tempDir) throws Exception {
+        Path sourceRoot = tempDir.resolve("src");
+        Path output = tempDir.resolve("classes");
+        writeProcessorFixture(sourceRoot);
+
+        compile(sourceRoot, output);
+
+        try (URLClassLoader classLoader = new URLClassLoader(
+                new java.net.URL[]{output.toUri().toURL()},
+                Thread.currentThread().getContextClassLoader())) {
+            List<GeneratedExecutableInvocationRegistrar> registrars =
+                    ServiceLoader.load(GeneratedExecutableInvocationRegistrar.class, classLoader)
+                            .stream()
+                            .map(ServiceLoader.Provider::get)
+                            .toList();
+            assertFalse(registrars.isEmpty());
+
+            Registration registration = Registration.noOp();
+            for (GeneratedExecutableInvocationRegistrar registrar : registrars) {
+                registration = registration.merge(registrar.register());
+            }
+            Class<?> handlerType = load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorHandler");
+            Class<?> commandType = load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorCommand");
+            try {
+                Object handler = handlerType.getConstructor().newInstance();
+                Object command = commandType.getConstructor(String.class).newInstance("direct");
+
+                var invocation = GeneratedExecutableInvocations.find(
+                        handlerType,
+                        InvocationPlanDescriptor.executableId(
+                                ExecutableKind.METHOD,
+                                "handle",
+                                List.of("io.fluxzero.sdk.registry.processorfixture.ProcessorCommand")))
+                        .orElseThrow();
+
+                Object result = invocation.invoke(handler, command);
+                assertEquals("direct", result.getClass().getMethod("value").invoke(result));
+            } finally {
+                registration.cancel();
+            }
+
+            ComponentRegistry registry = ComponentRegistry.merge(ComponentRegistryJson.load(classLoader));
+            Registration installed = JvmGeneratedExecutionInstaller.install(
+                    registry, classLoader, List.of(handlerType.getName()));
+            try {
+                Object handler = handlerType.getConstructor().newInstance();
+                Object command = commandType.getConstructor(String.class).newInstance("installed");
+
+                var invocation = GeneratedExecutableInvocations.find(
+                        handlerType,
+                        InvocationPlanDescriptor.executableId(
+                                ExecutableKind.METHOD,
+                                "handle",
+                                List.of("io.fluxzero.sdk.registry.processorfixture.ProcessorCommand")))
+                        .orElseThrow();
+                assertTrue(invocation.getClass().getName().contains("FluxzeroGeneratedInvocations_"),
+                           invocation.getClass().getName());
+
+                Object result = invocation.invoke(handler, command);
+                assertEquals("installed", result.getClass().getMethod("value").invoke(result));
+            } finally {
+                installed.cancel();
+            }
         }
     }
 

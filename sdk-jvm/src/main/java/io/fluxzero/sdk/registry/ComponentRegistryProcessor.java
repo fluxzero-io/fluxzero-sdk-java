@@ -27,6 +27,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
@@ -37,6 +38,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
+import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -50,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
@@ -183,6 +186,7 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
 
     private final Map<String, TypeElement> types = new LinkedHashMap<>();
     private final Map<String, PackageElement> packages = new LinkedHashMap<>();
+    private boolean invocationsWritten;
     private boolean written;
 
     @Override
@@ -196,6 +200,10 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
             return false;
         }
         roundEnv.getRootElements().forEach(this::collect);
+        if (!roundEnv.processingOver() && !invocationsWritten) {
+            invocationsWritten = true;
+            writeGeneratedInvocations();
+        }
         if (roundEnv.processingOver() && !written) {
             written = true;
             writeRegistry();
@@ -210,8 +218,10 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
 
     private void collect(Element element) {
         if (element instanceof TypeElement type && componentKind(type).isPresent()) {
-            types.putIfAbsent(binaryName(type), type);
-            collectPackage(type);
+            if (!type.getSimpleName().toString().startsWith("FluxzeroGeneratedInvocations_")) {
+                types.putIfAbsent(binaryName(type), type);
+                collectPackage(type);
+            }
         }
         for (Element enclosed : element.getEnclosedElements()) {
             collect(enclosed);
@@ -244,6 +254,245 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
             processingEnv.getMessager().printMessage(
                     Diagnostic.Kind.ERROR, "Failed to write Fluxzero component registry: " + e.getMessage());
         }
+    }
+
+    private void writeGeneratedInvocations() {
+        Map<String, List<TypeElement>> typesByPackage = types.values().stream()
+                .collect(Collectors.groupingBy(
+                        type -> processingEnv.getElementUtils().getPackageOf(type).getQualifiedName().toString(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+        List<String> providerNames = new ArrayList<>();
+        typesByPackage.forEach((packageName, packageTypes) -> {
+            if (packageName.isBlank()) {
+                return;
+            }
+            List<GeneratedInvocationTarget> targets = packageTypes.stream()
+                    .sorted(Comparator.comparing(this::binaryName))
+                    .map(type -> generatedInvocationTarget(type).orElse(null))
+                    .filter(Objects::nonNull)
+                    .toList();
+            if (targets.isEmpty()) {
+                return;
+            }
+            String className = generatedInvocationClassName(packageName, targets);
+            String providerName = packageName + "." + className;
+            try {
+                JavaFileObject sourceFile = processingEnv.getFiler().createSourceFile(providerName);
+                try (Writer writer = sourceFile.openWriter()) {
+                    writer.write(generatedInvocationSource(packageName, className, targets));
+                }
+                providerNames.add(providerName);
+            } catch (Exception e) {
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "Failed to write Fluxzero generated invocation registrar " + providerName + ": "
+                        + e.getMessage());
+            }
+        });
+        if (providerNames.isEmpty()) {
+            return;
+        }
+        try {
+            FileObject service = processingEnv.getFiler().createResource(
+                    StandardLocation.CLASS_OUTPUT, "",
+                    "META-INF/services/io.fluxzero.common.handling.GeneratedExecutableInvocationRegistrar");
+            try (Writer writer = service.openWriter()) {
+                writer.write(String.join(System.lineSeparator(), providerNames));
+                writer.write(System.lineSeparator());
+            }
+        } catch (Exception e) {
+            processingEnv.getMessager().printMessage(
+                    Diagnostic.Kind.ERROR,
+                    "Failed to write Fluxzero generated invocation service descriptor: " + e.getMessage());
+        }
+    }
+
+    private Optional<GeneratedInvocationTarget> generatedInvocationTarget(TypeElement type) {
+        String packageName = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName().toString();
+        if (isPrivate(type) || type.getModifiers().contains(Modifier.ABSTRACT)
+            || !canInstantiateFromGeneratedSource(type)) {
+            return Optional.empty();
+        }
+        List<GeneratedInvocationExecutable> executables = executableElements(type).stream()
+                .filter(executable -> !isPrivate(executable))
+                .filter(executable -> !executable.getModifiers().contains(Modifier.ABSTRACT))
+                .filter(executable -> !executable.getModifiers().contains(Modifier.NATIVE))
+                .map(executable -> generatedInvocationExecutable(packageName, executable))
+                .flatMap(Optional::stream)
+                .toList();
+        return executables.isEmpty() ? Optional.empty()
+                : Optional.of(new GeneratedInvocationTarget(binaryName(type), sourceTypeName(type), executables));
+    }
+
+    private Optional<GeneratedInvocationExecutable> generatedInvocationExecutable(
+            String packageName, ExecutableElement executable) {
+        if (!canReferenceFromGeneratedSource(executable.getReturnType(), packageName)
+            || executable.getParameters().stream()
+                    .anyMatch(parameter -> !canReferenceFromGeneratedSource(parameter.asType(), packageName))) {
+            return Optional.empty();
+        }
+        ExecutableDescriptor descriptor = executableDescriptor(executable);
+        String executableId = InvocationPlanDescriptor.executableId(
+                descriptor.kind(), descriptor.name(), descriptor.parameters().stream()
+                        .map(ParameterDescriptor::typeName)
+                        .toList());
+        return Optional.of(new GeneratedInvocationExecutable(
+                descriptor.kind(), descriptor.name(), executableId,
+                executable.getReturnType().getKind() == TypeKind.VOID,
+                executable.getModifiers().contains(Modifier.STATIC),
+                executable.getParameters().stream()
+                        .map(parameter -> parameterExpression(parameter.asType()))
+                        .toList()));
+    }
+
+    private static boolean isPrivate(Element element) {
+        for (Element current = element; current != null; current = current.getEnclosingElement()) {
+            if (current.getModifiers().contains(Modifier.PRIVATE)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean canInstantiateFromGeneratedSource(TypeElement type) {
+        if (type.getNestingKind() == NestingKind.TOP_LEVEL) {
+            return true;
+        }
+        return type.getNestingKind() == NestingKind.MEMBER && type.getModifiers().contains(Modifier.STATIC);
+    }
+
+    private boolean canReferenceFromGeneratedSource(TypeMirror type, String packageName) {
+        if (type.getKind() == TypeKind.ARRAY) {
+            return canReferenceFromGeneratedSource(((ArrayType) type).getComponentType(), packageName);
+        }
+        if (type.getKind().isPrimitive() || type.getKind() == TypeKind.VOID) {
+            return true;
+        }
+        Element element = processingEnv.getTypeUtils().asElement(processingEnv.getTypeUtils().erasure(type));
+        if (!(element instanceof TypeElement referencedType)) {
+            return true;
+        }
+        if (referencedType.getNestingKind() == NestingKind.LOCAL
+            || referencedType.getNestingKind() == NestingKind.ANONYMOUS
+            || isPrivate(referencedType)) {
+            return false;
+        }
+        String referencedPackage = processingEnv.getElementUtils()
+                .getPackageOf(referencedType).getQualifiedName().toString();
+        if (packageName.equals(referencedPackage)) {
+            return true;
+        }
+        for (Element current = referencedType; current instanceof TypeElement; current = current.getEnclosingElement()) {
+            if (!current.getModifiers().contains(Modifier.PUBLIC)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String generatedInvocationClassName(String packageName, List<GeneratedInvocationTarget> targets) {
+        String fingerprint = targets.stream()
+                .map(target -> target.componentName() + target.executables().stream()
+                        .map(GeneratedInvocationExecutable::executableId)
+                        .collect(Collectors.joining()))
+                .collect(Collectors.joining("|", packageName, ""));
+        return "FluxzeroGeneratedInvocations_" + Integer.toHexString(fingerprint.hashCode()).replace('-', '_');
+    }
+
+    private String generatedInvocationSource(
+            String packageName, String className, List<GeneratedInvocationTarget> targets) {
+        StringBuilder source = new StringBuilder();
+        source.append("package ").append(packageName).append(";\n\n")
+                .append("public final class ").append(className)
+                .append(" implements io.fluxzero.common.handling.GeneratedExecutableInvocationRegistrar {\n")
+                .append("    @Override\n")
+                .append("    public io.fluxzero.common.Registration register(java.util.Collection<String> componentNames) {\n")
+                .append("        io.fluxzero.common.Registration registration = io.fluxzero.common.Registration.noOp();\n");
+        for (GeneratedInvocationTarget target : targets) {
+            source.append("        if (include(componentNames, \"").append(escapeJava(target.componentName()))
+                    .append("\")) {\n");
+            for (GeneratedInvocationExecutable executable : target.executables()) {
+                source.append("            registration = registration.merge(")
+                        .append("io.fluxzero.common.handling.GeneratedExecutableInvocations.register(")
+                        .append(target.sourceTypeName()).append(".class, \"")
+                        .append(escapeJava(executable.executableId())).append("\", ")
+                        .append(invocationLambda(target, executable)).append("));\n");
+            }
+            source.append("        }\n");
+        }
+        source.append("        return registration;\n")
+                .append("    }\n\n")
+                .append("    private static boolean include(java.util.Collection<String> componentNames, String componentName) {\n")
+                .append("        return componentNames == null || componentNames.isEmpty() || componentNames.contains(componentName);\n")
+                .append("    }\n")
+                .append("}\n");
+        return source.toString();
+    }
+
+    private String invocationLambda(GeneratedInvocationTarget target, GeneratedInvocationExecutable executable) {
+        String arguments = java.util.stream.IntStream.range(0, executable.parameterExpressions().size())
+                .mapToObj(i -> executable.parameterExpressions().get(i).formatted(i))
+                .collect(Collectors.joining(", "));
+        String body;
+        if (executable.kind() == ExecutableKind.CONSTRUCTOR) {
+            body = "return new %s(%s);".formatted(target.sourceTypeName(), arguments);
+            return invocationBlock(body);
+        }
+        String owner = executable.isStatic()
+                ? target.sourceTypeName()
+                : "((%s) target)".formatted(target.sourceTypeName());
+        String call = owner + "." + executable.name() + "(" + arguments + ")";
+        if (executable.returnsVoid()) {
+            body = call + "; return null;";
+        } else {
+            body = "return " + call + ";";
+        }
+        return invocationBlock(body);
+    }
+
+    private static String invocationBlock(String body) {
+        return "(target, parameterCount, parameterProvider) -> { try { " + body
+               + " } catch (Throwable e) { throw io.fluxzero.common.ObjectUtils.rethrow(e); } }";
+    }
+
+    private String parameterExpression(TypeMirror type) {
+        if (type.getKind().isPrimitive()) {
+            return "((" + primitiveWrapper(type.getKind()) + ") parameterProvider.apply(%s))";
+        }
+        return "((" + sourceTypeName(type) + ") parameterProvider.apply(%s))";
+    }
+
+    private static String primitiveWrapper(TypeKind kind) {
+        return switch (kind) {
+            case BOOLEAN -> Boolean.class.getName();
+            case BYTE -> Byte.class.getName();
+            case CHAR -> Character.class.getName();
+            case DOUBLE -> Double.class.getName();
+            case FLOAT -> Float.class.getName();
+            case INT -> Integer.class.getName();
+            case LONG -> Long.class.getName();
+            case SHORT -> Short.class.getName();
+            default -> throw new IllegalArgumentException("Unsupported primitive kind: " + kind);
+        };
+    }
+
+    private String sourceTypeName(TypeElement type) {
+        return type.getQualifiedName().toString();
+    }
+
+    private String sourceTypeName(TypeMirror type) {
+        if (type.getKind() == TypeKind.ARRAY) {
+            return sourceTypeName(((ArrayType) type).getComponentType()) + "[]";
+        }
+        if (type.getKind().isPrimitive()) {
+            return type.toString();
+        }
+        return processingEnv.getTypeUtils().erasure(type).toString();
+    }
+
+    private static String escapeJava(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private ComponentRegistry registry() {
@@ -815,6 +1064,21 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     }
 
     private record LocalHandlerConfig(boolean enabled, boolean allowExternalMessages) {
+    }
+
+    private record GeneratedInvocationTarget(
+            String componentName,
+            String sourceTypeName,
+            List<GeneratedInvocationExecutable> executables) {
+    }
+
+    private record GeneratedInvocationExecutable(
+            ExecutableKind kind,
+            String name,
+            String executableId,
+            boolean returnsVoid,
+            boolean isStatic,
+            List<String> parameterExpressions) {
     }
 
     private record PackageMetadata(LocalHandlerConfig localHandler, ConsumerDescriptor consumer, boolean trackSelf) {

@@ -72,10 +72,12 @@ public class HandlerInvocationBackendBenchmark {
 
         MemberInvoker lambdaInvoker = DefaultMemberInvoker.asInvoker(method);
         ExecutableInvocation lambdaInvocation = ExecutableInvocationBackend.reflection().prepare(method);
+        ExecutableInvocation sourceGeneratedInvocation = (target, parameterCount, parameterProvider) ->
+                ((BenchmarkHandler) target).handle((BenchmarkCommand) parameterProvider.apply(0));
         ExecutableInvocation reflectionInvocation = plainReflectionBackend().prepare(method);
 
         try (var ignored = GeneratedExecutableInvocations.register(
-                BenchmarkHandler.class, GeneratedExecutableInvocations.executableId(method), lambdaInvocation)) {
+                BenchmarkHandler.class, GeneratedExecutableInvocations.executableId(method), sourceGeneratedInvocation)) {
             ExecutableInvocation generatedRegistryInvocation = GeneratedExecutableInvocations.find(method).orElseThrow();
             HandlerMatcher<Object, DeserializingMessage> lambdaMatcher = handlerMatcher(
                     ExecutableInvocationBackend.reflection());
@@ -94,6 +96,8 @@ public class HandlerInvocationBackendBenchmark {
                     new Scenario("raw.lambdaMemberInvoker", target -> lambdaInvoker.invoke(target, command)),
                     new Scenario("raw.lambdaExecutableInvocation",
                                  target -> lambdaInvocation.invoke(target, command)),
+                    new Scenario("raw.sourceGeneratedInvocation",
+                                 target -> sourceGeneratedInvocation.invoke(target, command)),
                     new Scenario("raw.generatedRegistryInvocation",
                                  target -> generatedRegistryInvocation.invoke(target, command)),
                     new Scenario("raw.plainReflectionInvocation",

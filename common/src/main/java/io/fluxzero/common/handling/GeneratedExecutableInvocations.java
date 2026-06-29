@@ -119,7 +119,7 @@ public final class GeneratedExecutableInvocations {
     /**
      * Registration handle for a generated invocation.
      */
-    public static final class Registration implements AutoCloseable {
+    public static final class Registration implements AutoCloseable, io.fluxzero.common.Registration {
         private final Key key;
         private final ExecutableInvocation invocation;
 
@@ -143,6 +143,11 @@ public final class GeneratedExecutableInvocations {
             if (invocations.isEmpty()) {
                 INVOCATIONS.remove(key, invocations);
             }
+        }
+
+        @Override
+        public void cancel() {
+            close();
         }
     }
 }
