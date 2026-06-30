@@ -205,6 +205,11 @@ jobs:
   docker-test-server:
     needs: build-and-test
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: write
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
@@ -234,6 +239,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Exchange GitHub OIDC token for test-server
+        id: fluxzero-jwt
+        uses: fluxzero-io/fluxzero-jwt-action@v2
+        with:
+          mode: oidc
+          image-name: fluxzero-test
+
+      - name: Log in to Fluxzero Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ steps.fluxzero-jwt.outputs.registry-host }}
+          username: ${{ steps.fluxzero-jwt.outputs.userId }}
+          password: ${{ steps.fluxzero-jwt.outputs.token }}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
 
@@ -250,6 +269,7 @@ jobs:
             type=raw,value=${{ needs.build-and-test.outputs.version-tag }}
           images: |
             ghcr.io/${{ github.repository }}/fluxzero-test
+            ${{ steps.fluxzero-jwt.outputs.registry-host }}/958e1ee2f6c64facbc7765026a9a6e09/fluxzero-test
 
       - name: Build and push test-server Docker image
         uses: docker/build-push-action@v7
@@ -264,6 +284,11 @@ jobs:
   docker-proxy:
     needs: build-and-test
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: write
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
@@ -293,16 +318,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate Fluxzero JWT
+      - name: Exchange GitHub OIDC token for proxy
         id: fluxzero-jwt
-        uses: fluxzero-io/fluxzero-jwt-action@v1
+        uses: fluxzero-io/fluxzero-jwt-action@v2
         with:
-          api-key: ${{ secrets.FLUXZERO_API_KEY }}
+          mode: oidc
+          image-name: fluxzero-proxy
 
       - name: Log in to Fluxzero Container Registry
         uses: docker/login-action@v4
         with:
-          registry: registry.fluxzero.io
+          registry: ${{ steps.fluxzero-jwt.outputs.registry-host }}
           username: ${{ steps.fluxzero-jwt.outputs.userId }}
           password: ${{ steps.fluxzero-jwt.outputs.token }}
 
@@ -322,7 +348,7 @@ jobs:
             type=raw,value=${{ needs.build-and-test.outputs.version-tag }}
           images: |
             ghcr.io/${{ github.repository }}/fluxzero-proxy
-            registry.fluxzero.io/fluxzero-proxy
+            ${{ steps.fluxzero-jwt.outputs.registry-host }}/958e1ee2f6c64facbc7765026a9a6e09/fluxzero-proxy
 
       - name: Build and push proxy Docker image
         uses: docker/build-push-action@v7
