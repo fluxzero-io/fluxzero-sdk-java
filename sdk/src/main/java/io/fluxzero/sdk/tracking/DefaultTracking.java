@@ -213,13 +213,13 @@ public class DefaultTracking implements Tracking {
     private void unregisterConsumerHandlers(ConsumerConfiguration configuration,
                                             List<Handler<DeserializingMessage>> handlers,
                                             List<String> topics) {
+        releaseTrackingTopics(configuration, topics);
         Optional.ofNullable(startedHandlers.get(configuration)).ifPresent(activeHandlers -> {
             activeHandlers.removeAll(handlers);
             if (activeHandlers.isEmpty()) {
                 startedHandlers.remove(configuration);
             }
         });
-        releaseTrackingTopics(configuration, topics);
     }
 
     /**
