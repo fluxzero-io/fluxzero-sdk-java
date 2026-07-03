@@ -96,6 +96,30 @@ export const yearGroups = groupQuartersByYear(quarterGroups);
 This changelog is automatically generated from the [GitHub releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) and shows releases from version 0.1192.0 onwards.
 :::
 
+<style>
+  :global(.commit-message-details) {
+    margin: 0;
+  }
+
+  :global(.commit-message-details > summary) {
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  :global(.commit-message-body) {
+    margin-top: 0.5rem;
+    overflow-wrap: anywhere;
+  }
+
+  :global(.commit-message-body > p) {
+    margin: 0 0 0.75rem;
+  }
+
+  :global(.commit-message-body > p:last-child) {
+    margin-bottom: 0;
+  }
+</style>
+
 {yearGroups.map(({ year, quarters }) => (
   <div key={year}>
     <h2>{year}</h2>

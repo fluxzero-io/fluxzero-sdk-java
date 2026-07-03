@@ -26,10 +26,12 @@ jobs:
     outputs:
       version: ${{ steps.tag_version.outputs.new_version }}
       version-tag: ${{ steps.tag_version.outputs.new_tag }}
-      version-changelog: ${{ steps.tag_version.outputs.changelog }}
+      version-changelog: ${{ steps.release_notes.outputs.body }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Install Java and Maven
         uses: actions/setup-java@v5
@@ -46,7 +48,18 @@ jobs:
           default_bump: minor
           tag_prefix: ""
           custom_tag: ${{ github.event.inputs.version }}
+          fetch_all_tags: true
           custom_release_rules: "deps:patch:Dependency updates"
+
+      - name: Generate release notes
+        id: release_notes
+        run: node .github/scripts/generate-release-notes.mjs
+        env:
+          RELEASE_VERSION: ${{ steps.tag_version.outputs.new_version }}
+          RELEASE_TAG: ${{ steps.tag_version.outputs.new_tag }}
+          PREVIOUS_TAG: ${{ steps.tag_version.outputs.previous_tag }}
+          CURRENT_REF: ${{ github.sha }}
+          CUSTOM_RELEASE_RULES: "deps:patch:Dependency updates"
 
       - name: Set maven version
         run: |
