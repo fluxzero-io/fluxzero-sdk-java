@@ -4,6 +4,9 @@ description: Complete release history for fluxzero-sdk-java
 slug: docs/changelog
 sidebar:
   order: 05
+tableOfContents:
+  minHeadingLevel: 2
+  maxHeadingLevel: 3
 ---
 
 import { getCollection } from 'astro:content';
@@ -12,97 +15,307 @@ import { marked } from 'marked';
 
 export const releases = await getCollection('changelogReleases');
 
-export function groupReleasesByQuarter(releases) {
-  // Group releases by quarter
-  const groupedByQuarter = new Map();
-  
-  for (const release of releases) {
-    const quarterKey = release.data.quarterKey;
-    if (!groupedByQuarter.has(quarterKey)) {
-      groupedByQuarter.set(quarterKey, []);
-    }
-    groupedByQuarter.get(quarterKey).push(release.data);
+export function compareReleaseVersions(a, b) {
+  const versionA = a.split('.').map(Number);
+  const versionB = b.split('.').map(Number);
+
+  for (let i = 0; i < Math.max(versionA.length, versionB.length); i++) {
+    const numA = versionA[i] || 0;
+    const numB = versionB[i] || 0;
+    if (numA !== numB) return numB - numA;
   }
-  
-  // Convert to array and sort by quarter (most recent first)
-  const quarters = Array.from(groupedByQuarter.entries()).map(([quarterKey, releases]) => {
-    // Sort releases within quarter by version (most recent first)
-    releases.sort((a, b) => {
-      const versionA = a.version.split('.').map(Number);
-      const versionB = b.version.split('.').map(Number);
-      
-      for (let i = 0; i < Math.max(versionA.length, versionB.length); i++) {
-        const numA = versionA[i] || 0;
-        const numB = versionB[i] || 0;
-        if (numA !== numB) return numB - numA;
-      }
-      return 0;
-    });
-    
-    // Calculate version range for quarter
-    const versions = releases.map(r => r.version);
-    const minVersion = versions[versions.length - 1];
-    const maxVersion = versions[0];
-    
-    return {
-      quarterKey,
-      year: releases[0].year,
-      quarter: releases[0].quarter,
-      releases,
-      minVersion,
-      maxVersion
-    };
-  });
-  
-  // Sort quarters by year and quarter (most recent first)
-  quarters.sort((a, b) => {
-    if (a.year !== b.year) return b.year - a.year;
-    // Extract quarter number for comparison
-    const qNumA = parseInt(a.quarter.replace('Q', ''));
-    const qNumB = parseInt(b.quarter.replace('Q', ''));
-    return qNumB - qNumA;
-  });
-  
-  return quarters;
+
+  return 0;
 }
 
-export function groupQuartersByYear(quarters) {
+export function formatReleaseDate(date) {
+  const dateValue = date?.length === 10 ? `${date}T00:00:00Z` : date;
+  return new Intl.DateTimeFormat('en', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(dateValue));
+}
+
+export function getReleaseAnchor(version) {
+  return `release-${version.replaceAll('.', '-')}`;
+}
+
+export function groupReleasesByYear(releases) {
   const yearGroups = new Map();
-  
-  for (const quarter of quarters) {
-    if (!yearGroups.has(quarter.year)) {
-      yearGroups.set(quarter.year, []);
+
+  const sortedReleases = releases
+    .map((release) => release.data)
+    .sort((a, b) => {
+      const dateCompare = String(b.date).localeCompare(String(a.date));
+      return dateCompare || compareReleaseVersions(a.version, b.version);
+    });
+
+  for (const release of sortedReleases) {
+    const dateValue = release.date?.length === 10 ? `${release.date}T00:00:00Z` : release.date;
+    const year = new Date(dateValue).getUTCFullYear() || release.year;
+    if (!yearGroups.has(year)) {
+      yearGroups.set(year, []);
     }
-    yearGroups.get(quarter.year).push(quarter);
+    yearGroups.get(year).push(release);
   }
   
   // Convert to array and sort by year (most recent first)
   return Array.from(yearGroups.entries())
     .sort(([yearA], [yearB]) => yearB - yearA)
-    .map(([year, quarters]) => ({
+    .map(([year, releases]) => ({
       year,
-      quarters: quarters.sort((a, b) => {
-        const qNumA = parseInt(a.quarter.replace('Q', ''));
-        const qNumB = parseInt(b.quarter.replace('Q', ''));
-        return qNumB - qNumA;
-      })
+      releases,
     }));
 }
 
-export const quarterGroups = groupReleasesByQuarter(releases);
-export const yearGroups = groupQuartersByYear(quarterGroups);
+export const yearGroups = groupReleasesByYear(releases);
 export const releaseNoteStyles = `
+  .changelog-hero {
+    display: grid;
+    gap: 0.6rem;
+    margin: 1.25rem 0 2rem;
+    padding: 1.15rem 1.25rem 1.25rem;
+    border: 1px solid var(--sl-color-gray-6);
+    border-radius: 0.5rem;
+    background:
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--sl-color-accent) 7%, transparent),
+        transparent 42%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .changelog-hero__intro {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .changelog-hero__intro h2 {
+    margin: 0;
+    font-size: clamp(1.45rem, 3vw, 2rem);
+    letter-spacing: 0;
+  }
+
+  .changelog-hero__copy {
+    max-width: 52rem;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+  }
+
+  .changelog-year {
+    margin-top: 1.15rem;
+  }
+
+  .changelog-release-list {
+    display: grid;
+    gap: 0;
+    margin-top: 1.15rem;
+  }
+
+  .changelog-release-item {
+    display: grid;
+    grid-template-columns: minmax(4.75rem, 6.75rem) 1.35rem minmax(0, 1fr);
+    gap: 0 0.85rem;
+    position: relative;
+  }
+
+  .changelog-release-date {
+    padding-top: 0.95rem;
+    color: var(--sl-color-gray-3);
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .changelog-release-spine {
+    position: relative;
+    min-height: 100%;
+  }
+
+  .changelog-release-spine::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background: var(--sl-color-gray-6);
+  }
+
+  .changelog-release-spine::after {
+    content: "";
+    position: absolute;
+    top: 1.05rem;
+    left: 50%;
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 2px solid var(--sl-color-accent);
+    border-radius: 999px;
+    transform: translateX(-50%);
+    background: var(--sl-color-bg);
+  }
+
+  .changelog-release-item:first-child .changelog-release-spine::before {
+    top: 1.05rem;
+  }
+
+  .changelog-release-item:last-child .changelog-release-spine::before {
+    bottom: calc(100% - 1.45rem);
+  }
+
+  .changelog-release {
+    position: relative;
+    margin-bottom: 0.9rem;
+    border: 1px solid var(--sl-color-gray-6);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg);
+  }
+
+  .changelog-release[open] {
+    border-color: color-mix(in srgb, var(--sl-color-accent) 26%, var(--sl-color-gray-6));
+    background: color-mix(in srgb, var(--sl-color-bg-nav) 55%, var(--sl-color-bg));
+  }
+
+  .changelog-release > summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+    min-height: 3rem;
+    padding: 0.72rem 0.85rem;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .changelog-release > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .changelog-release > summary::marker {
+    content: "";
+  }
+
+  .changelog-release > summary:focus {
+    outline: none;
+  }
+
+  .changelog-release > summary:focus-visible {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: -2px;
+    border-radius: 0.45rem;
+  }
+
+  .changelog-release > summary::before {
+    content: "";
+    width: 1.05rem;
+    height: 1.05rem;
+    background: var(--sl-color-accent-high);
+    clip-path: polygon(88% 50%, 18% 6%, 18% 94%);
+    transition: clip-path 120ms ease;
+  }
+
+  .changelog-release[open] > summary::before {
+    clip-path: polygon(50% 90%, 4% 18%, 96% 18%);
+  }
+
+  .changelog-release__version {
+    margin: 0;
+    color: var(--sl-color-accent-high);
+    font-size: 1.02rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    line-height: 1.35;
+    scroll-margin-top: calc(var(--sl-nav-height) + 1rem);
+  }
+
+  .changelog-release__toc-date {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .changelog-release__link,
+  .commit-link {
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .changelog-release__link {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+    padding: 0.18rem 0.48rem 0.18rem 0.55rem;
+    border: 1px solid var(--sl-color-gray-6);
+    color: var(--sl-color-gray-2);
+    background: var(--sl-color-bg);
+  }
+
+  .changelog-release__link-icon {
+    width: 0.78rem;
+    height: 0.78rem;
+    stroke-width: 2.2;
+  }
+
+  .changelog-release__link:hover,
+  .commit-link:hover {
+    color: var(--sl-color-accent-high);
+    border-color: var(--sl-color-accent-low);
+  }
+
+  .changelog-release__body {
+    padding: 0 1rem 1rem 2rem;
+  }
+
+  .changelog-release__body > h4:first-child {
+    display: none;
+  }
+
+  .changelog-release__body h5 {
+    margin: 0.95rem 0 0.4rem;
+    color: var(--sl-color-white);
+    font-size: 0.9rem;
+    letter-spacing: 0;
+  }
+
+  .changelog-release__body ul {
+    margin: 0.25rem 0 0;
+    padding-left: 1.1rem;
+  }
+
+  .changelog-release__body li + li {
+    margin-top: 0.35rem;
+  }
+
   .commit-message-details {
     margin: 0;
   }
 
   .commit-message-details > summary {
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
   }
 
   .commit-message-body {
-    margin-top: 0.5rem;
+    margin: 0.45rem 0 0.15rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--sl-color-gray-6);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg);
     overflow-wrap: anywhere;
   }
 
@@ -113,31 +326,103 @@ export const releaseNoteStyles = `
   .commit-message-body > p:last-child {
     margin-bottom: 0;
   }
-`;
 
-:::note
-This changelog is automatically generated from the [GitHub releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) and shows releases from version 0.1192.0 onwards.
-:::
+  .commit-link {
+    display: inline-flex;
+    gap: 0.2rem;
+    align-items: center;
+    color: var(--sl-color-accent-high);
+  }
+
+  .commit-link-wrap {
+    white-space: nowrap;
+  }
+
+  .commit-link::after {
+    content: "";
+    width: 0.76rem;
+    height: 0.76rem;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round' d='M7 17 17 7M9 7h8v8'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round' d='M7 17 17 7M9 7h8v8'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+
+  @media (max-width: 42rem) {
+    .changelog-release-item {
+      grid-template-columns: 1.15rem minmax(0, 1fr);
+      gap: 0 0.75rem;
+    }
+
+    .changelog-release-date {
+      grid-column: 2;
+      grid-row: 1;
+      padding: 0 0 0.35rem;
+      text-align: left;
+    }
+
+    .changelog-release-spine {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+    }
+
+    .changelog-release {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .changelog-release > summary {
+      padding-right: 1rem;
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .changelog-release__link {
+      grid-column: 2;
+      width: max-content;
+    }
+
+    .changelog-release__body {
+      padding-left: 1rem;
+    }
+  }
+`;
 
 <style>{releaseNoteStyles}</style>
 
-{yearGroups.map(({ year, quarters }) => (
-  <div key={year}>
+<section class="changelog-hero">
+  <div class="changelog-hero__intro">
+    <h2>Fluxzero SDK changes</h2>
+    <p class="changelog-hero__copy">Follow SDK changes that may affect application behavior, integrations, build setup, and operational defaults. Each release links back to GitHub and includes the related commit details when more context is useful during upgrades.</p>
+  </div>
+</section>
+
+{yearGroups.map(({ year, releases }) => (
+  <section class="changelog-year" key={year}>
     <h2>{year}</h2>
     
-    {quarters.map(({ quarterKey, quarter, releases, minVersion, maxVersion }) => (
-      <div key={quarterKey}>
-        <h3>
-          {quarterKey} - release {minVersion === maxVersion ? minVersion : `${minVersion} - ${maxVersion}`}
-        </h3>
-        
-        {releases.map((release) => (
-          <details key={release.version}>
-            <summary>{release.version} ({release.date})</summary>
-            <div set:html={marked.parse(release.body)} />
+    <div class="changelog-release-list">
+      {releases.map((release) => (
+        <div class="changelog-release-item" key={release.version}>
+          <time class="changelog-release-date" datetime={release.date}>
+            {formatReleaseDate(release.date)}
+          </time>
+          <span class="changelog-release-spine" aria-hidden="true"></span>
+          <details class="changelog-release" open>
+            <summary>
+              <h3 class="changelog-release__version" id={getReleaseAnchor(release.version)}>
+                <span class="changelog-release__toc-date">{formatReleaseDate(release.date)} · </span>
+                {release.version}
+              </h3>
+              <a class="changelog-release__link" href={release.url} target="_blank" rel="noreferrer">
+                GitHub
+                <svg class="changelog-release__link-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 17 17 7M9 7h8v8" />
+                </svg>
+              </a>
+            </summary>
+            <div class="changelog-release__body" set:html={marked.parse(release.body)} />
           </details>
-        ))}
-      </div>
-    ))}
-  </div>
+        </div>
+      ))}
+    </div>
+  </section>
 ))}

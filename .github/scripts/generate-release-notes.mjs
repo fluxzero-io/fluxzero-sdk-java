@@ -34,6 +34,20 @@ const sectionOrder = [
   'Changes',
 ];
 
+const conventionalCommitTypes = new Set([
+  'build',
+  'chore',
+  'ci',
+  'deps',
+  'docs',
+  'feat',
+  'fix',
+  'perf',
+  'refactor',
+  'style',
+  'test',
+]);
+
 const releaseVersion = requireEnv('RELEASE_VERSION');
 const releaseTag = normalize(process.env.RELEASE_TAG) || releaseVersion;
 const currentRef = normalize(process.env.CURRENT_REF) || releaseTag || 'HEAD';
@@ -226,13 +240,18 @@ function renderCommit(commit) {
   const lines = [
     `<li><details class="commit-message-details"><summary>${summary}</summary>`,
   ];
-  lines.push(renderCommitBody(commit.body));
+  lines.push(renderCommitBody(commit.body, commit.subject));
   lines.push('</details></li>');
 
   return lines.join('\n');
 }
 
-function renderCommitBody(body) {
+function renderCommitBody(body, subject) {
+  const dependencyBody = renderDependencyUpdateBody(body, subject);
+  if (dependencyBody) {
+    return dependencyBody;
+  }
+
   const paragraphs = body
     .split(/\r?\n[ \t]*\r?\n/)
     .map((paragraph) => paragraph.trim())
@@ -241,8 +260,207 @@ function renderCommitBody(body) {
   return `<div class="commit-message-body">\n${paragraphs.join('\n')}\n</div>`;
 }
 
+function renderDependencyUpdateBody(body, subject) {
+  const updates = parseDependencyUpdates(body, subject);
+  if (updates.length === 0) {
+    return '';
+  }
+
+  if (updates.length === 1) {
+    return `<div class="commit-message-body">\n<p>${renderDependencyUpdate(updates[0])}</p>\n</div>`;
+  }
+
+  const items = updates.map((update) => `<li>${renderDependencyUpdate(update)}</li>`).join('\n');
+  return `<div class="commit-message-body">\n<ul>\n${items}\n</ul>\n</div>`;
+}
+
+function renderDependencyUpdate(update) {
+  let versionChange = '';
+  if (update.from && update.to) {
+    versionChange = `: ${escapeReleaseText(update.from)} -> ${escapeReleaseText(update.to)}`;
+  } else if (update.to) {
+    versionChange = `: to ${escapeReleaseText(update.to)}`;
+  } else if (update.from) {
+    versionChange = `: from ${escapeReleaseText(update.from)}`;
+  }
+  const changelogLink = update.changelogUrl
+    ? ` <a href="${escapeHtml(update.changelogUrl)}">changelog</a>`
+    : '';
+  return `<strong>${escapeReleaseText(update.name)}</strong>${versionChange}${changelogLink}`;
+}
+
+function parseDependencyUpdates(body, subject) {
+  if (!isDependencyUpdate(body, subject)) {
+    return [];
+  }
+
+  const updates = [];
+  const seen = new Set();
+  const addUpdate = (update) => {
+    if (!update.name || /dependency-updates group/i.test(update.name)) {
+      return;
+    }
+    const key = `${update.name}\0${update.from}\0${update.to}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    updates.push(update);
+  };
+
+  for (const update of parseDependencyTextUpdates(body)) {
+    addUpdate(update);
+  }
+
+  for (const update of parseDependencyTableUpdates(body)) {
+    addUpdate(update);
+  }
+
+  if (updates.length === 0) {
+    const update = parseDependencySubject(subject, body);
+    if (update) {
+      addUpdate(update);
+    }
+  }
+
+  return updates;
+}
+
+function isDependencyUpdate(body, subject) {
+  return /updated-dependencies:/i.test(body) ||
+    /^deps(?:\([^)]*\))?:\s*bump\b/i.test(subject) ||
+    /^deps(?:\([^)]*\))?:\s*Update\b/i.test(subject) ||
+    /\b(?:Bumps|Updates)\b[\s\S]*\bfrom\b[\s\S]*\bto\b/i.test(body);
+}
+
+function parseDependencyTableUpdates(body) {
+  return body
+    .split(/\r?\n/)
+    .map((line) => {
+      const match = line.match(/^\|\s*(?:\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|([^|`]+?))\s*\|\s*`?([^`|]+?)`?\s*\|\s*`?([^`|]+?)`?\s*\|$/);
+      if (!match) {
+        return undefined;
+      }
+
+      const [, linkedName, packageUrl, tickedName, plainName, from, to] = match;
+      const name = normalizeDependencyName(linkedName || tickedName || plainName);
+      if (!name || /^Package$/i.test(name) || /^-+$/.test(name)) {
+        return undefined;
+      }
+
+      return {
+        name,
+        from: normalizeVersion(from),
+        to: normalizeVersion(to),
+        changelogUrl: '',
+        packageUrl: packageUrl || '',
+      };
+    })
+    .filter(Boolean)
+    .map((update) => ({...update, changelogUrl: ''}));
+}
+
+function parseDependencyTextUpdates(body) {
+  const updates = [];
+  const pattern = /\b(?:Bumps|Updates)\s+(?:\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(.+?))\s+from\s+`?([^\s`,]+)`?\s+to\s+`?([^\s`,]+)`?\.?/gi;
+  let match;
+
+  while ((match = pattern.exec(body)) !== null) {
+    const [, linkedName, packageUrl, tickedName, plainName, from, to] = match;
+    const name = normalizeDependencyName(linkedName || tickedName || plainName);
+    if (!name) {
+      continue;
+    }
+
+    const nextBody = body.slice(match.index);
+    const nextUpdateIndex = nextBody.slice(1).search(/\n\s*(?:Bumps|Updates)\s+/i);
+    const block = nextUpdateIndex === -1 ? nextBody : nextBody.slice(0, nextUpdateIndex + 1);
+    updates.push(enrichDependencyLink({
+      name,
+      from: normalizeVersion(from),
+      to: normalizeVersion(to),
+      changelogUrl: '',
+      packageUrl: packageUrl || '',
+    }, block));
+  }
+
+  return updates;
+}
+
+function parseDependencySubject(subject, body) {
+  const bumpMatch = subject.match(/\bbump\s+(.+?)\s+from\s+([^\s]+)\s+to\s+([^\s()]+)(?:\s+\([^)]*\))*\.?$/i) ||
+    subject.match(/\bbump\s+(.+?)(?:\s+\([^)]*\))*\.?$/i);
+  if (bumpMatch) {
+    return enrichDependencyLink({
+      name: normalizeDependencyName(bumpMatch[1]),
+      from: normalizeVersion(bumpMatch[2] || ''),
+      to: normalizeVersion(bumpMatch[3] || ''),
+      changelogUrl: '',
+      packageUrl: '',
+    }, body);
+  }
+
+  const updateMatch = subject.match(/\bUpdate\s+(?:dependency\s+)?(.+?)\s+to\s+v?([^\s()]+)(?:\s+\([^)]*\))*$/i);
+  if (updateMatch) {
+    return enrichDependencyLink({
+      name: normalizeDependencyName(updateMatch[1]),
+      from: '',
+      to: normalizeVersion(updateMatch[2] || ''),
+      changelogUrl: '',
+      packageUrl: '',
+    }, body);
+  }
+
+  return undefined;
+}
+
+function enrichDependencyLink(update, body) {
+  return {
+    ...update,
+    changelogUrl: findDependencyChangelogUrl(body) || '',
+  };
+}
+
+function findDependencyChangelogUrl(body) {
+  const changelog = body.match(/-\s+\[Changelog\]\(([^)]+)\)/i);
+  if (changelog) {
+    return changelog[1];
+  }
+
+  const releaseNotes = body.match(/-\s+\[Release notes\]\(([^)]+)\)/i);
+  return releaseNotes ? releaseNotes[1] : '';
+}
+
+function normalizeDependencyName(value) {
+  return normalize(value)
+    .replace(/^the\s+/i, '')
+    .replace(/\s+group(?:\s+across.*)?$/i, '')
+    .replace(/\s+(?:Docker digest|action)$/i, '')
+    .replace(/[,.]$/g, '')
+    .replace(/^deps(?:\([^)]*\))?:\s*/i, '')
+    .trim();
+}
+
+function normalizeVersion(value) {
+  return normalize(value).replace(/^v(?=\d)/i, '').replace(/[,.]$/g, '');
+}
+
 function renderCommitSummary(subject, commitUrl, shortSha) {
-  return `${escapeReleaseText(subject)} (<a href="${commitUrl}"><code>${shortSha}</code></a>)`;
+  return `${escapeReleaseText(simplifyConventionalCommitSubject(subject))} (<a href="${commitUrl}"><code>${shortSha}</code></a>)`;
+}
+
+function simplifyConventionalCommitSubject(subject) {
+  const match = subject.match(/^(\s*)([a-z]+)(?:\(([^)]+)\))?!?:\s+(.+)$/i);
+  if (!match) {
+    return subject;
+  }
+
+  const [, leading, type, scope, summary] = match;
+  if (!conventionalCommitTypes.has(type.toLowerCase())) {
+    return subject;
+  }
+
+  return scope ? `${leading}${scope}: ${summary}` : `${leading}${summary}`;
 }
 
 function escapeReleaseText(value) {
