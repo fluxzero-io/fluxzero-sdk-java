@@ -154,6 +154,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             "X-Powered-By",
             "X-AspNet-Version",
             "X-AspNetMvc-Version");
+    private static final AtomicBoolean LOGGED_CORS_POLICY_CONFLICT = new AtomicBoolean();
 
     public ProxyRequestHandler(Client client) {
         this(client, new NamespaceSelector());
@@ -403,13 +404,24 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     protected boolean applyCorsHeaders(JettyExchange exchange) {
         String origin = exchange.getRequestHeader("Origin");
         if (corsOrigin(origin)) {
-            exchange.putResponseHeader("Access-Control-Allow-Origin", origin);
-            if (!exchange.hasResponseHeader("Access-Control-Allow-Credentials")) {
-                exchange.putResponseHeader("Access-Control-Allow-Credentials", "true");
-            }
+            putCorsPolicyHeader(exchange, "Access-Control-Allow-Origin", origin);
+            putCorsPolicyHeader(exchange, "Access-Control-Allow-Credentials", "true");
             return true;
         }
         return false;
+    }
+
+    private void putCorsPolicyHeader(JettyExchange exchange, String name, String value) {
+        List<String> conflictingValues = exchange.getResponseHeaderValues(name).stream()
+                .filter(existingValue -> !Objects.equals(existingValue, value))
+                .distinct()
+                .toList();
+        if (!conflictingValues.isEmpty() && LOGGED_CORS_POLICY_CONFLICT.compareAndSet(false, true)) {
+            log.warn("Central CORS policy is overriding application response header {} values {} with {}; "
+                     + "repeated warnings will be suppressed",
+                     name, conflictingValues, value);
+        }
+        exchange.putResponseHeader(name, value);
     }
 
     protected boolean corsOrigin(String origin) {
@@ -449,8 +461,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         try {
             namespace = namespaceSelector.select(webRequest);
         } catch (SecurityException e) {
-            exchange.setStatus(401);
-            exchange.writeAndComplete(e.getMessage().getBytes(StandardCharsets.UTF_8));
+            sendResponse(exchange, 401, e.getMessage());
             return;
         }
         if (namespace != null) {
@@ -931,7 +942,6 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
     protected void prepareForSending(SerializedMessage responseMessage, JettyExchange exchange, int statusCode) {
         exchange.prepare(statusCode);
-        applyCorsHeaders(exchange);
         Map<String, List<String>> headers = WebUtils.getHeaders(responseMessage.getMetadata());
         if (responseMessage.chunked() || statusMustNotHaveResponseBody(statusCode)) {
             headers.remove("Content-Length");
@@ -952,6 +962,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             exchange.putResponseHeader("Content-Length",
                                        String.valueOf(responseMessage.getData().getValue().length));
         }
+        applyCorsHeaders(exchange);
     }
 
     protected void sendResponse(SerializedMessage responseMessage, JettyExchange exchange) {
@@ -994,9 +1005,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     protected void sendServerError(JettyExchange exchange) {
         try {
             if (!exchange.isCommitted()) {
-                exchange.setStatus(500);
-                exchange.writeAndComplete("Request could not be handled due to a server side error"
-                                                  .getBytes(StandardCharsets.UTF_8));
+                sendResponse(exchange, 500, "Request could not be handled due to a server side error");
             } else {
                 exchange.fail(new IllegalStateException("Request could not be handled due to a server side error"));
             }
@@ -1007,29 +1016,30 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     }
 
     protected void sendGatewayTimeout(JettyExchange exchange) {
-        exchange.setStatus(504);
-        exchange.writeAndComplete("Did not receive a response in time".getBytes(StandardCharsets.UTF_8));
+        sendResponse(exchange, 504, "Did not receive a response in time");
     }
 
     protected void sendRequestTimeout(JettyExchange exchange) {
-        exchange.setStatus(HttpStatus.REQUEST_TIMEOUT_408);
-        exchange.writeAndComplete("Timed out while reading request body".getBytes(StandardCharsets.UTF_8));
+        sendResponse(exchange, HttpStatus.REQUEST_TIMEOUT_408, "Timed out while reading request body");
     }
 
     private void sendPayloadTooLarge(JettyExchange exchange) {
-        exchange.setStatus(HttpStatus.PAYLOAD_TOO_LARGE_413);
-        exchange.writeAndComplete("Request body is too large".getBytes(StandardCharsets.UTF_8));
+        sendResponse(exchange, HttpStatus.PAYLOAD_TOO_LARGE_413, "Request body is too large");
     }
 
     private void sendRequestBacklogUnavailable(JettyExchange exchange) {
-        exchange.setStatus(HttpStatus.SERVICE_UNAVAILABLE_503);
-        exchange.writeAndComplete("Too many in-flight proxy requests".getBytes(StandardCharsets.UTF_8));
+        sendResponse(exchange, HttpStatus.SERVICE_UNAVAILABLE_503, "Too many in-flight proxy requests");
     }
 
     private void sendServiceUnavailable(JettyExchange exchange) {
-        exchange.setStatus(HttpStatus.SERVICE_UNAVAILABLE_503);
-        exchange.writeAndComplete("Request handler has been shut down and is not accepting new requests"
-                                          .getBytes(StandardCharsets.UTF_8));
+        sendResponse(exchange, HttpStatus.SERVICE_UNAVAILABLE_503,
+                     "Request handler has been shut down and is not accepting new requests");
+    }
+
+    protected void sendResponse(JettyExchange exchange, int status, String body) {
+        exchange.setStatus(status);
+        applyCorsHeaders(exchange);
+        exchange.writeAndComplete(body.getBytes(StandardCharsets.UTF_8));
     }
 
     private static Callback releasePermitOnCompletion(Callback callback, InFlightWebRequestLimiter.Permit permit) {
@@ -1139,6 +1149,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
         boolean hasResponseHeader(String name) {
             return response.getHeaders().contains(name);
+        }
+
+        List<String> getResponseHeaderValues(String name) {
+            return response.getHeaders().getValuesList(name);
         }
 
         void addResponseHeader(String name, List<String> values) {

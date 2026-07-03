@@ -1918,6 +1918,84 @@ class ProxyServerTest {
         }
 
         @Test
+        void corsHeadersAreAddedToProxyGeneratedErrorResponses() {
+            proxyRequestHandler.setMaxRequestBodySize(8);
+            try {
+                var request = newRequest("/too-large")
+                        .POST(BodyPublishers.ofString("0123456789"))
+                        .header("Origin", "https://app.example.com")
+                        .build();
+                testFixture
+                        .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                        .verifyResult(resp -> {
+                            assertEquals(413, resp.statusCode());
+                            assertEquals("Request body is too large", resp.body());
+                            assertEquals(List.of("https://app.example.com"),
+                                         resp.headers().allValues("Access-Control-Allow-Origin"));
+                            assertEquals(List.of("true"),
+                                         resp.headers().allValues("Access-Control-Allow-Credentials"));
+                        });
+            } finally {
+                proxyRequestHandler.setMaxRequestBodySize(ProxyServer.DEFAULT_MAX_REQUEST_BODY_SIZE);
+            }
+        }
+
+        @Test
+        void corsHeadersAreNotDuplicatedWhenApplicationAlreadyAddsThem() {
+            testFixture.registerHandlers(new Object() {
+                @HandleGet("/application-cors")
+                WebResponse response() {
+                    return WebResponse.builder()
+                            .header("Access-Control-Allow-Origin", "https://app.example.com")
+                            .header("Access-Control-Allow-Credentials", "true")
+                            .payload("ok")
+                            .build();
+                }
+            });
+
+            var request = newRequest("/application-cors").GET().header("Origin", "https://app.example.com").build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(200, resp.statusCode());
+                        assertEquals(List.of("https://app.example.com"),
+                                     resp.headers().allValues("Access-Control-Allow-Origin"));
+                        assertEquals(List.of("true"),
+                                     resp.headers().allValues("Access-Control-Allow-Credentials"));
+                        assertEquals("ok", resp.body());
+                    });
+        }
+
+        @Test
+        void proxyCorsHeadersOverrideDifferentApplicationCorsHeaders() {
+            testFixture.registerHandlers(new Object() {
+                @HandleGet("/different-application-cors")
+                WebResponse response() {
+                    return WebResponse.builder()
+                            .header("Access-Control-Allow-Origin", "https://application.example.com")
+                            .header("Access-Control-Allow-Credentials", "false")
+                            .payload("ok")
+                            .build();
+                }
+            });
+
+            var request = newRequest("/different-application-cors")
+                    .GET()
+                    .header("Origin", "https://app.example.com")
+                    .build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(200, resp.statusCode());
+                        assertEquals(List.of("https://app.example.com"),
+                                     resp.headers().allValues("Access-Control-Allow-Origin"));
+                        assertEquals(List.of("true"),
+                                     resp.headers().allValues("Access-Control-Allow-Credentials"));
+                        assertEquals("ok", resp.body());
+                    });
+        }
+
+        @Test
         void corsHeadersAreNotAddedForDisallowedOrigin() {
             var request = newRequest().GET().header("Origin", "https://evil.example.com").build();
             testFixture
