@@ -293,6 +293,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getResponseHeaderValues",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange#getResponseHeaderValues",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "hasRequestHeader",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange#hasRequestHeader",
     "returnType" : "boolean",
