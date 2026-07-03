@@ -17,6 +17,7 @@ package io.fluxzero.sdk.modeling;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.BeanProperty;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -25,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
 import io.fluxzero.common.Leaf;
 import io.fluxzero.common.api.HasId;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -249,6 +251,9 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
             if (!Id.class.isAssignableFrom(rawType)) {
                 return this;
             }
+            if (rawType == Id.class) {
+                return this;
+            }
             @SuppressWarnings("unchecked")
             Class<? extends Id<?>> idType = (Class<? extends Id<?>>) rawType;
             return new IdDeserializer(idType);
@@ -268,8 +273,45 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
         }
 
         @Override
+        public Object deserializeWithType(
+                JsonParser parser, DeserializationContext context, TypeDeserializer typeDeserializer)
+                throws IOException {
+            JsonToken currentToken = parser.currentToken();
+            if (currentToken == null) {
+                currentToken = parser.nextToken();
+            }
+            if (targetType != null || currentToken != JsonToken.START_ARRAY) {
+                return super.deserializeWithType(parser, context, typeDeserializer);
+            }
+
+            JsonToken typeToken = parser.nextToken();
+            if (typeToken == null || !typeToken.isScalarValue()) {
+                return context.reportInputMismatch(Id.class, "Expected scalar Id type id");
+            }
+            JavaType resolvedType = typeDeserializer.getTypeIdResolver()
+                    .typeFromId(context, parser.getValueAsString());
+            if (resolvedType == null || !Id.class.isAssignableFrom(resolvedType.getRawClass())) {
+                return context.reportInputMismatch(Id.class, "Could not determine concrete Id subtype");
+            }
+
+            JsonToken valueToken = parser.nextToken();
+            if (valueToken == JsonToken.END_ARRAY) {
+                return context.reportInputMismatch(resolvedType, "Expected Id value after type id");
+            }
+            @SuppressWarnings("unchecked")
+            Class<? extends Id<?>> idType = (Class<? extends Id<?>>) resolvedType.getRawClass();
+            Id<?> value = new IdDeserializer(idType).deserialize(parser, context);
+            JsonToken endToken = parser.nextToken();
+            if (endToken != JsonToken.END_ARRAY) {
+                return context.reportInputMismatch(resolvedType, "Expected end of typed Id wrapper");
+            }
+            return value;
+        }
+
+        @Override
         public Id<?> deserialize(JsonParser parser, DeserializationContext context) throws IOException {
-            if (targetType == null) {
+            Class<? extends Id<?>> concreteTargetType = targetType(context);
+            if (concreteTargetType == null) {
                 return context.reportInputMismatch(Id.class, "Could not determine concrete Id subtype");
             }
             String functionalId;
@@ -280,20 +322,40 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
                 JsonNode functionalIdNode = node.get("functionalId");
                 if (functionalIdNode == null) {
                     return context.reportInputMismatch(
-                            targetType, "Expected scalar Id value or object with `functionalId` field");
+                            concreteTargetType, "Expected scalar Id value or object with `functionalId` field");
                 }
                 functionalId = functionalIdNode.asText();
             }
             try {
-                return (Id<?>) ReflectionUtils.getTypeMetadata(targetType)
-                        .invoker(targetType.getDeclaredConstructor(String.class), true)
+                return (Id<?>) ReflectionUtils.getTypeMetadata(concreteTargetType)
+                        .invoker(concreteTargetType.getDeclaredConstructor(String.class), true)
                         .invoke(null, functionalId);
             } catch (NoSuchMethodException e) {
                 return context.reportInputMismatch(
-                        targetType, "Id subtype %s must declare a single String constructor", targetType.getName());
+                        concreteTargetType,
+                        "Id subtype %s must declare a single String constructor",
+                        concreteTargetType.getName());
             } catch (Exception e) {
-                throw JsonMappingException.from(parser, "Could not deserialize Id subtype " + targetType.getName(), e);
+                throw JsonMappingException.from(
+                        parser, "Could not deserialize Id subtype " + concreteTargetType.getName(), e);
             }
+        }
+
+        private Class<? extends Id<?>> targetType(DeserializationContext context) {
+            if (targetType != null) {
+                return targetType;
+            }
+            JavaType contextualType = context.getContextualType();
+            if (contextualType == null) {
+                return null;
+            }
+            Class<?> rawType = idType(contextualType);
+            if (!Id.class.isAssignableFrom(rawType) || rawType == Id.class) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            Class<? extends Id<?>> idType = (Class<? extends Id<?>>) rawType;
+            return idType;
         }
     }
 }

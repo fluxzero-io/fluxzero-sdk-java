@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.modeling;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.AllArgsConstructor;
@@ -21,6 +23,7 @@ import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,6 +51,18 @@ class IdTest {
     void deserializeIdSubtypeFromScalarStringInCollection() {
         assertEquals(new OwnerIds(List.of(new MockId("fooBar"))),
                      JsonUtils.fromJson("{\"ids\":[\"fooBar\"]}", OwnerIds.class));
+    }
+
+    @Test
+    void deserializeIdSubtypeFromMapKey() {
+        assertEquals(new OwnerMap(Map.of(new MockId("fooBar"), "value")),
+                     JsonUtils.fromJson("{\"values\":{\"fooBar\":\"value\"}}", OwnerMap.class));
+    }
+
+    @Test
+    void deserializePolymorphicIdSubtypeFromScalarString() {
+        assertEquals(new PolymorphicOwner(new MockId("fooBar"), "mock"),
+                     JsonUtils.fromJson("{\"id\":\"fooBar\",\"type\":\"mock\"}", PolymorphicOwner.class));
     }
 
     @Test
@@ -98,5 +113,15 @@ class IdTest {
     }
 
     record OwnerIds(List<MockId> ids) {
+    }
+
+    record OwnerMap(Map<MockId, String> values) {
+    }
+
+    record PolymorphicOwner(
+            @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", include = JsonTypeInfo.As.EXTERNAL_PROPERTY)
+            @JsonSubTypes(@JsonSubTypes.Type(value = MockId.class, name = "mock"))
+            Id<?> id,
+            String type) {
     }
 }
