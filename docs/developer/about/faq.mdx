@@ -5,32 +5,42 @@ sidebar:
    order: 20
 ---
 
-import { Tabs, TabItem, Aside, CardGrid, Card } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 # Frequently asked questions
 
 Find answers to the most common questions about Fluxzero. Can't find what you're looking for? [Join our community](https://github.com/orgs/fluxzero-io/discussions) or [open an issue](https://github.com/fluxzero-io/fluxzero-sdk-java/issues).
 
 <CardGrid>
-<Card title="🚀 Getting Started" icon="rocket">
-New to Fluxzero? Start here for basics about what it is and how to begin.
-</Card>
+<LinkCard
+  title="🚀 Getting Started"
+  href="#getting-started"
+  description="New to Fluxzero? Start here for basics about what it is and how to begin."
+/>
 
-<Card title="🏗️ Technical Architecture" icon="setting">
-Deep dive into how Fluxzero works under the hood and architectural decisions.
-</Card>
+<LinkCard
+  title="🏗️ Technical Architecture"
+  href="#technical-architecture"
+  description="Deep dive into how Fluxzero works under the hood and architectural decisions."
+/>
 
-<Card title="💻 Development & Testing" icon="laptop">
-Questions about writing code, testing, and development workflows with Fluxzero.
-</Card>
+<LinkCard
+  title="💻 Development & Testing"
+  href="#development--testing"
+  description="Questions about writing code, testing, and development workflows with Fluxzero."
+/>
 
-<Card title="🚢 Deployment & Operations" icon="rocket">
-Production deployment, scaling, monitoring, and operational concerns.
-</Card>
+<LinkCard
+  title="🚢 Deployment & Operations"
+  href="#deployment--operations"
+  description="Production deployment, scaling, monitoring, and operational concerns."
+/>
 
-<Card title="🔄 Migration & Comparison" icon="random">
-Moving from other frameworks and how Fluxzero compares to alternatives.
-</Card>
+<LinkCard
+  title="🔄 Migration & Comparison"
+  href="#migration--comparison"
+  description="Moving from other frameworks and how Fluxzero compares to alternatives."
+/>
 </CardGrid>
 
 ---
