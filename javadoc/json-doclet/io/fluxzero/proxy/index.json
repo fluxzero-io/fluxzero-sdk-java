@@ -95,6 +95,11 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint",
     "kind" : "class"
   }, {
+    "file" : "ProxyWebsocketEndpoint.KeepAliveState.json",
+    "name" : "ProxyWebsocketEndpoint.KeepAliveState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState",
+    "kind" : "class"
+  }, {
     "file" : "ProxyWebsocketEndpoint.SessionContext.json",
     "name" : "ProxyWebsocketEndpoint.SessionContext",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$SessionContext",

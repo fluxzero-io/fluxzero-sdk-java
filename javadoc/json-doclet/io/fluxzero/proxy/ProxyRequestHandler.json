@@ -268,6 +268,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "websocketPingDelay",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketPingDelay",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "websocketPingTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketPingTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ProxyRequestHandler",
@@ -638,6 +654,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getWebsocketIdleTimeoutMillis",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#getWebsocketIdleTimeoutMillis",
+    "returnType" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1340,6 +1367,27 @@
     "parameters" : [ {
       "name" : "websocketContainer",
       "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setWebsocketKeepAlive",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setWebsocketKeepAlive",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "pingDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pingTimeout",
+      "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

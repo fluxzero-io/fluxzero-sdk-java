@@ -85,6 +85,30 @@
     "documentation" : " Default Jetty minimum platform thread count.\n",
     "constantValue" : 8
   }, {
+    "name" : "DEFAULT_WEBSOCKET_IDLE_TIMEOUT_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_WEBSOCKET_IDLE_TIMEOUT_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default websocket idle timeout: 120 seconds\n",
+    "constantValue" : 120000
+  }, {
+    "name" : "DEFAULT_WEBSOCKET_PING_DELAY_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_WEBSOCKET_PING_DELAY_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default delay between proxy websocket keep-alive pings: 55 seconds\n",
+    "constantValue" : 55000
+  }, {
+    "name" : "DEFAULT_WEBSOCKET_PING_TIMEOUT_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_WEBSOCKET_PING_TIMEOUT_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default time allowed for receiving a proxy websocket keep-alive pong: 10 seconds\n",
+    "constantValue" : 10000
+  }, {
     "name" : "GRACEFUL_STOP_TIMEOUT_MILLIS",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.GRACEFUL_STOP_TIMEOUT_MILLIS",
     "type" : "long",
@@ -196,6 +220,30 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_USE_VIRTUAL_THREADS"
+  }, {
+    "name" : "WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_WEBSOCKET_IDLE_TIMEOUT_MILLIS"
+  }, {
+    "name" : "WEBSOCKET_PING_DELAY_MILLIS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.WEBSOCKET_PING_DELAY_MILLIS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_WEBSOCKET_PING_DELAY_MILLIS"
+  }, {
+    "name" : "WEBSOCKET_PING_TIMEOUT_MILLIS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.WEBSOCKET_PING_TIMEOUT_MILLIS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_WEBSOCKET_PING_TIMEOUT_MILLIS"
   }, {
     "name" : "cancelled",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.cancelled",
@@ -418,6 +466,39 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getConfiguredWebsocketIdleTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getConfiguredWebsocketIdleTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConfiguredWebsocketPingDelay",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getConfiguredWebsocketPingDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConfiguredWebsocketPingTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getConfiguredWebsocketPingTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getIdleTimeoutMillis",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getIdleTimeoutMillis",
     "returnType" : "long",
@@ -443,6 +524,17 @@
     "name" : "getMinThreads",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getMinThreads",
     "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getWebsocketIdleTimeoutMillis",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getWebsocketIdleTimeoutMillis",
+    "returnType" : "long",
     "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],

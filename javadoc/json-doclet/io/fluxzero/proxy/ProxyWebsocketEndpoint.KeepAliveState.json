@@ -1,0 +1,85 @@
+{
+  "name" : "KeepAliveState",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "expectedPong",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState.expectedPong",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pingTask",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState.pingTask",
+    "type" : "java.util.concurrent.ScheduledFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timeoutTask",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState.timeoutTask",
+    "type" : "java.util.concurrent.ScheduledFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "KeepAliveState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState#KeepAliveState",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cancel",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState#cancel",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cancelPingTask",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState#cancelPingTask",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cancelTimeoutTask",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState#cancelTimeoutTask",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
