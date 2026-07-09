@@ -30,6 +30,7 @@ import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
+import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
 import org.eclipse.jetty.websocket.api.exceptions.WebSocketTimeoutException;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -47,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -150,6 +153,72 @@ class ProxyWebsocketEndpointTest {
     }
 
     @Test
+    void proxyKeepAlivePongsAreNotForwardedToRuntime() throws Exception {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        when(gatewayClient.append(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        KeepAliveTestEndpoint endpoint = new KeepAliveTestEndpoint(gatewayClient);
+        endpoint.setKeepAlive(Duration.ofMillis(10), Duration.ofSeconds(1));
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
+        prepareSession(endpoint, session);
+        CountDownLatch pingSent = new CountDownLatch(1);
+        AtomicReference<ByteBuffer> pingPayload = new AtomicReference<>();
+        doAnswer(invocation -> {
+            pingPayload.set(copyBuffer(invocation.getArgument(0, ByteBuffer.class)));
+            pingSent.countDown();
+            return CompletableFuture.completedFuture(null);
+        }).when(session).sendPing(any(ByteBuffer.class));
+
+        try {
+            endpoint.onOpen(session);
+
+            assertTrue(pingSent.await(1, TimeUnit.SECONDS), "Timed out waiting for proxy keep-alive ping");
+            endpoint.onPong(session, pingPayload.get());
+
+            ArgumentCaptor<SerializedMessage> requests = ArgumentCaptor.forClass(SerializedMessage.class);
+            verify(gatewayClient).append(any(), requests.capture());
+            assertTrue(requests.getAllValues().stream()
+                               .noneMatch(m -> HttpRequestMethod.WS_PONG.equals(
+                                       WebRequest.getMethod(m.getMetadata()))));
+        } finally {
+            endpoint.shutDown(Duration.ofMillis(100), false, false);
+        }
+    }
+
+    @Test
+    void proxyKeepAliveTimeoutClosesSession() throws Exception {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        when(gatewayClient.append(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        KeepAliveTestEndpoint endpoint = new KeepAliveTestEndpoint(gatewayClient);
+        endpoint.setKeepAlive(Duration.ofMillis(10), Duration.ofMillis(20));
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
+        prepareSession(endpoint, session);
+        CountDownLatch pingSent = new CountDownLatch(1);
+        CountDownLatch closeRequested = new CountDownLatch(1);
+        when(session.sendPing(any(ByteBuffer.class))).thenAnswer(invocation -> {
+            pingSent.countDown();
+            return CompletableFuture.completedFuture(null);
+        });
+        doAnswer(invocation -> {
+            closeRequested.countDown();
+            return CompletableFuture.completedFuture(null);
+        }).when(session).close(any(WebsocketCloseReason.class));
+
+        try {
+            endpoint.onOpen(session);
+
+            assertTrue(pingSent.await(1, TimeUnit.SECONDS), "Timed out waiting for proxy keep-alive ping");
+            assertTrue(closeRequested.await(1, TimeUnit.SECONDS),
+                       "Timed out waiting for proxy keep-alive timeout to close the session");
+            ArgumentCaptor<WebsocketCloseReason> closeReason = ArgumentCaptor.forClass(WebsocketCloseReason.class);
+            verify(session).close(closeReason.capture());
+            assertEquals(WebsocketCloseReason.UNEXPECTED_CONDITION, closeReason.getValue().code());
+            assertEquals("Proxy keep-alive failed", closeReason.getValue().reason());
+        } finally {
+            endpoint.shutDown(Duration.ofMillis(100), false, false);
+        }
+    }
+
+    @Test
     void sendBacklogFailurePublishesBackpressureMetric() throws Exception {
         GatewayClient requestGateway = mock(GatewayClient.class);
         GatewayClient metricsGateway = mock(GatewayClient.class);
@@ -217,6 +286,13 @@ class ProxyWebsocketEndpointTest {
         field.set(endpoint, registration);
     }
 
+    private static ByteBuffer copyBuffer(ByteBuffer buffer) {
+        ByteBuffer copy = buffer.slice();
+        byte[] bytes = new byte[copy.remaining()];
+        copy.get(bytes);
+        return ByteBuffer.wrap(bytes);
+    }
+
     private static Client createClient() {
         return createClient(mock(GatewayClient.class));
     }
@@ -255,6 +331,22 @@ class ProxyWebsocketEndpointTest {
             } finally {
                 closeRequestFinished.countDown();
             }
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private static class KeepAliveTestEndpoint extends ProxyWebsocketEndpoint {
+        private KeepAliveTestEndpoint(GatewayClient gatewayClient) {
+            super(createClient(gatewayClient), mock(RequestHandler.class));
+        }
+
+        @Override
+        protected void ensureStarted() {
+        }
+
+        @Override
+        protected CompletableFuture<?> sendCloseRequest(ProxyWebsocketSession session,
+                                                        WebsocketCloseReason closeReason) {
             return CompletableFuture.completedFuture(null);
         }
     }

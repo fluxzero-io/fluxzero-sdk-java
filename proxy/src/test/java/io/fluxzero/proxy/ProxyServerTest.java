@@ -73,6 +73,7 @@ import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
@@ -723,6 +724,25 @@ class ProxyServerTest {
                     configuredProxyServer.cancel();
                 }
                 restoreProperty(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
+        @ResourceLock(ProxyServer.WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY)
+        void websocketIdleTimeoutCanBeConfigured() {
+            String previousValue = System.getProperty(ProxyServer.WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            try {
+                System.setProperty(ProxyServer.WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY, "4321");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+
+                assertEquals(4321L, configuredProxyServer.getWebsocketIdleTimeoutMillis());
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyServer.WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY, previousValue);
             }
         }
 
@@ -1604,6 +1624,69 @@ class ProxyServerTest {
                         }
                     })
                     .expectResult("client-ping");
+        }
+
+        @Test
+        void proxySendsKeepAlivePingWithoutRuntimePongEvent() {
+            CountDownLatch opened = new CountDownLatch(1);
+            CountDownLatch runtimePong = new CountDownLatch(1);
+            testFixture.registerHandlers(new Object() {
+                        @HandleSocketOpen("/")
+                        String open() {
+                            opened.countDown();
+                            return "opened";
+                        }
+
+                        @HandleSocketPong("/")
+                        void pong() {
+                            runtimePong.countDown();
+                        }
+                    })
+                    .whenApplying(fc -> {
+                        proxyRequestHandler.setWebsocketKeepAlive(Duration.ofMillis(50), Duration.ofSeconds(2));
+                        CompletableFuture<String> keepAlivePing = new CompletableFuture<>();
+                        WebSocket webSocket = null;
+                        try {
+                            webSocket = httpClient.newWebSocketBuilder()
+                                    .buildAsync(baseUri(), new WebSocket.Listener() {
+                                        @Override
+                                        public void onOpen(WebSocket webSocket) {
+                                            webSocket.request(1);
+                                        }
+
+                                        @Override
+                                        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data,
+                                                                         boolean last) {
+                                            webSocket.request(1);
+                                            return null;
+                                        }
+
+                                        @Override
+                                        public CompletionStage<?> onPing(WebSocket webSocket, ByteBuffer message) {
+                                            String payload = bufferToString(message);
+                                            keepAlivePing.complete(payload);
+                                            webSocket.request(1);
+                                            return webSocket.sendPong(
+                                                    ByteBuffer.wrap(payload.getBytes(StandardCharsets.UTF_8)));
+                                        }
+                                    }).get(5, TimeUnit.SECONDS);
+                            assertTrue(opened.await(5, TimeUnit.SECONDS),
+                                       "Timed out waiting for the websocket open handler");
+                            String payload = keepAlivePing.get(5, TimeUnit.SECONDS);
+                            assertTrue(payload.startsWith(ProxyWebsocketEndpoint.keepAlivePingPrefix),
+                                       "Expected proxy keep-alive ping payload, got: " + payload);
+                            assertFalse(runtimePong.await(200, TimeUnit.MILLISECONDS),
+                                        "Proxy keep-alive pong should not be forwarded to runtime handlers");
+                            return "proxy-ping";
+                        } finally {
+                            if (webSocket != null) {
+                                await(webSocket.sendClose(WebSocket.NORMAL_CLOSURE, ""));
+                            }
+                            proxyRequestHandler.setWebsocketKeepAlive(ProxyServer.getConfiguredWebsocketPingDelay(),
+                                                                      ProxyServer.getConfiguredWebsocketPingTimeout());
+                        }
+                    })
+                    .expectResult("proxy-ping");
         }
 
         @Test

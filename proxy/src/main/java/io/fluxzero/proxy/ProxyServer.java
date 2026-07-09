@@ -42,6 +42,7 @@ import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -97,6 +98,21 @@ public class ProxyServer implements Registration {
      */
     public static final int DEFAULT_MAX_PENDING_WEBSOCKET_SENDS = 1024;
 
+    /**
+     * Default websocket idle timeout: 120 seconds
+     */
+    public static final long DEFAULT_WEBSOCKET_IDLE_TIMEOUT_MILLIS = 120_000L;
+
+    /**
+     * Default delay between proxy websocket keep-alive pings: 55 seconds
+     */
+    public static final long DEFAULT_WEBSOCKET_PING_DELAY_MILLIS = 55_000L;
+
+    /**
+     * Default time allowed for receiving a proxy websocket keep-alive pong: 10 seconds
+     */
+    public static final long DEFAULT_WEBSOCKET_PING_TIMEOUT_MILLIS = 10_000L;
+
     static final String MAX_REQUEST_BODY_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE";
     static final String MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_MULTIPART_REQUEST_BODY_SIZE";
     static final String MAX_HEADER_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_HEADER_SIZE";
@@ -106,6 +122,9 @@ public class ProxyServer implements Registration {
     static final String USE_VIRTUAL_THREADS_PROPERTY = "FLUXZERO_PROXY_USE_VIRTUAL_THREADS";
     static final String MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY = "FLUXZERO_PROXY_MAX_IN_FLIGHT_WEB_REQUESTS";
     static final String MAX_PENDING_WEBSOCKET_SENDS_PROPERTY = "FLUXZERO_PROXY_MAX_PENDING_WEBSOCKET_SENDS";
+    static final String WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY = "FLUXZERO_PROXY_WEBSOCKET_IDLE_TIMEOUT_MILLIS";
+    static final String WEBSOCKET_PING_DELAY_MILLIS_PROPERTY = "FLUXZERO_PROXY_WEBSOCKET_PING_DELAY_MILLIS";
+    static final String WEBSOCKET_PING_TIMEOUT_MILLIS_PROPERTY = "FLUXZERO_PROXY_WEBSOCKET_PING_TIMEOUT_MILLIS";
     static final String COMPRESSION_ALGORITHMS_PROPERTY = "FLUXZERO_PROXY_COMPRESSION_ALGORITHMS";
 
     private static final long UNLIMITED_WEBSOCKET_SIZE = 0L;
@@ -272,6 +291,33 @@ public class ProxyServer implements Registration {
         return maxPendingSends;
     }
 
+    static Duration getConfiguredWebsocketIdleTimeout() {
+        long timeoutMillis = getLongProperty(WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY,
+                                             DEFAULT_WEBSOCKET_IDLE_TIMEOUT_MILLIS);
+        if (timeoutMillis < 1) {
+            throw new IllegalArgumentException(WEBSOCKET_IDLE_TIMEOUT_MILLIS_PROPERTY + " must be >= 1");
+        }
+        return Duration.ofMillis(timeoutMillis);
+    }
+
+    static Duration getConfiguredWebsocketPingDelay() {
+        long delayMillis = getLongProperty(WEBSOCKET_PING_DELAY_MILLIS_PROPERTY,
+                                           DEFAULT_WEBSOCKET_PING_DELAY_MILLIS);
+        if (delayMillis < 0) {
+            throw new IllegalArgumentException(WEBSOCKET_PING_DELAY_MILLIS_PROPERTY + " must be >= 0");
+        }
+        return Duration.ofMillis(delayMillis);
+    }
+
+    static Duration getConfiguredWebsocketPingTimeout() {
+        long timeoutMillis = getLongProperty(WEBSOCKET_PING_TIMEOUT_MILLIS_PROPERTY,
+                                             DEFAULT_WEBSOCKET_PING_TIMEOUT_MILLIS);
+        if (timeoutMillis < 1) {
+            throw new IllegalArgumentException(WEBSOCKET_PING_TIMEOUT_MILLIS_PROPERTY + " must be >= 1");
+        }
+        return Duration.ofMillis(timeoutMillis);
+    }
+
     private static Handler createHandler(Server server, ProxyRequestHandler proxyHandler, String healthEndpoint) {
         ContextHandler context = new ContextHandler("/");
         WebSocketUpgradeHandler webSocketHandler = WebSocketUpgradeHandler.from(server, context, container -> {
@@ -303,6 +349,7 @@ public class ProxyServer implements Registration {
     }
 
     private static void configureContainer(ServerWebSocketContainer container) {
+        container.setIdleTimeout(getConfiguredWebsocketIdleTimeout());
         container.setMaxBinaryMessageSize(UNLIMITED_WEBSOCKET_SIZE);
         container.setMaxTextMessageSize(UNLIMITED_WEBSOCKET_SIZE);
         container.setMaxFrameSize(UNLIMITED_WEBSOCKET_SIZE);
@@ -366,6 +413,10 @@ public class ProxyServer implements Registration {
 
     long getIdleTimeoutMillis() {
         return server.getConnectors().length == 0 ? -1L : connectorIdleTimeout();
+    }
+
+    long getWebsocketIdleTimeoutMillis() {
+        return proxyHandler.getWebsocketIdleTimeoutMillis();
     }
 
     int getMaxThreads() {

@@ -35,7 +35,6 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +50,9 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
@@ -61,16 +63,18 @@ import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 @Slf4j
-@AllArgsConstructor
 public class ProxyWebsocketEndpoint {
     static final String metadataPrefix = "_metadata:", clientIdKey = "_clientId", trackerIdKey = "_trackerId";
     static final Duration CLOSE_NOTIFICATION_TIMEOUT = Duration.ofSeconds(5);
+    static final String keepAlivePingPrefix = "__fluxzero_proxy_keepalive__:";
     private static final Serializer metricsSerializer = new JacksonSerializer();
 
     private final Map<String, ProxyWebsocketSession> openSessions = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<Void>> pendingCloseNotifications = new ConcurrentHashMap<>();
+    private final Map<String, KeepAliveState> keepAliveStates = new ConcurrentHashMap<>();
 
     private final Client client;
     private final GatewayClient requestGateway;
@@ -79,6 +83,9 @@ public class ProxyWebsocketEndpoint {
     private volatile Registration registration;
     private volatile Duration closeNotificationTimeout = CLOSE_NOTIFICATION_TIMEOUT;
     private volatile boolean awaitCloseAcknowledgements = true;
+    private volatile Duration keepAlivePingDelay = ProxyServer.getConfiguredWebsocketPingDelay();
+    private volatile Duration keepAlivePingTimeout = ProxyServer.getConfiguredWebsocketPingTimeout();
+    private volatile ScheduledExecutorService keepAliveExecutor;
 
     public ProxyWebsocketEndpoint(Client client, RequestHandler requestHandler) {
         this.client = client;
@@ -86,10 +93,22 @@ public class ProxyWebsocketEndpoint {
         this.requestHandler = requestHandler;
     }
 
+    void setKeepAlive(Duration pingDelay, Duration pingTimeout) {
+        if (pingDelay == null || pingDelay.isNegative()) {
+            throw new IllegalArgumentException("pingDelay must be >= 0");
+        }
+        if (pingTimeout == null || pingTimeout.isZero() || pingTimeout.isNegative()) {
+            throw new IllegalArgumentException("pingTimeout must be > 0");
+        }
+        this.keepAlivePingDelay = pingDelay;
+        this.keepAlivePingTimeout = pingTimeout;
+    }
+
     public void onOpen(ProxyWebsocketSession session) {
         ensureStarted();
         openSessions.put(session.getId(), session);
         sendRequest(session, HttpRequestMethod.WS_OPEN, null);
+        scheduleKeepAlive(session);
     }
 
     public void onBinary(ProxyWebsocketSession session, byte[] message) {
@@ -101,11 +120,16 @@ public class ProxyWebsocketEndpoint {
     }
 
     public void onPong(ProxyWebsocketSession session, ByteBuffer message) {
-        sendRequest(session, HttpRequestMethod.WS_PONG, getBytes(message));
+        byte[] payload = getBytes(message);
+        if (handleKeepAlivePong(session, payload)) {
+            return;
+        }
+        sendRequest(session, HttpRequestMethod.WS_PONG, payload);
     }
 
     @SneakyThrows
     public void onClose(ProxyWebsocketSession session, WebsocketCloseReason closeReason) {
+        cancelKeepAlive(session.getId());
         openSessions.remove(session.getId());
         Duration timeout = closeNotificationTimeout;
         Throwable failure = null;
@@ -145,6 +169,147 @@ public class ProxyWebsocketEndpoint {
             }
         }
         return false;
+    }
+
+    private void scheduleKeepAlive(ProxyWebsocketSession session) {
+        Duration pingDelay = keepAlivePingDelay;
+        if (pingDelay.isZero() || pingDelay.isNegative()) {
+            return;
+        }
+        KeepAliveState state = keepAliveStates.computeIfAbsent(session.getId(), ignored -> new KeepAliveState());
+        scheduleNextKeepAlive(session, state);
+    }
+
+    private void scheduleNextKeepAlive(ProxyWebsocketSession session, KeepAliveState state) {
+        synchronized (state) {
+            state.cancelPingTask();
+            if (!session.isOpen() || keepAlivePingDelay.isZero() || keepAlivePingDelay.isNegative()
+                || keepAliveStates.get(session.getId()) != state) {
+                return;
+            }
+            state.pingTask = keepAliveExecutor().schedule(
+                    () -> sendKeepAlivePing(session, state), keepAlivePingDelay.toMillis(), MILLISECONDS);
+        }
+    }
+
+    private void sendKeepAlivePing(ProxyWebsocketSession session, KeepAliveState state) {
+        String pingId = keepAlivePingPrefix + Fluxzero.generateId();
+        synchronized (state) {
+            state.pingTask = null;
+            if (!session.isOpen() || keepAlivePingDelay.isZero() || keepAlivePingDelay.isNegative()
+                || keepAliveStates.get(session.getId()) != state) {
+                return;
+            }
+            state.expectedPong = pingId;
+            state.cancelTimeoutTask();
+            state.timeoutTask = keepAliveExecutor().schedule(
+                    () -> handleKeepAliveTimeout(session, state, pingId),
+                    keepAlivePingTimeout.toMillis(), MILLISECONDS);
+        }
+        try {
+            session.sendPing(ByteBuffer.wrap(pingId.getBytes(UTF_8))).whenComplete((ignored, error) -> {
+                if (error != null) {
+                    handleKeepAliveSendFailure(session, unwrapException(error));
+                }
+            });
+        } catch (Throwable e) {
+            handleKeepAliveSendFailure(session, unwrapException(e));
+        }
+    }
+
+    private boolean handleKeepAlivePong(ProxyWebsocketSession session, byte[] payload) {
+        String pong = new String(payload, UTF_8);
+        if (!pong.startsWith(keepAlivePingPrefix)) {
+            return false;
+        }
+        KeepAliveState state = keepAliveStates.get(session.getId());
+        if (state == null) {
+            return true;
+        }
+        synchronized (state) {
+            if (!pong.equals(state.expectedPong)) {
+                return true;
+            }
+            state.expectedPong = null;
+            state.cancelTimeoutTask();
+        }
+        scheduleNextKeepAlive(session, state);
+        return true;
+    }
+
+    private void handleKeepAliveTimeout(ProxyWebsocketSession session, KeepAliveState state, String pingId) {
+        synchronized (state) {
+            if (!pingId.equals(state.expectedPong) || keepAliveStates.get(session.getId()) != state) {
+                return;
+            }
+            state.expectedPong = null;
+        }
+        log.warn("Timed out waiting for websocket keep-alive pong for session {}. Closing connection.",
+                 session.getId());
+        closeAfterKeepAliveFailure(session);
+    }
+
+    private void handleKeepAliveSendFailure(ProxyWebsocketSession session, Throwable error) {
+        if (error instanceof ClosedChannelException) {
+            log.debug("Failed to send websocket keep-alive ping because session {} is already closing",
+                      session.getId());
+            return;
+        }
+        handleSendFailure(session, error);
+        closeAfterKeepAliveFailure(session);
+    }
+
+    private void closeAfterKeepAliveFailure(ProxyWebsocketSession session) {
+        cancelKeepAlive(session.getId());
+        if (session.isOpen()) {
+            session.close(new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "Proxy keep-alive failed"))
+                    .whenComplete((ignored, error) -> {
+                        if (error != null) {
+                            log.warn("Failed to close websocket session {} after keep-alive failure",
+                                     session.getId(), unwrapException(error));
+                        }
+                    });
+        }
+    }
+
+    private void cancelKeepAlive(String sessionId) {
+        KeepAliveState state = keepAliveStates.remove(sessionId);
+        if (state != null) {
+            synchronized (state) {
+                state.cancel();
+            }
+        }
+    }
+
+    private void cancelKeepAlives() {
+        keepAliveStates.keySet().forEach(this::cancelKeepAlive);
+    }
+
+    private ScheduledExecutorService keepAliveExecutor() {
+        ScheduledExecutorService executor = keepAliveExecutor;
+        if (executor == null || executor.isShutdown()) {
+            synchronized (this) {
+                executor = keepAliveExecutor;
+                if (executor == null || executor.isShutdown()) {
+                    executor = Executors.newSingleThreadScheduledExecutor(
+                            Thread.ofPlatform()
+                                    .daemon(true)
+                                    .name("fluxzero-proxy-websocket-keepalive-", 0L)
+                                    .factory());
+                    keepAliveExecutor = executor;
+                }
+            }
+        }
+        return executor;
+    }
+
+    private void shutdownKeepAliveExecutor() {
+        cancelKeepAlives();
+        ScheduledExecutorService executor = keepAliveExecutor;
+        if (executor != null) {
+            executor.shutdownNow();
+            keepAliveExecutor = null;
+        }
     }
 
     protected CompletableFuture<?> sendRequest(ProxyWebsocketSession session, String method, byte[] payload) {
@@ -320,25 +485,31 @@ public class ProxyWebsocketEndpoint {
     }
 
     void shutDown(Duration closeNotificationTimeout, boolean awaitCloseAcknowledgements, boolean warnOnTimeout) {
-        if (started.compareAndSet(true, false) && registration != null) {
-            this.closeNotificationTimeout = closeNotificationTimeout;
-            this.awaitCloseAcknowledgements = awaitCloseAcknowledgements;
-            registration.cancel();
-            var closeNotifications = openSessions.values().stream().map(this::closeSession).toArray(CompletableFuture[]::new);
-            if (closeNotifications.length > 0) {
-                try {
-                    CompletableFuture.allOf(closeNotifications)
-                            .get(closeNotificationTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                } catch (Exception e) {
-                    if (warnOnTimeout) {
-                        log.warn("Timed out waiting for websocket close notifications during shutdown", e);
+        try {
+            if (started.compareAndSet(true, false) && registration != null) {
+                this.closeNotificationTimeout = closeNotificationTimeout;
+                this.awaitCloseAcknowledgements = awaitCloseAcknowledgements;
+                registration.cancel();
+                var closeNotifications =
+                        openSessions.values().stream().map(this::closeSession).toArray(CompletableFuture[]::new);
+                if (closeNotifications.length > 0) {
+                    try {
+                        CompletableFuture.allOf(closeNotifications)
+                                .get(closeNotificationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                    } catch (Exception e) {
+                        if (warnOnTimeout) {
+                            log.warn("Timed out waiting for websocket close notifications during shutdown", e);
+                        }
                     }
                 }
             }
+        } finally {
+            shutdownKeepAliveExecutor();
         }
     }
 
     private CompletableFuture<Void> closeSession(ProxyWebsocketSession session) {
+        cancelKeepAlive(session.getId());
         var closeNotification = pendingCloseNotifications.computeIfAbsent(session.getId(), ignored -> new CompletableFuture<>());
         try {
             if (session.isOpen()) {
@@ -385,5 +556,31 @@ public class ProxyWebsocketEndpoint {
 
     @Builder
     protected record SessionContext(Metadata metadata, String clientId, String trackerId) {
+    }
+
+    private static class KeepAliveState {
+        private ScheduledFuture<?> pingTask;
+        private ScheduledFuture<?> timeoutTask;
+        private String expectedPong;
+
+        private void cancelPingTask() {
+            if (pingTask != null) {
+                pingTask.cancel(false);
+                pingTask = null;
+            }
+        }
+
+        private void cancelTimeoutTask() {
+            if (timeoutTask != null) {
+                timeoutTask.cancel(false);
+                timeoutTask = null;
+            }
+        }
+
+        private void cancel() {
+            expectedPong = null;
+            cancelPingTask();
+            cancelTimeoutTask();
+        }
     }
 }

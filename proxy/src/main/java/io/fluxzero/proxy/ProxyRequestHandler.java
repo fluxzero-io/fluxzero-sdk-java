@@ -133,6 +133,8 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     private final InFlightWebRequestLimiter inFlightWebRequests =
             new InFlightWebRequestLimiter(ProxyServer.DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
     private volatile int maxPendingWebsocketSends = ProxyServer.DEFAULT_MAX_PENDING_WEBSOCKET_SENDS;
+    private volatile Duration websocketPingDelay = ProxyServer.getConfiguredWebsocketPingDelay();
+    private volatile Duration websocketPingTimeout = ProxyServer.getConfiguredWebsocketPingTimeout();
     private volatile ServerWebSocketContainer websocketContainer;
     @Getter(lazy = true)
     private final Set<String> allowedCorsDomains = mapProperty(CORS_DOMAINS_PROPERTY, p -> Arrays.stream(p.split(","))
@@ -168,6 +170,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 Duration.ofSeconds(getLongProperty(REQUEST_TIMEOUT_SECONDS_PROPERTY, REQUEST_TIMEOUT.toSeconds())),
                 format("%s_%s", client.name(), "$proxy-request-handler"));
         proxyWebsocketEndpoint = new ProxyWebsocketEndpoint(client, requestHandler);
+        proxyWebsocketEndpoint.setKeepAlive(websocketPingDelay, websocketPingTimeout);
         this.namespaceSelector = namespaceSelector;
         chunkedRequestExecutor = newWorkerPool(format("%s_%s", client.name(), "$proxy-chunked-request"), 8);
     }
@@ -185,6 +188,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         namespacedHandler.setBenchmarkTraceHeadersEnabled(benchmarkTraceHeadersEnabled);
         namespacedHandler.setMaxInFlightWebRequests(inFlightWebRequests.max());
         namespacedHandler.setMaxPendingWebsocketSends(maxPendingWebsocketSends);
+        namespacedHandler.setWebsocketKeepAlive(websocketPingDelay, websocketPingTimeout);
         namespacedHandler.setWebsocketContainer(websocketContainer);
         return namespacedHandler;
     }
@@ -228,8 +232,18 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         this.maxPendingWebsocketSends = maxPendingWebsocketSends;
     }
 
+    void setWebsocketKeepAlive(Duration pingDelay, Duration pingTimeout) {
+        proxyWebsocketEndpoint.setKeepAlive(pingDelay, pingTimeout);
+        this.websocketPingDelay = pingDelay;
+        this.websocketPingTimeout = pingTimeout;
+    }
+
     void setWebsocketContainer(ServerWebSocketContainer websocketContainer) {
         this.websocketContainer = websocketContainer;
+    }
+
+    long getWebsocketIdleTimeoutMillis() {
+        return websocketContainer == null ? -1L : websocketContainer.getIdleTimeout().toMillis();
     }
 
     public boolean handle(Request request, Response response, Callback callback) {
