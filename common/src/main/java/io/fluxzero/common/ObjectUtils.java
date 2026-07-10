@@ -19,9 +19,12 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -49,6 +52,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -70,8 +74,93 @@ import static java.util.function.UnaryOperator.identity;
  */
 @Slf4j
 public class ObjectUtils {
+    private static final Pattern combiningDiacriticalMarks =
+            Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
     private static final Predicate<Object> noOpPredicate = v -> true;
     private static final BiPredicate<Object, Object> noOpBiPredicate = (a, b) -> true;
+
+    /**
+     * Returns whether a character sequence is {@code null}, empty, or contains only whitespace.
+     */
+    public static boolean isBlank(CharSequence value) {
+        if (value == null || value.isEmpty()) {
+            return true;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isWhitespace(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns whether a character sequence is non-empty and consists entirely of Unicode digits.
+     */
+    public static boolean isNumeric(CharSequence value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Capitalizes the first character of a string, leaving {@code null} and empty strings unchanged.
+     */
+    public static String capitalize(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        int first = value.codePointAt(0);
+        int capitalized = Character.toTitleCase(first);
+        if (first == capitalized) {
+            return value;
+        }
+        int[] codePoints = value.codePoints().toArray();
+        codePoints[0] = capitalized;
+        return new String(codePoints, 0, codePoints.length);
+    }
+
+    /**
+     * Removes accents from a string while retaining otherwise compatible Unicode characters.
+     */
+    public static String stripAccents(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        StringBuilder normalized = new StringBuilder(Normalizer.normalize(value, Normalizer.Form.NFKD));
+        for (int i = 0; i < normalized.length(); i++) {
+            char replacement = switch (normalized.charAt(i)) {
+                case '\u0110' -> 'D';
+                case '\u0111' -> 'd';
+                case '\u0141' -> 'L';
+                case '\u0142' -> 'l';
+                case '\u0197', '\u1d7b', '\u1da7' -> 'I';
+                case '\u0268', '\u1da4' -> 'i';
+                case '\u0244', '\u1d7e' -> 'U';
+                case '\u0289', '\u1db6' -> 'u';
+                case '\u0166' -> 'T';
+                case '\u0167' -> 't';
+                default -> normalized.charAt(i);
+            };
+            normalized.setCharAt(i, replacement);
+        }
+        return combiningDiacriticalMarks.matcher(normalized).replaceAll("");
+    }
+
+    /**
+     * Renders a throwable and its causes to the same text produced by {@link Throwable#printStackTrace()}.
+     */
+    public static String stackTrace(Throwable throwable) {
+        StringWriter result = new StringWriter();
+        throwable.printStackTrace(new PrintWriter(result));
+        return result.toString();
+    }
 
     /**
      * Returns a predicate that always evaluates to true.

@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Automatic endpoint that serves the generated OpenAPI document for an {@link ApiDocInfo} scope.

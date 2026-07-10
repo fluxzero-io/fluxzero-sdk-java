@@ -24,7 +24,6 @@ import io.fluxzero.common.serialization.JsonUtils;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.time.Instant;
@@ -45,6 +44,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
+import static io.fluxzero.common.ObjectUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isNumeric;
+import static io.fluxzero.common.ObjectUtils.stripAccents;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
@@ -95,7 +97,7 @@ public class SearchUtils {
      * Normalizes a string to lowercase and removes diacritics and leading/trailing whitespace.
      */
     public static String normalize(@NonNull String text) {
-        return StringUtils.stripAccents(text).trim().toLowerCase();
+        return stripAccents(text).trim().toLowerCase();
     }
 
     /**
@@ -250,7 +252,7 @@ public class SearchUtils {
      * Checks whether the input string is a parseable integer.
      */
     public static boolean isInteger(String fieldName) {
-        if (StringUtils.isNumeric(fieldName)) {
+        if (isNumeric(fieldName)) {
             try {
                 Integer.parseInt(fieldName);
                 return true;
@@ -264,7 +266,7 @@ public class SearchUtils {
      * Attempts to convert a numeric string to an Integer, falling back to the original string otherwise.
      */
     public static Object asIntegerOrString(String fieldName) {
-        if (StringUtils.isNumeric(fieldName)) {
+        if (isNumeric(fieldName)) {
             Object result = arrayIndices.get(fieldName);
             if (result != null) {
                 return result;
@@ -324,7 +326,7 @@ public class SearchUtils {
     public static String escapeFieldName(String fieldName) {
         fieldName = fieldName.replace("/", "\\/");
         fieldName = fieldName.replace("\"", "\\\"");
-        if (StringUtils.isNumeric(fieldName)) {
+        if (isNumeric(fieldName)) {
             try {
                 Integer.valueOf(fieldName);
                 fieldName = "\"" + fieldName + "\"";
@@ -356,7 +358,7 @@ public class SearchUtils {
      */
     public static Instant parseTimeProperty(String propertyPath, Object object, boolean end,
                                             Supplier<Instant> whenMissing) {
-        if (object == null || StringUtils.isBlank(propertyPath)) {
+        if (object == null || isBlank(propertyPath)) {
             return whenMissing.get();
         }
 

@@ -76,7 +76,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
 import static io.fluxzero.sdk.web.HttpRequestMethod.TRACE;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Generates an OpenAPI document from Fluxzero web handler annotations during Java compilation.

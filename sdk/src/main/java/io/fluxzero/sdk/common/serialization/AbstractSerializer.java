@@ -27,7 +27,6 @@ import io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.reflect.TypeUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
@@ -52,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
+import static io.fluxzero.common.reflection.GenericTypeResolver.parameterize;
 import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumber;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -177,7 +177,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         if (Collection.class.isAssignableFrom(type)) {
             List<Class<?>> children = ReflectionUtils.determineCommonAncestors((Collection<?>) object);
             if (!children.isEmpty()) {
-                return TypeUtils.parameterize(type, children.getFirst());
+                return parameterize(type, children.getFirst());
             }
         } else if (Map.class.isAssignableFrom(type)) {
             Map<?, ?> map = (Map<?, ?>) object;
@@ -185,7 +185,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
             if (!keys.isEmpty()) {
                 List<Class<?>> values = ReflectionUtils.determineCommonAncestors(map.values());
                 if (!values.isEmpty()) {
-                    return TypeUtils.parameterize(type, keys.getFirst(), values.getFirst());
+                    return parameterize(type, keys.getFirst(), values.getFirst());
                 }
             }
         }

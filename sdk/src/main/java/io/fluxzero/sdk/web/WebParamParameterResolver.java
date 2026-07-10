@@ -31,7 +31,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.web.DefaultWebRequestContext.getWebRequestContext;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Resolves method parameters in web handler methods based on meta-annotations derived from {@link WebParam}.

@@ -48,8 +48,14 @@ import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -77,6 +83,9 @@ class JacksonSerializerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final JacksonSerializer serializer = new JacksonSerializer(List.of(new CasterStub()));
+
+    private class InnerList<E> extends ArrayList<E> {
+    }
 
     @Test
     void testSerialization() {
@@ -204,6 +213,38 @@ class JacksonSerializerTest {
     void testDeserializeTypedCollection() {
         List<Foo> input = asList(new Foo("bla1"), new Foo("bla2"));
         assertEquals(input, serializer.deserialize(serializer.serialize(input)));
+    }
+
+    @Test
+    void preservesParameterizedTypeNamesForCollectionImplementations() {
+        class LocalList<E> extends ArrayList<E> {
+        }
+        LocalList<String> local = new LocalList<>();
+        local.add("value");
+        InnerList<String> inner = new InnerList<>();
+        inner.add("value");
+        List<Collection<String>> collections = List.of(
+                new ArrayList<>(List.of("value")), new LinkedList<>(List.of("value")),
+                new HashSet<>(List.of("value")), List.of("value"), Collections.singletonList("value"),
+                Arrays.asList("value"), local, inner);
+
+        collections.forEach(collection -> assertEquals(
+                parameterizedTypeName(collection.getClass(), String.class), serializer.serialize(collection).getType()));
+    }
+
+    @Test
+    void preservesParameterizedTypeNamesForMapImplementations() {
+        List<Map<String, Integer>> maps = List.of(
+                new HashMap<>(Map.of("value", 1)), new LinkedHashMap<>(Map.of("value", 1)),
+                Map.of("value", 1), Collections.singletonMap("value", 1));
+
+        maps.forEach(map -> assertEquals(parameterizedTypeName(map.getClass(), String.class, Integer.class),
+                                         serializer.serialize(map).getType()));
+    }
+
+    private String parameterizedTypeName(Class<?> rawType, Class<?>... arguments) {
+        return rawType.getName() + Arrays.stream(arguments).map(Class::getTypeName)
+                .collect(Collectors.joining(",", "<", ">"));
     }
 
     @Test

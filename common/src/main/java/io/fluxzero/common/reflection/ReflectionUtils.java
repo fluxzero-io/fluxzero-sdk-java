@@ -29,9 +29,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.Value;
-import org.apache.commons.lang3.ClassUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.reflect.MethodUtils;
 
 import java.beans.PropertyDescriptor;
 import java.io.File;
@@ -82,6 +79,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.ObjectUtils.capitalize;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.reflection.DefaultMemberInvoker.asInvoker;
 import static java.beans.Introspector.getBeanInfo;
@@ -92,7 +90,6 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.commons.lang3.StringUtils.isEmpty;
 
 /**
  * Utility class for high-performance reflection-based operations across the Fluxzero Runtime.
@@ -128,6 +125,18 @@ import static org.apache.commons.lang3.StringUtils.isEmpty;
 public class ReflectionUtils {
     private static final int ACCESS_MODIFIERS = Modifier.PUBLIC | Modifier.PROTECTED | Modifier.PRIVATE;
     private static final List<Integer> ACCESS_ORDER = List.of(Modifier.PRIVATE, 0, Modifier.PROTECTED, Modifier.PUBLIC);
+    private static final Map<Class<?>, Class<?>> primitiveWrappers = Map.of(
+            boolean.class, Boolean.class,
+            byte.class, Byte.class,
+            char.class, Character.class,
+            short.class, Short.class,
+            int.class, Integer.class,
+            long.class, Long.class,
+            float.class, Float.class,
+            double.class, Double.class,
+            void.class, Void.class);
+    private static final Map<Class<?>, Class<?>> wrapperPrimitives = primitiveWrappers.entrySet().stream()
+            .collect(toMap(Map.Entry::getValue, Map.Entry::getKey));
 
     private static final ClassValue<TypeMetadata> typeMetadataCache = new ClassValue<>() {
         @Override
@@ -183,15 +192,50 @@ public class ReflectionUtils {
 
 
     public static Stream<Method> getMethodOverrideHierarchy(Method method) {
-        return MethodUtils.getOverrideHierarchy(method, ClassUtils.Interfaces.INCLUDE).stream();
+        LinkedHashSet<Method> result = new LinkedHashSet<>();
+        result.add(method);
+        for (Class<?> current = method.getDeclaringClass().getSuperclass(); current != null;
+             current = current.getSuperclass()) {
+            addOverriddenMethods(method, current, result);
+        }
+        getAllInterfaces(method.getDeclaringClass()).forEach(type -> addOverriddenMethods(method, type, result));
+        return result.stream();
     }
 
     public static Stream<Parameter> getParameterOverrideHierarchy(Parameter parameter) {
         if (parameter.getDeclaringExecutable() instanceof Method method) {
-            return getMethodOverrideHierarchy(method).flatMap(m -> Arrays.stream(m.getParameters())
-                    .filter(p -> p.getName().equals(parameter.getName())));
+            Parameter[] parameters = method.getParameters();
+            for (int i = 0; i < parameters.length; i++) {
+                if (parameters[i].equals(parameter)) {
+                    int index = i;
+                    return getMethodOverrideHierarchy(method).map(m -> m.getParameters()[index]);
+                }
+            }
         }
         return Stream.of(parameter);
+    }
+
+    private static void addOverriddenMethods(Method method, Class<?> type, Set<Method> result) {
+        Arrays.stream(type.getDeclaredMethods())
+                .filter(candidate -> !candidate.isBridge() && !candidate.isSynthetic())
+                .filter(candidate -> candidate.getName().equals(method.getName()))
+                .filter(candidate -> candidate.getParameterCount() == method.getParameterCount())
+                .filter(candidate -> overrides(method, candidate))
+                .filter(candidate -> hasOverrideParameters(method, candidate))
+                .forEach(result::add);
+    }
+
+    private static boolean hasOverrideParameters(Method method, Method candidate) {
+        Type[] genericParameterTypes = candidate.getGenericParameterTypes();
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Type resolved = GenericTypeResolver.resolve(genericParameterTypes[i], method.getDeclaringClass(),
+                                                        candidate.getDeclaringClass());
+            if (!parameterTypes[i].equals(rawClass(resolved))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static boolean isKotlinReflectionSupported() {
@@ -250,7 +294,19 @@ public class ReflectionUtils {
         if (type == null) {
             return List.of();
         }
-        return List.copyOf(ClassUtils.getAllInterfaces(type));
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            addInterfaces(current, result);
+        }
+        return List.copyOf(result);
+    }
+
+    private static void addInterfaces(Class<?> type, Set<Class<?>> result) {
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            if (result.add(interfaceType)) {
+                addInterfaces(interfaceType, result);
+            }
+        }
     }
 
     /**
@@ -260,7 +316,7 @@ public class ReflectionUtils {
      * @return the wrapper type for primitives, otherwise {@code type}
      */
     public static Class<?> box(Class<?> type) {
-        return type.isPrimitive() ? ClassUtils.primitiveToWrapper(type) : type;
+        return type.isPrimitive() ? primitiveWrappers.get(type) : type;
     }
 
     /**
@@ -270,8 +326,7 @@ public class ReflectionUtils {
      * @return the primitive type for wrappers, otherwise {@code type}
      */
     public static Class<?> unbox(Class<?> type) {
-        Class<?> primitive = ClassUtils.wrapperToPrimitive(type);
-        return primitive == null ? type : primitive;
+        return wrapperPrimitives.getOrDefault(type, type);
     }
 
     /**
@@ -384,7 +439,7 @@ public class ReflectionUtils {
     }
 
     public static TypeMetadata.PropertyPathMetadata getPropertyPathMetadata(Class<?> target, String propertyPath) {
-        return target == null || isEmpty(propertyPath)
+        return target == null || propertyPath == null || propertyPath.isEmpty()
                 ? TypeMetadata.PropertyPathMetadata.missing()
                 : getTypeMetadata(target).propertyPath(propertyPath);
     }
@@ -1008,7 +1063,7 @@ public class ReflectionUtils {
         }
 
         public boolean declaresField(String fieldName) {
-            return !isEmpty(fieldName) && declaredFieldsByName.containsKey(fieldName);
+            return fieldName != null && !fieldName.isEmpty() && declaredFieldsByName.containsKey(fieldName);
         }
 
         public Collection<? extends Annotation> typeAnnotations() {
@@ -1269,7 +1324,7 @@ public class ReflectionUtils {
         }
 
         private Optional<Member> propertyMember(String propertyName) {
-            return propertyAccessor("get" + StringUtils.capitalize(propertyName)).map(m -> (Member) m)
+            return propertyAccessor("get" + capitalize(propertyName)).map(m -> (Member) m)
                     .or(() -> propertyAccessor(propertyName).map(m -> (Member) m))
                     .or(() -> field(propertyName).map(field -> (Member) field));
         }
@@ -1601,43 +1656,21 @@ public class ReflectionUtils {
     }
 
     private static <A extends Annotation> Optional<A> resolveMethodAnnotation(Executable m, Class<? extends Annotation> a) {
-        A result = getTopLevelAnnotation(m, a);
-        Class<?> c = m.getDeclaringClass();
-
-        if (result == null) {
-            for (Class<?> s = c; result == null && (s = s.getSuperclass()) != null; ) {
-                result = getAnnotationOnSuper(m, s, a);
-            }
-            if (result == null && m instanceof Method) {
-                for (Class<?> s : getAllInterfaces(c)) {
-                    result = getAnnotationOnSuper(m, s, a);
-                    if (result != null) {
-                        break;
-                    }
-                }
-            }
+        if (m instanceof Method method) {
+            return getMethodOverrideHierarchy(method)
+                    .map(candidate -> ReflectionUtils.<A>getTopLevelAnnotation(candidate, a))
+                    .filter(Objects::nonNull).findFirst();
         }
-        return Optional.ofNullable(result);
+        return Optional.ofNullable(ReflectionUtils.<A>getTopLevelAnnotation(m, a));
     }
 
     private static <A extends Annotation> List<A> resolveMethodAnnotations(Executable m, Class<? extends Annotation> a) {
-        List<A> result = getTopLevelAnnotations(m, a);
-        Class<?> c = m.getDeclaringClass();
-
-        if (result.isEmpty()) {
-            for (Class<?> s = c; result.isEmpty() && (s = s.getSuperclass()) != null; ) {
-                result = getAnnotationsOnSuper(m, s, a);
-            }
-            if (result.isEmpty() && m instanceof Method) {
-                for (Class<?> s : getAllInterfaces(c)) {
-                    result = getAnnotationsOnSuper(m, s, a);
-                    if (result != null) {
-                        break;
-                    }
-                }
-            }
+        if (m instanceof Method method) {
+            return getMethodOverrideHierarchy(method)
+                    .map(candidate -> ReflectionUtils.<A>getTopLevelAnnotations(candidate, a))
+                    .filter(annotations -> !annotations.isEmpty()).findFirst().orElseGet(List::of);
         }
-        return result;
+        return ReflectionUtils.<A>getTopLevelAnnotations(m, a);
     }
 
     @SuppressWarnings("unchecked")
@@ -1655,34 +1688,6 @@ public class ReflectionUtils {
                         .filter(metaAnnotation -> metaAnnotation.annotationType().isAnnotationPresent(a))
                         .map(v -> (A) v))
                 .collect(toCollection(ArrayList::new));
-    }
-
-    private static <A extends Annotation> A getAnnotationOnSuper(
-            Executable m, Class<?> s, Class<? extends Annotation> a) {
-        try {
-            for (Method n : s.getDeclaredMethods()) {
-                if (n.getName().equals(m.getName()) && n.getParameterCount() == m.getParameterCount()) {
-                    n = s.getDeclaredMethod(m.getName(), m.getParameterTypes());
-                    return overrides(m, n) ? getTopLevelAnnotation(n, a) : null;
-                }
-            }
-        } catch (NoSuchMethodException ignored) {
-        }
-        return null;
-    }
-
-    private static <A extends Annotation> List<A> getAnnotationsOnSuper(
-            Executable m, Class<?> s, Class<? extends Annotation> a) {
-        try {
-            for (Method n : s.getDeclaredMethods()) {
-                if (n.getName().equals(m.getName()) && n.getParameterCount() == m.getParameterCount()) {
-                    n = s.getDeclaredMethod(m.getName(), m.getParameterTypes());
-                    return overrides(m, n) ? getTopLevelAnnotations(n, a) : emptyList();
-                }
-            }
-        } catch (NoSuchMethodException ignored) {
-        }
-        return emptyList();
     }
 
     private static boolean overrides(Executable a, Executable b) {

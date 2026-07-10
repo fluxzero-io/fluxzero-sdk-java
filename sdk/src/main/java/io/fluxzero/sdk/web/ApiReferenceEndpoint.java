@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Automatic endpoint that serves an HTML API reference page for an {@link ApiDocInfo} scope.

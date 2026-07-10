@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
 
 import static io.fluxzero.common.SearchUtils.letterOrNumber;
 import static io.fluxzero.common.api.search.constraints.AllConstraint.all;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * A {@link Constraint} that parses a human-friendly query string into a structured tree of constraints.

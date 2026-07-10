@@ -30,7 +30,6 @@ import io.fluxzero.sdk.publishing.ErrorGateway;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.lang.reflect.Executable;
 import java.util.Objects;
@@ -42,6 +41,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
+import static io.fluxzero.common.ObjectUtils.stackTrace;
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
 import static io.fluxzero.sdk.common.ClientUtils.isSelfTracking;
 
@@ -193,7 +193,7 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
         e = unwrapException(e);
         Metadata metadata = cause.getMetadata();
         if (!(e instanceof FunctionalException || e instanceof TechnicalException)) {
-            metadata = metadata.with("stackTrace", ExceptionUtils.getStackTrace(e));
+            metadata = metadata.with("stackTrace", stackTrace(e));
             e = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
                     invoker.getTargetClass().getName(), cause.toString(), e));
         }

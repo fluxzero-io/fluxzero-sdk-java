@@ -14,16 +14,19 @@
 
 package io.fluxzero.common.reflection;
 
-import lombok.Value;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Utility class for resolving generic type information in class hierarchies. This class provides methods to resolve and
@@ -32,8 +35,41 @@ import java.util.Map;
  */
 public class GenericTypeResolver {
 
+    /**
+     * Creates a parameterized type for a raw class and its actual type arguments.
+     */
+    public static ParameterizedType parameterize(Class<?> rawType, Type... actualTypeArguments) {
+        Objects.requireNonNull(rawType, "rawType");
+        Objects.requireNonNull(actualTypeArguments, "actualTypeArguments");
+        if (rawType.getTypeParameters().length != actualTypeArguments.length) {
+            throw new IllegalArgumentException("Expected %d type arguments for %s but got %d".formatted(
+                    rawType.getTypeParameters().length, rawType.getTypeName(), actualTypeArguments.length));
+        }
+        if (Arrays.stream(actualTypeArguments).anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("Type arguments must not contain null");
+        }
+        return new ParameterizedTypeImpl(rawType, actualTypeArguments, rawType.getEnclosingClass());
+    }
+
     public static Type getGenericType(Class<?> clazz, Class<?> target) {
         return resolveType(clazz, target, new HashMap<>());
+    }
+
+    static Type resolve(Type type, Class<?> contextType, Class<?> declaringType) {
+        if (contextType.equals(declaringType)) {
+            return type;
+        }
+        Type resolvedDeclaringType = getGenericType(contextType, declaringType);
+        if (resolvedDeclaringType instanceof ParameterizedType parameterizedType) {
+            Map<TypeVariable<?>, Type> typeVariables = new HashMap<>();
+            TypeVariable<?>[] parameters = declaringType.getTypeParameters();
+            Type[] arguments = parameterizedType.getActualTypeArguments();
+            for (int i = 0; i < parameters.length; i++) {
+                typeVariables.put(parameters[i], arguments[i]);
+            }
+            return reifyType(type, typeVariables);
+        }
+        return type;
     }
 
     private static Type resolveType(Class<?> clazz, Class<?> target, Map<TypeVariable<?>, Type> typeVarMap) {
@@ -88,38 +124,51 @@ public class GenericTypeResolver {
     }
 
     private static Type reifyType(Type type, Map<TypeVariable<?>, Type> typeVarMap) {
+        return reifyType(type, typeVarMap, new HashSet<>());
+    }
+
+    private static Type reifyType(Type type, Map<TypeVariable<?>, Type> typeVarMap,
+                                  Set<TypeVariable<?>> resolving) {
         if (type instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) type;
             Type raw = pt.getRawType();
             Type[] args = Arrays.stream(pt.getActualTypeArguments())
-                    .map(t -> resolveTypeVariable(t, typeVarMap))
+                    .map(t -> resolveTypeVariable(t, typeVarMap, new HashSet<>(resolving)))
                     .toArray(Type[]::new);
             return new ParameterizedTypeImpl((Class<?>) raw, args, pt.getOwnerType());
         } else if (type instanceof GenericArrayType) {
-            Type component = reifyType(((GenericArrayType) type).getGenericComponentType(), typeVarMap);
+            Type component = reifyType(((GenericArrayType) type).getGenericComponentType(), typeVarMap, resolving);
             return Array.newInstance((Class<?>) erase(component), 0).getClass();
         } else if (type instanceof TypeVariable<?>) {
-            return resolveTypeVariable(type, typeVarMap);
+            return resolveTypeVariable(type, typeVarMap, resolving);
         } else {
             return type;
         }
     }
 
     private static Type resolveTypeVariable(Type type, Map<TypeVariable<?>, Type> typeVarMap) {
+        return resolveTypeVariable(type, typeVarMap, new HashSet<>());
+    }
+
+    private static Type resolveTypeVariable(Type type, Map<TypeVariable<?>, Type> typeVarMap,
+                                            Set<TypeVariable<?>> resolving) {
         if (type instanceof TypeVariable<?>) {
+            TypeVariable<?> variable = (TypeVariable<?>) type;
+            if (!resolving.add(variable)) {
+                return variable;
+            }
             Type resolved = typeVarMap.get(type);
             if (resolved != null) {
-                return resolveTypeVariable(resolved, typeVarMap);
+                return resolveTypeVariable(resolved, typeVarMap, resolving);
             } else {
                 // Use the bound or Object as fallback
-                TypeVariable<?> var = (TypeVariable<?>) type;
-                Type[] bounds = var.getBounds();
-                return bounds.length > 0 ? resolveTypeVariable(bounds[0], typeVarMap) : Object.class;
+                Type[] bounds = variable.getBounds();
+                return bounds.length > 0 ? resolveTypeVariable(bounds[0], typeVarMap, resolving) : Object.class;
             }
         } else if (type instanceof ParameterizedType) {
-            return reifyType(type, typeVarMap);
+            return reifyType(type, typeVarMap, resolving);
         } else if (type instanceof GenericArrayType) {
-            return reifyType(type, typeVarMap);
+            return reifyType(type, typeVarMap, resolving);
         } else {
             return type;
         }
@@ -140,27 +189,112 @@ public class GenericTypeResolver {
         }
     }
 
-    @Value
-    private static class ParameterizedTypeImpl implements ParameterizedType {
-        Class<?> rawType;
-        Type[] actualTypeArguments;
-        Type ownerType;
+    private static final class ParameterizedTypeImpl implements ParameterizedType {
+        private final Class<?> rawType;
+        private final Type[] actualTypeArguments;
+        private final Type ownerType;
+
+        private ParameterizedTypeImpl(Class<?> rawType, Type[] actualTypeArguments, Type ownerType) {
+            this.rawType = rawType;
+            this.actualTypeArguments = actualTypeArguments.clone();
+            this.ownerType = ownerType;
+        }
+
+        @Override
+        public Type[] getActualTypeArguments() {
+            return actualTypeArguments.clone();
+        }
+
+        @Override
+        public Type getRawType() {
+            return rawType;
+        }
+
+        @Override
+        public Type getOwnerType() {
+            return ownerType;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof ParameterizedType type
+                   && Objects.equals(rawType, type.getRawType())
+                   && Objects.equals(ownerType, type.getOwnerType())
+                   && Arrays.equals(actualTypeArguments, type.getActualTypeArguments());
+        }
+
+        @Override
+        public int hashCode() {
+            // Keep equal reflective types interchangeable with the JDK's ParameterizedType implementations.
+            return Arrays.hashCode(actualTypeArguments) ^ Objects.hashCode(ownerType) ^ Objects.hashCode(rawType);
+        }
 
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append(rawType.getTypeName());
+            if (ownerType == null) {
+                sb.append(rawType.getTypeName());
+            } else {
+                sb.append(typeName(ownerType)).append('.').append(rawType.getSimpleName());
+            }
             if (actualTypeArguments.length > 0) {
                 sb.append("<");
                 for (int i = 0; i < actualTypeArguments.length; i++) {
                     if (i > 0) {
                         sb.append(", ");
                     }
-                    sb.append(actualTypeArguments[i].getTypeName());
+                    sb.append(typeName(actualTypeArguments[i]));
                 }
                 sb.append(">");
             }
             return sb.toString();
+        }
+
+        private static String typeName(Type type) {
+            return typeName(type, new HashSet<>());
+        }
+
+        private static String typeName(Type type, Set<TypeVariable<?>> resolving) {
+            if (type instanceof TypeVariable<?> variable) {
+                if (!resolving.add(variable)) {
+                    return variable.getName();
+                }
+                Type[] bounds = variable.getBounds();
+                if (bounds.length == 0 || bounds.length == 1 && bounds[0].equals(Object.class)) {
+                    return variable.getName();
+                }
+                return variable.getName() + " extends " + Arrays.stream(bounds)
+                        .map(bound -> typeName(bound, new HashSet<>(resolving))).collect(Collectors.joining(" & "));
+            }
+            if (type instanceof ParameterizedType parameterizedType
+                && parameterizedType.getRawType() instanceof Class<?> rawType) {
+                String rawName = parameterizedType.getOwnerType() == null
+                        ? rawType.getTypeName()
+                        : typeName(parameterizedType.getOwnerType(), new HashSet<>(resolving))
+                          + "." + rawType.getSimpleName();
+                return rawName + Arrays.stream(parameterizedType.getActualTypeArguments())
+                        .map(argument -> typeName(argument, new HashSet<>(resolving)))
+                        .collect(Collectors.joining(", ", "<", ">"));
+            }
+            if (type instanceof WildcardType wildcardType) {
+                Type[] lowerBounds = wildcardType.getLowerBounds();
+                if (lowerBounds.length > 0) {
+                    return "? super " + Arrays.stream(lowerBounds)
+                            .map(bound -> typeName(bound, new HashSet<>(resolving)))
+                            .collect(Collectors.joining(" & "));
+                }
+                Type[] upperBounds = wildcardType.getUpperBounds();
+                if (upperBounds.length == 0 || upperBounds.length == 1 && upperBounds[0].equals(Object.class)) {
+                    return "?";
+                }
+                return "? extends " + Arrays.stream(upperBounds)
+                        .map(bound -> typeName(bound, new HashSet<>(resolving)))
+                        .collect(Collectors.joining(" & "));
+            }
+            if (type instanceof GenericArrayType arrayType) {
+                return typeName(arrayType.getGenericComponentType(), resolving) + "[]";
+            }
+            return type.getTypeName();
         }
     }
 }

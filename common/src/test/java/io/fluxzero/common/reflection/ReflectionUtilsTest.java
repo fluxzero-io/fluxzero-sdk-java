@@ -34,8 +34,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionUtilsTest {
@@ -247,6 +250,70 @@ class ReflectionUtilsTest {
         }
 
         @Test
+        void createsParameterizedTypes() {
+            ParameterizedType type = GenericTypeResolver.parameterize(Map.class, String.class, Integer.class);
+
+            assertSame(Map.class, type.getRawType());
+            assertEquals(List.of(String.class, Integer.class), List.of(type.getActualTypeArguments()));
+            assertEquals("java.util.Map<java.lang.String, java.lang.Integer>", type.getTypeName());
+        }
+
+        @Test
+        void parameterizedTypesMatchJdkEqualityAndHashCode() throws Exception {
+            ParameterizedType reflected = (ParameterizedType) GenericTypes.class.getDeclaredField("names")
+                    .getGenericType();
+            ParameterizedType created = GenericTypeResolver.parameterize(List.class, String.class);
+
+            assertEquals(reflected, created);
+            assertEquals(created, reflected);
+            assertEquals(reflected.hashCode(), created.hashCode());
+            Type[] arguments = created.getActualTypeArguments();
+            arguments[0] = Integer.class;
+            assertEquals(String.class, created.getActualTypeArguments()[0]);
+            assertThrows(IllegalArgumentException.class,
+                         () -> GenericTypeResolver.parameterize(List.class, new Type[]{null}));
+        }
+
+        @Test
+        void parameterizedTypesUseEnclosingClassForLocalTypes() {
+            class LocalList<E> extends java.util.ArrayList<E> {
+            }
+
+            ParameterizedType type = GenericTypeResolver.parameterize(LocalList.class, String.class);
+
+            assertSame(ReflectionHelperTests.class, type.getOwnerType());
+            assertEquals(ReflectionHelperTests.class.getName() + ".LocalList<java.lang.String>", type.getTypeName());
+        }
+
+        @Test
+        void parameterizedTypesRenderBoundedVariablesRecursively() throws Exception {
+            Type variable = BoundedGenericTypes.class.getTypeParameters()[0];
+            Type nested = BoundedGenericTypes.class.getDeclaredField("values").getGenericType();
+
+            assertEquals("java.util.List<T extends java.lang.Number>",
+                         GenericTypeResolver.parameterize(List.class, variable).getTypeName());
+            assertEquals("java.util.List<java.util.List<T extends java.lang.Number>>",
+                         GenericTypeResolver.parameterize(List.class, nested).getTypeName());
+        }
+
+        @Test
+        void resolvesConflictingDiamondHierarchyDeterministically() throws Exception {
+            Method implementation = DiamondContractImpl.class.getDeclaredMethod("process", String.class);
+
+            assertEquals(List.of(implementation,
+                                 RightDiamondContract.class.getDeclaredMethod("process", Object.class),
+                                 RootDiamondContract.class.getDeclaredMethod("process", Object.class),
+                                 LeftDiamondContract.class.getDeclaredMethod("process", Object.class)),
+                         ReflectionUtils.getMethodOverrideHierarchy(implementation).toList());
+            assertEquals(List.of(DiamondContractImpl.class, RightDiamondContract.class, RootDiamondContract.class,
+                                 LeftDiamondContract.class),
+                         ReflectionUtils.getParameterOverrideHierarchy(implementation.getParameters()[0])
+                                 .map(p -> p.getDeclaringExecutable().getDeclaringClass()).toList());
+            assertEquals("right", ReflectionUtils.getMethodAnnotation(implementation, HierarchyMarker.class)
+                    .map(annotation -> ((HierarchyMarker) annotation).value()).orElseThrow());
+        }
+
+        @Test
         void resolvesRawClassFromGenericTypes() throws Exception {
             assertSame(List.class, ReflectionUtils.rawClass(field("names").getGenericType()));
             assertSame(List[].class, ReflectionUtils.rawClass(field("nameArrays").getGenericType()));
@@ -275,6 +342,48 @@ class ReflectionUtilsTest {
             private List<String> names;
             private List<String>[] nameArrays;
             private List<? extends Number> numbers;
+        }
+
+        private static class BoundedGenericTypes<T extends Number> {
+            private List<T> values;
+        }
+
+        @Retention(RetentionPolicy.RUNTIME)
+        @Target({ElementType.METHOD, ElementType.PARAMETER})
+        private @interface HierarchyMarker {
+            String value();
+        }
+
+        private interface RootDiamondContract<T> {
+            @HierarchyMarker("root")
+            void process(@HierarchyMarker("root") T value);
+        }
+
+        private interface LeftDiamondContract<T> extends RootDiamondContract<T> {
+            @Override
+            @HierarchyMarker("left")
+            void process(@HierarchyMarker("left") T value);
+        }
+
+        private interface RightDiamondContract<T> extends RootDiamondContract<T> {
+            @Override
+            @HierarchyMarker("right")
+            void process(@HierarchyMarker("right") T value);
+        }
+
+        private interface FarLeftDiamondContract<T> extends LeftDiamondContract<T> {
+        }
+
+        private interface FarRightDiamondContract<T> extends RightDiamondContract<T> {
+        }
+
+        private interface DiamondContract<T> extends FarRightDiamondContract<T>, FarLeftDiamondContract<T> {
+        }
+
+        private static class DiamondContractImpl implements DiamondContract<String> {
+            @Override
+            public void process(String implementationValue) {
+            }
         }
     }
 
@@ -399,6 +508,31 @@ class ReflectionUtilsTest {
 
             assertFalse(ReflectionUtils.isNullable(parameter));
         }
+
+        @Test
+        void detectsRenamedNullableParameterOnGenericInterface() throws Exception {
+            Method method = GenericNullableFixture.class.getDeclaredMethod("accept", String.class);
+
+            assertEquals(List.of(method, GenericNullableContract.class.getDeclaredMethod("accept", Object.class)),
+                         ReflectionUtils.getMethodOverrideHierarchy(method).toList());
+            assertTrue(ReflectionUtils.isNullable(method.getParameters()[0]));
+        }
+
+        @Test
+        void detectsRenamedNullableParameterThroughGenericInterfaceHierarchy() throws Exception {
+            Parameter parameter = NestedGenericNullableFixture.class.getDeclaredMethod("accept", String.class)
+                    .getParameters()[0];
+
+            assertTrue(ReflectionUtils.isNullable(parameter));
+        }
+
+        @Test
+        void resolvesSelfReferentialGenericOverrideHierarchy() throws Exception {
+            Method method = SelfReferentialFixture.class.getDeclaredMethod("accept", SelfReferentialFixture.class);
+
+            assertEquals(List.of(method, SelfReferentialContract.class.getDeclaredMethod("accept", Object.class)),
+                         ReflectionUtils.getMethodOverrideHierarchy(method).toList());
+        }
     }
 
     @Marker
@@ -510,6 +644,36 @@ class ReflectionUtilsTest {
         }
 
         void nullableElement(List<@TypeUseAnnotations.Nullable String> values) {
+        }
+    }
+
+    private interface GenericNullableContract<T> {
+        void accept(@ParameterAnnotations.Nullable T contractValue);
+    }
+
+    private interface NestedGenericNullableContract<T> extends GenericNullableContract<T> {
+    }
+
+    private static class GenericNullableFixture implements GenericNullableContract<String> {
+        @Override
+        public void accept(String implementationValue) {
+        }
+    }
+
+    private static class NestedGenericNullableFixture implements NestedGenericNullableContract<String> {
+        @Override
+        public void accept(String implementationValue) {
+        }
+    }
+
+    private interface SelfReferentialContract<T> {
+        void accept(T value);
+    }
+
+    private static class SelfReferentialFixture<T extends SelfReferentialFixture<T>>
+            implements SelfReferentialContract<T> {
+        @Override
+        public void accept(T value) {
         }
     }
 

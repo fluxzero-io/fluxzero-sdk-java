@@ -70,7 +70,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.PATCH;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
 import static io.fluxzero.sdk.web.HttpRequestMethod.TRACE;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Renders a generic {@link ApiDocCatalog} as an OpenAPI JSON document.

@@ -52,7 +52,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Utility methods for working with web request and response data, including cookies, headers, and handler annotations.

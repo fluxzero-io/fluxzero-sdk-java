@@ -16,7 +16,7 @@ package io.fluxzero.sdk.web;
 
 import java.util.List;
 
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Global options for rendering an {@link ApiDocCatalog} as an OpenAPI document.

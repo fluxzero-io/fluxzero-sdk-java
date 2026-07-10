@@ -27,7 +27,6 @@ import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.hamcrest.Matcher;
 
 import java.util.*;
@@ -812,13 +811,13 @@ public class ResultValidator<R> implements Then<R> {
             Class<?> expectedType = expectedMessage.getPayloadClass();
             if (!response.getPayloadClass().equals(expectedType)) {
                 return expected != null
-                       && new EqualsBuilder().append(expected, response.getPayloadAs(expectedType)).isEquals();
+                       && Objects.deepEquals(expected, response.getPayloadAs(expectedType));
             }
         }
         if (!actual.getMetadata().entrySet().containsAll(expectedMessage.getMetadata().entrySet())) {
             return false;
         }
-        return new EqualsBuilder().append(expectedMessage.getPayload(), (Object) actual.getPayload()).isEquals();
+        return Objects.deepEquals(expectedMessage.getPayload(), actual.getPayload());
     }
 
     protected Collection<?> asMessages(Object... expectedMessages) {

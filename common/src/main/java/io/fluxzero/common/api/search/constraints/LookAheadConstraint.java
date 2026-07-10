@@ -31,7 +31,7 @@ import lombok.experimental.Accessors;
 import java.util.List;
 
 import static io.fluxzero.common.api.search.constraints.ContainsConstraint.contains;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * A constraint that supports search-as-you-type functionality by matching terms or phrases that start with a given

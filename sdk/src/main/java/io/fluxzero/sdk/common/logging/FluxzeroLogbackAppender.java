@@ -41,8 +41,8 @@ import java.util.concurrent.ExecutorService;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static java.lang.String.format;
 import static java.util.Optional.ofNullable;
-import static org.apache.commons.lang3.StringUtils.isBlank;
-import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
+import static io.fluxzero.common.ObjectUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.stackTrace;
 
 /**
  * A Logback-compatible appender that automatically publishes warning and error-level log events to the Fluxzero
@@ -155,7 +155,7 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
             metadata = metadata.with(Fluxzero.currentCorrelationData()).with(
                     "stackTrace", format("[%s] %s %s - %s%s", event.getThreadName(), event.getLevel(),
                                          event.getLoggerName(), event.getFormattedMessage(),
-                                         throwable.map(e -> "\n" + getStackTrace(e)).orElse("")),
+                                         throwable.map(e -> "\n" + stackTrace(e)).orElse("")),
                     "level", event.getLevel().toString(),
                     "loggerName", event.getLoggerName(),
                     "messageTemplate", event.getMessage());

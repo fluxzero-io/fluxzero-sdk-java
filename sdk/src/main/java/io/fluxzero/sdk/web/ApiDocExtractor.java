@@ -45,7 +45,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentP
 import static io.fluxzero.sdk.web.WebUtils.getWebPatterns;
 import static java.util.Arrays.stream;
 import static java.util.stream.Stream.concat;
-import static org.apache.commons.lang3.StringUtils.isBlank;
+import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Extracts generic API documentation metadata from Fluxzero web handlers.

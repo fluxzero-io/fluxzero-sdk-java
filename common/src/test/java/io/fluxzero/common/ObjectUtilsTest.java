@@ -48,6 +48,36 @@ class ObjectUtilsTest {
         assertEquals(List.of("a", "b", "c"), ObjectUtils.deduplicate(list, Function.identity(), true));
     }
 
+    @Test
+    void providesNullSafeStringUtilities() {
+        assertTrue(ObjectUtils.isBlank(null));
+        assertTrue(ObjectUtils.isBlank(" \t\n"));
+        assertFalse(ObjectUtils.isBlank(" value "));
+        assertFalse(ObjectUtils.isNumeric(""));
+        assertTrue(ObjectUtils.isNumeric("１２３"));
+        assertFalse(ObjectUtils.isNumeric("12a"));
+        assertEquals("Value", ObjectUtils.capitalize("value"));
+        assertEquals("\uD801\uDC00", ObjectUtils.capitalize("\uD801\uDC28"));
+        assertNull(ObjectUtils.capitalize(null));
+    }
+
+    @Test
+    void stripsAccentsAndCompatibilityCharacters() {
+        assertEquals("Creme brulee", ObjectUtils.stripAccents("Crème brûlée"));
+        assertEquals("Lodz", ObjectUtils.stripAccents("Łódź"));
+        assertEquals("123", ObjectUtils.stripAccents("１２３"));
+        assertEquals("Æsir", ObjectUtils.stripAccents("Æsir"));
+    }
+
+    @Test
+    void rendersStackTraceIncludingCause() {
+        IllegalStateException cause = new IllegalStateException("cause");
+        String trace = ObjectUtils.stackTrace(new RuntimeException("failure", cause));
+
+        assertTrue(trace.startsWith("java.lang.RuntimeException: failure"));
+        assertTrue(trace.contains("Caused by: java.lang.IllegalStateException: cause"));
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     void memoizeAllowsNullKeys() {
