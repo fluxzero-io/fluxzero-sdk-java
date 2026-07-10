@@ -603,6 +603,43 @@
     "varArgs" : false,
     "documentation" : " Stores a value when it fits the configured entry and total weight constraints.\n\n @return {@code true} if the value remains cached after admission and eviction\n"
   }, {
+    "name" : "putAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#putAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<? extends K,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores all values in iteration order while applying the same admission and weight constraints as\n {@link #put(Object, Object)}.\n\n <p>The cache is mutated under one lock and memory pressure is checked once after the full batch, rather than once\n per entry.</p>\n\n @param values values to store by cache key\n"
+  }, {
+    "name" : "putEntry",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#putEntry",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "V",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerEvictionListener",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#registerEvictionListener",
     "returnType" : "io.fluxzero.common.Registration",
