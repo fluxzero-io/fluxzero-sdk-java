@@ -39,7 +39,8 @@ public class GetScheduleResult extends AbstractRequestResult {
 
     @Override
     public Object toMetric() {
-        return new Metric(schedule.getScheduleId(), schedule.getMessage().getBytes());
+        return schedule == null ? new Metric(null, 0)
+                : new Metric(schedule.getScheduleId(), schedule.getMessage().getBytes());
     }
 
     /**
