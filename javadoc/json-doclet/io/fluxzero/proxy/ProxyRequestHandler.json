@@ -117,6 +117,14 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_REQUEST_TIMEOUT_SECONDS"
   }, {
+    "name" : "SEGMENT_HEADER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.SEGMENT_HEADER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Optional name of an incoming HTTP header whose first value is used as the routing key for the web request\n message segment. When either this property or the configured request header is absent, the existing segment\n assignment is left unchanged.\n",
+    "constantValue" : "FLUXZERO_PROXY_SEGMENT_HEADER"
+  }, {
     "name" : "SERVER_SHUTDOWN_CLOSE_TIMEOUT",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.SERVER_SHUTDOWN_CLOSE_TIMEOUT",
     "type" : "java.time.Duration",
@@ -253,6 +261,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "segmentHeader",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.segmentHeader",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.serializer",
     "type" : "io.fluxzero.proxy.ProxySerializer",
@@ -341,6 +357,27 @@
     }, {
       "name" : "proxyWebResponseReceived",
       "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyConfiguredSegment",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#applyConfiguredSegment",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1358,6 +1395,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "setSegmentHeader",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setSegmentHeader",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentHeader",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "setWebsocketContainer",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setWebsocketContainer",
     "returnType" : "void",
@@ -1452,6 +1505,22 @@
     "parameters" : [ {
       "name" : "requestChunkSize",
       "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateSegmentHeader",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#validateSegmentHeader",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentHeader",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

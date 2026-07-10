@@ -149,6 +149,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "segmentHeader",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.segmentHeader",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "started",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.started",
     "type" : "java.util.concurrent.atomic.AtomicBoolean",
@@ -790,6 +798,22 @@
     }, {
       "name" : "pingTimeout",
       "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setSegmentHeader",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#setSegmentHeader",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentHeader",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
