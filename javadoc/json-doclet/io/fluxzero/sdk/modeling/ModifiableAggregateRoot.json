@@ -16,14 +16,22 @@
       "onlyExplicitlyIncluded" : "true"
     }
   } ],
-  "documentation" : " A mutable, stateful {@link AggregateRoot} implementation that allows in-place updates and applies events\n with commit support for persisting the state and synchronizing it with the Fluxzero Runtime.\n <p>\n This class acts as a wrapper around an immutable entity (typically an {@link ImmutableAggregateRoot}),\n providing additional lifecycle management for:\n <ul>\n     <li>Capturing uncommitted changes during an event or command handler execution.</li>\n     <li>Intercepting and applying updates and events with legality assertions.</li>\n     <li>Buffering applied events and committing them via a {@link CommitHandler} callback.</li>\n     <li>Supporting batch-commit semantics for grouped event processing.</li>\n     <li>Tracking active aggregates for correlation and relationship resolution during handlers.</li>\n </ul>\n\n <h2>Commit Lifecycle</h2>\n During handler invocation, intercepted updates and applied events are stored in a temporary buffer.\n When the handler completes successfully, events are committed via the configured {@link CommitHandler},\n which typically stores events in the {@link EventStore} and\n publishes them if needed.\n <p>\n If the handler fails (throws), state changes and captured events are discarded, and the aggregate is rolled\n back to the last stable state.\n\n <h2>Publication Strategy</h2>\n Events are published according to the {@link EventPublication} and {@link EventPublicationStrategy} specified\n either globally or on individual {@link Apply}-annotated methods. This allows\n fine-grained control over which events are stored or published.\n\n <h2>Thread-Scoped Aggregates</h2>\n All active {@code ModifiableAggregateRoot} instances are tracked per thread using a thread-local map,\n enabling relationship resolution and update tracking across aggregates within the same handler context.\n <p>\n This mechanism enables other parts of the framework to determine which aggregates are currently in use\n or updated within a processing thread, without requiring external state.\n\n @param <T> the type of the aggregate's value.\n\n @see ImmutableAggregateRoot\n @see LazyAggregateRoot\n @see CommitHandler\n @see EventPublication\n @see EventPublicationStrategy\n",
+  "documentation" : " A mutable, stateful {@link AggregateRoot} implementation that allows in-place updates and applies events\n with commit support for persisting the state and synchronizing it with the Fluxzero Runtime.\n <p>\n This class acts as a wrapper around an immutable entity (typically an {@link ImmutableAggregateRoot}),\n providing additional lifecycle management for:\n <ul>\n     <li>Capturing uncommitted changes during an event or command handler execution.</li>\n     <li>Intercepting and applying updates and events with legality assertions.</li>\n     <li>Buffering applied events and committing them via a {@link CommitHandler} callback.</li>\n     <li>Supporting batch-commit semantics for grouped event processing.</li>\n     <li>Tracking active aggregates for correlation and relationship resolution during handlers.</li>\n </ul>\n\n <h2>Commit Lifecycle</h2>\n During handler invocation, intercepted updates and applied events are stored in a temporary buffer.\n When the handler completes successfully, events are committed via the configured {@link CommitHandler},\n which typically stores events in the {@link EventStore} and\n publishes them if needed.\n <p>\n If the handler fails (throws), state changes and captured events are discarded, and the aggregate is rolled\n back to the last stable state.\n\n <h2>Publication Strategy</h2>\n Events are published according to the {@link EventPublication} and {@link EventPublicationStrategy} specified\n either globally or on individual {@link Apply}-annotated methods. This allows\n fine-grained control over which events are stored or published.\n\n <h2>Execution-Scoped Aggregates</h2>\n All active {@code ModifiableAggregateRoot} instances are tracked per thread and aggregate repository,\n enabling relationship resolution and update tracking across aggregates within the same handler context while\n isolating nested or interleaved repository executions.\n <p>\n This mechanism enables other parts of the framework to determine which aggregates are currently in use\n or updated within a processing thread, without requiring external state.\n\n @param <T> the type of the aggregate's value.\n\n @see ImmutableAggregateRoot\n @see LazyAggregateRoot\n @see CommitHandler\n @see EventPublication\n @see EventPublicationStrategy\n",
   "typeParameters" : [ "T" ],
   "superClass" : "io.fluxzero.sdk.modeling.DelegatingEntity<T>",
   "interfaces" : [ "io.fluxzero.sdk.modeling.AggregateRoot<T>" ],
   "fields" : [ {
-    "name" : "activeAggregates",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.activeAggregates",
-    "type" : "java.lang.ThreadLocal<java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>>",
+    "name" : "activeAggregateContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.activeAggregateContext",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "activeAggregateContexts",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.activeAggregateContexts",
+    "type" : "java.lang.ThreadLocal<java.util.Map<java.lang.Object,java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -97,6 +105,14 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.committing",
     "type" : "boolean",
     "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultActiveAggregateContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.defaultActiveAggregateContext",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -204,6 +220,71 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventPublication",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitHandler",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ModifiableAggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#ModifiableAggregateRoot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "activeAggregateContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "delegate",
       "type" : "io.fluxzero.sdk.modeling.Entity<T>",
       "varArgs" : false,
@@ -408,6 +489,49 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getActiveAggregates",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregates",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getActiveAggregatesFor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregatesFor",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.@lombok.NonNull AggregateRepository",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "entityId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns aggregates in the supplied repository that contain the entity on the current thread.\n"
+  }, {
     "name" : "getActiveAggregatesFor",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregatesFor",
     "returnType" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
@@ -422,6 +546,48 @@
         "annotationType" : "lombok.NonNull",
         "values" : {}
       } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getActiveAggregatesFor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregatesFor",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getActiveAggregatesFor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregatesFor",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "activeAggregates",
+      "type" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -448,6 +614,48 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getIfActive",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getIfActive",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.ModifiableAggregateRoot<T>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getOrCreateActiveAggregates",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getOrCreateActiveAggregates",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleUpdate",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#handleUpdate",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -457,6 +665,151 @@
     "parameters" : [ {
       "name" : "update",
       "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.modeling.Entity<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.@lombok.NonNull AggregateRepository",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventPublication",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitHandler",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads an aggregate in a scope owned by the supplied repository.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventPublication",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitHandler",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
