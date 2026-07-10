@@ -85,6 +85,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "primitiveWrappers",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.primitiveWrappers",
+    "type" : "java.util.Map<java.lang.Class<?>,java.lang.Class<?>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "typeMetadataCache",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.typeMetadataCache",
     "type" : "java.lang.ClassValue<io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata>",
@@ -96,6 +104,14 @@
     "name" : "typeRegistrySupplier",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.typeRegistrySupplier",
     "type" : "java.util.function.Supplier<io.fluxzero.common.serialization.TypeRegistry>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "wrapperPrimitives",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.wrapperPrimitives",
+    "type" : "java.util.Map<java.lang.Class<?>,java.lang.Class<?>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -113,6 +129,53 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "addInterfaces",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#addInterfaces",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addOverriddenMethods",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#addOverriddenMethods",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "java.util.Set<java.lang.reflect.Method>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "annotationAttributeMethod",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#annotationAttributeMethod",
     "returnType" : "java.util.Optional<java.lang.reflect.Method>",
@@ -907,32 +970,6 @@
     "varArgs" : false,
     "documentation" : " Returns all no-argument attributes declared by an annotation instance.\n\n @param annotation the annotation to inspect\n @return annotation attribute values keyed by attribute name\n"
   }, {
-    "name" : "getAnnotationOnSuper",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationOnSuper",
-    "returnType" : "A",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "A" ],
-    "parameters" : [ {
-      "name" : "m",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "s",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "a",
-      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotations",
     "returnType" : "java.util.List<java.lang.annotation.Annotation>",
@@ -948,32 +985,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the direct annotations present on an annotated element.\n <p>\n For type, field, method, constructor, and parameter elements, the result is cached in the declaring\n {@link TypeMetadata}. Use {@link #getTypeAnnotations(Class)} when inherited Fluxzero type annotation semantics\n are needed, and {@link #getPackageAnnotations(Package)} for recursive package annotation lookup.\n\n @param element the annotated element to inspect\n @return annotations present on the element, or an empty list when {@code element} is {@code null}\n"
-  }, {
-    "name" : "getAnnotationsOnSuper",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationsOnSuper",
-    "returnType" : "java.util.List<A>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "A" ],
-    "parameters" : [ {
-      "name" : "m",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "s",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "a",
-      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "getCallerClass",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getCallerClass",
@@ -1854,6 +1865,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns whether an annotation attribute has a value that differs from its declared default.\n\n @param annotation the annotation to inspect\n @param name       the attribute name\n @return {@code true} if the attribute has a default and the actual value differs from it\n"
+  }, {
+    "name" : "hasOverrideParameters",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasOverrideParameters",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "candidate",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "hasProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasProperty",

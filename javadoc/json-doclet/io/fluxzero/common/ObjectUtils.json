@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "combiningDiacriticalMarks",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils.combiningDiacriticalMarks",
+    "type" : "java.util.regex.Pattern",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "noOpBiPredicate",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils.noOpBiPredicate",
     "type" : "java.util.function.BiPredicate<java.lang.Object,java.lang.Object>",
@@ -207,6 +215,22 @@
     "varArgs" : false,
     "documentation" : " Calls the given callable, forcibly rethrowing exceptions.\n"
   }, {
+    "name" : "capitalize",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#capitalize",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Capitalizes the first character of a string, leaving {@code null} and empty strings unchanged.\n"
+  }, {
     "name" : "concat",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#concat",
     "returnType" : "java.util.stream.Stream<T>",
@@ -371,6 +395,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a consumer that runs the task only if {@code check} is true.\n"
+  }, {
+    "name" : "isBlank",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#isBlank",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.CharSequence",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether a character sequence is {@code null}, empty, or contains only whitespace.\n"
+  }, {
+    "name" : "isNumeric",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#isNumeric",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.CharSequence",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether a character sequence is non-empty and consists entirely of Unicode digits.\n"
   }, {
     "name" : "iterate",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#iterate",
@@ -663,6 +719,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a predicate that silently returns false when the given predicate throws an error.\n"
+  }, {
+    "name" : "stackTrace",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#stackTrace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "throwable",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Renders a throwable and its causes to the same text produced by {@link Throwable#printStackTrace()}.\n"
+  }, {
+    "name" : "stripAccents",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#stripAccents",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes accents from a string while retaining otherwise compatible Unicode characters.\n"
   }, {
     "name" : "supportsVirtualThreadWorkers",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#supportsVirtualThreadWorkers",

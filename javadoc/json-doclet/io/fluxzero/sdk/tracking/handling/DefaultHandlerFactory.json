@@ -379,6 +379,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasMoreSpecificTrackSelfHandlerType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#hasMoreSpecificTrackSelfHandlerType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#isHandler",
     "returnType" : "boolean",
@@ -393,6 +414,22 @@
     }, {
       "name" : "handlerConfiguration",
       "type" : "io.fluxzero.common.handling.HandlerConfiguration<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isTrackSelfHandlerSpecialization",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#isTrackSelfHandlerSpecialization",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

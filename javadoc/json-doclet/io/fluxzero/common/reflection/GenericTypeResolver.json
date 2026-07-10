@@ -85,6 +85,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "parameterize",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#parameterize",
+    "returnType" : "java.lang.reflect.ParameterizedType",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rawType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "actualTypeArguments",
+      "type" : "java.lang.reflect.Type[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Creates a parameterized type for a raw class and its actual type arguments.\n"
+  }, {
     "name" : "reifyType",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#reifyType",
     "returnType" : "java.lang.reflect.Type",
@@ -99,6 +120,58 @@
     }, {
       "name" : "typeVarMap",
       "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reifyType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#reifyType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolving",
+      "type" : "java.util.Set<java.lang.reflect.TypeVariable<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#resolve",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "contextType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "declaringType",
+      "type" : "java.lang.Class<?>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -152,6 +225,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "resolveTypeVariable",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#resolveTypeVariable",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolving",
+      "type" : "java.util.Set<java.lang.reflect.TypeVariable<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
@@ -159,10 +258,7 @@
     "name" : "ParameterizedTypeImpl",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl",
     "kind" : "class",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Value",
-      "values" : {}
-    } ]
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
   } ]
 }

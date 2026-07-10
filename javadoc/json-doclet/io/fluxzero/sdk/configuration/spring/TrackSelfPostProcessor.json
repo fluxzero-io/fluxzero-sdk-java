@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Spring {@link org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor} that detects classes\n annotated with {@link TrackSelf}\n and registers them as {@link FluxzeroPrototype} beans for use by Fluxzero.\n <p>\n The scan follows Spring's {@link ComponentScan} boundaries so that applications control which self-tracked payload\n types become active without exposing those payload types as regular Spring beans.\n <p>\n All detected {@code @TrackSelf} types are wrapped as {@link FluxzeroPrototype} and registered as Spring bean\n definitions, allowing Fluxzero to discover and register them as self-tracking projections at runtime.\n\n <h2>Usage</h2>\n To enable self-tracking on a class use e.g.:\n <pre>{@code\n @TrackSelf\n public interface UserUpdate {\n     UserId getUserId();\n\n     @HandleCommand\n     default void handle() {\n         Fluxzero.loadAggregate(getUserId()).assertAndApply(this);\n     }\n }\n }</pre>\n <p>\n Make sure Spring picks up this processor, for example by including\n {@link FluxzeroSpringConfig} in your configuration:\n <pre>{@code\n @SpringBootApplication\n @Import(FluxzeroSpringConfig.class)\n public class MyApp { ... }\n }</pre>\n\n @see TrackSelf\n @see StatefulPostProcessor\n @see FluxzeroPrototype\n @see FluxzeroSpringConfig\n",
+  "documentation" : " Spring {@link org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor} that detects classes\n annotated with {@link TrackSelf}\n and registers them as {@link FluxzeroPrototype} beans for use by Fluxzero.\n <p>\n The scan follows Spring's {@link ComponentScan} boundaries so that applications control which self-tracked payload\n types become active without exposing those payload types as regular Spring beans.\n <p>\n All detected {@code @TrackSelf} types and concrete implementations of annotated interfaces are wrapped as\n {@link FluxzeroPrototype} and registered as Spring bean definitions, allowing Fluxzero to discover and register them\n as self-tracking projections at runtime. Interface-level conditions are evaluated before their implementations are\n discovered.\n\n <h2>Usage</h2>\n To enable self-tracking on a class use e.g.:\n <pre>{@code\n @TrackSelf\n public interface UserUpdate {\n     UserId getUserId();\n\n     @HandleCommand\n     default void handle() {\n         Fluxzero.loadAggregate(getUserId()).assertAndApply(this);\n     }\n }\n }</pre>\n <p>\n Make sure Spring picks up this processor, for example by including\n {@link FluxzeroSpringConfig} in your configuration:\n <pre>{@code\n @SpringBootApplication\n @Import(FluxzeroSpringConfig.class)\n public class MyApp { ... }\n }</pre>\n\n @see TrackSelf\n @see StatefulPostProcessor\n @see FluxzeroPrototype\n @see FluxzeroSpringConfig\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.configuration.spring.ComponentScanPrototypePostProcessor",
   "interfaces" : [ ],
@@ -25,6 +25,61 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "declaredExecutables",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#declaredExecutables",
+    "returnType" : "java.util.stream.Stream<java.lang.reflect.Executable>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "expandCandidateTypes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#expandCandidateTypes",
+    "returnType" : "java.util.stream.Stream<java.lang.Class<?>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidates",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "basePackages",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "componentScan",
+      "type" : "org.springframework.context.annotation.ComponentScan",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registry",
+      "type" : "org.springframework.beans.factory.support.BeanDefinitionRegistry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resourceLoader",
+      "type" : "org.springframework.core.io.ResourceLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getBeanNameSuffix",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#getBeanNameSuffix",
     "returnType" : "java.lang.String",
@@ -49,6 +104,89 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTargetTypeFilter",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#getTargetTypeFilter",
+    "returnType" : "org.springframework.core.type.filter.TypeFilter",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasDirectHandlerAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#hasDirectHandlerAnnotation",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasHandlerAnnotations",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#hasHandlerAnnotations",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isHandlerSpecialization",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#isHandlerSpecialization",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requiresSpecificRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor#requiresSpecificRegistration",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "discoveredTypes",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

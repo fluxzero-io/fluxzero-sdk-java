@@ -3,11 +3,8 @@
   "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl",
   "packageName" : "io.fluxzero.common.reflection",
   "kind" : "class",
-  "modifiers" : [ "private", "static" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.Value",
-    "values" : {}
-  } ],
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
@@ -16,7 +13,7 @@
     "name" : "actualTypeArguments",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl.actualTypeArguments",
     "type" : "java.lang.reflect.Type[]",
-    "modifiers" : [ ],
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -24,7 +21,7 @@
     "name" : "ownerType",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl.ownerType",
     "type" : "java.lang.reflect.Type",
-    "modifiers" : [ ],
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -32,7 +29,7 @@
     "name" : "rawType",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl.rawType",
     "type" : "java.lang.Class<?>",
-    "modifiers" : [ ],
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -43,12 +40,102 @@
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "rawType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "actualTypeArguments",
+      "type" : "java.lang.reflect.Type[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ownerType",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getActualTypeArguments",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#getActualTypeArguments",
+    "returnType" : "java.lang.reflect.Type[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getOwnerType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#getOwnerType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRawType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#getRawType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#toString",
     "returnType" : "java.lang.String",
@@ -59,6 +146,43 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "typeName",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#typeName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "typeName",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#typeName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolving",
+      "type" : "java.util.Set<java.lang.reflect.TypeVariable<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
