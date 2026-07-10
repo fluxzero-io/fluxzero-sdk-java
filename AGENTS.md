@@ -20,6 +20,7 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - The project compiles with `maven.compiler.release=21`; CI and Docker images currently run on Temurin/Distroless Java 25.
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.
+- By default, be alert to regression risks when making code changes, especially for features, bug fixes, and improvements, and run proportionate checks against existing projects where warranted. Consider both functional behavior and performance characteristics; a passing functional test suite may not be sufficient when the changed code could affect throughput, latency, allocation, startup time, or resource usage. Also protect the quality of the test suite itself: avoid unnecessarily increasing test execution time, introducing flaky tests, or testing implementation details instead of the intended observable behavior. Proactively fix obvious, important regressions without waiting to be asked, and explicitly call out plausible remaining risks when their impact or verification is less clear.
 - Run `./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy` before changes that affect release packaging, generated artifacts, or Maven Central metadata.
 - Javadoc/site work should be checked with `./mvnw -B site -Pjavadoc`.
 
@@ -29,7 +30,7 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - Do not paper over unclear failures. Understand the root cause, preserve invariants, and document any intentional trade-off in code, tests, or the commit body.
 - Preserve the existing package boundaries. Put shared serialization/protocol/reflection behavior in `common`, public SDK behavior in `sdk`, and server-specific behavior in `test-server` or `proxy`.
 - Follow existing Java style: Apache license headers on Java/XML files that use them, standard Java imports before static imports, Lombok for boilerplate such as constructors/getters/builders where it fits the local pattern, and small package-private tests where possible.
-- Keep public SDK APIs backward compatible unless the task explicitly calls for a breaking change.
+- Keep public SDK APIs backward compatible unless the task explicitly calls for a breaking change. This requirement is less important for components that are clearly internal implementation details: do not degrade their design merely to retain obsolete methods or constructors. Before removing or changing such an API, verify that it is genuinely internal and not a supported or externally consumed extension point.
 - Document new or changed public API surface. Prefer field/type/method Javadoc for data objects and Lombok-backed classes; constructor-level Javadoc may be omitted when Lombok or field documentation already makes the constructor contract clear.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
 - Avoid adding dependencies casually. If a dependency is needed, manage versions from the root POM or the relevant BOM/module pattern.
