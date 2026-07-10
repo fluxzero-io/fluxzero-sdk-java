@@ -132,6 +132,8 @@ public interface Given<Self extends Given<Self>> extends When {
      * Simulates one or more events that were previously applied to a specific aggregate.
      * <p>
      * Events can be {@link Message}, {@link Data} (auto-deserialized and upcasted), or plain objects.
+     * A {@link io.fluxzero.common.api.SerializedMessage} is deserialized as an event stream, so an upcaster that splits
+     * one input into multiple outputs contributes every resulting event.
      * <p>
      * You may also pass a {@code String} ending in {@code .json} to load an event from a resource file.
      */
@@ -141,6 +143,8 @@ public interface Given<Self extends Given<Self>> extends When {
      * Simulates one or more events that were previously applied to a specific aggregate.
      * <p>
      * Events can be {@link Message}, {@link Data} (auto-deserialized and upcasted), or plain objects.
+     * A {@link io.fluxzero.common.api.SerializedMessage} is deserialized as an event stream, so an upcaster that splits
+     * one input into multiple outputs contributes every resulting event.
      */
     Self givenAppliedEvents(String aggregateId, Class<?> aggregateClass, Object... events);
 
@@ -148,6 +152,8 @@ public interface Given<Self extends Given<Self>> extends When {
      * Publishes one or more events that were emitted before the behavior under test.
      * <p>
      * Events may be {@link Message} or plain objects.
+     * A {@link io.fluxzero.common.api.SerializedMessage} is deserialized as an event stream, so an upcaster that splits
+     * one input into multiple outputs publishes every resulting event.
      */
     Self givenEvents(Object... events);
 

@@ -15,7 +15,9 @@
 package io.fluxzero.sdk.common.serialization.casting;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.Revision;
@@ -26,6 +28,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import lombok.Builder;
 import lombok.NonNull;
@@ -34,8 +37,14 @@ import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Stream;
 
+import static io.fluxzero.common.api.Data.JSON_FORMAT;
+import static io.fluxzero.common.serialization.JsonUtils.asBytes;
 import static io.fluxzero.common.serialization.JsonUtils.fromFile;
+
 public class GivenWhenThenUpcasterChainTest {
     private static final String aggregateId = "test";
 
@@ -45,6 +54,20 @@ public class GivenWhenThenUpcasterChainTest {
     void testUpcastingWithDataInput() {
         testFixture.givenAppliedEvents(aggregateId, TestModel.class, "create-model-revision-0.json")
                 .whenQuery(new GetModel()).expectResult(new TestModel(List.of(new CreateModel("patchedContent"))));
+    }
+
+    @Test
+    void givenAppliedEventsFlattensSplitUpcastResults() {
+        testFixture.givenAppliedEvents(aggregateId, TestModel.class, splitModelMessage())
+                .whenQuery(new GetModel())
+                .expectResult(new TestModel(List.of(new CreateModel("created"), new UpdateModel("one", "two"))));
+    }
+
+    @Test
+    void givenEventsFlattensSplitUpcastResults() {
+        testFixture.givenEvents(splitModelMessage())
+                .whenQuery(new GetHandledEvents())
+                .expectResult(List.of(new CreateModel("created"), new UpdateModel("one", "two")));
     }
 
     @Test
@@ -84,6 +107,12 @@ public class GivenWhenThenUpcasterChainTest {
                              && e.isEmpty() && e.sequenceNumber() == 0L);
     }
 
+    private SerializedMessage splitModelMessage() {
+        Data<byte[]> data = new Data<>(asBytes(Map.of("content", "created", "one", "one", "two", "two")),
+                                      LegacyModelCreated.class.getName(), 0, JSON_FORMAT);
+        return new SerializedMessage(data, Metadata.empty(), "split-model-message", 0L);
+    }
+
     public static class JsonNodeUpcaster {
         @Upcast(type = "io.fluxzero.sdk.common.serialization.casting.GivenWhenThenUpcasterChainTest$CreateModel",
                 revision = 0)
@@ -96,6 +125,20 @@ public class GivenWhenThenUpcasterChainTest {
         public ObjectNode drop(ObjectNode input) {
             return null;
         }
+
+        @Upcast(type = "io.fluxzero.sdk.common.serialization.casting.GivenWhenThenUpcasterChainTest$LegacyModelCreated",
+                revision = 0)
+        public Stream<Data<JsonNode>> split(Data<JsonNode> input) {
+            ObjectNode createModel = input.getValue().deepCopy();
+            createModel.remove(List.of("one", "two"));
+            ObjectNode updateModel = input.getValue().deepCopy();
+            updateModel.remove("content");
+            return Stream.of(new Data<>(createModel, CreateModel.class.getName(), 1, input.getFormat()),
+                             new Data<>(updateModel, UpdateModel.class.getName(), 3, input.getFormat()));
+        }
+    }
+
+    private record LegacyModelCreated(String content, String one, String two) {
     }
 
     @Value
@@ -119,15 +162,31 @@ public class GivenWhenThenUpcasterChainTest {
     public static class GetModel {
     }
 
+    @Value
+    public static class GetHandledEvents {
+    }
+
     private static class Handler {
+        private final List<Object> handledEvents = new CopyOnWriteArrayList<>();
+
         @HandleCommand
         void handle(@NonNull Object command, Metadata metadata) {
             Fluxzero.loadAggregate(aggregateId, TestModel.class).assertLegal(command).apply(command, metadata);
         }
 
+        @HandleEvent
+        void handleEvent(Object event) {
+            handledEvents.add(event);
+        }
+
         @HandleQuery
         TestModel handle(GetModel query) {
             return Fluxzero.loadAggregate(aggregateId, TestModel.class).get();
+        }
+
+        @HandleQuery
+        List<Object> handle(GetHandledEvents query) {
+            return List.copyOf(handledEvents);
         }
 
     }

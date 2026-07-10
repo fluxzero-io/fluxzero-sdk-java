@@ -976,14 +976,14 @@ public class TestFixture implements Given<TestFixture>, When {
         return givenModificationWithTrace(describeFixtureAction("applied events to", aggregateClass),
                                           fixture -> fixture.applyEvents(
                                                   aggregateId, aggregateClass, fixture.getFluxzero(),
-                                                  fixture.asMessages(callerClass, events).toList()));
+                                                  fixture.asEventMessages(callerClass, events).toList()));
     }
 
     @Override
     public TestFixture givenEvents(Object... events) {
         Class<?> callerClass = getCallerClass();
         for (Object event : events) {
-            givenModification(fixture -> fixture.asMessages(callerClass, event)
+            givenModification(fixture -> fixture.asEventMessages(callerClass, event)
                     .forEach(e -> fixture.getFluxzero().eventGateway().publish(e)));
         }
         return this;
@@ -1901,6 +1901,24 @@ public class TestFixture implements Given<TestFixture>, When {
                     : parsed.getClass().isArray() ? Arrays.stream((Object[]) parsed)
                     : Stream.of(parsed);
         }).map(Message::asMessage);
+    }
+
+    protected Stream<Message> asEventMessages(Class<?> callerClass, Object... events) {
+        return Arrays.stream(events).flatMap(c -> {
+            if (c == null) {
+                return empty();
+            }
+            if (c instanceof Collection<?>) {
+                return ((Collection<?>) c).stream();
+            }
+            if (c.getClass().isArray()) {
+                return Arrays.stream((Object[]) c);
+            }
+            return Stream.of(c);
+        }).flatMap(event -> event instanceof SerializedMessage serializedMessage
+                ? fluxzero.serializer().deserializeMessages(Stream.of(serializedMessage), EVENT)
+                        .map(DeserializingMessage::toMessage)
+                : asMessages(callerClass, event));
     }
 
     @SuppressWarnings("unchecked")
