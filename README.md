@@ -4669,16 +4669,31 @@ You can even change a message’s `metadata` during upcasting:
 ```java
 
 @Upcast(type = "com.example.CreateUser", revision = 0)
-SerializedMessage changeMetadata(SerializedMessage message) {
-    return message.withMetadata(
-            message.getMetadata().add("timestamp",
-                                      Instant.ofEpochMilli(message.getTimestamp()).toString())
-    );
+Metadata changeMetadata(Metadata metadata, SerializedMessage message) {
+    return metadata.with("timestamp", Instant.ofEpochMilli(message.getTimestamp()).toString());
 }
 ```
 
+`Metadata` can be injected alongside the payload, `Data`, or `SerializedMessage`. Returning `Metadata` replaces the
+message metadata, leaves the payload unchanged, and advances the revision. The original `SerializedMessage` is not
+mutated.
+
 This can be useful for retrofitting missing fields, adding tracing info, or migrating older messages to include
 required metadata keys.
+
+Upcasting also applies to stored data that has no message context, such as snapshots, key-value entries, and documents.
+Such input cannot provide metadata. A non-nullable `Metadata` parameter therefore causes deserialization to fail. If
+the upcaster supports both cases, annotate the parameter with any runtime `@Nullable` annotation:
+
+```java
+
+@Upcast(type = "com.example.CreateUser", revision = 0)
+ObjectNode upcast(ObjectNode json, @Nullable Metadata metadata) {
+    return metadata == null ? json : json.put("tenant", metadata.get("tenant"));
+}
+```
+
+Returning `Metadata` still requires message input because non-message data has nowhere to store it.
 
 ---
 

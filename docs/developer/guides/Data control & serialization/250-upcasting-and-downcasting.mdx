@@ -105,30 +105,54 @@ You can even change a message’s metadata during upcasting:
   <TabItem label="Java">
     ```java
     @Upcast(type = "com.example.CreateUser", revision = 0)
-    SerializedMessage changeMetadata(SerializedMessage message) {
-        return message.withMetadata(
-                message.getMetadata().add("timestamp",
-                        Instant.ofEpochMilli(message.getTimestamp()).toString())
-        );
+    Metadata changeMetadata(Metadata metadata, SerializedMessage message) {
+        return metadata.with("timestamp", Instant.ofEpochMilli(message.getTimestamp()).toString());
     }
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
     @Upcast(type = "com.example.CreateUser", revision = 0)
-    fun changeMetadata(message: SerializedMessage): SerializedMessage {
-        return message.withMetadata(
-            message.metadata.add("timestamp",
-                Instant.ofEpochMilli(message.timestamp).toString()
-            )
-        )
+    fun changeMetadata(metadata: Metadata, message: SerializedMessage): Metadata {
+        return metadata.with("timestamp", Instant.ofEpochMilli(message.timestamp).toString())
     }
     ```
   </TabItem>
 </Tabs>
 
+`Metadata` can be injected alongside the payload, `Data`, or `SerializedMessage`. Returning `Metadata` replaces the
+message metadata, leaves the payload unchanged, and advances the revision. The original `SerializedMessage` is not
+mutated.
+
 This can be useful for retrofitting missing fields, adding tracing info, or migrating older messages to include
 required metadata keys.
+
+Upcasting also applies to stored data that has no message context, such as snapshots, key-value entries, and documents.
+Such input cannot provide metadata. A non-nullable `Metadata` parameter therefore causes deserialization to fail. If
+the upcaster supports both cases, make the parameter nullable:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @Upcast(type = "com.example.CreateUser", revision = 0)
+    ObjectNode upcast(ObjectNode json, @Nullable Metadata metadata) {
+        return metadata == null ? json : json.put("tenant", metadata.get("tenant"));
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @Upcast(type = "com.example.CreateUser", revision = 0)
+    fun upcast(json: ObjectNode, metadata: Metadata?): ObjectNode {
+        return metadata?.get("tenant")?.let { json.put("tenant", it) } ?: json
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+For Java, any runtime annotation whose simple name is `Nullable` is accepted. Kotlin nullable parameter types are
+recognized directly. Returning `Metadata` still requires message input because non-message data has nowhere to store
+it.
 
 ---
 

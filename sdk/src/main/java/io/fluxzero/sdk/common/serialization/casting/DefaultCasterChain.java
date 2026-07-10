@@ -16,6 +16,8 @@ package io.fluxzero.sdk.common.serialization.casting;
 
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.serialization.Converter;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
@@ -299,6 +301,25 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         @Override
         public int getRevision() {
             return data == null ? source.getRevision() : data.getRevision();
+        }
+
+        /**
+         * Returns a copy of this wrapper whose source carries the given metadata.
+         *
+         * @param metadata the replacement metadata
+         * @return a wrapper around the updated source
+         */
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        public ConvertingSerializedObject<I, O> withMetadata(Metadata metadata) {
+            SerializedObject<I> updatedSource = switch (source) {
+                case SerializedMessage message -> (SerializedObject<I>) message.withMetadata(metadata);
+                case ConvertingSerializedObject converting ->
+                        (SerializedObject<I>) converting.withMetadata(metadata);
+                default -> throw new DeserializationException(
+                        "Cannot update metadata because the source is not a SerializedMessage: "
+                        + source.getClass().getName());
+            };
+            return updatedSource == source ? this : new ConvertingSerializedObject<>(updatedSource, converter, data);
         }
 
         /**

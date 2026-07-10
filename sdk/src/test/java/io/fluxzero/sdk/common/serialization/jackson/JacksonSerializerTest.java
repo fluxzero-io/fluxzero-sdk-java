@@ -72,6 +72,8 @@ class JacksonSerializerTest {
             "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializerTest$FirstMessageObject";
     private static final String DROPPED_MESSAGE_TYPE =
             "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializerTest$DroppedMessageObject";
+    private static final String METADATA_MESSAGE_TYPE =
+            "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializerTest$MetadataMessageObject";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final JacksonSerializer serializer = new JacksonSerializer(List.of(new CasterStub()));
@@ -133,6 +135,20 @@ class JacksonSerializerTest {
         assertTrue(subject.deserializeFirstMessage(message, MessageType.EVENT, null).isEmpty());
         assertThrows(DeserializationException.class,
                      () -> subject.deserializeMessage(message, MessageType.EVENT));
+    }
+
+    @Test
+    void upcasterCanInjectAndReturnMetadata() throws JsonProcessingException {
+        JacksonSerializer subject = new JacksonSerializer(List.of(new MetadataMessageCaster()));
+        Metadata originalMetadata = Metadata.of("replacement", "from metadata", "existing", "value");
+        SerializedMessage message = message(createMessageData(METADATA_MESSAGE_TYPE, "original"))
+                .withMetadata(originalMetadata);
+
+        DeserializingMessage result = subject.deserializeFirstMessage(message, MessageType.EVENT, null).orElseThrow();
+
+        assertEquals(new MetadataMessageObject("from metadata"), result.getPayload());
+        assertEquals(originalMetadata.with("upcasted", true), result.getMetadata());
+        assertEquals(originalMetadata, message.getMetadata());
     }
 
     @Test
@@ -446,6 +462,10 @@ class JacksonSerializerTest {
     private record DroppedMessageObject(String value) {
     }
 
+    @Revision(2)
+    private record MetadataMessageObject(String value) {
+    }
+
     public static class CasterStub {
         @Upcast(type = TYPE, revision = 0)
         public ObjectNode upcastFrom0(ObjectNode input) {
@@ -490,6 +510,19 @@ class JacksonSerializerTest {
         @Upcast(type = DROPPED_MESSAGE_TYPE, revision = 0)
         public Stream<Data<JsonNode>> drop(Data<JsonNode> input) {
             return Stream.empty();
+        }
+    }
+
+    public static class MetadataMessageCaster {
+
+        @Upcast(type = METADATA_MESSAGE_TYPE, revision = 0)
+        public ObjectNode injectMetadata(ObjectNode input, Metadata metadata) {
+            return input.put("value", metadata.get("replacement"));
+        }
+
+        @Upcast(type = METADATA_MESSAGE_TYPE, revision = 1)
+        public Metadata mapMetadata(Metadata metadata) {
+            return metadata.with("upcasted", true);
         }
     }
 

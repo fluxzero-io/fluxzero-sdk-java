@@ -15,9 +15,12 @@
 package io.fluxzero.sdk.common.serialization.casting;
 
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.serialization.AbstractConverter;
 import io.fluxzero.sdk.MockException;
+import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import lombok.Getter;
 import org.junit.jupiter.api.Test;
@@ -190,6 +193,55 @@ class UpcasterChainTest {
                      result.map(SerializedObject::data).collect(toList()));
     }
 
+    @Test
+    void testInjectingMetadata() {
+        Caster<SerializedObject<byte[]>, SerializedObject<?>> subject = DefaultCasterChain.createUpcaster(
+                List.of(new MetadataUpcaster()), new StringConverter());
+        SerializedMessage input = message("injectMetadata", Metadata.of("suffix", " from metadata"));
+
+        SerializedObject<?> result = subject.cast(Stream.of(input)).findFirst().orElseThrow();
+
+        assertEquals("input from metadata", result.data().getValue());
+        assertEquals(1, result.getRevision());
+    }
+
+    @Test
+    void testInjectingNullForNullableMetadataWithoutMessageContext() {
+        Caster<Data<String>, Data<String>> subject = create(List.of(new MetadataUpcaster()));
+        Data<String> input = new Data<>("input", "injectNullableMetadata", 0, null);
+
+        Data<String> result = subject.cast(Stream.of(input)).findFirst().orElseThrow();
+
+        assertEquals("input without metadata", result.getValue());
+        assertEquals(1, result.getRevision());
+    }
+
+    @Test
+    void testRejectingMissingNonNullableMetadata() {
+        Caster<Data<String>, Data<String>> subject = create(List.of(new MetadataUpcaster()));
+        Data<String> input = new Data<>("input", "injectMetadata", 0, null);
+
+        Data<String> result = subject.cast(Stream.of(input)).findFirst().orElseThrow();
+
+        assertThrows(DeserializationException.class, result::getValue);
+    }
+
+    @Test
+    void testMappingMetadata() {
+        Caster<SerializedObject<byte[]>, SerializedObject<?>> subject = DefaultCasterChain.createUpcaster(
+                List.of(new MetadataUpcaster()), new StringConverter());
+        Metadata originalMetadata = Metadata.of("existing", "value");
+        SerializedMessage input = message("mapMetadata", originalMetadata);
+
+        SerializedMessage result = (SerializedMessage) subject.cast(Stream.of(input)).findFirst().orElseThrow();
+
+        assertEquals(originalMetadata.with("upcasted", true), result.getMetadata());
+        assertEquals("input", ((SerializedObject<?>) result).data().getValue());
+        assertEquals(1, result.getRevision());
+        assertEquals(originalMetadata, input.getMetadata());
+        assertEquals(input.getMessageId(), result.getMessageId());
+    }
+
     /*
         Failures
      */
@@ -318,6 +370,24 @@ class UpcasterChainTest {
         }
     }
 
+    private static class MetadataUpcaster {
+
+        @Upcast(type = "injectMetadata", revision = 0)
+        public String injectMetadata(String input, Metadata metadata) {
+            return input + metadata.get("suffix");
+        }
+
+        @Upcast(type = "injectNullableMetadata", revision = 0)
+        public String injectNullableMetadata(String input, @Nullable Metadata metadata) {
+            return input + (metadata == null ? " without metadata" : " with metadata");
+        }
+
+        @Upcast(type = "mapMetadata", revision = 0)
+        public Metadata mapMetadata(Metadata metadata) {
+            return metadata.with("upcasted", true);
+        }
+    }
+
     private static class ConflictingUpcaster {
         @Upcast(type = "mapPayload", revision = 0)
         public String mapPayload(String input) {
@@ -353,6 +423,11 @@ class UpcasterChainTest {
             return bytes;
         }
 
+    }
+
+    private static SerializedMessage message(String type, Metadata metadata) {
+        return new SerializedMessage(new Data<>("input".getBytes(), type, 0, Data.JSON_FORMAT), metadata,
+                                     "message-id", 0L);
     }
 
 

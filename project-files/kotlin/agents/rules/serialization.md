@@ -80,25 +80,32 @@ class ProjectUpcaster {
 
 <a name="data-upcasting"></a>
 
-### Data Upcasters (Full Message)
+### Data Upcasters and Message Metadata
 
-Use this pattern when you need to change the **type**, **revision**, or **metadata** of the serialized object. To modify
-metadata, you must inject the `SerializedMessage` and call `setMetadata(Metadata)`.
+Use `Data<JsonNode>` when you need to change the **type** or set the **revision** explicitly. A `Metadata` or
+`SerializedMessage` parameter may be injected when the serialized input is a message. Return `Metadata` to replace the
+message metadata without changing the payload; the caster chain advances the revision automatically.
 
 ```kotlin
 @Component
 class CreateProjectUpcaster {
     @Upcast(type = "io.fluxzero.app.old.CreateProject", revision = 0)
-    fun upcastRev0(data: Data<JsonNode>, message: SerializedMessage): Data<JsonNode> {
-        // Example: Update metadata
-        message.metadata = message.metadata.with("upcasted", "true")
-        
-        // Move to a new package and increment revision
+    fun renameType(data: Data<JsonNode>, metadata: Metadata): Data<JsonNode> {
         return data.withType("io.fluxzero.app.new.api.CreateProject")
-                   .withRevision(1)
+            .withRevision(1)
+    }
+
+    @Upcast(type = "io.fluxzero.app.ProjectCreated", revision = 0)
+    fun addMetadata(metadata: Metadata): Metadata {
+        return metadata.with("upcasted", true)
     }
 }
 ```
+
+Upcasting also runs for non-message data such as snapshots, key-value entries, and documents. If the same upcaster
+supports those inputs, declare its metadata parameter as `Metadata?`; Fluxzero then injects `null`. Without a nullable
+parameter, missing message metadata causes deserialization to fail. Returning `Metadata` always requires message input
+because non-message data has nowhere to store it.
 
 ---
 

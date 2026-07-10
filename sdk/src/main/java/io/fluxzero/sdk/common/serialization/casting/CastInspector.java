@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.common.serialization.casting;
 
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
@@ -38,6 +39,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
+import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
 
 /**
  * Internal utility for inspecting and instantiating caster methods based on annotations such as {@link Upcast} or {@link Downcast}.
@@ -46,7 +48,8 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
  * them into {@link AnnotatedCaster} instances.
  *
  * <p>Supports a variety of method signatures for flexibility, including those returning {@code Data<T>}, {@code Optional<Data<T>>},
- * plain {@code T}, and {@code Stream<Data<T>>}. The inputs may include {@code Data<T>}, {@code T}, or {@code SerializedMessage}.
+ * plain {@code T}, {@link Metadata}, and {@code Stream<Data<T>>}. The inputs may include {@code Data<T>}, {@code T},
+ * {@code SerializedMessage}, or {@code Metadata}.
  *
  * <p>Not intended for public use.
  */
@@ -107,8 +110,10 @@ public class CastInspector {
 
     private static <T> Function<SerializedObject<T>, Object> invokeFunction(Method method, Object target,
                                                                             Class<T> dataType) {
+        var parameters = method.getParameters();
         var parameterFunctions =
-                Arrays.stream(method.getGenericParameterTypes()).<Function<SerializedObject<T>, ?>>map(type -> {
+                Arrays.stream(parameters).<Function<SerializedObject<T>, ?>>map(parameter -> {
+                    Type type = parameter.getParameterizedType();
                     switch (type) {
                         case ParameterizedType pt -> {
                             Type actualTypeArgument;
@@ -134,19 +139,33 @@ public class CastInspector {
                             }
                         }
                         case Class<?> c -> {
+                            if (SerializedMessage.class.isAssignableFrom(c)) {
+                                return CastInspector::getSerializedMessage;
+                            }
+                            if (Metadata.class.isAssignableFrom(c)) {
+                                return s -> {
+                                    SerializedMessage message = getSerializedMessage(s);
+                                    if (message == null || message.getMetadata() == null) {
+                                        if (isNullable(parameter)) {
+                                            return null;
+                                        }
+                                        throw new DeserializationException(
+                                                ("Cannot resolve Metadata parameter in caster method '%s' because "
+                                                 + "the input is not a SerializedMessage.").formatted(method));
+                                    }
+                                    return message.getMetadata();
+                                };
+                            }
                             if (dataType.isAssignableFrom(c)) {
                                 return s -> s.data().getValue();
-                            }
-                            if (SerializedMessage.class.isAssignableFrom(c)) {
-                                return s -> s instanceof HasSource<?> i
-                                            && i.getSource() instanceof SerializedMessage m ? m : null;
                             }
                         }
                         case null, default -> {
                         }
                     }
                     throw new DeserializationException(String.format(
-                            "Parameter in caster method '%s' is of unexpected type. Expected Data<%s> or %s.",
+                            "Parameter in caster method '%s' is of unexpected type. Expected Data<%s>, %s, "
+                            + "SerializedMessage or Metadata.",
                             method, dataType.getName(), dataType.getName()));
                 }).toList();
         var invoker = DefaultMemberInvoker.asInvoker(method);
@@ -155,7 +174,7 @@ public class CastInspector {
                 Object[] args = new Object[parameterFunctions.size()];
                 for (int i = 0; i < parameterFunctions.size(); i++) {
                     var arg = parameterFunctions.get(i).apply(s);
-                    if (arg == null) {
+                    if (arg == null && !isNullable(parameters[i])) {
                         return null;
                     }
                     args[i] = arg;
@@ -170,6 +189,18 @@ public class CastInspector {
     @SuppressWarnings("unchecked")
     private static <T> BiFunction<SerializedObject<T>, Supplier<Object>, Stream<SerializedObject<T>>> mapResult(
             CastParameters annotation, Method method, Class<T> dataType) {
+        if (method.getReturnType().equals(Metadata.class)) {
+            return (s, o) -> {
+                Metadata metadata = (Metadata) o.get();
+                if (metadata == null) {
+                    throw new DeserializationException(
+                            "Caster method '%s' returned null Metadata.".formatted(method));
+                }
+                SerializedObject<T> revisionUpdated = s.withData(
+                        s.data().withRevision(annotation.revision() + annotation.revisionDelta()));
+                return Stream.of(withMetadata(revisionUpdated, metadata, method));
+            };
+        }
         if (dataType.isAssignableFrom(method.getReturnType())) {
             return (s, o) -> Stream
                     .of(s.withData(new Data<>((Supplier<T>) o, annotation.type(), annotation.revision()
@@ -203,9 +234,31 @@ public class CastInspector {
         }
 
         throw new DeserializationException(String.format(
-                "Unexpected return type of caster method '%s'. Expected Data<%s>, %s, Optional<Data<%s>>, Optional<%s>, Stream<Data<%s>> or void",
+                "Unexpected return type of caster method '%s'. Expected Data<%s>, %s, Metadata, Optional<Data<%s>>, Optional<%s>, Stream<Data<%s>> or void",
                 method, dataType.getName(), dataType.getName(), dataType.getName(), dataType.getName(),
                 dataType.getName()));
+    }
+
+    private static SerializedMessage getSerializedMessage(SerializedObject<?> input) {
+        if (input instanceof SerializedMessage message) {
+            return message;
+        }
+        if (input instanceof HasSource<?> hasSource && hasSource.getSource() instanceof SerializedObject<?> source) {
+            return getSerializedMessage(source);
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> SerializedObject<T> withMetadata(SerializedObject<T> input, Metadata metadata, Method method) {
+        if (input instanceof SerializedMessage message) {
+            return (SerializedObject<T>) message.withMetadata(metadata);
+        }
+        if (input instanceof DefaultCasterChain.ConvertingSerializedObject<?, ?> converting) {
+            return (SerializedObject<T>) converting.withMetadata(metadata);
+        }
+        throw new DeserializationException(
+                "Metadata-returning caster method '%s' can only be applied to a SerializedMessage.".formatted(method));
     }
 
 }

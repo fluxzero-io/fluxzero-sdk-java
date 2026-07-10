@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.common.serialization.casting;
 
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 
 import java.lang.annotation.Documented;
@@ -24,16 +27,48 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declares a method that transforms an object from a previous revision to a newer one.
+ * Declares a method that transforms serialized data from one revision to the next during deserialization.
  * <p>
- * Upcasters are invoked during deserialization when a serialized object's revision is older than the current revision.
- * They enable seamless version evolution of domain objects.
+ * An upcaster is selected by the serialized object's {@linkplain #type() type} and {@linkplain #revision() revision}.
+ * After it has been applied, the caster chain continues with the resulting type and revision until no matching
+ * upcaster remains.
  * </p>
  *
+ * <h2>Method signature</h2>
+ * <p>An upcaster method may declare zero or more supported parameters in any order:</p>
+ * <ul>
+ *     <li>the intermediate payload value, such as an {@code ObjectNode};</li>
+ *     <li>the corresponding {@link Data};</li>
+ *     <li>the source {@link SerializedMessage}, when the input is a message;</li>
+ *     <li>the message {@link Metadata}, when the input is a message.</li>
+ * </ul>
  * <p>
- * This annotation must be placed on a method that takes a single argument (the older object) and returns the
- * transformed object. The method must be side-effect-free and deterministic.
+ * {@code Metadata} may therefore be injected alongside the payload or {@code Data}. Upcasting also applies to
+ * non-message data, such as snapshots, key-value entries, and documents. If no message context is available, a
+ * {@code Metadata} parameter causes deserialization to fail unless the parameter has an annotation whose simple name
+ * is {@code Nullable}. A nullable parameter receives {@code null}; Kotlin nullable parameter types are recognized as
+ * well.
  * </p>
+ *
+ * <h2>Metadata result</h2>
+ * <p>
+ * Returning {@link Metadata} replaces the complete message metadata while leaving the payload unchanged and
+ * advancing its revision by one. Use methods such as {@link Metadata#with(Metadata)} or
+ * {@link Metadata#with(Object, Object)} to retain existing entries. The original {@code SerializedMessage} is not
+ * mutated.
+ * </p>
+ * <pre>{@code
+ * @Upcast(type = "com.example.UserCreated", revision = 0)
+ * Metadata addTenant(Metadata metadata) {
+ *     return metadata.with("tenant", "default");
+ * }
+ * }</pre>
+ * <p>
+ * A {@code Metadata} return type requires message input, even if a metadata parameter is nullable, because
+ * non-message data has nowhere to store the result. Returning {@code null} is not supported.
+ * </p>
+ *
+ * <p>Upcaster methods should be side-effect-free and deterministic.</p>
  *
  * <p>
  * <strong>Spring Integration:</strong> Any Spring bean containing methods annotated with {@code @Upcast}
