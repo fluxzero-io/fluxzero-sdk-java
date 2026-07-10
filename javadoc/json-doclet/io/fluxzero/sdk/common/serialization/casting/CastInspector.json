@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Internal utility for inspecting and instantiating caster methods based on annotations such as {@link Upcast} or {@link Downcast}.\n\n <p>This class is used by {@link DefaultCasterChain} to discover methods annotated for casting purposes and wrap\n them into {@link AnnotatedCaster} instances.\n\n <p>Supports a variety of method signatures for flexibility, including those returning {@code Data<T>}, {@code Optional<Data<T>>},\n plain {@code T}, and {@code Stream<Data<T>>}. The inputs may include {@code Data<T>}, {@code T}, or {@code SerializedMessage}.\n\n <p>Not intended for public use.\n",
+  "documentation" : " Internal utility for inspecting and instantiating caster methods based on annotations such as {@link Upcast} or {@link Downcast}.\n\n <p>This class is used by {@link DefaultCasterChain} to discover methods annotated for casting purposes and wrap\n them into {@link AnnotatedCaster} instances.\n\n <p>Supports a variety of method signatures for flexibility, including those returning {@code Data<T>}, {@code Optional<Data<T>>},\n plain {@code T}, {@link Metadata}, and {@code Stream<Data<T>>}. The inputs may include {@code Data<T>}, {@code T},\n {@code SerializedMessage}, or {@code Metadata}.\n\n <p>Not intended for public use.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -110,6 +110,22 @@
     "varArgs" : false,
     "documentation" : " Discovers all caster methods annotated with the given annotation (typically {@link Upcast} or {@link Downcast})\n in the provided candidates, and wraps them as {@link AnnotatedCaster} instances.\n\n @param castAnnotation the annotation to look for\n @param candidateTargets a collection of objects or classes that may define caster methods\n @param dataType the expected input/output data type for casting\n @param <T> the type of the serialized data being cast\n @return a list of discovered annotated casters\n"
   }, {
+    "name" : "getSerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastInspector#getSerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "hasCasterMethods",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastInspector#hasCasterMethods",
     "returnType" : "boolean",
@@ -176,6 +192,37 @@
     }, {
       "name" : "dataType",
       "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastInspector#withMetadata",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

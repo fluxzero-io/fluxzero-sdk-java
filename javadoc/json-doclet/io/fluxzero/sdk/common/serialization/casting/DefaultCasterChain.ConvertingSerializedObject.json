@@ -122,6 +122,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingSerializedObject#withMetadata",
+    "returnType" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain.ConvertingSerializedObject<I,O>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"rawtypes\",\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a copy of this wrapper whose source carries the given metadata.\n\n @param metadata the replacement metadata\n @return a wrapper around the updated source\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
