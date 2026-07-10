@@ -39,6 +39,8 @@ import static io.fluxzero.sdk.modeling.AggregateCommitPolicy.AWAIT_AFTER_HANDLER
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -252,6 +254,33 @@ class AggregateCommitPolicyTest {
         commits.completeAll();
         assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
         assertFalse(activeAfterBatch.get());
+    }
+
+    @Test
+    void activeAggregatesAreIsolatedBetweenRepositories() {
+        TestFixture firstFixture = TestFixture.create();
+        TestFixture secondFixture = TestFixture.create();
+        var firstRepository = firstFixture.getFluxzero().aggregateRepository();
+        var secondRepository = secondFixture.getFluxzero().aggregateRepository();
+
+        Invocation.performInvocation(() -> {
+            Entity<String> first = firstRepository.load("shared-id", String.class);
+            first.update(value -> "first-updated");
+
+            Entity<String> second = secondRepository.load("shared-id", String.class);
+            assertNotSame(first, second);
+            assertNull(second.get());
+            second.update(value -> "second-updated");
+            assertEquals("first-updated", first.get());
+            return null;
+        });
+
+        assertTrue(ModifiableAggregateRoot.getIfActive("shared-id").isEmpty());
+        Entity<String> firstReloaded = firstRepository.load("shared-id", String.class);
+        Entity<String> secondReloaded = secondRepository.load("shared-id", String.class);
+        assertNotSame(firstReloaded, secondReloaded);
+        assertEquals("first-updated", firstReloaded.get());
+        assertEquals("second-updated", secondReloaded.get());
     }
 
     @Test

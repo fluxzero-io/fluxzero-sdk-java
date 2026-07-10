@@ -257,7 +257,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
     @Override
     @SuppressWarnings("Java8MapForEach")
     public Map<String, Class<?>> getAggregatesFor(@NonNull Object entityId) {
-        LinkedHashMap<String, Class<?>> result = new LinkedHashMap<>(getActiveAggregatesFor(entityId));
+        LinkedHashMap<String, Class<?>> result = new LinkedHashMap<>(getActiveAggregatesFor(this, entityId));
         relationshipsCache.getAggregatesFor(
                         entityId, id -> eventStoreClient.getAggregatesFor(id)
                                 .entrySet().stream().collect(toMap(Map.Entry::getKey, e -> classForName(
@@ -390,7 +390,8 @@ public class DefaultAggregateRepository implements AggregateRepository {
 
         public Entity<T> load(Object id) {
             return ModifiableAggregateRoot.load(
-                    id, () -> aggregateCache.compute(id.toString(), (stringId, v) -> {
+                    DefaultAggregateRepository.this, id,
+                    () -> aggregateCache.compute(id.toString(), (stringId, v) -> {
                         if (v != null) {
                             if (type.isAssignableFrom(v.type())) {
                                 return v;

@@ -25,6 +25,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
+import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import lombok.EqualsAndHashCode;
@@ -34,6 +35,7 @@ import lombok.ToString;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,9 +80,10 @@ import static java.util.stream.Collectors.toMap;
  * either globally or on individual {@link Apply}-annotated methods. This allows
  * fine-grained control over which events are stored or published.
  *
- * <h2>Thread-Scoped Aggregates</h2>
- * All active {@code ModifiableAggregateRoot} instances are tracked per thread using a thread-local map,
- * enabling relationship resolution and update tracking across aggregates within the same handler context.
+ * <h2>Execution-Scoped Aggregates</h2>
+ * All active {@code ModifiableAggregateRoot} instances are tracked per thread and aggregate repository,
+ * enabling relationship resolution and update tracking across aggregates within the same handler context while
+ * isolating nested or interleaved repository executions.
  * <p>
  * This mechanism enables other parts of the framework to determine which aggregates are currently in use
  * or updated within a processing thread, without requiring external state.
@@ -97,16 +100,46 @@ import static java.util.stream.Collectors.toMap;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements AggregateRoot<T> {
 
-    private static final ThreadLocal<Map<String, ModifiableAggregateRoot<?>>> activeAggregates =
-            ThreadLocal.withInitial(LinkedHashMap::new);
+    private static final Object defaultActiveAggregateContext = new Object();
+    private static final ThreadLocal<Map<Object, Map<String, ModifiableAggregateRoot<?>>>> activeAggregateContexts =
+            ThreadLocal.withInitial(IdentityHashMap::new);
 
     @SuppressWarnings("unchecked")
     public static <T> Optional<ModifiableAggregateRoot<T>> getIfActive(Object aggregateId) {
-        return ofNullable((ModifiableAggregateRoot<T>) activeAggregates.get().get(aggregateId.toString()));
+        String id = aggregateId.toString();
+        return activeAggregateContexts.get().values().stream()
+                .map(aggregates -> aggregates.get(id)).filter(Objects::nonNull).findFirst()
+                .map(aggregate -> (ModifiableAggregateRoot<T>) aggregate);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Optional<ModifiableAggregateRoot<T>> getIfActive(Object context, Object aggregateId) {
+        Map<String, ModifiableAggregateRoot<?>> activeAggregates = getActiveAggregates(context);
+        return activeAggregates == null ? Optional.empty()
+                : ofNullable((ModifiableAggregateRoot<T>) activeAggregates.get(aggregateId.toString()));
     }
 
     public static Map<String, Class<?>> getActiveAggregatesFor(@NonNull Object entityId) {
-        List<Entity<?>> candidates = activeAggregates.get().values().stream()
+        return getActiveAggregatesFor(
+                activeAggregateContexts.get().values().stream().flatMap(m -> m.values().stream()).toList(), entityId);
+    }
+
+    /**
+     * Returns aggregates in the supplied repository that contain the entity on the current thread.
+     */
+    public static Map<String, Class<?>> getActiveAggregatesFor(
+            @NonNull AggregateRepository repository, @NonNull Object entityId) {
+        return getActiveAggregatesFor((Object) repository, entityId);
+    }
+
+    private static Map<String, Class<?>> getActiveAggregatesFor(Object context, Object entityId) {
+        Map<String, ModifiableAggregateRoot<?>> activeAggregates = getActiveAggregates(context);
+        return getActiveAggregatesFor(activeAggregates == null ? List.of() : activeAggregates.values(), entityId);
+    }
+
+    private static Map<String, Class<?>> getActiveAggregatesFor(
+            Collection<? extends ModifiableAggregateRoot<?>> activeAggregates, Object entityId) {
+        List<Entity<?>> candidates = activeAggregates.stream()
                 .filter(a -> a.getEntity(entityId).isPresent()).collect(Collectors.toList());
         Comparator<Entity<?>> byPresent = Comparator.comparing(
                 a -> a.getEntity(entityId).map(Entity::isPresent).orElse(false));
@@ -122,14 +155,40 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             AggregateEventRouting eventRouting, boolean eventSourced,
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
-        return ModifiableAggregateRoot.<T>getIfActive(aggregateId).orElseGet(
-                () -> new ModifiableAggregateRoot<>(loader.get(), commitPolicy, eventPublication, publicationStrategy,
-                                                    eventRouting, eventSourced, entityHelper, serializer,
-                                                    dispatchInterceptor, commitHandler));
+        return load(defaultActiveAggregateContext, aggregateId, loader, commitPolicy, eventPublication,
+                    publicationStrategy, eventRouting, eventSourced, entityHelper, serializer, dispatchInterceptor,
+                    commitHandler);
+    }
+
+    /**
+     * Loads an aggregate in a scope owned by the supplied repository.
+     */
+    public static <T> Entity<T> load(
+            @NonNull AggregateRepository repository,
+            Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
+            EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
+            AggregateEventRouting eventRouting, boolean eventSourced,
+            EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
+            CommitHandler commitHandler) {
+        return load((Object) repository, aggregateId, loader, commitPolicy, eventPublication, publicationStrategy,
+                    eventRouting, eventSourced, entityHelper, serializer, dispatchInterceptor, commitHandler);
+    }
+
+    private static <T> Entity<T> load(
+            Object context, Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
+            EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
+            AggregateEventRouting eventRouting, boolean eventSourced,
+            EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
+            CommitHandler commitHandler) {
+        return ModifiableAggregateRoot.<T>getIfActive(context, aggregateId).orElseGet(
+                () -> new ModifiableAggregateRoot<>(context, loader.get(), commitPolicy, eventPublication,
+                                                    publicationStrategy, eventRouting, eventSourced, entityHelper,
+                                                    serializer, dispatchInterceptor, commitHandler));
     }
 
     private Entity<T> lastCommitted;
     private Entity<T> lastStable;
+    private final Object activeAggregateContext;
     private final AggregateCommitPolicy commitPolicy;
 
     private final EventPublication aggregateEventPublication;
@@ -153,8 +212,19 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                                       AggregateEventRouting eventRouting, boolean eventSourced,
                                       EntityHelper entityHelper, Serializer serializer,
                                       DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
+        this(defaultActiveAggregateContext, delegate, commitPolicy, eventPublication, publicationStrategy, eventRouting,
+             eventSourced, entityHelper, serializer, dispatchInterceptor, commitHandler);
+    }
+
+    private ModifiableAggregateRoot(Object activeAggregateContext, Entity<T> delegate,
+                                    AggregateCommitPolicy commitPolicy,
+                                    EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
+                                    AggregateEventRouting eventRouting, boolean eventSourced,
+                                    EntityHelper entityHelper, Serializer serializer,
+                                    DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
         super(delegate);
         this.entityHelper = entityHelper;
+        this.activeAggregateContext = activeAggregateContext;
         this.lastCommitted = delegate;
         this.lastStable = delegate;
         this.commitPolicy = commitPolicy;
@@ -301,7 +371,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             updating = true;
             boolean firstUpdate = waitingForHandlerEnd.compareAndSet(false, true);
             if (firstUpdate) {
-                activeAggregates.get().putIfAbsent(id().toString(), this);
+                getOrCreateActiveAggregates(activeAggregateContext).putIfAbsent(id().toString(), this);
             }
             try {
                 delegate = update.apply(getDelegate());
@@ -418,7 +488,26 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     }
 
     private void removeActiveAggregate() {
-        activeAggregates.get().remove(id().toString(), this);
+        Map<Object, Map<String, ModifiableAggregateRoot<?>>> contexts = activeAggregateContexts.get();
+        Map<String, ModifiableAggregateRoot<?>> activeAggregates = contexts.get(activeAggregateContext);
+        if (activeAggregates == null) {
+            return;
+        }
+        activeAggregates.remove(id().toString(), this);
+        if (activeAggregates.isEmpty()) {
+            contexts.remove(activeAggregateContext);
+            if (contexts.isEmpty()) {
+                activeAggregateContexts.remove();
+            }
+        }
+    }
+
+    private static Map<String, ModifiableAggregateRoot<?>> getActiveAggregates(Object context) {
+        return activeAggregateContexts.get().get(context);
+    }
+
+    private static Map<String, ModifiableAggregateRoot<?>> getOrCreateActiveAggregates(Object context) {
+        return activeAggregateContexts.get().computeIfAbsent(context, ignored -> new LinkedHashMap<>());
     }
 
     @Override
