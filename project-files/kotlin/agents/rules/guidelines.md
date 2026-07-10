@@ -85,6 +85,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 - **"I need to expose my logic via REST or WebSockets"**
     - → [Message Handling: Web](handling.md#web-handling)
         - [REST Endpoints (@HandleGet, etc.)](handling.md#web-requests)
+        - [Automatic HTTP result and exception mapping](handling.md#http-mapping)
         - [Serve static files (@ServeStatic)](handling.md#serve-static)
         - [WebSockets (@SocketEndpoint)](handling.md#websocket)
 
@@ -201,6 +202,10 @@ Use this tree to find the correct manual for your current task, ordered by the r
 25. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
     re-implement filtering/sorting logic.
 26. **Prefer Queries Over Utilities**: If you need to fetch or compute data, model it as a dedicated query (`Request<T>` + `@HandleQuery`) instead of static utility methods. This keeps logic discoverable, testable, and composable.
+27. **Use Automatic Web Response Mapping**: Endpoint handlers should return their ordinary payload (or `Unit`) and let
+    known exceptions propagate. `DefaultWebResponseMapper` already maps results and common exceptions to HTTP responses,
+    including `ValidationException` to `400 Bad Request`. Do not add `try/catch` or construct a `WebResponse` merely to
+    reproduce a default mapping; return a `WebResponse` only to override status, payload, or headers.
 
 ---
 

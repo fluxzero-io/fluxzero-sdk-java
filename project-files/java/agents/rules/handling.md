@@ -550,20 +550,28 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
 
 ## HTTP Status Mapping
 
-Fluxzero's `DefaultWebResponseMapper` automatically maps handler results and exceptions to HTTP status codes:
+Fluxzero's `DefaultWebResponseMapper` automatically maps every endpoint handler result or exception to the outgoing
+HTTP response:
 
-| Result / Exception            | HTTP Status                 |
-|:------------------------------|:----------------------------|
-| **Object** (non-null)         | `200 OK`                    |
-| **null** (void)               | `204 No Content`            |
-| `ValidationException`         | `400 Bad Request`           |
-| `UnauthenticatedException`    | `401 Unauthorized`          |
-| `UnauthorizedException`       | `401 Unauthorized`          |
-| `FunctionalException` (other) | `403 Forbidden`             |
-| `TimeoutException`            | `503 Service Unavailable`   |
-| Any other `Throwable`         | `500 Internal Server Error` |
+| Result / Exception                                  | HTTP Status / Behavior       |
+|:----------------------------------------------------|:-----------------------------|
+| Existing `WebResponse`                              | Returned as provided; `HEAD` has no body |
+| **Object** (non-null)                               | `200 OK`                     |
+| **null** (`void`)                                   | `204 No Content`             |
+| `ValidationException` or `DeserializationException` | `400 Bad Request`            |
+| `UnauthenticatedException` or `UnauthorizedException` | `401 Unauthorized`         |
+| `FunctionalException` (other)                       | `403 Forbidden`              |
+| `TimeoutException`                                  | `503 Service Unavailable`    |
+| Any other `Throwable`                               | `500 Internal Server Error`  |
 
-> You can always return a full `WebResponse` object if you need to override these defaults or set custom headers.
+**Agent default:** return an ordinary payload or `void` and let known exceptions propagate. Do not add endpoint
+`try/catch` blocks or construct a `WebResponse` merely to reproduce one of these mappings. For example, automatic
+payload or parameter validation raises `ValidationException`; the client already receives `400 Bad Request`.
+Return a full `WebResponse` only when an endpoint needs a non-default status, payload, or headers. To change mapping
+rules application-wide, use `replaceWebResponseMapper(...)`; in Spring, provide a `WebResponseMapper` bean.
+
+Exceptions mapped to 400, 401, or 403 expose their message. Timeouts use a fixed retry-later message, while unexpected
+exceptions produce a generic 500 response without exposing internal details.
 
 Automatically mapped web responses also perform best-effort content negotiation from the request `Accept` header:
 regular objects support `application/json`, strings support `text/plain` and JSON strings, and `byte[]`/`InputStream`

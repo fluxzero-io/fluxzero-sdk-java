@@ -2212,6 +2212,28 @@ public List<UserAccount> listUsers() {
 This will match incoming GET requests to `/users` and return a list of users. The response is published back as a
 `WebResponse`.
 
+#### Automatic Web Response Mapping
+
+Endpoint handlers do not need to construct a `WebResponse` for ordinary results or common failures.
+`DefaultWebResponseMapper` automatically converts the handler result or exception into the outgoing HTTP response:
+
+| Handler result / exception                         | HTTP response                 |
+|:---------------------------------------------------|:------------------------------|
+| Existing `WebResponse`                             | Returned as provided; `HEAD` has no body |
+| Non-null object                                    | `200 OK`                      |
+| `null` / `void`                                    | `204 No Content`              |
+| `ValidationException` or `DeserializationException` | `400 Bad Request`             |
+| `UnauthenticatedException` or `UnauthorizedException` | `401 Unauthorized`         |
+| Other `FunctionalException`                        | `403 Forbidden`               |
+| `TimeoutException`                                 | `503 Service Unavailable`     |
+| Any other `Throwable`                              | `500 Internal Server Error`   |
+
+Let known exceptions propagate from the endpoint. For example, automatic payload or parameter validation raises a
+`ValidationException`, which becomes a `400 Bad Request`; a manual `try/catch` that builds the same response is
+unnecessary. Return an explicit `WebResponse` only when the endpoint needs to override the default status, payload, or
+headers. Applications that need different application-wide rules can install a custom mapper with
+`replaceWebResponseMapper(...)`; Spring applications can provide a `WebResponseMapper` bean.
+
 You can use the general `@HandleWeb` if you want to match multiple paths or methods or define a custom HTTP method:
 
 ```java

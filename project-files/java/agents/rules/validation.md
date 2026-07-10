@@ -46,6 +46,10 @@ validator resolves from the same `ParameterResolver` set used for handler method
 `validation.xml`, CDI lifecycle integration, TraversableResolver reachability rules, and full Expression Language
 message evaluation are intentionally not supported.
 
+When validation fails while handling a web endpoint, Fluxzero raises `ValidationException` and
+`DefaultWebResponseMapper` automatically returns `400 Bad Request`. Let the exception propagate; do not add endpoint
+`try/catch` code just to create that response. See [automatic HTTP result and exception mapping](handling.md#http-mapping).
+
 ### Structural Validation
 
 Extract business detail properties into a dedicated value object (e.g., `UserDetails`) and reference it in your
