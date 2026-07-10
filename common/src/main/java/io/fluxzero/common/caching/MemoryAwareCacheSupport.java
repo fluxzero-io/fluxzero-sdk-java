@@ -122,25 +122,41 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
      * @return {@code true} if the value remains cached after admission and eviction
      */
     public boolean put(K key, V value) {
+        boolean admitted;
         synchronized (this) {
             if (closed) {
                 return false;
             }
-            long entryWeight = value == null ? 0L : Math.max(1L, weigher.applyAsLong(key, value));
-            removeEntry(key, manual, false);
-            if (value == null || maxWeight == 0 || entryWeight > maxEntryWeight || entryWeight > maxWeight) {
-                notifyEviction(key, value, entryWeight, entryTooLarge);
-                return false;
-            }
-            entries.put(key, new Entry<>(value, entryWeight, nextAccessSequence()));
-            if (orderedKeys != null) {
-                orderedKeys.put(key, key);
-            }
-            weight += entryWeight;
-            trimToWeight(maxWeight, size);
+            admitted = putEntry(key, value);
+        }
+        if (!admitted) {
+            return false;
         }
         trimForMemoryPressure();
         return containsKey(key);
+    }
+
+    /**
+     * Stores all values in iteration order while applying the same admission and weight constraints as
+     * {@link #put(Object, Object)}.
+     *
+     * <p>The cache is mutated under one lock and memory pressure is checked once after the full batch, rather than once
+     * per entry.</p>
+     *
+     * @param values values to store by cache key
+     */
+    public void putAll(Map<? extends K, ? extends V> values) {
+        Objects.requireNonNull(values, "values");
+        if (values.isEmpty()) {
+            return;
+        }
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            values.forEach(this::putEntry);
+        }
+        trimForMemoryPressure();
     }
 
     public synchronized V get(K key) {
@@ -440,6 +456,22 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             }
         }
         return removed;
+    }
+
+    private boolean putEntry(K key, V value) {
+        long entryWeight = value == null ? 0L : Math.max(1L, weigher.applyAsLong(key, value));
+        removeEntry(key, manual, false);
+        if (value == null || maxWeight == 0 || entryWeight > maxEntryWeight || entryWeight > maxWeight) {
+            notifyEviction(key, value, entryWeight, entryTooLarge);
+            return false;
+        }
+        entries.put(key, new Entry<>(value, entryWeight, nextAccessSequence()));
+        if (orderedKeys != null) {
+            orderedKeys.put(key, key);
+        }
+        weight += entryWeight;
+        trimToWeight(maxWeight, size);
+        return true;
     }
 
     private void notifyEviction(K key, V value, long entryWeight, MemoryAwareCacheSupportEviction.Reason reason) {

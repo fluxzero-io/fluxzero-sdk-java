@@ -22,6 +22,7 @@ import org.junit.jupiter.api.function.Executable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -136,6 +137,57 @@ class MemoryAwareCacheSupportTest {
         assertEquals(0L, cache.weight());
         assertEquals(List.of(manual, manual, manual),
                      evictions.stream().map(MemoryAwareCacheSupportEviction::reason).toList());
+    }
+
+    @Test
+    void putAllUsesIterationOrderAndMaintainsWeight() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                2, 1, (key, value) -> 1, Comparator.naturalOrder(), MemoryPressureController.none(), null);
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("a", "A");
+        values.put("b", "B");
+        values.put("c", "C");
+
+        cache.putAll(values);
+
+        assertEquals(2L, cache.weight());
+        assertNull(cache.get("a"));
+        assertEquals("B", cache.get("b"));
+        assertEquals("C", cache.get("c"));
+        assertEquals(List.of("B", "C"), cache.valuesFrom("a", true, 10));
+    }
+
+    @Test
+    void putAllChecksMemoryPressureOnceAfterBatch() {
+        AtomicLong pressureChecks = new AtomicLong();
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, (currentWeight, maxWeight) -> {
+            pressureChecks.incrementAndGet();
+            return false;
+        }, null);
+
+        cache.putAll(Map.of("a", "A", "b", "B", "c", "C"));
+
+        assertEquals(1L, pressureChecks.get());
+        assertEquals(3, cache.size());
+    }
+
+    @Test
+    void putAllIgnoresEmptyBatchesAndClosedCaches() {
+        AtomicLong pressureChecks = new AtomicLong();
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, (currentWeight, maxWeight) -> {
+            pressureChecks.incrementAndGet();
+            return false;
+        }, null);
+
+        cache.putAll(Map.of());
+        cache.close();
+        cache.putAll(Map.of("a", "A"));
+
+        assertEquals(0L, pressureChecks.get());
+        assertEquals(0, cache.size());
+        assertThrows(NullPointerException.class, () -> cache.putAll(null));
     }
 
     @Test
