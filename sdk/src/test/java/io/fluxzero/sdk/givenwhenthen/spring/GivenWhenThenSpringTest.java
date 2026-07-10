@@ -125,7 +125,19 @@ class GivenWhenThenSpringTest {
 
     @Test
     void selfTrackedInterface() {
-        testFixture.whenCommand(new SelfTrackedConcrete("test")).expectEvents(SelfTrackedConcrete.class);
+        testFixture.whenCommand(new SelfTrackedConcrete("test")).expectOnlyEvents(SelfTrackedConcrete.class);
+    }
+
+    @Test
+    void duplicateTrackSelfInterfaceAndConcreteUsesConcreteConsumerOnce() {
+        testFixture.whenCommand(new ConcreteConsumerSelfTracked())
+                .expectOnlyEvents(new SelfTrackedHandledBy("ConcreteConsumerSelfTracked"));
+    }
+
+    @Test
+    void duplicateTrackSelfAbstractAndConcreteIsHandledOnce() {
+        testFixture.whenCommand(new ConcreteAbstractSelfTracked())
+                .expectOnlyEvents(new SelfTrackedHandledBy("AbstractSelfTracked"));
     }
 
     @Nested
@@ -323,6 +335,36 @@ class GivenWhenThenSpringTest {
     @Value
     public static class SelfTrackedConcrete implements SelfTrackedInterface {
         String input;
+    }
+
+    @TrackSelf
+    @Consumer(name = "InterfaceConsumerSelfTracked")
+    public interface InterfaceConsumerSelfTracked {
+        @HandleCommand
+        default void handleSelf() {
+            Fluxzero.publishEvent(new SelfTrackedHandledBy(Tracker.current().orElseThrow().getName()));
+        }
+    }
+
+    @TrackSelf
+    @Consumer(name = "ConcreteConsumerSelfTracked")
+    public static class ConcreteConsumerSelfTracked implements InterfaceConsumerSelfTracked {
+    }
+
+    @TrackSelf
+    @Consumer(name = "AbstractSelfTracked")
+    public abstract static class AbstractSelfTracked {
+        @HandleCommand
+        void handleSelf() {
+            Fluxzero.publishEvent(new SelfTrackedHandledBy(Tracker.current().orElseThrow().getName()));
+        }
+    }
+
+    @TrackSelf
+    public static class ConcreteAbstractSelfTracked extends AbstractSelfTracked {
+    }
+
+    record SelfTrackedHandledBy(String consumer) {
     }
 
     static class BarHandler {

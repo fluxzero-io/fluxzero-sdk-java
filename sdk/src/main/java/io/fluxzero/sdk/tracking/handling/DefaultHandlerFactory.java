@@ -32,6 +32,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
+import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.ApiReferenceEndpoint;
 import io.fluxzero.sdk.web.DefaultWebRequestContext;
@@ -231,8 +232,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
                                 .flatMap(p -> ReflectionUtils.getPackageAnnotation(p, TrackSelf.class)));
                 if (trackSelf.isPresent()) {
                     MessageFilter<DeserializingMessage> selfFilter =
-                            (message, method, handlerAnnotation, t) -> t.isAssignableFrom(
-                                    message.getPayloadClass());
+                            (message, method, handlerAnnotation, t) -> targetClass.isAssignableFrom(
+                                    message.getPayloadClass()) && !hasMoreSpecificTrackSelfHandlerType(
+                                    targetClass, message.getPayloadClass());
                     config = config.toBuilder().messageFilter(selfFilter.and(config.messageFilter())).build();
                     return createDefaultHandler(targetClass, DeserializingMessage::getPayload, config);
                 }
@@ -241,6 +243,26 @@ public class DefaultHandlerFactory implements HandlerFactory {
             return createDefaultHandler(targetClass, createTargetSupplier(targetClass), config);
         }
         return createDefaultHandler(target, m -> target, config);
+    }
+
+    private boolean hasMoreSpecificTrackSelfHandlerType(Class<?> handlerType, Class<?> payloadType) {
+        for (Class<?> type = payloadType; type != null; type = type.getSuperclass()) {
+            if (!type.equals(handlerType) && handlerType.isAssignableFrom(type)
+                && isTrackSelfHandlerSpecialization(type)) {
+                return true;
+            }
+        }
+        return ReflectionUtils.getAllInterfaces(payloadType).stream()
+                .filter(type -> !type.equals(handlerType) && handlerType.isAssignableFrom(type))
+                .anyMatch(this::isTrackSelfHandlerSpecialization);
+    }
+
+    private boolean isTrackSelfHandlerSpecialization(Class<?> type) {
+        return type.getDeclaredAnnotation(TrackSelf.class) != null
+               || type.getDeclaredAnnotation(Consumer.class) != null
+               || Stream.concat(Stream.of(type.getDeclaredMethods()), Stream.of(type.getDeclaredConstructors()))
+                       .flatMap(executable -> ReflectionUtils.getAnnotations(executable).stream())
+                       .anyMatch(annotation -> annotation.annotationType().isAnnotationPresent(HandleMessage.class));
     }
 
     protected Function<DeserializingMessage, ?> createTargetSupplier(Class<?> targetClass) {

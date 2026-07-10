@@ -34,11 +34,14 @@ import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
+import org.springframework.core.type.filter.AssignableTypeFilter;
+import org.springframework.core.type.filter.TypeFilter;
 import org.springframework.stereotype.Component;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -94,6 +97,27 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
 
     protected abstract String getBeanNameSuffix();
 
+    protected TypeFilter getTargetTypeFilter() {
+        return new AnnotationTypeFilter(getTargetAnnotation());
+    }
+
+    protected Stream<Class<?>> expandCandidateTypes(List<Class<?>> candidates, List<String> basePackages,
+                                                     ComponentScan componentScan,
+                                                     BeanDefinitionRegistry registry,
+                                                     ResourceLoader resourceLoader) {
+        return candidates.stream();
+    }
+
+    protected Stream<Class<?>> findImplementations(List<Class<?>> targetTypes, List<String> basePackages,
+                                                    ComponentScan componentScan,
+                                                    BeanDefinitionRegistry registry,
+                                                    ResourceLoader resourceLoader) {
+        ClassPathScanningCandidateComponentProvider provider = createProvider(componentScan, resourceLoader);
+        applyExcludeFilters(provider, componentScan, registry, resourceLoader);
+        targetTypes.stream().map(AssignableTypeFilter::new).forEach(provider::addIncludeFilter);
+        return findCandidateTypes(provider, basePackages);
+    }
+
     private Set<Class<?>> removeDirectBeanDefinitions(ConfigurableListableBeanFactory beanFactory,
                                                       BeanDefinitionRegistry registry) {
         Set<Class<?>> removedTypes = new LinkedHashSet<>();
@@ -127,6 +151,19 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
                                   ComponentScan componentScan,
                                   BeanDefinitionRegistry registry,
                                   ResourceLoader resourceLoader) {
+        ClassPathScanningCandidateComponentProvider provider = createProvider(componentScan, resourceLoader);
+        applyFilters(provider, componentScan, registry, resourceLoader);
+        if (componentScan.useDefaultFilters()) {
+            provider.addIncludeFilter(getTargetTypeFilter());
+        }
+
+        List<String> basePackages = basePackages(owner, componentScan).toList();
+        List<Class<?>> candidates = findCandidateTypes(provider, basePackages).toList();
+        return expandCandidateTypes(candidates, basePackages, componentScan, registry, resourceLoader);
+    }
+
+    private ClassPathScanningCandidateComponentProvider createProvider(
+            ComponentScan componentScan, ResourceLoader resourceLoader) {
         ClassPathScanningCandidateComponentProvider provider =
                 new ClassPathScanningCandidateComponentProvider(false, environment) {
                     @Override
@@ -136,12 +173,12 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
                 };
         provider.setResourceLoader(resourceLoader);
         provider.setResourcePattern(componentScan.resourcePattern());
-        applyFilters(provider, componentScan, registry, resourceLoader);
-        if (componentScan.useDefaultFilters()) {
-            provider.addIncludeFilter(new AnnotationTypeFilter(getTargetAnnotation()));
-        }
+        return provider;
+    }
 
-        return basePackages(owner, componentScan)
+    private Stream<Class<?>> findCandidateTypes(ClassPathScanningCandidateComponentProvider provider,
+                                                List<String> basePackages) {
+        return basePackages.stream()
                 .flatMap(basePackage -> provider.findCandidateComponents(basePackage).stream())
                 .map(this::extractBeanClass)
                 .filter(Objects::nonNull);
@@ -161,10 +198,17 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
                               ComponentScan componentScan,
                               BeanDefinitionRegistry registry,
                               ResourceLoader resourceLoader) {
-        Arrays.stream(componentScan.excludeFilters())
-                .forEach(filter -> addFilters(provider::addExcludeFilter, filter, registry, resourceLoader));
+        applyExcludeFilters(provider, componentScan, registry, resourceLoader);
         Arrays.stream(componentScan.includeFilters())
                 .forEach(filter -> addFilters(provider::addIncludeFilter, filter, registry, resourceLoader));
+    }
+
+    private void applyExcludeFilters(ClassPathScanningCandidateComponentProvider provider,
+                                     ComponentScan componentScan,
+                                     BeanDefinitionRegistry registry,
+                                     ResourceLoader resourceLoader) {
+        Arrays.stream(componentScan.excludeFilters())
+                .forEach(filter -> addFilters(provider::addExcludeFilter, filter, registry, resourceLoader));
     }
 
     private void addFilters(Consumer<org.springframework.core.type.filter.TypeFilter> sink,
@@ -176,7 +220,7 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
 
         if (Arrays.stream(filter.classes()).anyMatch(Component.class::equals)
             || Arrays.stream(filter.value()).anyMatch(Component.class::equals)) {
-            sink.accept(new AnnotationTypeFilter(getTargetAnnotation()));
+            sink.accept(getTargetTypeFilter());
         }
     }
 

@@ -43,6 +43,11 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  * </p>
  *
  * <p>
+ * For self-tracking type hierarchies, a consumer declared on a concrete or otherwise more specific handler type takes
+ * precedence over a consumer inherited from a {@link TrackSelf}-annotated interface or base class.
+ * </p>
+ *
+ * <p>
  * A consumer consists of one or more <em>trackers</em>—individual threads or processes that fetch and process message
  * segments. Each tracker is responsible for a disjoint segment of the message log, allowing for parallel consumption.
  * By default, messages are sharded into 128 segments; a consumer with {@code threads = 2} will assign 64 segments to

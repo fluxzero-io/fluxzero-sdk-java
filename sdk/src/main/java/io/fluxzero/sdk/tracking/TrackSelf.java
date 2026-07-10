@@ -44,11 +44,20 @@ import java.lang.annotation.Target;
  * <p>
  * <strong>Spring integration:</strong> When using Spring, types annotated with {@code @TrackSelf} will be
  * detected and registered as handlers when they fall within the application's component-scan scope. They are not
- * exposed as regular injectable Spring beans. Type-level conditional annotations are still respected, including
+ * exposed as regular injectable Spring beans. Concrete implementations of an annotated interface are detected within
+ * the same scan scope, even when handler methods are declared only by those implementations. Type-level conditional
+ * annotations are still respected, including
  * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnProperty} and
  * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}. When not using Spring, you must register
  * the class manually. The asynchronous {@code TestFixture} can discover self-tracking payloads as messages are
  * dispatched during a test.
+ * </p>
+ *
+ * <p>
+ * When multiple types in the same hierarchy specialize self-tracking, the most specific applicable type handles the
+ * payload. This prevents duplicate handling when both an interface or abstract base class and a concrete class declare
+ * {@code @TrackSelf}. A {@link Consumer} declared on that more specific type takes precedence over one inherited from
+ * an interface or base class.
  * </p>
  *
  * @see Consumer on how to configure message consumption in an isolated consumer.

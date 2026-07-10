@@ -26,7 +26,9 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
@@ -176,6 +178,15 @@ public class FluxzeroSpringConfigTest {
     }
 
     @Test
+    void trackSelfInterfaceImplementationsAreRegisteredAndHandled() {
+        assertThrows(NoSuchBeanDefinitionException.class,
+                     () -> beanFactory.getBean(ScannedSelfTrackedImplementation.class));
+        assertRegisteredAsPrototype(ScannedSelfTrackedImplementation.class);
+        assertEquals("ScannedSelfTrackedImplementation:test", fluxzero.commandGateway().sendAndWait(
+                new ScannedSelfTrackedImplementation("test")));
+    }
+
+    @Test
     void socketEndpointsAreRegisteredWithoutExposingSpringBeans() {
         assertThrows(NoSuchBeanDefinitionException.class, () -> beanFactory.getBean(ScannedSocketEndpoint.class));
         assertRegisteredAsPrototype(ScannedSocketEndpoint.class);
@@ -191,6 +202,11 @@ public class FluxzeroSpringConfigTest {
     void trackSelfConditionalOnMissingPropertyIsRespected() {
         assertRegisteredAsPrototype(ConditionalSelfTrackedMissingProperty.class);
         assertNotRegisteredAsPrototype(ConditionalSelfTrackedExistingProperty.class);
+    }
+
+    @Test
+    void trackSelfInterfaceConditionsAreRespectedByImplementations() {
+        assertNotRegisteredAsPrototype(ConditionalSelfTrackedInterfaceImplementation.class);
     }
 
     @Test
@@ -268,6 +284,23 @@ public class FluxzeroSpringConfigTest {
     public static class ScannedSelfTrackedPayload {
     }
 
+    @TrackSelf
+    @Consumer(name = "ScannedSelfTrackedInterface")
+    public interface ScannedSelfTrackedInterface {
+    }
+
+    @Value
+    @Component
+    @Consumer(name = "ScannedSelfTrackedImplementation")
+    public static class ScannedSelfTrackedImplementation implements ScannedSelfTrackedInterface {
+        String input;
+
+        @HandleCommand
+        String handleSelf() {
+            return Tracker.current().orElseThrow().getName() + ":" + input;
+        }
+    }
+
     @SocketEndpoint
     public static class ScannedSocketEndpoint {
     }
@@ -290,6 +323,21 @@ public class FluxzeroSpringConfigTest {
     @TrackSelf
     @ConditionalOnMissingProperty("existingProperty")
     public static class ConditionalSelfTrackedExistingProperty {
+    }
+
+    @TrackSelf
+    @ConditionalOnProperty("missingProperty")
+    public interface ConditionalSelfTrackedInterface {
+    }
+
+    @Value
+    public static class ConditionalSelfTrackedInterfaceImplementation implements ConditionalSelfTrackedInterface {
+        String input;
+
+        @HandleCommand
+        String handleSelf() {
+            return input;
+        }
     }
 
     @SocketEndpoint
