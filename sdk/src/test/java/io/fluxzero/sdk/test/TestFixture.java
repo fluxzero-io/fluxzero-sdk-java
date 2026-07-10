@@ -117,7 +117,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -131,9 +130,7 @@ import static io.fluxzero.common.MessageType.DOCUMENT;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.MessageType.SCHEDULE;
-import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.run;
-import static io.fluxzero.common.ObjectUtils.tryCatch;
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
@@ -372,25 +369,17 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
     private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
-    private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
-    private static final Executor shutdownExecutor =
-            newWorkerPool("TestFixture-shutdown", 64);
 
+    /**
+     * Closes all fixtures associated with the current execution thread.
+     */
     public static void shutDownActiveFixtures() {
-        var fixtures = activeFixtures.get();
-        if (!fixtures.isEmpty()) {
-            activeFixtures.remove();
-            fixtures.forEach(fixture -> shutdownExecutor.execute(
-                    tryCatch(() -> fixture.fluxzero.execute(
-                            fc -> fixture.fluxzero.close(true)))));
-            ofNullable(Fluxzero.instance.get()).ifPresent(fc -> Fluxzero.instance.remove());
-            GivenWhenThenAssertionError.clearTrace();
-        }
+        TestFixtureLifecycle.shutDownActiveFixtures();
     }
 
     protected TestFixture(FluxzeroBuilder fluxzeroBuilder,
                           Function<Fluxzero, List<?>> handlerFactory, Client client, boolean synchronous) {
-        activeFixtures.get().add(this);
+        TestFixtureLifecycle.register(this);
         this.synchronous = synchronous;
         this.spying = false;
         this.productionUserProvider = false;
@@ -447,7 +436,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected TestFixture(TestFixture currentFixture, boolean synchronous, boolean spying,
                           boolean productionUserProvider) {
-        activeFixtures.get().add(this);
+        TestFixtureLifecycle.register(this);
         this.synchronous = synchronous;
         this.spying = spying;
         this.productionUserProvider = productionUserProvider;

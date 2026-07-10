@@ -14,13 +14,14 @@
 
 package io.fluxzero.sdk.test;
 
-import lombok.extern.slf4j.Slf4j;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.TestPlan;
 
 /**
- * A JUnit 5 {@link TestExecutionListener} that shuts down all active {@link TestFixture} instances after each test.
+ * A JUnit 5 {@link TestExecutionListener} that shuts down {@link TestFixture} instances when their owning execution
+ * scope finishes.
  * <p>
  * This ensures that Fluxzero resources such as schedulers, threads, or stateful components are properly
  * released between test executions.
@@ -33,20 +34,31 @@ import org.junit.platform.launcher.TestIdentifier;
  * junit.platform.listeners.default = io.fluxzero.sdk.test.TestFixtureExecutionListener
  * }</pre>
  *
- * @see TestFixture#shutDownActiveFixtures()
  * @see TestFixture
  */
-@Slf4j
 public class TestFixtureExecutionListener implements TestExecutionListener {
 
     /**
-     * Invoked automatically by the JUnit 5 test engine after each test case completes.
-     * <p>
-     * This will invoke {@link TestFixture#shutDownActiveFixtures()}, which closes all Fluxzero components
-     * registered to the current thread.
+     * Opens a fixture scope for a test or container execution.
+     */
+    @Override
+    public void executionStarted(TestIdentifier testIdentifier) {
+        TestFixtureLifecycle.startScope(testIdentifier.getUniqueId(), testIdentifier.isTest());
+    }
+
+    /**
+     * Closes only fixtures created by the completed test or container execution.
      */
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
-        TestFixture.shutDownActiveFixtures();
+        TestFixtureLifecycle.finishScope(testIdentifier.getUniqueId());
+    }
+
+    /**
+     * Defensively closes fixtures left behind by incomplete or non-standard engine executions.
+     */
+    @Override
+    public void testPlanExecutionFinished(TestPlan testPlan) {
+        TestFixtureLifecycle.shutDownAllActiveFixtures();
     }
 }
