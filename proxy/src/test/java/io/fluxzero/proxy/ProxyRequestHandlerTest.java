@@ -27,8 +27,19 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class ProxyRequestHandlerTest {
+
+    @Test
+    void segmentHeaderConfigurationIsTrimmed() {
+        assertEquals("X-Routing-Key", ProxyRequestHandler.validateSegmentHeader("  X-Routing-Key  "));
+    }
+
+    @Test
+    void blankSegmentHeaderConfigurationIsTreatedAsUnconfigured() {
+        assertNull(ProxyRequestHandler.validateSegmentHeader("  "));
+    }
 
     @Test
     void responseContextDoesNotRetainRequestPayload() {

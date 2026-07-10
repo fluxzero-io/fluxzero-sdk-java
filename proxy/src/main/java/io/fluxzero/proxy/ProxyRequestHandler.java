@@ -80,6 +80,13 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     public static final String REQUEST_TIMEOUT_SECONDS_PROPERTY = "FLUXZERO_PROXY_REQUEST_TIMEOUT_SECONDS";
 
     /**
+     * Optional name of an incoming HTTP header whose first value is used as the routing key for the web request
+     * message segment. When either this property or the configured request header is absent, the existing segment
+     * assignment is left unchanged.
+     */
+    public static final String SEGMENT_HEADER_PROPERTY = "FLUXZERO_PROXY_SEGMENT_HEADER";
+
+    /**
      * Enables publishing large or unknown-length request bodies as chunked web request messages.
      * <p>
      * Defaults to {@code false} for backward compatibility with applications that still run older SDK clients.
@@ -130,6 +137,8 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                             Long.valueOf(io.fluxzero.sdk.web.WebResponseGateway.MAX_RESPONSE_SIZE)));
     private volatile boolean benchmarkTraceHeadersEnabled =
             getBooleanProperty(BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY, false);
+    private volatile String segmentHeader = mapProperty(SEGMENT_HEADER_PROPERTY,
+                                                        ProxyRequestHandler::validateSegmentHeader);
     private final InFlightWebRequestLimiter inFlightWebRequests =
             new InFlightWebRequestLimiter(ProxyServer.DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
     private volatile int maxPendingWebsocketSends = ProxyServer.DEFAULT_MAX_PENDING_WEBSOCKET_SENDS;
@@ -170,6 +179,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 Duration.ofSeconds(getLongProperty(REQUEST_TIMEOUT_SECONDS_PROPERTY, REQUEST_TIMEOUT.toSeconds())),
                 format("%s_%s", client.name(), "$proxy-request-handler"));
         proxyWebsocketEndpoint = new ProxyWebsocketEndpoint(client, requestHandler);
+        proxyWebsocketEndpoint.setSegmentHeader(segmentHeader);
         proxyWebsocketEndpoint.setKeepAlive(websocketPingDelay, websocketPingTimeout);
         this.namespaceSelector = namespaceSelector;
         chunkedRequestExecutor = newWorkerPool(format("%s_%s", client.name(), "$proxy-chunked-request"), 8);
@@ -186,6 +196,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         namespacedHandler.setRequestChunkingEnabled(requestChunkingEnabled);
         namespacedHandler.setRequestChunkSize(requestChunkSize);
         namespacedHandler.setBenchmarkTraceHeadersEnabled(benchmarkTraceHeadersEnabled);
+        namespacedHandler.setSegmentHeader(segmentHeader);
         namespacedHandler.setMaxInFlightWebRequests(inFlightWebRequests.max());
         namespacedHandler.setMaxPendingWebsocketSends(maxPendingWebsocketSends);
         namespacedHandler.setWebsocketKeepAlive(websocketPingDelay, websocketPingTimeout);
@@ -199,6 +210,14 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                     REQUEST_CHUNK_SIZE_PROPERTY + " must be greater than 0 and at most " + Integer.MAX_VALUE);
         }
         return (int) requestChunkSize;
+    }
+
+    static String validateSegmentHeader(String segmentHeader) {
+        if (segmentHeader == null) {
+            return null;
+        }
+        String result = segmentHeader.strip();
+        return result.isEmpty() ? null : result;
     }
 
     void setMaxRequestBodySize(long maxRequestBodySize) {
@@ -219,6 +238,11 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
     void setBenchmarkTraceHeadersEnabled(boolean benchmarkTraceHeadersEnabled) {
         this.benchmarkTraceHeadersEnabled = benchmarkTraceHeadersEnabled;
+    }
+
+    void setSegmentHeader(String segmentHeader) {
+        this.segmentHeader = validateSegmentHeader(segmentHeader);
+        proxyWebsocketEndpoint.setSegmentHeader(this.segmentHeader);
     }
 
     void setMaxInFlightWebRequests(int maxInFlightWebRequests) {
@@ -496,10 +520,21 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     protected void doSendWebRequest(JettyExchange exchange, WebRequest webRequest) {
         ProxyResponseContext responseContext = createResponseContext(webRequest, exchange);
         SerializedMessage requestMessage = webRequest.serialize(serializer);
+        applyConfiguredSegment(webRequest, requestMessage);
         requestHandler.sendRequest(
                         requestMessage, m -> requestGateway.append(Guarantee.SENT, m),
                         intermediateResponse -> handleResponse(intermediateResponse, responseContext))
                 .whenComplete((r, e) -> completeResponse(r, e, responseContext));
+    }
+
+    void applyConfiguredSegment(WebRequest webRequest, SerializedMessage requestMessage) {
+        if (segmentHeader == null) {
+            return;
+        }
+        String routingKey = webRequest.getHeader(segmentHeader);
+        if (routingKey != null) {
+            requestMessage.setSegment(ConsistentHashing.computeSegment(routingKey));
+        }
     }
 
     protected ProxyResponseContext createResponseContext(WebRequest webRequest, JettyExchange exchange) {
@@ -742,6 +777,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 finalChunkDispatched.set(true);
             }
             firstChunk.setSegment(ConsistentHashing.computeSegment(firstChunk.getMessageId()));
+            applyConfiguredSegment(webRequest, firstChunk);
             AtomicReference<CompletableFuture<Void>> initialDispatch =
                     new AtomicReference<>(CompletableFuture.completedFuture(null));
             requestHandler.sendRequest(firstChunk, message -> {

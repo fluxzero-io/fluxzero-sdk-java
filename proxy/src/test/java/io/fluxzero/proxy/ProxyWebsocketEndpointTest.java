@@ -19,6 +19,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
@@ -41,6 +42,7 @@ import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -61,10 +63,66 @@ import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProxyWebsocketEndpointTest {
+
+    @Test
+    void websocketFramesUseSegmentSelectedFromHandshakeHeader() throws Exception {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        when(gatewayClient.append(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        KeepAliveTestEndpoint endpoint = new KeepAliveTestEndpoint(gatewayClient);
+        endpoint.setSegmentHeader("X-Routing-Key");
+        endpoint.setKeepAlive(Duration.ZERO, Duration.ofSeconds(1));
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
+        Metadata handshakeMetadata = WebRequest.builder()
+                .url("/socket")
+                .method(HttpRequestMethod.WS_HANDSHAKE)
+                .header("X-Routing-Key", "customer-123")
+                .build().getMetadata();
+        prepareSession(endpoint, session, handshakeMetadata);
+
+        endpoint.onOpen(session);
+        endpoint.onText(session, "text");
+        endpoint.onBinary(session, new byte[]{1, 2, 3});
+        endpoint.onPong(session, ByteBuffer.wrap(new byte[]{4, 5, 6}));
+
+        ArgumentCaptor<SerializedMessage> requests = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(gatewayClient, times(4)).append(eq(Guarantee.STORED), requests.capture());
+        int expectedSegment = ConsistentHashing.computeSegment("customer-123");
+        assertEquals(List.of(HttpRequestMethod.WS_OPEN, HttpRequestMethod.WS_MESSAGE,
+                             HttpRequestMethod.WS_MESSAGE, HttpRequestMethod.WS_PONG),
+                     requests.getAllValues().stream()
+                             .map(message -> WebRequest.getMethod(message.getMetadata())).toList());
+        assertTrue(requests.getAllValues().stream()
+                           .allMatch(message -> Integer.valueOf(expectedSegment).equals(message.getSegment())));
+    }
+
+    @Test
+    void websocketCloseUsesSegmentSelectedFromHandshakeHeader() throws Exception {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        RequestHandler requestHandler = mock(RequestHandler.class);
+        when(requestHandler.sendRequest(any(), any(), any(Duration.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        ProxyWebsocketEndpoint endpoint = new ProxyWebsocketEndpoint(createClient(gatewayClient), requestHandler);
+        endpoint.setSegmentHeader("X-Routing-Key");
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
+        Metadata handshakeMetadata = WebRequest.builder()
+                .url("/socket")
+                .method(HttpRequestMethod.WS_HANDSHAKE)
+                .header("X-Routing-Key", "customer-123")
+                .build().getMetadata();
+        prepareSession(endpoint, session, handshakeMetadata);
+
+        endpoint.onClose(session, new WebsocketCloseReason(WebsocketCloseReason.NORMAL_CLOSURE, "done"));
+
+        ArgumentCaptor<SerializedMessage> request = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(requestHandler).sendRequest(request.capture(), any(), eq(ProxyWebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT));
+        assertEquals(HttpRequestMethod.WS_CLOSE, WebRequest.getMethod(request.getValue().getMetadata()));
+        assertEquals(ConsistentHashing.computeSegment("customer-123"), request.getValue().getSegment());
+    }
 
     @Test
     void idleTimeoutLogsWarningWithoutStackTrace() {
@@ -254,11 +312,19 @@ class ProxyWebsocketEndpointTest {
     }
 
     private static void prepareSession(ProxyWebsocketEndpoint endpoint, ProxyWebsocketSession session) throws Exception {
+        prepareSession(endpoint, session, Metadata.empty());
+    }
+
+    private static void prepareSession(ProxyWebsocketEndpoint endpoint, ProxyWebsocketSession session,
+                                       Metadata metadata) throws Exception {
         when(session.getId()).thenReturn("session-1");
         when(session.isOpen()).thenReturn(true);
-        when(session.getRequestParameterMap()).thenReturn(Map.of(
-                ProxyWebsocketEndpoint.clientIdKey, List.of("client-1"),
-                ProxyWebsocketEndpoint.trackerIdKey, List.of("tracker-1")));
+        Map<String, List<String>> requestParameters = new HashMap<>();
+        requestParameters.put(ProxyWebsocketEndpoint.clientIdKey, List.of("client-1"));
+        requestParameters.put(ProxyWebsocketEndpoint.trackerIdKey, List.of("tracker-1"));
+        metadata.getEntries().forEach((key, value) -> requestParameters.put(
+                ProxyWebsocketEndpoint.metadataPrefix + key, List.of(value)));
+        when(session.getRequestParameterMap()).thenReturn(requestParameters);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
         doAnswer(invocation -> {
             var reason = invocation.getArgument(0, WebsocketCloseReason.class);

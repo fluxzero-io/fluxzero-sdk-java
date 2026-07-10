@@ -16,11 +16,13 @@
 package io.fluxzero.proxy;
 
 import com.sun.net.httpserver.HttpServer;
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
@@ -40,6 +42,7 @@ import io.fluxzero.sdk.web.HandleSocketHandshake;
 import io.fluxzero.sdk.web.HandleSocketMessage;
 import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleSocketPong;
+import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.Path;
 import io.fluxzero.sdk.web.SocketSession;
 import io.fluxzero.sdk.web.WebRequest;
@@ -79,9 +82,11 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -216,6 +221,58 @@ class ProxyServerTest {
                                     .header("X-Single", "single")
                                     .build(), BodyHandlers.ofString()).body())
                     .expectResult("/echo?alpha=1&alpha=2&space=a%20b|one,two|single");
+        }
+
+        @Test
+        @ResourceLock(ProxyRequestHandler.SEGMENT_HEADER_PROPERTY)
+        void requestSegmentCanBeSelectedFromConfiguredHeader() throws Exception {
+            String previousValue = System.getProperty(ProxyRequestHandler.SEGMENT_HEADER_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            var observedRequests = new CopyOnWriteArrayList<SerializedMessage>();
+            var monitor = testFixture.getFluxzero().client().getGatewayClient(MessageType.WEBREQUEST)
+                    .registerMonitor(observedRequests::addAll);
+            try {
+                System.setProperty(ProxyRequestHandler.SEGMENT_HEADER_PROPERTY, "X-Routing-Key");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                            @HandleGet("/segment/with-header")
+                            String withHeader() {
+                                return "routed";
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(newBuilder(URI.create(format(
+                                                "http://localhost:%s/segment/with-header", configuredPort)))
+                                                .header("X-Routing-Key", "customer-123")
+                                                .GET().build(), BodyHandlers.ofString()).body())
+                        .expectResult("routed");
+
+                SerializedMessage routedRequest = observedRequest(observedRequests, "/segment/with-header");
+                assertEquals(ConsistentHashing.computeSegment("customer-123"), routedRequest.getSegment());
+            } finally {
+                monitor.cancel();
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyRequestHandler.SEGMENT_HEADER_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
+        void configuredSegmentHeaderLeavesExistingSegmentUnchangedWhenHeaderIsAbsent() {
+            proxyRequestHandler.setSegmentHeader("X-Routing-Key");
+            WebRequest request = WebRequest.builder()
+                    .url("/segment/without-header")
+                    .method("GET")
+                    .build();
+            SerializedMessage requestMessage = request.serialize(new ProxySerializer());
+            requestMessage.setSegment(42);
+
+            proxyRequestHandler.applyConfiguredSegment(request, requestMessage);
+
+            assertEquals(42, requestMessage.getSegment());
         }
 
         @Test
@@ -842,6 +899,38 @@ class ProxyServerTest {
                         assertEquals(200, response.statusCode());
                         assertEquals("stream:" + payload.length, response.body());
                     });
+        }
+
+        @Test
+        void configuredHeaderSelectsSegmentForEveryRequestChunk() {
+            enableRequestChunking(proxyRequestHandler, 17);
+            proxyRequestHandler.setSegmentHeader("X-Routing-Key");
+            byte[] payload = requestPayload(53);
+            var observedRequests = new CopyOnWriteArrayList<SerializedMessage>();
+            var monitor = testFixture.getFluxzero().client().getGatewayClient(MessageType.WEBREQUEST)
+                    .registerMonitor(observedRequests::addAll);
+            try {
+                testFixture.registerHandlers(new Object() {
+                            @HandlePost("/chunked-segment")
+                            String handle(InputStream body) throws Exception {
+                                assertArrayEquals(payload, body.readAllBytes());
+                                return "segmented";
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create(format("http://localhost:%s/chunked-segment", proxyPort)))
+                                        .header("X-Routing-Key", "customer-123")
+                                        .POST(BodyPublishers.ofByteArray(payload))
+                                        .build(), BodyHandlers.ofString()).body())
+                        .expectResult("segmented");
+
+                int expectedSegment = ConsistentHashing.computeSegment("customer-123");
+                assertTrue(observedRequests.size() > 1);
+                assertTrue(observedRequests.stream().allMatch(message ->
+                        Integer.valueOf(expectedSegment).equals(message.getSegment())));
+            } finally {
+                monitor.cancel();
+            }
         }
 
         @Test
@@ -1488,6 +1577,39 @@ class ProxyServerTest {
                     })
                     .whenApplying(openSocketAnd(webSocket -> webSocket.sendText("Fluxzero", true)))
                     .expectResult("Hello Fluxzero");
+        }
+
+        @Test
+        void configuredHeaderSelectsSegmentForWebsocketLifecycleMessages() {
+            proxyRequestHandler.setSegmentHeader("X-Routing-Key");
+            var observedRequests = new CopyOnWriteArrayList<SerializedMessage>();
+            var monitor = testFixture.getFluxzero().client().getGatewayClient(MessageType.WEBREQUEST)
+                    .registerMonitor(observedRequests::addAll);
+            try {
+                testFixture.registerHandlers(new Object() {
+                            @HandleSocketMessage("/")
+                            String handle(String message) {
+                                return message;
+                            }
+                        })
+                        .whenApplying(openSocketAnd(
+                                baseUri(), builder -> builder.header("X-Routing-Key", "customer-123"),
+                                webSocket -> webSocket.sendText("handled", true)))
+                        .expectResult("handled");
+
+                int expectedSegment = ConsistentHashing.computeSegment("customer-123");
+                Set<String> lifecycleMethods = Set.of(
+                        HttpRequestMethod.WS_HANDSHAKE, HttpRequestMethod.WS_OPEN, HttpRequestMethod.WS_MESSAGE);
+                lifecycleMethods.forEach(method -> assertTrue(observedRequests.stream().anyMatch(message ->
+                        method.equals(WebRequest.getMethod(message.getMetadata())))));
+                assertTrue(observedRequests.stream()
+                                   .filter(message -> lifecycleMethods.contains(
+                                           WebRequest.getMethod(message.getMetadata())))
+                                   .allMatch(message -> Integer.valueOf(expectedSegment).equals(
+                                           message.getSegment())));
+            } finally {
+                monitor.cancel();
+            }
         }
 
         @Test
@@ -2216,5 +2338,10 @@ class ProxyServerTest {
         } else {
             System.setProperty(name, value);
         }
+    }
+
+    private static SerializedMessage observedRequest(List<SerializedMessage> requests, String path) {
+        return requests.stream().filter(request -> path.equals(WebRequest.getUrl(request.getMetadata())))
+                .findFirst().orElseThrow(() -> new AssertionError("No request observed for " + path));
     }
 }

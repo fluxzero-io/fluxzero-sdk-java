@@ -16,10 +16,26 @@ package io.fluxzero.common;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConsistentHashingTest {
+
+    @Test
+    void minimumHashReturnsNonNegativeSegment() {
+        int maxSegments = 127;
+
+        int segment = ConsistentHashing.computeSegment("routing-key", ignored -> Integer.MIN_VALUE, maxSegments);
+
+        assertEquals((int) (Math.abs((long) Integer.MIN_VALUE) % maxSegments), segment);
+        assertTrue(segment >= 0 && segment < maxSegments);
+    }
+
+    @Test
+    void regularNegativeHashMappingIsPreserved() {
+        assertEquals(5, ConsistentHashing.computeSegment("routing-key", ignored -> -5, 127));
+    }
 
     @Test
     void fallsInRange() {

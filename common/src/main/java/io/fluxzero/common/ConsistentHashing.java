@@ -75,7 +75,7 @@ public class ConsistentHashing {
      * @return the segment index
      */
     public static int computeSegment(String routingKey, Function<String, Integer> hashFunction, int maxSegments) {
-        return Math.abs(hashFunction.apply(routingKey)) % maxSegments;
+        return (int) (Math.abs((long) hashFunction.apply(routingKey)) % maxSegments);
     }
 
     /**

@@ -15,6 +15,7 @@
 
 package io.fluxzero.proxy;
 
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
@@ -85,12 +86,17 @@ public class ProxyWebsocketEndpoint {
     private volatile boolean awaitCloseAcknowledgements = true;
     private volatile Duration keepAlivePingDelay = ProxyServer.getConfiguredWebsocketPingDelay();
     private volatile Duration keepAlivePingTimeout = ProxyServer.getConfiguredWebsocketPingTimeout();
+    private volatile String segmentHeader;
     private volatile ScheduledExecutorService keepAliveExecutor;
 
     public ProxyWebsocketEndpoint(Client client, RequestHandler requestHandler) {
         this.client = client;
         this.requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
         this.requestHandler = requestHandler;
+    }
+
+    void setSegmentHeader(String segmentHeader) {
+        this.segmentHeader = segmentHeader;
     }
 
     void setKeepAlive(Duration pingDelay, Duration pingTimeout) {
@@ -317,13 +323,15 @@ public class ProxyWebsocketEndpoint {
     }
 
     private SerializedMessage createRequest(ProxyWebsocketSession session, String method, byte[] payload) {
-        Metadata metadata = getContext(session).metadata().with(WebRequest.methodKey, method);
+        SessionContext context = getContext(session);
+        Metadata metadata = context.metadata().with(WebRequest.methodKey, method);
         SerializedMessage request = new SerializedMessage(new Data<>(payload == null ? new byte[0] : payload,
                                                                     null, 0, "unknown"),
                                                          metadata, Fluxzero.generateId(),
                                                          Fluxzero.currentClock().millis());
         request.setSource(client.id());
-        request.setTarget(getContext(session).trackerId());
+        request.setTarget(context.trackerId());
+        request.setSegment(context.segment());
         return request;
     }
 
@@ -444,7 +452,13 @@ public class ProxyWebsocketEndpoint {
                     contextBuilder.clientId(v.getFirst());
                 }
             });
-            contextBuilder.metadata(Metadata.of(map).with("sessionId", session.getId()));
+            Metadata metadata = Metadata.of(map).with("sessionId", session.getId());
+            contextBuilder.metadata(metadata);
+            String configuredSegmentHeader = segmentHeader;
+            if (configuredSegmentHeader != null) {
+                WebRequest.getHeader(metadata, configuredSegmentHeader)
+                        .map(ConsistentHashing::computeSegment).ifPresent(contextBuilder::segment);
+            }
             return contextBuilder.build();
         });
     }
@@ -555,7 +569,7 @@ public class ProxyWebsocketEndpoint {
     }
 
     @Builder
-    protected record SessionContext(Metadata metadata, String clientId, String trackerId) {
+    protected record SessionContext(Metadata metadata, String clientId, String trackerId, Integer segment) {
     }
 
     private static class KeepAliveState {
