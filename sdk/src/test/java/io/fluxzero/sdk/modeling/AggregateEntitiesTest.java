@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -63,6 +64,7 @@ import static io.fluxzero.sdk.Fluxzero.loadAggregateFor;
 import static io.fluxzero.sdk.Fluxzero.loadEntity;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -75,6 +77,13 @@ public class AggregateEntitiesTest {
     private TestFixture testFixture;
 
     @BeforeEach
+    void setUp(TestInfo testInfo) {
+        if (testInfo.getTestClass().filter(MutableEntityTests.class::equals).isPresent()) {
+            return;
+        }
+        setUp();
+    }
+
     void setUp() {
         testFixture = TestFixture.create().given(
                 fc -> loadAggregate("test", Aggregate.class).update(s -> Aggregate.builder().build()));
@@ -89,9 +98,7 @@ public class AggregateEntitiesTest {
     }
 
     void expectEntities(Class<?> parentClass, Predicate<Collection<Entity<?>>> predicate) {
-        testFixture
-                .whenApplying(fc -> loadAggregate("test", (Class<?>) parentClass).allEntities().collect(toList()))
-                .expectResult(predicate);
+        assertTrue(predicate.test(loadAggregate("test", (Class<?>) parentClass).allEntities().collect(toList())));
     }
 
     private boolean folderState(Folder root, List<String> path, List<String> expectedFolders, List<String> expectedFiles) {
@@ -1599,9 +1606,7 @@ public class AggregateEntitiesTest {
         }
 
         void expectEntities(Class<?> parentClass, Predicate<Collection<Entity<?>>> predicate) {
-            testFixture
-                    .whenApplying(fc -> loadAggregate("test", (Class) parentClass).allEntities().collect(toList()))
-                    .expectResult(predicate);
+            assertTrue(predicate.test(loadAggregate("test", (Class<?>) parentClass).allEntities().collect(toList())));
         }
 
     }
