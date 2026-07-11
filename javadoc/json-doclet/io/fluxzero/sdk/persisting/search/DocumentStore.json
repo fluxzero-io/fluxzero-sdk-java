@@ -284,6 +284,17 @@
     "varArgs" : false,
     "documentation" : " Fetches a collection of documents by their IDs and deserializes them into the provided type.\n"
   }, {
+    "name" : "getSearchCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#getSearchCollections",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.SearchCollection>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves existing regular search collections and audit trails.\n\n @return the available collections with their storage types, in deterministic order\n"
+  }, {
     "name" : "getSerializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#getSerializer",
     "returnType" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",

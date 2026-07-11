@@ -1,0 +1,59 @@
+{
+  "name" : "SearchCollection",
+  "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Describes an existing search collection and its storage type.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection.name",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Name of the collection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection.type",
+    "type" : "io.fluxzero.common.api.search.SearchCollection.@lombok.NonNull Type",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Storage type of the collection.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection#SearchCollection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Type",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

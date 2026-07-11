@@ -1,0 +1,78 @@
+{
+  "name" : "GetSearchCollectionsResult",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Response to a {@link GetSearchCollections} request.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The identifier of the originating request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "searchCollections",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult.searchCollections",
+    "type" : "java.util.List<io.fluxzero.common.api.search.SearchCollection>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The available search collections with their storage types.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Timestamp when the collection names were retrieved.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetSearchCollectionsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult#GetSearchCollectionsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult#toMetric",
+    "returnType" : "io.fluxzero.common.api.search.GetSearchCollectionsResult.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

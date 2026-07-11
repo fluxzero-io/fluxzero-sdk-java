@@ -295,6 +295,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getSearchCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#getSearchCollections",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.SearchCollection>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "hasDocument",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#hasDocument",
     "returnType" : "boolean",

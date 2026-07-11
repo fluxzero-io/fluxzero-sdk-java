@@ -135,6 +135,21 @@
     "qualifiedName" : "io.fluxzero.common.api.search.GetFacetStatsResult$Metric",
     "kind" : "class"
   }, {
+    "file" : "GetSearchCollections.json",
+    "name" : "GetSearchCollections",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollections",
+    "kind" : "class"
+  }, {
+    "file" : "GetSearchCollectionsResult.json",
+    "name" : "GetSearchCollectionsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetSearchCollectionsResult.Metric.json",
+    "name" : "GetSearchCollectionsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric",
+    "kind" : "class"
+  }, {
     "file" : "GetSearchHistogram.json",
     "name" : "GetSearchHistogram",
     "qualifiedName" : "io.fluxzero.common.api.search.GetSearchHistogram",
@@ -179,6 +194,16 @@
     "name" : "NoOpConstraint",
     "qualifiedName" : "io.fluxzero.common.api.search.NoOpConstraint",
     "kind" : "class"
+  }, {
+    "file" : "SearchCollection.json",
+    "name" : "SearchCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection",
+    "kind" : "class"
+  }, {
+    "file" : "SearchCollection.Type.json",
+    "name" : "SearchCollection.Type",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type",
+    "kind" : "enum"
   }, {
     "file" : "SearchDocuments.json",
     "name" : "SearchDocuments",

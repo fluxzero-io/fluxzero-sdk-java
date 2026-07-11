@@ -219,6 +219,25 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "io.fluxzero.common.api.search.GetSearchCollectionsResult",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetSearchCollections",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
     "returnType" : "io.fluxzero.common.api.search.GetSearchHistogramResult",
     "modifiers" : [ "public" ],
     "annotations" : [ {

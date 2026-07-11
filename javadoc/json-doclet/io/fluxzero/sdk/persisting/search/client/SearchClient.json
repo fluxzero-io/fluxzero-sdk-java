@@ -311,6 +311,17 @@
     "varArgs" : false,
     "documentation" : " Asynchronously retrieves search statistics over matching documents.\n <p>\n The default implementation adapts {@link #fetchStatistics(SearchQuery, List, List)} to a future. Remote clients\n can override this method to use a native asynchronous transport.\n\n @param query   the query to filter documents\n @param fields  the fields to compute statistics for\n @param groupBy field names used to group statistics\n @return a future with search statistics\n"
   }, {
+    "name" : "getSearchCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#getSearchCollections",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.SearchCollection>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves existing regular search collections and audit trails.\n <p>\n Implementations predating this operation may throw {@link UnsupportedOperationException}.\n\n @return the available collections with their storage types, in deterministic order\n"
+  }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#index",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
