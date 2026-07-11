@@ -17,6 +17,7 @@ package io.fluxzero.sdk.scheduling;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -166,12 +167,19 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        return schedule -> {
+        PreparedHandlerInterceptor prepared = prepare(invoker);
+        return prepared.interceptHandling(function, invoker);
+    }
+
+    @Override
+    public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
+        Periodic methodPeriodic = ofNullable(handler.getMethod())
+                .map(method -> method.getAnnotation(Periodic.class)).orElse(null);
+        return (schedule, descriptor, combiner, next) -> {
             if (schedule.getMessageType() == MessageType.SCHEDULE) {
                 long deadline = millisFromIndex(schedule.getIndex());
-                Periodic periodic = ofNullable(invoker.getMethod()).map(method -> method.getAnnotation(Periodic.class))
-                        .or(() -> ofNullable(getTypeAnnotation(schedule.getPayloadClass(), Periodic.class)))
-                        .orElse(null);
+                Periodic periodic = methodPeriodic == null
+                        ? getTypeAnnotation(schedule.getPayloadClass(), Periodic.class) : methodPeriodic;
                 if (periodic != null && PeriodicSchedulingDefaults.isDisabledCron(periodic)) {
                     log.warn("Periodic scheduling is disabled for {}. Ignoring schedule {}.",
                              schedule.getPayloadClass(), schedule.getMessageId());
@@ -180,14 +188,19 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                 Object result;
                 Instant now = ofEpochMilli(deadline);
                 try {
-                    result = function.apply(schedule);
+                    result = next.apply(schedule, descriptor, combiner);
                 } catch (Throwable e) {
                     return handleExceptionalResult(e, schedule, now, periodic);
                 }
                 return handleResult(result, schedule, now, periodic);
             }
-            return function.apply(schedule);
+            return next.apply(schedule, descriptor, combiner);
         };
+    }
+
+    @Override
+    public boolean supportsPreparation() {
+        return true;
     }
 
     protected Object handleResult(Object result, DeserializingMessage schedule, Instant now, Periodic periodic) {

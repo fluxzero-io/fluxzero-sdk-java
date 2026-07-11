@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking.handling.authentication;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -55,19 +56,30 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        return m -> {
+        PreparedHandlerInterceptor prepared = prepare(invoker);
+        return prepared.interceptHandling(function, invoker);
+    }
+
+    @Override
+    public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
+        return (message, descriptor, combiner, next) -> {
             User previous = User.getCurrent();
-            User user = getCurrentUser(m);
+            User user = getCurrentUser(message);
             try {
                 User.current.set(user);
-                if (m.getType() != null) {
-                    assertAuthorized(m.getPayloadClass(), user);
+                if (message.getType() != null) {
+                    assertAuthorized(message.getPayloadClass(), user);
                 }
-                return function.apply(m);
+                return next.apply(message, descriptor, combiner);
             } finally {
                 User.current.set(previous);
             }
         };
+    }
+
+    @Override
+    public boolean supportsPreparation() {
+        return true;
     }
 
     protected User getCurrentUser(DeserializingMessage m) {

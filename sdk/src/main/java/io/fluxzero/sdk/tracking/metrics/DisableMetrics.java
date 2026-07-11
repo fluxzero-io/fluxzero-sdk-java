@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking.metrics;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -25,6 +26,7 @@ import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -81,5 +83,16 @@ public class DisableMetrics implements HandlerInterceptor, BatchInterceptor, Dis
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
         return m -> runWithAdhocInterceptor(() -> function.apply(m), this, MessageType.METRICS);
+    }
+
+    @Override
+    public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
+        return (message, descriptor, combiner, next) -> runWithAdhocInterceptor(
+                (Callable<Object>) () -> next.apply(message, descriptor, combiner), this, MessageType.METRICS);
+    }
+
+    @Override
+    public boolean supportsPreparation() {
+        return true;
     }
 }

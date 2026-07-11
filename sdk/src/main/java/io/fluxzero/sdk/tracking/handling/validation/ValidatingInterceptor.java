@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -71,24 +72,35 @@ public class ValidatingInterceptor implements HandlerInterceptor {
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        boolean validateReturnValue = shouldValidateReturnValue(invoker);
-        return m -> {
+        PreparedHandlerInterceptor prepared = prepare(invoker);
+        return prepared.interceptHandling(function, invoker);
+    }
+
+    @Override
+    public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
+        boolean validateReturnValue = shouldValidateReturnValue(handler);
+        return (m, descriptor, combiner, next) -> {
             if (validatePayload) {
                 ValidationUtils.assertValid(m.getPayload(), validator);
             }
-            Object result = function.apply(m);
+            Object result = next.apply(m, descriptor, combiner);
             if (validateReturnValue && m.getMessageType().isRequest()) {
-                validator.assertValidReturnValue(null, invoker.getMethod(), result);
+                validator.assertValidReturnValue(null, descriptor.getMethod(), result);
             }
             return result;
         };
     }
 
-    private boolean shouldValidateReturnValue(HandlerInvoker invoker) {
-        Annotation methodAnnotation = invoker.getMethodAnnotation();
+    @Override
+    public boolean supportsPreparation() {
+        return true;
+    }
+
+    private boolean shouldValidateReturnValue(HandlerDescriptor handler) {
+        Annotation methodAnnotation = handler.getMethodAnnotation();
         return methodAnnotation != null
-               && !invoker.isPassive()
-               && invoker.expectResult()
-               && validator.hasReturnValueValidation(invoker.getMethod());
+               && !handler.isPassive()
+               && handler.expectResult()
+               && validator.hasReturnValueValidation(handler.getMethod());
     }
 }

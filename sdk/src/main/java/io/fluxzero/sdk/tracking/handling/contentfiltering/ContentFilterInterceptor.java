@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.contentfiltering;
 
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -43,11 +44,23 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        var filterContent = metadataCache.get(invoker.getTargetClass()).filterContent(invoker.getMethod()).orElse(null);
+        PreparedHandlerInterceptor prepared = prepare(invoker);
+        return prepared.interceptHandling(function, invoker);
+    }
+
+    @Override
+    public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
+        var filterContent = metadataCache.get(handler.getTargetClass()).filterContent(handler.getMethod()).orElse(null);
         if (filterContent == null) {
-            return function;
+            return PreparedHandlerInterceptor.noOp;
         }
-        return m -> serializer.filterContent(function.apply(m), User.getCurrent());
+        return (message, descriptor, combiner, next) -> serializer.filterContent(
+                next.apply(message, descriptor, combiner), User.getCurrent());
+    }
+
+    @Override
+    public boolean supportsPreparation() {
+        return true;
     }
 
     private static final class FilterContentMetadata {
