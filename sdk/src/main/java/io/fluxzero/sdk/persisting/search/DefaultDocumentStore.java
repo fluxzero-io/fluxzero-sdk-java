@@ -28,6 +28,7 @@ import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.Group;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -78,6 +79,15 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
     @Getter(lazy = true)
     private final SearchClient searchClient = client.getSearchClient();
+
+    @Override
+    public List<SearchCollection> getSearchCollections() {
+        try {
+            return getSearchClient().getSearchCollections();
+        } catch (Exception e) {
+            throw new DocumentStoreException("Could not retrieve search collections", e);
+        }
+    }
 
     @Override
     public CompletableFuture<Void> index(@NonNull Object object, @NonNull Object id, @NonNull Object collection,

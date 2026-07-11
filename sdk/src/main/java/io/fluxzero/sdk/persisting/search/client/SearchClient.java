@@ -24,6 +24,7 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -50,6 +51,17 @@ import java.util.stream.Stream;
  * @see DocumentSerializer
  */
 public interface SearchClient extends AutoCloseable {
+
+    /**
+     * Retrieves existing regular search collections and audit trails.
+     * <p>
+     * Implementations predating this operation may throw {@link UnsupportedOperationException}.
+     *
+     * @return the available collections with their storage types, in deterministic order
+     */
+    default List<SearchCollection> getSearchCollections() {
+        throw new UnsupportedOperationException("Retrieving search collections is not supported by this client");
+    }
 
     /**
      * Indexes a list of serialized documents into the search engine.

@@ -24,6 +24,7 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -51,6 +52,11 @@ import static java.util.stream.Collectors.toMap;
 class DocumentTrackingSearchClient implements SearchClient {
     private final SearchClient delegate;
     private final TestFixture.GivenWhenThenInterceptor interceptor;
+
+    @Override
+    public List<SearchCollection> getSearchCollections() {
+        return delegate.getSearchCollections();
+    }
 
     @Override
     public CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee,

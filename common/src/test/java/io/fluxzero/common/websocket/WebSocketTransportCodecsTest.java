@@ -18,6 +18,7 @@ package io.fluxzero.common.websocket;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import io.fluxzero.common.Guarantee;
@@ -33,31 +34,43 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.publishing.Append;
+import io.fluxzero.common.api.search.GetSearchCollections;
+import io.fluxzero.common.api.search.GetSearchCollectionsResult;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.api.tracking.ReadFromIndex;
 import io.fluxzero.common.api.tracking.ReadResult;
+import io.fluxzero.common.serialization.JsonUtils;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
+import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
+import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
+import static io.fluxzero.common.api.search.SearchCollection.Type.unknown;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebSocketTransportCodecsTest {
     private static final ObjectMapper objectMapper = JsonMapper.builder()
             .disable(FAIL_ON_UNKNOWN_PROPERTIES)
+            .enable(READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)
             .findAndAddModules()
             .disable(WRITE_DATES_AS_TIMESTAMPS)
             .build();
 
+    private final WebSocketTransportCodec jsonCodec = WebSocketTransportCodecs.json(objectMapper);
     private final WebSocketTransportCodec cborCodec = WebSocketTransportCodecs.cbor(objectMapper);
 
     @Test
@@ -97,6 +110,50 @@ class WebSocketTransportCodecsTest {
         assertEquals(batch.getLastIndex(), decoded.getMessageBatch().getLastIndex());
         assertEquals(batch.isCaughtUp(), decoded.getMessageBatch().isCaughtUp());
         assertSerializedMessage(serializedMessage(), decoded.getMessageBatch().getMessages().getFirst());
+    }
+
+    @Test
+    void cborRoundTripsSearchCollectionsRequestAndResult() throws Exception {
+        GetSearchCollections request = new GetSearchCollections();
+        GetSearchCollections decodedRequest = assertInstanceOf(
+                GetSearchCollections.class, roundTrip(cborCodec, request));
+        assertEquals(request.getRequestId(), decodedRequest.getRequestId());
+
+        GetSearchCollectionsResult result = new GetSearchCollectionsResult(
+                request.getRequestId(), List.of(new SearchCollection("alpha", regular),
+                                               new SearchCollection("audit", auditTrail)));
+        GetSearchCollectionsResult decodedResult = assertInstanceOf(
+                GetSearchCollectionsResult.class, roundTrip(cborCodec, result));
+
+        assertEquals(result.getSearchCollections(), decodedResult.getSearchCollections());
+        assertEquals(1, decodedResult.toMetric().getCollectionCount());
+        assertEquals(1, decodedResult.toMetric().getAuditTrailCount());
+        assertEquals(0, decodedResult.toMetric().getUnknownCount());
+        assertEquals(decodedResult.getTimestamp(), decodedResult.toMetric().getTimestamp());
+    }
+
+    @Test
+    void mapsFutureSearchCollectionTypesToUnknown() throws Exception {
+        GetSearchCollectionsResult result = new GetSearchCollectionsResult(
+                42L, List.of(new SearchCollection("future", regular)));
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+            GetSearchCollectionsResult decoded = assertInstanceOf(
+                    GetSearchCollectionsResult.class,
+                    codec.decode(replaceBytes(codec.encode(result), "regular", "futureX")));
+
+            assertEquals(unknown, decoded.getSearchCollections().getFirst().getType());
+            assertEquals(0, decoded.toMetric().getCollectionCount());
+            assertEquals(0, decoded.toMetric().getAuditTrailCount());
+            assertEquals(1, decoded.toMetric().getUnknownCount());
+        }
+    }
+
+    @Test
+    void standardMapperRemainsStrictForEnumsWithoutExplicitDefault() throws Exception {
+        assertEquals(unknown, JsonUtils.writer.readValue("\"futureX\"", SearchCollection.Type.class));
+        assertThrows(InvalidFormatException.class,
+                     () -> JsonUtils.writer.readValue("\"futureX\"", StrictType.class));
     }
 
     @Test
@@ -160,6 +217,24 @@ class WebSocketTransportCodecsTest {
         return codec.decode(codec.encode(value));
     }
 
+    private static byte[] replaceBytes(byte[] input, String before, String after) {
+        byte[] expected = before.getBytes(UTF_8);
+        byte[] replacement = after.getBytes(UTF_8);
+        if (expected.length != replacement.length) {
+            throw new IllegalArgumentException("Replacement must have the same byte length");
+        }
+        byte[] result = input.clone();
+        for (int i = 0; i <= result.length - expected.length; i++) {
+            int offset = i;
+            if (java.util.stream.IntStream.range(0, expected.length)
+                    .allMatch(j -> result[offset + j] == expected[j])) {
+                System.arraycopy(replacement, 0, result, i, replacement.length);
+                return result;
+            }
+        }
+        throw new IllegalArgumentException("Value to replace was not found");
+    }
+
     private static SerializedMessage serializedMessage() {
         return new SerializedMessage(
                 new Data<>(new byte[]{1, 2, 3, 4, 5}, "com.example.BenchEvent", 7, "application/json"),
@@ -192,5 +267,9 @@ class WebSocketTransportCodecsTest {
             }
             return false;
         }
+    }
+
+    private enum StrictType {
+        known
     }
 }

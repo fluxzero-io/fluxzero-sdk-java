@@ -26,6 +26,7 @@ import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.Group;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -64,6 +65,7 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -74,6 +76,8 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
 import static io.fluxzero.common.api.search.constraints.AnyConstraint.any;
 import static io.fluxzero.common.api.search.constraints.BetweenConstraint.atLeast;
 import static io.fluxzero.common.api.search.constraints.BetweenConstraint.below;
@@ -99,6 +103,19 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 
 public class SearchTest {
+
+    @Test
+    void listsRegularCollectionsAndAuditTrails() {
+        var store = TestFixture.create().getFluxzero().documentStore();
+        store.index(Map.of("value", "test"), "id", "regular").join();
+        store.createAuditTrail("audit", Duration.ofDays(30)).join();
+        assertEquals(List.of(new SearchCollection("regular", regular)), store.getSearchCollections());
+
+        store.index(Map.of("value", "audit"), "audit-id", "audit").join();
+
+        assertEquals(List.of(new SearchCollection("audit", auditTrail),
+                             new SearchCollection("regular", regular)), store.getSearchCollections());
+    }
 
     @Test
     void storeSearchable() {

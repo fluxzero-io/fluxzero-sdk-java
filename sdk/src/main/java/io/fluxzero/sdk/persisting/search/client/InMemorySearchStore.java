@@ -28,6 +28,7 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,6 +63,8 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
 import static java.util.Comparator.comparing;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.groupingBy;
@@ -88,10 +92,19 @@ public class InMemorySearchStore implements SearchClient {
     private final AtomicLong nextIndex = new AtomicLong();
     private final Map<String, ConcurrentSkipListMap<Long, SerializedMessage>> messageLogs = new ConcurrentHashMap<>();
     private final List<BiConsumer<String, List<SerializedMessage>>> monitors = new CopyOnWriteArrayList<>();
+    private final Set<String> collections = ConcurrentHashMap.newKeySet();
+    private final Set<String> auditTrails = ConcurrentHashMap.newKeySet();
 
     @Getter
     @Setter
     private Duration retentionTime;
+
+    @Override
+    public List<SearchCollection> getSearchCollections() {
+        return collections.stream()
+                .map(c -> new SearchCollection(c, auditTrails.contains(c) ? auditTrail : regular))
+                .sorted(comparing(SearchCollection::getName)).toList();
+    }
 
     @Override
     public CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists) {
@@ -101,6 +114,7 @@ public class InMemorySearchStore implements SearchClient {
             updates.keySet().removeAll(this.documents.keySet());
         }
         this.documents.putAll(updates);
+        updates.values().stream().map(SerializedDocument::getCollection).forEach(collections::add);
         storeMessages(updates);
         return CompletableFuture.completedFuture(null);
     }
@@ -181,6 +195,9 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public CompletableFuture<Void> createAuditTrail(CreateAuditTrail request) {
+        if (!collections.contains(request.getCollection())) {
+            auditTrails.add(request.getCollection());
+        }
         return CompletableFuture.completedFuture(null);
     }
 
@@ -250,6 +267,8 @@ public class InMemorySearchStore implements SearchClient {
     public synchronized void truncateCollection(String collection) {
         documents.values().removeIf(d -> Objects.equals(collection, d.getCollection()));
         messageLogs.remove(collection);
+        collections.remove(collection);
+        auditTrails.remove(collection);
         notifyMonitors(collection, List.of());
     }
 

@@ -57,6 +57,11 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     }
 
     @Override
+    public List<SearchCollection> getSearchCollections() {
+        return this.<GetSearchCollectionsResult>sendAndWait(new GetSearchCollections()).getSearchCollections();
+    }
+
+    @Override
     public CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists) {
         return sendCommand(new IndexDocuments(documents, ifNotExists, guarantee));
     }

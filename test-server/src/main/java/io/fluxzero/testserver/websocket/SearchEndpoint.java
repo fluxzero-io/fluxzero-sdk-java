@@ -52,6 +52,11 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    GetSearchCollectionsResult handle(GetSearchCollections request) {
+        return new GetSearchCollectionsResult(request.getRequestId(), store.getSearchCollections());
+    }
+
+    @Handle
     CompletableFuture<Void> handle(IndexDocuments request) {
         return store.index(request.getDocuments(), request.getGuarantee(), request.isIfNotExists());
     }

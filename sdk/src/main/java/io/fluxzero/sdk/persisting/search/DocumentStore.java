@@ -18,6 +18,7 @@ package io.fluxzero.sdk.persisting.search;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.BulkUpdate;
+import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
@@ -61,6 +62,15 @@ import static java.util.Collections.singletonList;
  * @see Fluxzero#search(Object)
  */
 public interface DocumentStore extends Namespaced<DocumentStore> {
+
+    /**
+     * Retrieves existing regular search collections and audit trails.
+     *
+     * @return the available collections with their storage types, in deterministic order
+     */
+    default List<SearchCollection> getSearchCollections() {
+        throw new UnsupportedOperationException("Retrieving search collections is not supported by this store");
+    }
 
     /**
      * Begins an index operation for the given object. Use the returned {@link IndexOperation} to set additional
