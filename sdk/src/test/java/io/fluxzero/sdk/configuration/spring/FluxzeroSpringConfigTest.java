@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.caching.Cache;
@@ -24,6 +25,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -54,13 +56,16 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.stereotype.Component;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -70,6 +75,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -81,6 +88,7 @@ import static org.mockito.Mockito.when;
 public class FluxzeroSpringConfigTest {
     private static final User mockUser = mock(User.class);
     private static final UserProvider mockUserProvider = mock(UserProvider.class);
+    private static final List<String> shutdownOrder = new CopyOnWriteArrayList<>();
 
     static {
         when(mockUserProvider.fromMessage(any(DeserializingMessage.class))).thenReturn(mockUser);
@@ -228,6 +236,18 @@ public class FluxzeroSpringConfigTest {
         }
     }
 
+    @Test
+    void stopsTrackingBeforeClosingSpringBeansAndFluxzero() {
+        shutdownOrder.clear();
+        try (var context = new AnnotationConfigApplicationContext()) {
+            context.getEnvironment().getPropertySources().addFirst(
+                    new MapPropertySource("lifecycleTest", Map.of("lifecycleTest", "true")));
+            context.register(LifecycleConfig.class);
+            context.refresh();
+        }
+        assertEquals(List.of("registration", "tracker", "fluxzero"), shutdownOrder);
+    }
+
     private void assertRegisteredAsPrototype(Class<?> type) {
         assertTrue(beanFactory.getBeansOfType(FluxzeroPrototype.class).values().stream()
                            .anyMatch(prototype -> prototype.getType().equals(type)),
@@ -357,6 +377,42 @@ public class FluxzeroSpringConfigTest {
     }
 
     static class MissingDependency {
+    }
+
+    static class TrackerShutdownProbe implements AutoCloseable {
+        @Override
+        public void close() {
+            shutdownOrder.add("tracker");
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty("lifecycleTest")
+    @Import(FluxzeroSpringConfig.class)
+    static class LifecycleConfig {
+        @Bean
+        TrackerShutdownProbe trackerShutdownProbe() {
+            return new TrackerShutdownProbe();
+        }
+
+        @Bean
+        Client client() {
+            return mock(Client.class);
+        }
+
+        @Bean
+        @Primary
+        FluxzeroBuilder lifecycleBuilder(TrackerShutdownProbe trackerShutdownProbe) {
+            Fluxzero fluxzero = mock(Fluxzero.class);
+            when(fluxzero.registerHandlers(anyList())).thenReturn(() -> shutdownOrder.add("registration"));
+            doAnswer(invocation -> {
+                shutdownOrder.add("fluxzero");
+                return null;
+            }).when(fluxzero).close();
+            FluxzeroBuilder builder = mock(FluxzeroBuilder.class);
+            when(builder.build(any(Client.class))).thenReturn(fluxzero);
+            return builder;
+        }
     }
 
     @Configuration

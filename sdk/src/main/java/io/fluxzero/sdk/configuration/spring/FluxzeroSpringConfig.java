@@ -40,11 +40,13 @@ import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import io.fluxzero.sdk.web.WebResponseMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.context.support.GenericApplicationContext;
@@ -86,7 +88,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
  */
 @Configuration
 @Slf4j
-public class FluxzeroSpringConfig implements BeanPostProcessor {
+public class FluxzeroSpringConfig implements BeanPostProcessor, DisposableBean {
 
     /**
      * Registers the {@link TrackSelfPostProcessor}, which supports payload classes that track and handle their own
@@ -124,6 +126,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
     private final ApplicationContext context;
     private final Set<Object> springBeans = new CopyOnWriteArraySet<>();
     private final AtomicReference<Registration> handlerRegistration = new AtomicReference<>();
+    private final AtomicReference<Fluxzero> managedFluxzero = new AtomicReference<>();
 
     /**
      * Stores a reference to the Spring context and prepares for handler detection.
@@ -163,6 +166,17 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
         }
         if (event.getApplicationContext() instanceof GenericApplicationContext) {
             ((GenericApplicationContext) event.getApplicationContext()).start();
+        }
+    }
+
+    /**
+     * Stops handler tracking as soon as the owning application context starts closing, while Fluxzero and the
+     * Spring-managed handlers are still available.
+     */
+    @EventListener
+    public void handle(ContextClosedEvent event) {
+        if (event.getApplicationContext() == context) {
+            cancelHandlerRegistration();
         }
     }
 
@@ -213,7 +227,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
      * {@link Client} or falling back to either a {@link WebSocketClient} or {@link LocalClient} depending on presence
      * of configuration properties.
      */
-    @Bean
+    @Bean(destroyMethod = "")
     @ConditionalOnMissingBean
     public Fluxzero fluxzero(FluxzeroBuilder builder, List<FluxzeroCustomizer> customizers) {
         return getBean(Fluxzero.class).orElseGet(() -> {
@@ -237,8 +251,28 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
                     .reduce((first, second) -> b -> second.customize(first.customize(b)))
                     .orElse(b -> b);
 
-            return customizer.customize(builder).build(client);
+            Fluxzero result = customizer.customize(builder).build(client);
+            managedFluxzero.set(result);
+            return result;
         });
+    }
+
+    /**
+     * Stops Spring-managed handlers before closing the Fluxzero instance created by this configuration. The
+     * configuration is a {@link BeanPostProcessor} and is therefore instantiated before regular application beans;
+     * Spring destroys it after those beans. This keeps Fluxzero available while their destruction callbacks run.
+     */
+    @Override
+    public void destroy() {
+        try {
+            cancelHandlerRegistration();
+        } finally {
+            Optional.ofNullable(managedFluxzero.getAndSet(null)).ifPresent(Fluxzero::close);
+        }
+    }
+
+    private void cancelHandlerRegistration() {
+        Optional.ofNullable(handlerRegistration.getAndSet(null)).ifPresent(Registration::cancel);
     }
 
     @Bean
