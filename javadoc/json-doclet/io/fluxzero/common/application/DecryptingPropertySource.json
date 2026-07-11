@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
   "fields" : [ {
+    "name" : "ENCRYPTION_INITIALIZATION_LOGGED",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource.ENCRYPTION_INITIALIZATION_LOGGED",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "decryptionCache",
     "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource.decryptionCache",
     "type" : "java.util.function.Function<java.lang.String,java.lang.String>",
