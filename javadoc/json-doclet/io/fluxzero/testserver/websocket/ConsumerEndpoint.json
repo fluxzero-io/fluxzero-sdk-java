@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "readRequestObserver",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint.readRequestObserver",
+    "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "topic",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint.topic",
     "type" : "java.lang.String",
@@ -133,6 +141,41 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a consumer endpoint backed by shared maintenance components for one message log.\n\n @param maintenance             the shared message log maintenance components\n @param messageType             the message type exposed by this endpoint\n @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types\n @param commandIdempotencyStore the idempotency store used for command handling\n"
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maintenance",
+      "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRequestObserver",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a consumer endpoint that reports each read after it has been registered with the tracking strategy.\n\n @param maintenance             the shared message log maintenance components\n @param messageType             the message type exposed by the endpoint\n @param topic                   the topic exposed by the endpoint, or {@code null} for non-topic message types\n @param commandIdempotencyStore the idempotency store used for command handling\n @param readRequestObserver     observer invoked after a read has been registered with the tracking strategy\n"
   }, {
     "name" : "ConsumerEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
@@ -313,6 +356,51 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a consumer endpoint from explicit tracking components.\n\n @param trackingStrategy        the tracking strategy backing reads and claims\n @param messageStore            the message store backing direct reads\n @param positionStore           the position store backing consumer positions\n @param messageType             the message type exposed by this endpoint\n @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types\n @param commandIdempotencyStore the idempotency store used for command handling\n"
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackingStrategy",
+      "type" : "io.fluxzero.common.tracking.TrackingStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRequestObserver",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "handle",

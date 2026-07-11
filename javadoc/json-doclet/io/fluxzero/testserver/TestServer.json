@@ -329,6 +329,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registerShutdownHook",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRequestObserver",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRequestObserver",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "stopServer",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#stopServer",
     "returnType" : "void",
