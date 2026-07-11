@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_COMPRESSION_ALGORITHMS"
   }, {
+    "name" : "DEFAULT_DRAIN_DELAY_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_DRAIN_DELAY_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 0
+  }, {
     "name" : "DEFAULT_IDLE_TIMEOUT_MILLIS",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_IDLE_TIMEOUT_MILLIS",
     "type" : "long",
@@ -85,6 +93,22 @@
     "documentation" : " Default Jetty minimum platform thread count.\n",
     "constantValue" : 8
   }, {
+    "name" : "DEFAULT_READINESS_ENDPOINT",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_READINESS_ENDPOINT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "/proxy/ready"
+  }, {
+    "name" : "DEFAULT_SHUTDOWN_TIMEOUT_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_SHUTDOWN_TIMEOUT_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 60000
+  }, {
     "name" : "DEFAULT_WEBSOCKET_IDLE_TIMEOUT_MILLIS",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_WEBSOCKET_IDLE_TIMEOUT_MILLIS",
     "type" : "long",
@@ -108,6 +132,14 @@
     "annotations" : [ ],
     "documentation" : " Default time allowed for receiving a proxy websocket keep-alive pong: 10 seconds\n",
     "constantValue" : 10000
+  }, {
+    "name" : "DRAIN_DELAY_MILLIS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DRAIN_DELAY_MILLIS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_DRAIN_DELAY_MILLIS"
   }, {
     "name" : "GRACEFUL_STOP_TIMEOUT_MILLIS",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.GRACEFUL_STOP_TIMEOUT_MILLIS",
@@ -205,6 +237,54 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_MIN_THREADS"
   }, {
+    "name" : "NOT_READY_PAYLOAD",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.NOT_READY_PAYLOAD",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "NOT_READY_PAYLOAD_LENGTH",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.NOT_READY_PAYLOAD_LENGTH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "READINESS_ENDPOINT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.READINESS_ENDPOINT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "PROXY_READINESS_ENDPOINT"
+  }, {
+    "name" : "READY_PAYLOAD",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.READY_PAYLOAD",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "READY_PAYLOAD_LENGTH",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.READY_PAYLOAD_LENGTH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "SHUTDOWN_TIMEOUT_MILLIS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_SHUTDOWN_TIMEOUT_MILLIS"
+  }, {
     "name" : "UNLIMITED_WEBSOCKET_SIZE",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.UNLIMITED_WEBSOCKET_SIZE",
     "type" : "long",
@@ -253,9 +333,41 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "drainDelay",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.drainDelay",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "forceShutdown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.forceShutdown",
+    "type" : "java.lang.Runnable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "gracefulShutdown",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.gracefulShutdown",
     "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lifecycleState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.lifecycleState",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.proxy.ProxyServer.LifecycleState>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ownedClientShutdown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.ownedClientShutdown",
+    "type" : "io.fluxzero.common.Registration",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -280,6 +392,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "readinessThread",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.readinessThread",
+    "type" : "java.lang.Thread",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "server",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.server",
     "type" : "org.eclipse.jetty.server.Server",
@@ -291,6 +411,14 @@
     "name" : "shutdownRegistration",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.shutdownRegistration",
     "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "shutdownTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.shutdownTimeout",
+    "type" : "java.time.Duration",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -323,8 +451,33 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "forceShutdown",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ownedClientShutdown",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "gracefulShutdown",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifecycleState",
+      "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.proxy.ProxyServer.LifecycleState>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "drainDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "shutdownTimeout",
+      "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -333,6 +486,43 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "awaitBackendShutdown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#awaitBackendShutdown",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "backendShutdown",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitDrainDelay",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#awaitDrainDelay",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cancel",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#cancel",
     "returnType" : "void",
@@ -359,6 +549,28 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "configuredDrainDelay",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#configuredDrainDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "configuredShutdownTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#configuredShutdownTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -404,6 +616,16 @@
     }, {
       "name" : "healthEndpoint",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readinessEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifecycleState",
+      "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.proxy.ProxyServer.LifecycleState>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -543,6 +765,33 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "idempotent",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#idempotent",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isReady",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#isReady",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the proxy has reached runtime readiness and is not draining.\n"
+  }, {
     "name" : "isUsingVirtualThreads",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#isUsingVirtualThreads",
     "returnType" : "boolean",
@@ -586,6 +835,38 @@
     "varArgs" : false,
     "documentation" : " Standalone process entry point.\n\n <p>Do not call this method to embed the proxy in another application. Use {@link #start()} instead so the caller\n owns the proxy lifecycle and shutdown order.</p>\n"
   }, {
+    "name" : "probeRuntimeReadiness",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#probeRuntimeReadiness",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remainingMillis",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#remainingMillis",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#start",
     "returnType" : "io.fluxzero.proxy.ProxyServer",
@@ -595,7 +876,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Starts an embedded proxy server using the configured port and runtime base URL.\n\n <p>The port is resolved from {@code FLUXZERO_PROXY_PORT}, {@code PROXY_PORT}, or {@code 8080}, in that order. The\n Fluxzero runtime URL is resolved from {@code FLUXZERO_BASE_URL}, {@code FLUX_BASE_URL}, or {@code FLUX_URL}, in\n that order. The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop\n all embedded proxy resources by calling {@link #cancel()}.</p>\n\n <p>This method does not register a JVM shutdown hook, create a Fluxzero keepalive thread, or set a global Fluxzero\n application instance. Use {@link #main(String[])} for standalone process startup.</p>\n\n @return a ProxyServer instance representing the started proxy server and owned embedded resources\n"
+    "documentation" : " Starts an embedded proxy server using the configured port and runtime base URL.\n\n <p>The port is resolved from {@code FLUXZERO_PROXY_PORT}, {@code PROXY_PORT}, or {@code 8080}, in that order. The\n Fluxzero runtime URL is resolved from {@code FLUXZERO_BASE_URL}, {@code FLUX_BASE_URL}, or {@code FLUX_URL}, in\n that order. The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop\n all embedded proxy resources by calling {@link #cancel()}.</p>\n\n <p>This method does not register a JVM shutdown hook, create a Fluxzero keepalive thread, or set a global\n Fluxzero application instance. Use {@link #main(String[])} for standalone process startup.</p>\n\n @return a ProxyServer instance representing the started proxy server and owned embedded resources\n"
   }, {
     "name" : "startHttpProxyOnly",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
@@ -622,10 +903,7 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
     "returnType" : "io.fluxzero.proxy.ProxyServer",
     "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "port",
@@ -643,8 +921,59 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "forceShutdown",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ownedClientShutdown",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "gracefulShutdown",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialState",
+      "type" : "io.fluxzero.proxy.ProxyServer.LifecycleState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "writeStatus",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#writeStatus",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "org.eclipse.jetty.server.Response",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "org.eclipse.jetty.util.Callback",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "status",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadLength",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -654,5 +983,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "LifecycleState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer$LifecycleState",
+    "kind" : "enum",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

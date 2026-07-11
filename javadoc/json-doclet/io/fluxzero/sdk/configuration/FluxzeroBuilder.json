@@ -234,6 +234,17 @@
     "varArgs" : false,
     "documentation" : " Disables support for dynamically injected dispatch interceptors.\n"
   }, {
+    "name" : "disableApplicationLifecycleMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableApplicationLifecycleMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables automatic application lifecycle metrics.\n <p>\n By default, a fully constructed Fluxzero application asynchronously publishes a startup metric that confirms it\n can reach a Fluxzero Runtime metrics endpoint. A matching stopping metric is attempted during controlled\n shutdown. Test fixtures disable these infrastructure metrics automatically.\n"
+  }, {
     "name" : "disableAutomaticAggregateCaching",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAutomaticAggregateCaching",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

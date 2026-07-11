@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer",
     "kind" : "class"
   }, {
+    "file" : "ForwardProxyConsumer.Lifecycle.json",
+    "name" : "ForwardProxyConsumer.Lifecycle",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$Lifecycle",
+    "kind" : "class"
+  }, {
     "file" : "JettyProxyWebsocketAdapter.json",
     "name" : "JettyProxyWebsocketAdapter",
     "qualifiedName" : "io.fluxzero.proxy.JettyProxyWebsocketAdapter",
@@ -84,6 +89,11 @@
     "name" : "ProxyServer",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer",
     "kind" : "class"
+  }, {
+    "file" : "ProxyServer.LifecycleState.json",
+    "name" : "ProxyServer.LifecycleState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer$LifecycleState",
+    "kind" : "enum"
   }, {
     "file" : "ProxyWebsocketBackpressureEvent.json",
     "name" : "ProxyWebsocketBackpressureEvent",

@@ -21,9 +21,33 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "TRACKER_THREAD_STOP_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.TRACKER_THREAD_STOP_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "autoStorePosition",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.autoStorePosition",
     "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cancellationCompleted",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.cancellationCompleted",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cancellationRequested",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.cancellationRequested",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -181,6 +205,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "awaitCancellation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#awaitCancellation",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"BusyWait\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threadStopDeadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cancel",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#cancel",
     "returnType" : "void",
@@ -211,6 +256,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "cancellationRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#cancellationRegistration",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackers",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.client.DefaultTracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "causedByInterruption",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#causedByInterruption",
     "returnType" : "boolean",
@@ -223,6 +284,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeCancellation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#completeCancellation",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -367,6 +439,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestCancellation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#requestCancellation",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

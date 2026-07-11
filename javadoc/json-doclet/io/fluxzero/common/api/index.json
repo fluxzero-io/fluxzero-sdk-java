@@ -10,6 +10,16 @@
     "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult",
     "kind" : "class"
   }, {
+    "file" : "ApplicationLifecycleEvent.json",
+    "name" : "ApplicationLifecycleEvent",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent",
+    "kind" : "class"
+  }, {
+    "file" : "ApplicationLifecycleEvent.Phase.json",
+    "name" : "ApplicationLifecycleEvent.Phase",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent$Phase",
+    "kind" : "enum"
+  }, {
     "file" : "BooleanResult.json",
     "name" : "BooleanResult",
     "qualifiedName" : "io.fluxzero.common.api.BooleanResult",
