@@ -14,7 +14,7 @@
   "documentation" : " Spring configuration class for automatically wiring and initializing common Fluxzero components in a Spring\n application context.\n <p>\n This configuration simplifies the integration of Fluxzero by:\n <ul>\n     <li>Registering {@code @Handle...} annotated beans as handlers after the context is refreshed</li>\n     <li>Auto-detecting and registering upcasters and downcasters with the {@link Serializer}</li>\n     <li>Providing default implementations for core interfaces like {@link CommandGateway}, {@link Serializer}, and {@link MessageScheduler}</li>\n </ul>\n <p>\n Note that Fluxzero does not require Spring, and this class is entirely optional.\n It exists purely to reduce boilerplate in Spring-based applications.\n\n <p>The simplest way to enable this configuration in a Spring Boot application, is by annotating your main application\n class with:\n <pre>{@code\n @SpringBootApplication\n @Import(FluxzeroSpringConfig.class)\n }</pre>\n\n @see Fluxzero\n @see FluxzeroBuilder\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "org.springframework.beans.factory.config.BeanPostProcessor" ],
+  "interfaces" : [ "org.springframework.beans.factory.DisposableBean", "org.springframework.beans.factory.config.BeanPostProcessor" ],
   "fields" : [ {
     "name" : "context",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig.context",
@@ -27,6 +27,14 @@
     "name" : "handlerRegistration",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig.handlerRegistration",
     "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.common.Registration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "managedFluxzero",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig.managedFluxzero",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.sdk.Fluxzero>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -82,6 +90,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "cancelHandlerRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#cancelHandlerRegistration",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "commandGateway",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#commandGateway",
     "returnType" : "io.fluxzero.sdk.publishing.CommandGateway",
@@ -103,6 +122,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "destroy",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#destroy",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stops Spring-managed handlers before closing the Fluxzero instance created by this configuration. The\n configuration is a {@link BeanPostProcessor} and is therefore instantiated before regular application beans;\n Spring destroys it after those beans. This keeps Fluxzero available while their destruction callbacks run.\n"
   }, {
     "name" : "documentStore",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#documentStore",
@@ -176,7 +209,9 @@
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "org.springframework.context.annotation.Bean",
-      "values" : {}
+      "values" : {
+        "destroyMethod" : ""
+      }
     }, {
       "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
       "values" : {}
@@ -259,6 +294,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#handle",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.event.EventListener",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "org.springframework.context.event.ContextClosedEvent",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stops handler tracking as soon as the owning application context starts closing, while Fluxzero and the\n Spring-managed handlers are still available.\n"
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#handle",
