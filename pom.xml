@@ -47,6 +47,7 @@
         <jakarta.validation.version>3.1.1</jakarta.validation.version>
         <kotlin.version>2.4.0</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
+        <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
         <argLine/>
@@ -185,11 +186,12 @@
                             <fluxzero.maven.enabled>true</fluxzero.maven.enabled>
                         </systemPropertyVariables>
                         <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                        <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
                         <properties>
                             <configurationParameters>
                                 junit.jupiter.execution.parallel.enabled = true
                                 junit.jupiter.execution.parallel.config.strategy = fixed
-                                junit.jupiter.execution.parallel.config.fixed.parallelism = 2
+                                junit.jupiter.execution.parallel.config.fixed.parallelism = ${junit.parallelism}
                                 junit.jupiter.execution.parallel.mode.default = same_thread
                                 junit.jupiter.execution.parallel.mode.classes.default = concurrent
                             </configurationParameters>

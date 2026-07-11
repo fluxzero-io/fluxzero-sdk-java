@@ -20,13 +20,17 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.SubstituteLogger;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultMemberInvokerTest {
@@ -76,7 +80,7 @@ class DefaultMemberInvokerTest {
 
     @Test
     void readsAnnotationAttributeFromDifferentClassLoaderWithoutLambdaWarning() throws Exception {
-        Logger logger = (Logger) LoggerFactory.getLogger(DefaultMemberInvoker.class);
+        Logger logger = awaitLogbackLogger(DefaultMemberInvoker.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
@@ -102,6 +106,17 @@ class DefaultMemberInvokerTest {
 
         assertTrue(appender.list.stream().noneMatch(event -> event.getFormattedMessage()
                 .contains("Failed to create lambda type method invoke")));
+    }
+
+    private static Logger awaitLogbackLogger(Class<?> type) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        org.slf4j.Logger logger = LoggerFactory.getLogger(type);
+        // Concurrent first access may legitimately receive SLF4J's temporary logger while Logback initializes.
+        while (logger instanceof SubstituteLogger && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+            logger = LoggerFactory.getLogger(type);
+        }
+        return assertInstanceOf(Logger.class, logger, "SLF4J did not finish initializing Logback");
     }
 
     private @interface IsolatedAnnotation {
