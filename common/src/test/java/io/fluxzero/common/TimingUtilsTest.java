@@ -141,6 +141,27 @@ class TimingUtilsTest {
     }
 
     @Test
+    void exponentialBackoffDoublesDelayUntilMaximum() {
+        RetryConfiguration configuration = RetryConfiguration.builder()
+                .delayFunction(RetryConfiguration.exponentialBackoff(Duration.ofSeconds(10), Duration.ofMinutes(1)))
+                .build();
+
+        assertEquals(Duration.ofSeconds(10), configuration.resolveDelay(retryStatus(configuration, 0)));
+        assertEquals(Duration.ofSeconds(20), configuration.resolveDelay(retryStatus(configuration, 1)));
+        assertEquals(Duration.ofSeconds(40), configuration.resolveDelay(retryStatus(configuration, 2)));
+        assertEquals(Duration.ofMinutes(1), configuration.resolveDelay(retryStatus(configuration, 3)));
+        assertEquals(Duration.ofMinutes(1), configuration.resolveDelay(retryStatus(configuration, 100)));
+    }
+
+    @Test
+    void exponentialBackoffRejectsInvalidBounds() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> RetryConfiguration.exponentialBackoff(Duration.ZERO, Duration.ofSeconds(1)));
+        assertThrows(IllegalArgumentException.class,
+                     () -> RetryConfiguration.exponentialBackoff(Duration.ofSeconds(2), Duration.ofSeconds(1)));
+    }
+
+    @Test
     void retryOnFailureDoesNotCallSuccessLoggerWhenTaskSucceedsImmediately() {
         AtomicInteger successLogCalls = new AtomicInteger();
 
@@ -207,6 +228,13 @@ class TimingUtilsTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    private static RetryStatus retryStatus(RetryConfiguration configuration, int retryCount) {
+        return RetryStatus.builder()
+                .retryConfiguration(configuration)
+                .numberOfTimesRetried(retryCount)
+                .build();
     }
 
 }

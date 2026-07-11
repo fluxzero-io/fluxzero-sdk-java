@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.sdk.common.exception.FunctionalException;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.function.Function;
@@ -31,7 +32,7 @@ import java.util.function.Predicate;
  * <p><strong>Behavior:</strong>
  * <ul>
  *     <li>Applies retry logic to all errors that match the provided {@code errorFilter} (default: non-functional errors).</li>
- *     <li>Waits a fixed {@link Duration} between attempts (default: 10 seconds).</li>
+ *     <li>Uses capped exponential backoff by default, starting at 10 seconds and capped at 1 minute.</li>
  *     <li>Never stops the consumer or throws — tracking continues until the retry succeeds.</li>
  *     <li>Logs retry attempts and outcomes via inherited {@link RetryConfiguration}.</li>
  * </ul>
@@ -58,14 +59,15 @@ import java.util.function.Predicate;
  * @see ErrorHandler
  * @see FunctionalException
  */
+@Slf4j
 public class ForeverRetryingErrorHandler extends RetryingErrorHandler {
 
     /**
-     * Constructs a {@code ForeverRetryingErrorHandler} with a default 10-second delay between attempts,
-     * retrying non-functional errors and logging both functional and technical failures.
+     * Constructs a {@code ForeverRetryingErrorHandler} with capped exponential backoff, starting at 10 seconds and
+     * capped at 1 minute, retrying non-functional errors and logging both functional and technical failures.
      */
     public ForeverRetryingErrorHandler() {
-        this(Duration.ofSeconds(10), e -> !(e instanceof FunctionalException), true, e -> e);
+        this(defaultRetryConfiguration(), e -> !(e instanceof FunctionalException), true);
     }
 
     /**
@@ -78,6 +80,47 @@ public class ForeverRetryingErrorHandler extends RetryingErrorHandler {
      */
     public ForeverRetryingErrorHandler(Duration delay, Predicate<Throwable> errorFilter, boolean logFunctionalErrors,
                                        Function<Throwable, ?> errorMapper) {
-        super(-1, delay, errorFilter, false, logFunctionalErrors, errorMapper);
+        this(fixedRetryConfiguration(delay, errorMapper), errorFilter, logFunctionalErrors);
+    }
+
+    /**
+     * Constructs a {@code ForeverRetryingErrorHandler} with a custom retry configuration, retrying non-functional
+     * errors and logging both functional and technical failures.
+     *
+     * @param retryConfiguration retry delay strategy, logging callbacks, and error mapping
+     */
+    public ForeverRetryingErrorHandler(RetryConfiguration retryConfiguration) {
+        this(retryConfiguration, e -> !(e instanceof FunctionalException), true);
+    }
+
+    /**
+     * Constructs a {@code ForeverRetryingErrorHandler} with a custom retry configuration. The configured maximum
+     * number of retries is ignored and changed to unlimited to preserve the contract of this handler.
+     *
+     * @param retryConfiguration  retry delay strategy, logging callbacks, and error mapping
+     * @param errorFilter         predicate to select which errors should trigger retries
+     * @param logFunctionalErrors whether to log functional errors
+     */
+    public ForeverRetryingErrorHandler(RetryConfiguration retryConfiguration, Predicate<Throwable> errorFilter,
+                                       boolean logFunctionalErrors) {
+        super(errorFilter, false, logFunctionalErrors, retryConfiguration.toBuilder().maxRetries(-1).build());
+    }
+
+    private static RetryConfiguration defaultRetryConfiguration() {
+        return baseRetryConfigurationBuilder()
+                .delayFunction(RetryConfiguration.exponentialBackoff(Duration.ofSeconds(10), Duration.ofMinutes(1)))
+                .build();
+    }
+
+    private static RetryConfiguration fixedRetryConfiguration(Duration delay, Function<Throwable, ?> errorMapper) {
+        return baseRetryConfigurationBuilder().delay(delay).errorMapper(errorMapper).build();
+    }
+
+    private static RetryConfiguration.Builder baseRetryConfigurationBuilder() {
+        return RetryConfiguration.builder()
+                .successLogger(status -> log.info("Message handling was successful after {} {}",
+                                                  status.getNumberOfTimesRetried(),
+                                                  status.getNumberOfTimesRetried() == 1 ? "retry" : "retries"))
+                .exceptionLogger(status -> {});
     }
 }

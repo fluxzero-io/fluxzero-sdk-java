@@ -149,6 +149,26 @@ public class RetryingErrorHandlerTest {
         assertEquals(2, successStatus.get().getNumberOfTimesRetried());
     }
 
+    @Test
+    void foreverRetryingErrorHandlerUsesCustomRetryConfigurationWithoutRetryLimit() {
+        AtomicReference<RetryStatus> delayStatus = new AtomicReference<>();
+        RetryConfiguration configuration = RetryConfiguration.builder()
+                .delay(Duration.ofSeconds(1))
+                .delayFunction(status -> {
+                    delayStatus.set(status);
+                    return Duration.ZERO;
+                })
+                .maxRetries(0)
+                .exceptionLogger(status -> {})
+                .build();
+        ForeverRetryingErrorHandler subject = new ForeverRetryingErrorHandler(configuration);
+
+        assertEquals("success", subject.handleError(new IllegalStateException("mock exception"), "mock exception",
+                                                    new Repairable("success", 1)));
+        assertEquals(0, delayStatus.get().getNumberOfTimesRetried());
+        assertEquals(-1, delayStatus.get().getRetryConfiguration().getMaxRetries());
+    }
+
     @Nested
     class RetryingConsumerTests {
 

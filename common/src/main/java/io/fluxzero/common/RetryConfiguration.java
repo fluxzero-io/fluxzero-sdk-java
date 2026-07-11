@@ -35,7 +35,7 @@ import java.util.function.Predicate;
  * <h2>Usage Example</h2>
  * <pre>{@code
  * RetryConfiguration config = RetryConfiguration.builder()
- *     .delay(Duration.ofSeconds(2))
+ *     .delayFunction(RetryConfiguration.exponentialBackoff(Duration.ofSeconds(2), Duration.ofMinutes(1)))
  *     .maxRetries(5)
  *     .errorTest(e -> e instanceof IOException)
  *     .build();
@@ -64,7 +64,8 @@ public class RetryConfiguration {
      *
      * @see RetryStatus
      */
-    Function<RetryStatus, Duration> delayFunction;
+    @Default
+    Function<RetryStatus, Duration> delayFunction = status -> status.getRetryConfiguration().getDelay();
 
     /**
      * The maximum number of retries allowed before failing permanently.
@@ -120,11 +121,13 @@ public class RetryConfiguration {
      */
     @Default
     Consumer<RetryStatus> exceptionLogger = status -> {
-        if (status.getNumberOfTimesRetried() == 0) {
-            log.error("Task {} failed. Retrying every {} ms...",
-                      status.getTask(), status.getRetryConfiguration().resolveDelay(status).toMillis(), status.getException());
-        } else if (status.getNumberOfTimesRetried() >= status.getRetryConfiguration().getMaxRetries()) {
+        if (status.getRetryConfiguration().getMaxRetries() >= 0
+            && status.getNumberOfTimesRetried() >= status.getRetryConfiguration().getMaxRetries()) {
             log.error("Task {} failed permanently. Not retrying.", status.getTask(), status.getException());
+        } else if (status.getNumberOfTimesRetried() == 0) {
+            log.error("Task {} failed. Retrying in {} ms...",
+                      status.getTask(), status.getRetryConfiguration().resolveDelay(status).toMillis(),
+                      status.getException());
         }
     };
 
@@ -150,5 +153,35 @@ public class RetryConfiguration {
         }
         Duration computed = delayFunction.apply(status);
         return computed != null ? computed : delay;
+    }
+
+    /**
+     * Creates a capped exponential backoff strategy. The first retry uses {@code initialDelay}; each subsequent delay
+     * doubles until {@code maxDelay} is reached.
+     *
+     * @param initialDelay delay before the first retry
+     * @param maxDelay     upper bound for all retry delays
+     * @return a delay function suitable for {@link #delayFunction}
+     */
+    public static Function<RetryStatus, Duration> exponentialBackoff(@NonNull Duration initialDelay,
+                                                                      @NonNull Duration maxDelay) {
+        if (initialDelay.isZero() || initialDelay.isNegative()) {
+            throw new IllegalArgumentException("Initial retry delay must be positive");
+        }
+        if (maxDelay.compareTo(initialDelay) < 0) {
+            throw new IllegalArgumentException("Maximum retry delay must not be shorter than the initial delay");
+        }
+        return status -> computeExponentialDelay(initialDelay, maxDelay, status.getNumberOfTimesRetried());
+    }
+
+    private static Duration computeExponentialDelay(Duration initialDelay, Duration maxDelay, int retryCount) {
+        Duration result = initialDelay;
+        for (int i = 0; i < retryCount && result.compareTo(maxDelay) < 0; i++) {
+            if (result.compareTo(maxDelay.dividedBy(2)) > 0) {
+                return maxDelay;
+            }
+            result = result.multipliedBy(2);
+        }
+        return result.compareTo(maxDelay) > 0 ? maxDelay : result;
     }
 }
