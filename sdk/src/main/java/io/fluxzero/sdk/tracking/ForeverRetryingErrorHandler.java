@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.RetryConfiguration;
+import io.fluxzero.common.RetryStatus;
 import io.fluxzero.sdk.common.exception.FunctionalException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -107,20 +108,24 @@ public class ForeverRetryingErrorHandler extends RetryingErrorHandler {
     }
 
     private static RetryConfiguration defaultRetryConfiguration() {
-        return baseRetryConfigurationBuilder()
+        return RetryConfiguration.builder()
                 .delayFunction(RetryConfiguration.exponentialBackoff(Duration.ofSeconds(10), Duration.ofMinutes(1)))
+                .successLogger(ForeverRetryingErrorHandler::logRetrySuccess)
+                .exceptionLogger(status -> {})
                 .build();
     }
 
     private static RetryConfiguration fixedRetryConfiguration(Duration delay, Function<Throwable, ?> errorMapper) {
-        return baseRetryConfigurationBuilder().delay(delay).errorMapper(errorMapper).build();
+        return RetryConfiguration.builder()
+                .delay(delay)
+                .errorMapper(errorMapper)
+                .successLogger(ForeverRetryingErrorHandler::logRetrySuccess)
+                .exceptionLogger(status -> {})
+                .build();
     }
 
-    private static RetryConfiguration.Builder baseRetryConfigurationBuilder() {
-        return RetryConfiguration.builder()
-                .successLogger(status -> log.info("Message handling was successful after {} {}",
-                                                  status.getNumberOfTimesRetried(),
-                                                  status.getNumberOfTimesRetried() == 1 ? "retry" : "retries"))
-                .exceptionLogger(status -> {});
+    private static void logRetrySuccess(RetryStatus status) {
+        log.info("Message handling was successful after {} {}", status.getNumberOfTimesRetried(),
+                 status.getNumberOfTimesRetried() == 1 ? "retry" : "retries");
     }
 }
