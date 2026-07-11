@@ -15,9 +15,15 @@
 
 package io.fluxzero.common.application;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.encryption.DefaultEncryption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.common.TestUtils.runWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,5 +39,29 @@ class DecryptingPropertySourceTest {
             assertEquals("bar", source.get("encrypted"));
         }, "ENCRYPTION_KEY", encryption.getEncryptionKey(),
                                 "encrypted", encryption.encrypt("bar"));
+    }
+
+    @Test
+    void logsEncryptionInitializationOnlyOnce() throws ReflectiveOperationException {
+        Logger logger = (Logger) LoggerFactory.getLogger(DecryptingPropertySource.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        var loggingGuardField = DecryptingPropertySource.class.getDeclaredField("ENCRYPTION_INITIALIZATION_LOGGED");
+        loggingGuardField.setAccessible(true);
+        AtomicBoolean loggingGuard = (AtomicBoolean) loggingGuardField.get(null);
+        boolean previousState = loggingGuard.getAndSet(false);
+        try {
+            for (int i = 0; i < 10; i++) {
+                new DecryptingPropertySource(name -> null, encryption.getEncryptionKey());
+            }
+        } finally {
+            loggingGuard.set(previousState);
+            logger.detachAppender(appender);
+        }
+
+        assertEquals(1, appender.list.stream()
+                .filter(event -> "Initializing DefaultEncryption from key".equals(event.getFormattedMessage()))
+                .count());
     }
 }

@@ -22,6 +22,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
@@ -51,6 +52,9 @@ import static io.fluxzero.common.ObjectUtils.memoize;
  */
 @Slf4j
 public class DecryptingPropertySource implements PropertySource {
+    // ApplicationProperties may create multiple temporary wrappers while Fluxzero is bootstrapping.
+    private static final AtomicBoolean ENCRYPTION_INITIALIZATION_LOGGED = new AtomicBoolean();
+
     private final PropertySource delegate;
 
     /**
@@ -83,8 +87,11 @@ public class DecryptingPropertySource implements PropertySource {
         this(delegate, Optional.ofNullable(encryptionKey)
                 .map(encodedKey -> {
                     try {
-                        log.info("Initializing DefaultEncryption from key");
-                        return DefaultEncryption.fromEncryptionKey(encodedKey);
+                        Encryption result = DefaultEncryption.fromEncryptionKey(encodedKey);
+                        if (ENCRYPTION_INITIALIZATION_LOGGED.compareAndSet(false, true)) {
+                            log.info("Initializing DefaultEncryption from key");
+                        }
+                        return result;
                     } catch (Exception e) {
                         log.error("Could not construct DefaultEncryption from environment variable "
                                   + "`ENCRYPTION_KEY`");
