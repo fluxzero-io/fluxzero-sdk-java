@@ -23,6 +23,17 @@
   } ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "hasCompatiblePreparedContract",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#hasCompatiblePreparedContract",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "interceptHandling",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#interceptHandling",
     "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
@@ -43,6 +54,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Intercepts the message handling logic.\n <p>\n The {@code function} parameter represents the next step in the handling chain— typically the actual message\n handler. The {@code invoker} provides metadata and invocation logic for the underlying handler method.\n </p>\n\n <p>\n Within this method, an interceptor may:\n <ul>\n   <li>Modify the {@code DeserializingMessage} before passing it to the handler</li>\n   <li>Bypass the handler entirely and return a value directly</li>\n   <li>Wrap the result after the handler is invoked</li>\n </ul>\n\n <p>\n Note: Interceptors may return a different {@code DeserializingMessage}, but it must be compatible\n with a handler method in the same target class. If no suitable handler is found, an exception will be thrown.\n </p>\n\n @param function the next step in the handler chain (typically the handler itself)\n @param invoker  the metadata and execution strategy for the actual handler method\n @return a decorated function that wraps handling behavior\n"
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#prepare",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInterceptor",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares this interceptor for a specific handler method.\n\n <p>The returned interceptor is cached and reused concurrently for invocations with the same stable handler\n metadata. Implementations may use this hook to resolve annotation- or signature-based policy once while keeping\n message-dependent decisions inside {@link PreparedHandlerInterceptor#interceptHandling}.</p>\n\n <p>The default adapter preserves the existing {@link #interceptHandling(Function, HandlerInvoker)} contract and\n deliberately disables the reusable {@link HandlerMethod} path. Custom interceptors therefore retain their\n current behavior unless they explicitly opt into preparation.</p>\n\n @param handler stable metadata for the handler method\n @return a thread-safe prepared interceptor\n"
+  }, {
+    "name" : "supportsPreparation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#supportsPreparation",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether this interceptor opts into the prepared, mergeable handler wrapper.\n\n <p>The default is {@code false}, preserving the exact wrapper behavior of existing custom interceptors. An\n interceptor should return {@code true} only when {@link #prepare(HandlerDescriptor)} returns a thread-safe plan\n that fully represents its handling behavior. If a subclass overrides only the legacy\n {@link #interceptHandling(Function, HandlerInvoker)} method, the legacy wrapper is retained automatically.</p>\n\n @return {@code true} when this interceptor may be merged into a prepared wrapper\n"
   }, {
     "name" : "wrap",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#wrap",
@@ -67,9 +105,30 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$InterceptedHandler",
     "kind" : "class",
     "modifiers" : [ "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedHandlerFunction",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
     "annotations" : [ {
-      "annotationType" : "lombok.AllArgsConstructor",
+      "annotationType" : "java.lang.FunctionalInterface",
       "values" : {}
     } ]
+  }, {
+    "name" : "PreparedHandlerInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "PreparedInterceptedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ]
   } ]
 }

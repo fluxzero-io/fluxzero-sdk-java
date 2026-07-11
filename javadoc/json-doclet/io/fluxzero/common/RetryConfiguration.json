@@ -17,7 +17,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Configuration for retry behavior when executing a task using {@link TimingUtils#retryOnFailure}.\n <p>\n This class encapsulates options such as retry delay, maximum number of retries, error filtering, and logging\n callbacks to be invoked on success or failure.\n\n <h2>Usage Example</h2>\n <pre>{@code\n RetryConfiguration config = RetryConfiguration.builder()\n     .delay(Duration.ofSeconds(2))\n     .maxRetries(5)\n     .errorTest(e -> e instanceof IOException)\n     .build();\n }</pre>\n\n @see TimingUtils#retryOnFailure(java.util.concurrent.Callable, RetryConfiguration)\n @see RetryStatus\n",
+  "documentation" : " Configuration for retry behavior when executing a task using {@link TimingUtils#retryOnFailure}.\n <p>\n This class encapsulates options such as retry delay, maximum number of retries, error filtering, and logging\n callbacks to be invoked on success or failure.\n\n <h2>Usage Example</h2>\n <pre>{@code\n RetryConfiguration config = RetryConfiguration.builder()\n     .delayFunction(RetryConfiguration.exponentialBackoff(Duration.ofSeconds(2), Duration.ofMinutes(1)))\n     .maxRetries(5)\n     .errorTest(e -> e instanceof IOException)\n     .build();\n }</pre>\n\n @see TimingUtils#retryOnFailure(java.util.concurrent.Callable, RetryConfiguration)\n @see RetryStatus\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -40,7 +40,10 @@
     "qualifiedName" : "io.fluxzero.common.RetryConfiguration.delayFunction",
     "type" : "java.util.function.Function<io.fluxzero.common.RetryStatus,java.time.Duration>",
     "modifiers" : [ ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
     "documentation" : " A function defining a strategy for determining the next delay duration between operation retries.\n <p>\n If the delay function is or returns {@code null}, {@link #getDelay()} will be used.\n\n @see RetryStatus\n",
     "constantValue" : null
   }, {
@@ -133,6 +136,59 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "computeExponentialDelay",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration#computeExponentialDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "initialDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retryCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "exponentialBackoff",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration#exponentialBackoff",
+    "returnType" : "java.util.function.Function<io.fluxzero.common.RetryStatus,java.time.Duration>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "initialDelay",
+      "type" : "java.time.@lombok.NonNull Duration",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "maxDelay",
+      "type" : "java.time.@lombok.NonNull Duration",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a capped exponential backoff strategy. The first retry uses {@code initialDelay}; each subsequent delay\n doubles until {@code maxDelay} is reached.\n\n @param initialDelay delay before the first retry\n @param maxDelay     upper bound for all retry delays\n @return a delay function suitable for {@link #delayFunction}\n"
+  }, {
     "name" : "resolveDelay",
     "qualifiedName" : "io.fluxzero.common.RetryConfiguration#resolveDelay",
     "returnType" : "java.time.Duration",

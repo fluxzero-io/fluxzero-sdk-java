@@ -1,0 +1,78 @@
+{
+  "name" : "PreparedHandlerFunction",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Remaining portion of a prepared handler interceptor chain.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction#apply",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "combiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Proceeds to the remaining chain with an unchanged message.\n\n @param message  current message\n @param handler  resolved handler descriptor\n @param combiner result combiner\n @return handling result\n"
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction#apply",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentMessage",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nextMessage",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "combiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Proceeds to the remaining chain, resolving it again when {@code nextMessage} differs from\n {@code currentMessage}.\n\n @param currentMessage message received by the current interceptor\n @param nextMessage    message passed to the remainder of the chain\n @param handler        resolved handler descriptor\n @param combiner       result combiner\n @return handling result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

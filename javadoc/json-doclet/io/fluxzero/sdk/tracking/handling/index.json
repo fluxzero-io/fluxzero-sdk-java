@@ -155,6 +155,41 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$InterceptedHandler",
     "kind" : "class"
   }, {
+    "file" : "HandlerInterceptor.PreparedHandlerFunction.json",
+    "name" : "HandlerInterceptor.PreparedHandlerFunction",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInterceptor.PreparedHandlerInterceptor.json",
+    "name" : "HandlerInterceptor.PreparedHandlerInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInterceptor.PreparedInterceptedHandler.json",
+    "name" : "HandlerInterceptor.PreparedInterceptedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptor.json",
+    "name" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedInterceptor",
+    "kind" : "record"
+  }, {
+    "file" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan.json",
+    "name" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedInterceptorPlan",
+    "kind" : "record"
+  }, {
+    "file" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedMethodEntry.json",
+    "name" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedMethodEntry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedMethodEntry",
+    "kind" : "record"
+  }, {
+    "file" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedPolicyEntry.json",
+    "name" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedPolicyEntry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyEntry",
+    "kind" : "record"
+  }, {
     "file" : "HandlerRegistry.json",
     "name" : "HandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",

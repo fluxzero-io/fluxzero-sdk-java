@@ -290,6 +290,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#prepare",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#schedule",
     "returnType" : "void",
@@ -443,6 +462,20 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsPreparation",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#supportsPreparation",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

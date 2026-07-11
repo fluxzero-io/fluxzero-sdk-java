@@ -1,0 +1,321 @@
+{
+  "name" : "PreparedInterceptedHandler",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Merged wrapper for interceptors that explicitly support method preparation.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.delegate",
+    "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "interceptedMethods",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.interceptedMethods",
+    "type" : "java.util.concurrent.ConcurrentHashMap<io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>,java.util.Optional<io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "interceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.interceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerInterceptor>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastPreparedMethod",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.lastPreparedMethod",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedMethodEntry",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastPreparedPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.lastPreparedPolicy",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedPolicyEntry",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "preparedInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.preparedInterceptors",
+    "type" : "java.lang.ClassValue<java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Executable,io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PreparedInterceptedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#PreparedInterceptedHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "PreparedInterceptedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#PreparedInterceptedHandler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "interceptors",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerInterceptor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getHandlerMethodOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getHandlerMethodOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getInvokerOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getInvokerOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTargetClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getTargetClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interceptorCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#interceptorCount",
+    "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invokeChangedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#invokeChangedMessage",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nextInterceptor",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "combiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareHandlerMethod",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#prepareHandlerMethod",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#prepareInterceptors",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "preparedInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#preparedInterceptors",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withOuterInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#withOuterInterceptor",
+    "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "PreparedInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedInterceptor",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedInterceptorPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedInterceptorPlan",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedMethodEntry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedMethodEntry",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedPolicyEntry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyEntry",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

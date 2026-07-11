@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.tracking.handling",
   "kind" : "class",
   "modifiers" : [ "public", "static" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " Implementation of {@link Handler} that delegates to another handler and applies a {@code HandlerInterceptor}.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
@@ -35,7 +32,17 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

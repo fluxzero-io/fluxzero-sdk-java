@@ -97,6 +97,25 @@
     "varArgs" : false,
     "documentation" : " Wraps handler invocation with payload validation before invocation. Non-passive request handlers with a method\n annotation also get return value validation when the handler method declares return constraints.\n\n @param function handler invocation function\n @param invoker  handler metadata and invocation context\n @return a validating handler invocation function\n"
   }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#prepare",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "shouldValidateReturnValue",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#shouldValidateReturnValue",
     "returnType" : "boolean",
@@ -104,11 +123,25 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "invoker",
-      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsPreparation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#supportsPreparation",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
