@@ -270,6 +270,17 @@
     "varArgs" : false,
     "documentation" : " Specifies the namespace under which the consumer tracks messages.\n <p>\n If left empty, the default namespace of the client application is used.\n\n @return The namespace under which the consumer tracks messages, or an empty string if the default client\n namespace should be used.\n\n @see Client#forNamespace(String)\n"
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#onMissingProtectedData",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Default response when a handler in this consumer receives a message whose protected data is no longer available.\n Individual handler annotations may override this setting.\n"
+  }, {
     "name" : "passive",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#passive",
     "returnType" : "boolean",

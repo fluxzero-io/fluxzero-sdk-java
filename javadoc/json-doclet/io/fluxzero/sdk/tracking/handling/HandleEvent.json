@@ -51,6 +51,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " If {@code true}, disables this handler during discovery.\n"
+  }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleEvent#onMissingProtectedData",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines how the handler responds when referenced protected data is no longer available.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -10,10 +10,30 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor",
     "kind" : "class"
   }, {
+    "file" : "DataProtectionInterceptor.HandleAnnotation.json",
+    "name" : "DataProtectionInterceptor.HandleAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$HandleAnnotation",
+    "kind" : "class"
+  }, {
+    "file" : "DataProtectionInterceptor.RestoredMessage.json",
+    "name" : "DataProtectionInterceptor.RestoredMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$RestoredMessage",
+    "kind" : "record"
+  }, {
     "file" : "DropProtectedData.json",
     "name" : "DropProtectedData",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DropProtectedData",
     "kind" : "annotation_type"
+  }, {
+    "file" : "MissingProtectedDataException.json",
+    "name" : "MissingProtectedDataException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataException",
+    "kind" : "class"
+  }, {
+    "file" : "MissingProtectedDataPolicy.json",
+    "name" : "MissingProtectedDataPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "kind" : "enum"
   }, {
     "file" : "ProtectData.json",
     "name" : "ProtectData",

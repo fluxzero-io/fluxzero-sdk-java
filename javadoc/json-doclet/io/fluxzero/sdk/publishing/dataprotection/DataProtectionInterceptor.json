@@ -5,9 +5,6 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
@@ -32,9 +29,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.onMissingProtectedData",
+    "type" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.serializer",
     "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trackingMetricsEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.trackingMetricsEnabled",
+    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -46,10 +59,75 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "keyValueStore",
+      "type" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates an interceptor that silently invokes handlers when protected values are unavailable.\n\n @param keyValueStore store containing protected values\n @param serializer serializer used to sanitize and restore payloads\n"
+  }, {
+    "name" : "DataProtectionInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#DataProtectionInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "keyValueStore",
+      "type" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "onMissingProtectedData",
+      "type" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor with an application-wide missing protected data policy.\n\n @param keyValueStore store containing protected values\n @param serializer serializer used to sanitize and restore payloads\n @param onMissingProtectedData application-wide fallback policy\n"
+  }, {
+    "name" : "DataProtectionInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#DataProtectionInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "keyValueStore",
+      "type" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "onMissingProtectedData",
+      "type" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackingMetricsEnabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor with an application-wide missing protected data policy.\n\n @param keyValueStore store containing protected values\n @param serializer serializer used to sanitize and restore payloads\n @param onMissingProtectedData application-wide fallback policy\n @param trackingMetricsEnabled whether skipped handlers should publish ignore-message metrics\n"
   } ],
   "methods" : [ {
     "name" : "getProtectedFields",
@@ -157,9 +235,51 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "publishIgnoreMessageMetric",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#publishIgnoreMessageMetric",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveMissingProtectedDataPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#resolveMissingProtectedDataPolicy",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "restoreProtectedData",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#restoreProtectedData",
-    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.RestoredMessage",
     "modifiers" : [ "private" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
@@ -202,6 +322,16 @@
     }, {
       "name" : "key",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "protectedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failedFields",
+      "type" : "java.util.Set<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -272,5 +402,20 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "HandleAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$HandleAnnotation",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "RestoredMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$RestoredMessage",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

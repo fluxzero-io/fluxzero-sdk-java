@@ -189,6 +189,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Wraps a {@link ThrowingRunnable} in a {@code HandlerInvoker}.\n\n @param task the task to run\n @return a {@code HandlerInvoker} that runs the given task\n"
+  }, {
+    "name" : "wasSkipped",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#wasSkipped",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether this invocation was deliberately skipped after handler selection.\n\n @return {@code true} if the underlying handler method was not invoked\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

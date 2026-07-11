@@ -484,6 +484,22 @@
     "varArgs" : false,
     "documentation" : " Marks the built instance as the global (application-level) {@link Fluxzero}.\n"
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#onMissingProtectedData",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "policy",
+      "type" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures the application-wide response when referenced protected data is no longer available. Handler and\n consumer settings take precedence. If not configured, Fluxzero uses the\n {@value MissingProtectedDataPolicy#PROPERTY} property and finally defaults to\n {@link MissingProtectedDataPolicy#HANDLE}.\n\n @param policy concrete application-wide policy; {@link MissingProtectedDataPolicy#DEFAULT} restores property\n               and SDK-default resolution\n"
+  }, {
     "name" : "registerUserProvider",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#registerUserProvider",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

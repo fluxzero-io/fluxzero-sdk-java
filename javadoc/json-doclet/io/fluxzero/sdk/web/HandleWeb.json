@@ -74,6 +74,17 @@
     "varArgs" : false,
     "documentation" : " HTTP or WebSocket methods that this handler supports (e.g. GET, POST, WS_OPEN). Default is\n {@link HttpRequestMethod#ANY}.\n"
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleWeb#onMissingProtectedData",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines how the handler responds when referenced protected data is no longer available.\n"
+  }, {
     "name" : "passive",
     "qualifiedName" : "io.fluxzero.sdk.web.HandleWeb#passive",
     "returnType" : "boolean",

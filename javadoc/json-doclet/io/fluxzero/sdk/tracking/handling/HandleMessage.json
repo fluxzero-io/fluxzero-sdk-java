@@ -36,6 +36,17 @@
     "varArgs" : false,
     "documentation" : " Optional list of payload types that are allowed for handler methods using this annotation.\n <p>\n If empty (default), any payload type is accepted. If one or more classes are specified, the handler method will\n only be considered for messages whose payload type is assignable to one of the specified classes.\n </p>\n\n <p>\n Note that handler methods may still filter the payload type of messages they handle using their method\n parameters. This allows fine-grained control even when {@code allowedClasses} is left broad or empty.\n </p>\n\n @return array of permitted payload classes for the handler. If empty, any payload type is accepted.\n"
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMessage#onMissingProtectedData",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines how the handler responds when referenced protected data is no longer available.\n"
+  }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMessage#value",
     "returnType" : "io.fluxzero.common.MessageType",

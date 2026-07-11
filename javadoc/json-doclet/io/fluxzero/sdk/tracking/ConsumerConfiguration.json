@@ -388,6 +388,20 @@
     "documentation" : " Specifies the namespace under which the consumer tracks messages.\n <p>\n If set to {@code null}, the default namespace of the client application is used.\n\n @see Client#forNamespace(String)\n",
     "constantValue" : null
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.onMissingProtectedData",
+    "type" : "io.fluxzero.sdk.publishing.dataprotection.@lombok.NonNull MissingProtectedDataPolicy",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Default response when a handler in this consumer receives a message whose protected data is no longer available.\n Individual handler annotations may override this setting.\n",
+    "constantValue" : null
+  }, {
     "name" : "passive",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.passive",
     "type" : "boolean",

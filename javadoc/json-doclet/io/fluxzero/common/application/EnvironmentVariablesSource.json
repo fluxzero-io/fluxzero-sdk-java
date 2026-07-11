@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " A {@link PropertySource} that resolves property values from system environment variables.\n <p>\n This source accesses environment variables via {@link System#getenv(String)} and can be used to inject\n configuration values directly from the host operating system or container runtime. Besides exact environment\n variable names, it also resolves property-style names to conventional environment variable names; for example\n {@code fluxzero.api.token} resolves to {@code FLUXZERO_API_TOKEN}.\n\n <p>This is typically used to override configuration in deployment environments without modifying\n application-specific property files.\n\n <h2>Example usage</h2>\n <pre>\n export fluxzero TOKEN=secret-token\n </pre>\n In your application:\n <pre>\n fluxzero.api.token = ApplicationProperties.get(\"FLUXZERO_API_TOKEN\")\n </pre>\n\n <p>This source is usually combined with others (like {@link ApplicationPropertiesSource}) in a layered\n configuration strategy where environment variables take precedence.\n\n @see System#getenv(String)\n @see ApplicationPropertiesSource\n @see JavaPropertiesSource\n",
+  "documentation" : " A {@link PropertySource} that resolves property values from system environment variables.\n <p>\n This source accesses environment variables via {@link System#getenv(String)} and can be used to inject\n configuration values directly from the host operating system or container runtime. Besides exact environment\n variable names, it also resolves property-style names to conventional environment variable names; for example\n {@code fluxzero.api.token} resolves to {@code FLUXZERO_API_TOKEN}. Camel-case property segments support both\n word-separated names such as {@code FLUXZERO_DATA_PROTECTION} and compact names such as\n {@code FLUXZERO_DATAPROTECTION}.\n\n <p>This is typically used to override configuration in deployment environments without modifying\n application-specific property files.\n\n <h2>Example usage</h2>\n <pre>\n export fluxzero TOKEN=secret-token\n </pre>\n In your application:\n <pre>\n fluxzero.api.token = ApplicationProperties.get(\"FLUXZERO_API_TOKEN\")\n </pre>\n\n <p>This source is usually combined with others (like {@link ApplicationPropertiesSource}) in a layered\n configuration strategy where environment variables take precedence.\n\n @see System#getenv(String)\n @see ApplicationPropertiesSource\n @see JavaPropertiesSource\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.common.application.EnvironmentVariablesSource>",
   "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
@@ -83,6 +83,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "toCompactEnvironmentVariableName",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#toCompactEnvironmentVariableName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toEnvironmentVariableName",
     "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#toEnvironmentVariableName",
     "returnType" : "java.lang.String",
@@ -92,6 +108,27 @@
     "parameters" : [ {
       "name" : "name",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toEnvironmentVariableName",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#toEnvironmentVariableName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "separateCamelCase",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

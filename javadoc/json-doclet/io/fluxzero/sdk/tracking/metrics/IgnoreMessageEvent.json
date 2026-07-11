@@ -21,6 +21,14 @@
     "documentation" : " Reason emitted when an indexed request is skipped because its effective timeout expired before handler invocation.\n",
     "constantValue" : "expiredRequest"
   }, {
+    "name" : "MISSING_PROTECTED_DATA",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.MISSING_PROTECTED_DATA",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Reason emitted when a handler is skipped because referenced protected data is no longer available.\n",
+    "constantValue" : "missingProtectedData"
+  }, {
     "name" : "consumer",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.consumer",
     "type" : "java.lang.String",

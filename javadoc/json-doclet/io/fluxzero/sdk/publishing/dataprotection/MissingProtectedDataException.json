@@ -1,0 +1,44 @@
+{
+  "name" : "MissingProtectedDataException",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataException",
+  "packageName" : "io.fluxzero.sdk.publishing.dataprotection",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  } ],
+  "documentation" : " Indicates that a handler configured with {@link MissingProtectedDataPolicy#FAIL} received a message for which one or\n more protected values are no longer available.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "missingFields",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataException.missingFields",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MissingProtectedDataException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataException#MissingProtectedDataException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "missingFields",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an exception for the unavailable protected fields.\n\n @param missingFields protected field paths whose values are unavailable\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

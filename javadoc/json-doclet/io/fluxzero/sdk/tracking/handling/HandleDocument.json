@@ -52,6 +52,17 @@
     "varArgs" : false,
     "documentation" : " Optional class of the documents to handle. If annotated with {@link Searchable}, the annotation defines the\n collection; otherwise the class name is used.\n <p>\n If neither documentClass nor value are specified, the first parameter of the method is used to determine the\n collection:\n\n <pre>{@code\n class OrganisationHandler {\n     @HandleDocument\n     void on(Organisation organisation, Metadata metadata) { ... }\n }\n }</pre>\n\n @see Searchable\n"
   }, {
+    "name" : "onMissingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocument#onMissingProtectedData",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines how the handler responds when referenced protected data is no longer available.\n"
+  }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocument#value",
     "returnType" : "java.lang.String",
