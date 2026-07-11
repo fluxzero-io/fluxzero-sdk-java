@@ -22,6 +22,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
 import lombok.Builder.Default;
@@ -221,6 +222,14 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      */
     @Singular
     List<HandlerInterceptor> handlerInterceptors;
+
+    /**
+     * Default response when a handler in this consumer receives a message whose protected data is no longer available.
+     * Individual handler annotations may override this setting.
+     */
+    @Default
+    @NonNull
+    MissingProtectedDataPolicy onMissingProtectedData = MissingProtectedDataPolicy.DEFAULT;
 
     /**
      * Dispatch interceptors that become active while this consumer is processing a batch.
@@ -496,6 +505,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                         ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))
                 .handlerInterceptors(Arrays.stream(consumer.handlerInterceptors()).map(
                         ReflectionUtils::<HandlerInterceptor>asInstance).collect(Collectors.toList()))
+                .onMissingProtectedData(consumer.onMissingProtectedData())
                 .dispatchInterceptors(Arrays.stream(consumer.dispatchInterceptors()).map(
                         ReflectionUtils::<DispatchInterceptor>asInstance).collect(Collectors.toList()))
                 .filterMessageTarget(consumer.filterMessageTarget())

@@ -30,6 +30,11 @@ public class IgnoreMessageEvent {
     public static final String EXPIRED_REQUEST = "expiredRequest";
 
     /**
+     * Reason emitted when a handler is skipped because referenced protected data is no longer available.
+     */
+    public static final String MISSING_PROTECTED_DATA = "missingProtectedData";
+
+    /**
      * Name of the consumer or local handler context that ignored the message.
      */
     String consumer;

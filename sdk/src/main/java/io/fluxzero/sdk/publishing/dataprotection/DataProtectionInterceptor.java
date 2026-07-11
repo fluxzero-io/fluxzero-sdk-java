@@ -23,20 +23,27 @@ import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
-import lombok.AllArgsConstructor;
+import io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -48,6 +55,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.isLeafValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
 import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toCollection;
 
 /**
  * A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data
@@ -101,7 +109,6 @@ import static java.util.Optional.ofNullable;
  * @see DispatchInterceptor
  * @see HandlerInterceptor
  */
-@AllArgsConstructor
 @Slf4j
 public class DataProtectionInterceptor implements DispatchInterceptor, HandlerInterceptor {
 
@@ -109,6 +116,48 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private final KeyValueStore keyValueStore;
     private final Serializer serializer;
+    private final MissingProtectedDataPolicy onMissingProtectedData;
+    private final boolean trackingMetricsEnabled;
+
+    /**
+     * Creates an interceptor that silently invokes handlers when protected values are unavailable.
+     *
+     * @param keyValueStore store containing protected values
+     * @param serializer serializer used to sanitize and restore payloads
+     */
+    public DataProtectionInterceptor(KeyValueStore keyValueStore, Serializer serializer) {
+        this(keyValueStore, serializer, MissingProtectedDataPolicy.HANDLE, true);
+    }
+
+    /**
+     * Creates an interceptor with an application-wide missing protected data policy.
+     *
+     * @param keyValueStore store containing protected values
+     * @param serializer serializer used to sanitize and restore payloads
+     * @param onMissingProtectedData application-wide fallback policy
+     */
+    public DataProtectionInterceptor(KeyValueStore keyValueStore, Serializer serializer,
+                                     MissingProtectedDataPolicy onMissingProtectedData) {
+        this(keyValueStore, serializer, onMissingProtectedData, true);
+    }
+
+    /**
+     * Creates an interceptor with an application-wide missing protected data policy.
+     *
+     * @param keyValueStore store containing protected values
+     * @param serializer serializer used to sanitize and restore payloads
+     * @param onMissingProtectedData application-wide fallback policy
+     * @param trackingMetricsEnabled whether skipped handlers should publish ignore-message metrics
+     */
+    public DataProtectionInterceptor(KeyValueStore keyValueStore, Serializer serializer,
+                                     MissingProtectedDataPolicy onMissingProtectedData,
+                                     boolean trackingMetricsEnabled) {
+        this.keyValueStore = keyValueStore;
+        this.serializer = serializer;
+        this.onMissingProtectedData = onMissingProtectedData == MissingProtectedDataPolicy.DEFAULT
+                ? MissingProtectedDataPolicy.HANDLE : onMissingProtectedData;
+        this.trackingMetricsEnabled = trackingMetricsEnabled;
+    }
 
     @Override
     @SuppressWarnings("unchecked")
@@ -147,9 +196,16 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                     return null;
                 }
                 return new DelegatingHandlerInvoker(invoker) {
+                    private boolean skipped;
+
                     @Override
                     public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                        DeserializingMessage handledMessage = restoreProtectedData(message, invoker);
+                        RestoredMessage restored = restoreProtectedData(message, invoker);
+                        if (restored.skip()) {
+                            skipped = true;
+                            return null;
+                        }
+                        DeserializingMessage handledMessage = restored.message();
                         if (handledMessage != message) {
                             HandlerInvoker restoredInvoker = handler.getInvokerOrNull(handledMessage);
                             if (restoredInvoker == null) {
@@ -159,6 +215,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                             return handledMessage.apply(m -> restoredInvoker.invoke(combiner));
                         }
                         return invoker.invoke(combiner);
+                    }
+
+                    @Override
+                    public boolean wasSkipped() {
+                        return skipped || delegate.wasSkipped();
                     }
                 };
             }
@@ -188,7 +249,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
         return m -> {
-            DeserializingMessage handledMessage = restoreProtectedData(m, invoker);
+            RestoredMessage restored = restoreProtectedData(m, invoker);
+            if (restored.skip()) {
+                return null;
+            }
+            DeserializingMessage handledMessage = restored.message();
             if (handledMessage != m) {
                 return handledMessage.apply(function::apply);
             }
@@ -197,31 +262,94 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     @SuppressWarnings("unchecked")
-    private DeserializingMessage restoreProtectedData(DeserializingMessage m, HandlerDescriptor invoker) {
+    private RestoredMessage restoreProtectedData(DeserializingMessage m, HandlerDescriptor invoker) {
         if (!m.getMetadata().containsKey(METADATA_KEY)) {
-            return m;
+            return new RestoredMessage(m, false);
         }
         Object payload = m.getPayload();
         Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
+        Map<String, Object> protectedValues = new LinkedHashMap<>();
+        Set<String> failedFields = new LinkedHashSet<>();
+        protectedFields.forEach((fieldName, key) -> {
+            try {
+                protectedValues.put(fieldName, keyValueStore.get(key));
+            } catch (Exception e) {
+                failedFields.add(fieldName);
+                log.warn("Failed to obtain protected field {}", fieldName, e);
+            }
+        });
+        Set<String> missingFields = protectedValues.entrySet().stream()
+                .filter(e -> e.getValue() == null && !failedFields.contains(e.getKey()))
+                .map(Map.Entry::getKey).collect(toCollection(LinkedHashSet::new));
+        if (!missingFields.isEmpty()) {
+            MissingProtectedDataPolicy policy = resolveMissingProtectedDataPolicy(m, invoker);
+            switch (policy) {
+                case WARN -> log.warn(
+                        "Protected data is no longer available for fields {} in message {} handled by {}; invoking the handler with null values",
+                        missingFields, m.getMessageId(), invoker.getMethod());
+                case SKIP -> {
+                    publishIgnoreMessageMetric(m, invoker);
+                    return new RestoredMessage(m, true);
+                }
+                case FAIL -> throw new MissingProtectedDataException(missingFields);
+                case DEFAULT, HANDLE -> {
+                    // HANDLE is intentionally silent. DEFAULT is resolved before reaching this branch.
+                }
+            }
+        }
         boolean dropProtectedData = invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
-            protectedFields.forEach((fieldName, key) -> restoreProtectedField(payloadTree, fieldName, key,
-                                                                              dropProtectedData));
-            return m.withPayload(serializer.convert(payloadTree, payload.getClass()));
+            protectedFields.forEach((fieldName, key) -> restoreProtectedField(
+                    payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData));
+            return new RestoredMessage(m.withPayload(serializer.convert(payloadTree, payload.getClass())), false);
         }
-        protectedFields.forEach((fieldName, key) -> restoreProtectedField(payload, fieldName, key, dropProtectedData));
-        return m;
+        protectedFields.forEach((fieldName, key) -> restoreProtectedField(
+                payload, fieldName, key, protectedValues, failedFields, dropProtectedData));
+        return new RestoredMessage(m, false);
     }
 
-    private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
-        try {
-            writeProperty(fieldName, payload, keyValueStore.get(key));
-        } catch (Exception e) {
-            log.warn("Failed to set field {}", fieldName, e);
+    private MissingProtectedDataPolicy resolveMissingProtectedDataPolicy(DeserializingMessage message,
+                                                                         HandlerDescriptor invoker) {
+        MissingProtectedDataPolicy handlerPolicy = ReflectionUtils.getAnnotationAs(
+                        invoker.getMethod(), HandleMessage.class, HandleAnnotation.class)
+                .map(HandleAnnotation::getOnMissingProtectedData).orElse(MissingProtectedDataPolicy.DEFAULT);
+        if (handlerPolicy != MissingProtectedDataPolicy.DEFAULT) {
+            return handlerPolicy;
+        }
+        MissingProtectedDataPolicy consumerPolicy = message.getContext(ConsumerConfiguration.class)
+                .map(ConsumerConfiguration::getOnMissingProtectedData).orElse(MissingProtectedDataPolicy.DEFAULT);
+        return consumerPolicy == MissingProtectedDataPolicy.DEFAULT ? onMissingProtectedData : consumerPolicy;
+    }
+
+    private void restoreProtectedField(Object payload, String fieldName, String key,
+                                        Map<String, Object> protectedValues, Set<String> failedFields,
+                                        boolean dropProtectedData) {
+        if (!failedFields.contains(fieldName)) {
+            try {
+                writeProperty(fieldName, payload, protectedValues.get(fieldName));
+            } catch (Exception e) {
+                log.warn("Failed to set protected field {}", fieldName, e);
+            }
         }
         if (dropProtectedData) {
             keyValueStore.delete(key);
+        }
+    }
+
+    private void publishIgnoreMessageMetric(DeserializingMessage message, HandlerDescriptor invoker) {
+        if (!trackingMetricsEnabled) {
+            return;
+        }
+        try {
+            String consumer = Tracker.current().map(Tracker::getName)
+                    .or(() -> message.getContext(ConsumerConfiguration.class).map(ConsumerConfiguration::getName))
+                    .orElseGet(() -> "local-" + message.getMessageType());
+            Fluxzero.getOptionally().ifPresent(fc -> fc.metricsGateway().publish(new IgnoreMessageEvent(
+                    consumer, invoker.getTargetClass().getSimpleName(), message.getIndex(), message.getMessageType(),
+                    message.getTopic(), message.getType(), IgnoreMessageEvent.MISSING_PROTECTED_DATA)));
+        } catch (Exception e) {
+            log.error("Failed to publish ignore message metrics", e);
         }
     }
 
@@ -270,5 +398,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
         keyValueStore.store(key, value, Guarantee.STORED);
         return key;
+    }
+
+    private record RestoredMessage(DeserializingMessage message, boolean skip) {
+    }
+
+    @Value
+    private static class HandleAnnotation {
+        MissingProtectedDataPolicy onMissingProtectedData;
     }
 }

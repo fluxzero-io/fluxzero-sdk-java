@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -77,6 +78,14 @@ public class ConsumerConfigurationTest {
                 List.of(AsyncHandlingConsumer.class)).findFirst().orElseThrow();
 
         assertEquals(ConsumerHandlingMode.ASYNC, config.getHandlingMode());
+    }
+
+    @Test
+    void consumerAnnotationCanConfigureMissingProtectedDataPolicy() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                List.of(MissingProtectedDataConsumer.class)).findFirst().orElseThrow();
+
+        assertEquals(MissingProtectedDataPolicy.WARN, config.getOnMissingProtectedData());
     }
 
     @Test
@@ -523,6 +532,10 @@ public class ConsumerConfigurationTest {
 
     @Consumer(name = "async-handling", handlingMode = ConsumerHandlingMode.ASYNC)
     static class AsyncHandlingConsumer {
+    }
+
+    @Consumer(name = "missing-protected-data", onMissingProtectedData = MissingProtectedDataPolicy.WARN)
+    static class MissingProtectedDataConsumer {
     }
 
     @Order(10)

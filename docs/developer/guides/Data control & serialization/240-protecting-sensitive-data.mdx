@@ -104,6 +104,52 @@ Design your handlers to tolerate this by making such fields optional or guarding
 
 ---
 
+## Missing protected data policies
+
+Handlers can choose how to respond when protected values referenced by a message are no longer available:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @HandleEvent(onMissingProtectedData = MissingProtectedDataPolicy.SKIP)
+    void handle(CitizenRegistered event) {
+        ...
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @HandleEvent(onMissingProtectedData = MissingProtectedDataPolicy.SKIP)
+    fun handle(event: CitizenRegistered) {
+        ...
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+The available policies are:
+
+- `HANDLE`: invoke silently with unavailable fields set to `null` (SDK default)
+- `WARN`: log a warning and invoke with unavailable fields set to `null`
+- `SKIP`: skip only this handler invocation and advance tracking normally
+- `FAIL`: fail through the consumer's normal error handling
+- `DEFAULT`: inherit from the consumer or application configuration
+
+The effective policy is resolved from the handler, consumer, builder, application property, and finally the SDK
+default. Configure the application fallback with
+`DefaultFluxzero.builder().onMissingProtectedData(...)` or:
+
+```properties
+fluxzero.dataProtection.onMissingProtectedData=WARN
+```
+
+For environment variables, both `FLUXZERO_DATA_PROTECTION_ON_MISSING_PROTECTED_DATA` and the compact Spring-style
+`FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA` are supported.
+
+When tracking metrics are enabled, `SKIP` emits an `IgnoreMessageEvent` with reason `missingProtectedData`.
+
+---
+
 ## Notes
 
 - Only **fields** can be annotated with `@ProtectData` (not method parameters).

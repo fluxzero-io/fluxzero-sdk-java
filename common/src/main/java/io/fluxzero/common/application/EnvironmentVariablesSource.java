@@ -22,7 +22,9 @@ import java.util.Locale;
  * This source accesses environment variables via {@link System#getenv(String)} and can be used to inject
  * configuration values directly from the host operating system or container runtime. Besides exact environment
  * variable names, it also resolves property-style names to conventional environment variable names; for example
- * {@code fluxzero.api.token} resolves to {@code FLUXZERO_API_TOKEN}.
+ * {@code fluxzero.api.token} resolves to {@code FLUXZERO_API_TOKEN}. Camel-case property segments support both
+ * word-separated names such as {@code FLUXZERO_DATA_PROTECTION} and compact names such as
+ * {@code FLUXZERO_DATAPROTECTION}.
  *
  * <p>This is typically used to override configuration in deployment environments without modifying
  * application-specific property files.
@@ -60,10 +62,27 @@ public enum EnvironmentVariablesSource implements PropertySource {
             return result;
         }
         String environmentVariableName = toEnvironmentVariableName(name);
-        return environmentVariableName.equals(name) ? null : System.getenv(environmentVariableName);
+        result = environmentVariableName.equals(name) ? null : System.getenv(environmentVariableName);
+        if (result != null) {
+            return result;
+        }
+        String compactEnvironmentVariableName = toCompactEnvironmentVariableName(name);
+        if (compactEnvironmentVariableName.equals(name)
+            || compactEnvironmentVariableName.equals(environmentVariableName)) {
+            return null;
+        }
+        return System.getenv(compactEnvironmentVariableName);
     }
 
     static String toEnvironmentVariableName(String name) {
+        return toEnvironmentVariableName(name, true);
+    }
+
+    static String toCompactEnvironmentVariableName(String name) {
+        return toEnvironmentVariableName(name, false);
+    }
+
+    private static String toEnvironmentVariableName(String name, boolean separateCamelCase) {
         StringBuilder result = new StringBuilder();
         char previous = 0;
         for (int i = 0; i < name.length(); i++) {
@@ -72,7 +91,7 @@ public enum EnvironmentVariablesSource implements PropertySource {
             if (!Character.isLetterOrDigit(current)) {
                 appendSeparator(result);
             } else {
-                if (shouldSeparateCamelCase(previous, current, next)) {
+                if (separateCamelCase && shouldSeparateCamelCase(previous, current, next)) {
                     appendSeparator(result);
                 }
                 result.append(Character.toUpperCase(current));

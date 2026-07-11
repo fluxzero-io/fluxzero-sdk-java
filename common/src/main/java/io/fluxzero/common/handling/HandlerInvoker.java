@@ -164,6 +164,15 @@ public interface HandlerInvoker extends HandlerDescriptor {
     boolean isPassive();
 
     /**
+     * Indicates whether this invocation was deliberately skipped after handler selection.
+     *
+     * @return {@code true} if the underlying handler method was not invoked
+     */
+    default boolean wasSkipped() {
+        return false;
+    }
+
+    /**
      * Invokes the handler using the default result-combining strategy (returns the first result).
      *
      * @return the result of the handler invocation
@@ -212,6 +221,11 @@ public interface HandlerInvoker extends HandlerDescriptor {
         @Override
         public boolean isPassive() {
             return delegate.isPassive();
+        }
+
+        @Override
+        public boolean wasSkipped() {
+            return delegate.wasSkipped();
         }
 
         @Override

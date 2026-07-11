@@ -27,6 +27,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.scheduling.SchedulingInterceptor;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -107,6 +108,13 @@ public interface FluxzeroConfiguration {
      * Maximum allowed publication-chain depth. A negative value disables the built-in recursive publication guard.
      */
     int maxPublicationDepth();
+
+    /**
+     * Application-wide fallback policy for messages whose referenced protected data is no longer available.
+     */
+    default MissingProtectedDataPolicy onMissingProtectedData() {
+        return MissingProtectedDataPolicy.HANDLE;
+    }
 
     /** Ordered handler decorators grouped per message type. */
     Map<MessageType, List<HandlerDecorator>> handlerDecorators();

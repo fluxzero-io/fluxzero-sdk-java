@@ -40,6 +40,18 @@ class EnvironmentVariablesSourceTest {
     }
 
     @Test
+    void camelCasePropertySegmentsAlsoHaveCompactEnvironmentVariableNames() {
+        assertEquals("FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA",
+                     EnvironmentVariablesSource.toCompactEnvironmentVariableName(
+                             "fluxzero.dataProtection.onMissingProtectedData"));
+        assertEquals("FLUXZERO_TRACKING_UNCONFIGUREDHANDLERCONSUMERMODE",
+                     EnvironmentVariablesSource.toCompactEnvironmentVariableName(
+                             "fluxzero.tracking.unconfiguredHandlerConsumerMode"));
+        assertEquals("FLUXZERO_API_TOKEN", EnvironmentVariablesSource.toCompactEnvironmentVariableName(
+                "fluxzero.api.token"));
+    }
+
+    @Test
     void oddPropertyNamesAreConvertedSafely() {
         assertEquals("", EnvironmentVariablesSource.toEnvironmentVariableName(""));
         assertEquals("", EnvironmentVariablesSource.toEnvironmentVariableName("."));

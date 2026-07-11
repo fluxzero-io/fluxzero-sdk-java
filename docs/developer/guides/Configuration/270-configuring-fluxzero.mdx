@@ -131,6 +131,11 @@ These methods disable internal features as needed:
 | `disableWebResponseCompression()`    | Prevents gzip compression for web responses                        |
 | `disableAdhocDispatchInterceptor()`  | Disallows use of `AdhocDispatchInterceptor.runWith...()` utilities |
 
+Use `onMissingProtectedData(...)` to configure the application-wide response when a message references protected data
+that has already been dropped. The same setting is available as
+`fluxzero.dataProtection.onMissingProtectedData`; an explicit builder setting takes precedence. Environment variables
+may use `FLUXZERO_DATA_PROTECTION_ON_MISSING_PROTECTED_DATA` or `FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA`.
+
 ---
 
 ## Final assembly

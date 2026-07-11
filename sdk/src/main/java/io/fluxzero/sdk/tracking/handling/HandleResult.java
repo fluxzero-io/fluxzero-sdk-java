@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -36,6 +37,11 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 @HandleMessage(MessageType.RESULT)
 public @interface HandleResult {
+    /**
+     * Determines how the handler responds when referenced protected data is no longer available.
+     */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
+
     /**
      * If {@code true}, disables this handler during discovery.
      */

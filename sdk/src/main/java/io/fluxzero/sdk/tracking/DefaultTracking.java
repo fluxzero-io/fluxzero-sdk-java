@@ -39,6 +39,8 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
+import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
@@ -678,6 +680,10 @@ public class DefaultTracking implements Tracking {
 
     private CompletionStage<Void> tryHandle(DeserializingMessage message, List<Handler<DeserializingMessage>> handlers,
                                             ConsumerConfiguration config, boolean reportResult) {
+        if (config.getOnMissingProtectedData() != MissingProtectedDataPolicy.DEFAULT
+            && message.getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY)) {
+            message.putContext(ConsumerConfiguration.class, config);
+        }
         List<CompletableFuture<Void>> resultCompletions = null;
         for (int i = 0; i < handlers.size(); i++) {
             CompletionStage<Void> completion = tryHandle(message, handlers.get(i), config, reportResult);
@@ -973,7 +979,8 @@ public class DefaultTracking implements Tracking {
 
     protected boolean shouldSendResponse(HandlerDescriptor invoker, DeserializingMessage request,
                                          Object result, ConsumerConfiguration config) {
-        if (!request.getMessageType().isRequest() || config.passive() || invoker.isPassive()) {
+        if (!request.getMessageType().isRequest() || config.passive() || invoker.isPassive()
+            || invoker instanceof HandlerInvoker handlerInvoker && handlerInvoker.wasSkipped()) {
             return false;
         }
         if (request.getMessageType() == MessageType.WEBREQUEST) {

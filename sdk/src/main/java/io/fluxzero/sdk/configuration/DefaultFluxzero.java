@@ -67,6 +67,7 @@ import io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
@@ -311,6 +312,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disablePayloadValidation;
         private boolean disableWebParameterValidation;
         private boolean disableDataProtection;
+        private MissingProtectedDataPolicy onMissingProtectedData = MissingProtectedDataPolicy.DEFAULT;
         private boolean disableAutomaticAggregateCaching;
         private boolean disableScheduledCommandHandler;
         private boolean disableShutdownHook;
@@ -620,6 +622,12 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public FluxzeroBuilder onMissingProtectedData(@NonNull MissingProtectedDataPolicy policy) {
+            onMissingProtectedData = policy;
+            return this;
+        }
+
+        @Override
         public FluxzeroBuilder disableAutomaticAggregateCaching() {
             disableAutomaticAggregateCaching = true;
             return this;
@@ -751,7 +759,8 @@ public class DefaultFluxzero implements Fluxzero {
 
             //enable data protection
             if (!disableDataProtection) {
-                DataProtectionInterceptor interceptor = new DataProtectionInterceptor(keyValueStore, serializer);
+                DataProtectionInterceptor interceptor = new DataProtectionInterceptor(
+                        keyValueStore, serializer, onMissingProtectedData(), !disableTrackingMetrics);
                 Stream.of(CUSTOM, COMMAND, EVENT, QUERY, RESULT, SCHEDULE).forEach(type -> {
                     dispatchChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
                     handlerChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
@@ -1145,6 +1154,19 @@ public class DefaultFluxzero implements Fluxzero {
             return configuredMode == null || configuredMode.isBlank()
                     ? DEFAULT
                     : ConsumerHandlingMode.parse(configuredMode);
+        }
+
+        @Override
+        public MissingProtectedDataPolicy onMissingProtectedData() {
+            if (onMissingProtectedData != MissingProtectedDataPolicy.DEFAULT) {
+                return onMissingProtectedData;
+            }
+            String configuredPolicy = propertySource.get(MissingProtectedDataPolicy.PROPERTY);
+            if (configuredPolicy == null || configuredPolicy.isBlank()) {
+                return MissingProtectedDataPolicy.HANDLE;
+            }
+            MissingProtectedDataPolicy result = MissingProtectedDataPolicy.parse(configuredPolicy);
+            return result == MissingProtectedDataPolicy.DEFAULT ? MissingProtectedDataPolicy.HANDLE : result;
         }
 
         private ConsumerConfiguration resolveDefaultConsumerHandlingMode(

@@ -22,6 +22,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,25 @@ public class FluxzeroConfigTest {
                         "fluxzero.maxPublicationDepth", "37")).andThen(existing));
 
         assertEquals(37, configuration.maxPublicationDepth());
+    }
+
+    @Test
+    void missingProtectedDataPolicyCanBeConfiguredByProperty() {
+        FluxzeroConfiguration configuration = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        MissingProtectedDataPolicy.PROPERTY, "warn")).andThen(existing));
+
+        assertEquals(MissingProtectedDataPolicy.WARN, configuration.onMissingProtectedData());
+    }
+
+    @Test
+    void explicitMissingProtectedDataPolicyOverridesProperty() {
+        FluxzeroConfiguration configuration = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        MissingProtectedDataPolicy.PROPERTY, "skip")).andThen(existing))
+                .onMissingProtectedData(MissingProtectedDataPolicy.HANDLE);
+
+        assertEquals(MissingProtectedDataPolicy.HANDLE, configuration.onMissingProtectedData());
     }
 
     @Test

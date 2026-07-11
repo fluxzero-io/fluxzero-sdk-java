@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
 import io.fluxzero.sdk.scheduling.Periodic;
 
@@ -83,6 +84,11 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 @HandleMessage(MessageType.SCHEDULE)
 public @interface HandleSchedule {
+
+    /**
+     * Determines how the handler responds when referenced protected data is no longer available.
+     */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
 
     /**
      * If {@code true}, disables this handler during discovery.

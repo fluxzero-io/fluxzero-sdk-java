@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
 import java.lang.annotation.Documented;
@@ -127,6 +128,12 @@ public @interface Consumer {
      * interceptors are only sorted relative to other interceptors declared on the same consumer.
      */
     Class<? extends HandlerInterceptor>[] handlerInterceptors() default {};
+
+    /**
+     * Default response when a handler in this consumer receives a message whose protected data is no longer available.
+     * Individual handler annotations may override this setting.
+     */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
 
     /**
      * Interceptors applied at the batch level across all messages in a poll cycle.

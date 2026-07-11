@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.persisting.search.Searchable;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -66,6 +67,11 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 @HandleMessage(MessageType.DOCUMENT)
 public @interface HandleDocument {
+    /**
+     * Determines how the handler responds when referenced protected data is no longer available.
+     */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
+
     /**
      * Optional name of the document collection. If provided, {@link #documentClass()} is ignored.
      *

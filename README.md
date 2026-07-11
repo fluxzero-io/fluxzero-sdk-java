@@ -4624,6 +4624,33 @@ Once this handler completes:
 During replays, if a message with protected fields is re-invoked **after** data has been dropped, those fields will be
 missing or set to `null`. Design your handlers to tolerate this by making such fields optional or guarding usage.
 
+Handlers can choose how to respond when referenced protected data is unavailable:
+
+```java
+@HandleEvent(onMissingProtectedData = MissingProtectedDataPolicy.SKIP)
+void handle(CitizenRegistered event) {
+    ...
+}
+```
+
+Available policies are `HANDLE` (the silent default), `WARN`, `SKIP`, and `FAIL`. Use `DEFAULT` on a handler or consumer
+to inherit the next configured level. Resolution follows handler, consumer, builder, application property, then the SDK
+default. The application-wide setting can be configured programmatically or through a property:
+
+```java
+DefaultFluxzero.builder().onMissingProtectedData(MissingProtectedDataPolicy.WARN);
+```
+
+```properties
+fluxzero.dataProtection.onMissingProtectedData=WARN
+```
+
+Environment variables may use either `FLUXZERO_DATA_PROTECTION_ON_MISSING_PROTECTED_DATA` or the compact Spring-style
+alias `FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA`.
+
+`SKIP` skips only the selected handler invocation, advances consumer tracking normally, and emits an
+`IgnoreMessageEvent` when tracking metrics are enabled.
+
 ---
 
 ### Notes
@@ -5320,6 +5347,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
 - `replaceIdentityProvider(...)` to control ID generation for messages or functional identifiers.
 - `replaceCorrelationDataProvider(...)` to define how correlation metadata is attached to outbound messages.
 - `registerUserProvider(...)` to integrate custom user authentication and inject `User` into handlers.
+- `onMissingProtectedData(...)` sets the application-wide fallback for unavailable protected values. It can also be
+  configured with `fluxzero.dataProtection.onMissingProtectedData`.
 
 #### Caching and Snapshotting
 

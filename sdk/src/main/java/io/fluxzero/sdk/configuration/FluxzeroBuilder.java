@@ -29,6 +29,7 @@ import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ErrorGateway;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
@@ -301,6 +302,17 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Disables security filtering based on {@code @FilterContent}.
      */
     FluxzeroBuilder disableDataProtection();
+
+    /**
+     * Configures the application-wide response when referenced protected data is no longer available. Handler and
+     * consumer settings take precedence. If not configured, Fluxzero uses the
+     * {@value MissingProtectedDataPolicy#PROPERTY} property and finally defaults to
+     * {@link MissingProtectedDataPolicy#HANDLE}.
+     *
+     * @param policy concrete application-wide policy; {@link MissingProtectedDataPolicy#DEFAULT} restores property
+     *               and SDK-default resolution
+     */
+    FluxzeroBuilder onMissingProtectedData(MissingProtectedDataPolicy policy);
 
     /**
      * Disables automatic caching of aggregates.

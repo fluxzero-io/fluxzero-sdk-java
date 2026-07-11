@@ -14,36 +14,51 @@
 
 package io.fluxzero.sdk.publishing.dataprotection;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
+import io.fluxzero.sdk.tracking.metrics.HandleMessageEvent;
+import io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class DataProtectionInterceptorTest {
     private final TestFixture testFixture = TestFixture.createAsync();
@@ -217,6 +232,142 @@ class DataProtectionInterceptorTest {
 
         assertNull(wrapped.getHandlerMethodOrNull(message));
         assertNotNull(wrapped.getInvokerOrNull(message));
+    }
+
+    @Test
+    void handlePolicyInvokesHandlerSilentlyWhenProtectedDataIsMissing() {
+        DefaultPolicyHandler handler = new DefaultPolicyHandler();
+
+        invokeWithMissingProtectedData(handler, MissingProtectedDataPolicy.HANDLE, null);
+
+        assertTrue(handler.isInvoked());
+        assertNull(handler.getLastEvent().getSensitiveData());
+    }
+
+    @Test
+    void warnPolicyLogsAndInvokesHandlerWhenProtectedDataIsMissing() {
+        Logger logger = (Logger) LoggerFactory.getLogger(DataProtectionInterceptor.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        DefaultPolicyHandler handler = new DefaultPolicyHandler();
+        try {
+            invokeWithMissingProtectedData(handler, MissingProtectedDataPolicy.WARN, null);
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertTrue(handler.isInvoked());
+        assertTrue(appender.list.stream().anyMatch(
+                event -> event.getLevel() == Level.WARN
+                         && event.getFormattedMessage().contains("sensitiveData")));
+    }
+
+    @Test
+    void skipPolicyDoesNotInvokeHandlerWhenProtectedDataIsMissing() {
+        DefaultPolicyHandler handler = new DefaultPolicyHandler();
+
+        HandlerInvoker invoker = invokeWithMissingProtectedData(handler, MissingProtectedDataPolicy.SKIP, null);
+
+        assertFalse(handler.isInvoked());
+        assertTrue(invoker.wasSkipped());
+        assertFalse(invoker.isPassive());
+    }
+
+    @Test
+    void failPolicyRejectsMessageWhenProtectedDataIsMissing() {
+        DefaultPolicyHandler handler = new DefaultPolicyHandler();
+
+        MissingProtectedDataException exception = assertThrows(
+                MissingProtectedDataException.class,
+                () -> invokeWithMissingProtectedData(handler, MissingProtectedDataPolicy.FAIL, null));
+
+        assertEquals(java.util.Set.of("sensitiveData"), exception.getMissingFields());
+        assertFalse(handler.isInvoked());
+    }
+
+    @Test
+    void consumerPolicyOverridesApplicationPolicy() {
+        DefaultPolicyHandler handler = new DefaultPolicyHandler();
+        ConsumerConfiguration consumer = ConsumerConfiguration.builder().name("test")
+                .onMissingProtectedData(MissingProtectedDataPolicy.SKIP).build();
+
+        invokeWithMissingProtectedData(handler, MissingProtectedDataPolicy.FAIL, consumer);
+
+        assertFalse(handler.isInvoked());
+    }
+
+    @Test
+    void handlerPolicyOverridesConsumerPolicy() {
+        HandlePolicyHandler handler = new HandlePolicyHandler();
+        ConsumerConfiguration consumer = ConsumerConfiguration.builder().name("test")
+                .onMissingProtectedData(MissingProtectedDataPolicy.SKIP).build();
+
+        invokeWithMissingProtectedData(handler, MissingProtectedDataPolicy.FAIL, consumer);
+
+        assertTrue(handler.isInvoked());
+    }
+
+    @Test
+    void applicationPolicyCanBeConfiguredByProperty() {
+        DefaultPolicyConsumer handler = new DefaultPolicyConsumer();
+        TestFixture.createAsync(DefaultFluxzero.builder().replacePropertySource(existing ->
+                                new SimplePropertySource(Map.of(
+                                        MissingProtectedDataPolicy.PROPERTY, "SKIP")).andThen(existing)),
+                        handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(
+                        new SomeEvent(null), missingProtectedDataMetadata()))
+                .expectThat(fc -> assertFalse(handler.isInvoked()))
+                .<IgnoreMessageEvent>expectMetric(event ->
+                        event.getReason().equals(IgnoreMessageEvent.MISSING_PROTECTED_DATA))
+                .expectNoMetricsLike(HandleMessageEvent.class);
+    }
+
+    @Test
+    void consumerAnnotationOverridesApplicationPolicyDuringTracking() {
+        SkipPolicyConsumer handler = new SkipPolicyConsumer();
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .onMissingProtectedData(MissingProtectedDataPolicy.FAIL),
+                                handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(
+                        new SomeEvent(null), missingProtectedDataMetadata()))
+                .expectThat(fc -> assertFalse(handler.isInvoked()));
+    }
+
+    @Test
+    void builderPolicyOverridesConfiguredProperty() {
+        DefaultPolicyConsumer handler = new DefaultPolicyConsumer();
+        TestFixture.createAsync(DefaultFluxzero.builder().replacePropertySource(existing ->
+                                        new SimplePropertySource(Map.of(
+                                                MissingProtectedDataPolicy.PROPERTY, "SKIP")).andThen(existing))
+                                .onMissingProtectedData(MissingProtectedDataPolicy.HANDLE),
+                        handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(
+                        new SomeEvent(null), missingProtectedDataMetadata()))
+                .expectThat(fc -> assertTrue(handler.isInvoked()));
+    }
+
+    private HandlerInvoker invokeWithMissingProtectedData(Object target, MissingProtectedDataPolicy applicationPolicy,
+                                                          ConsumerConfiguration consumerConfiguration) {
+        KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                target, HandleEvent.class, List.of(new PayloadParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new DataProtectionInterceptor(
+                keyValueStore, null, applicationPolicy).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new SomeEvent(null), missingProtectedDataMetadata()),
+                MessageType.EVENT, null);
+        if (consumerConfiguration != null) {
+            message.putContext(ConsumerConfiguration.class, consumerConfiguration);
+        }
+        HandlerInvoker invoker = wrapped.getInvokerOrNull(message);
+        invoker.invoke();
+        return invoker;
+    }
+
+    private Metadata missingProtectedDataMetadata() {
+        return Metadata.of(DataProtectionInterceptor.METADATA_KEY,
+                           Map.of("sensitiveData", "missing-key"));
     }
 
     @Value
@@ -420,6 +571,51 @@ class DataProtectionInterceptorTest {
         private void handler(ProtectedNestedRecordEvent event, DeserializingMessage message) {
             lastEvent = event;
             lastMetadata = message.getMetadata();
+        }
+    }
+
+    @Getter
+    private static class DefaultPolicyHandler {
+        private boolean invoked;
+        private SomeEvent lastEvent;
+
+        @HandleEvent
+        private void handler(SomeEvent event) {
+            invoked = true;
+            lastEvent = event;
+        }
+    }
+
+    @Getter
+    private static class HandlePolicyHandler {
+        private boolean invoked;
+
+        @HandleEvent(onMissingProtectedData = MissingProtectedDataPolicy.HANDLE)
+        private void handler(SomeEvent event) {
+            invoked = true;
+        }
+    }
+
+    @Getter
+    @Consumer(name = "default-missing-protected-data-policy")
+    private static class DefaultPolicyConsumer {
+        private boolean invoked;
+
+        @HandleEvent
+        private void handler(SomeEvent event) {
+            invoked = true;
+        }
+    }
+
+    @Getter
+    @Consumer(name = "skip-missing-protected-data",
+            onMissingProtectedData = MissingProtectedDataPolicy.SKIP)
+    private static class SkipPolicyConsumer {
+        private boolean invoked;
+
+        @HandleEvent
+        private void handler(SomeEvent event) {
+            invoked = true;
         }
     }
 

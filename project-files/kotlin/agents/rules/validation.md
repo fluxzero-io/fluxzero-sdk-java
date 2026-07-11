@@ -320,3 +320,10 @@ class ApplicationHandler {
     }
 }
 ```
+
+If another handler receives the message after the protected value has been dropped, configure its behavior with
+`onMissingProtectedData` on the `@Handle...` annotation or on `@Consumer`. Supported policies are `HANDLE` (silent
+default), `WARN`, `SKIP`, and `FAIL`; `DEFAULT` inherits from broader configuration. The application fallback is set
+with `FluxzeroBuilder.onMissingProtectedData(...)` or
+`fluxzero.dataProtection.onMissingProtectedData`. Environment variables may use
+`FLUXZERO_DATA_PROTECTION_ON_MISSING_PROTECTED_DATA` or `FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA`.

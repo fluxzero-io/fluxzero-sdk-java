@@ -195,6 +195,8 @@ io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider
 io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider
 io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor
 io.fluxzero.sdk.publishing.dataprotection.DropProtectedData
+io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataException
+io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy
 io.fluxzero.sdk.publishing.dataprotection.ProtectData
 io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor
 io.fluxzero.sdk.publishing.routing.RoutingKey

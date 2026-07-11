@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -56,6 +57,11 @@ public @interface HandleMessage {
      * @return the message type (e.g., EVENT, COMMAND, QUERY)
      */
     MessageType value();
+
+    /**
+     * Determines how the handler responds when referenced protected data is no longer available.
+     */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
 
     /**
      * Optional list of payload types that are allowed for handler methods using this annotation.

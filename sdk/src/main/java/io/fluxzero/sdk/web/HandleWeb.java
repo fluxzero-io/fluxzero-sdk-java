@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
 
 import java.lang.annotation.Documented;
@@ -49,6 +50,11 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 @HandleMessage(MessageType.WEBREQUEST)
 public @interface HandleWeb {
+    /**
+     * Determines how the handler responds when referenced protected data is no longer available.
+     */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
+
     /**
      * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},
      * {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation.

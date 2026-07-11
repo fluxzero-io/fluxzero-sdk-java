@@ -53,7 +53,9 @@ public class HandlerMonitor implements HandlerInterceptor {
             Instant start = Instant.now();
             try {
                 Object result = function.apply(message);
-                publishMetrics(invoker, message, false, start, result);
+                if (!invoker.wasSkipped()) {
+                    publishMetrics(invoker, message, false, start, result);
+                }
                 return result;
             } catch (Throwable e) {
                 publishMetrics(invoker, message, true, start, e);

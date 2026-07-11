@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -30,6 +32,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @HandleWeb(value = "", method = HttpRequestMethod.WS_CLOSE, skipExpiredRequests = false)
 public @interface HandleSocketClose {
+    /** Determines how the handler responds when referenced protected data is no longer available. */
+    MissingProtectedDataPolicy onMissingProtectedData() default MissingProtectedDataPolicy.DEFAULT;
+
     /**
      * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},
      * {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation.
