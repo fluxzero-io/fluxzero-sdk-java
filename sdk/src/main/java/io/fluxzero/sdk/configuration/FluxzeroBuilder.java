@@ -333,6 +333,17 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder disableCacheEvictionMetrics();
 
     /**
+     * Disables automatic application lifecycle metrics.
+     * <p>
+     * By default, a fully constructed Fluxzero application asynchronously publishes a startup metric that confirms it
+     * can reach a Fluxzero Runtime metrics endpoint. A matching stopping metric is attempted during controlled
+     * shutdown. Test fixtures disable these infrastructure metrics automatically.
+     */
+    default FluxzeroBuilder disableApplicationLifecycleMetrics() {
+        return this;
+    }
+
+    /**
      * Disables compression for web responses.
      */
     FluxzeroBuilder disableWebResponseCompression();

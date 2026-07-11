@@ -397,6 +397,7 @@ public class TestFixture implements Given<TestFixture>, When {
         client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         Clock fixtureClock = Clock.fixed(Instant.now().truncatedTo(ChronoUnit.MILLIS), ZoneId.systemDefault());
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
+                .disableApplicationLifecycleMetrics()
                 .addParameterResolver(beanParameterResolver)
                 .addDispatchInterceptor(dispatchInterceptor)
                 .replaceIdentityProvider(p -> p == IdentityProvider.defaultIdentityProvider

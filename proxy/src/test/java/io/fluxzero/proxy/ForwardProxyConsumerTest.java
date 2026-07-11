@@ -19,10 +19,12 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpServer;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
@@ -35,13 +37,19 @@ import org.junit.jupiter.api.Test;
 
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.http.HttpClient;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @Slf4j
@@ -140,5 +148,21 @@ class ForwardProxyConsumerTest {
                         .metadata(requestSettingsMetadata).payload("test").build())
                 .<WebResponse>expectResult(r -> r.getStatus() == 204 && r.<byte[]>getPayload().length == 0)
                 .expectWebResponse(r -> r.getStatus() == 204 && r.getMetadata().containsKey("$correlationId"));
+    }
+
+    @Test
+    void forcedShutdownLeavesRequestsThatHaveNotStartedForRedelivery() {
+        AtomicBoolean forceStopping = new AtomicBoolean(true);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), forceStopping);
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], Object.class.getName(), 0), Metadata.empty(), "request", 0L);
+        request.setIndex(42L);
+
+        BatchProcessingException error = assertThrows(
+                BatchProcessingException.class, () -> consumer.accept(List.of(request)));
+
+        assertEquals(42L, error.getMessageIndex());
     }
 }

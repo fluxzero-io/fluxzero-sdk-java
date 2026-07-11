@@ -136,6 +136,17 @@ class ProxyServerTest {
         }
 
         @Test
+        void readinessCheck() {
+            testFixture.whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/proxy/ready", proxyPort))).GET()
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("Ready", response.body());
+                    });
+        }
+
+        @Test
         void responsesDoNotExposeServerVersion() {
             testFixture.whenApplying(fc -> httpClient.send(
                             newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()

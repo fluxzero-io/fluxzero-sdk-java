@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
+import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -36,7 +37,6 @@ import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,11 +47,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
@@ -59,13 +59,11 @@ import static io.fluxzero.sdk.web.WebRequest.getHeaders;
 import static java.time.temporal.ChronoUnit.NANOS;
 import static java.util.Optional.ofNullable;
 
-@AllArgsConstructor(access = AccessLevel.PROTECTED)
 @Slf4j
 public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     static final String METRICS_ENABLED_PROPERTY = "FLUXZERO_PROXY_METRICS_ENABLED";
 
-    private static final HttpClient httpClient = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(5)).build();
+    private static final HttpClient sharedHttpClient = newHttpClient();
     protected static final WebRequestSettings defaultSettings = WebRequestSettings.builder().build();
     protected static final Serializer serializer = new ProxySerializer();
     protected static final Serializer metricsSerializer = new JacksonSerializer();
@@ -80,18 +78,47 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     @Getter(value = AccessLevel.PROTECTED)
     private final boolean mainConsumer;
     private final boolean publishMetrics;
+    private final HttpClient httpClient;
+    private final AtomicBoolean forceStopping;
+
+    protected ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
+                                   boolean publishMetrics) {
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, sharedHttpClient, new AtomicBoolean());
+    }
+
+    ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
+                         boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping) {
+        this.client = client;
+        this.consumerName = consumerName;
+        this.minIndex = minIndex;
+        this.mainConsumer = mainConsumer;
+        this.publishMetrics = publishMetrics;
+        this.httpClient = httpClient;
+        this.forceStopping = forceStopping;
+    }
 
     public static Registration start(Client client) {
+        return startManaged(client);
+    }
+
+    static Lifecycle startManaged(Client client) {
+        HttpClient httpClient = newHttpClient();
         var consumer = new ForwardProxyConsumer(
                 client, defaultSettings.getConsumer(),
                 IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)), true,
-                getBooleanProperty(METRICS_ENABLED_PROPERTY, true));
-        consumer.runningConsumers.computeIfAbsent(defaultSettings.getConsumer(), c -> consumer.start());
-        return () -> {
-            Collection<Registration> running = consumer.runningConsumers.values();
-            running.forEach(Registration::cancel);
-            running.clear();
-        };
+                getBooleanProperty(METRICS_ENABLED_PROPERTY, true), httpClient, new AtomicBoolean());
+        try {
+            consumer.runningConsumers.computeIfAbsent(defaultSettings.getConsumer(), c -> consumer.start());
+            return new Lifecycle(consumer);
+        } catch (RuntimeException | Error e) {
+            httpClient.shutdownNow();
+            throw e;
+        }
+    }
+
+    private static HttpClient newHttpClient() {
+        return HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(5)).build();
     }
 
     protected Registration start() {
@@ -106,6 +133,10 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         Instant start = Instant.now();
         try {
             for (SerializedMessage s : serializedMessages) {
+                if (forceStopping.get()) {
+                    throw new BatchProcessingException(
+                            "Forward proxy stopped before the remaining request could start", s.getIndex());
+                }
                 try {
                     var settings = getSettings(s);
                     if (consumerName.equals(settings.getConsumer())) {
@@ -116,7 +147,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                     } else if (isMainConsumer()) {
                         runningConsumers.computeIfAbsent(
                                 settings.getConsumer(), c -> new ForwardProxyConsumer(
-                                        client, c, s.getIndex(), false, publishMetrics).start());
+                                        client, c, s.getIndex(), false, publishMetrics,
+                                        httpClient, forceStopping).start());
                     }
                 } catch (Throwable e) {
                     log.error("Failed to handle external request {}. Continuing..", s.getMessageId(), e);
@@ -254,6 +286,35 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             metricsGateway.append(Guarantee.NONE, metricsMessage.serialize(metricsSerializer));
         } catch (Throwable e) {
             log.error("Failed to publish HandleMessage metrics", e);
+        }
+    }
+
+    static final class Lifecycle implements Registration {
+        private final ForwardProxyConsumer consumer;
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+
+        private Lifecycle(ForwardProxyConsumer consumer) {
+            this.consumer = consumer;
+        }
+
+        @Override
+        public void cancel() {
+            if (cancelled.compareAndSet(false, true)) {
+                try {
+                    while (!consumer.runningConsumers.isEmpty()) {
+                        var snapshot = List.copyOf(consumer.runningConsumers.entrySet());
+                        snapshot.forEach(entry -> entry.getValue().cancel());
+                        snapshot.forEach(entry -> consumer.runningConsumers.remove(entry.getKey(), entry.getValue()));
+                    }
+                } finally {
+                    consumer.httpClient.close();
+                }
+            }
+        }
+
+        void force() {
+            consumer.forceStopping.set(true);
+            consumer.httpClient.shutdownNow();
         }
     }
 }

@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking.client;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -352,10 +354,106 @@ class DefaultTrackerTest {
 
         assertTrue(fetching.await(1, TimeUnit.SECONDS));
         defaultTracker.cancel();
-        trackerThread.join(TimeUnit.SECONDS.toMillis(1));
 
-        assertFalse(trackerThread.isAlive());
+        assertFalse(trackerThread.isAlive(), "Cancellation should await the interrupted fetch thread");
         assertNull(uncaught.get());
+    }
+
+    @Test
+    void cancellationDoesNotWaitIndefinitelyWhenFetchIgnoresInterrupts() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(2).build();
+        CountDownLatch fetching = new CountDownLatch(2);
+        CountDownLatch releaseFetch = new CountDownLatch(1);
+        AtomicInteger activeFetches = new AtomicInteger();
+
+        when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            activeFetches.incrementAndGet();
+            fetching.countDown();
+            try {
+                while (releaseFetch.getCount() > 0L) {
+                    try {
+                        releaseFetch.await();
+                    } catch (InterruptedException ignored) {
+                        // Deliberately emulate a broken/custom tracking client that ignores cancellation.
+                    }
+                }
+                return null;
+            } finally {
+                activeFetches.decrementAndGet();
+            }
+        });
+
+        Registration registration = DefaultTracker.start(messages -> {}, config, trackingClient);
+        try {
+            assertTrue(fetching.await(1, TimeUnit.SECONDS));
+
+            assertTimeout(Duration.ofMillis(1_800), registration::cancel);
+
+            assertEquals(2, activeFetches.get(), "Both test fetches should still be blocked after ignoring interruption");
+        } finally {
+            releaseFetch.countDown();
+            registration.cancel();
+            assertEquals(0, activeFetches.get());
+        }
+    }
+
+    @Test
+    void requestsCancellationOfAllParallelTrackersBeforeAwaitingCurrentBatch() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("consumer")
+                .threads(2)
+                .build();
+        AtomicInteger reads = new AtomicInteger();
+        CountDownLatch processingFirstBatch = new CountDownLatch(1);
+        CountDownLatch releaseFirstBatch = new CountDownLatch(1);
+        CountDownLatch secondTrackerFetching = new CountDownLatch(1);
+        CountDownLatch secondTrackerInterrupted = new CountDownLatch(1);
+        SerializedMessage message = mock(SerializedMessage.class);
+        when(message.getIndex()).thenReturn(1L);
+        when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            if (reads.getAndIncrement() == 0) {
+                return new MessageBatch(new int[]{0, 64}, List.of(message), 1L, Position.newPosition(), true);
+            }
+            secondTrackerFetching.countDown();
+            try {
+                Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+                return null;
+            } catch (InterruptedException e) {
+                secondTrackerInterrupted.countDown();
+                throw e;
+            }
+        });
+        when(trackingClient.storePosition(eq("consumer"), any(), eq(1L))).thenReturn(
+                CompletableFuture.completedFuture(null));
+
+        Registration registration = DefaultTracker.start(messages -> {
+            processingFirstBatch.countDown();
+            try {
+                releaseFirstBatch.await();
+            } catch (InterruptedException e) {
+                currentThread().interrupt();
+            }
+        }, config, trackingClient);
+
+        try {
+            assertTrue(processingFirstBatch.await(1, TimeUnit.SECONDS));
+            assertTrue(secondTrackerFetching.await(1, TimeUnit.SECONDS));
+            CompletableFuture<Void> cancellation = CompletableFuture.runAsync(registration::cancel);
+
+            assertTrue(secondTrackerInterrupted.await(1, TimeUnit.SECONDS),
+                       "The idle tracker should stop fetching while another tracker finishes its batch");
+            assertFalse(cancellation.isDone(), "Cancellation should still await the active batch");
+
+            releaseFirstBatch.countDown();
+            cancellation.get(1, TimeUnit.SECONDS);
+        } finally {
+            releaseFirstBatch.countDown();
+            registration.cancel();
+        }
     }
 
     @SuppressWarnings("unchecked")

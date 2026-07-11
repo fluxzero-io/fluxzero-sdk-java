@@ -39,6 +39,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
@@ -315,6 +316,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableShutdownHook;
         private boolean disableTrackingMetrics;
         private boolean disableCacheEvictionMetrics;
+        private boolean disableApplicationLifecycleMetrics;
         private boolean disableWebResponseCompression;
         private boolean disableAdhocDispatchInterceptor;
         private Integer maxPublicationDepth;
@@ -638,6 +640,12 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder disableCacheEvictionMetrics() {
             disableCacheEvictionMetrics = true;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder disableApplicationLifecycleMetrics() {
+            disableApplicationLifecycleMetrics = true;
             return this;
         }
 
@@ -1060,7 +1068,19 @@ public class DefaultFluxzero implements Fluxzero {
                 fluxzero.beforeShutdown(thread::interrupt);
             }
 
+            if (!disableApplicationLifecycleMetrics && applicationLifecycleMetricsEnabled(client)) {
+                ApplicationLifecycleMetrics lifecycleMetrics =
+                        new ApplicationLifecycleMetrics(metricsGateway, client, clock);
+                fluxzero.beforeShutdown(lifecycleMetrics::stop);
+                lifecycleMetrics.start();
+            }
+
             return fluxzero;
+        }
+
+        private boolean applicationLifecycleMetricsEnabled(Client client) {
+            return !(client.unwrap() instanceof WebSocketClient webSocketClient)
+                   || !webSocketClient.getClientConfig().isDisableMetrics();
         }
 
         private Cache resolveCache() {

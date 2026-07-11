@@ -45,6 +45,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -82,6 +83,8 @@ import static java.util.stream.Collectors.toList;
  */
 @Slf4j
 public class DefaultTracker implements Runnable, Registration {
+    static final Duration TRACKER_THREAD_STOP_TIMEOUT = Duration.ofSeconds(1);
+
 
     private static final ThreadGroup threadGroup = new ThreadGroup("DefaultTracker");
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
@@ -101,6 +104,8 @@ public class DefaultTracker implements Runnable, Registration {
     private final boolean autoStorePosition;
     private final FlowRegulator flowRegulator;
     private final MetricsGateway metricsGateway;
+    private final AtomicBoolean cancellationRequested = new AtomicBoolean();
+    private final AtomicBoolean cancellationCompleted = new AtomicBoolean();
     private volatile Long lastProcessedIndex;
     private volatile boolean processing;
 
@@ -167,8 +172,9 @@ public class DefaultTracker implements Runnable, Registration {
                        format("%s%s-%d", config.getName(),
                               config.getName().contains(messageType.name()) ? "" : "-" + messageType, i)).start();
         }
-        client.beforeShutdown(() -> trackers.forEach(DefaultTracker::cancel));
-        return () -> trackers.forEach(DefaultTracker::cancel);
+        Registration registration = cancellationRegistration(trackers);
+        client.beforeShutdown(registration::cancel);
+        return registration;
     }
 
     /**
@@ -188,7 +194,16 @@ public class DefaultTracker implements Runnable, Registration {
                               config.getName().contains(trackingClient.getMessageType().name()) ? "" :
                                       "-" + trackingClient.getMessageType(), i)).start();
         }
-        return () -> trackers.forEach(DefaultTracker::cancel);
+        return cancellationRegistration(trackers);
+    }
+
+    private static Registration cancellationRegistration(List<DefaultTracker> trackers) {
+        return () -> {
+            // Stop every tracker from fetching another batch before awaiting any batch that is already processing.
+            trackers.forEach(DefaultTracker::requestCancellation);
+            long threadStopDeadline = System.nanoTime() + TRACKER_THREAD_STOP_TIMEOUT.toNanos();
+            trackers.forEach(tracker -> tracker.awaitCancellation(threadStopDeadline));
+        };
     }
 
     private DefaultTracker(Consumer<List<SerializedMessage>> consumer, ConsumerConfiguration config, Tracker tracker,
@@ -226,6 +241,10 @@ public class DefaultTracker implements Runnable, Registration {
     @SneakyThrows
     public void run() {
         if (running.compareAndSet(false, true)) {
+            if (cancellationRequested.get()) {
+                running.set(false);
+                return;
+            }
             Tracker.current.set(tracker);
             thread.set(currentThread());
             try {
@@ -504,30 +523,61 @@ public class DefaultTracker implements Runnable, Registration {
     @SuppressWarnings("BusyWait")
     @Override
     public void cancel() {
-        if (running.compareAndSet(true, false)) {
-            if (!currentThread().equals(thread.get())) {
-                //wait for processing to complete
-                if (processing) {
-                    while (processing) {
-                        try {
-                            Thread.sleep(1);
-                        } catch (InterruptedException e) {
-                            currentThread().interrupt();
-                            return;
-                        }
-                    }
-                } else {
-                    //interrupt message fetching
-                    try {
-                        ofNullable(thread.get()).ifPresent(Thread::interrupt);
-                    } catch (Throwable e) {
-                        log.warn("Not allowed to cancel tracker {}", tracker.getName(), e);
-                    } finally {
-                        thread.set(null);
-                    }
+        requestCancellation();
+        awaitCancellation(System.nanoTime() + TRACKER_THREAD_STOP_TIMEOUT.toNanos());
+    }
+
+    private void requestCancellation() {
+        if (cancellationRequested.compareAndSet(false, true)) {
+            running.set(false);
+            Thread trackerThread = thread.get();
+            if (!currentThread().equals(trackerThread) && !processing) {
+                // Interrupt message fetching. A batch that is already processing remains uninterrupted and can finish.
+                try {
+                    ofNullable(trackerThread).ifPresent(Thread::interrupt);
+                } catch (Throwable e) {
+                    log.warn("Not allowed to cancel tracker {}", tracker.getName(), e);
                 }
             }
+        }
+    }
 
+    @SuppressWarnings("BusyWait")
+    private void awaitCancellation(long threadStopDeadline) {
+        Thread trackerThread = thread.get();
+        if (!cancellationRequested.get() || currentThread().equals(trackerThread)) {
+            completeCancellation();
+            return;
+        }
+        while (processing) {
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                currentThread().interrupt();
+                return;
+            }
+        }
+        if (trackerThread != null) {
+            try {
+                long remainingNanos = threadStopDeadline - System.nanoTime();
+                if (remainingNanos > 0L) {
+                    trackerThread.join(Math.max(1L, TimeUnit.NANOSECONDS.toMillis(remainingNanos)));
+                }
+                if (trackerThread.isAlive()) {
+                    log.warn("Tracker thread {} did not stop within {} after cancellation. Continuing shutdown so "
+                             + "the client can release its resources", trackerThread.getName(),
+                             TRACKER_THREAD_STOP_TIMEOUT);
+                }
+            } catch (InterruptedException e) {
+                currentThread().interrupt();
+                return;
+            }
+        }
+        completeCancellation();
+    }
+
+    private void completeCancellation() {
+        if (cancellationCompleted.compareAndSet(false, true)) {
             //signal batch interceptors that this tracker goes away
             tracker.getConfiguration().getBatchInterceptors().forEach(i -> {
                 try {
