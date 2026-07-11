@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -356,6 +357,38 @@ class DefaultTrackerTest {
         defaultTracker.cancel();
 
         assertFalse(trackerThread.isAlive(), "Cancellation should await the interrupted fetch thread");
+        assertNull(uncaught.get());
+    }
+
+    @Test
+    void clientClosureWhileFetchingStopsCancelledTrackerWithoutUncaughtException() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        CountDownLatch fetching = new CountDownLatch(1);
+        AtomicReference<Throwable> uncaught = new AtomicReference<>();
+
+        when(trackingClient.getPosition("consumer")).thenReturn(new Position(-1L));
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            fetching.countDown();
+            try {
+                Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+                return null;
+            } catch (InterruptedException ignored) {
+                throw new ExecutionException(
+                        new IllegalStateException("Cannot provide session. This client has closed"));
+            }
+        });
+
+        Thread trackerThread = new Thread(defaultTracker, "test-tracker");
+        trackerThread.setUncaughtExceptionHandler((thread, error) -> uncaught.set(error));
+        trackerThread.start();
+
+        assertTrue(fetching.await(1, TimeUnit.SECONDS));
+        defaultTracker.cancel();
+
+        assertFalse(trackerThread.isAlive(), "Cancellation should await the failed fetch thread");
         assertNull(uncaught.get());
     }
 

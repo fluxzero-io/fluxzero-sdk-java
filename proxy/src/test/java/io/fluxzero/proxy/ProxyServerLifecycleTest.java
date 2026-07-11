@@ -240,8 +240,9 @@ class ProxyServerLifecycleTest {
             assertFalse(shutdown.isDone(), "Shutdown returned before the active forward request completed");
 
             releaseResponse.countDown();
-            assertEquals(200, response.get(2, TimeUnit.SECONDS).getStatus());
-            shutdown.get(2, TimeUnit.SECONDS);
+            CompletableFuture<Integer> responseStatus = response.thenApply(WebResponse::getStatus);
+            CompletableFuture.allOf(responseStatus, shutdown).get(6, TimeUnit.SECONDS);
+            assertEquals(200, responseStatus.join());
         } finally {
             releaseResponse.countDown();
             if (requester != null) {

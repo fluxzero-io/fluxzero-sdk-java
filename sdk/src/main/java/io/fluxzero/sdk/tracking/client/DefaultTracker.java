@@ -358,8 +358,10 @@ public class DefaultTracker implements Runnable, Registration {
                     try {
                         return trackingClient.readAndWait(tracker.getTrackerId(), lastIndex, tracker.getConfiguration());
                     } catch (Throwable e) {
-                        if (!running.get() && causedByInterruption(e)) {
-                            currentThread().interrupt();
+                        if (!running.get()) {
+                            if (causedByInterruption(e)) {
+                                currentThread().interrupt();
+                            }
                             return null;
                         }
                         throw e;

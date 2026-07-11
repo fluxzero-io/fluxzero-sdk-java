@@ -23,6 +23,7 @@ import io.fluxzero.common.api.RuntimeLifecycleEvent;
 import io.fluxzero.common.tracking.HasMessageStore;
 import io.fluxzero.common.tracking.MessageLogMaintenance;
 import io.fluxzero.common.tracking.MessageStore;
+import io.fluxzero.common.tracking.WebSocketTracker;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
@@ -57,6 +58,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.ERROR;
@@ -137,10 +139,19 @@ public class TestServer {
      * @return the started Jetty server
      */
     public static Server startServer(int port) {
-        return startServer(port, false);
+        return startServer(port, false, ignored -> {});
+    }
+
+    static Server startServer(int port, Consumer<WebSocketTracker> readRequestObserver) {
+        return startServer(port, false, readRequestObserver);
     }
 
     private static Server startServer(int port, boolean registerShutdownHook) {
+        return startServer(port, registerShutdownHook, ignored -> {});
+    }
+
+    private static Server startServer(int port, boolean registerShutdownHook,
+                                      Consumer<WebSocketTracker> readRequestObserver) {
         ServerState state = new ServerState();
         latestState = state;
         JettyWebsocketRouter router = new JettyWebsocketRouter();
@@ -178,7 +189,7 @@ public class TestServer {
                     router = deployFromSession(
                             ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ConsumerEndpoint(
                                             state.getMessageLogMaintenance(namespace, messageType, topic), messageType, topic,
-                                            commandIdempotencyStore)
+                                            commandIdempotencyStore, readRequestObserver)
                                             .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
                             format("/%s/", trackingPath(messageType)), router);

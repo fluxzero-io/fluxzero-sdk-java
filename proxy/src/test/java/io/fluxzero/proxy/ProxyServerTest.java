@@ -54,6 +54,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -106,6 +108,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
+@Execution(ExecutionMode.SAME_THREAD)
 class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
     private final TestProxyRequestHandler proxyRequestHandler =
@@ -1077,7 +1080,9 @@ class ProxyServerTest {
                                     .POST(BodyPublishers.ofString(payload))
                                     .build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
-                        assertEquals(200, response.statusCode());
+                        assertEquals(200, response.statusCode(), () ->
+                                "Unexpected response for %s: headers=%s, body=%s".formatted(
+                                        response.uri(), response.headers().map(), response.body()));
                         assertEquals(payload, response.body());
                     });
         }

@@ -37,6 +37,7 @@ import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.tracking.Tracker;
 import io.fluxzero.sdk.common.websocket.JdkWebsocketConnector;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
@@ -71,6 +72,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,12 +94,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TestServerWebsocketContractTest {
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
     private static final long TIMEOUT_SECONDS = 5L;
+    private static final Map<String, CompletableFuture<Void>> pendingTrackerRequests = new ConcurrentHashMap<>();
     private static Server server;
     private static int port;
 
     @BeforeAll
     static void beforeAll() {
-        server = TestServer.startServer(0);
+        server = TestServer.startServer(0, TestServerWebsocketContractTest::onTrackerRequest);
         port = localPort(server);
     }
 
@@ -293,11 +296,13 @@ class TestServerWebsocketContractTest {
             GatewayClient gateway = client.getGatewayClient(CUSTOM, topic);
             TrackingClient tracking = client.getTrackingClient(CUSTOM, topic);
             String consumer = "truncate-custom-topic-waiting-consumer";
+            String trackerId = "waiting-tracker";
 
+            CompletableFuture<Void> trackerRequestReceived = expectTrackerRequest(consumer, trackerId);
             CompletableFuture<MessageBatch> waitingBatch = tracking.read(
-                    "waiting-tracker", null, ConsumerConfiguration.builder()
+                    trackerId, null, ConsumerConfiguration.builder()
                             .name(consumer).maxWaitDuration(Duration.ofSeconds(30)).build());
-            Thread.sleep(250L);
+            await(trackerRequestReceived);
             assertFalse(waitingBatch.isDone());
 
             await(gateway.truncate(STORED));
@@ -543,6 +548,27 @@ class TestServerWebsocketContractTest {
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
         return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private static CompletableFuture<Void> expectTrackerRequest(String consumer, String trackerId) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Void> existing = pendingTrackerRequests.putIfAbsent(trackerKey(consumer, trackerId), result);
+        if (existing != null) {
+            throw new IllegalStateException("Already waiting for tracker request " + consumer + "/" + trackerId);
+        }
+        return result;
+    }
+
+    private static void onTrackerRequest(Tracker tracker) {
+        CompletableFuture<Void> request = pendingTrackerRequests.remove(
+                trackerKey(tracker.getConsumerName(), tracker.getTrackerId()));
+        if (request != null) {
+            request.complete(null);
+        }
+    }
+
+    private static String trackerKey(String consumer, String trackerId) {
+        return consumer + '\0' + trackerId;
     }
 
     private static void assertPosition(long expectedIndex, Position position) {

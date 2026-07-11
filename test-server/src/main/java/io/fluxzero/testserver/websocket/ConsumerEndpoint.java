@@ -41,6 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static io.fluxzero.common.MessageType.METRICS;
 
@@ -52,6 +53,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     private final PositionStore positionStore;
     private final MessageType messageType;
     private final String topic;
+    private final Consumer<WebSocketTracker> readRequestObserver;
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {
         this(newMaintenance(messageStore), messageType, (String) null);
@@ -98,7 +100,23 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     public ConsumerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic,
                             CommandIdempotencyStore commandIdempotencyStore) {
         this(maintenance.getTrackingStrategy(), maintenance.getMessageStore(), maintenance.getPositionStore(),
-             messageType, topic, commandIdempotencyStore);
+             messageType, topic, commandIdempotencyStore, ignored -> {});
+    }
+
+    /**
+     * Creates a consumer endpoint that reports each read after it has been registered with the tracking strategy.
+     *
+     * @param maintenance             the shared message log maintenance components
+     * @param messageType             the message type exposed by the endpoint
+     * @param topic                   the topic exposed by the endpoint, or {@code null} for non-topic message types
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     * @param readRequestObserver     observer invoked after a read has been registered with the tracking strategy
+     */
+    public ConsumerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic,
+                            CommandIdempotencyStore commandIdempotencyStore,
+                            Consumer<WebSocketTracker> readRequestObserver) {
+        this(maintenance.getTrackingStrategy(), maintenance.getMessageStore(), maintenance.getPositionStore(),
+             messageType, topic, commandIdempotencyStore, readRequestObserver);
     }
 
     private ConsumerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic) {
@@ -127,6 +145,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
         this.positionStore = positionStore;
         this.messageType = messageType;
         this.topic = topic;
+        this.readRequestObserver = ignored -> {};
     }
 
     /**
@@ -142,20 +161,35 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
                             PositionStore positionStore, MessageType messageType, String topic,
                             CommandIdempotencyStore commandIdempotencyStore) {
+        this(trackingStrategy, messageStore, positionStore, messageType, topic, commandIdempotencyStore,
+             ignored -> {});
+    }
+
+    private ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
+                             PositionStore positionStore, MessageType messageType, String topic,
+                             CommandIdempotencyStore commandIdempotencyStore,
+                             Consumer<WebSocketTracker> readRequestObserver) {
         super(commandIdempotencyStore);
         this.trackingStrategy = trackingStrategy;
         this.messageStore = messageStore;
         this.positionStore = positionStore;
         this.messageType = messageType;
         this.topic = topic;
+        this.readRequestObserver = readRequestObserver;
     }
 
     @Handle
     CompletableFuture<ReadResult> handle(Read read, ServerWebsocketSession session) {
-        return trackingStrategy.getBatch(
-                        new WebSocketTracker(read, messageType, getClientId(session),
-                                             getNegotiatedSessionId(session)))
+        WebSocketTracker tracker = new WebSocketTracker(
+                read, messageType, getClientId(session), getNegotiatedSessionId(session));
+        CompletableFuture<ReadResult> result = trackingStrategy.getBatch(tracker)
                 .thenApply(batch -> new ReadResult(read.getRequestId(), batch));
+        try {
+            readRequestObserver.accept(tracker);
+        } catch (Throwable e) {
+            log.warn("Read request observer failed for tracker {}", tracker, e);
+        }
+        return result;
     }
 
     @Handle
