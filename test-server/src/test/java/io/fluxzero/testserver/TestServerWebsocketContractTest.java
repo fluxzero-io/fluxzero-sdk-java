@@ -15,6 +15,7 @@
 
 package io.fluxzero.testserver;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -37,6 +38,9 @@ import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.tracking.DefaultTrackingStrategy;
+import io.fluxzero.common.tracking.MessageLogMaintenance;
+import io.fluxzero.common.tracking.Tracker;
 import io.fluxzero.sdk.common.websocket.JdkWebsocketConnector;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
@@ -61,6 +65,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
+import java.lang.reflect.Field;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -287,17 +292,19 @@ class TestServerWebsocketContractTest {
 
     @Test
     void truncateCustomTopicOverFullServerDisconnectsActiveWaitingTracker() throws Exception {
-        WebSocketClient client = client("truncate-custom-topic-waiting");
+        String namespace = "contract-truncate-custom-topic-waiting-" + UUID.randomUUID();
+        WebSocketClient client = client("truncate-custom-topic-waiting", namespace);
         try {
             String topic = "live-" + UUID.randomUUID();
             GatewayClient gateway = client.getGatewayClient(CUSTOM, topic);
             TrackingClient tracking = client.getTrackingClient(CUSTOM, topic);
             String consumer = "truncate-custom-topic-waiting-consumer";
+            String trackerId = "waiting-tracker";
 
             CompletableFuture<MessageBatch> waitingBatch = tracking.read(
-                    "waiting-tracker", null, ConsumerConfiguration.builder()
+                    trackerId, null, ConsumerConfiguration.builder()
                             .name(consumer).maxWaitDuration(Duration.ofSeconds(30)).build());
-            Thread.sleep(250L);
+            awaitOpenTrackerRequest(namespace, CUSTOM, topic, consumer, trackerId);
             assertFalse(waitingBatch.isDone());
 
             await(gateway.truncate(STORED));
@@ -543,6 +550,33 @@ class TestServerWebsocketContractTest {
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
         return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private static void awaitOpenTrackerRequest(String namespace, MessageType messageType, String topic,
+                                                String consumer, String trackerId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+        while (System.nanoTime() < deadline) {
+            if (hasOpenTrackerRequest(namespace, messageType, topic, consumer, trackerId)) {
+                return;
+            }
+            Thread.sleep(10L);
+        }
+        throw new AssertionError("Timed out waiting for tracker request " + consumer + "/" + trackerId + " to open");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean hasOpenTrackerRequest(String namespace, MessageType messageType, String topic,
+                                                 String consumer, String trackerId) throws Exception {
+        MessageLogMaintenance maintenance = TestServer.getMessageLogMaintenanceForTesting(namespace, messageType, topic);
+        if (!(maintenance.getTrackingStrategy() instanceof DefaultTrackingStrategy trackingStrategy)) {
+            return false;
+        }
+        Field field = DefaultTrackingStrategy.class.getDeclaredField("openRequests");
+        field.setAccessible(true);
+        Map<Tracker, ?> openRequests = (Map<Tracker, ?>) field.get(trackingStrategy);
+        return openRequests.keySet().stream()
+                .anyMatch(tracker -> consumer.equals(tracker.getConsumerName())
+                                     && trackerId.equals(tracker.getTrackerId()));
     }
 
     private static void assertPosition(long expectedIndex, Position position) {

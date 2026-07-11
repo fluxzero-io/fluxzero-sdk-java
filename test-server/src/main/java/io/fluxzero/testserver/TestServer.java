@@ -300,6 +300,11 @@ public class TestServer {
         return latestState.getMessageStore(namespace, METRICS);
     }
 
+    static MessageLogMaintenance getMessageLogMaintenanceForTesting(String namespace, MessageType messageType,
+                                                                    String topic) {
+        return latestState.getMessageLogMaintenance(namespace, messageType, topic);
+    }
+
     private static class ServerState {
         private final MemoizingFunction<String, Client> clients = memoize(
                 namespace -> new TestServerProject(LocalClient.newInstance()));
