@@ -57,6 +57,22 @@
     "varArgs" : false,
     "documentation" : " Returns the current thread-local ad hoc interceptor for the given {@link MessageType}, if present.\n\n @param messageType The message type to look up.\n @return An optional interceptor for the specified message type.\n"
   }, {
+    "name" : "hasAdhocInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#hasAdhocInterceptor",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "interceptDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#interceptDispatch",
     "returnType" : "io.fluxzero.sdk.common.Message",
@@ -158,6 +174,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Optionally monitors a dispatched message using any registered ad hoc interceptor for the current thread.\n"
+  }, {
+    "name" : "prepareLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#prepareLocalDispatch",
+    "returnType" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descriptor",
+      "type" : "io.fluxzero.sdk.publishing.LocalDispatchDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "runWithAdhocInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#runWithAdhocInterceptor",

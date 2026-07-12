@@ -168,6 +168,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Removes any user-related metadata entries from the given {@link Metadata}.\n\n @param metadata the metadata to clean\n @return a new {@link Metadata} instance without any user-specific keys\n"
+  }, {
+    "name" : "requiresMessageBasedLocalResolution",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#requiresMessageBasedLocalResolution",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether locally handled messages must be passed to {@link #fromMessage(HasMessage)} to determine the\n handling user.\n\n <p>Fluxzero normally reuses the user that was selected when the message was dispatched. This avoids constructing\n a complete message solely to store that user in metadata and read it back again. This is correct for regular\n providers, including implementations of {@link AbstractUserProvider}, where\n {@code fromMessage(message)} returns the same user that {@link #addToMetadata(Metadata, User)} added.</p>\n\n <p>Override this method to return {@code true} only if {@link #fromMessage(HasMessage)} can intentionally produce\n a different user, or if user resolution depends on other parts of the completed message. Local handling will\n then use the regular message-based path so that the provider retains exactly that behavior.</p>\n\n @return {@code true} to resolve the handling user from the completed local message; {@code false} to reuse the\n user selected during dispatch\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "handlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler.handlerMethodPlanner",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "targetClass",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler.targetClass",
     "type" : "java.lang.Class<?>",
@@ -96,12 +104,43 @@
       "type" : "io.fluxzero.common.handling.HandlerMethod<M>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "handlerMethodPlanner",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forPayloadTarget",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#forPayloadTarget",
+    "returnType" : "io.fluxzero.common.handling.DefaultHandler<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallbackTargetSupplier",
+      "type" : "java.util.function.Function<M,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a handler for methods declared on the message payload itself.\n\n <p>Prepared invocations obtain their target from {@link HandlerInput#getPayload()} each time, so a cached plan\n never retains an earlier payload instance. If an invocation cannot use the prepared path, the supplied fallback\n resolves the target from the complete message.</p>\n\n @param targetClass the payload type that declares the handler methods\n @param fallbackTargetSupplier function that obtains the handler target from a complete message\n @param handlerMatcher the matcher used to select a handler method\n @param <M> the message type used by the handling pipeline\n @return a handler for methods whose invocation target is the current payload\n"
+  }, {
     "name" : "forTarget",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#forTarget",
     "returnType" : "io.fluxzero.common.handling.DefaultHandler<M>",
@@ -143,6 +182,39 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getHandlerMethodPlanOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getHandlerMethodPlanOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getHandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getHandlerMethodPlanner",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

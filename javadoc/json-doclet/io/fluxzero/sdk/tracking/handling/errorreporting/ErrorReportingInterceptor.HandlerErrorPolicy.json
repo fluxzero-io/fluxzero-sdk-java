@@ -104,6 +104,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isLocalHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor$HandlerErrorPolicy#isLocalHandler",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "localHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor$HandlerErrorPolicy#localHandler",
     "returnType" : "boolean",

@@ -8,7 +8,7 @@
   "documentation" : " Resolves parameters of type {@link User}, typically representing the current user in a request context.\n <p>\n This resolver delegates the extraction of user information to a configured {@link UserProvider}, which defines how to\n extract a user from a {@link HasMessage} or {@link DeserializingMessage}.\n <p>\n If no user can be determined from the message context, the {@link User#getCurrent()} thread-local fallback is used.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.common.handling.TypedParameterResolver<java.lang.Object>",
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerInputResolver<java.lang.Object>" ],
   "fields" : [ {
     "name" : "userProvider",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver.userProvider",
@@ -38,6 +38,93 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "getInputCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver#getInputCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isNoMatchPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver#isNoMatchPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver#isPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prepare",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver#prepare",
     "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
@@ -55,6 +142,35 @@
     }, {
       "name" : "methodAnnotation",
       "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver#prepareInput",
+    "returnType" : "io.fluxzero.common.handling.HandlerInputResolver.Resolution<java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<java.lang.Object>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

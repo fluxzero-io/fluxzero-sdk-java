@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor",
     "kind" : "class"
   }, {
+    "file" : "DataProtectionInterceptor.DataProtectionPlanKey.json",
+    "name" : "DataProtectionInterceptor.DataProtectionPlanKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$DataProtectionPlanKey",
+    "kind" : "record"
+  }, {
     "file" : "DataProtectionInterceptor.HandleAnnotation.json",
     "name" : "DataProtectionInterceptor.HandleAnnotation",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$HandleAnnotation",

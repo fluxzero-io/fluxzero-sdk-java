@@ -147,6 +147,49 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.HandlerMonitor#prepareInput",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.HandlerMonitor#prepareInput",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "publishHandlerMethodMetrics",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.HandlerMonitor#publishHandlerMethodMetrics",
     "returnType" : "void",

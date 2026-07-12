@@ -48,6 +48,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Maps the given response object and metadata to a {@link Message}.\n\n @param response the response object to be transformed\n @param metadata optional metadata to include in the message\n @return a {@link Message} representing the response and metadata\n"
+  }, {
+    "name" : "mapPayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.ResponseMapper#mapPayload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maps a synchronously completed handler result to the value returned by the gateway.\n\n <p>The default obtains the payload from {@link #map(Object)}. Implementations may override this method to avoid\n creating an intermediate {@link Message}, but the returned value must be identical to\n {@code map(response).getPayload()}.</p>\n\n @param response the value returned by the handler\n @return the payload to return from the gateway\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

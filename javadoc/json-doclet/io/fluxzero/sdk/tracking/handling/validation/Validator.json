@@ -245,6 +245,22 @@
     "varArgs" : false,
     "documentation" : " Returns whether the executable declares return value constraints that this validator can evaluate.\n\n @param executable the executable whose return value may be validated\n @return {@code true} if return value validation should be performed\n"
   }, {
+    "name" : "hasValidation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#hasValidation",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether values of the supplied type may require validation by this validator.\n\n <p>Fluxzero uses this as a fast check before validating local handler payloads. Return {@code false} only when\n the validator can determine with certainty that {@link #checkValidity(Object, Class[])} would never report a\n violation for an instance of this type. The default returns {@code true} to preserve the behavior of existing\n validators.</p>\n\n @param type the runtime type of the value that would be validated\n @return {@code true} if the type may contain constraints understood by this validator\n"
+  }, {
     "name" : "isValid",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#isValid",
     "returnType" : "boolean",

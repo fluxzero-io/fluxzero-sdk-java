@@ -1,0 +1,70 @@
+{
+  "name" : "Status",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Possible outcomes of preparing a handler method. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.handling.HandlerMethodPreparation.Status>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Status",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status#Status",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status#valueOf",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation.Status",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status#values",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation.Status[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "NO_MATCH",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status.NO_MATCH",
+    "annotations" : [ ],
+    "documentation" : "The handler definitely does not match inputs represented by the associated cache key. "
+  }, {
+    "name" : "PREPARED",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status.PREPARED",
+    "annotations" : [ ],
+    "documentation" : "The handler matches and {@link HandlerMethodPreparation#plan()} contains its invocation plan. "
+  }, {
+    "name" : "UNSUPPORTED",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status.UNSUPPORTED",
+    "annotations" : [ ],
+    "documentation" : "The result cannot be prepared safely; normal per-message handler selection must be used. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

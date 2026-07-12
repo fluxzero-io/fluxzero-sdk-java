@@ -160,6 +160,16 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction",
     "kind" : "interface"
   }, {
+    "file" : "HandlerInterceptor.PreparedHandlerInputFunction.json",
+    "name" : "HandlerInterceptor.PreparedHandlerInputFunction",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputFunction",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInterceptor.PreparedHandlerInputInterceptor.json",
+    "name" : "HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputInterceptor",
+    "kind" : "interface"
+  }, {
     "file" : "HandlerInterceptor.PreparedHandlerInterceptor.json",
     "name" : "HandlerInterceptor.PreparedHandlerInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor",
@@ -235,14 +245,59 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver",
     "kind" : "class"
   }, {
+    "file" : "LocalExecution.json",
+    "name" : "LocalExecution",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+    "kind" : "class"
+  }, {
     "file" : "LocalHandler.json",
     "name" : "LocalHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandler",
     "kind" : "annotation_type"
   }, {
+    "file" : "LocalHandlerInput.json",
+    "name" : "LocalHandlerInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput",
+    "kind" : "interface"
+  }, {
     "file" : "LocalHandlerRegistry.json",
     "name" : "LocalHandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry",
+    "kind" : "class"
+  }, {
+    "file" : "LocalHandlerRegistry.CachedPlan.json",
+    "name" : "LocalHandlerRegistry.CachedPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan",
+    "kind" : "record"
+  }, {
+    "file" : "LocalHandlerRegistry.CombinedPlanKey.json",
+    "name" : "LocalHandlerRegistry.CombinedPlanKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CombinedPlanKey",
+    "kind" : "record"
+  }, {
+    "file" : "LocalHandlerRegistry.MessageHandlerInput.json",
+    "name" : "LocalHandlerRegistry.MessageHandlerInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput",
+    "kind" : "record"
+  }, {
+    "file" : "LocalHandlerRegistry.PlanVersion.json",
+    "name" : "LocalHandlerRegistry.PlanVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$PlanVersion",
+    "kind" : "record"
+  }, {
+    "file" : "LocalHandlerRegistry.PreparedLocalPlan.json",
+    "name" : "LocalHandlerRegistry.PreparedLocalPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$PreparedLocalPlan",
+    "kind" : "record"
+  }, {
+    "file" : "LocalHandlerRegistry.RawPlanCache.json",
+    "name" : "LocalHandlerRegistry.RawPlanCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$RawPlanCache",
+    "kind" : "record"
+  }, {
+    "file" : "LocalHandlerResult.json",
+    "name" : "LocalHandlerResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
     "kind" : "class"
   }, {
     "file" : "MessageParameterResolver.json",

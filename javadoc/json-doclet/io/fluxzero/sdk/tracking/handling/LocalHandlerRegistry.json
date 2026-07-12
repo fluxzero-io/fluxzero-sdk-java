@@ -35,6 +35,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "handlerVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.handlerVersion",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastPreparedPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.lastPreparedPlan",
+    "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.CachedPlan",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "localHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.localHandlers",
     "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
@@ -43,6 +59,38 @@
       "annotationType" : "lombok.Getter",
       "values" : {}
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxPlanCacheSize",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.maxPlanCacheSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 256
+  }, {
+    "name" : "preparedPlans",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.preparedPlans",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rawPlanCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.rawPlanCache",
+    "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.RawPlanCache",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rawPlans",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.rawPlans",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.RawPlanCache>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -59,9 +107,6 @@
     "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
     "modifiers" : [ "private" ],
     "annotations" : [ {
-      "annotationType" : "lombok.Setter",
-      "values" : {}
-    }, {
       "annotationType" : "lombok.Getter",
       "values" : {}
     }, {
@@ -91,6 +136,32 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "cacheRawPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#cacheRawPlan",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "version",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "canHandle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#canHandle",
     "returnType" : "boolean",
@@ -113,6 +184,27 @@
     "name" : "getLocalHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getLocalHandlers",
     "returnType" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getLocalHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getLocalHandlers",
+    "returnType" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -125,6 +217,58 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the full list of handlers that should be used to process the given message.\n <p>\n This may include a self-handler if the message is a request or schedule type.\n"
+  }, {
+    "name" : "getPreparedPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getPreparedPlan",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRawPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getRawPlan",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handle",
@@ -150,6 +294,63 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "handleLocal",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handleLocal",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "execution",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handleResult",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handleResult",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "hasLocalHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#hasLocalHandlers",
     "returnType" : "boolean",
@@ -164,6 +365,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "invalidatePlans",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#invalidatePlans",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "logMessage",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#logMessage",
     "returnType" : "boolean",
@@ -172,13 +384,45 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "invoker",
-      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Determines whether a handler allows its message to be sent to the Fluxzero Runtime.\n"
+  }, {
+    "name" : "payloadClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#payloadClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareLocalPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#prepareLocalPlan",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "preparations",
+      "type" : "java.util.List<io.fluxzero.common.handling.HandlerMethodPreparation<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "registerHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#registerHandler",
@@ -208,8 +452,63 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "setSelfHandlerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#setSelfHandlerFilter",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selfHandlerFilter",
+      "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "CachedPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CombinedPlanKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CombinedPlanKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "MessageHandlerInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PlanVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$PlanVersion",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedLocalPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$PreparedLocalPlan",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RawPlanCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$RawPlanCache",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

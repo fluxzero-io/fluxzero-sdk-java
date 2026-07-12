@@ -139,6 +139,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Hook to observe the dispatch of a message. This method is called after all interceptors have had a chance to\n block or modify the message.\n <p>\n Use this for logging or metrics, but <em>not</em> to alter or block the message.\n\n @param message     the final message about to be handled or published\n @param messageType the type of the message\n @param topic       the topic to which the message is dispatched (can be null)\n @param namespace   the namespace to which the message is dispatched (can be null)\n @param request     whether the sender expects a response to this dispatch\n"
+  }, {
+    "name" : "prepareLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#prepareLocalDispatch",
+    "returnType" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descriptor",
+      "type" : "io.fluxzero.sdk.publishing.LocalDispatchDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares this interceptor for repeated local dispatches with the same static message characteristics.\n\n <p>This optional method lets local handling apply an interceptor without creating a complete {@link Message}\n first. Implementations must preserve the observable behavior of {@link #interceptDispatch(Message, MessageType,\n String)}. Return {@code null} when that is not possible; Fluxzero will then use the regular dispatch path for\n this payload type.</p>\n\n <p>The returned policy may be cached and used concurrently. State belonging to a single dispatch must be stored\n in the supplied {@link io.fluxzero.sdk.tracking.handling.LocalExecution}, not in the policy itself.</p>\n\n @param descriptor payload class, message type, and topic shared by the local dispatches\n @return a thread-safe prepared policy, or {@code null} to use regular message-based dispatch\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

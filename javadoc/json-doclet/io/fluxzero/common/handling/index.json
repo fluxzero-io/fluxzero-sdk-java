@@ -35,6 +35,21 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter",
     "kind" : "interface"
   }, {
+    "file" : "HandlerInput.json",
+    "name" : "HandlerInput",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInput",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInputResolver.json",
+    "name" : "HandlerInputResolver",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInputResolver.Resolution.json",
+    "name" : "HandlerInputResolver.Resolution",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution",
+    "kind" : "record"
+  }, {
     "file" : "HandlerInspector.json",
     "name" : "HandlerInspector",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector",
@@ -50,6 +65,16 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$BoundHandlerMethod",
     "kind" : "class"
   }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.BoundHandlerMethodPlan.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.BoundHandlerMethodPlan",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$BoundHandlerMethodPlan",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.InputPlanCacheKey.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.InputPlanCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey",
+    "kind" : "record"
+  }, {
     "file" : "HandlerInspector.MethodHandlerMatcher.MethodHandlerInvoker.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.MethodHandlerInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$MethodHandlerInvoker",
@@ -58,6 +83,11 @@
     "file" : "HandlerInspector.MethodHandlerMatcher.ParameterResolverPlan.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.ParameterResolverPlan",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$ParameterResolverPlan",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.PayloadHandlerMethodPlan.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.PayloadHandlerMethodPlan",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$PayloadHandlerMethodPlan",
     "kind" : "class"
   }, {
     "file" : "HandlerInspector.MethodHandlerMatcher.Specificity.json",
@@ -124,6 +154,31 @@
     "name" : "HandlerMethod.DelegatingHandlerMethod",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod$DelegatingHandlerMethod",
     "kind" : "class"
+  }, {
+    "file" : "HandlerMethodApplicability.json",
+    "name" : "HandlerMethodApplicability",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability",
+    "kind" : "record"
+  }, {
+    "file" : "HandlerMethodPlan.json",
+    "name" : "HandlerMethodPlan",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlan",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerMethodPlanner.json",
+    "name" : "HandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerMethodPreparation.json",
+    "name" : "HandlerMethodPreparation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation",
+    "kind" : "record"
+  }, {
+    "file" : "HandlerMethodPreparation.Status.json",
+    "name" : "HandlerMethodPreparation.Status",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status",
+    "kind" : "enum"
   }, {
     "file" : "KeyedParameterResolver.json",
     "name" : "KeyedParameterResolver",

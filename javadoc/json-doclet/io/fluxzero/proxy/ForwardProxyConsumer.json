@@ -98,6 +98,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "pendingResponses",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.pendingResponses",
+    "type" : "java.util.Set<java.util.concurrent.CompletableFuture<java.lang.Void>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "publishMetrics",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.publishMetrics",
     "type" : "boolean",
@@ -210,6 +218,56 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "ForwardProxyConsumer",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mainConsumer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publishMetrics",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceStopping",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pendingResponses",
+      "type" : "java.util.Set<java.util.concurrent.CompletableFuture<java.lang.Void>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "accept",
@@ -285,6 +343,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitPendingResponses",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#awaitPendingResponses",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

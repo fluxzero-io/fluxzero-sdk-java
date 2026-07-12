@@ -1,0 +1,51 @@
+{
+  "name" : "HandlerInput",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerInput",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Provides the input for a prepared handler invocation.\n\n <p>The payload is always available directly. The enclosing message may be created only when a parameter resolver,\n interceptor, or handler asks for it. This lets local handlers that only need their payload avoid message creation\n altogether.</p>\n\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getMessage",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInput#getMessage",
+    "returnType" : "M",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the message that contains the payload, creating it first when necessary.\n\n @return the message being handled\n"
+  }, {
+    "name" : "getMessageIfAvailable",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInput#getMessageIfAvailable",
+    "returnType" : "M",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the message if it is already available.\n\n <p>The default implementation calls {@link #getMessage()}. Implementations that create messages lazily should\n override this method and return {@code null} while no message has been created.</p>\n\n @return the existing message, or {@code null} if a lazy implementation has not created it yet\n"
+  }, {
+    "name" : "getPayload",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInput#getPayload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the payload that is being handled.\n\n @return the payload; never {@code null}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

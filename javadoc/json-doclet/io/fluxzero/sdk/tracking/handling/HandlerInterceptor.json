@@ -71,6 +71,43 @@
     "varArgs" : false,
     "documentation" : " Prepares this interceptor for a specific handler method.\n\n <p>The returned interceptor is cached and reused concurrently for invocations with the same stable handler\n metadata. Implementations may use this hook to resolve annotation- or signature-based policy once while keeping\n message-dependent decisions inside {@link PreparedHandlerInterceptor#interceptHandling}.</p>\n\n <p>The default adapter preserves the existing {@link #interceptHandling(Function, HandlerInvoker)} contract and\n deliberately disables the reusable {@link HandlerMethod} path. Custom interceptors therefore retain their\n current behavior unless they explicitly opt into preparation.</p>\n\n @param handler stable metadata for the handler method\n @return a thread-safe prepared interceptor\n"
   }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#prepareInput",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares this interceptor to run without first creating a complete message.\n\n <p>Return {@code null} when the interceptor requires the regular message-based handling path. The default only\n supports an interceptor whose prepared behavior is the shared no-op policy, so existing interceptors retain\n their exact behavior unless they opt in explicitly.</p>\n\n <p>The returned policy may be cached and invoked concurrently.</p>\n\n @param handler stable information about the selected handler method\n @return a thread-safe payload-first policy, or {@code null} to use regular message-based handling\n"
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#prepareInput",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares this interceptor using both the selected handler method and a representative input.\n\n <p>Override this overload when the interceptor's ability to use payload-first handling depends on input\n characteristics. The default delegates to {@link #prepareInput(HandlerDescriptor)}.</p>\n\n @param handler stable information about the selected handler method\n @param input a representative input for the prepared handler plan\n @return a thread-safe payload-first policy, or {@code null} to use regular message-based handling\n"
+  }, {
     "name" : "supportsPreparation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor#supportsPreparation",
     "returnType" : "boolean",
@@ -109,6 +146,24 @@
   }, {
     "name" : "PreparedHandlerFunction",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "PreparedHandlerInputFunction",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "PreparedHandlerInputInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputInterceptor",
     "kind" : "interface",
     "modifiers" : [ "abstract", "public", "static" ],
     "annotations" : [ {

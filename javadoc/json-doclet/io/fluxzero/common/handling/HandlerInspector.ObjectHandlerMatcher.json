@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>" ],
   "fields" : [ {
+    "name" : "UNSUPPORTED_SELECTION",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.UNSUPPORTED_SELECTION",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : -2
+  }, {
     "name" : "applicabilityKeyResolvers",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.applicabilityKeyResolvers",
     "type" : "java.util.List<io.fluxzero.common.handling.KeyedParameterResolver<? super M>>",
@@ -123,6 +131,39 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "bindHandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#bindHandlerMethodPlanner",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "bindPayloadHandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#bindPayloadHandlerMethodPlanner",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "canHandle",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#canHandle",
     "returnType" : "boolean",
@@ -225,6 +266,51 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepareHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#prepareHandlerMethod",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInputApplicability",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#prepareInputApplicability",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodApplicability<M>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "planners",
+      "type" : "java.util.List<io.fluxzero.common.handling.HandlerMethodPlanner<M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "selectInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#selectInvoker",
     "returnType" : "io.fluxzero.common.handling.HandlerInspector.ObjectHandlerMatcher.SelectedInvoker",
@@ -260,6 +346,32 @@
     }, {
       "name" : "message",
       "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectPreparedMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#selectPreparedMethod",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "applicability",
+      "type" : "java.util.List<io.fluxzero.common.handling.HandlerMethodApplicability<M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

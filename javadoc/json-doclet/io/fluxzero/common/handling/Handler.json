@@ -28,6 +28,33 @@
     "varArgs" : false,
     "documentation" : " Returns a reusable {@link HandlerMethod} capable of processing the given message, or {@code null} when\n unavailable.\n\n <p>This is an optional lower-allocation path for handlers whose target and method plan can be reused across\n messages. Implementations that cannot expose a stable method should return {@code null} and rely on\n {@link #getInvokerOrNull(Object)}.</p>\n\n @param message the message to be handled\n @return a handler method if this handler can handle the message through a reusable method; {@code null} otherwise\n"
   }, {
+    "name" : "getHandlerMethodPlanOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler#getHandlerMethodPlanOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a reusable plan for the handler method selected for this message.\n\n <p>The default asks {@link #getHandlerMethodPlanner()} to prepare the plan. A {@code null} result means that this\n handler cannot safely prepare the invocation, so the caller should use {@link #getInvokerOrNull(Object)} or\n {@link #getHandlerMethodOrNull(Object)} instead.</p>\n\n @param message the message to match\n @return the prepared invocation plan, or {@code null} when preparation is unsupported or no method matches\n"
+  }, {
+    "name" : "getHandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler#getHandlerMethodPlanner",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the planner used to select and prepare this handler's methods.\n\n <p>The returned planner may be cached and invoked concurrently. The default returns {@code null}, which keeps\n implementations that only support regular per-message matching fully compatible.</p>\n\n @return a thread-safe handler method planner, or {@code null} when this handler does not support preparation\n"
+  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.Handler#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",

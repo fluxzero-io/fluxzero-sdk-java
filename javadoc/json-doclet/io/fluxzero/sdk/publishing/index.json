@@ -40,6 +40,11 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$PendingRequest",
     "kind" : "record"
   }, {
+    "file" : "DefaultGenericGateway.PreparedDispatchEntry.json",
+    "name" : "DefaultGenericGateway.PreparedDispatchEntry",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$PreparedDispatchEntry",
+    "kind" : "record"
+  }, {
     "file" : "DefaultMetricsGateway.json",
     "name" : "DefaultMetricsGateway",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultMetricsGateway",
@@ -90,9 +95,19 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway",
     "kind" : "interface"
   }, {
+    "file" : "LocalDispatchDescriptor.json",
+    "name" : "LocalDispatchDescriptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.LocalDispatchDescriptor",
+    "kind" : "record"
+  }, {
     "file" : "MetricsGateway.json",
     "name" : "MetricsGateway",
     "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "PreparedLocalDispatch.json",
+    "name" : "PreparedLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
     "kind" : "interface"
   }, {
     "file" : "QueryGateway.json",

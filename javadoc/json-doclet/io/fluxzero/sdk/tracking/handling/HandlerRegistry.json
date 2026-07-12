@@ -60,6 +60,54 @@
     "varArgs" : false,
     "documentation" : " Attempts to handle the given message using local handlers.\n\n @param message the deserialized message to dispatch\n @return an optional future containing the result, or empty if no handler was found\n"
   }, {
+    "name" : "handleLocal",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#handleLocal",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "execution",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts payload-first local handling and writes the outcome into the reusable execution frame.\n Implementations that cannot preserve the lazy input return {@code false}, causing the caller to use the\n canonical message-based path.\n\n <p>This method is intended for Fluxzero registry implementations. A {@code false} result means “use the regular\n path”, not “no handler exists”.</p>\n\n @param execution the current local dispatch and destination for its result\n @return {@code true} if this registry completed handler selection on the payload-first path; {@code false} to\n use regular message-based handling\n"
+  }, {
+    "name" : "handleResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#handleResult",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to handle the message locally while preserving a synchronously returned value as a direct value.\n\n <p>The default adapts {@link #handle(DeserializingMessage)} and therefore represents a handled result as a\n future. Implementations may override this method when they can retain synchronous completion.</p>\n\n @param message the message to dispatch\n @return the local handling result, including an explicit not-handled result when no handler matches\n"
+  }, {
+    "name" : "handleResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#handleResult",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to handle a lazy local input.\n\n <p>The default materializes the message and delegates to {@link #handleResult(DeserializingMessage)}.\n Implementations that support payload-first handling may override this method.</p>\n\n @param input the local handler input\n @return the local handling result\n"
+  }, {
     "name" : "noOp",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#noOp",
     "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",

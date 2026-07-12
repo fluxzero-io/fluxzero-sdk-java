@@ -28,6 +28,33 @@
     "varArgs" : false,
     "documentation" : " Binds this matcher to a stable target instance, if it can expose a reusable method plan.\n\n <p>Most matcher implementations may return {@code null}. Returning a method is only appropriate when the method\n metadata and target are stable for all matching messages.</p>\n\n @param target the handler object\n @return a reusable handler method, or {@code null} when the matcher requires per-message invokers\n"
   }, {
+    "name" : "bindHandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#bindHandlerMethodPlanner",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a planner whose invocation plans call handler methods on the supplied target instance.\n\n <p>The planner may be cached and used concurrently. The default returns {@code null}, so matchers are not\n required to support prepared invocation.</p>\n\n @param target the object that contains the handler methods\n @return a thread-safe planner bound to the target, or {@code null} when preparation is unsupported\n"
+  }, {
+    "name" : "bindPayloadHandlerMethodPlanner",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#bindPayloadHandlerMethodPlanner",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlanner<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a planner for handler methods declared on the payload itself.\n\n <p>The returned planner may be reused for many payload objects. Its plans must therefore obtain the target from\n {@link HandlerInput#getPayload()} for every invocation and must never retain the representative payload used to\n select the method.</p>\n\n @return a thread-safe payload-target planner, or {@code null} when this matcher cannot safely prepare one\n"
+  }, {
     "name" : "canHandle",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#canHandle",
     "returnType" : "boolean",
@@ -117,6 +144,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Combines this {@code HandlerMatcher} with another {@code HandlerMatcher} to form a composite matcher.\n The resulting matcher is capable of delegating matching responsibilities to both the current\n matcher and the provided next matcher.\n\n @param next the next {@code HandlerMatcher} to combine with the current matcher\n @return a new {@code HandlerMatcher} that combines the current matcher and the provided next matcher\n"
+  }, {
+    "name" : "prepareHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#prepareHandlerMethod",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Selects and prepares a handler method on the supplied target for the given message.\n\n <p>The default uses {@link #bindHandlerMethodPlanner(Object)} when available. Returning {@code null} does not\n reject the message; it tells the caller to use regular per-message matching instead.</p>\n\n @param target the object that contains the handler method\n @param message the representative message\n @return the reusable invocation plan, or {@code null} when no method matches or safe preparation is unsupported\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

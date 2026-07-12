@@ -485,6 +485,25 @@
     "varArgs" : false,
     "documentation" : " Returns whether the executable declares return value constraints or cascaded return value validation.\n\n @param executable the executable to inspect\n @return {@code true} when return value validation should run\n"
   }, {
+    "name" : "hasValidation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#hasValidation",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "newValidationException",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#newValidationException",
     "returnType" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException",

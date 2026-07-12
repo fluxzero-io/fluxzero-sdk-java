@@ -53,6 +53,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "prepareLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor#prepareLocalDispatch",
+    "returnType" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descriptor",
+      "type" : "io.fluxzero.sdk.publishing.LocalDispatchDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

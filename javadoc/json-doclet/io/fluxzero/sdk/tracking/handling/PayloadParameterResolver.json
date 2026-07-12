@@ -8,7 +8,7 @@
   "documentation" : " Resolves handler method parameters by injecting the message payload.\n\n <p>This resolver matches a parameter when its declared type is assignable from the actual payload class\n of the incoming message.\n\n <p>This resolver is typically used in conjunction with filters such as {@link PayloadFilter} to determine\n handler compatibility based on payload types.\n\n <p>Special care is taken to allow null payloads for parameters that are declared nullable,\n which can occur during upcasting or transformation pipelines.\n\n @see HasMessage#getPayload()\n @see HasMessage#getPayloadClass()\n @see ParameterResolver\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.handling.KeyedParameterResolver<io.fluxzero.sdk.common.HasMessage>", "io.fluxzero.common.handling.PreparedParameterResolver<io.fluxzero.sdk.common.HasMessage>" ],
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerInputResolver<io.fluxzero.sdk.common.HasMessage>", "io.fluxzero.common.handling.KeyedParameterResolver<io.fluxzero.sdk.common.HasMessage>", "io.fluxzero.common.handling.PreparedParameterResolver<io.fluxzero.sdk.common.HasMessage>" ],
   "fields" : [ {
     "name" : "UNRESOLVED_PAYLOAD",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver.UNRESOLVED_PAYLOAD",
@@ -79,6 +79,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getInputCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#getInputCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.HasMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getPayloadIfAvailable",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#getPayloadIfAvailable",
     "returnType" : "java.lang.Object",
@@ -88,6 +117,64 @@
     "parameters" : [ {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isNoMatchPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#isNoMatchPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.HasMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#isPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.HasMessage>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -117,6 +204,35 @@
     }, {
       "name" : "value",
       "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#prepareInput",
+    "returnType" : "io.fluxzero.common.handling.HandlerInputResolver.Resolution<io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.HasMessage>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

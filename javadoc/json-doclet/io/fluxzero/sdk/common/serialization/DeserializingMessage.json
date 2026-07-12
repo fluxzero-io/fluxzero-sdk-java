@@ -335,6 +335,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "completeLocalBatch",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#completeLocalBatch",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs and clears batch-completion callbacks and resources after a payload-first local invocation.\n\n <p>This method is intended for Fluxzero handling infrastructure. Applications normally register callbacks with\n {@link #whenBatchCompletes(ThrowingConsumer)} instead of completing a batch directly.</p>\n\n @param error the error that ended handling, or {@code null} after successful handling\n"
+  }, {
     "name" : "computeContextIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#computeContextIfAbsent",
     "returnType" : "T",
@@ -710,6 +726,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "hasThreadLocalContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#hasThreadLocalContext",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this thread already has a regular deserializing-message context.\n\n <p>This method does not count a payload-first local execution that can be exposed through\n {@link #getCurrent()}. It is intended for infrastructure that must avoid nesting a regular message context.</p>\n\n @return {@code true} if a regular message context is bound to the current thread\n"
   }, {
     "name" : "isDeserialized",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#isDeserialized",

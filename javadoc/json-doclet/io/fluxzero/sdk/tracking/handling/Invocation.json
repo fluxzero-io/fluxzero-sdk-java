@@ -144,6 +144,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "completeLocal",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#completeLocal",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#forHandler",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.Invocation",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getCurrent",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#getCurrent",
     "returnType" : "io.fluxzero.sdk.tracking.handling.Invocation",
@@ -175,6 +212,17 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#getId",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasThreadLocalContext",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#hasThreadLocalContext",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],

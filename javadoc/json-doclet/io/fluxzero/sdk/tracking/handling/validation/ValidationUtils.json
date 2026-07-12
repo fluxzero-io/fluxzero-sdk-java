@@ -565,6 +565,22 @@
     "varArgs" : true,
     "documentation" : " Returns {@code true} if the given object is valid using the current Fluxzero {@link Validator} and validation\n groups.\n\n @param object the object to validate\n @param groups optional validation groups\n @return {@code true} if valid, {@code false} otherwise\n"
   }, {
+    "name" : "requiresAuthorization",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#requiresAuthorization",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether issuing the supplied payload type requires authorization for the current user.\n\n <p>The result is based on the payload's authorization annotations. It is {@code false} when the payload is\n explicitly available without a user and {@code true} when issuing it requires roles or other user-based access\n checks.</p>\n\n @param payloadType the payload type to inspect\n @return {@code true} if dispatch must perform a user authorization check\n"
+  }, {
     "name" : "throwIfUnauthorized",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#throwIfUnauthorized",
     "returnType" : "java.util.Optional<java.lang.Boolean>",

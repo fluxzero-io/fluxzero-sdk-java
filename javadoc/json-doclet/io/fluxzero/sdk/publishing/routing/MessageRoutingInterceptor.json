@@ -90,6 +90,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Computes and sets the routing segment on the serialized message if not already present.\n\n @param serializedMessage the message to be sent\n @param m                 the original message object\n @param messageType       the type of message (e.g., command, event, query)\n @param topic             the topic to which the message will be published\n @return the same {@code SerializedMessage} instance, possibly updated with a segment\n"
+  }, {
+    "name" : "prepareLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#prepareLocalDispatch",
+    "returnType" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descriptor",
+      "type" : "io.fluxzero.sdk.publishing.LocalDispatchDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
