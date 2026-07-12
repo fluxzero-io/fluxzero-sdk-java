@@ -23,6 +23,8 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -39,18 +41,24 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @Slf4j
 class ForwardProxyConsumerTest {
@@ -148,6 +156,30 @@ class ForwardProxyConsumerTest {
                         .metadata(requestSettingsMetadata).payload("test").build())
                 .<WebResponse>expectResult(r -> r.getStatus() == 204 && r.<byte[]>getPayload().length == 0)
                 .expectWebResponse(r -> r.getStatus() == 204 && r.getMetadata().containsKey("$correlationId"));
+    }
+
+    @Test
+    void drainsForwardedResponseOnShutdownWithoutBlockingHandler() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        CompletableFuture<Void> stored = new CompletableFuture<>();
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class))).thenReturn(stored);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(client, CONSUMER_NAME, 0L, true, false);
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], Object.class.getName(), 0), Metadata.empty(), "request", 0L);
+        request.setRequestId(42);
+        request.setSource("requester");
+
+        consumer.sendResponse(WebResponse.builder().status(200).build(), request);
+        CompletableFuture<Void> drain = CompletableFuture.runAsync(consumer::awaitPendingResponses);
+
+        assertFalse(drain.isDone(), "Shutdown should await runtime storage without blocking normal response handling");
+        stored.complete(null);
+        drain.get(1, TimeUnit.SECONDS);
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
     }
 
     @Test

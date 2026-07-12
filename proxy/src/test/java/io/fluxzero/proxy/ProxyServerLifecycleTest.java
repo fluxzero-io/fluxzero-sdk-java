@@ -236,7 +236,7 @@ class ProxyServerLifecycleTest {
             assertTrue(requestReceived.await(2, TimeUnit.SECONDS));
             CompletableFuture<Void> shutdown = CompletableFuture.runAsync(proxyServer::cancel);
 
-            TimeUnit.MILLISECONDS.sleep(100L);
+            assertEventuallyDraining(proxyServer);
             assertFalse(shutdown.isDone(), "Shutdown returned before the active forward request completed");
 
             releaseResponse.countDown();
@@ -367,6 +367,14 @@ class ProxyServerLifecycleTest {
         }
         assertTrue(proxyServer.isReady(), "Proxy did not become ready after connecting to the tracking endpoint");
         assertEventuallyStatus(readinessUrl, 200, "Ready");
+    }
+
+    private static void assertEventuallyDraining(ProxyServer proxyServer) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+        while (proxyServer.isReady() && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertFalse(proxyServer.isReady(), "Proxy did not enter draining state");
     }
 
     private static void assertEventuallyStatus(String url, int status, String body) throws Exception {

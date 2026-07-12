@@ -50,6 +50,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -80,6 +82,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private final boolean publishMetrics;
     private final HttpClient httpClient;
     private final AtomicBoolean forceStopping;
+    private final Set<CompletableFuture<Void>> pendingResponses;
 
     protected ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                                    boolean publishMetrics) {
@@ -88,6 +91,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping) {
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
+             ConcurrentHashMap.newKeySet());
+    }
+
+    private ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
+                                 boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
+                                 Set<CompletableFuture<Void>> pendingResponses) {
         this.client = client;
         this.consumerName = consumerName;
         this.minIndex = minIndex;
@@ -95,6 +105,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         this.publishMetrics = publishMetrics;
         this.httpClient = httpClient;
         this.forceStopping = forceStopping;
+        this.pendingResponses = pendingResponses;
     }
 
     public static Registration start(Client client) {
@@ -148,7 +159,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                         runningConsumers.computeIfAbsent(
                                 settings.getConsumer(), c -> new ForwardProxyConsumer(
                                         client, c, s.getIndex(), false, publishMetrics,
-                                        httpClient, forceStopping).start());
+                                        httpClient, forceStopping, pendingResponses).start());
                     }
                 } catch (Throwable e) {
                     log.error("Failed to handle external request {}. Continuing..", s.getMessageId(), e);
@@ -219,7 +230,22 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
         serializedResponse.setRequestId(request.getRequestId());
         serializedResponse.setTarget(request.getSource());
-        client.getGatewayClient(MessageType.WEBRESPONSE).append(Guarantee.NONE, serializedResponse);
+        CompletableFuture<Void> publication = client.getGatewayClient(MessageType.WEBRESPONSE)
+                .append(Guarantee.STORED, serializedResponse);
+        pendingResponses.add(publication);
+        publication.whenComplete((ignored, error) -> {
+            pendingResponses.remove(publication);
+            if (error != null && !forceStopping.get()) {
+                log.warn("Failed to store forwarded response for request {}", request.getRequestId(), error);
+            }
+        });
+    }
+
+    void awaitPendingResponses() {
+        CompletableFuture<?>[] snapshot = pendingResponses.toArray(CompletableFuture[]::new);
+        if (snapshot.length > 0) {
+            CompletableFuture.allOf(snapshot).join();
+        }
     }
 
     protected WebResponse asWebResponse(HttpResponse<byte[]> response) {
@@ -306,6 +332,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                         snapshot.forEach(entry -> entry.getValue().cancel());
                         snapshot.forEach(entry -> consumer.runningConsumers.remove(entry.getKey(), entry.getValue()));
                     }
+                    consumer.awaitPendingResponses();
                 } finally {
                     consumer.httpClient.close();
                 }
@@ -315,6 +342,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         void force() {
             consumer.forceStopping.set(true);
             consumer.httpClient.shutdownNow();
+            consumer.pendingResponses.forEach(response -> response.cancel(false));
         }
     }
 }
