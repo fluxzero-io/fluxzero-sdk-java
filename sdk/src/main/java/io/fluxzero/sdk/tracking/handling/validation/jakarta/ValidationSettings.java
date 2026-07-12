@@ -31,65 +31,60 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.stream.IntStream;
 
 record ValidationSettings(ClockProvider clockProvider, MessageInterpolator messageInterpolator,
                           ConstraintValidatorFactory constraintValidatorFactory,
                           ParameterNameProvider parameterNameProvider,
                           ValueExtractorRegistry valueExtractors,
-                          BooleanSupplier beanPropertyMethodNamesOnlySupplier) {
+                          boolean beanPropertyMethodNamesOnly) {
     static ValidationSettings createDefault() {
         return new ValidationSettings(Fluxzero::currentClock, ValidationMessages.defaultMessageInterpolator(),
                                       new DefaultConstraintValidatorFactory(), new DefaultParameterNameProvider(),
                                       ValueExtractorRegistry.empty(),
-                                      () -> ApplicationProperties.getBooleanProperty(
+                                      ApplicationProperties.getBooleanProperty(
                                               DefaultValidator.BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY, false));
     }
 
     ValidationSettings withClock(Clock clock) {
         return new ValidationSettings(() -> Objects.requireNonNull(clock), messageInterpolator,
                                       constraintValidatorFactory, parameterNameProvider, valueExtractors,
-                                      beanPropertyMethodNamesOnlySupplier);
+                                      beanPropertyMethodNamesOnly);
     }
 
     ValidationSettings withClockProvider(ClockProvider provider) {
         return new ValidationSettings(Objects.requireNonNull(provider), messageInterpolator,
                                       constraintValidatorFactory, parameterNameProvider, valueExtractors,
-                                      beanPropertyMethodNamesOnlySupplier);
+                                      beanPropertyMethodNamesOnly);
     }
 
     ValidationSettings withMessageInterpolator(MessageInterpolator interpolator) {
         return new ValidationSettings(clockProvider, Objects.requireNonNull(interpolator),
                                       constraintValidatorFactory, parameterNameProvider, valueExtractors,
-                                      beanPropertyMethodNamesOnlySupplier);
+                                      beanPropertyMethodNamesOnly);
     }
 
     ValidationSettings withConstraintValidatorFactory(ConstraintValidatorFactory factory) {
         return new ValidationSettings(clockProvider, messageInterpolator, Objects.requireNonNull(factory),
-                                      parameterNameProvider, valueExtractors, beanPropertyMethodNamesOnlySupplier);
+                                      parameterNameProvider, valueExtractors, beanPropertyMethodNamesOnly);
     }
 
     ValidationSettings withParameterNameProvider(ParameterNameProvider provider) {
         return new ValidationSettings(clockProvider, messageInterpolator, constraintValidatorFactory,
                                       Objects.requireNonNull(provider), valueExtractors,
-                                      beanPropertyMethodNamesOnlySupplier);
+                                      beanPropertyMethodNamesOnly);
     }
 
     ValidationSettings withValueExtractors(Collection<ValueExtractor<?>> extractors) {
         return new ValidationSettings(clockProvider, messageInterpolator, constraintValidatorFactory,
                                       parameterNameProvider, new ValueExtractorRegistry(extractors),
-                                      beanPropertyMethodNamesOnlySupplier);
+                                      beanPropertyMethodNamesOnly);
     }
 
     ValidationSettings withValueExtractor(ValueExtractor<?> extractor) {
         return new ValidationSettings(clockProvider, messageInterpolator, constraintValidatorFactory,
                                       parameterNameProvider, valueExtractors.plus(extractor),
-                                      beanPropertyMethodNamesOnlySupplier);
-    }
-
-    boolean beanPropertyMethodNamesOnly() {
-        return beanPropertyMethodNamesOnlySupplier.getAsBoolean();
+                                      beanPropertyMethodNamesOnly);
     }
 
     static final class DefaultConstraintValidatorFactory implements ConstraintValidatorFactory {

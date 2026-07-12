@@ -112,6 +112,13 @@ public class ValidationUtils {
             .map(ServiceLoader::iterator).filter(Iterator::hasNext).map(Iterator::next)
             .orElseGet(DefaultValidator::createDefault);
     private static final RequiredRole noUserRequired = new RequiredRole(null, false, false, false);
+    private static final ClassValue<Class<?>[]> validationGroups = new ClassValue<>() {
+        @Override
+        protected Class<?>[] computeValue(Class<?> type) {
+            ValidateWith annotation = ReflectionUtils.getTypeAnnotation(type, ValidateWith.class);
+            return annotation == null ? new Class<?>[0] : annotation.value();
+        }
+    };
 
     /*
         Check object validity
@@ -313,8 +320,8 @@ public class ValidationUtils {
         if (customGroups.length > 0 || object == null) {
             return customGroups;
         }
-        ValidateWith annotation = ReflectionUtils.getTypeAnnotation(object.getClass(), ValidateWith.class);
-        return annotation == null ? new Class<?>[0] : annotation.value();
+        Class<?>[] result = validationGroups.get(object.getClass());
+        return result.length == 0 ? result : result.clone();
     }
 
     /*

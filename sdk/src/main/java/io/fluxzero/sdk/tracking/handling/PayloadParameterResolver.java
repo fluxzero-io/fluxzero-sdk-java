@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.KeyedParameterResolver;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -43,8 +44,21 @@ import java.util.function.Function;
  * @see HasMessage#getPayloadClass()
  * @see ParameterResolver
  */
-public class PayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
+public class PayloadParameterResolver
+        implements PreparedParameterResolver<HasMessage>, KeyedParameterResolver<HasMessage> {
     private static final Object UNRESOLVED_PAYLOAD = new Object();
+    private static final ClassValue<PayloadShape> nullPayloadKeys = new ClassValue<>() {
+        @Override
+        protected PayloadShape computeValue(Class<?> type) {
+            return new PayloadShape(type, false);
+        }
+    };
+    private static final ClassValue<PayloadShape> chunkedPayloadKeys = new ClassValue<>() {
+        @Override
+        protected PayloadShape computeValue(Class<?> type) {
+            return new PayloadShape(type, true);
+        }
+    };
 
     @Override
     public boolean matches(Parameter p, Annotation methodAnnotation, HasMessage value) {
@@ -82,6 +96,41 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
     }
 
     @Override
+    public Object getCacheKey(HasMessage value) {
+        if (getClass() != PayloadParameterResolver.class) {
+            return null;
+        }
+        Class<?> payloadClass = value.getPayloadClass();
+        if (value instanceof ChunkedDeserializingMessage) {
+            return chunkedPayloadKeys.get(payloadClass);
+        }
+        if (!(value instanceof DeserializingMessage message)) {
+            return null;
+        }
+        if (!message.isDeserialized()) {
+            return payloadClass;
+        }
+        return value.getPayload() == null ? nullPayloadKeys.get(payloadClass) : payloadClass;
+    }
+
+    @Override
+    public Resolution<HasMessage> resolveForKey(
+            Parameter parameter, Annotation methodAnnotation, HasMessage value, Object cacheKey) {
+        Class<?> payloadClass = cacheKey instanceof PayloadShape shape ? shape.payloadClass() : (Class<?>) cacheKey;
+        boolean chunked = cacheKey instanceof PayloadShape shape && shape.chunked();
+        boolean matches = chunked && InputStream.class.isAssignableFrom(parameter.getType())
+                          || parameter.getType().isAssignableFrom(payloadClass);
+        if (!matches) {
+            return Resolution.unmatched();
+        }
+        boolean nullPayload = cacheKey instanceof PayloadShape shape && !shape.chunked();
+        if ((nullPayload || payloadClass == Void.class) && !ReflectionUtils.isNullable(parameter)) {
+            return Resolution.rejected();
+        }
+        return Resolution.resolved(resolve(parameter, methodAnnotation));
+    }
+
+    @Override
     public boolean test(HasMessage message, Parameter parameter) {
         if (message instanceof ChunkedDeserializingMessage) {
             return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
@@ -116,5 +165,8 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
     @Override
     public int specificityPriority() {
         return -100;
+    }
+
+    private record PayloadShape(Class<?> payloadClass, boolean chunked) {
     }
 }

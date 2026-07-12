@@ -55,6 +55,19 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
         return members.stream().filter(member -> member.propertyName().equals(propertyName)).findFirst();
     }
 
+    boolean hasValidation() {
+        return !classConstraints.isEmpty() || !members.isEmpty();
+    }
+
+    boolean cascades() {
+        for (MemberMetadata member : members) {
+            if (member.cascades()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void validate(ValidationRun run, Object object, Class<?> group, ValidationPath path) {
         int violationsBeforeBean = run.violations().size();
         int violationsBeforeMethods = -1;
@@ -317,6 +330,10 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         return !constraints.isEmpty() || cascaded || typeUse.hasValidation();
     }
 
+    private boolean cascades() {
+        return cascaded || typeUse.cascades();
+    }
+
     private boolean appliesToGroup(Class<?> group) {
         for (ConstraintMeta constraint : constraints) {
             if (constraint.appliesToGroup(group)) {
@@ -337,7 +354,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (!appliesToGroup(group)) {
             return;
         }
-        if (method && run.beanPropertyMethodNamesOnly() && !beanPropertyMethodName) {
+        if (method && !beanPropertyMethodName && run.beanPropertyMethodNamesOnly()) {
             return;
         }
         Object value = getValue(run, owner);
@@ -351,7 +368,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (!appliesToAnyGroup(groups)) {
             return;
         }
-        if (method && run.beanPropertyMethodNamesOnly() && !beanPropertyMethodName) {
+        if (method && !beanPropertyMethodName && run.beanPropertyMethodNamesOnly()) {
             return;
         }
         Object value = getValue(run, owner);

@@ -15,12 +15,8 @@
 package io.fluxzero.sdk.tracking.handling.errorreporting;
 
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
-import io.fluxzero.common.handling.HandlerMethod;
-import io.fluxzero.common.handling.HandlerMethod.DelegatingHandlerMethod;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
@@ -35,10 +31,7 @@ import java.lang.reflect.Executable;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.common.ObjectUtils.stackTrace;
@@ -79,86 +72,33 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
     };
 
     @Override
-    public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
-        return new Handler<>() {
-            private final ConcurrentHashMap<HandlerMethod<DeserializingMessage>, HandlerMethod<DeserializingMessage>>
-                    reportingMethods = new ConcurrentHashMap<>();
+    public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
+                                                                    HandlerInvoker invoker) {
+        return prepare(invoker).interceptHandling(function, invoker);
+    }
 
-            @Override
-            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
-                return Optional.ofNullable(getInvokerOrNull(message));
+    @Override
+    public PreparedHandlerInterceptor prepare(HandlerDescriptor handler) {
+        HandlerErrorPolicy policy = policy(handler);
+        if (policy.localHandler()) {
+            return PreparedHandlerInterceptor.noOp;
+        }
+        return (message, descriptor, combiner, next) -> {
+            if (policy.isLocalHandler(descriptor, message)) {
+                return next.apply(message, descriptor, combiner);
             }
-
-            @Override
-            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
-                HandlerInvoker invoker = handler.getInvokerOrNull(message);
-                if (invoker == null) {
-                    return null;
-                }
-                HandlerErrorPolicy policy = policy(invoker);
-                if (policy.isLocalHandler(invoker, message)) {
-                    return invoker;
-                }
-                return new DelegatingHandlerInvoker(invoker) {
-                    @Override
-                    public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                        try {
-                            return monitorResult(invoker.invoke(combiner), invoker, message);
-                        } catch (Throwable e) {
-                            reportError(e, invoker, message);
-                            throw e;
-                        }
-                    }
-                };
-            }
-
-            @Override
-            public HandlerMethod<DeserializingMessage> getHandlerMethodOrNull(DeserializingMessage message) {
-                HandlerMethod<DeserializingMessage> method = handler.getHandlerMethodOrNull(message);
-                if (method == null) {
-                    return null;
-                }
-                HandlerErrorPolicy policy = policy(method);
-                if (policy.isLocalHandler(method, message)) {
-                    return method;
-                }
-                HandlerMethod<DeserializingMessage> reportingMethod = reportingMethods.get(method);
-                if (reportingMethod != null) {
-                    return reportingMethod;
-                }
-                reportingMethod = new ReportingHandlerMethod(method);
-                HandlerMethod<DeserializingMessage> existing = reportingMethods.putIfAbsent(method, reportingMethod);
-                return existing == null ? reportingMethod : existing;
-            }
-
-            @Override
-            public Class<?> getTargetClass() {
-                return handler.getTargetClass();
-            }
-
-            @Override
-            public String toString() {
-                return handler.toString();
+            try {
+                return monitorResult(next.apply(message, descriptor, combiner), descriptor, message);
+            } catch (Throwable e) {
+                reportError(e, descriptor, message);
+                throw e;
             }
         };
     }
 
     @Override
-    public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
-                                                                    HandlerInvoker invoker) {
-        return message -> handle(message, invoker, () -> function.apply(message));
-    }
-
-    private Object handle(DeserializingMessage message, HandlerInvoker invoker, Supplier<Object> action) {
-        if (policy(invoker).isLocalHandler(invoker, message)) {
-            return action.get();
-        }
-        try {
-            return monitorResult(action.get(), invoker, message);
-        } catch (Throwable e) {
-            reportError(e, invoker, message);
-            throw e;
-        }
+    public boolean supportsPreparation() {
+        return true;
     }
 
     private Object monitorResult(Object result, HandlerDescriptor invoker, DeserializingMessage message) {
@@ -198,22 +138,6 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
                     invoker.getTargetClass().getName(), cause.toString(), e));
         }
         errorGateway.report(new Message(e, metadata));
-    }
-
-    private class ReportingHandlerMethod extends DelegatingHandlerMethod<DeserializingMessage> {
-        private ReportingHandlerMethod(HandlerMethod<DeserializingMessage> delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public Object invoke(DeserializingMessage message, BiFunction<Object, Object, Object> resultCombiner) {
-            try {
-                return monitorResult(delegate.invoke(message, resultCombiner), delegate, message);
-            } catch (Throwable e) {
-                reportError(e, delegate, message);
-                throw e;
-            }
-        }
     }
 
     private record HandlerErrorPolicy(boolean localHandler, boolean reportSelfHandlers) {

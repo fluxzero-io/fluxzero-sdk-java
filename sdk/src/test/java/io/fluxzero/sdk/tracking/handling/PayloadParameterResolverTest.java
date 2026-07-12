@@ -127,6 +127,34 @@ class PayloadParameterResolverTest {
         assertEquals(1, payloadCalls.get());
     }
 
+    @Test
+    void keyedHandlerSelectionAlwaysResolvesPayloadFromCurrentMessage() {
+        ReturningPayloadHandler target = new ReturningPayloadHandler();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                target, HandleEvent.class, java.util.List.of(new PayloadParameterResolver()));
+        DeserializingMessage first = new DeserializingMessage(
+                new Message("first"), MessageType.EVENT, new JacksonSerializer());
+        DeserializingMessage second = new DeserializingMessage(
+                new Message("second"), MessageType.EVENT, new JacksonSerializer());
+
+        assertEquals("first", handler.getInvokerOrNull(first).invoke());
+        assertEquals("second", handler.getInvokerOrNull(second).invoke());
+    }
+
+    @Test
+    void cacheKeyChangesWhenLazyPayloadDeserializesToNull() {
+        DeserializingMessage message = new DeserializingMessage(
+                serializedStringMessage(), type -> null, MessageType.EVENT, null, new JacksonSerializer());
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new RecordingPayloadHandler(), HandleEvent.class, java.util.List.of(new PayloadParameterResolver()));
+
+        HandlerInvoker initialInvoker = handler.getInvokerOrNull(message);
+
+        assertNotNull(initialInvoker);
+        initialInvoker.invoke();
+        assertNull(handler.getInvokerOrNull(message));
+    }
+
     private static SerializedMessage serializedStringMessage() {
         return new SerializedMessage(
                 new Data<>("\"value\"".getBytes(), String.class.getName(), 0, Data.JSON_FORMAT),
@@ -154,6 +182,13 @@ class PayloadParameterResolverTest {
         @HandleEvent
         void handle(String payload) {
             this.payload = payload;
+        }
+    }
+
+    private static class ReturningPayloadHandler {
+        @HandleEvent
+        String handle(String payload) {
+            return payload;
         }
     }
 

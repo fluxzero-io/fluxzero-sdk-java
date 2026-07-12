@@ -42,6 +42,20 @@ import java.util.Set;
 
 final class ValidationAnnotationUtils {
     static final Class<?>[] DEFAULT_GROUPS = new Class<?>[]{Default.class};
+    private static final ClassValue<Class<?>[]> defaultGroupSequences = new ClassValue<>() {
+        @Override
+        protected Class<?>[] computeValue(Class<?> type) {
+            GroupSequence sequence = ReflectionUtils.getAnnotation(type, GroupSequence.class).orElse(null);
+            return sequence == null ? DEFAULT_GROUPS : sequence.value();
+        }
+    };
+    private static final ClassValue<Class<?>[]> groupSequences = new ClassValue<>() {
+        @Override
+        protected Class<?>[] computeValue(Class<?> type) {
+            GroupSequence sequence = ReflectionUtils.getAnnotation(type, GroupSequence.class).orElse(null);
+            return sequence == null ? new Class<?>[]{type} : sequence.value();
+        }
+    };
 
     private ValidationAnnotationUtils() {
     }
@@ -148,14 +162,7 @@ final class ValidationAnnotationUtils {
     }
 
     static Class<?>[] validationGroups(Class<?> group, Class<?> beanType) {
-        if (group == Default.class) {
-            GroupSequence sequence = ReflectionUtils.getAnnotation(beanType, GroupSequence.class).orElse(null);
-            if (sequence != null) {
-                return sequence.value();
-            }
-        }
-        GroupSequence sequence = ReflectionUtils.getAnnotation(group, GroupSequence.class).orElse(null);
-        return sequence == null ? new Class<?>[]{group} : sequence.value();
+        return group == Default.class ? defaultGroupSequences.get(beanType) : groupSequences.get(group);
     }
 
     static Class<?> effectiveGroup(Class<?> group, Class<?> beanType) {

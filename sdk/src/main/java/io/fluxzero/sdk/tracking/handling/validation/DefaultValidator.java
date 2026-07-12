@@ -36,7 +36,7 @@ public class DefaultValidator extends DefaultJakartaValidator {
      * Application property that switches bean validation for no-argument methods to JavaBean/Hibernate-compatible
      * getter naming only. When set to {@code true}, only annotated {@code getX()}, {@code isX()}, and
      * {@code hasX()} methods are treated as bean properties. The default is {@code false}, so any annotated
-     * no-argument method with a return value is validated.
+     * no-argument method with a return value is validated. The setting is read when the validator is constructed.
      */
     public static final String BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY =
             "fluxzero.validation.beanPropertyMethodNamesOnly";

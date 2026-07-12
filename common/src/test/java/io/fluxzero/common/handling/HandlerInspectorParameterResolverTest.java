@@ -20,11 +20,13 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class HandlerInspectorParameterResolverTest {
@@ -87,6 +89,52 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals(0, resolver.resolveCount);
     }
 
+    @Test
+    void keyedResolverCachesMoreThanOneHundredRecipesWithoutCachingValues() {
+        KeyedCountingResolver resolver = new KeyedCountingResolver();
+        Handler<KeyedMessage> handler = HandlerInspector.createHandler(
+                new KeyedHandler(), Handle.class, List.of(resolver));
+
+        for (int key = 0; key < 128; key++) {
+            assertEquals("first-" + key, handler.getInvokerOrNull(
+                    new KeyedMessage(key, "first-" + key)).invoke());
+        }
+        for (int key = 0; key < 128; key++) {
+            assertEquals("second-" + key, handler.getInvokerOrNull(
+                    new KeyedMessage(key, "second-" + key)).invoke());
+        }
+
+        assertEquals(128, resolver.resolutionCount.get());
+    }
+
+    @Test
+    void keyedResolverCachesRejectionWithoutFallingThroughToLaterResolver() {
+        RejectingKeyedResolver rejectingResolver = new RejectingKeyedResolver();
+        FallbackResolver fallbackResolver = new FallbackResolver();
+        Handler<KeyedMessage> handler = HandlerInspector.createHandler(
+                new KeyedHandler(), Handle.class, List.of(rejectingResolver, fallbackResolver));
+        KeyedMessage message = new KeyedMessage(1, "value");
+
+        assertNull(handler.getInvokerOrNull(message));
+        assertNull(handler.getInvokerOrNull(message));
+
+        assertEquals(2, rejectingResolver.resolutionCount.get());
+        assertEquals(0, fallbackResolver.matchesCount.get());
+    }
+
+    @Test
+    void dynamicMessageFilterIsNeverBypassedByResolverSelectionCache() {
+        Handler<KeyedMessage> handler = HandlerInspector.createHandler(
+                new KeyedHandler(), List.of(new KeyedCountingResolver()),
+                HandlerConfiguration.<KeyedMessage>builder().methodAnnotation(Handle.class)
+                        .messageFilter((message, executable, annotation, targetClass) -> message.allowed())
+                        .build());
+
+        assertNotNull(handler.getInvokerOrNull(new KeyedMessage(1, "first", true)));
+        assertNull(handler.getInvokerOrNull(new KeyedMessage(1, "blocked", false)));
+        assertEquals("second", handler.getInvokerOrNull(new KeyedMessage(1, "second", true)).invoke());
+    }
+
     private static class Foo {
         @Handle
         public Object handle(String o, Instant time) {
@@ -128,6 +176,75 @@ public class HandlerInspectorParameterResolverTest {
         @Handle
         Object handle(String value) {
             return value;
+        }
+    }
+
+    private record KeyedMessage(int key, String value, boolean allowed) {
+        private KeyedMessage(int key, String value) {
+            this(key, value, true);
+        }
+    }
+
+    private static class KeyedHandler {
+        @Handle
+        Object handle(String value) {
+            return value;
+        }
+
+        @Handle
+        Object handle(Integer value) {
+            throw new AssertionError("Integer handler should not match a String resolver value");
+        }
+    }
+
+    private static class KeyedCountingResolver implements KeyedParameterResolver<KeyedMessage> {
+        protected final AtomicInteger resolutionCount = new AtomicInteger();
+
+        @Override
+        public Function<KeyedMessage, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                      java.lang.annotation.Annotation methodAnnotation) {
+            return KeyedMessage::value;
+        }
+
+        @Override
+        public Object getCacheKey(KeyedMessage value) {
+            return value.key();
+        }
+
+        @Override
+        public Resolution<KeyedMessage> resolveForKey(
+                java.lang.reflect.Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
+                KeyedMessage value, Object cacheKey) {
+            resolutionCount.incrementAndGet();
+            return String.class.equals(parameter.getType())
+                    ? Resolution.resolved(KeyedMessage::value) : Resolution.unmatched();
+        }
+    }
+
+    private static class RejectingKeyedResolver extends KeyedCountingResolver {
+        @Override
+        public Resolution<KeyedMessage> resolveForKey(
+                java.lang.reflect.Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
+                KeyedMessage value, Object cacheKey) {
+            resolutionCount.incrementAndGet();
+            return Resolution.rejected();
+        }
+    }
+
+    private static class FallbackResolver implements ParameterResolver<KeyedMessage> {
+        private final AtomicInteger matchesCount = new AtomicInteger();
+
+        @Override
+        public Function<KeyedMessage, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                      java.lang.annotation.Annotation methodAnnotation) {
+            return KeyedMessage::value;
+        }
+
+        @Override
+        public boolean matches(java.lang.reflect.Parameter parameter,
+                               java.lang.annotation.Annotation methodAnnotation, KeyedMessage value) {
+            matchesCount.incrementAndGet();
+            return true;
         }
     }
 

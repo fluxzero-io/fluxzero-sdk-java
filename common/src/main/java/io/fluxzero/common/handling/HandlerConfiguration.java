@@ -86,7 +86,7 @@ public class HandlerConfiguration<M> {
      * topic filtering, or segment-based routing.
      */
     @Default
-    MessageFilter<? super M> messageFilter = (m, e, handlerAnnotation, targetClass) -> true;
+    MessageFilter<? super M> messageFilter = MessageFilter.allowAll();
 
     /**
      * Optional hook to validate resolved arguments before invoking a handler method.

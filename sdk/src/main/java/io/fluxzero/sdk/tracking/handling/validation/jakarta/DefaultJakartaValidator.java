@@ -111,7 +111,8 @@ public class DefaultJakartaValidator implements Validator {
     private <T> Optional<ValidationException> checkValidityInternal(
             T object, @Nullable Object parameterContext,
             List<? extends ParameterResolver<?>> parameterResolvers, Class<?>... groups) {
-        if (object == null) {
+        if (object == null || ReflectionUtils.isLeafValue(object)
+            || !BeanValidationMetadata.of(object.getClass()).hasValidation()) {
             return Optional.empty();
         }
         Class<?>[] effectiveGroups = ValidationAnnotationUtils.normalizeGroups(groups);

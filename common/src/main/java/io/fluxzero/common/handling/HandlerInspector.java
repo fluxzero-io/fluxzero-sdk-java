@@ -32,8 +32,12 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -234,8 +238,10 @@ public class HandlerInspector {
         private final HandlerConfiguration<? super M> config;
         private final MessageFilter<? super M> messageFilter;
         private final List<ParameterResolverPlan<M>>[] parameterResolverPlans;
+        private final List<ParameterResolverPlan<M>>[] specificityResolverPlans;
         private final boolean onlyPreparedParameterResolvers;
         private final boolean validateMethodInvocation;
+        private boolean cacheKeyedResolvers = true;
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private final Optional<Object> emptyResult = Optional.of(void.class);
 
@@ -257,6 +263,7 @@ public class HandlerInspector {
                     .orElse(null);
             this.messageFilter = config.messageFilter().prepare(this.executable, this.methodAnnotationType, targetClass);
             this.parameterResolverPlans = prepareParameterResolvers();
+            this.specificityResolverPlans = prepareSpecificityResolverPlans();
             this.onlyPreparedParameterResolvers = onlyPreparedParameterResolvers(this.parameterResolverPlans);
             this.validateMethodInvocation = config.methodInvocationValidator() != MethodInvocationValidator.noOp();
             this.classForSpecificity = computeClassForSpecificity();
@@ -340,12 +347,24 @@ public class HandlerInspector {
         }
 
         private Function<? super M, Object> resolveDynamicParameterResolver(M m, int parameterIndex) {
+            return cacheKeyedResolvers ? resolveKeyedParameterResolver(m, parameterIndex)
+                    : resolveLegacyParameterResolver(m, parameterIndex);
+        }
+
+        private Function<? super M, Object> resolveKeyedParameterResolver(M m, int parameterIndex) {
             Parameter p = parameters[parameterIndex];
             for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
                 if (plan.preparedResolver() != null) {
                     return plan.preparedResolver();
                 }
                 ParameterResolver<? super M> r = plan.resolver();
+                KeyedParameterResolver.Resolution<M> keyedResolution = plan.resolveForKey(p, methodAnnotation, m);
+                if (keyedResolution != null) {
+                    if (!keyedResolution.matched()) {
+                        continue;
+                    }
+                    return keyedResolution.resolver();
+                }
                 if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
                     Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
                             p, methodAnnotation, m);
@@ -360,6 +379,32 @@ public class HandlerInspector {
                         return null;
                     }
                     return r.resolve(p, methodAnnotation);
+                }
+            }
+            return null;
+        }
+
+        private Function<? super M, Object> resolveLegacyParameterResolver(M m, int parameterIndex) {
+            Parameter p = parameters[parameterIndex];
+            for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                if (plan.preparedResolver() != null) {
+                    return plan.preparedResolver();
+                }
+                ParameterResolver<? super M> resolver = plan.resolver();
+                if (resolver instanceof PreparedParameterResolver<? super M> preparedResolver) {
+                    Function<? super M, Object> function = preparedResolver.resolveIfPossible(
+                            p, methodAnnotation, m);
+                    if (function != null) {
+                        return function;
+                    }
+                    if (resolver.matches(p, methodAnnotation, m)) {
+                        return null;
+                    }
+                } else if (resolver.matches(p, methodAnnotation, m)) {
+                    if (!resolver.test(m, p)) {
+                        return null;
+                    }
+                    return resolver.resolve(p, methodAnnotation);
                 }
             }
             return null;
@@ -431,7 +476,7 @@ public class HandlerInspector {
                 List<ParameterResolverPlan<M>> plans = new ArrayList<>();
                 for (ParameterResolver<? super M> resolver : parameterResolvers) {
                     Function<? super M, Object> preparedResolver = resolver.prepare(p, methodAnnotation);
-                    plans.add(new ParameterResolverPlan<>(resolver, preparedResolver));
+                    plans.add(new ParameterResolverPlan<>(resolver, preparedResolver, p, methodAnnotation));
                     if (preparedResolver != null) {
                         break;
                     }
@@ -451,6 +496,28 @@ public class HandlerInspector {
                 }
             }
             return true;
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<ParameterResolverPlan<M>>[] prepareSpecificityResolverPlans() {
+            List<ParameterResolverPlan<M>>[] result = new List[parameterCount];
+            for (int i = 0; i < parameterCount; i++) {
+                Map<ParameterResolver<? super M>, ParameterResolverPlan<M>> existingPlans = new IdentityHashMap<>();
+                for (ParameterResolverPlan<M> plan : parameterResolverPlans[i]) {
+                    existingPlans.put(plan.resolver(), plan);
+                }
+                List<ParameterResolverPlan<M>> plans = new ArrayList<>();
+                for (ParameterResolver<? super M> resolver : parameterResolvers) {
+                    if (resolver.determinesSpecificity()) {
+                        ParameterResolverPlan<M> existing = existingPlans.get(resolver);
+                        plans.add(existing == null
+                                          ? new ParameterResolverPlan<>(resolver, null, parameters[i], methodAnnotation)
+                                          : existing);
+                    }
+                }
+                result[i] = List.copyOf(plans);
+            }
+            return result;
         }
 
         @Override
@@ -516,13 +583,16 @@ public class HandlerInspector {
 
         protected Specificity computeSpecificity(M message) {
             Specificity result = new Specificity(classForSpecificity, Integer.MAX_VALUE);
-            for (Parameter p : parameters) {
-                for (ParameterResolver<? super M> r : parameterResolvers) {
-                    if (!r.determinesSpecificity()) {
-                        continue;
-                    }
+            for (int i = 0; i < parameters.length; i++) {
+                Parameter p = parameters[i];
+                for (ParameterResolverPlan<M> plan : specificityResolverPlans[i]) {
+                    ParameterResolver<? super M> r = plan.resolver();
                     Function<? super M, Object> resolver = null;
-                    if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
+                    KeyedParameterResolver.Resolution<M> keyedResolution =
+                            cacheKeyedResolvers ? plan.resolveForKey(p, methodAnnotation, message) : null;
+                    if (keyedResolution != null) {
+                        resolver = keyedResolution.resolver();
+                    } else if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
                         resolver = preparedParameterResolver.resolveIfPossible(p, methodAnnotation, message);
                     } else if (r.matches(p, methodAnnotation, message) && r.test(message, p)) {
                         resolver = r.resolve(p, methodAnnotation);
@@ -575,6 +645,44 @@ public class HandlerInspector {
                 return (int) match.get().invoke(annotation);
             }
             return 0;
+        }
+
+        @SuppressWarnings("unchecked")
+        private boolean collectApplicabilityKeyResolvers(
+                IdentityHashMap<KeyedParameterResolver<? super M>, Boolean> result) {
+            if (!messageFilter.isAlwaysTrue()) {
+                return false;
+            }
+            for (int i = 0; i < parameterResolverPlans.length; i++) {
+                List<ParameterResolverPlan<M>> plans = parameterResolverPlans[i];
+                for (ParameterResolverPlan<M> plan : plans) {
+                    if (plan.preparedResolver() != null) {
+                        break;
+                    }
+                    if (!(plan.resolver() instanceof KeyedParameterResolver<?> keyedResolver)) {
+                        return false;
+                    }
+                    if (plan.isCacheKeyRelevant()) {
+                        result.put((KeyedParameterResolver<? super M>) keyedResolver, Boolean.TRUE);
+                    }
+                }
+            }
+            for (int i = 0; i < specificityResolverPlans.length; i++) {
+                List<ParameterResolverPlan<M>> plans = specificityResolverPlans[i];
+                for (ParameterResolverPlan<M> plan : plans) {
+                    if (!(plan.resolver() instanceof KeyedParameterResolver<?> keyedResolver)) {
+                        return false;
+                    }
+                    if (plan.isCacheKeyRelevant()) {
+                        result.put((KeyedParameterResolver<? super M>) keyedResolver, Boolean.TRUE);
+                    }
+                }
+            }
+            return true;
+        }
+
+        private void disableKeyedResolverCaching() {
+            cacheKeyedResolvers = false;
         }
 
         @SneakyThrows
@@ -782,9 +890,80 @@ public class HandlerInspector {
             }
         }
 
-        private record ParameterResolverPlan<M>(
-                ParameterResolver<? super M> resolver,
-                Function<? super M, Object> preparedResolver) {
+        private static final class ParameterResolverPlan<M> {
+            private static final int maxCacheSize = 256;
+
+            private final ParameterResolver<? super M> resolver;
+            private final Function<? super M, Object> preparedResolver;
+            private final boolean cacheKeyRelevant;
+            private final KeyedParameterResolver.Resolution<M> staticKeyedResolution;
+            private volatile ConcurrentHashMap<Object, KeyedParameterResolver.Resolution<M>> cache;
+
+            private ParameterResolverPlan(ParameterResolver<? super M> resolver,
+                                          Function<? super M, Object> preparedResolver,
+                                          Parameter parameter, Annotation methodAnnotation) {
+                this.resolver = resolver;
+                this.preparedResolver = preparedResolver;
+                this.cacheKeyRelevant = !(resolver instanceof KeyedParameterResolver<?> keyedResolver)
+                                        || keyedResolver.isCacheKeyRelevant(parameter, methodAnnotation);
+                this.staticKeyedResolution = resolver instanceof KeyedParameterResolver<?> && !cacheKeyRelevant
+                        ? KeyedParameterResolver.Resolution.unmatched() : null;
+            }
+
+            private ParameterResolver<? super M> resolver() {
+                return resolver;
+            }
+
+            private Function<? super M, Object> preparedResolver() {
+                return preparedResolver;
+            }
+
+            private boolean isCacheKeyRelevant() {
+                return cacheKeyRelevant;
+            }
+
+            @SuppressWarnings("unchecked")
+            private KeyedParameterResolver.Resolution<M> resolveForKey(
+                    Parameter parameter, Annotation methodAnnotation, M message) {
+                if (!(resolver instanceof KeyedParameterResolver<?> rawResolver)) {
+                    return null;
+                }
+                if (staticKeyedResolution != null) {
+                    return staticKeyedResolution;
+                }
+                KeyedParameterResolver<M> keyedResolver = (KeyedParameterResolver<M>) rawResolver;
+                Object key = keyedResolver.getCacheKey(message);
+                if (key == null) {
+                    return null;
+                }
+                ConcurrentHashMap<Object, KeyedParameterResolver.Resolution<M>> currentCache = cache;
+                KeyedParameterResolver.Resolution<M> result = currentCache == null ? null : currentCache.get(key);
+                if (result == null) {
+                    result = Objects.requireNonNull(
+                            keyedResolver.resolveForKey(parameter, methodAnnotation, message, key));
+                    currentCache = cache();
+                    if (currentCache.size() < maxCacheSize) {
+                        KeyedParameterResolver.Resolution<M> existing = currentCache.putIfAbsent(key, result);
+                        if (existing != null) {
+                            result = existing;
+                        }
+                    }
+                }
+                return result;
+            }
+
+            private ConcurrentHashMap<Object, KeyedParameterResolver.Resolution<M>> cache() {
+                ConcurrentHashMap<Object, KeyedParameterResolver.Resolution<M>> result = cache;
+                if (result == null) {
+                    synchronized (this) {
+                        result = cache;
+                        if (result == null) {
+                            cache = result = new ConcurrentHashMap<>();
+                        }
+                    }
+                }
+                return result;
+            }
         }
     }
 
@@ -794,10 +973,25 @@ public class HandlerInspector {
      * Supports invoking one or multiple methods depending on configuration.
      * </p>
      */
-    @AllArgsConstructor
     public static class ObjectHandlerMatcher<M> implements HandlerMatcher<Object, M> {
+        private static final int maxCacheSize = 256;
+        private static final int noMatch = -1;
+
         private final List<HandlerMatcher<Object, M>> methodHandlers;
         private final boolean invokeMultipleMethods;
+        private final List<KeyedParameterResolver<? super M>> applicabilityKeyResolvers;
+        private volatile ConcurrentHashMap<Object, Integer> instanceSelectionCache;
+        private volatile ConcurrentHashMap<Object, Integer> staticSelectionCache;
+
+        public ObjectHandlerMatcher(List<HandlerMatcher<Object, M>> methodHandlers, boolean invokeMultipleMethods) {
+            this.methodHandlers = methodHandlers;
+            this.invokeMultipleMethods = invokeMultipleMethods;
+            if (methodHandlers.size() <= 1 && !methodHandlers.isEmpty()
+                && methodHandlers.getFirst() instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                methodHandlerMatcher.disableKeyedResolverCaching();
+            }
+            this.applicabilityKeyResolvers = findApplicabilityKeyResolvers();
+        }
 
         @Override
         public boolean canHandle(M message) {
@@ -821,10 +1015,37 @@ public class HandlerInspector {
 
         @Override
         public HandlerInvoker getInvokerOrNull(Object target, M message) {
+            if (!invokeMultipleMethods && methodHandlers.size() == 1) {
+                return methodHandlers.getFirst().getInvokerOrNull(target, message);
+            }
+            Object cacheKey = applicabilityCacheKey(message);
+            if (cacheKey != null) {
+                ConcurrentHashMap<Object, Integer> cache = selectionCache(target != null);
+                Integer selected = cache.get(cacheKey);
+                if (selected != null) {
+                    if (selected == noMatch) {
+                        return null;
+                    }
+                    HandlerInvoker cachedInvoker = methodHandlers.get(selected).getInvokerOrNull(target, message);
+                    if (cachedInvoker != null) {
+                        return cachedInvoker;
+                    }
+                    cache.remove(cacheKey, selected);
+                }
+                SelectedInvoker selection = selectInvoker(target, message);
+                if (cache.size() < maxCacheSize) {
+                    cache.putIfAbsent(cacheKey, selection == null ? noMatch : selection.index());
+                }
+                return selection == null ? null : selection.invoker();
+            }
+            return selectInvokerUncached(target, message);
+        }
+
+        private HandlerInvoker selectInvokerUncached(Object target, M message) {
             if (invokeMultipleMethods) {
                 List<HandlerInvoker> invokers = new ArrayList<>();
-                for (HandlerMatcher<Object, M> d : methodHandlers) {
-                    HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                for (HandlerMatcher<Object, M> handler : methodHandlers) {
+                    HandlerInvoker invoker = handler.getInvokerOrNull(target, message);
                     if (invoker != null) {
                         invokers.add(invoker);
                     }
@@ -836,12 +1057,12 @@ public class HandlerInspector {
             }
             HandlerInvoker bestInvoker = null;
             MethodHandlerMatcher<M> bestMatcher = null;
-            for (HandlerMatcher<Object, M> d : methodHandlers) {
-                HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+            for (HandlerMatcher<Object, M> handler : methodHandlers) {
+                HandlerInvoker invoker = handler.getInvokerOrNull(target, message);
                 if (invoker != null) {
                     if (bestInvoker == null) {
                         bestInvoker = invoker;
-                        if (d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                        if (handler instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
                             @SuppressWarnings("unchecked")
                             MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
                             if (castMatcher.computeSpecificity(message).priority()
@@ -850,7 +1071,8 @@ public class HandlerInspector {
                             }
                             bestMatcher = castMatcher;
                         }
-                    } else if (bestMatcher != null && d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                    } else if (bestMatcher != null
+                               && handler instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
                         @SuppressWarnings("unchecked")
                         MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
                         if (castMatcher.compareForMessage(bestMatcher, message) < 0) {
@@ -863,12 +1085,115 @@ public class HandlerInspector {
             return bestInvoker;
         }
 
+        private SelectedInvoker selectInvoker(Object target, M message) {
+            if (invokeMultipleMethods) {
+                List<HandlerInvoker> invokers = new ArrayList<>();
+                for (HandlerMatcher<Object, M> d : methodHandlers) {
+                    HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                    if (invoker != null) {
+                        invokers.add(invoker);
+                    }
+                }
+                HandlerInvoker joined = HandlerInvoker.join(invokers).orElse(null);
+                return joined == null ? null : new SelectedInvoker(noMatch, joined);
+            }
+            if (methodHandlers.size() == 1) {
+                HandlerInvoker invoker = methodHandlers.getFirst().getInvokerOrNull(target, message);
+                return invoker == null ? null : new SelectedInvoker(0, invoker);
+            }
+            HandlerInvoker bestInvoker = null;
+            MethodHandlerMatcher<M> bestMatcher = null;
+            int bestIndex = noMatch;
+            for (int i = 0; i < methodHandlers.size(); i++) {
+                HandlerMatcher<Object, M> d = methodHandlers.get(i);
+                HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                if (invoker != null) {
+                    if (bestInvoker == null) {
+                        bestInvoker = invoker;
+                        bestIndex = i;
+                        if (d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                            @SuppressWarnings("unchecked")
+                            MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
+                            if (castMatcher.computeSpecificity(message).priority()
+                                <= castMatcher.lowestSpecificityPriority) {
+                                return new SelectedInvoker(bestIndex, bestInvoker);
+                            }
+                            bestMatcher = castMatcher;
+                        }
+                    } else if (bestMatcher != null && d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                        @SuppressWarnings("unchecked")
+                        MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
+                        if (castMatcher.compareForMessage(bestMatcher, message) < 0) {
+                            bestInvoker = invoker;
+                            bestMatcher = castMatcher;
+                            bestIndex = i;
+                        }
+                    }
+                }
+            }
+            return bestInvoker == null ? null : new SelectedInvoker(bestIndex, bestInvoker);
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<KeyedParameterResolver<? super M>> findApplicabilityKeyResolvers() {
+            if (invokeMultipleMethods || methodHandlers.size() <= 1) {
+                return List.of();
+            }
+            IdentityHashMap<KeyedParameterResolver<? super M>, Boolean> resolvers = new IdentityHashMap<>();
+            for (HandlerMatcher<Object, M> handler : methodHandlers) {
+                if (!(handler instanceof MethodHandlerMatcher<?> rawMatcher)) {
+                    return List.of();
+                }
+                MethodHandlerMatcher<M> matcher = (MethodHandlerMatcher<M>) rawMatcher;
+                if (!matcher.collectApplicabilityKeyResolvers(resolvers)) {
+                    return List.of();
+                }
+            }
+            return List.copyOf(resolvers.keySet());
+        }
+
+        private Object applicabilityCacheKey(M message) {
+            Object result = null;
+            for (KeyedParameterResolver<? super M> resolver : applicabilityKeyResolvers) {
+                Object resolverKey = resolver.getCacheKey(message);
+                if (resolverKey == null) {
+                    return null;
+                }
+                result = result == null ? resolverKey : new CompositeApplicabilityKey(result, resolverKey);
+            }
+            return result;
+        }
+
+        private ConcurrentHashMap<Object, Integer> selectionCache(boolean instanceTarget) {
+            ConcurrentHashMap<Object, Integer> result = instanceTarget ? instanceSelectionCache : staticSelectionCache;
+            if (result == null) {
+                synchronized (this) {
+                    result = instanceTarget ? instanceSelectionCache : staticSelectionCache;
+                    if (result == null) {
+                        result = new ConcurrentHashMap<>();
+                        if (instanceTarget) {
+                            instanceSelectionCache = result;
+                        } else {
+                            staticSelectionCache = result;
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
         @Override
         public HandlerMethod<M> bindHandlerMethod(Object target) {
             if (invokeMultipleMethods || methodHandlers.size() != 1) {
                 return null;
             }
             return methodHandlers.getFirst().bindHandlerMethod(target);
+        }
+
+        private record SelectedInvoker(int index, HandlerInvoker invoker) {
+        }
+
+        private record CompositeApplicabilityKey(Object first, Object second) {
         }
 
     }

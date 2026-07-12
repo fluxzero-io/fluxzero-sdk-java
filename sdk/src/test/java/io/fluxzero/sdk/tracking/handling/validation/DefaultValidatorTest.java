@@ -71,6 +71,12 @@ class DefaultValidatorTest {
     }
 
     @Test
+    void detectsInheritedAndInterfaceMethodConstraintsBeforeTakingConstraintlessFastPath() {
+        assertThrows(ValidationException.class, () -> subject.assertValid(new InheritedConstraint(null)));
+        assertThrows(ValidationException.class, () -> subject.assertValid(new InterfaceConstraint(null)));
+    }
+
+    @Test
     void testValidObject() {
         Object object = ConstrainedObject.builder()
                 .aString("foo").aNumber(5).aCustomString("bar")
@@ -234,7 +240,7 @@ class DefaultValidatorTest {
         TestFixture.create()
                 .withProperty(DefaultValidator.BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY, true)
                 .whenApplying(fc -> {
-                    subject.assertValid(new ArbitraryMethodConstraint());
+                    DefaultValidator.createDefault().assertValid(new ArbitraryMethodConstraint());
                     return null;
                 })
                 .expectNoResult();
@@ -444,6 +450,33 @@ class DefaultValidatorTest {
     @Value
     private static class ConstrainedObjectMember {
         @AssertTrue boolean aBoolean;
+    }
+
+    private static class ConstraintBase {
+        @NotNull
+        private final String value;
+
+        private ConstraintBase(String value) {
+            this.value = value;
+        }
+    }
+
+    private static class InheritedConstraint extends ConstraintBase {
+        private InheritedConstraint(String value) {
+            super(value);
+        }
+    }
+
+    private interface ConstraintContract {
+        @NotNull
+        String getValue();
+    }
+
+    private record InterfaceConstraint(String value) implements ConstraintContract {
+        @Override
+        public String getValue() {
+            return value;
+        }
     }
 
     private interface Group {

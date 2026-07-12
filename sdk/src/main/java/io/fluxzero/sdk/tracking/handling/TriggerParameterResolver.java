@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.handling.KeyedParameterResolver;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -74,7 +75,8 @@ import static java.util.Optional.ofNullable;
  * @see Trigger
  */
 @AllArgsConstructor
-public class TriggerParameterResolver implements ParameterResolver<HasMessage>, MessageFilter<HasMessage> {
+public class TriggerParameterResolver
+        implements KeyedParameterResolver<HasMessage>, MessageFilter<HasMessage> {
     private final Client client;
     private final Serializer serializer;
     private final DefaultCorrelationDataProvider correlationDataProvider = DefaultCorrelationDataProvider.INSTANCE;
@@ -143,6 +145,34 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
         var parameterType = HasMessage.class.isAssignableFrom(parameter.getType())
                 ? Object.class : parameter.getType();
         return getTriggerClass(message, correlationDataProvider).filter(parameterType::isAssignableFrom).isPresent();
+    }
+
+    @Override
+    public Object getCacheKey(HasMessage value) {
+        if (getClass() != TriggerParameterResolver.class) {
+            return null;
+        }
+        var metadata = value.getMetadata();
+        return new TriggerShape(getTriggerClass(value, correlationDataProvider).orElse(null),
+                                getTriggerMessageType(value, correlationDataProvider).orElse(null),
+                                metadata.get(correlationDataProvider.getConsumerKey()));
+    }
+
+    @Override
+    public boolean isCacheKeyRelevant(Parameter parameter, Annotation methodAnnotation) {
+        return ReflectionUtils.has(Trigger.class, parameter);
+    }
+
+    @Override
+    public Resolution<HasMessage> resolveForKey(
+            Parameter parameter, Annotation methodAnnotation, HasMessage value, Object cacheKey) {
+        if (!matches(parameter, methodAnnotation, value)) {
+            return Resolution.unmatched();
+        }
+        if (!test(value, parameter)) {
+            return Resolution.rejected();
+        }
+        return Resolution.resolved(resolve(parameter, methodAnnotation));
     }
 
     protected boolean filterMessage(HasMessage message, Trigger trigger) {
@@ -265,6 +295,9 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
             Optional<Trigger> existing = trigger.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
         }
+    }
+
+    private record TriggerShape(Class<?> triggerClass, MessageType triggerType, String consumer) {
     }
 
     protected Optional<MessageType> getTriggerMessageType(HasMessage message) {

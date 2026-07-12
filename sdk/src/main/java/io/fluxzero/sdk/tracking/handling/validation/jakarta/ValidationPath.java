@@ -29,8 +29,10 @@ import java.util.stream.StreamSupport;
 import static jakarta.validation.ElementKind.CONTAINER_ELEMENT;
 
 record ValidationPath(List<PathNode> nodes, @Nullable IterableLocation iterableLocation) implements Path {
+    private static final ValidationPath root = new ValidationPath(List.of(), null);
+
     static ValidationPath root() {
-        return new ValidationPath(List.of(), null);
+        return root;
     }
 
     static String propertyPath(ConstraintViolation<?> violation, boolean full) {

@@ -47,9 +47,9 @@ final class ValidationRun {
     private final boolean beanPropertyMethodNamesOnly;
     private final Object parameterContext;
     private final List<ParameterResolver<Object>> parameterResolvers;
-    private final List<DefaultValidationMetadata.DefaultConstraintViolation<?>> violations = new ArrayList<>();
-    private final Set<Object> validationStack = Collections.newSetFromMap(new IdentityHashMap<>());
-    private final Set<ProcessedConstraint> processedConstraints = new HashSet<>();
+    private List<DefaultValidationMetadata.DefaultConstraintViolation<?>> violations;
+    private Set<Object> validationStack;
+    private Set<ProcessedConstraint> processedConstraints;
     private boolean deduplicateConstraints;
     private boolean skippedMethodsAfterFieldViolations;
 
@@ -112,11 +112,11 @@ final class ValidationRun {
     }
 
     boolean hasViolations() {
-        return !violations.isEmpty();
+        return violations != null && !violations.isEmpty();
     }
 
     Collection<? extends ConstraintViolation<?>> violations() {
-        return violations;
+        return violations == null ? List.of() : violations;
     }
 
     boolean fieldOnly() {
@@ -155,11 +155,17 @@ final class ValidationRun {
         if (object == null || ReflectionUtils.isLeafValue(object)) {
             return;
         }
-        if (!validationStack.add(object)) {
+        BeanValidationMetadata metadata = BeanValidationMetadata.of(object.getClass());
+        if (!metadata.cascades()) {
+            for (Class<?> requestedGroup : requestedGroups) {
+                validateGroup(metadata, object, requestedGroup, path);
+            }
+            return;
+        }
+        if (!validationStack().add(object)) {
             return;
         }
         try {
-            BeanValidationMetadata metadata = BeanValidationMetadata.of(object.getClass());
             for (Class<?> requestedGroup : requestedGroups) {
                 validateGroup(metadata, object, requestedGroup, path);
             }
@@ -172,11 +178,16 @@ final class ValidationRun {
         if (object == null || ReflectionUtils.isLeafValue(object)) {
             return;
         }
-        if (!validationStack.add(object)) {
+        BeanValidationMetadata metadata = BeanValidationMetadata.of(object.getClass());
+        if (!metadata.cascades()) {
+            validateGroup(metadata, object, requestedGroup, path);
+            return;
+        }
+        if (!validationStack().add(object)) {
             return;
         }
         try {
-            validateGroup(BeanValidationMetadata.of(object.getClass()), object, requestedGroup, path);
+            validateGroup(metadata, object, requestedGroup, path);
         } finally {
             validationStack.remove(object);
         }
@@ -192,9 +203,9 @@ final class ValidationRun {
         boolean previousDeduplicate = deduplicateConstraints;
         deduplicateConstraints = true;
         for (Class<?> group : sequence) {
-            int before = violations.size();
+            int before = violationCount();
             metadata.validate(this, object, ValidationAnnotationUtils.effectiveGroup(group, metadata.type()), path);
-            if (violations.size() > before) {
+            if (violationCount() > before) {
                 deduplicateConstraints = previousDeduplicate;
                 return;
             }
@@ -208,16 +219,16 @@ final class ValidationRun {
         }
         if (deduplicateConstraints) {
             ProcessedConstraint processed = new ProcessedConstraint(new IdentityKey(owner), path, meta);
-            if (!processedConstraints.add(processed)) {
+            if (!processedConstraints().add(processed)) {
                 return;
             }
         }
         if (!meta.composingConstraints().isEmpty()) {
-            int before = violations.size();
+            int before = violationCount();
             for (ConstraintMeta composingConstraint : meta.composingConstraints()) {
                 validateValue(owner, composingConstraint, value, group, path);
             }
-            if (violations.size() > before && meta.reportAsSingleViolation()) {
+            if (violationCount() > before && meta.reportAsSingleViolation()) {
                 violations.subList(before, violations.size()).clear();
                 addViolation(meta, value, path, meta.messageTemplate());
                 return;
@@ -319,11 +330,36 @@ final class ValidationRun {
     @SuppressWarnings("unchecked")
     private void addViolation(ConstraintMeta meta, Object invalidValue, ValidationPath path, String template) {
         DefaultValidationMetadata.DefaultConstraintDescriptor<?> descriptor = new DefaultValidationMetadata.DefaultConstraintDescriptor<>(meta);
-        violations.add(new DefaultValidationMetadata.DefaultConstraintViolation<>(
+        mutableViolations().add(new DefaultValidationMetadata.DefaultConstraintViolation<>(
                 ValidationMessages.interpolate(meta, template, invalidValue, descriptor,
                                                settings.messageInterpolator()), template, rootBean,
                 (Class<Object>) rootBeanClass, invalidValue, path, meta.customMessage(),
                 descriptor));
+    }
+
+    private int violationCount() {
+        return violations == null ? 0 : violations.size();
+    }
+
+    private List<DefaultValidationMetadata.DefaultConstraintViolation<?>> mutableViolations() {
+        if (violations == null) {
+            violations = new ArrayList<>();
+        }
+        return violations;
+    }
+
+    private Set<Object> validationStack() {
+        if (validationStack == null) {
+            validationStack = Collections.newSetFromMap(new IdentityHashMap<>());
+        }
+        return validationStack;
+    }
+
+    private Set<ProcessedConstraint> processedConstraints() {
+        if (processedConstraints == null) {
+            processedConstraints = new HashSet<>();
+        }
+        return processedConstraints;
     }
 
     private record ProcessedConstraint(IdentityKey owner, ValidationPath path, ConstraintMeta meta) {

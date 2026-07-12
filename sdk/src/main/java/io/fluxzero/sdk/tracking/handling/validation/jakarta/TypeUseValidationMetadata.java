@@ -74,6 +74,18 @@ record TypeUseValidationMetadata(List<ConstraintMeta> constraints, boolean casca
                || componentType != null && componentType.hasValidation();
     }
 
+    boolean cascades() {
+        if (cascaded || componentType != null && componentType.cascades()) {
+            return true;
+        }
+        for (TypeArgumentValidationMetadata argument : typeArguments) {
+            if (argument.metadata().cascades()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     boolean appliesToGroup(Class<?> group) {
         for (ConstraintMeta constraint : constraints) {
             if (constraint.appliesToGroup(group)) {
