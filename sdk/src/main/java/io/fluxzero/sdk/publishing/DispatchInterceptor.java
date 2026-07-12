@@ -22,8 +22,6 @@ import io.fluxzero.sdk.common.Message;
 
 import java.util.List;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * Mechanism that enables modification, monitoring, or conditional suppression of messages before they are dispatched to
  * local handlers or published to the Fluxzero Runtime.
@@ -57,7 +55,17 @@ public interface DispatchInterceptor {
     /**
      * No-op implementation of the {@code DispatchInterceptor} that returns the original message unchanged.
      */
-    DispatchInterceptor noOp = (m, messageType, topic) -> m;
+    DispatchInterceptor noOp = new DispatchInterceptor() {
+        @Override
+        public Message interceptDispatch(Message message, MessageType messageType, String topic) {
+            return message;
+        }
+
+        @Override
+        public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+            return PreparedLocalDispatch.noOp;
+        }
+    };
 
     /**
      * Intercepts the dispatch of a message before it is serialized and published or locally handled.
@@ -71,6 +79,24 @@ public interface DispatchInterceptor {
      * @return the modified message, the same message, or {@code null} to prevent dispatch
      */
     Message interceptDispatch(Message message, MessageType messageType, String topic);
+
+    /**
+     * Prepares this interceptor for repeated local dispatches with the same static message characteristics.
+     *
+     * <p>This optional method lets local handling apply an interceptor without creating a complete {@link Message}
+     * first. Implementations must preserve the observable behavior of {@link #interceptDispatch(Message, MessageType,
+     * String)}. Return {@code null} when that is not possible; Fluxzero will then use the regular dispatch path for
+     * this payload type.</p>
+     *
+     * <p>The returned policy may be cached and used concurrently. State belonging to a single dispatch must be stored
+     * in the supplied {@link io.fluxzero.sdk.tracking.handling.LocalExecution}, not in the policy itself.</p>
+     *
+     * @param descriptor payload class, message type, and topic shared by the local dispatches
+     * @return a thread-safe prepared policy, or {@code null} to use regular message-based dispatch
+     */
+    default PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+        return null;
+    }
 
     /**
      * Allows modifications to the serialized representation of the message before it is actually published.
@@ -113,26 +139,6 @@ public interface DispatchInterceptor {
      * @return a new {@code DispatchInterceptor} representing the combined logic
      */
     default DispatchInterceptor andThen(DispatchInterceptor nextInterceptor) {
-        return new DispatchInterceptor() {
-            @Override
-            public Message interceptDispatch(Message m, MessageType t, String topic) {
-                return ofNullable(DispatchInterceptor.this.interceptDispatch(m, t, topic))
-                        .map(message -> nextInterceptor.interceptDispatch(message, t, topic)).orElse(null);
-            }
-
-            @Override
-            public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
-                                        boolean request) {
-                DispatchInterceptor.this.monitorDispatch(message, messageType, topic, namespace, request);
-                nextInterceptor.monitorDispatch(message, messageType, topic, namespace, request);
-            }
-
-            @Override
-            public SerializedMessage modifySerializedMessage(SerializedMessage s, Message m,
-                                                             MessageType type, String topic) {
-                return ofNullable(DispatchInterceptor.this.modifySerializedMessage(s, m, type, topic))
-                        .map(message -> nextInterceptor.modifySerializedMessage(message, m, type, topic)).orElse(null);
-            }
-        };
+        return CompositeDispatchInterceptor.combine(this, nextInterceptor);
     }
 }

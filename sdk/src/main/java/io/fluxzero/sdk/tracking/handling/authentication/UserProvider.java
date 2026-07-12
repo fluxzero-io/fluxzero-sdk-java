@@ -40,6 +40,26 @@ import java.util.ServiceLoader.Provider;
 public interface UserProvider {
 
     /**
+     * Returns whether locally handled messages must be passed to {@link #fromMessage(HasMessage)} to determine the
+     * handling user.
+     *
+     * <p>Fluxzero normally reuses the user that was selected when the message was dispatched. This avoids constructing
+     * a complete message solely to store that user in metadata and read it back again. This is correct for regular
+     * providers, including implementations of {@link AbstractUserProvider}, where
+     * {@code fromMessage(message)} returns the same user that {@link #addToMetadata(Metadata, User)} added.</p>
+     *
+     * <p>Override this method to return {@code true} only if {@link #fromMessage(HasMessage)} can intentionally produce
+     * a different user, or if user resolution depends on other parts of the completed message. Local handling will
+     * then use the regular message-based path so that the provider retains exactly that behavior.</p>
+     *
+     * @return {@code true} to resolve the handling user from the completed local message; {@code false} to reuse the
+     * user selected during dispatch
+     */
+    default boolean requiresMessageBasedLocalResolution() {
+        return false;
+    }
+
+    /**
      * Default {@code UserProvider} discovered via {@link ServiceLoader}. If multiple providers are found, they are
      * chained using {@link #andThen(UserProvider)}. May be {@code null} if no provider is registered.
      */
@@ -134,6 +154,12 @@ public interface UserProvider {
      */
     default UserProvider andThen(UserProvider other) {
         return new DelegatingUserProvider(this) {
+            @Override
+            public boolean requiresMessageBasedLocalResolution() {
+                return super.requiresMessageBasedLocalResolution()
+                       || other.requiresMessageBasedLocalResolution();
+            }
+
             @Override
             public User getUserById(Object userId) {
                 return Optional.ofNullable(super.getUserById(userId)).orElseGet(() -> other.getUserById(userId));

@@ -550,10 +550,402 @@ public class HandlerInspector {
             return new BoundHandlerMethod(target);
         }
 
+        @Override
+        public HandlerMethodPlan<M> prepareHandlerMethod(Object target, M message) {
+            return prepareHandlerMethod(target, asHandlerInput(message));
+        }
+
+        private HandlerMethodPlan<M> prepareHandlerMethod(Object target, HandlerInput<M> input) {
+            if (getClass() != MethodHandlerMatcher.class
+                || !targetCanBeInvoked(target)
+                || validateMethodInvocation
+                || !messageFilter.isAlwaysTrue()) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            Function<? super HandlerInput<M>, Object>[] resolvers = new Function[parameterCount];
+            for (int i = 0; i < parameterCount; i++) {
+                Function<? super HandlerInput<M>, Object> resolver = prepareInputResolver(input, i);
+                if (resolver == null) {
+                    return null;
+                }
+                resolvers[i] = resolver;
+            }
+            return new BoundHandlerMethodPlan(target, resolvers);
+        }
+
+        private HandlerMethodPlan<M> preparePayloadHandlerMethod(HandlerInput<M> input) {
+            if (getClass() != MethodHandlerMatcher.class
+                || !payloadTargetCanBeInvoked(input)
+                || validateMethodInvocation
+                || !messageFilter.isAlwaysTrue()) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            Function<? super HandlerInput<M>, Object>[] resolvers = new Function[parameterCount];
+            for (int i = 0; i < parameterCount; i++) {
+                Function<? super HandlerInput<M>, Object> resolver = prepareInputResolver(input, i);
+                if (resolver == null) {
+                    return null;
+                }
+                resolvers[i] = resolver;
+            }
+            return new PayloadHandlerMethodPlan(resolvers);
+        }
+
+        @Override
+        public HandlerMethodPlanner<M> bindHandlerMethodPlanner(Object target) {
+            if (getClass() != MethodHandlerMatcher.class) {
+                return null;
+            }
+            return new HandlerMethodPlanner<>() {
+                @Override
+                public HandlerMethodApplicability<M> prepareApplicability(HandlerInput<M> input) {
+                    return prepareInputApplicability(target, false, input);
+                }
+
+                @Override
+                public Object getCacheKey(M message) {
+                    return inputPlanCacheKey(asHandlerInput(message));
+                }
+
+                @Override
+                public Object getCacheKey(HandlerInput<M> input) {
+                    return inputPlanCacheKey(input);
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(M message) {
+                    HandlerMethodPlan<M> plan = prepareHandlerMethod(target, message);
+                    return plan == null ? HandlerMethodPreparation.noMatch()
+                            : HandlerMethodPreparation.prepared(plan);
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(HandlerInput<M> input) {
+                    HandlerMethodPlan<M> plan = prepareHandlerMethod(target, input);
+                    return plan == null ? HandlerMethodPreparation.noMatch()
+                            : HandlerMethodPreparation.prepared(plan);
+                }
+
+                @Override
+                public boolean isPayloadClassKey(HandlerInput<M> input) {
+                    return inputPlanPayloadClassKey(input);
+                }
+
+                @Override
+                public boolean isNoMatchPayloadClassKey(HandlerInput<M> input) {
+                    return inputPlanNoMatchPayloadClassKey(input);
+                }
+            };
+        }
+
+        @Override
+        public HandlerMethodPlanner<M> bindPayloadHandlerMethodPlanner() {
+            if (getClass() != MethodHandlerMatcher.class) {
+                return null;
+            }
+            return new HandlerMethodPlanner<>() {
+                @Override
+                public HandlerMethodApplicability<M> prepareApplicability(HandlerInput<M> input) {
+                    return prepareInputApplicability(null, true, input);
+                }
+
+                @Override
+                public Object getCacheKey(M message) {
+                    return null;
+                }
+
+                @Override
+                public Object getCacheKey(HandlerInput<M> input) {
+                    return payloadTargetCanBeInvoked(input) ? inputPlanCacheKey(input) : null;
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(M message) {
+                    return HandlerMethodPreparation.unsupported();
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(HandlerInput<M> input) {
+                    HandlerMethodPlan<M> plan = preparePayloadHandlerMethod(input);
+                    return plan == null ? HandlerMethodPreparation.unsupported()
+                            : HandlerMethodPreparation.prepared(plan);
+                }
+
+                @Override
+                public boolean isPayloadClassKey(HandlerInput<M> input) {
+                    return payloadTargetCanBeInvoked(input) && inputPlanPayloadClassKey(input);
+                }
+
+                @Override
+                public boolean isNoMatchPayloadClassKey(HandlerInput<M> input) {
+                    return payloadTargetCanBeInvoked(input) && inputPlanNoMatchPayloadClassKey(input);
+                }
+            };
+        }
+
+        private HandlerMethodApplicability<M> prepareInputApplicability(
+                Object target, boolean payloadTarget, HandlerInput<M> input) {
+            boolean targetMatches = payloadTarget ? payloadTargetCanBeInvoked(input) : targetCanBeInvoked(target);
+            if (!targetMatches || hasPayloadClassNoMatch(input)) {
+                return HandlerMethodApplicability.cacheable(
+                        new InputPlanCacheKey(this, inputPayloadClass(input)), true,
+                        HandlerMethodPreparation.noMatch());
+            }
+            if (validateMethodInvocation || !messageFilter.isAlwaysTrue()) {
+                return HandlerMethodApplicability.unsupported();
+            }
+            return prepareCompleteInputApplicability(target, payloadTarget, input);
+        }
+
+        private Class<?> inputPayloadClass(HandlerInput<M> input) {
+            Object payload = input.getPayload();
+            return payload == null ? Void.class : payload.getClass();
+        }
+
+        @SuppressWarnings("unchecked")
+        private boolean hasPayloadClassNoMatch(HandlerInput<M> input) {
+            for (int parameterIndex = 0; parameterIndex < parameterResolverPlans.length; parameterIndex++) {
+                Parameter parameter = parameters[parameterIndex];
+                boolean completelyResolved = true;
+                boolean matched = false;
+                for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                    if (plan.resolver() instanceof HandlerInputResolver<?> rawResolver) {
+                        HandlerInputResolver<M> resolver = (HandlerInputResolver<M>) rawResolver;
+                        HandlerInputResolver.Resolution<M> resolution = resolver.prepareInput(
+                                parameter, methodAnnotation, input);
+                        if (resolution == null) {
+                            completelyResolved = false;
+                            break;
+                        }
+                        if (resolution.matched()) {
+                            if (resolution.resolver() == null
+                                && resolver.isPayloadClassKey(parameter, methodAnnotation, input)) {
+                                return true;
+                            }
+                            matched = true;
+                            break;
+                        }
+                        if (!resolver.isNoMatchPayloadClassKey(parameter, methodAnnotation, input)) {
+                            completelyResolved = false;
+                            break;
+                        }
+                        continue;
+                    }
+                    if (plan.preparedResolver() != null) {
+                        matched = true;
+                        break;
+                    }
+                    if (plan.resolver() instanceof KeyedParameterResolver<?> && !plan.isCacheKeyRelevant()) {
+                        continue;
+                    }
+                    completelyResolved = false;
+                    break;
+                }
+                if (completelyResolved && !matched) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        private HandlerMethodApplicability<M> prepareCompleteInputApplicability(
+                Object target, boolean payloadTarget, HandlerInput<M> input) {
+            Object key = this;
+            boolean payloadClassKey = true;
+            Function<? super HandlerInput<M>, Object>[] resolvers = new Function[parameterCount];
+            for (int parameterIndex = 0; parameterIndex < parameterResolverPlans.length; parameterIndex++) {
+                Parameter parameter = parameters[parameterIndex];
+                boolean matched = false;
+                for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                    if (plan.resolver() instanceof HandlerInputResolver<?> rawResolver) {
+                        HandlerInputResolver<M> resolver = (HandlerInputResolver<M>) rawResolver;
+                        Object resolverKey = resolver.getInputCacheKey(parameter, methodAnnotation, input);
+                        if (resolverKey == null) {
+                            return HandlerMethodApplicability.unsupported();
+                        }
+                        key = new InputPlanCacheKey(key, resolverKey);
+                        HandlerInputResolver.Resolution<M> resolution = resolver.prepareInput(
+                                parameter, methodAnnotation, input);
+                        if (resolution == null) {
+                            return HandlerMethodApplicability.unsupported();
+                        }
+                        if (!resolution.matched()) {
+                            payloadClassKey &= resolver.isNoMatchPayloadClassKey(
+                                    parameter, methodAnnotation, input);
+                            continue;
+                        }
+                        payloadClassKey &= resolver.isPayloadClassKey(parameter, methodAnnotation, input);
+                        if (resolution.resolver() == null) {
+                            return HandlerMethodApplicability.cacheable(
+                                    key, payloadClassKey, HandlerMethodPreparation.noMatch());
+                        }
+                        resolvers[parameterIndex] = resolution.resolver();
+                        matched = true;
+                        break;
+                    }
+                    if (plan.preparedResolver() != null) {
+                        Function<? super M, Object> resolver = plan.preparedResolver();
+                        resolvers[parameterIndex] = current -> resolver.apply(current.getMessage());
+                        matched = true;
+                        break;
+                    }
+                    if (plan.resolver() instanceof KeyedParameterResolver<?> && !plan.isCacheKeyRelevant()) {
+                        continue;
+                    }
+                    return HandlerMethodApplicability.unsupported();
+                }
+                if (!matched) {
+                    return HandlerMethodApplicability.cacheable(
+                            key, payloadClassKey, HandlerMethodPreparation.noMatch());
+                }
+            }
+            HandlerMethodPlan<M> plan = payloadTarget
+                    ? new PayloadHandlerMethodPlan(resolvers) : new BoundHandlerMethodPlan(target, resolvers);
+            return HandlerMethodApplicability.cacheable(
+                    key, payloadClassKey, HandlerMethodPreparation.prepared(plan));
+        }
+
+        @SuppressWarnings("unchecked")
+        private boolean inputPlanPayloadClassKey(HandlerInput<M> input) {
+            for (int parameterIndex = 0; parameterIndex < parameterResolverPlans.length; parameterIndex++) {
+                Parameter parameter = parameters[parameterIndex];
+                boolean matched = false;
+                for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                    if (!(plan.resolver() instanceof HandlerInputResolver<?> rawResolver)) {
+                        return false;
+                    }
+                    HandlerInputResolver<M> resolver = (HandlerInputResolver<M>) rawResolver;
+                    if (!resolver.isPayloadClassKey(parameter, methodAnnotation, input)) {
+                        return false;
+                    }
+                    HandlerInputResolver.Resolution<M> resolution = resolver.prepareInput(
+                            parameter, methodAnnotation, input);
+                    if (resolution == null) {
+                        return false;
+                    }
+                    if (resolution.matched()) {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @SuppressWarnings("unchecked")
+        private boolean inputPlanNoMatchPayloadClassKey(HandlerInput<M> input) {
+            for (int parameterIndex = 0; parameterIndex < parameterResolverPlans.length; parameterIndex++) {
+                Parameter parameter = parameters[parameterIndex];
+                boolean matched = false;
+                for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                    if (!(plan.resolver() instanceof HandlerInputResolver<?> rawResolver)) {
+                        return false;
+                    }
+                    HandlerInputResolver<M> resolver = (HandlerInputResolver<M>) rawResolver;
+                    HandlerInputResolver.Resolution<M> resolution = resolver.prepareInput(
+                            parameter, methodAnnotation, input);
+                    if (resolution == null) {
+                        return false;
+                    }
+                    if (resolution.matched()) {
+                        if (!resolver.isPayloadClassKey(parameter, methodAnnotation, input)) {
+                            return false;
+                        }
+                        matched = true;
+                        break;
+                    }
+                    if (!resolver.isNoMatchPayloadClassKey(parameter, methodAnnotation, input)) {
+                        return false;
+                    }
+                }
+                if (!matched) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private Object inputPlanCacheKey(HandlerInput<M> input) {
+            Object result = this;
+            for (int parameterIndex = 0; parameterIndex < parameterResolverPlans.length; parameterIndex++) {
+                Parameter parameter = parameters[parameterIndex];
+                boolean matched = false;
+                List<ParameterResolverPlan<M>> plans = parameterResolverPlans[parameterIndex];
+                for (ParameterResolverPlan<M> plan : plans) {
+                    if (!(plan.resolver() instanceof HandlerInputResolver<?> rawInputResolver)) {
+                        return null;
+                    }
+                    @SuppressWarnings("unchecked")
+                    HandlerInputResolver<M> inputResolver = (HandlerInputResolver<M>) rawInputResolver;
+                    Object key = inputResolver.getInputCacheKey(parameter, methodAnnotation, input);
+                    if (key == null) {
+                        return null;
+                    }
+                    result = new InputPlanCacheKey(result, key);
+                    HandlerInputResolver.Resolution<M> resolution = inputResolver.prepareInput(
+                            parameter, methodAnnotation, input);
+                    if (resolution == null) {
+                        return null;
+                    }
+                    if (resolution.matched()) {
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            return result;
+        }
+
+        @SuppressWarnings("unchecked")
+        private Function<? super HandlerInput<M>, Object> prepareInputResolver(
+                HandlerInput<M> input, int parameterIndex) {
+            Parameter parameter = parameters[parameterIndex];
+            for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                if (!(plan.resolver() instanceof HandlerInputResolver<?> rawResolver)) {
+                    return null;
+                }
+                HandlerInputResolver<M> resolver = (HandlerInputResolver<M>) rawResolver;
+                HandlerInputResolver.Resolution<M> resolution = resolver.prepareInput(
+                        parameter, methodAnnotation, input);
+                if (resolution == null) {
+                    return null;
+                }
+                if (!resolution.matched()) {
+                    continue;
+                }
+                return resolution.resolver();
+            }
+            return null;
+        }
+
+        private HandlerInput<M> asHandlerInput(M message) {
+            return new HandlerInput<>() {
+                @Override
+                public Object getPayload() {
+                    return message;
+                }
+
+                @Override
+                public M getMessage() {
+                    return message;
+                }
+            };
+        }
+
         private boolean targetCanBeInvoked(Object target) {
             return target == null
                     ? executable instanceof Constructor || staticMethod
                     : executable instanceof Method && !staticMethod;
+        }
+
+        private boolean payloadTargetCanBeInvoked(HandlerInput<M> input) {
+            return executable instanceof Method && !staticMethod && targetClass.isInstance(input.getPayload());
         }
 
         private Function<Object, HandlerInvoker> prepareInvokerFunction(M m) {
@@ -608,6 +1000,39 @@ public class HandlerInspector {
                                && ReflectionUtils.getClassSpecificityComparator()
                                        .compare(candidate, result.type()) < 0) {
                             result = new Specificity(candidate, r.specificityPriority());
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
+        @SuppressWarnings("unchecked")
+        private Specificity computeInputSpecificity(HandlerInput<M> input) {
+            Specificity result = new Specificity(classForSpecificity, Integer.MAX_VALUE);
+            for (int i = 0; i < parameters.length; i++) {
+                Parameter parameter = parameters[i];
+                for (ParameterResolverPlan<M> plan : specificityResolverPlans[i]) {
+                    if (!(plan.resolver() instanceof HandlerInputResolver<?> rawResolver)) {
+                        return null;
+                    }
+                    HandlerInputResolver<M> resolver = (HandlerInputResolver<M>) rawResolver;
+                    HandlerInputResolver.Resolution<M> resolution = resolver.prepareInput(
+                            parameter, methodAnnotation, input);
+                    if (resolution == null) {
+                        return null;
+                    }
+                    if (resolution.resolver() != null) {
+                        Class<?> parameterType = parameter.getType();
+                        Class<?> candidate = classForSpecificity != null
+                                             && !classForSpecificity.isAssignableFrom(parameterType)
+                                ? classForSpecificity : parameterType;
+                        if (result.type() == null
+                            || resolver.specificityPriority() < result.priority()
+                            || resolver.specificityPriority() == result.priority()
+                               && ReflectionUtils.getClassSpecificityComparator()
+                                       .compare(candidate, result.type()) < 0) {
+                            result = new Specificity(candidate, resolver.specificityPriority());
                         }
                     }
                 }
@@ -827,6 +1252,103 @@ public class HandlerInspector {
                     return String.format("\"%s\"", simpleName.isEmpty() ? c : simpleName);
                 }).orElse("BoundHandlerMethod");
             }
+        }
+
+        private class BoundHandlerMethodPlan implements HandlerMethodPlan<M> {
+            private final Object target;
+            private final Function<? super HandlerInput<M>, Object>[] resolvers;
+
+            private BoundHandlerMethodPlan(
+                    Object target, Function<? super HandlerInput<M>, Object>[] resolvers) {
+                this.target = target;
+                this.resolvers = resolvers;
+            }
+
+            @Override
+            public Object invoke(HandlerInput<M> input) {
+                if (parameterCount == 0) {
+                    return invoker.invoke(target);
+                }
+                if (parameterCount == 1) {
+                    return invoker.invoke(target, resolvers[0].apply(input));
+                }
+                return invoker.invoke(target, parameterCount, i -> resolvers[i].apply(input));
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Executable getMethod() {
+                return executable;
+            }
+
+            @SuppressWarnings("unchecked")
+            @Override
+            public <A extends Annotation> A getMethodAnnotation() {
+                return (A) methodAnnotation;
+            }
+
+            @Override
+            public boolean expectResult() {
+                return hasReturnType;
+            }
+
+            @Override
+            public boolean isPassive() {
+                return passive;
+            }
+        }
+
+        private class PayloadHandlerMethodPlan implements HandlerMethodPlan<M> {
+            private final Function<? super HandlerInput<M>, Object>[] resolvers;
+
+            private PayloadHandlerMethodPlan(Function<? super HandlerInput<M>, Object>[] resolvers) {
+                this.resolvers = resolvers;
+            }
+
+            @Override
+            public Object invoke(HandlerInput<M> input) {
+                Object target = input.getPayload();
+                if (parameterCount == 0) {
+                    return invoker.invoke(target);
+                }
+                if (parameterCount == 1) {
+                    return invoker.invoke(target, resolvers[0].apply(input));
+                }
+                return invoker.invoke(target, parameterCount, i -> resolvers[i].apply(input));
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Executable getMethod() {
+                return executable;
+            }
+
+            @SuppressWarnings("unchecked")
+            @Override
+            public <A extends Annotation> A getMethodAnnotation() {
+                return (A) methodAnnotation;
+            }
+
+            @Override
+            public boolean expectResult() {
+                return hasReturnType;
+            }
+
+            @Override
+            public boolean isPassive() {
+                return passive;
+            }
+        }
+
+        private record InputPlanCacheKey(Object parent, Object resolverKey) {
         }
 
         private class UnvalidatedPreparedParameterInvoker extends MethodHandlerInvoker implements IntFunction<Object> {
@@ -1188,6 +1710,291 @@ public class HandlerInspector {
                 return null;
             }
             return methodHandlers.getFirst().bindHandlerMethod(target);
+        }
+
+        @Override
+        public HandlerMethodPlan<M> prepareHandlerMethod(Object target, M message) {
+            if (invokeMultipleMethods) {
+                return null;
+            }
+            HandlerInvoker selected = getInvokerOrNull(target, message);
+            if (selected == null) {
+                return null;
+            }
+            Executable selectedMethod = selected.getMethod();
+            for (HandlerMatcher<Object, M> handler : methodHandlers) {
+                if (handler instanceof MethodHandlerMatcher<?> rawMatcher
+                    && ((MethodHandlerMatcher<?>) rawMatcher).executable == selectedMethod) {
+                    return handler.prepareHandlerMethod(target, message);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public HandlerMethodPlanner<M> bindHandlerMethodPlanner(Object target) {
+            if (invokeMultipleMethods) {
+                return null;
+            }
+            List<HandlerMethodPlanner<M>> planners = new ArrayList<>(methodHandlers.size());
+            for (HandlerMatcher<Object, M> handler : methodHandlers) {
+                HandlerMethodPlanner<M> planner = handler.bindHandlerMethodPlanner(target);
+                if (planner == null) {
+                    return null;
+                }
+                planners.add(planner);
+            }
+            return new HandlerMethodPlanner<>() {
+                @Override
+                public HandlerMethodApplicability<M> prepareApplicability(HandlerInput<M> input) {
+                    return prepareInputApplicability(planners, input);
+                }
+
+                @Override
+                public Object getCacheKey(M message) {
+                    Object result = ObjectHandlerMatcher.this;
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        Object key = planner.getCacheKey(message);
+                        if (key == null) {
+                            return null;
+                        }
+                        result = new CompositeApplicabilityKey(result, key);
+                    }
+                    return result;
+                }
+
+                @Override
+                public Object getCacheKey(HandlerInput<M> input) {
+                    Object result = ObjectHandlerMatcher.this;
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        Object key = planner.getCacheKey(input);
+                        if (key == null) {
+                            return null;
+                        }
+                        result = new CompositeApplicabilityKey(result, key);
+                    }
+                    return result;
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(M message) {
+                    HandlerInvoker selected = getInvokerOrNull(target, message);
+                    if (selected == null) {
+                        return HandlerMethodPreparation.noMatch();
+                    }
+                    Executable selectedMethod = selected.getMethod();
+                    for (int i = 0; i < methodHandlers.size(); i++) {
+                        HandlerMatcher<Object, M> handler = methodHandlers.get(i);
+                        if (handler instanceof MethodHandlerMatcher<?> rawMatcher
+                            && ((MethodHandlerMatcher<?>) rawMatcher).executable == selectedMethod) {
+                            return planners.get(i).prepare(message);
+                        }
+                    }
+                    return HandlerMethodPreparation.noMatch();
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(HandlerInput<M> input) {
+                    if (planners.size() == 1) {
+                        return planners.getFirst().prepare(input);
+                    }
+                    M message = input.getMessage();
+                    HandlerInvoker selected = getInvokerOrNull(target, message);
+                    if (selected == null) {
+                        return HandlerMethodPreparation.noMatch();
+                    }
+                    Executable selectedMethod = selected.getMethod();
+                    for (int i = 0; i < methodHandlers.size(); i++) {
+                        HandlerMatcher<Object, M> handler = methodHandlers.get(i);
+                        if (handler instanceof MethodHandlerMatcher<?> rawMatcher
+                            && ((MethodHandlerMatcher<?>) rawMatcher).executable == selectedMethod) {
+                            return planners.get(i).prepare(input);
+                        }
+                    }
+                    return HandlerMethodPreparation.noMatch();
+                }
+
+                @Override
+                public boolean isPayloadClassKey(HandlerInput<M> input) {
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        if (!planner.isPayloadClassKey(input)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean isNoMatchPayloadClassKey(HandlerInput<M> input) {
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        if (!planner.isNoMatchPayloadClassKey(input)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public HandlerMethodPlanner<M> bindPayloadHandlerMethodPlanner() {
+            if (invokeMultipleMethods) {
+                return null;
+            }
+            List<HandlerMethodPlanner<M>> planners = new ArrayList<>(methodHandlers.size());
+            for (HandlerMatcher<Object, M> handler : methodHandlers) {
+                HandlerMethodPlanner<M> planner = handler.bindPayloadHandlerMethodPlanner();
+                if (planner == null) {
+                    return null;
+                }
+                planners.add(planner);
+            }
+            if (planners.size() == 1) {
+                return planners.getFirst();
+            }
+            return new HandlerMethodPlanner<>() {
+                @Override
+                public HandlerMethodApplicability<M> prepareApplicability(HandlerInput<M> input) {
+                    return prepareInputApplicability(planners, input);
+                }
+
+                @Override
+                public Object getCacheKey(M message) {
+                    return null;
+                }
+
+                @Override
+                public Object getCacheKey(HandlerInput<M> input) {
+                    Object result = ObjectHandlerMatcher.this;
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        Object key = planner.getCacheKey(input);
+                        if (key == null) {
+                            return null;
+                        }
+                        result = new CompositeApplicabilityKey(result, key);
+                    }
+                    return result;
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(M message) {
+                    return HandlerMethodPreparation.unsupported();
+                }
+
+                @Override
+                public HandlerMethodPreparation<M> prepare(HandlerInput<M> input) {
+                    HandlerInvoker selected = getInvokerOrNull(input.getPayload(), input.getMessage());
+                    if (selected == null) {
+                        return HandlerMethodPreparation.noMatch();
+                    }
+                    Executable selectedMethod = selected.getMethod();
+                    for (int i = 0; i < methodHandlers.size(); i++) {
+                        HandlerMatcher<Object, M> handler = methodHandlers.get(i);
+                        if (handler instanceof MethodHandlerMatcher<?> rawMatcher
+                            && ((MethodHandlerMatcher<?>) rawMatcher).executable == selectedMethod) {
+                            return planners.get(i).prepare(input);
+                        }
+                    }
+                    return HandlerMethodPreparation.noMatch();
+                }
+
+                @Override
+                public boolean isPayloadClassKey(HandlerInput<M> input) {
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        if (!planner.isPayloadClassKey(input)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean isNoMatchPayloadClassKey(HandlerInput<M> input) {
+                    for (HandlerMethodPlanner<M> planner : planners) {
+                        if (!planner.isNoMatchPayloadClassKey(input)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            };
+        }
+
+        private HandlerMethodApplicability<M> prepareInputApplicability(
+                List<HandlerMethodPlanner<M>> planners, HandlerInput<M> input) {
+            Object key = ObjectHandlerMatcher.this;
+            boolean payloadClassKey = true;
+            List<HandlerMethodApplicability<M>> applicability = new ArrayList<>(planners.size());
+            for (HandlerMethodPlanner<M> planner : planners) {
+                HandlerMethodApplicability<M> candidate = planner.prepareApplicability(input);
+                if (!candidate.isCacheable()) {
+                    return HandlerMethodApplicability.unsupported();
+                }
+                key = new CompositeApplicabilityKey(key, candidate.cacheKey());
+                payloadClassKey &= candidate.payloadClassKey();
+                applicability.add(candidate);
+            }
+            HandlerMethodPreparation<M> preparation;
+            if (applicability.size() == 1) {
+                preparation = applicability.getFirst().preparation();
+            } else {
+                int selected = selectPreparedMethod(applicability, input);
+                if (selected == UNSUPPORTED_SELECTION) {
+                    return HandlerMethodApplicability.unsupported();
+                }
+                if (selected == noMatch) {
+                    preparation = HandlerMethodPreparation.noMatch();
+                } else {
+                    preparation = applicability.get(selected).preparation();
+                }
+            }
+            return preparation.isUnsupported() ? HandlerMethodApplicability.unsupported()
+                    : HandlerMethodApplicability.cacheable(key, payloadClassKey, preparation);
+        }
+
+        private static final int UNSUPPORTED_SELECTION = -2;
+
+        @SuppressWarnings("unchecked")
+        private int selectPreparedMethod(
+                List<HandlerMethodApplicability<M>> applicability, HandlerInput<M> input) {
+            int bestIndex = noMatch;
+            MethodHandlerMatcher<M> bestMatcher = null;
+            MethodHandlerMatcher.Specificity bestSpecificity = null;
+            for (int i = 0; i < applicability.size(); i++) {
+                if (!applicability.get(i).preparation().isPrepared()) {
+                    continue;
+                }
+                HandlerMatcher<Object, M> handler = methodHandlers.get(i);
+                if (bestIndex == noMatch) {
+                    bestIndex = i;
+                    if (handler instanceof MethodHandlerMatcher<?> rawMatcher) {
+                        bestMatcher = (MethodHandlerMatcher<M>) rawMatcher;
+                        bestSpecificity = bestMatcher.computeInputSpecificity(input);
+                        if (bestSpecificity == null) {
+                            return UNSUPPORTED_SELECTION;
+                        }
+                        if (bestSpecificity.priority() <= bestMatcher.lowestSpecificityPriority) {
+                            return bestIndex;
+                        }
+                    }
+                } else if (bestMatcher != null && handler instanceof MethodHandlerMatcher<?> rawMatcher) {
+                    MethodHandlerMatcher<M> matcher = (MethodHandlerMatcher<M>) rawMatcher;
+                    MethodHandlerMatcher.Specificity specificity = matcher.computeInputSpecificity(input);
+                    if (specificity == null) {
+                        return UNSUPPORTED_SELECTION;
+                    }
+                    if (MethodHandlerMatcher.compare(
+                            matcher.priority, specificity, matcher.parameterCount, matcher.methodIndex,
+                            matcher.executable, bestMatcher.priority, bestSpecificity, bestMatcher.parameterCount,
+                            bestMatcher.methodIndex, bestMatcher.executable,
+                            matcher.config.samePriorityMethodComparator()) < 0) {
+                        bestIndex = i;
+                        bestMatcher = matcher;
+                        bestSpecificity = specificity;
+                    }
+                }
+            }
+            return bestIndex;
         }
 
         private record SelectedInvoker(int index, HandlerInvoker invoker) {

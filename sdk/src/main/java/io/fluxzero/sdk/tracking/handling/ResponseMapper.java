@@ -50,6 +50,20 @@ public interface ResponseMapper {
     Message map(Object response);
 
     /**
+     * Maps a synchronously completed handler result to the value returned by the gateway.
+     *
+     * <p>The default obtains the payload from {@link #map(Object)}. Implementations may override this method to avoid
+     * creating an intermediate {@link Message}, but the returned value must be identical to
+     * {@code map(response).getPayload()}.</p>
+     *
+     * @param response the value returned by the handler
+     * @return the payload to return from the gateway
+     */
+    default Object mapPayload(Object response) {
+        return map(response).getPayload();
+    }
+
+    /**
      * Maps the given response object and metadata to a {@link Message}.
      *
      * @param response the response object to be transformed

@@ -17,11 +17,19 @@ package io.fluxzero.sdk.tracking.handling.authentication;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethodApplicability;
+import io.fluxzero.common.handling.HandlerMethodPlan;
+import io.fluxzero.common.handling.HandlerMethodPreparation;
+import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.LocalDispatchDescriptor;
+import io.fluxzero.sdk.publishing.PreparedLocalDispatch;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerInput;
 import lombok.AllArgsConstructor;
 
 import java.util.Optional;
@@ -35,6 +43,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static io.fluxzero.sdk.web.WebRequest.methodKey;
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
+import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.requiresAuthorization;
 import static java.util.Optional.ofNullable;
 
 @AllArgsConstructor
@@ -51,6 +60,33 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
             }
         }
         return m;
+    }
+
+    @Override
+    public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+        if (getClass() != AuthenticatingInterceptor.class
+            || descriptor.messageType() == WEBREQUEST
+            || userProvider.requiresMessageBasedLocalResolution()
+            || userProvider.containsUser(io.fluxzero.common.api.Metadata.empty())) {
+            return null;
+        }
+        return new PreparedLocalDispatch() {
+            @Override
+            public boolean prepare(io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
+                User activeUser = userProvider.getActiveUser();
+                User dispatchedUser = activeUser != null ? activeUser : userProvider.getSystemUser();
+                execution.setUser(dispatchedUser);
+                return dispatchedUser != null;
+            }
+
+            @Override
+            public io.fluxzero.common.api.Metadata interceptMetadata(
+                    io.fluxzero.common.api.Metadata metadata,
+                    io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
+                User user = execution.getUser(userProvider);
+                return user == null ? metadata : userProvider.addToMetadata(metadata, user);
+            }
+        };
     }
 
     @Override
@@ -71,6 +107,41 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                     assertAuthorized(message.getPayloadClass(), user);
                 }
                 return next.apply(message, descriptor, combiner);
+            } finally {
+                User.current.set(previous);
+            }
+        };
+    }
+
+    @Override
+    public PreparedHandlerInputInterceptor prepareInput(HandlerDescriptor handler) {
+        return prepareInput(handler, null);
+    }
+
+    @Override
+    public PreparedHandlerInputInterceptor prepareInput(
+            HandlerDescriptor handler, HandlerInput<DeserializingMessage> preparedInput) {
+        if (userProvider.requiresMessageBasedLocalResolution()) {
+            return null;
+        }
+        Object preparedPayload = preparedInput == null ? null : preparedInput.getPayload();
+        boolean authorizePayload = preparedInput == null
+                || preparedPayload != null && requiresAuthorization(preparedPayload.getClass());
+        return (input, descriptor, next) -> {
+            if (!(input instanceof LocalHandlerInput localInput) || !localInput.hasResolvedUser()) {
+                return prepare(descriptor).interceptHandling(
+                        input.getMessage(), descriptor, (first, second) -> first,
+                        (current, nextMessage, ignored, combiner) -> next.apply(input, descriptor));
+            }
+            User previous = User.getCurrent();
+            User user = localInput.getUser(userProvider);
+            try {
+                User.current.set(user);
+                Object payload = input.getPayload();
+                if (authorizePayload && payload != null) {
+                    assertAuthorized(payload.getClass(), user);
+                }
+                return next.apply(input, descriptor);
             } finally {
                 User.current.set(previous);
             }
@@ -184,6 +255,76 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                             });
                         }
                     });
+        }
+
+        @Override
+        public HandlerMethodPlanner<DeserializingMessage> getHandlerMethodPlanner() {
+            HandlerMethodPlanner<DeserializingMessage> planner = delegate.getHandlerMethodPlanner();
+            if (planner == null) {
+                return null;
+            }
+            return new HandlerMethodPlanner<>() {
+                @Override
+                public Object getCacheKey(DeserializingMessage message) {
+                    return planner.getCacheKey(message);
+                }
+
+                @Override
+                public Object getCacheKey(HandlerInput<DeserializingMessage> input) {
+                    return planner.getCacheKey(input);
+                }
+
+                @Override
+                public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
+                    return authorize(planner.prepare(message), message.getPayloadClass());
+                }
+
+                @Override
+                public HandlerMethodPreparation<DeserializingMessage> prepare(
+                        HandlerInput<DeserializingMessage> input) {
+                    Object payload = input.getPayload();
+                    return authorize(planner.prepare(input), payload == null ? null : payload.getClass());
+                }
+
+                @Override
+                public HandlerMethodApplicability<DeserializingMessage> prepareApplicability(
+                        HandlerInput<DeserializingMessage> input) {
+                    HandlerMethodApplicability<DeserializingMessage> source = planner.prepareApplicability(input);
+                    if (!source.isCacheable()) {
+                        return HandlerMethodApplicability.unsupported();
+                    }
+                    Object payload = input.getPayload();
+                    return source.withPreparation(authorize(
+                            source.preparation(), payload == null ? null : payload.getClass()));
+                }
+
+                private HandlerMethodPreparation<DeserializingMessage> authorize(
+                        HandlerMethodPreparation<DeserializingMessage> preparation, Class<?> payloadClass) {
+                    if (!preparation.isPrepared()) {
+                        return preparation;
+                    }
+                    HandlerMethodPlan<DeserializingMessage> plan = preparation.plan();
+                    if (payloadClass != null && plan.getTargetClass().isAssignableFrom(payloadClass)) {
+                        return preparation;
+                    }
+                    try {
+                        return assertAuthorized(plan.getTargetClass(), plan.getMethod(), null)
+                                ? preparation : HandlerMethodPreparation.noMatch();
+                    } catch (Throwable ignored) {
+                        return HandlerMethodPreparation.unsupported();
+                    }
+                }
+
+                @Override
+                public boolean isPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                    return planner.isPayloadClassKey(input);
+                }
+
+                @Override
+                public boolean isNoMatchPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                    return planner.isNoMatchPayloadClassKey(input);
+                }
+            };
         }
 
         protected Throwable mapAuthorizationFailure(Throwable failure, DeserializingMessage message) {

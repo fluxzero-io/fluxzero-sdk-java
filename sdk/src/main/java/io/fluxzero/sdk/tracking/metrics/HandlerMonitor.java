@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking.metrics;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
@@ -88,6 +89,28 @@ public class HandlerMonitor implements HandlerInterceptor {
                 return HandlerMonitor.this.getClass() == HandlerMonitor.class;
             }
         };
+    }
+
+    @Override
+    public PreparedHandlerInputInterceptor prepareInput(HandlerDescriptor handler) {
+        return getLocalHandlerAnnotation(handler.getTargetClass(), handler.getMethod())
+                .filter(localHandler -> !localHandler.logMetrics())
+                .map(ignored -> PreparedHandlerInputInterceptor.noOp).orElse(null);
+    }
+
+    @Override
+    public PreparedHandlerInputInterceptor prepareInput(
+            HandlerDescriptor handler, HandlerInput<DeserializingMessage> input) {
+        Optional<LocalHandler> localHandler = getLocalHandlerAnnotation(
+                handler.getTargetClass(), handler.getMethod());
+        if (localHandler.isPresent()) {
+            return localHandler.get().logMetrics() ? null : PreparedHandlerInputInterceptor.noOp;
+        }
+        Object payload = input.getPayload();
+        boolean selfTracking = handler.getTargetClass() != null
+                               && isSelfTracking(handler.getTargetClass(), handler.getMethod());
+        return !selfTracking && payload != null && handler.getTargetClass() == payload.getClass()
+                ? PreparedHandlerInputInterceptor.noOp : null;
     }
 
     @Override

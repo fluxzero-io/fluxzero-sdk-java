@@ -108,6 +108,11 @@ public class DefaultJakartaValidator implements Validator {
         return checkValidityInternal(object, currentMessage, parameterResolvers, groups);
     }
 
+    @Override
+    public boolean hasValidation(Class<?> type) {
+        return BeanValidationMetadata.of(type).hasValidation();
+    }
+
     private <T> Optional<ValidationException> checkValidityInternal(
             T object, @Nullable Object parameterContext,
             List<? extends ParameterResolver<?>> parameterResolvers, Class<?>... groups) {

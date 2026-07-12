@@ -14,9 +14,12 @@
 
 package io.fluxzero.sdk.tracking.handling.authentication;
 
+import io.fluxzero.common.handling.HandlerInput;
+import io.fluxzero.common.handling.HandlerInputResolver;
 import io.fluxzero.common.handling.TypedParameterResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerInput;
 import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
@@ -34,7 +37,8 @@ import static java.util.Optional.ofNullable;
  * <p>
  * If no user can be determined from the message context, the {@link User#getCurrent()} thread-local fallback is used.
  */
-public class UserParameterResolver extends TypedParameterResolver<Object> {
+public class UserParameterResolver extends TypedParameterResolver<Object>
+        implements HandlerInputResolver<Object> {
     private final UserProvider userProvider;
 
     public UserParameterResolver(@NonNull UserProvider userProvider) {
@@ -62,5 +66,40 @@ public class UserParameterResolver extends TypedParameterResolver<Object> {
     @Override
     public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
         return User.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
+    public Object getInputCacheKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return getClass() == UserParameterResolver.class ? UserParameterResolver.class : null;
+    }
+
+    @Override
+    public boolean isPayloadClassKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return getClass() == UserParameterResolver.class;
+    }
+
+    @Override
+    public boolean isNoMatchPayloadClassKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return isPayloadClassKey(parameter, methodAnnotation, representative);
+    }
+
+    @Override
+    public Resolution<Object> prepareInput(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        if (getClass() != UserParameterResolver.class) {
+            return null;
+        }
+        if (!User.class.isAssignableFrom(parameter.getType())) {
+            return Resolution.unmatched();
+        }
+        return Resolution.resolved(input -> {
+            Object rawInput = input;
+            return rawInput instanceof LocalHandlerInput localInput && localInput.hasResolvedUser()
+                    ? localInput.getUser(userProvider)
+                    : resolve(parameter, methodAnnotation).apply(input.getMessage());
+        });
     }
 }

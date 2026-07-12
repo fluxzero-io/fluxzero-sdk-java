@@ -360,6 +360,21 @@ public class ValidationUtils {
     }
 
     /**
+     * Returns whether issuing the supplied payload type requires authorization for the current user.
+     *
+     * <p>The result is based on the payload's authorization annotations. It is {@code false} when the payload is
+     * explicitly available without a user and {@code true} when issuing it requires roles or other user-based access
+     * checks.</p>
+     *
+     * @param payloadType the payload type to inspect
+     * @return {@code true} if dispatch must perform a user authorization check
+     */
+    public static boolean requiresAuthorization(Class<?> payloadType) {
+        RequiredRole[] requiredRoles = requiredRolesCache.apply(payloadType);
+        return requiredRoles != null && !Arrays.asList(requiredRoles).contains(noUserRequired);
+    }
+
+    /**
      * Determines whether a particular operation on a payload type should be ignored without raising an exception.
      * <p>
      * <strong>Note: </strong>If the user is not authorized and an error occurs during the authorization check,

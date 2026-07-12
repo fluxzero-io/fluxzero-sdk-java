@@ -20,8 +20,14 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerFilter;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethodApplicability;
+import io.fluxzero.common.handling.HandlerMethodPlan;
+import io.fluxzero.common.handling.HandlerMethodPreparation;
+import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -30,13 +36,14 @@ import io.fluxzero.sdk.tracking.TrackSelf;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -87,6 +94,7 @@ import static java.util.Collections.emptyList;
 @RequiredArgsConstructor
 @Slf4j
 public class LocalHandlerRegistry implements HandlerRegistry {
+    private static final int maxPlanCacheSize = 256;
     @Getter
     private final HandlerFactory handlerFactory;
     private final DispatchInterceptor dispatchInterceptor;
@@ -94,10 +102,14 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     private final List<Handler<DeserializingMessage>> localHandlers = new CopyOnWriteArrayList<>();
     private final List<Class<?>> registeredClassHandlers = new CopyOnWriteArrayList<>();
 
-    @Setter
     @Getter
     @NonNull
     private HandlerFilter selfHandlerFilter = (t, m) -> !ClientUtils.isSelfTracking(t, m);
+    private final AtomicLong handlerVersion = new AtomicLong();
+    private final ConcurrentHashMap<Object, PreparedLocalPlan> preparedPlans = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Class<?>, RawPlanCache> rawPlans = new ConcurrentHashMap<>();
+    private volatile CachedPlan lastPreparedPlan;
+    private volatile RawPlanCache rawPlanCache;
 
     private final Function<Class<?>, Optional<Handler<DeserializingMessage>>> selfHandlers
             = memoize(payloadType -> getHandlerFactory().createHandler(payloadType, getSelfHandlerFilter(), List.of()));
@@ -112,7 +124,11 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
         if (target instanceof Handler<?>) {
             localHandlers.add((Handler<DeserializingMessage>) target);
-            return () -> localHandlers.remove(target);
+            invalidatePlans();
+            return () -> {
+                localHandlers.remove(target);
+                invalidatePlans();
+            };
         }
         Optional<Handler<DeserializingMessage>> handler = handlerFactory.createHandler(
                 target, handlerFilter, emptyList());
@@ -121,13 +137,178 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             if (target instanceof Class<?> targetClass) {
                 registeredClassHandlers.add(targetClass);
             }
+            invalidatePlans();
         });
         return () -> handler.ifPresent(h -> {
             localHandlers.remove(h);
             if (target instanceof Class<?> targetClass) {
                 registeredClassHandlers.remove(targetClass);
             }
+            invalidatePlans();
         });
+    }
+
+    public void setSelfHandlerFilter(@NonNull HandlerFilter selfHandlerFilter) {
+        this.selfHandlerFilter = selfHandlerFilter;
+        invalidatePlans();
+    }
+
+    private void invalidatePlans() {
+        handlerVersion.incrementAndGet();
+        preparedPlans.clear();
+        rawPlans.clear();
+        lastPreparedPlan = null;
+        rawPlanCache = null;
+    }
+
+    @Override
+    public LocalHandlerResult handleResult(DeserializingMessage message) {
+        MessageHandlerInput input = new MessageHandlerInput(message);
+        return handleResult(input);
+    }
+
+    @Override
+    public LocalHandlerResult handleResult(LocalHandlerInput input) {
+        Class<?> payloadClass = payloadClass(input.getPayload());
+        long version = handlerVersion.get();
+        PreparedLocalPlan rawPlan = input.getMessageIfAvailable() == null
+                ? getRawPlan(payloadClass, version) : null;
+        PreparedLocalPlan prepared = rawPlan != null ? rawPlan
+                : getPreparedPlan(input, getLocalHandlers(input.getMessageType(), payloadClass), version,
+                                  payloadClass);
+        if (prepared == PreparedLocalPlan.unsupported) {
+            return handle(input.getMessage()).map(LocalHandlerResult::asynchronous)
+                    .orElseGet(LocalHandlerResult::notHandled);
+        }
+        if (prepared == PreparedLocalPlan.noMatch) {
+            return LocalHandlerResult.notHandled();
+        }
+        try {
+            Object result = input.invoke(prepared.method());
+            if (result instanceof Optional<?> optional) {
+                result = optional.orElse(null);
+            }
+            return result instanceof CompletableFuture<?> future
+                    ? LocalHandlerResult.asynchronous(future) : LocalHandlerResult.completed(result);
+        } catch (Throwable e) {
+            return LocalHandlerResult.failed(e);
+        }
+    }
+
+    @Override
+    public boolean handleLocal(LocalExecution execution) {
+        Class<?> payloadClass = payloadClass(execution.getPayload());
+        long version = handlerVersion.get();
+        PreparedLocalPlan rawPlan = execution.getMessageIfAvailable() == null
+                ? getRawPlan(payloadClass, version) : null;
+        PreparedLocalPlan prepared = rawPlan != null ? rawPlan
+                : getPreparedPlan(execution, getLocalHandlers(execution.getMessageType(), payloadClass), version,
+                                  payloadClass);
+        if (prepared == PreparedLocalPlan.unsupported || prepared == PreparedLocalPlan.noMatch) {
+            return false;
+        }
+        try {
+            Object result = execution.invoke(prepared.method());
+            if (result instanceof Optional<?> optional) {
+                result = optional.orElse(null);
+            }
+            if (result instanceof CompletableFuture<?> future) {
+                execution.completeAsync(future);
+            } else {
+                execution.complete(result);
+            }
+        } catch (Throwable e) {
+            execution.completeExceptionally(e);
+        }
+        return true;
+    }
+
+    private static Class<?> payloadClass(Object payload) {
+        return payload == null ? Void.class : payload.getClass();
+    }
+
+    private PreparedLocalPlan getRawPlan(Class<?> payloadClass, long version) {
+        RawPlanCache cached = rawPlanCache;
+        if (cached != null && cached.version() == version && cached.payloadClass() == payloadClass) {
+            return cached.plan();
+        }
+        cached = rawPlans.get(payloadClass);
+        if (cached != null && cached.version() == version) {
+            rawPlanCache = cached;
+            return cached.plan();
+        }
+        return null;
+    }
+
+    private PreparedLocalPlan getPreparedPlan(
+            LocalHandlerInput input, List<Handler<DeserializingMessage>> handlers, long version,
+            Class<?> payloadClass) {
+        Object key = new PlanVersion(version);
+        List<HandlerMethodPreparation<DeserializingMessage>> preparations =
+                new java.util.ArrayList<>(handlers.size());
+        boolean payloadClassKey = input.getMessageIfAvailable() == null;
+        for (Handler<DeserializingMessage> handler : handlers) {
+            HandlerMethodPlanner<DeserializingMessage> planner = handler.getHandlerMethodPlanner();
+            if (planner == null) {
+                return PreparedLocalPlan.unsupported;
+            }
+            HandlerMethodApplicability<DeserializingMessage> applicability = planner.prepareApplicability(input);
+            if (!applicability.isCacheable()) {
+                return PreparedLocalPlan.unsupported;
+            }
+            key = new CombinedPlanKey(key, applicability.cacheKey());
+            preparations.add(applicability.preparation());
+            payloadClassKey &= applicability.payloadClassKey();
+        }
+        CachedPlan cached = lastPreparedPlan;
+        if (cached != null && cached.key().equals(key)) {
+            if (payloadClassKey) {
+                cacheRawPlan(version, payloadClass, cached.plan());
+            }
+            return cached.plan();
+        }
+        PreparedLocalPlan result = preparedPlans.get(key);
+        if (result == null) {
+            result = prepareLocalPlan(preparations);
+            if (preparedPlans.size() < maxPlanCacheSize) {
+                PreparedLocalPlan existing = preparedPlans.putIfAbsent(key, result);
+                if (existing != null) {
+                    result = existing;
+                }
+            }
+        }
+        lastPreparedPlan = new CachedPlan(key, result);
+        if (payloadClassKey) {
+            cacheRawPlan(version, payloadClass, result);
+        }
+        return result;
+    }
+
+    private void cacheRawPlan(long version, Class<?> payloadClass, PreparedLocalPlan plan) {
+        RawPlanCache cached = new RawPlanCache(version, payloadClass, plan);
+        rawPlanCache = cached;
+        if (rawPlans.size() < maxPlanCacheSize || rawPlans.containsKey(payloadClass)) {
+            rawPlans.compute(payloadClass, (ignored, existing) ->
+                    existing == null || existing.version() <= version ? cached : existing);
+        }
+    }
+
+    private PreparedLocalPlan prepareLocalPlan(
+            List<HandlerMethodPreparation<DeserializingMessage>> preparations) {
+        HandlerMethodPlan<DeserializingMessage> selected = null;
+        for (HandlerMethodPreparation<DeserializingMessage> preparation : preparations) {
+            if (preparation.isUnsupported()) {
+                return PreparedLocalPlan.unsupported;
+            }
+            if (preparation.isPrepared()) {
+                HandlerMethodPlan<DeserializingMessage> candidate = preparation.plan();
+                if (candidate.isPassive() || selected != null || logMessage(candidate)) {
+                    return PreparedLocalPlan.unsupported;
+                }
+                selected = candidate;
+            }
+        }
+        return selected == null ? PreparedLocalPlan.noMatch : new PreparedLocalPlan(selected);
     }
 
     @SuppressWarnings("unchecked")
@@ -208,17 +389,89 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         if (!message.getMessageType().isRequest() && message.getMessageType() != MessageType.SCHEDULE) {
             return localHandlers;
         }
-        return message.apply(m -> selfHandlers.apply(m.getPayloadClass())
+        return getLocalHandlers(message.getMessageType(), message.getPayloadClass());
+    }
+
+    private List<Handler<DeserializingMessage>> getLocalHandlers(MessageType messageType, Class<?> payloadClass) {
+        if (!messageType.isRequest() && messageType != MessageType.SCHEDULE) {
+            return localHandlers;
+        }
+        return selfHandlers.apply(payloadClass)
                 .filter(ignored -> registeredClassHandlers.stream()
-                        .noneMatch(handlerClass -> handlerClass.isAssignableFrom(m.getPayloadClass())))
-                .map(h -> Stream.concat(localHandlers.stream(), Stream.of(h)).toList()).orElse(localHandlers));
+                        .noneMatch(handlerClass -> handlerClass.isAssignableFrom(payloadClass)))
+                .map(h -> Stream.concat(localHandlers.stream(), Stream.of(h)).toList()).orElse(localHandlers);
     }
 
     /**
      * Determines whether a handler allows its message to be sent to the Fluxzero Runtime.
      */
-    protected boolean logMessage(HandlerInvoker invoker) {
+    protected boolean logMessage(HandlerDescriptor invoker) {
         return getLocalHandlerAnnotation(invoker.getTargetClass(), invoker.getMethod())
                 .map(LocalHandler::logMessage).orElse(false);
+    }
+
+    private record MessageHandlerInput(DeserializingMessage message) implements LocalHandlerInput {
+        @Override
+        public Object getPayload() {
+            return message.getPayload();
+        }
+
+        @Override
+        public DeserializingMessage getMessage() {
+            return message;
+        }
+
+        @Override
+        public MessageType getMessageType() {
+            return message.getMessageType();
+        }
+
+        @Override
+        public io.fluxzero.sdk.tracking.handling.authentication.User getUser(
+                io.fluxzero.sdk.tracking.handling.authentication.UserProvider provider) {
+            throw new UnsupportedOperationException("No dispatch user was captured");
+        }
+
+        @Override
+        public boolean hasResolvedUser() {
+            return false;
+        }
+
+        @Override
+        public io.fluxzero.common.api.Metadata getMetadata() {
+            return message.getMetadata();
+        }
+
+        @Override
+        public boolean containsMetadata(String key) {
+            return message.getMetadata().containsKey(key);
+        }
+
+        @Override
+        public Long getIndex() {
+            return message.getIndex();
+        }
+
+        @Override
+        public Object invoke(HandlerMethodPlan<DeserializingMessage> plan) {
+            return message.apply(m -> Invocation.performInvocation(plan, () -> plan.invoke(this)));
+        }
+    }
+
+    private record PreparedLocalPlan(HandlerMethodPlan<DeserializingMessage> method) {
+        private static final PreparedLocalPlan unsupported = new PreparedLocalPlan(null);
+        private static final PreparedLocalPlan noMatch = new PreparedLocalPlan(null);
+    }
+
+    private record CachedPlan(Object key, PreparedLocalPlan plan) {
+    }
+
+    private record PlanVersion(long value) {
+    }
+
+    private record CombinedPlanKey(Object parent, Object handler) {
+    }
+
+    private record RawPlanCache(long version, Class<?> payloadClass, PreparedLocalPlan plan) {
     }
 }

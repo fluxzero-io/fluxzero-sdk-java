@@ -94,6 +94,47 @@ public interface HandlerMatcher<T, M> {
     }
 
     /**
+     * Selects and prepares a handler method on the supplied target for the given message.
+     *
+     * <p>The default uses {@link #bindHandlerMethodPlanner(Object)} when available. Returning {@code null} does not
+     * reject the message; it tells the caller to use regular per-message matching instead.</p>
+     *
+     * @param target the object that contains the handler method
+     * @param message the representative message
+     * @return the reusable invocation plan, or {@code null} when no method matches or safe preparation is unsupported
+     */
+    default HandlerMethodPlan<M> prepareHandlerMethod(T target, M message) {
+        HandlerMethodPlanner<M> planner = bindHandlerMethodPlanner(target);
+        return planner == null ? null : planner.prepare(message).plan();
+    }
+
+    /**
+     * Creates a planner whose invocation plans call handler methods on the supplied target instance.
+     *
+     * <p>The planner may be cached and used concurrently. The default returns {@code null}, so matchers are not
+     * required to support prepared invocation.</p>
+     *
+     * @param target the object that contains the handler methods
+     * @return a thread-safe planner bound to the target, or {@code null} when preparation is unsupported
+     */
+    default HandlerMethodPlanner<M> bindHandlerMethodPlanner(T target) {
+        return null;
+    }
+
+    /**
+     * Creates a planner for handler methods declared on the payload itself.
+     *
+     * <p>The returned planner may be reused for many payload objects. Its plans must therefore obtain the target from
+     * {@link HandlerInput#getPayload()} for every invocation and must never retain the representative payload used to
+     * select the method.</p>
+     *
+     * @return a thread-safe payload-target planner, or {@code null} when this matcher cannot safely prepare one
+     */
+    default HandlerMethodPlanner<M> bindPayloadHandlerMethodPlanner() {
+        return null;
+    }
+
+    /**
      * Combines this {@code HandlerMatcher} with another {@code HandlerMatcher} to form a composite matcher.
      * The resulting matcher is capable of delegating matching responsibilities to both the current
      * matcher and the provided next matcher.

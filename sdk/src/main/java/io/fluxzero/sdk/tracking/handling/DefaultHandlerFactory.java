@@ -280,7 +280,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
         Class<?> targetClass = asClass(target);
         Handler<DeserializingMessage> handler
                 = target instanceof Class<?>
-                  ? new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config))
+                  ? DefaultHandler.forPayloadTarget(
+                          targetClass, targetSupplier, createHandlerMatcher(target, config))
                   : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {

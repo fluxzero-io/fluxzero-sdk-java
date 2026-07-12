@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.tracking.handling.LocalExecution;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
@@ -378,7 +379,20 @@ public class DeserializingMessage implements HasMessage {
      * @see #getOptionally()
      */
     public static DeserializingMessage getCurrent() {
-        return current.get();
+        DeserializingMessage result = current.get();
+        return result == null ? LocalExecution.currentMessage() : result;
+    }
+
+    /**
+     * Returns whether this thread already has a regular deserializing-message context.
+     *
+     * <p>This method does not count a payload-first local execution that can be exposed through
+     * {@link #getCurrent()}. It is intended for infrastructure that must avoid nesting a regular message context.</p>
+     *
+     * @return {@code true} if a regular message context is bound to the current thread
+     */
+    public static boolean hasThreadLocalContext() {
+        return current.get() != null;
     }
 
     /**
@@ -398,7 +412,7 @@ public class DeserializingMessage implements HasMessage {
      * @see #getCurrent()
      */
     public static Optional<DeserializingMessage> getOptionally() {
-        return Optional.ofNullable(current.get());
+        return Optional.ofNullable(getCurrent());
     }
 
     @Override
@@ -473,9 +487,10 @@ public class DeserializingMessage implements HasMessage {
 
     @SneakyThrows
     public static void whenBatchCompletes(ThrowingConsumer<Throwable> executable) {
-        if (current.get() == null) {
+        if (getCurrent() == null) {
             executable.accept(null);
         } else {
+            LocalExecution.markBatchContextUsed();
             if (batchCompletionHandlers.get() == null) {
                 batchCompletionHandlers.set(new LinkedHashSet<>());
             }
@@ -504,6 +519,7 @@ public class DeserializingMessage implements HasMessage {
     }
 
     private static Map<Object, Object> getBatchResources() {
+        LocalExecution.markBatchContextUsed();
         if (batchResources.get() == null) {
             batchResources.set(new HashMap<>());
         }
@@ -548,8 +564,12 @@ public class DeserializingMessage implements HasMessage {
     }
 
     private static void completeBatch(Throwable error) {
+        Set<Consumer<Throwable>> handlers = batchCompletionHandlers.get();
+        Map<Object, Object> resources = batchResources.get();
+        if (handlers == null && resources == null) {
+            return;
+        }
         try {
-            Set<Consumer<Throwable>> handlers = batchCompletionHandlers.get();
             if (handlers != null) {
                 batchCompletionHandlers.remove();
                 AsyncCompletionScope.runAndAwait(() -> handlers.forEach(h -> h.accept(error)));
@@ -558,5 +578,17 @@ public class DeserializingMessage implements HasMessage {
             batchResources.remove();
             batchCompletionHandlers.remove();
         }
+    }
+
+    /**
+     * Runs and clears batch-completion callbacks and resources after a payload-first local invocation.
+     *
+     * <p>This method is intended for Fluxzero handling infrastructure. Applications normally register callbacks with
+     * {@link #whenBatchCompletes(ThrowingConsumer)} instead of completing a batch directly.</p>
+     *
+     * @param error the error that ended handling, or {@code null} after successful handling
+     */
+    public static void completeLocalBatch(Throwable error) {
+        completeBatch(error);
     }
 }

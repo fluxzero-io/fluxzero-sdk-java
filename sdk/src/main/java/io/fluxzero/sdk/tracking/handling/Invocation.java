@@ -92,6 +92,10 @@ public class Invocation {
         this.handler = handler;
     }
 
+    static Invocation forHandler(HandlerDescriptor handler) {
+        return new Invocation(getHandlerName(handler));
+    }
+
     /**
      * Wraps the given {@link Callable} in an invocation context.
      * <p>
@@ -194,7 +198,12 @@ public class Invocation {
      * Returns the current {@code Invocation} bound to this thread, or {@code null} if none exists.
      */
     public static Invocation getCurrent() {
-        return current.get();
+        Invocation result = current.get();
+        return result == null ? LocalExecution.currentInvocation() : result;
+    }
+
+    static boolean hasThreadLocalContext() {
+        return current.get() != null;
     }
 
     /**
@@ -206,7 +215,7 @@ public class Invocation {
      * @return a {@link Registration} handle to cancel the callback
      */
     public static Registration whenHandlerCompletes(BiConsumer<Object, Throwable> callback) {
-        Invocation invocation = current.get();
+        Invocation invocation = getCurrent();
         if (invocation == null) {
             callback.accept(null, null);
             return Registration.noOp();
@@ -268,6 +277,10 @@ public class Invocation {
         if (callbacks != null) {
             AsyncCompletionScope.runAndAwait(() -> callbacks.forEach(c -> c.accept(result, error)));
         }
+    }
+
+    void completeLocal(Object result, Throwable error) {
+        complete(result, error);
     }
 
     private static final class ResultPublicationBarrier {

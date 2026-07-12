@@ -15,7 +15,13 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethodApplicability;
+import io.fluxzero.common.handling.HandlerMethodPlan;
+import io.fluxzero.common.handling.HandlerMethodPreparation;
+import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -63,13 +69,78 @@ class ExpiredRequestDecorator implements HandlerDecorator {
             }
 
             @Override
+            public HandlerMethodPlan<DeserializingMessage> getHandlerMethodPlanOrNull(
+                    DeserializingMessage message) {
+                HandlerMethodPlan<DeserializingMessage> plan = delegate.getHandlerMethodPlanOrNull(message);
+                if (plan == null || !isExpiredForHandler(message, plan)) {
+                    return plan;
+                }
+                if (publishMetrics) {
+                    publishIgnoreMessageMetric(message, plan.getMethod(), plan.getTargetClass());
+                }
+                return null;
+            }
+
+            @Override
+            public HandlerMethodPlanner<DeserializingMessage> getHandlerMethodPlanner() {
+                HandlerMethodPlanner<DeserializingMessage> planner = delegate.getHandlerMethodPlanner();
+                if (planner == null) {
+                    return null;
+                }
+                return new HandlerMethodPlanner<>() {
+                    @Override
+                    public Object getCacheKey(DeserializingMessage message) {
+                        return message.getIndex() == null ? planner.getCacheKey(message) : null;
+                    }
+
+                    @Override
+                    public Object getCacheKey(HandlerInput<DeserializingMessage> input) {
+                        return input instanceof LocalHandlerInput local && local.getIndex() == null
+                                ? planner.getCacheKey(input) : null;
+                    }
+
+                    @Override
+                    public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
+                        return message.getIndex() == null
+                                ? planner.prepare(message) : HandlerMethodPreparation.unsupported();
+                    }
+
+                    @Override
+                    public HandlerMethodPreparation<DeserializingMessage> prepare(
+                            HandlerInput<DeserializingMessage> input) {
+                        return input instanceof LocalHandlerInput local && local.getIndex() == null
+                                ? planner.prepare(input) : HandlerMethodPreparation.unsupported();
+                    }
+
+                    @Override
+                    public HandlerMethodApplicability<DeserializingMessage> prepareApplicability(
+                            HandlerInput<DeserializingMessage> input) {
+                        return input instanceof LocalHandlerInput local && local.getIndex() == null
+                                ? planner.prepareApplicability(input) : HandlerMethodApplicability.unsupported();
+                    }
+
+                    @Override
+                    public boolean isPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                        return input instanceof LocalHandlerInput local && local.getIndex() == null
+                               && planner.isPayloadClassKey(input);
+                    }
+
+                    @Override
+                    public boolean isNoMatchPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                        return input instanceof LocalHandlerInput local && local.getIndex() == null
+                               && planner.isNoMatchPayloadClassKey(input);
+                    }
+                };
+            }
+
+            @Override
             public String toString() {
                 return delegate.toString();
             }
         };
     }
 
-    private boolean isExpiredForHandler(DeserializingMessage message, HandlerInvoker invoker) {
+    private boolean isExpiredForHandler(DeserializingMessage message, HandlerDescriptor invoker) {
         if (!message.getMessageType().isRequest() || message.getIndex() == null
             || !skipExpiredRequests(invoker.getMethod())) {
             return false;

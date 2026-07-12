@@ -27,6 +27,11 @@ public class DefaultResponseMapper implements ResponseMapper {
     }
 
     @Override
+    public Object mapPayload(Object response) {
+        return response;
+    }
+
+    @Override
     public Message map(Object response, Metadata metadata) {
         return new Message(response, metadata);
     }

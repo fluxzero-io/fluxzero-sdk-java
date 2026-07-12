@@ -64,6 +64,16 @@ import java.util.stream.Stream;
  */
 public class AdhocDispatchInterceptor implements DispatchInterceptor {
 
+    @Override
+    public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+        return new PreparedLocalDispatch() {
+            @Override
+            public boolean prepare(io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
+                return !hasAdhocInterceptor(descriptor.messageType());
+            }
+        };
+    }
+
     private static final ThreadLocal<Map<MessageType, DispatchInterceptor>> delegates = new ThreadLocal<>();
 
     /**
@@ -74,6 +84,11 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
      */
     public static Optional<? extends DispatchInterceptor> getAdhocInterceptor(MessageType messageType) {
         return Optional.ofNullable(delegates.get()).map(map -> map.get(messageType));
+    }
+
+    private static boolean hasAdhocInterceptor(MessageType messageType) {
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        return current != null && current.get(messageType) != null;
     }
 
     /**

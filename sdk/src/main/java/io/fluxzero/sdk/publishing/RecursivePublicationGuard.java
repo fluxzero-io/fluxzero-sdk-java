@@ -52,6 +52,25 @@ public class RecursivePublicationGuard implements DispatchInterceptor {
         return message.addMetadata(PUBLICATION_DEPTH_METADATA_KEY, Integer.toString(depth));
     }
 
+    @Override
+    public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+        if (descriptor.messageType() == MessageType.SCHEDULE) {
+            return null;
+        }
+        return new PreparedLocalDispatch() {
+            @Override
+            public boolean requiresPreparation() {
+                return false;
+            }
+
+            @Override
+            public Metadata interceptMetadata(Metadata metadata,
+                                              io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
+                return metadata.with(PUBLICATION_DEPTH_METADATA_KEY, "0");
+            }
+        };
+    }
+
     protected int nextDepth(MessageType messageType) {
         if (messageType == MessageType.SCHEDULE) {
             return 0;

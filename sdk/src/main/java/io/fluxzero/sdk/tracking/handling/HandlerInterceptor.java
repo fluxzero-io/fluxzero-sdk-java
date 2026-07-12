@@ -16,10 +16,15 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.common.handling.HandlerMethod.DelegatingHandlerMethod;
+import io.fluxzero.common.handling.HandlerMethodApplicability;
+import io.fluxzero.common.handling.HandlerMethodPlan;
+import io.fluxzero.common.handling.HandlerMethodPreparation;
+import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
@@ -151,6 +156,38 @@ public interface HandlerInterceptor extends HandlerDecorator {
     }
 
     /**
+     * Prepares this interceptor to run without first creating a complete message.
+     *
+     * <p>Return {@code null} when the interceptor requires the regular message-based handling path. The default only
+     * supports an interceptor whose prepared behavior is the shared no-op policy, so existing interceptors retain
+     * their exact behavior unless they opt in explicitly.</p>
+     *
+     * <p>The returned policy may be cached and invoked concurrently.</p>
+     *
+     * @param handler stable information about the selected handler method
+     * @return a thread-safe payload-first policy, or {@code null} to use regular message-based handling
+     */
+    default PreparedHandlerInputInterceptor prepareInput(HandlerDescriptor handler) {
+        return prepare(handler) == PreparedHandlerInterceptor.noOp
+                ? PreparedHandlerInputInterceptor.noOp : null;
+    }
+
+    /**
+     * Prepares this interceptor using both the selected handler method and a representative input.
+     *
+     * <p>Override this overload when the interceptor's ability to use payload-first handling depends on input
+     * characteristics. The default delegates to {@link #prepareInput(HandlerDescriptor)}.</p>
+     *
+     * @param handler stable information about the selected handler method
+     * @param input a representative input for the prepared handler plan
+     * @return a thread-safe payload-first policy, or {@code null} to use regular message-based handling
+     */
+    default PreparedHandlerInputInterceptor prepareInput(
+            HandlerDescriptor handler, HandlerInput<DeserializingMessage> input) {
+        return prepareInput(handler);
+    }
+
+    /**
      * Indicates whether this interceptor opts into the prepared, mergeable handler wrapper.
      *
      * <p>The default is {@code false}, preserving the exact wrapper behavior of existing custom interceptors. An
@@ -274,6 +311,42 @@ public interface HandlerInterceptor extends HandlerDecorator {
          */
         Object apply(DeserializingMessage currentMessage, DeserializingMessage nextMessage,
                      HandlerDescriptor handler, BiFunction<Object, Object, Object> combiner);
+    }
+
+    /**
+     * Intercepts one prepared local invocation using a lazy {@link HandlerInput}.
+     *
+     * <p>Implementations are cached and may be invoked concurrently. Calling {@link HandlerInput#getMessage()} is
+     * supported, but creates the complete message and forfeits the allocation benefit for that invocation.</p>
+     */
+    @FunctionalInterface
+    interface PreparedHandlerInputInterceptor {
+        /** A policy that immediately proceeds to the next interceptor or handler. */
+        PreparedHandlerInputInterceptor noOp = (input, handler, next) -> next.apply(input, handler);
+
+        /**
+         * Intercepts one local handler invocation.
+         *
+         * @param input the current lazy handler input
+         * @param handler stable information about the selected handler method
+         * @param next the remaining interceptor chain and handler invocation
+         * @return the handling result
+         */
+        Object interceptHandling(HandlerInput<DeserializingMessage> input, HandlerDescriptor handler,
+                                 PreparedHandlerInputFunction next);
+    }
+
+    /** Represents the remaining interceptors and handler invocation in a prepared local handling chain. */
+    @FunctionalInterface
+    interface PreparedHandlerInputFunction {
+        /**
+         * Continues local handling with the supplied input and handler.
+         *
+         * @param input the input to pass to the remainder of the chain
+         * @param handler the selected handler method
+         * @return the handling result
+         */
+        Object apply(HandlerInput<DeserializingMessage> input, HandlerDescriptor handler);
     }
 
     /**
@@ -404,6 +477,133 @@ public interface HandlerInterceptor extends HandlerDecorator {
                     method, this::prepareHandlerMethod);
             lastPreparedMethod = new PreparedMethodEntry(method, result);
             return result.orElse(null);
+        }
+
+        @Override
+        public HandlerMethodPlan<DeserializingMessage> getHandlerMethodPlanOrNull(DeserializingMessage message) {
+            return prepareHandlerMethodPlan(delegate.getHandlerMethodPlanOrNull(message), null);
+        }
+
+        @Override
+        public HandlerMethodPlanner<DeserializingMessage> getHandlerMethodPlanner() {
+            HandlerMethodPlanner<DeserializingMessage> planner = delegate.getHandlerMethodPlanner();
+            if (planner == null) {
+                return null;
+            }
+            return new HandlerMethodPlanner<>() {
+                @Override
+                public Object getCacheKey(DeserializingMessage message) {
+                    return planner.getCacheKey(message);
+                }
+
+                @Override
+                public Object getCacheKey(HandlerInput<DeserializingMessage> input) {
+                    return planner.getCacheKey(input);
+                }
+
+                @Override
+                public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
+                    HandlerMethodPreparation<DeserializingMessage> source = planner.prepare(message);
+                    return prepareHandlerMethodPreparation(source, null);
+                }
+
+                @Override
+                public HandlerMethodPreparation<DeserializingMessage> prepare(
+                        HandlerInput<DeserializingMessage> input) {
+                    HandlerMethodPreparation<DeserializingMessage> source = planner.prepare(input);
+                    return prepareHandlerMethodPreparation(source, input);
+                }
+
+                @Override
+                public HandlerMethodApplicability<DeserializingMessage> prepareApplicability(
+                        HandlerInput<DeserializingMessage> input) {
+                    HandlerMethodApplicability<DeserializingMessage> source = planner.prepareApplicability(input);
+                    if (!source.isCacheable()) {
+                        return HandlerMethodApplicability.unsupported();
+                    }
+                    return source.withPreparation(prepareHandlerMethodPreparation(source.preparation(), input));
+                }
+
+                @Override
+                public boolean isPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                    return planner.isPayloadClassKey(input);
+                }
+
+                @Override
+                public boolean isNoMatchPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                    return planner.isNoMatchPayloadClassKey(input);
+                }
+            };
+        }
+
+        private HandlerMethodPlan<DeserializingMessage> prepareHandlerMethodPlan(
+                HandlerMethodPlan<DeserializingMessage> method, HandlerInput<DeserializingMessage> preparedInput) {
+            if (method == null) {
+                return null;
+            }
+            List<PreparedHandlerInputInterceptor> prepared = new ArrayList<>(interceptors.size());
+            for (HandlerInterceptor interceptor : interceptors) {
+                PreparedHandlerInputInterceptor policy = preparedInput == null
+                        ? interceptor.prepareInput(method) : interceptor.prepareInput(method, preparedInput);
+                if (policy == null) {
+                    return null;
+                }
+                if (policy != PreparedHandlerInputInterceptor.noOp) {
+                    prepared.add(policy);
+                }
+            }
+            if (prepared.isEmpty()) {
+                return method;
+            }
+            PreparedHandlerInputFunction chain = (input, handler) -> method.invoke(input);
+            for (int i = prepared.size() - 1; i >= 0; i--) {
+                PreparedHandlerInputInterceptor policy = prepared.get(i);
+                PreparedHandlerInputFunction next = chain;
+                chain = (input, handler) -> policy.interceptHandling(input, handler, next);
+            }
+            PreparedHandlerInputFunction result = chain;
+            return new HandlerMethodPlan<>() {
+                @Override
+                public Object invoke(HandlerInput<DeserializingMessage> input) {
+                    return result.apply(input, method);
+                }
+
+                @Override
+                public Class<?> getTargetClass() {
+                    return method.getTargetClass();
+                }
+
+                @Override
+                public Executable getMethod() {
+                    return method.getMethod();
+                }
+
+                @Override
+                public <A extends java.lang.annotation.Annotation> A getMethodAnnotation() {
+                    return method.getMethodAnnotation();
+                }
+
+                @Override
+                public boolean expectResult() {
+                    return method.expectResult();
+                }
+
+                @Override
+                public boolean isPassive() {
+                    return method.isPassive();
+                }
+            };
+        }
+
+        private HandlerMethodPreparation<DeserializingMessage> prepareHandlerMethodPreparation(
+                HandlerMethodPreparation<DeserializingMessage> source,
+                HandlerInput<DeserializingMessage> preparedInput) {
+            if (!source.isPrepared()) {
+                return source;
+            }
+            HandlerMethodPlan<DeserializingMessage> result = prepareHandlerMethodPlan(source.plan(), preparedInput);
+            return result == null ? HandlerMethodPreparation.unsupported()
+                    : HandlerMethodPreparation.prepared(result);
         }
 
         private Optional<HandlerMethod<DeserializingMessage>> prepareHandlerMethod(

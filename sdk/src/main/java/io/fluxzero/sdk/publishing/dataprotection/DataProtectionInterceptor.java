@@ -20,9 +20,14 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.common.handling.HandlerMethodApplicability;
+import io.fluxzero.common.handling.HandlerMethodPlan;
+import io.fluxzero.common.handling.HandlerMethodPreparation;
+import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -30,6 +35,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.LocalDispatchDescriptor;
+import io.fluxzero.sdk.publishing.PreparedLocalDispatch;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
@@ -179,6 +186,12 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     @Override
+    public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+        return getAnnotatedProperties(descriptor.payloadClass(), ProtectData.class).isEmpty()
+                ? PreparedLocalDispatch.noOp : null;
+    }
+
+    @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
         return new Handler<>() {
             @Override
@@ -230,6 +243,81 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                     return handler.getHandlerMethodOrNull(message);
                 }
                 return null;
+            }
+
+            @Override
+            public HandlerMethodPlan<DeserializingMessage> getHandlerMethodPlanOrNull(
+                    DeserializingMessage message) {
+                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                    return handler.getHandlerMethodPlanOrNull(message);
+                }
+                return null;
+            }
+
+            @Override
+            public HandlerMethodPlanner<DeserializingMessage> getHandlerMethodPlanner() {
+                HandlerMethodPlanner<DeserializingMessage> planner = handler.getHandlerMethodPlanner();
+                if (planner == null) {
+                    return null;
+                }
+                return new HandlerMethodPlanner<>() {
+                    @Override
+                    public Object getCacheKey(DeserializingMessage message) {
+                        Object key = planner.getCacheKey(message);
+                        return key == null ? null : new DataProtectionPlanKey(
+                                key, message.getMetadata().containsKey(METADATA_KEY));
+                    }
+
+                    @Override
+                    public Object getCacheKey(HandlerInput<DeserializingMessage> input) {
+                        Object key = planner.getCacheKey(input);
+                        boolean protectedData = input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
+                                ? local.containsMetadata(METADATA_KEY)
+                                : input.getMessage().getMetadata().containsKey(METADATA_KEY);
+                        return key == null ? null : new DataProtectionPlanKey(key, protectedData);
+                    }
+
+                    @Override
+                    public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
+                        return message.getMetadata().containsKey(METADATA_KEY)
+                                ? HandlerMethodPreparation.unsupported() : planner.prepare(message);
+                    }
+
+                    @Override
+                    public HandlerMethodPreparation<DeserializingMessage> prepare(
+                            HandlerInput<DeserializingMessage> input) {
+                        boolean protectedData = input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
+                                ? local.containsMetadata(METADATA_KEY)
+                                : input.getMessage().getMetadata().containsKey(METADATA_KEY);
+                        return protectedData ? HandlerMethodPreparation.unsupported() : planner.prepare(input);
+                    }
+
+                    @Override
+                    public HandlerMethodApplicability<DeserializingMessage> prepareApplicability(
+                            HandlerInput<DeserializingMessage> input) {
+                        if (!(input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local)
+                            || input.getMessageIfAvailable() != null || local.containsMetadata(METADATA_KEY)) {
+                            return HandlerMethodApplicability.unsupported();
+                        }
+                        return planner.prepareApplicability(input);
+                    }
+
+                    @Override
+                    public boolean isPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                        return input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
+                               && input.getMessageIfAvailable() == null
+                               && !local.containsMetadata(METADATA_KEY)
+                               && planner.isPayloadClassKey(input);
+                    }
+
+                    @Override
+                    public boolean isNoMatchPayloadClassKey(HandlerInput<DeserializingMessage> input) {
+                        return input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
+                               && input.getMessageIfAvailable() == null
+                               && !local.containsMetadata(METADATA_KEY)
+                               && planner.isNoMatchPayloadClassKey(input);
+                    }
+                };
             }
 
             @Override
@@ -401,6 +489,9 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private record RestoredMessage(DeserializingMessage message, boolean skip) {
+    }
+
+    private record DataProtectionPlanKey(Object delegate, boolean protectedData) {
     }
 
     @Value

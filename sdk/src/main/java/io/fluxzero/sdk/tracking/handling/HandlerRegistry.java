@@ -90,6 +90,48 @@ public interface HandlerRegistry extends HasLocalHandlers {
     Optional<CompletableFuture<Object>> handle(DeserializingMessage message);
 
     /**
+     * Attempts to handle the message locally while preserving a synchronously returned value as a direct value.
+     *
+     * <p>The default adapts {@link #handle(DeserializingMessage)} and therefore represents a handled result as a
+     * future. Implementations may override this method when they can retain synchronous completion.</p>
+     *
+     * @param message the message to dispatch
+     * @return the local handling result, including an explicit not-handled result when no handler matches
+     */
+    default LocalHandlerResult handleResult(DeserializingMessage message) {
+        return handle(message).map(LocalHandlerResult::asynchronous).orElseGet(LocalHandlerResult::notHandled);
+    }
+
+    /**
+     * Attempts to handle a lazy local input.
+     *
+     * <p>The default materializes the message and delegates to {@link #handleResult(DeserializingMessage)}.
+     * Implementations that support payload-first handling may override this method.</p>
+     *
+     * @param input the local handler input
+     * @return the local handling result
+     */
+    default LocalHandlerResult handleResult(LocalHandlerInput input) {
+        return handleResult(input.getMessage());
+    }
+
+    /**
+     * Attempts payload-first local handling and writes the outcome into the reusable execution frame.
+     * Implementations that cannot preserve the lazy input return {@code false}, causing the caller to use the
+     * canonical message-based path.
+     *
+     * <p>This method is intended for Fluxzero registry implementations. A {@code false} result means “use the regular
+     * path”, not “no handler exists”.</p>
+     *
+     * @param execution the current local dispatch and destination for its result
+     * @return {@code true} if this registry completed handler selection on the payload-first path; {@code false} to
+     * use regular message-based handling
+     */
+    default boolean handleLocal(LocalExecution execution) {
+        return false;
+    }
+
+    /**
      * Returns whether this registry has a local handler that can process the given message.
      *
      * @param message the message to inspect

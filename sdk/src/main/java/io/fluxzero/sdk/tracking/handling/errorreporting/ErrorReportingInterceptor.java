@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking.handling.errorreporting;
 
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -97,6 +98,27 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
     }
 
     @Override
+    public PreparedHandlerInputInterceptor prepareInput(HandlerDescriptor handler) {
+        HandlerErrorPolicy policy = policy(handler);
+        if (policy.localHandler()) {
+            return PreparedHandlerInputInterceptor.noOp;
+        }
+        return (input, descriptor, next) -> {
+            if (policy.isLocalHandler(descriptor, input.getPayload())) {
+                return next.apply(input, descriptor);
+            }
+            try {
+                Object result = next.apply(input, descriptor);
+                return result instanceof CompletionStage<?>
+                        ? monitorResult(result, descriptor, input.getMessage()) : result;
+            } catch (Throwable e) {
+                reportError(e, descriptor, input.getMessage());
+                throw e;
+            }
+        };
+    }
+
+    @Override
     public boolean supportsPreparation() {
         return true;
     }
@@ -146,6 +168,11 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
         private boolean isLocalHandler(HandlerDescriptor invoker, DeserializingMessage message) {
             return localHandler || !reportSelfHandlers
                    && Objects.equals(invoker.getTargetClass(), message.getPayloadClass());
+        }
+
+        private boolean isLocalHandler(HandlerDescriptor invoker, Object payload) {
+            return localHandler || !reportSelfHandlers && payload != null
+                   && Objects.equals(invoker.getTargetClass(), payload.getClass());
         }
     }
 }

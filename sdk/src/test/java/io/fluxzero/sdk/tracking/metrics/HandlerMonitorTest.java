@@ -16,12 +16,14 @@ package io.fluxzero.sdk.tracking.metrics;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -91,6 +93,28 @@ class HandlerMonitorTest {
         assertEquals(1, monitor.publishedMetrics);
     }
 
+    @Test
+    void explicitLocalMetricsKeepPayloadHandlerOnMetricsPath() throws Exception {
+        HandlerMonitor monitor = new HandlerMonitor();
+        ExplicitlyMonitoredSelfHandler payload = new ExplicitlyMonitoredSelfHandler();
+        HandlerInvoker invoker = HandlerInvoker.noOp(
+                ExplicitlyMonitoredSelfHandler.class,
+                ExplicitlyMonitoredSelfHandler.class.getDeclaredMethod("handle"));
+        HandlerInput<DeserializingMessage> input = new HandlerInput<>() {
+            @Override
+            public Object getPayload() {
+                return payload;
+            }
+
+            @Override
+            public DeserializingMessage getMessage() {
+                return message(payload);
+            }
+        };
+
+        assertNull(monitor.prepareInput(invoker, input));
+    }
+
     private static DeserializingMessage message(Object payload) {
         return new DeserializingMessage(new Message(payload), MessageType.EVENT, null);
     }
@@ -107,6 +131,13 @@ class HandlerMonitorTest {
     }
 
     private static class SelfHandler {
+        @HandleEvent
+        void handle() {
+        }
+    }
+
+    @LocalHandler(logMetrics = true)
+    private static class ExplicitlyMonitoredSelfHandler {
         @HandleEvent
         void handle() {
         }

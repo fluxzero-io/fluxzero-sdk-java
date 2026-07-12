@@ -20,6 +20,8 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.LocalDispatchDescriptor;
+import io.fluxzero.sdk.publishing.PreparedLocalDispatch;
 import lombok.AllArgsConstructor;
 
 import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
@@ -76,5 +78,39 @@ public class CorrelatingInterceptor implements DispatchInterceptor {
             }
         }
         return message.withMetadata(metadata.with(currentCorrelationData()));
+    }
+
+    @Override
+    public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+        if (descriptor.messageType() == MessageType.EVENT) {
+            return null;
+        }
+        return new PreparedLocalDispatch() {
+            private volatile Metadata correlationMetadata;
+
+            @Override
+            public boolean prepare(io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
+                if (Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
+                        .orElse(DefaultCorrelationDataProvider.INSTANCE) != DefaultCorrelationDataProvider.INSTANCE) {
+                    return false;
+                }
+                if (correlationMetadata == null) {
+                    synchronized (this) {
+                        if (correlationMetadata == null) {
+                            correlationMetadata = Metadata.of(
+                                    DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
+                                            (DeserializingMessage) null));
+                        }
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            public Metadata interceptMetadata(Metadata metadata,
+                                              io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
+                return metadata.with(correlationMetadata);
+            }
+        };
     }
 }

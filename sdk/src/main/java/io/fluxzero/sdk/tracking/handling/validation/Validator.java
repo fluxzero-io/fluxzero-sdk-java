@@ -172,6 +172,21 @@ public interface Validator {
     }
 
     /**
+     * Returns whether values of the supplied type may require validation by this validator.
+     *
+     * <p>Fluxzero uses this as a fast check before validating local handler payloads. Return {@code false} only when
+     * the validator can determine with certainty that {@link #checkValidity(Object, Class[])} would never report a
+     * violation for an instance of this type. The default returns {@code true} to preserve the behavior of existing
+     * validators.</p>
+     *
+     * @param type the runtime type of the value that would be validated
+     * @return {@code true} if the type may contain constraints understood by this validator
+     */
+    default boolean hasValidation(Class<?> type) {
+        return true;
+    }
+
+    /**
      * Validates a method or constructor return value and returns an optional {@link ValidationException} when
      * constraints are violated.
      *

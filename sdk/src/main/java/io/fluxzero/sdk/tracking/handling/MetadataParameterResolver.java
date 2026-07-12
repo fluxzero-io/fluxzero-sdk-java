@@ -16,6 +16,8 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.HandlerInput;
+import io.fluxzero.common.handling.HandlerInputResolver;
 import io.fluxzero.common.handling.TypedParameterResolver;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
@@ -42,7 +44,8 @@ import static java.util.Optional.ofNullable;
  * }
  * }</pre>
  */
-public class MetadataParameterResolver extends TypedParameterResolver<Object> {
+public class MetadataParameterResolver extends TypedParameterResolver<Object>
+        implements HandlerInputResolver<Object> {
 
     public MetadataParameterResolver() {
         super(Metadata.class);
@@ -57,5 +60,39 @@ public class MetadataParameterResolver extends TypedParameterResolver<Object> {
     @Override
     public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
         return Metadata.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
+    public Object getInputCacheKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return getClass() == MetadataParameterResolver.class ? MetadataParameterResolver.class : null;
+    }
+
+    @Override
+    public boolean isPayloadClassKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return getClass() == MetadataParameterResolver.class;
+    }
+
+    @Override
+    public boolean isNoMatchPayloadClassKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return isPayloadClassKey(parameter, methodAnnotation, representative);
+    }
+
+    @Override
+    public Resolution<Object> prepareInput(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        if (getClass() != MetadataParameterResolver.class) {
+            return null;
+        }
+        if (!Metadata.class.isAssignableFrom(parameter.getType())) {
+            return Resolution.unmatched();
+        }
+        return Resolution.resolved(input -> {
+            Object rawInput = input;
+            return rawInput instanceof LocalHandlerInput localInput
+                    ? localInput.getMetadata() : resolve(parameter, methodAnnotation).apply(input.getMessage());
+        });
     }
 }

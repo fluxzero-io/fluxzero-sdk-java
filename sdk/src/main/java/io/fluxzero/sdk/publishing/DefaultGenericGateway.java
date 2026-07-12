@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
+import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -27,10 +28,11 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
+import io.fluxzero.sdk.tracking.handling.LocalExecution;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.experimental.Delegate;
@@ -55,7 +57,6 @@ import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Stream.ofNullable;
 
-@AllArgsConstructor
 @Slf4j
 public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> implements GenericGateway {
     @Getter(AccessLevel.PRIVATE)
@@ -69,8 +70,31 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @Delegate
     private final HandlerRegistry localHandlerRegistry;
     private final ResponseMapper responseMapper;
+    private final ClassValue<PreparedDispatchEntry> preparedLocalDispatch = new ClassValue<>() {
+        @Override
+        protected PreparedDispatchEntry computeValue(Class<?> payloadClass) {
+            return new PreparedDispatchEntry(payloadClass, dispatchInterceptor.prepareLocalDispatch(
+                    new LocalDispatchDescriptor(payloadClass, messageType, topic)));
+        }
+    };
+    private volatile PreparedDispatchEntry lastPreparedDispatch;
 
     private final Map<String, CompletableFuture<?>> callbacks = new ConcurrentHashMap<>();
+
+    public DefaultGenericGateway(Client client, GatewayClient gatewayClient, RequestHandler requestHandler,
+                                 Serializer serializer, DispatchInterceptor dispatchInterceptor,
+                                 MessageType messageType, String topic, HandlerRegistry localHandlerRegistry,
+                                 ResponseMapper responseMapper) {
+        this.client = client;
+        this.gatewayClient = gatewayClient;
+        this.requestHandler = requestHandler;
+        this.serializer = serializer;
+        this.dispatchInterceptor = dispatchInterceptor;
+        this.messageType = messageType;
+        this.topic = topic;
+        this.localHandlerRegistry = localHandlerRegistry;
+        this.responseMapper = responseMapper;
+    }
 
     @Override
     protected GenericGateway createForNamespace(String namespace) {
@@ -144,9 +168,67 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     @Override
     @SneakyThrows
+    @SuppressWarnings("unchecked")
+    public <R> R sendAndWait(Object input) {
+        if (input instanceof HasMessage hasMessage) {
+            return sendAndWait(hasMessage.toMessage());
+        }
+        Class<?> payloadClass = input == null ? Void.class : input.getClass();
+        PreparedDispatchEntry cachedDispatch = lastPreparedDispatch;
+        boolean lastDispatch = cachedDispatch != null && cachedDispatch.payloadClass() == payloadClass;
+        PreparedDispatchEntry preparedDispatch = lastDispatch
+                ? cachedDispatch : preparedLocalDispatch.get(payloadClass);
+        PreparedLocalDispatch dispatch = preparedDispatch.dispatch();
+        if (dispatch != null) {
+            if (!lastDispatch) {
+                lastPreparedDispatch = preparedDispatch;
+            }
+            LocalExecution result = LocalExecution.handle(
+                    input, messageType, topic, serializer, dispatch, localHandlerRegistry);
+            if (result != null) {
+                try {
+                    if (result.isCompletedSuccessfully()) {
+                        return (R) responseMapper.mapPayload(result.getResult());
+                    }
+                    Message resultMessage = result.getResultMessage();
+                    Duration timeout = sendAndWaitTimeout(resultMessage);
+                    CompletableFuture<R> future = prepareLocalRequest(
+                            resultMessage, result.getResultFuture(), timeout).result().thenApply(Message::getPayload);
+                    return waitForResult(future, resultMessage, timeout);
+                } finally {
+                    result.releaseResult();
+                }
+            }
+        }
+        return sendAndWait(new Message(input));
+    }
+
+    private record PreparedDispatchEntry(Class<?> payloadClass, PreparedLocalDispatch dispatch) {
+    }
+
+    @Override
+    @SneakyThrows
     public <R> R sendAndWait(Message message) {
         Duration timeout = sendAndWaitTimeout(message);
-        CompletableFuture<R> future = sendSingle(message, timeout).thenApply(Message::getPayload);
+        message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
+        if (message == null) {
+            return null;
+        }
+        dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), true);
+        LocalHandlerResult localResult = localHandlerRegistry.handleResult(
+                new DeserializingMessage(message, messageType, topic, serializer));
+        if (localResult.isCompletedSuccessfully()) {
+            return (R) responseMapper.mapPayload(localResult.getValue());
+        }
+        PendingRequest request = localResult.isHandled()
+                ? prepareLocalRequest(message, localResult.asFuture(), timeout)
+                : prepareExternalRequest(message, timeout);
+        CompletableFuture<R> future = (request.isExternal() ? sendRequest(request) : request.result())
+                .thenApply(Message::getPayload);
+        return waitForResult(future, message, timeout);
+    }
+
+    private <R> R waitForResult(CompletableFuture<R> future, Message message, Duration timeout) throws Throwable {
         try {
             return future.get();
         } catch (InterruptedException e) {
@@ -180,15 +262,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             return PendingRequest.completed(emptyReturnMessage());
         }
         dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), true);
-        Optional<CompletableFuture<Object>> localResult
-                = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
-        if (localResult.isPresent()) {
-            CompletableFuture<Message> result = localResult.get().thenApply(responseMapper::map);
-            if (timeout != null && !timeout.isNegative()) {
-                result.orTimeout(timeout.toMillis(), MILLISECONDS);
-            }
-            return PendingRequest.completed(trackCallback(message.getMessageId(), result));
+        LocalHandlerResult localResult = localHandlerRegistry.handleResult(
+                new DeserializingMessage(message, messageType, topic, serializer));
+        if (localResult.isHandled()) {
+            return prepareLocalRequest(message, localResult.asFuture(), timeout);
         }
+        return prepareExternalRequest(message, timeout);
+    }
+
+    private PendingRequest prepareLocalRequest(Message message, CompletableFuture<Object> localResult,
+                                               Duration timeout) {
+        CompletableFuture<Message> result = localResult.thenApply(responseMapper::map);
+        if (timeout != null && !timeout.isNegative()) {
+            result.orTimeout(timeout.toMillis(), MILLISECONDS);
+        }
+        return PendingRequest.completed(trackCallback(message.getMessageId(), result));
+    }
+
+    private PendingRequest prepareExternalRequest(Message message, Duration timeout) {
         SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                 message.serialize(serializer), message, messageType, topic);
         return serializedMessage == null ? PendingRequest.completed(emptyReturnMessage())

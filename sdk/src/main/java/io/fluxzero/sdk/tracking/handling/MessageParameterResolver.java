@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.HandlerInput;
+import io.fluxzero.common.handling.HandlerInputResolver;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.sdk.common.HasMessage;
@@ -34,7 +36,8 @@ import java.util.function.Function;
  * <p>
  * Useful when advanced information about the message is needed, such as the Fluxzero-assigned message index.
  */
-public class MessageParameterResolver implements PreparedParameterResolver<Object> {
+public class MessageParameterResolver
+        implements PreparedParameterResolver<Object>, HandlerInputResolver<Object> {
     private static final Function<Object, Object> DESERIALIZING_MESSAGE_RESOLVER =
             m -> m instanceof DeserializingMessage ? m : DeserializingMessage.getCurrent();
     private static final Function<Object, Object> SERIALIZED_MESSAGE_RESOLVER = m -> {
@@ -95,5 +98,36 @@ public class MessageParameterResolver implements PreparedParameterResolver<Objec
             }
         }
         return false;
+    }
+
+    @Override
+    public Object getInputCacheKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return getClass() == MessageParameterResolver.class ? MessageParameterResolver.class : null;
+    }
+
+    @Override
+    public boolean isPayloadClassKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return getClass() == MessageParameterResolver.class;
+    }
+
+    @Override
+    public boolean isNoMatchPayloadClassKey(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        return isPayloadClassKey(parameter, methodAnnotation, representative);
+    }
+
+    @Override
+    public Resolution<Object> prepareInput(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<Object> representative) {
+        if (getClass() != MessageParameterResolver.class) {
+            return null;
+        }
+        Function<Object, Object> resolver = resolve(parameter.getType());
+        if (resolver == null) {
+            return Resolution.unmatched();
+        }
+        return Resolution.resolved(input -> resolver.apply(input.getMessage()));
     }
 }

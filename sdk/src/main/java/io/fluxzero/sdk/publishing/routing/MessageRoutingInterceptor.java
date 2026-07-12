@@ -51,6 +51,11 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor
 @Slf4j
 public class MessageRoutingInterceptor implements DispatchInterceptor {
+    @Override
+    public io.fluxzero.sdk.publishing.PreparedLocalDispatch prepareLocalDispatch(
+            io.fluxzero.sdk.publishing.LocalDispatchDescriptor descriptor) {
+        return io.fluxzero.sdk.publishing.PreparedLocalDispatch.noOp;
+    }
     /**
      * Returns the unmodified {@link Message} as this interceptor only modifies the serialized form.
      */

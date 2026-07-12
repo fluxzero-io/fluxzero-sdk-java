@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.KeyedParameterResolver;
+import io.fluxzero.common.handling.HandlerInput;
+import io.fluxzero.common.handling.HandlerInputResolver;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -45,7 +47,8 @@ import java.util.function.Function;
  * @see ParameterResolver
  */
 public class PayloadParameterResolver
-        implements PreparedParameterResolver<HasMessage>, KeyedParameterResolver<HasMessage> {
+        implements PreparedParameterResolver<HasMessage>, KeyedParameterResolver<HasMessage>,
+                   HandlerInputResolver<HasMessage> {
     private static final Object UNRESOLVED_PAYLOAD = new Object();
     private static final ClassValue<PayloadShape> nullPayloadKeys = new ClassValue<>() {
         @Override
@@ -114,20 +117,67 @@ public class PayloadParameterResolver
     }
 
     @Override
-    public Resolution<HasMessage> resolveForKey(
+    public KeyedParameterResolver.Resolution<HasMessage> resolveForKey(
             Parameter parameter, Annotation methodAnnotation, HasMessage value, Object cacheKey) {
         Class<?> payloadClass = cacheKey instanceof PayloadShape shape ? shape.payloadClass() : (Class<?>) cacheKey;
         boolean chunked = cacheKey instanceof PayloadShape shape && shape.chunked();
         boolean matches = chunked && InputStream.class.isAssignableFrom(parameter.getType())
                           || parameter.getType().isAssignableFrom(payloadClass);
         if (!matches) {
-            return Resolution.unmatched();
+            return KeyedParameterResolver.Resolution.unmatched();
         }
         boolean nullPayload = cacheKey instanceof PayloadShape shape && !shape.chunked();
         if ((nullPayload || payloadClass == Void.class) && !ReflectionUtils.isNullable(parameter)) {
-            return Resolution.rejected();
+            return KeyedParameterResolver.Resolution.rejected();
         }
-        return Resolution.resolved(resolve(parameter, methodAnnotation));
+        return KeyedParameterResolver.Resolution.resolved(resolve(parameter, methodAnnotation));
+    }
+
+    @Override
+    public Object getInputCacheKey(Parameter parameter, Annotation methodAnnotation,
+                                   HandlerInput<HasMessage> representative) {
+        if (getClass() != PayloadParameterResolver.class) {
+            return null;
+        }
+        HasMessage message = representative.getMessageIfAvailable();
+        if (message instanceof ChunkedDeserializingMessage) {
+            return null;
+        }
+        Object payload = message == null ? representative.getPayload() : message.getPayload();
+        return payload == null ? null : payload.getClass();
+    }
+
+    @Override
+    public boolean isPayloadClassKey(Parameter parameter, Annotation methodAnnotation,
+                                     HandlerInput<HasMessage> representative) {
+        return getClass() == PayloadParameterResolver.class
+               && !(representative.getMessageIfAvailable() instanceof ChunkedDeserializingMessage)
+               && representative.getPayload() != null;
+    }
+
+    @Override
+    public boolean isNoMatchPayloadClassKey(Parameter parameter, Annotation methodAnnotation,
+                                            HandlerInput<HasMessage> representative) {
+        return isPayloadClassKey(parameter, methodAnnotation, representative);
+    }
+
+    @Override
+    public HandlerInputResolver.Resolution<HasMessage> prepareInput(
+            Parameter parameter, Annotation methodAnnotation, HandlerInput<HasMessage> representative) {
+        HasMessage message = representative.getMessageIfAvailable();
+        if (getClass() != PayloadParameterResolver.class
+            || message instanceof ChunkedDeserializingMessage) {
+            return null;
+        }
+        Object payload = message == null ? representative.getPayload() : message.getPayload();
+        Class<?> payloadClass = payload == null ? Void.class : payload.getClass();
+        if (!parameter.getType().isAssignableFrom(payloadClass)) {
+            return HandlerInputResolver.Resolution.unmatched();
+        }
+        if ((payload == null || payloadClass == Void.class) && !ReflectionUtils.isNullable(parameter)) {
+            return HandlerInputResolver.Resolution.rejected();
+        }
+        return HandlerInputResolver.Resolution.resolved(HandlerInput::getPayload);
     }
 
     @Override

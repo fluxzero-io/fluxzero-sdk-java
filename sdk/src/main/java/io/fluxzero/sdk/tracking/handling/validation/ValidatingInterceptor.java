@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling.validation;
 
 import io.fluxzero.common.handling.HandlerDescriptor;
+import io.fluxzero.common.handling.HandlerInput;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -85,6 +86,38 @@ public class ValidatingInterceptor implements HandlerInterceptor {
             }
             Object result = next.apply(m, descriptor, combiner);
             if (validateReturnValue && m.getMessageType().isRequest()) {
+                validator.assertValidReturnValue(null, descriptor.getMethod(), result);
+            }
+            return result;
+        };
+    }
+
+    @Override
+    public PreparedHandlerInputInterceptor prepareInput(HandlerDescriptor handler) {
+        return prepareInput(handler, null);
+    }
+
+    @Override
+    public PreparedHandlerInputInterceptor prepareInput(
+            HandlerDescriptor handler, HandlerInput<DeserializingMessage> preparedInput) {
+        boolean validateReturnValue = shouldValidateReturnValue(handler);
+        boolean validatePreparedPayload = validatePayload;
+        if (preparedInput != null) {
+            Object payload = preparedInput.getPayload();
+            validatePreparedPayload = payload != null && validator.hasValidation(payload.getClass());
+        }
+        if (!validatePreparedPayload && !validateReturnValue) {
+            return PreparedHandlerInputInterceptor.noOp;
+        }
+        boolean validateInputPayload = validatePreparedPayload;
+        return (input, descriptor, next) -> {
+            Object payload = input.getPayload();
+            if (validateInputPayload && payload != null
+                && (preparedInput != null || validator.hasValidation(payload.getClass()))) {
+                ValidationUtils.assertValid(payload, validator);
+            }
+            Object result = next.apply(input, descriptor);
+            if (validateReturnValue && input.getMessage().getMessageType().isRequest()) {
                 validator.assertValidReturnValue(null, descriptor.getMethod(), result);
             }
             return result;

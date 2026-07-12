@@ -45,3 +45,4 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - Common types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`, `deps`, `perf`, `chore`.
 - Useful domains in this repo include `tracking`, `handling`, `modeling`, `entity`, `websocket`, `serialization`, `logging`, `test-server`, `proxy`, `spring`, `ci`, and `deps`.
 - For non-trivial commits, include a body that explains why the change is needed, and the behavioral impact.
+- Never use literal escape sequences such as `\n` or `\r\n` to represent line breaks in a commit message. Supply real line breaks, for example with separate `-m` arguments or a commit-message file, and inspect the resulting message to ensure it renders correctly.

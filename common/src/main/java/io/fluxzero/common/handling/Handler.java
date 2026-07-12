@@ -110,6 +110,33 @@ public interface Handler<M> {
     }
 
     /**
+     * Returns a reusable plan for the handler method selected for this message.
+     *
+     * <p>The default asks {@link #getHandlerMethodPlanner()} to prepare the plan. A {@code null} result means that this
+     * handler cannot safely prepare the invocation, so the caller should use {@link #getInvokerOrNull(Object)} or
+     * {@link #getHandlerMethodOrNull(Object)} instead.</p>
+     *
+     * @param message the message to match
+     * @return the prepared invocation plan, or {@code null} when preparation is unsupported or no method matches
+     */
+    default HandlerMethodPlan<M> getHandlerMethodPlanOrNull(M message) {
+        HandlerMethodPlanner<M> planner = getHandlerMethodPlanner();
+        return planner == null ? null : planner.prepare(message).plan();
+    }
+
+    /**
+     * Returns the planner used to select and prepare this handler's methods.
+     *
+     * <p>The returned planner may be cached and invoked concurrently. The default returns {@code null}, which keeps
+     * implementations that only support regular per-message matching fully compatible.</p>
+     *
+     * @return a thread-safe handler method planner, or {@code null} when this handler does not support preparation
+     */
+    default HandlerMethodPlanner<M> getHandlerMethodPlanner() {
+        return null;
+    }
+
+    /**
      * Creates a composite handler that executes the current handler and then delegates to the specified next handler if
      * the current handler cannot handle the message or does not provide an invoker.
      *
@@ -140,6 +167,17 @@ public interface Handler<M> {
                 HandlerMethod<M> result = first.getHandlerMethodOrNull(message);
                 return result == null ? next.getHandlerMethodOrNull(message) : result;
             }
+
+            @Override
+            public HandlerMethodPlan<M> getHandlerMethodPlanOrNull(M message) {
+                HandlerMethodPlan<M> result = first.getHandlerMethodPlanOrNull(message);
+                return result == null ? next.getHandlerMethodPlanOrNull(message) : result;
+            }
+
+            @Override
+            public HandlerMethodPlanner<M> getHandlerMethodPlanner() {
+                return null;
+            }
         };
     }
 
@@ -163,6 +201,16 @@ public interface Handler<M> {
 
         @Override
         public HandlerMethod<M> getHandlerMethodOrNull(M message) {
+            return null;
+        }
+
+        @Override
+        public HandlerMethodPlan<M> getHandlerMethodPlanOrNull(M message) {
+            return null;
+        }
+
+        @Override
+        public HandlerMethodPlanner<M> getHandlerMethodPlanner() {
             return null;
         }
 

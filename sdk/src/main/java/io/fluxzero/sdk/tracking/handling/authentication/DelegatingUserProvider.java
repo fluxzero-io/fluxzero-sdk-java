@@ -26,6 +26,11 @@ public class DelegatingUserProvider implements RefreshingUserProvider<User> {
     protected final UserProvider delegate;
 
     @Override
+    public boolean requiresMessageBasedLocalResolution() {
+        return delegate.requiresMessageBasedLocalResolution();
+    }
+
+    @Override
     public User getActiveUser() {
         return delegate.getActiveUser();
     }
