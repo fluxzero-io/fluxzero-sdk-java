@@ -44,32 +44,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "handle",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#handle",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "invoker",
-      "type" : "io.fluxzero.common.handling.HandlerInvoker",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "action",
-      "type" : "java.util.function.Supplier<java.lang.Object>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "interceptHandling",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#interceptHandling",
     "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
@@ -136,6 +110,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#prepare",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "reportError",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#reportError",
     "returnType" : "void",
@@ -162,21 +155,16 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "wrap",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#wrap",
-    "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "name" : "supportsPreparation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#supportsPreparation",
+    "returnType" : "boolean",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "handler",
-      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -188,12 +176,6 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor$HandlerErrorPolicy",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "ReportingHandlerMethod",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor$ReportingHandlerMethod",
-    "kind" : "class",
-    "modifiers" : [ "private" ],
     "annotations" : [ ]
   } ]
 }

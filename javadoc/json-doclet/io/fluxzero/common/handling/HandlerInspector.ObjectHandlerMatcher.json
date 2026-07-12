@@ -4,15 +4,28 @@
   "packageName" : "io.fluxzero.common.handling",
   "kind" : "class",
   "modifiers" : [ "public", "static" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " A composite {@link HandlerMatcher} that delegates to a list of individual matchers.\n <p>\n Supports invoking one or multiple methods depending on configuration.\n </p>\n",
   "typeParameters" : [ "M" ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>" ],
   "fields" : [ {
+    "name" : "applicabilityKeyResolvers",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.applicabilityKeyResolvers",
+    "type" : "java.util.List<io.fluxzero.common.handling.KeyedParameterResolver<? super M>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "instanceSelectionCache",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.instanceSelectionCache",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,java.lang.Integer>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "invokeMultipleMethods",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.invokeMultipleMethods",
     "type" : "boolean",
@@ -21,10 +34,34 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "maxCacheSize",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.maxCacheSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 256
+  }, {
     "name" : "methodHandlers",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.methodHandlers",
     "type" : "java.util.List<io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "noMatch",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.noMatch",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : -1
+  }, {
+    "name" : "staticSelectionCache",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher.staticSelectionCache",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,java.lang.Integer>",
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -35,12 +72,38 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "methodHandlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invokeMultipleMethods",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "applicabilityCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#applicabilityCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "bindHandlerMethod",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#bindHandlerMethod",
     "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
@@ -75,6 +138,22 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "findApplicabilityKeyResolvers",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#findApplicabilityKeyResolvers",
+    "returnType" : "java.util.List<io.fluxzero.common.handling.KeyedParameterResolver<? super M>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -145,8 +224,78 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "selectInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#selectInvoker",
+    "returnType" : "io.fluxzero.common.handling.HandlerInspector.ObjectHandlerMatcher.SelectedInvoker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectInvokerUncached",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#selectInvokerUncached",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectionCache",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#selectionCache",
+    "returnType" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,java.lang.Integer>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "instanceTarget",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "CompositeApplicabilityKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher$CompositeApplicabilityKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SelectedInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher$SelectedInvoker",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

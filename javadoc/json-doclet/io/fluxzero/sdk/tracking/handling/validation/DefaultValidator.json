@@ -15,7 +15,7 @@
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Application property that switches bean validation for no-argument methods to JavaBean/Hibernate-compatible\n getter naming only. When set to {@code true}, only annotated {@code getX()}, {@code isX()}, and\n {@code hasX()} methods are treated as bean properties. The default is {@code false}, so any annotated\n no-argument method with a return value is validated.\n",
+    "documentation" : " Application property that switches bean validation for no-argument methods to JavaBean/Hibernate-compatible\n getter naming only. When set to {@code true}, only annotated {@code getX()}, {@code isX()}, and\n {@code hasX()} methods are treated as bean properties. The default is {@code false}, so any annotated\n no-argument method with a return value is validated. The setting is read when the validator is constructed.\n",
     "constantValue" : "fluxzero.validation.beanPropertyMethodNamesOnly"
   } ],
   "constructors" : [ {

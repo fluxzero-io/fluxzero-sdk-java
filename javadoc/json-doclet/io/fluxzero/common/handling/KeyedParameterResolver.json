@@ -1,0 +1,92 @@
+{
+  "name" : "KeyedParameterResolver",
+  "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Optional extension for dynamic parameter resolvers whose applicability can be safely reused for messages with the\n same low-cardinality key.\n\n <p>The key must fully describe every message-dependent fact used to decide whether this resolver matches or rejects\n the parameter. The returned {@link Resolution#resolver()} must be thread-safe and reusable for every message that\n produces an equal key; it must never capture the representative message or a value obtained from it. Returning\n {@code null} from {@link #getCacheKey(Object)} disables caching for that message.</p>\n\n <p>Resolved parameter values themselves are never cached. Handler matching only caches the resolution recipe and\n applies its value resolver to the current message.</p>\n\n @param <M> message type accepted by the resolver\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<M>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver#getCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an immutable, equality-stable and preferably low-cardinality applicability key.\n\n @param value current message\n @return cache key, or {@code null} when this message must be evaluated dynamically\n"
+  }, {
+    "name" : "isCacheKeyRelevant",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver#isCacheKeyRelevant",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this resolver's key can affect applicability for the supplied parameter.\n\n <p>Returning {@code false} promises that {@link #resolveForKey} always returns\n {@link Resolution#unmatched()} for this parameter. This lets handler-level selection caches omit irrelevant\n resolver keys.</p>\n"
+  }, {
+    "name" : "resolveForKey",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver#resolveForKey",
+    "returnType" : "io.fluxzero.common.handling.KeyedParameterResolver.Resolution<M>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cacheKey",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes a reusable resolution recipe for the supplied key.\n\n @param parameter        handler method parameter\n @param methodAnnotation handler method annotation\n @param value            representative message for the key\n @param cacheKey         key returned by {@link #getCacheKey(Object)}\n @return reusable resolution outcome\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Resolution",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

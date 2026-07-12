@@ -11,7 +11,7 @@
   "documentation" : " Resolves parameters annotated with {@link Trigger} by loading the original trigger message that caused the current\n handler method to execute. This allows handlers to access the originating message of a scheduled or chained\n invocation.\n\n <p>This class functions both as a {@link ParameterResolver} and a {@link MessageFilter}, enabling it to:\n <ul>\n   <li>Filter which messages should invoke the method based on trigger metadata (e.g., original class, message type, consumer).</li>\n   <li>Inject the original triggering message (or just its payload) into parameters annotated with {@code @Trigger}.</li>\n </ul>\n\n <p>The resolver extracts correlation metadata from the message, such as:\n <ul>\n   <li>{@code _trigger}: The fully qualified class name of the triggering message’s payload.</li>\n   <li>{@code _triggerType}: The {@link MessageType} of the trigger (e.g., COMMAND, EVENT, etc.).</li>\n   <li>{@code _consumer}: (Optional) Name of the client that originally consumed the trigger.</li>\n   <li>{@code _correlation}: A message index pointing to the trigger message in the Runtime.</li>\n </ul>\n\n <p>The trigger message is then looked up and injected into the handler parameter as:\n <ul>\n   <li>A {@link DeserializingMessage} if the parameter is of that type.</li>\n   <li>A {@link Message} if the parameter type implements {@link HasMessage}.</li>\n   <li>The original payload otherwise (i.e., when using the concrete payload type).</li>\n </ul>\n\n <p>\n If trigger information is missing, does not match the {@code @Trigger} filter, or cannot be resolved,\n the parameter will be set to {@code null}.\n\n @see Trigger\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>", "io.fluxzero.common.handling.ParameterResolver<io.fluxzero.sdk.common.HasMessage>" ],
+  "interfaces" : [ "io.fluxzero.common.handling.KeyedParameterResolver<io.fluxzero.sdk.common.HasMessage>", "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>" ],
   "fields" : [ {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver.client",
@@ -89,6 +89,25 @@
     }, {
       "name" : "correlationDataProvider",
       "type" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -249,6 +268,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isCacheKeyRelevant",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#isCacheKeyRelevant",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#matches",
     "returnType" : "boolean",
@@ -355,6 +398,40 @@
     "varArgs" : false,
     "documentation" : " Resolves the value to inject into a parameter annotated with {@link Trigger}.\n\n <p>The method extracts correlation metadata from the message and attempts to:\n <ul>\n   <li>Read the original trigger message from the Runtime using its index and type</li>\n   <li>Match the class and constraints in the {@code @Trigger} annotation</li>\n   <li>Inject the trigger message as either:\n       <ul>\n           <li>A {@link DeserializingMessage}</li>\n           <li>A {@link Message}</li>\n           <li>Just the payload</li>\n       </ul>\n   </li>\n </ul>\n\n @param p                the parameter to resolve\n @param methodAnnotation the annotation present on the enclosing method\n @return a function that retrieves the resolved parameter value from the current message context\n"
   }, {
+    "name" : "resolveForKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#resolveForKey",
+    "returnType" : "io.fluxzero.common.handling.KeyedParameterResolver.Resolution<io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cacheKey",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "test",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#test",
     "returnType" : "boolean",
@@ -435,6 +512,12 @@
     "name" : "TriggerMetadata",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerMetadata",
     "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "TriggerShape",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerShape",
+    "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]

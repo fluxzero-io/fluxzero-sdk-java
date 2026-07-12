@@ -58,7 +58,7 @@
     "file" : "HandlerInspector.MethodHandlerMatcher.ParameterResolverPlan.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.ParameterResolverPlan",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$ParameterResolverPlan",
-    "kind" : "record"
+    "kind" : "class"
   }, {
     "file" : "HandlerInspector.MethodHandlerMatcher.Specificity.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.Specificity",
@@ -84,6 +84,16 @@
     "name" : "HandlerInspector.ObjectHandlerMatcher",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher",
     "kind" : "class"
+  }, {
+    "file" : "HandlerInspector.ObjectHandlerMatcher.CompositeApplicabilityKey.json",
+    "name" : "HandlerInspector.ObjectHandlerMatcher.CompositeApplicabilityKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher$CompositeApplicabilityKey",
+    "kind" : "record"
+  }, {
+    "file" : "HandlerInspector.ObjectHandlerMatcher.SelectedInvoker.json",
+    "name" : "HandlerInspector.ObjectHandlerMatcher.SelectedInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher$SelectedInvoker",
+    "kind" : "record"
   }, {
     "file" : "HandlerInvoker.json",
     "name" : "HandlerInvoker",
@@ -114,6 +124,16 @@
     "name" : "HandlerMethod.DelegatingHandlerMethod",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod$DelegatingHandlerMethod",
     "kind" : "class"
+  }, {
+    "file" : "KeyedParameterResolver.json",
+    "name" : "KeyedParameterResolver",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver",
+    "kind" : "interface"
+  }, {
+    "file" : "KeyedParameterResolver.Resolution.json",
+    "name" : "KeyedParameterResolver.Resolution",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution",
+    "kind" : "record"
   }, {
     "file" : "MessageFilter.json",
     "name" : "MessageFilter",

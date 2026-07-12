@@ -280,6 +280,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver",
     "kind" : "class"
   }, {
+    "file" : "PayloadParameterResolver.PayloadShape.json",
+    "name" : "PayloadParameterResolver.PayloadShape",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver$PayloadShape",
+    "kind" : "record"
+  }, {
     "file" : "RepositoryProvider.json",
     "name" : "RepositoryProvider",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
@@ -394,6 +399,11 @@
     "name" : "TriggerParameterResolver.TriggerMetadata",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerMetadata",
     "kind" : "class"
+  }, {
+    "file" : "TriggerParameterResolver.TriggerShape.json",
+    "name" : "TriggerParameterResolver.TriggerShape",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerShape",
+    "kind" : "record"
   } ],
   "subdirectories" : [ {
     "name" : "authentication",

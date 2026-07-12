@@ -215,9 +215,6 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher",
     "kind" : "class",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.AllArgsConstructor",
-      "values" : {}
-    } ]
+    "annotations" : [ ]
   } ]
 }
