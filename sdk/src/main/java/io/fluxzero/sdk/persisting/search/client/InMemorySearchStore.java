@@ -63,8 +63,8 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
-import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
+import static io.fluxzero.common.api.search.SearchCollectionType.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollectionType.regular;
 import static java.util.Comparator.comparing;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.groupingBy;

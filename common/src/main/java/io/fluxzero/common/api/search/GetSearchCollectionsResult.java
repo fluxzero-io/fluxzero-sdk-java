@@ -19,8 +19,8 @@ import lombok.Value;
 
 import java.util.List;
 
-import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
-import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
+import static io.fluxzero.common.api.search.SearchCollectionType.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollectionType.regular;
 
 /**
  * Response to a {@link GetSearchCollections} request.

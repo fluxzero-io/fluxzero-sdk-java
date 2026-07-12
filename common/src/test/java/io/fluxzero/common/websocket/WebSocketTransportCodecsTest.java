@@ -37,6 +37,7 @@ import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
 import io.fluxzero.common.api.search.SearchCollection;
+import io.fluxzero.common.api.search.SearchCollectionType;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.api.tracking.ReadFromIndex;
@@ -50,9 +51,9 @@ import java.util.List;
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
-import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
-import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
-import static io.fluxzero.common.api.search.SearchCollection.Type.unknown;
+import static io.fluxzero.common.api.search.SearchCollectionType.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollectionType.regular;
+import static io.fluxzero.common.api.search.SearchCollectionType.unknown;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -151,7 +152,7 @@ class WebSocketTransportCodecsTest {
 
     @Test
     void standardMapperRemainsStrictForEnumsWithoutExplicitDefault() throws Exception {
-        assertEquals(unknown, JsonUtils.writer.readValue("\"futureX\"", SearchCollection.Type.class));
+        assertEquals(unknown, JsonUtils.writer.readValue("\"futureX\"", SearchCollectionType.class));
         assertThrows(InvalidFormatException.class,
                      () -> JsonUtils.writer.readValue("\"futureX\"", StrictType.class));
     }

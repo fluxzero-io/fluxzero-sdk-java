@@ -76,8 +76,8 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
-import static io.fluxzero.common.api.search.SearchCollection.Type.auditTrail;
-import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
+import static io.fluxzero.common.api.search.SearchCollectionType.auditTrail;
+import static io.fluxzero.common.api.search.SearchCollectionType.regular;
 import static io.fluxzero.common.api.search.constraints.AnyConstraint.any;
 import static io.fluxzero.common.api.search.constraints.BetweenConstraint.atLeast;
 import static io.fluxzero.common.api.search.constraints.BetweenConstraint.below;

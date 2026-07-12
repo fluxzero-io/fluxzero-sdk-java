@@ -29,6 +29,7 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
+import io.fluxzero.common.api.search.SearchCollectionType;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -82,7 +83,7 @@ import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.delete;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.index;
-import static io.fluxzero.common.api.search.SearchCollection.Type.regular;
+import static io.fluxzero.common.api.search.SearchCollectionType.regular;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -442,7 +443,7 @@ class TestServerWebsocketContractTest {
             assertEquals(List.of(new SearchCollection(collection, regular)), search.getSearchCollections());
             await(search.index(List.of(document("audit-1", auditTrail, "audit", Set.of())), STORED, false));
             assertEquals(List.of(new SearchCollection(collection, regular),
-                                 new SearchCollection(auditTrail, SearchCollection.Type.auditTrail)),
+                                 new SearchCollection(auditTrail, SearchCollectionType.auditTrail)),
                          search.getSearchCollections());
             await(search.move("doc-1", collection, movedCollection, STORED));
             assertFalse(search.documentExists(new HasDocument("doc-1", collection)));

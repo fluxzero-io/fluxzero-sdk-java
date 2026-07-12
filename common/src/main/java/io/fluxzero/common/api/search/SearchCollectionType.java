@@ -14,22 +14,25 @@
 
 package io.fluxzero.common.api.search;
 
-import lombok.NonNull;
-import lombok.Value;
+import com.fasterxml.jackson.annotation.JsonEnumDefaultValue;
 
 /**
- * Describes an existing search collection and its storage type.
+ * Supported search collection types.
  */
-@Value
-public class SearchCollection {
+public enum SearchCollectionType {
+    /**
+     * A regular document collection.
+     */
+    regular,
 
     /**
-     * Name of the collection.
+     * A time-partitioned searchable audit trail.
      */
-    @NonNull String name;
+    auditTrail,
 
     /**
-     * Storage type of the collection.
+     * A collection type that is unknown to this SDK version.
      */
-    @NonNull SearchCollectionType type;
+    @JsonEnumDefaultValue
+    unknown
 }
