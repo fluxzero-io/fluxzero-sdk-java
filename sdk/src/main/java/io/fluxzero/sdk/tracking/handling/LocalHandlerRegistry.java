@@ -122,6 +122,9 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     @SuppressWarnings("unchecked")
     @Override
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
+        if (handlerFactory instanceof DefaultHandlerFactory defaultHandlerFactory) {
+            defaultHandlerFactory.setRegisteredHandlerTypePredicate(registeredClassHandlers::contains);
+        }
         if (target instanceof Handler<?>) {
             localHandlers.add((Handler<DeserializingMessage>) target);
             invalidatePlans();

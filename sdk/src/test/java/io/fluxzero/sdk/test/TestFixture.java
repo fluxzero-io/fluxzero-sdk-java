@@ -1926,8 +1926,6 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         Class<?> payloadClass = message.getPayloadClass();
         if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)
-            && registeredTrackSelfHandlers.stream()
-                .noneMatch(handlerType -> handlerType.isAssignableFrom(payloadClass))
             && registeredTrackSelfHandlers.add(payloadClass)) {
             registration = registration.merge(fluxzero.registerHandlers(payloadClass));
         }

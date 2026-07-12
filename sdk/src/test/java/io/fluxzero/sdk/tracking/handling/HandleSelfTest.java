@@ -30,6 +30,12 @@ import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.ArrayList;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -144,6 +150,36 @@ class HandleSelfTest {
         }
 
         testFixture.whenQuery(new SelfTracked("foo")).expectResult("bar");
+    }
+
+    @ParameterizedTest(name = "sync={0}, interface={1}, concrete={2}, superclass={3}")
+    @MethodSource("trackSelfRegistrationVariants")
+    void trackSelfSpecializationHandledExactlyOnceRegardlessOfRegistration(
+            boolean synchronous, boolean registerInterface, boolean registerConcrete,
+            boolean specializedSuperclass) {
+        TestFixture fixture = synchronous ? TestFixture.create() : TestFixture.createAsync();
+        Object command = specializedSuperclass
+                ? new TrackSelfTests.ConcreteTrackedSpecialization()
+                : new TrackSelfTests.UnregisteredTrackedSpecialization();
+        var handlers = new ArrayList<Object>();
+        if (registerInterface) {
+            handlers.add(TrackSelfTests.TrackedInterface.class);
+        }
+        if (registerConcrete) {
+            handlers.add(command.getClass());
+        }
+
+        fixture.registerHandlers(handlers).whenCommand(command)
+                .expectOnlyEvents(specializedSuperclass ? "specialized superclass" : "specialized");
+    }
+
+    static Stream<Arguments> trackSelfRegistrationVariants() {
+        return Stream.of(false, true).flatMap(synchronous ->
+                Stream.of(false, true).flatMap(registerInterface ->
+                        Stream.of(false, true).flatMap(registerConcrete ->
+                                Stream.of(false, true).map(specializedSuperclass -> Arguments.of(
+                                        synchronous, registerInterface, registerConcrete,
+                                        specializedSuperclass)))));
     }
 
     @Test
@@ -348,6 +384,34 @@ class HandleSelfTest {
                 secondRegistration.cancel();
                 fluxzero.close(true);
             }
+        }
+
+        @TrackSelf
+        interface TrackedInterface {
+            @HandleCommand
+            default void handleSelf() {
+                Fluxzero.publishEvent("interface");
+            }
+        }
+
+        @TrackSelf
+        static class UnregisteredTrackedSpecialization implements TrackedInterface {
+            @Override
+            @HandleCommand
+            public void handleSelf() {
+                Fluxzero.publishEvent("specialized");
+            }
+        }
+
+        abstract static class TrackedSpecializedSuperclass implements TrackedInterface {
+            @Override
+            @HandleCommand
+            public void handleSelf() {
+                Fluxzero.publishEvent("specialized superclass");
+            }
+        }
+
+        static class ConcreteTrackedSpecialization extends TrackedSpecializedSuperclass {
         }
     }
 }

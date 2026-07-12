@@ -43,6 +43,7 @@ import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
+import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
@@ -98,6 +99,7 @@ import static java.lang.String.format;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Default implementation of the {@link Tracking} interface that coordinates message tracking for a specific
@@ -150,6 +152,7 @@ public class DefaultTracking implements Tracking {
     private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
+    private final ConcurrentHashMap<Class<?>, Integer> registeredHandlerTypes = new ConcurrentHashMap<>();
 
     /**
      * Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared
@@ -167,33 +170,69 @@ public class DefaultTracking implements Tracking {
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
         return fluxzero.apply(fc -> {
-            Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fc, handlers);
-            Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
-            assignedHandlers.forEach((config, matches) ->
-                    matches.forEach(target -> consumersByHandler.computeIfAbsent(target, t -> new ArrayList<>())
-                            .add(config)));
-            Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> consumers =
-                    assignedHandlers.entrySet().stream().flatMap(e -> {
-                        List<Handler<DeserializingMessage>> converted = e.getValue().stream().flatMap(target -> {
-                            HandlerDecorator decorator =
-                                    conditionalExclusivityDecorator(e.getKey(), consumersByHandler.get(target));
-                            if (target instanceof Handler<?> handler) {
-                                return Stream.of(decorator.wrap((Handler<DeserializingMessage>) handler));
-                            }
-                            return handlerFactory.createHandler(target, handlerFilter,
-                                                                e.getKey().getHandlerInterceptors())
-                                    .map(decorator::wrap).stream();
-                        }).collect(toList());
-                        return converted.isEmpty() ? Stream.empty() :
-                                Stream.of(new SimpleEntry<>(e.getKey(), converted));
-                    }).collect(toMap(Entry::getKey, Entry::getValue));
-
-            Registration registration = consumers.entrySet().stream()
-                    .map(e -> registerConsumerHandlers(e.getKey(), e.getValue(), fc))
-                    .reduce(Registration::merge).orElse(Registration.noOp());
-            shutdownFunction.updateAndGet(r -> r.merge(registration));
-            return registration;
+            if (handlerFactory instanceof DefaultHandlerFactory defaultHandlerFactory) {
+                defaultHandlerFactory.setRegisteredHandlerTypePredicate(registeredHandlerTypes::containsKey);
+            }
+            Set<Class<?>> handlerTypes = handlers.stream().map(handler -> handler instanceof Handler<?> h
+                            ? h.getTargetClass() : ReflectionUtils.asClass(handler))
+                    .filter(Objects::nonNull).collect(toSet());
+            handlerTypes.forEach(type -> registeredHandlerTypes.merge(type, 1, Integer::sum));
+            try {
+                return startHandlers(fc, handlers, handlerTypes);
+            } catch (RuntimeException | Error e) {
+                unregisterHandlerTypes(handlerTypes);
+                throw e;
+            }
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
+        Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
+        Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
+        assignedHandlers.forEach((config, matches) ->
+                matches.forEach(target -> consumersByHandler.computeIfAbsent(target, t -> new ArrayList<>())
+                        .add(config)));
+        Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> consumers =
+                assignedHandlers.entrySet().stream().flatMap(e -> {
+                    List<Handler<DeserializingMessage>> converted = e.getValue().stream().flatMap(target -> {
+                        HandlerDecorator decorator =
+                                conditionalExclusivityDecorator(e.getKey(), consumersByHandler.get(target));
+                        if (target instanceof Handler<?> handler) {
+                            return Stream.of(decorator.wrap((Handler<DeserializingMessage>) handler));
+                        }
+                        return handlerFactory.createHandler(target, handlerFilter,
+                                                            e.getKey().getHandlerInterceptors())
+                                .map(decorator::wrap).stream();
+                    }).collect(toList());
+                    return converted.isEmpty() ? Stream.empty() :
+                            Stream.of(new SimpleEntry<>(e.getKey(), converted));
+                }).collect(toMap(Entry::getKey, Entry::getValue));
+
+        Registration handlerRegistration = consumers.entrySet().stream()
+                .map(e -> registerConsumerHandlers(e.getKey(), e.getValue(), fluxzero))
+                .reduce(Registration::merge).orElse(Registration.noOp());
+        Registration registration = registrationWithHandlerTypes(handlerRegistration, handlerTypes);
+        shutdownFunction.updateAndGet(r -> r.merge(registration));
+        return registration;
+    }
+
+    private Registration registrationWithHandlerTypes(Registration handlerRegistration, Set<Class<?>> handlerTypes) {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        return () -> {
+            if (cancelled.compareAndSet(false, true)) {
+                try {
+                    handlerRegistration.cancel();
+                } finally {
+                    unregisterHandlerTypes(handlerTypes);
+                }
+            }
+        };
+    }
+
+    private void unregisterHandlerTypes(Set<Class<?>> handlerTypes) {
+        handlerTypes.forEach(type -> registeredHandlerTypes.computeIfPresent(
+                type, (ignored, count) -> count == 1 ? null : count - 1));
     }
 
     private Registration registerConsumerHandlers(ConsumerConfiguration configuration,

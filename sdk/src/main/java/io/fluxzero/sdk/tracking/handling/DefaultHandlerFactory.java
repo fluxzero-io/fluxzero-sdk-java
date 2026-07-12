@@ -53,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -123,6 +124,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final RepositoryProvider repositoryProvider;
     private final boolean trackingMetricsEnabled;
     private final Serializer serializer;
+    private volatile Predicate<Class<?>> registeredHandlerType = ignored -> false;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
     private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
@@ -165,6 +167,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
                         : handler)
                 .map(handlerDecorator::wrap);
+    }
+
+    /**
+     * Configures how this factory determines whether a handler type is currently registered.
+     *
+     * <p>This is used to prefer a concrete self-tracking specialization over a registered base type without
+     * suppressing explicitly registered base handlers when the specialization itself is absent.</p>
+     *
+     * @param registeredHandlerType predicate that returns {@code true} for active handler types
+     */
+    public void setRegisteredHandlerTypePredicate(Predicate<Class<?>> registeredHandlerType) {
+        this.registeredHandlerType = registeredHandlerType;
     }
 
     protected boolean isHandler(Class<?> targetClass,
@@ -246,14 +260,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
     }
 
     private boolean hasMoreSpecificTrackSelfHandlerType(Class<?> handlerType, Class<?> payloadType) {
+        if (!payloadType.equals(handlerType) && registeredHandlerType.test(payloadType)) {
+            return true;
+        }
         for (Class<?> type = payloadType; type != null; type = type.getSuperclass()) {
             if (!type.equals(handlerType) && handlerType.isAssignableFrom(type)
-                && isTrackSelfHandlerSpecialization(type)) {
+                && registeredHandlerType.test(type) && isTrackSelfHandlerSpecialization(type)) {
                 return true;
             }
         }
         return ReflectionUtils.getAllInterfaces(payloadType).stream()
                 .filter(type -> !type.equals(handlerType) && handlerType.isAssignableFrom(type))
+                .filter(registeredHandlerType)
                 .anyMatch(this::isTrackSelfHandlerSpecialization);
     }
 
