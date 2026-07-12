@@ -26,7 +26,7 @@
   }, {
     "name" : "type",
     "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection.type",
-    "type" : "io.fluxzero.common.api.search.SearchCollection.@lombok.NonNull Type",
+    "type" : "io.fluxzero.common.api.search.@lombok.NonNull SearchCollectionType",
     "modifiers" : [ ],
     "annotations" : [ {
       "annotationType" : "lombok.NonNull",
@@ -49,11 +49,5 @@
   "methods" : [ ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ {
-    "name" : "Type",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type",
-    "kind" : "enum",
-    "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ ]
-  } ]
+  "nestedTypes" : [ ]
 }

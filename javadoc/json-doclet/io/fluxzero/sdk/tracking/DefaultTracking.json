@@ -88,6 +88,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "registeredHandlerTypes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.registeredHandlerTypes",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,java.lang.Integer>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "resultGateway",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.resultGateway",
     "type" : "io.fluxzero.sdk.publishing.ResultGateway",
@@ -1021,6 +1029,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "registrationWithHandlerTypes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#registrationWithHandlerTypes",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerRegistration",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerTypes",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "releaseTrackingTopics",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#releaseTrackingTopics",
     "returnType" : "void",
@@ -1277,6 +1306,37 @@
     "varArgs" : false,
     "documentation" : " Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared\n trackers.\n <p>\n Throws a {@link TrackingException} if handlers can't be matched to consumers.\n\n @param fluxzero the owning {@link Fluxzero} instance\n @param handlers      the handler instances to assign and activate\n @return a {@link Registration} that can be used to stop all created trackers\n @throws TrackingException if no consumer is found for a handler\n"
   }, {
+    "name" : "startHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#startHandlers",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerTypes",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "startTracking",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#startTracking",
     "returnType" : "io.fluxzero.common.Registration",
@@ -1476,6 +1536,22 @@
     }, {
       "name" : "topics",
       "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unregisterHandlerTypes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#unregisterHandlerTypes",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerTypes",
+      "type" : "java.util.Set<java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

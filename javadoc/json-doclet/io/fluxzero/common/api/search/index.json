@@ -200,9 +200,9 @@
     "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection",
     "kind" : "class"
   }, {
-    "file" : "SearchCollection.Type.json",
-    "name" : "SearchCollection.Type",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type",
+    "file" : "SearchCollectionType.json",
+    "name" : "SearchCollectionType",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType",
     "kind" : "enum"
   }, {
     "file" : "SearchDocuments.json",

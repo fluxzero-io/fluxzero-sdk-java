@@ -82,6 +82,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "registeredHandlerType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.registeredHandlerType",
+    "type" : "java.util.function.Predicate<java.lang.Class<?>>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "repositoryProvider",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.repositoryProvider",
     "type" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
@@ -436,6 +444,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "setRegisteredHandlerTypePredicate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#setRegisteredHandlerTypePredicate",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "registeredHandlerType",
+      "type" : "java.util.function.Predicate<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures how this factory determines whether a handler type is currently registered.\n\n <p>This is used to prefer a concrete self-tracking specialization over a registered base type without\n suppressing explicitly registered base handlers when the specialization itself is absent.</p>\n\n @param registeredHandlerType predicate that returns {@code true} for active handler types\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

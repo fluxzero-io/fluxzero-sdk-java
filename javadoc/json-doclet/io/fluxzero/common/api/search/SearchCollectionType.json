@@ -1,18 +1,18 @@
 {
-  "name" : "Type",
-  "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type",
+  "name" : "SearchCollectionType",
+  "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType",
   "packageName" : "io.fluxzero.common.api.search",
   "kind" : "enum",
-  "modifiers" : [ "final", "public", "static" ],
+  "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
   "documentation" : " Supported search collection types.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Enum<io.fluxzero.common.api.search.SearchCollection.Type>",
+  "superClass" : "java.lang.Enum<io.fluxzero.common.api.search.SearchCollectionType>",
   "interfaces" : [ ],
   "fields" : [ ],
   "constructors" : [ {
-    "name" : "Type",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type#Type",
+    "name" : "SearchCollectionType",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType#SearchCollectionType",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -23,8 +23,8 @@
   } ],
   "methods" : [ {
     "name" : "valueOf",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type#valueOf",
-    "returnType" : "io.fluxzero.common.api.search.SearchCollection.Type",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType#valueOf",
+    "returnType" : "io.fluxzero.common.api.search.SearchCollectionType",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -39,8 +39,8 @@
     "documentation" : null
   }, {
     "name" : "values",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type#values",
-    "returnType" : "io.fluxzero.common.api.search.SearchCollection.Type[]",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType#values",
+    "returnType" : "io.fluxzero.common.api.search.SearchCollectionType[]",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -51,17 +51,17 @@
   } ],
   "enumConstants" : [ {
     "name" : "auditTrail",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type.auditTrail",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType.auditTrail",
     "annotations" : [ ],
     "documentation" : " A time-partitioned searchable audit trail.\n"
   }, {
     "name" : "regular",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type.regular",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType.regular",
     "annotations" : [ ],
     "documentation" : " A regular document collection.\n"
   }, {
     "name" : "unknown",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollection$Type.unknown",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchCollectionType.unknown",
     "annotations" : [ {
       "annotationType" : "com.fasterxml.jackson.annotation.JsonEnumDefaultValue",
       "values" : {}
