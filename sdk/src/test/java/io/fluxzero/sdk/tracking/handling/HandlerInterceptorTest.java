@@ -29,6 +29,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -140,6 +141,24 @@ class HandlerInterceptorTest {
         assertEquals("handled:second", wrapped.getInvokerOrNull(message("second")).invoke());
 
         assertEquals(1, interceptor.prepareCount.get());
+    }
+
+    @Test
+    void releasesPreparedHandlerAfterCachingMethodPolicy() throws InterruptedException {
+        WeakReference<Handler<DeserializingMessage>> reference = preparedHandlerReference();
+
+        for (int i = 0; i < 20 && reference.get() != null; i++) {
+            System.gc();
+            Thread.sleep(10);
+        }
+
+        assertNull(reference.get(), "The prepared policy cache should not retain its owning handler");
+    }
+
+    private static WeakReference<Handler<DeserializingMessage>> preparedHandlerReference() {
+        Handler<DeserializingMessage> wrapped = new CountingPreparedInterceptor().wrap(handler(new PlainHandler()));
+        assertEquals("handled:input", wrapped.getInvokerOrNull(message("input")).invoke());
+        return new WeakReference<>(wrapped);
     }
 
     @Test

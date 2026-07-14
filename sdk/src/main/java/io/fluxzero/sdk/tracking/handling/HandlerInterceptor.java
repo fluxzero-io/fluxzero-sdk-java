@@ -407,13 +407,13 @@ public interface HandlerInterceptor extends HandlerDecorator {
     class PreparedInterceptedHandler implements Handler<DeserializingMessage> {
         private final Handler<DeserializingMessage> delegate;
         private final List<HandlerInterceptor> interceptors;
-        private final ClassValue<ConcurrentHashMap<Executable, PreparedInterceptorPlan>>
-                preparedInterceptors = new ClassValue<>() {
-            @Override
-            protected ConcurrentHashMap<Executable, PreparedInterceptorPlan> computeValue(Class<?> type) {
-                return new ConcurrentHashMap<>();
-            }
-        };
+        /*
+         * Reflection metadata used while preparing a policy is cached centrally by ReflectionUtils. The resulting
+         * plan, however, contains interceptor instances and therefore belongs to this wrapper. Keeping that plan in
+         * an instance-owned ClassValue would let a target Class retain the plan, which in turn retains this wrapper.
+         */
+        private final ConcurrentHashMap<PreparedPolicyKey, PreparedInterceptorPlan> preparedInterceptors =
+                new ConcurrentHashMap<>();
         private final ConcurrentHashMap<HandlerMethod<DeserializingMessage>,
                 Optional<HandlerMethod<DeserializingMessage>>> interceptedMethods = new ConcurrentHashMap<>();
         private volatile PreparedPolicyEntry lastPreparedPolicy;
@@ -647,8 +647,13 @@ public interface HandlerInterceptor extends HandlerDecorator {
             if (cached != null && cached.targetClass() == targetClass && cached.method() == method) {
                 return cached.plan();
             }
-            PreparedInterceptorPlan result = preparedInterceptors.get(targetClass).computeIfAbsent(
-                    method, ignored -> prepareInterceptors(handler));
+            return cachePreparedInterceptors(handler, targetClass, method);
+        }
+
+        private PreparedInterceptorPlan cachePreparedInterceptors(
+                HandlerDescriptor handler, Class<?> targetClass, Executable method) {
+            PreparedInterceptorPlan result = preparedInterceptors.computeIfAbsent(
+                    new PreparedPolicyKey(targetClass, method), ignored -> prepareInterceptors(handler));
             lastPreparedPolicy = new PreparedPolicyEntry(targetClass, method, result);
             return result;
         }
@@ -704,6 +709,9 @@ public interface HandlerInterceptor extends HandlerDecorator {
 
         private record PreparedPolicyEntry(Class<?> targetClass, Executable method,
                                            PreparedInterceptorPlan plan) {
+        }
+
+        private record PreparedPolicyKey(Class<?> targetClass, Executable method) {
         }
 
         private record PreparedMethodEntry(HandlerMethod<DeserializingMessage> source,
