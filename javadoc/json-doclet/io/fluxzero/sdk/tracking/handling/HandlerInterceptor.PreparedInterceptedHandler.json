@@ -52,7 +52,7 @@
   }, {
     "name" : "preparedInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler.preparedInterceptors",
-    "type" : "java.lang.ClassValue<java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Executable,io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan>>",
+    "type" : "java.util.concurrent.ConcurrentHashMap<io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedPolicyKey,io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -100,6 +100,32 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "cachePreparedInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#cachePreparedInterceptors",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedInterceptedHandler.PreparedInterceptorPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getHandlerMethodOrNull",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler#getHandlerMethodOrNull",
     "returnType" : "io.fluxzero.common.handling.HandlerMethod<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
@@ -389,6 +415,12 @@
   }, {
     "name" : "PreparedPolicyEntry",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyEntry",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedPolicyKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]

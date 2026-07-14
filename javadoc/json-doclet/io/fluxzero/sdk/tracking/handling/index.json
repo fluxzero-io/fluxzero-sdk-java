@@ -200,6 +200,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyEntry",
     "kind" : "record"
   }, {
+    "file" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedPolicyKey.json",
+    "name" : "HandlerInterceptor.PreparedInterceptedHandler.PreparedPolicyKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey",
+    "kind" : "record"
+  }, {
     "file" : "HandlerRegistry.json",
     "name" : "HandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
