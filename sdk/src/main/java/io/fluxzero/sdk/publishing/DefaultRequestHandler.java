@@ -201,7 +201,6 @@ public class DefaultRequestHandler implements RequestHandler {
         if (timeout == null) {
             timeout = this.timeout;
         }
-        ScheduledFuture<?> timeoutTask = null;
         if (intermediateCallback == null) {
             List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
             intermediateCallback = intermediates::add;
@@ -216,6 +215,8 @@ public class DefaultRequestHandler implements RequestHandler {
                 return m.withData(new Data<>(allBytes, data.getType(), data.getRevision(), data.getFormat()));
             });
         }
+        callbacks.put(requestId, new ResponseCallback(intermediateCallback, rawResult));
+        ScheduledFuture<?> timeoutTask = null;
         Metadata metadata = ofNullable(request.getMetadata()).orElseGet(Metadata::empty);
         if (timeout.isNegative()) {
             request.setMetadata(metadata.without(REQUEST_TIMEOUT_METADATA_KEY));
@@ -237,7 +238,6 @@ public class DefaultRequestHandler implements RequestHandler {
                 finalTimeoutTask.cancel(false);
             }
         });
-        callbacks.put(requestId, new ResponseCallback(intermediateCallback, rawResult));
         request.setRequestId(requestId);
         request.setSource(client.id());
         return result;
