@@ -40,16 +40,31 @@ jobs:
           java-version: "25"
           cache: maven
 
-      - name: Bump version and push tag
+      - name: Find existing release tag
+        id: existing_tag
+        run: |
+          tag=$(git tag --points-at "$GITHUB_SHA" --sort=-version:refname \
+            | awk '/^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$/ { print; exit }')
+          previous_tag=""
+          if [ -n "$tag" ]; then
+            previous_tag=$(git tag --merged "$GITHUB_SHA" --sort=-version:refname \
+              | awk -v current="$tag" \
+                '/^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$/ && $0 != current { print; exit }')
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=$previous_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate release version
         uses: mathieudutour/github-tag-action@v6.2
         id: tag_version
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: minor
           tag_prefix: ""
-          custom_tag: ${{ github.event.inputs.version }}
+          custom_tag: ${{ steps.existing_tag.outputs.tag || github.event.inputs.version }}
           fetch_all_tags: true
           custom_release_rules: "deps:patch:Dependency updates"
+          dry_run: true
 
       - name: Generate release notes
         id: release_notes
@@ -57,7 +72,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.tag_version.outputs.new_version }}
           RELEASE_TAG: ${{ steps.tag_version.outputs.new_tag }}
-          PREVIOUS_TAG: ${{ steps.tag_version.outputs.previous_tag }}
+          PREVIOUS_TAG: ${{ steps.existing_tag.outputs.previous_tag || steps.tag_version.outputs.previous_tag }}
           CURRENT_REF: ${{ github.sha }}
           CUSTOM_RELEASE_RULES: "deps:patch:Dependency updates"
 
@@ -111,9 +126,45 @@ jobs:
       head_sha: ${{ github.sha }}
       head_branch: main
 
-  # Job 2: Deploy to Maven Central (runs in parallel after build)
-  maven-central:
+  # Job 2: Persist the release version only after the complete build succeeds
+  tag-release:
     needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Push release tag
+        env:
+          RELEASE_TAG: ${{ needs.build-and-test.outputs.version-tag }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "No release tag was calculated" >&2
+            exit 1
+          fi
+
+          git fetch origin --force --tags
+          tag_ref="refs/tags/$RELEASE_TAG"
+          if git show-ref --verify --quiet "$tag_ref"; then
+            tagged_sha=$(git rev-list -n 1 "$tag_ref")
+            if [ "$tagged_sha" != "$RELEASE_SHA" ]; then
+              echo "Tag $RELEASE_TAG already points to $tagged_sha instead of $RELEASE_SHA" >&2
+              exit 1
+            fi
+            echo "Reusing existing tag $RELEASE_TAG on $RELEASE_SHA"
+          else
+            git tag "$RELEASE_TAG" "$RELEASE_SHA"
+            git push origin "$tag_ref"
+          fi
+
+  # Job 3: Deploy to Maven Central (runs in parallel after tagging)
+  maven-central:
+    needs: [build-and-test, tag-release]
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -148,16 +199,16 @@ jobs:
           MAVEN_GPG_KEY: ${{ secrets.OSSRH_SIGNING_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.OSSRH_SIGNING_PASSPHRASE }}
 
-  # Job 3: Generate and publish javadoc (runs in parallel after build)
+  # Job 4: Generate and publish javadoc (runs in parallel after tagging)
   javadoc:
-    needs: build-and-test
+    needs: [build-and-test, tag-release]
     uses: ./.github/workflows/javadoc.yml
     with:
       version: ${{ needs.build-and-test.outputs.version-tag }}
 
-  # Job 4: Create GitHub release (runs in parallel after build)
+  # Job 5: Create GitHub release (runs in parallel after tagging)
   github-release:
-    needs: build-and-test
+    needs: [build-and-test, tag-release]
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -172,16 +223,16 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.build-and-test.outputs.version }}
+          tag_name: ${{ needs.build-and-test.outputs.version-tag }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
           files: |
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
 
-  # Job 5: Notify fluxzero-site after the SDK build succeeds
+  # Job 6: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:
-    needs: build-and-test
+    needs: [build-and-test, tag-release]
     runs-on: ubuntu-latest
     steps:
       - name: Create fluxzero-site app token
@@ -214,9 +265,9 @@ jobs:
               },
             });
 
-  # Job 6: Build and push test-server Docker image (runs in parallel after build)
+  # Job 7: Build and push test-server Docker image (runs in parallel after tagging)
   docker-test-server:
-    needs: build-and-test
+    needs: [build-and-test, tag-release]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -293,9 +344,9 @@ jobs:
           tags: ${{ steps.metadata-test-server.outputs.tags }}
           labels: ${{ steps.metadata-test-server.outputs.labels }}
 
-  # Job 7: Build and push proxy Docker image (runs in parallel after build)
+  # Job 8: Build and push proxy Docker image (runs in parallel after tagging)
   docker-proxy:
-    needs: build-and-test
+    needs: [build-and-test, tag-release]
     runs-on: ubuntu-latest
     permissions:
       actions: read
