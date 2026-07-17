@@ -167,6 +167,42 @@
     "varArgs" : false,
     "documentation" : " Retrieves events for a specific aggregate starting after a given sequence number, optionally limiting the result\n size.\n"
   }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchEvents",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.eventsourcing.GetEvents,io.fluxzero.common.api.eventsourcing.GetEventsResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getRelationships",
     "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
