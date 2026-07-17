@@ -36,8 +36,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.iterate;
@@ -119,19 +119,21 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
      */
     @Override
     public AggregateEventStream<SerializedMessage> getEvents(String aggregateId, long lastSequenceNumber, int maxSize) {
+        return getEvents(aggregateId, lastSequenceNumber, maxSize, fetchBatchSize, this::sendAndWait);
+    }
+
+    static AggregateEventStream<SerializedMessage> getEvents(
+            String aggregateId, long lastSequenceNumber, int maxSize, int fetchBatchSize,
+            Function<GetEvents, GetEventsResult> fetchEvents) {
         AtomicReference<Long> highestSequenceNumber = new AtomicReference<>();
-        AtomicInteger fetchedSize = new AtomicInteger();
-        GetEventsResult firstBatch = sendAndWait(new GetEvents(
+        GetEventsResult firstBatch = fetchEvents.apply(new GetEvents(
                 aggregateId, lastSequenceNumber, maxSize <= 0 ? fetchBatchSize : maxSize));
         Stream<SerializedMessage> eventStream = iterate(
                 firstBatch,
-                r -> sendAndWait(
-                        new GetEvents(aggregateId, r.getLastSequenceNumber(),
-                                      maxSize <= 0 ? fetchBatchSize : maxSize - fetchedSize.get())),
-                r -> r.getEventBatch().getEvents().size() < fetchBatchSize)
+                r -> fetchEvents.apply(new GetEvents(aggregateId, r.getLastSequenceNumber(), fetchBatchSize)),
+                r -> maxSize > 0 || r.getEventBatch().getSize() < fetchBatchSize)
                 .flatMap(r -> {
                     if (!r.getEventBatch().isEmpty()) {
-                        fetchedSize.addAndGet(r.getEventBatch().getSize());
                         highestSequenceNumber.set(r.getLastSequenceNumber());
                     }
                     return r.getEventBatch().getEvents().stream();
