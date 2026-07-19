@@ -83,6 +83,26 @@ class DefaultTrackingAsyncResultTest {
     }
 
     @Test
+    void closeWaitsForOutstandingAsyncResults() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<String> handlerResult = new CompletableFuture<>();
+        tracking.report(
+                handlerResult, descriptor(), message(serializer), ConsumerConfiguration.builder().name("web").build());
+
+        CompletableFuture<Void> close = CompletableFuture.runAsync(tracking::close);
+        TimeUnit.MILLISECONDS.sleep(50L);
+        assertFalse(close.isDone());
+
+        handlerResult.complete("ok");
+
+        assertDoesNotThrow(() -> close.get(1, TimeUnit.SECONDS));
+        verify(resultGateway).respond("ok", "benchmark-app", 7);
+    }
+
+    @Test
     void asyncResultsCanBeAwaitedBeforeBatchCompletion() {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);

@@ -147,7 +147,7 @@ public class DefaultTracking implements Tracking {
     private final Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> startedHandlers =
             new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
-    private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
+    private final Set<CompletableFuture<?>> outstandingRequests = ConcurrentHashMap.newKeySet();
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final ThreadLocal<SegmentedBatchHandlerQueue> batchHandlerQueue = new ThreadLocal<>();
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
