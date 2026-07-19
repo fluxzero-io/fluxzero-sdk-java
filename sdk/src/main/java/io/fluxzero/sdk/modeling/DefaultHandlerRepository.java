@@ -20,6 +20,7 @@ import io.fluxzero.common.api.search.constraints.AnyConstraint;
 import io.fluxzero.common.api.search.constraints.MatchConstraint;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
@@ -55,7 +56,7 @@ import static java.util.function.Predicate.not;
  */
 @Slf4j
 @Getter(AccessLevel.PROTECTED)
-public class DefaultHandlerRepository implements HandlerRepository {
+public class DefaultHandlerRepository extends AbstractNamespaced<HandlerRepository> implements HandlerRepository {
 
     /**
      * Returns a factory function that creates a {@link HandlerRepository} for a given handler type.
@@ -100,6 +101,23 @@ public class DefaultHandlerRepository implements HandlerRepository {
                 .filter(not(String::isBlank))
                 .orElse(null);
         this.endFunction = handler -> parseTimeProperty(endPath, handler, true, () -> timestampFunction.apply(handler));
+    }
+
+    private DefaultHandlerRepository(DocumentStore documentStore, String collection, Class<?> type,
+                                     Function<Object, Instant> timestampFunction,
+                                     Function<Object, Instant> endFunction) {
+        this.documentStore = documentStore;
+        this.collection = collection;
+        this.type = type;
+        this.timestampFunction = timestampFunction;
+        this.endFunction = endFunction;
+    }
+
+    @Override
+    protected HandlerRepository createForNamespace(String namespace) {
+        DocumentStore namespacedStore = documentStore.forNamespace(namespace);
+        return namespacedStore == documentStore ? this : new DefaultHandlerRepository(
+                namespacedStore, collection, type, timestampFunction, endFunction);
     }
 
     @Override

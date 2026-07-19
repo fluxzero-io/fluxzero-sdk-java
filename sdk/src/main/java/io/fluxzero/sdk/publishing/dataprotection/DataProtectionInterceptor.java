@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInput;
@@ -49,6 +50,7 @@ import java.lang.reflect.AccessibleObject;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -61,6 +63,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.isLeafValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toCollection;
 
@@ -75,7 +78,8 @@ import static java.util.stream.Collectors.toCollection;
  *       <li>Scans the payload for fields annotated with {@link ProtectData}.</li>
  *       <li>Each such field is serialized and stored securely in a designated store, indexed by a generated key.</li>
  *       <li>The payload is cloned and sensitive fields are removed (set to {@code null}).</li>
- *       <li>The generated key references are stored in the message metadata under {@link #METADATA_KEY}.</li>
+ *       <li>The generated key references and their dispatch namespace are stored in the message metadata under
+ *       {@link #METADATA_KEY} and {@link #NAMESPACE_METADATA_KEY}.</li>
  *     </ul>
  *   </li>
  *   <li><strong>Handling phase:</strong>
@@ -120,6 +124,7 @@ import static java.util.stream.Collectors.toCollection;
 public class DataProtectionInterceptor implements DispatchInterceptor, HandlerInterceptor {
 
     public static String METADATA_KEY = "$protectedData";
+    public static final String NAMESPACE_METADATA_KEY = "$protectedDataNamespace";
 
     private final KeyValueStore keyValueStore;
     private final Serializer serializer;
@@ -169,20 +174,45 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     @Override
     @SuppressWarnings("unchecked")
     public Message interceptDispatch(Message m, MessageType messageType, String topic) {
-        Map<String, String> protectedFields = new LinkedHashMap<>();
-        if (m.getMetadata().containsKey(METADATA_KEY)) {
-            protectedFields.putAll(m.getMetadata().get(METADATA_KEY, Map.class));
-        } else {
-            protectedFields.putAll(getProtectedFields(m.getPayload()));
-            if (!protectedFields.isEmpty()) {
-                m = m.withMetadata(m.getMetadata().with(METADATA_KEY, protectedFields));
+        return interceptDispatch(m, messageType, topic, null);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Message interceptDispatch(Message m, MessageType messageType, String topic, String namespace) {
+        Object payload = m.getPayload();
+        if (payload == null || getAnnotatedProperties(payload.getClass(), ProtectData.class).isEmpty()) {
+            if (!m.getMetadata().containsKey(METADATA_KEY)
+                && !m.getMetadata().containsKey(NAMESPACE_METADATA_KEY)) {
+                return m;
             }
+            Metadata metadata = withoutProtectedDataMetadata(m.getMetadata());
+            return m.withMetadata(metadata);
         }
+        Map<String, String> existingFields = m.getMetadata().containsKey(METADATA_KEY)
+                ? m.getMetadata().get(METADATA_KEY, Map.class) : Map.of();
+        String existingNamespace = m.getMetadata().get(NAMESPACE_METADATA_KEY);
+        String targetNamespace = namespace == null ? "" : namespace;
+        Map<String, String> protectedFields = getProtectedFields(payload, namespace);
+        if (protectedFields.isEmpty() && !existingFields.isEmpty()
+            && Objects.equals(existingNamespace, targetNamespace)) {
+            protectedFields = existingFields;
+        }
+        Metadata metadata = withoutProtectedDataMetadata(m.getMetadata());
+        if (!protectedFields.isEmpty()) {
+            metadata = metadata.with(METADATA_KEY, protectedFields)
+                    .with(NAMESPACE_METADATA_KEY, targetNamespace);
+        }
+        m = m.withMetadata(metadata);
         if (!protectedFields.isEmpty()) {
             Object payloadCopy = sanitizePayload(m.getPayload(), protectedFields);
             m = m.withPayload(payloadCopy);
         }
         return m;
+    }
+
+    private static Metadata withoutProtectedDataMetadata(Metadata metadata) {
+        return metadata.without(METADATA_KEY).without(NAMESPACE_METADATA_KEY);
     }
 
     @Override
@@ -355,12 +385,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             return new RestoredMessage(m, false);
         }
         Object payload = m.getPayload();
+        KeyValueStore store = keyValueStore.forNamespace(getProtectedDataNamespace(m));
         Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
         Map<String, Object> protectedValues = new LinkedHashMap<>();
         Set<String> failedFields = new LinkedHashSet<>();
         protectedFields.forEach((fieldName, key) -> {
             try {
-                protectedValues.put(fieldName, keyValueStore.get(key));
+                protectedValues.put(fieldName, store.get(key));
             } catch (Exception e) {
                 failedFields.add(fieldName);
                 log.warn("Failed to obtain protected field {}", fieldName, e);
@@ -389,12 +420,17 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
             protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                    payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData));
+                    payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData, store));
             return new RestoredMessage(m.withPayload(serializer.convert(payloadTree, payload.getClass())), false);
         }
         protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                payload, fieldName, key, protectedValues, failedFields, dropProtectedData));
+                payload, fieldName, key, protectedValues, failedFields, dropProtectedData, store));
         return new RestoredMessage(m, false);
+    }
+
+    private String getProtectedDataNamespace(DeserializingMessage message) {
+        String namespace = message.getMetadata().get(NAMESPACE_METADATA_KEY);
+        return namespace == null ? getConsumerNamespace(message) : namespace.isEmpty() ? null : namespace;
     }
 
     private MissingProtectedDataPolicy resolveMissingProtectedDataPolicy(DeserializingMessage message,
@@ -412,7 +448,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private void restoreProtectedField(Object payload, String fieldName, String key,
                                         Map<String, Object> protectedValues, Set<String> failedFields,
-                                        boolean dropProtectedData) {
+                                        boolean dropProtectedData, KeyValueStore store) {
         if (!failedFields.contains(fieldName)) {
             try {
                 writeProperty(fieldName, payload, protectedValues.get(fieldName));
@@ -421,7 +457,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             }
         }
         if (dropProtectedData) {
-            keyValueStore.delete(key);
+            store.delete(key);
         }
     }
 
@@ -452,20 +488,21 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         return payloadCopy;
     }
 
-    private Map<String, String> getProtectedFields(Object value) {
+    private Map<String, String> getProtectedFields(Object value, String namespace) {
         if (value == null) {
             return Map.of();
         }
         Map<String, String> protectedFields = new LinkedHashMap<>();
         getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
                 .flatMap(property -> ofNullable(getValue(property, value)).stream()
-                        .flatMap(propertyValue -> getProtectedFields(property, propertyValue)))
+                        .flatMap(propertyValue -> getProtectedFields(property, propertyValue, namespace)))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
     }
 
     @SuppressWarnings("ConditionCoveredByFurtherCondition")
-    private Stream<Map.Entry<String, String>> getProtectedFields(AccessibleObject holder, Object propertyValue) {
+    private Stream<Map.Entry<String, String>> getProtectedFields(AccessibleObject holder, Object propertyValue,
+                                                                  String namespace) {
         if (propertyValue == null) {
             return Stream.empty();
         }
@@ -476,15 +513,15 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             || propertyValue instanceof Iterable<?>
             || propertyValue instanceof Map<?, ?>
             || getTypeAnnotation(propertyValue.getClass(), ProtectData.class) != null) {
-            return Stream.of(Map.entry(name, storeProtectedValue(propertyValue)));
+            return Stream.of(Map.entry(name, storeProtectedValue(propertyValue, namespace)));
         }
-        return getProtectedFields(propertyValue).entrySet().stream()
+        return getProtectedFields(propertyValue, namespace).entrySet().stream()
                 .map(e -> Map.entry("%s/%s".formatted(name, e.getKey()), e.getValue()));
     }
 
-    private String storeProtectedValue(Object value) {
+    private String storeProtectedValue(Object value, String namespace) {
         String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
-        keyValueStore.store(key, value, Guarantee.STORED);
+        keyValueStore.forNamespace(namespace).store(key, value, Guarantee.STORED);
         return key;
     }
 

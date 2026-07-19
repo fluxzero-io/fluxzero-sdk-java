@@ -83,7 +83,8 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     }
 
     protected SerializedMessage interceptDispatch(Object payload, Metadata metadata) {
-        Message message = dispatchInterceptor.interceptDispatch(responseMapper.map(payload, metadata), RESULT, null);
+        Message message = dispatchInterceptor.interceptDispatch(
+                responseMapper.map(payload, metadata), RESULT, null, client.namespace());
         SerializedMessage serializedMessage = message == null ? null
                 : dispatchInterceptor.modifySerializedMessage(message.serialize(serializer), message, RESULT, null);
         if (serializedMessage != null) {

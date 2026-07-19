@@ -16,6 +16,7 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -115,6 +117,30 @@ public class DispatchInterceptorTest {
                 .expectResult(new Command("whatever"));
 
         assertEquals(List.of("spring-negative", "positive"), invocationOrder);
+    }
+
+    @Test
+    void propagatesNamespaceThroughCompositeAndBoundViews() {
+        AtomicReference<String> namespace = new AtomicReference<>();
+        DispatchInterceptor interceptor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType messageType,
+                                             String topic) {
+                return message;
+            }
+
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType messageType,
+                                             String topic, String dispatchNamespace) {
+                namespace.set(dispatchNamespace);
+                return message;
+            }
+        };
+
+        DispatchInterceptor.noOp.andThen(interceptor).withNamespace("tenant")
+                .interceptDispatch(new Message("payload"), COMMAND, null);
+
+        assertEquals("tenant", namespace.get());
     }
 
     @Value

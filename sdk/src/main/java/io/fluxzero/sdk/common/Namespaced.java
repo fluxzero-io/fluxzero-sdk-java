@@ -18,18 +18,32 @@ package io.fluxzero.sdk.common;
 public interface Namespaced<T> {
 
     /**
-     * Returns the resource scoped to the default namespace.
+     * Returns the resource scoped to the namespace configured for this application.
      *
-     * @return the resource which is associated with the default namespace
+     * @return the resource associated with the application namespace
      */
-    default T forDefaultNamespace() {
+    default T forApplicationNamespace() {
         return forNamespace(null);
     }
 
     /**
-     * Creates and returns the resource scoped to the specified namespace.
+     * Returns the resource scoped to the namespace configured for this application.
      *
-     * @param namespace the namespace to which the returned resource is scoped
+     * @return the resource associated with the application namespace
+     * @deprecated use {@link #forApplicationNamespace()}; {@code null} selects the application namespace, which need
+     * not be the Fluxzero default namespace
+     */
+    @Deprecated(forRemoval = false)
+    default T forDefaultNamespace() {
+        return forApplicationNamespace();
+    }
+
+    /**
+     * Returns the resource scoped to the specified namespace. Passing {@code null} selects the namespace configured
+     * for this application.
+     *
+     * @param namespace the namespace to which the returned resource is scoped, or {@code null} for the application
+     * namespace
      * @return the resource associated with the specified namespace
      */
     T forNamespace(String namespace);

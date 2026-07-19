@@ -92,7 +92,7 @@ public class WebSocketClient extends AbstractClient {
     private final ClientConfig clientConfig;
 
     @Getter(AccessLevel.PRIVATE)
-    private final WebSocketClient defaultClient;
+    private final WebSocketClient applicationClient;
 
     public static WebSocketClient newInstance(ClientConfig clientConfig) {
         return new WebSocketClient(clientConfig, null);
@@ -123,14 +123,15 @@ public class WebSocketClient extends AbstractClient {
         if (Objects.equals(namespace(), namespace)) {
             return this;
         }
-        var defaultClient = getDefaultClient();
-        if (defaultClient != null) {
-            return namespace == null ? defaultClient : defaultClient.forNamespace(namespace);
+        var applicationClient = getApplicationClient();
+        if (applicationClient != null) {
+            return namespace == null ? applicationClient : applicationClient.forNamespace(namespace);
         }
         if (namespace == null) {
             return this;
         }
-        return new WebSocketClient(getClientConfig().toBuilder().namespace(namespace).build(), this);
+        return registerNamespaceClient(
+                new WebSocketClient(getClientConfig().toBuilder().namespace(namespace).build(), this));
     }
 
     @Override
@@ -313,7 +314,7 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Optional project identifier. If set, it will be included in all communication with the Runtime.
          * <p>
-         * If not set, the default namespace will be used.
+         * If not set, the namespace configured for the application will be used.
          */
         @Default
         String namespace = getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID");

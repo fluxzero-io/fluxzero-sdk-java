@@ -19,6 +19,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
@@ -53,6 +54,8 @@ import static java.lang.String.format;
  * This repository starts an internal {@link io.fluxzero.sdk.tracking.client.TrackingClient} that tails the
  * global event log. It deserializes received events and applies them to any corresponding aggregate in the cache,
  * thereby ensuring that all cached aggregates reflect the latest known state.
+ * Each namespaced repository follows the event log in its own namespace. For custom namespaces, tracking starts
+ * lazily when the first aggregate is added to that namespace's cache.
  *
  * <p>This design makes it possible to load up-to-date aggregates within event and notification handlers, allowing
  * these types of handlers to rely on the event model as a read model. This enables event-sourced read models without
@@ -82,12 +85,17 @@ import static java.lang.String.format;
  * @see io.fluxzero.sdk.tracking.client.TrackingClient
  */
 @Slf4j
-public class CachingAggregateRepository implements AggregateRepository {
+public class CachingAggregateRepository extends AbstractNamespaced<AggregateRepository>
+        implements AggregateRepository {
     public static Duration slowTrackingThreshold = Duration.ofSeconds(10L);
 
     private final AggregateRepository delegate;
     private final Client client;
+    private final CachingAggregateRepository defaultRepository;
+    private final Cache cacheSource;
+    private final Cache relationshipsCacheSource;
     private final Cache cache;
+    private final Cache relationshipsCacheDelegate;
     private final RelationshipsCache relationshipsCache;
     private final Serializer serializer;
 
@@ -96,11 +104,63 @@ public class CachingAggregateRepository implements AggregateRepository {
 
     public CachingAggregateRepository(AggregateRepository delegate, Client client, Cache cache, Cache relationshipsCache,
                                       Serializer serializer) {
+        this(delegate, client, cache, relationshipsCache, serializer, null);
+    }
+
+    private CachingAggregateRepository(AggregateRepository delegate, Client client, Cache cache,
+                                       Cache relationshipsCache, Serializer serializer,
+                                       CachingAggregateRepository rootRepository) {
         this.delegate = delegate;
         this.client = client;
-        this.cache = cache;
-        this.relationshipsCache = RelationshipsCache.of(relationshipsCache);
+        this.defaultRepository = rootRepository;
+        if (delegate instanceof DefaultAggregateRepository defaultRepository) {
+            this.cacheSource = defaultRepository.aggregateCacheSource();
+            this.relationshipsCacheSource = defaultRepository.relationshipsCacheSource();
+            this.cache = defaultRepository.aggregateCache();
+            this.relationshipsCacheDelegate = defaultRepository.relationshipsCacheDelegate();
+        } else {
+            this.cacheSource = cache;
+            this.relationshipsCacheSource = relationshipsCache;
+            this.cache = cache;
+            this.relationshipsCacheDelegate = relationshipsCache;
+        }
+        this.relationshipsCache = RelationshipsCache.of(relationshipsCacheDelegate);
         this.serializer = serializer;
+        if (rootRepository != null) {
+            registerLazyTrackerStart(this.cache);
+            registerLazyTrackerStart(this.relationshipsCacheDelegate);
+        }
+    }
+
+    private void registerLazyTrackerStart(Cache candidate) {
+        if (candidate instanceof RepositoryCache repositoryCache) {
+            repositoryCache.onFirstWrite(this::replayMinIndex, this::startTrackerIfNeeded);
+        }
+    }
+
+    private long replayMinIndex() {
+        return IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2));
+    }
+
+    @Override
+    protected AggregateRepository createForNamespace(String namespace) {
+        CachingAggregateRepository root = defaultRepository == null ? this : defaultRepository;
+        if (Objects.equals(namespace, client.namespace())) {
+            return this;
+        }
+        if (namespace == null || Objects.equals(namespace, root.client.namespace())) {
+            return root;
+        }
+        Client namespacedClient = client.forNamespace(namespace);
+        AggregateRepository namespacedDelegate = root.delegate.forNamespace(namespace);
+        Cache namespacedCache = namespacedDelegate instanceof DefaultAggregateRepository
+                ? root.cacheSource : new RepositoryCache(
+                root.cacheSource, "$Aggregate", namespacedClient.namespace());
+        Cache namespacedRelationshipsCache = namespacedDelegate instanceof DefaultAggregateRepository
+                ? root.relationshipsCacheSource : new RepositoryCache(
+                root.relationshipsCacheSource, "$AggregateRelationships", namespacedClient.namespace());
+        return new CachingAggregateRepository(namespacedDelegate, namespacedClient, namespacedCache,
+                                              namespacedRelationshipsCache, serializer, root);
     }
 
     @Override
@@ -213,6 +273,9 @@ public class CachingAggregateRepository implements AggregateRepository {
     }
 
     protected void catchUpIfNeeded() {
+        if (defaultRepository != null && !started.get()) {
+            return;
+        }
         startTrackerIfNeeded();
         DeserializingMessage current = DeserializingMessage.getCurrent();
         if (current != null && !Entity.isLoading()) {
@@ -243,12 +306,16 @@ public class CachingAggregateRepository implements AggregateRepository {
     }
 
     protected void startTrackerIfNeeded() {
+        startTrackerIfNeeded(replayMinIndex());
+    }
+
+    protected void startTrackerIfNeeded(long minIndex) {
         if (started.compareAndSet(false, true)) {
             start(this::handleEvents, NOTIFICATION, ConsumerConfiguration.builder()
                     .ignoreSegment(true)
                     .clientControlledIndex(true)
-                    .minIndex(
-                            lastEventIndex = IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)))
+                    .namespace(client.namespace())
+                    .minIndex(lastEventIndex = minIndex)
                     .name(format("%s_%s", client.name(), CachingAggregateRepository.class.getSimpleName()))
                     .build(), client);
             synchronized (cache) {

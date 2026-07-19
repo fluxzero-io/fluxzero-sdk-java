@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
@@ -107,7 +108,7 @@ public class ForwardingWebConsumer implements AutoCloseable {
     @Synchronized
     public void start(Fluxzero fluxzero) {
         close();
-        GatewayClient gatewayClient = fluxzero.client().getGatewayClient(MessageType.WEBRESPONSE);
+        GatewayClient gatewayClient = responseGateway(fluxzero);
         BiConsumer<SerializedMessage, SerializedMessage> gateway = (request, response) -> {
             response.setTarget(request.getSource());
             response.setRequestId(request.getRequestId());
@@ -118,13 +119,14 @@ public class ForwardingWebConsumer implements AutoCloseable {
             Map<String, String> correlationData = getCorrelationData(m);
             try {
                 HttpRequest request = createRequest(m);
+                ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
                 httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
-                        .whenComplete((r, e) -> {
+                        .whenComplete(context.wrap((r, e) -> {
                             if (e == null && r.statusCode() == 404 && localServerConfig.isIgnore404()) {
                                 return;
                             }
                             gateway.accept(m, e == null ? toMessage(r, correlationData) : toMessage(e, correlationData));
-                        });
+                        }));
             } catch (Exception e) {
                 try {
                     gateway.accept(m, toMessage(e, correlationData));
@@ -137,11 +139,16 @@ public class ForwardingWebConsumer implements AutoCloseable {
                                                                         configuration, fluxzero) : r);
     }
 
+    protected GatewayClient responseGateway(Fluxzero fluxzero) {
+        return fluxzero.client().forNamespace(configuration.getNamespace())
+                .getGatewayClient(MessageType.WEBRESPONSE);
+    }
+
     protected Map<String, String> getCorrelationData(SerializedMessage m) {
         try {
             return Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider).orElse(
                     DefaultCorrelationDataProvider.INSTANCE).getCorrelationData(new DeserializingMessage(
-                    m, type -> null, MessageType.WEBRESPONSE, null, null));
+                    m, type -> null, MessageType.WEBREQUEST, null, null));
         } catch (Exception e) {
             log.error("Failed to get correlation data for request message", e);
             return Collections.emptyMap();

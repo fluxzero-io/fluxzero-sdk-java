@@ -36,7 +36,6 @@ import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
-import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
@@ -48,9 +47,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
-import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.web.WebRequest;
-import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,6 +76,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -131,7 +129,6 @@ import static java.util.stream.Collectors.toSet;
  * @see Tracker
  * @see ResultGateway
  */
-@AllArgsConstructor
 @Slf4j
 public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
@@ -145,6 +142,7 @@ public class DefaultTracking implements Tracking {
     private final List<ConsumerConfiguration> defaultConfigurations;
     private final Serializer serializer;
     private final HandlerFactory handlerFactory;
+    private final BiConsumer<Object, ConsumerConfiguration> handlerInitializer;
 
     private final Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> startedHandlers =
             new LinkedHashMap<>();
@@ -153,6 +151,29 @@ public class DefaultTracking implements Tracking {
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
     private final ConcurrentHashMap<Class<?>, Integer> registeredHandlerTypes = new ConcurrentHashMap<>();
+
+    public DefaultTracking(MessageType messageType, ResultGateway resultGateway,
+                           List<ConsumerConfiguration> customConfigurations,
+                           List<ConsumerConfiguration> defaultConfigurations, Serializer serializer,
+                           HandlerFactory handlerFactory) {
+        this(messageType, resultGateway, customConfigurations, defaultConfigurations, serializer, handlerFactory,
+             (handler, configuration) -> {
+             });
+    }
+
+    public DefaultTracking(MessageType messageType, ResultGateway resultGateway,
+                           List<ConsumerConfiguration> customConfigurations,
+                           List<ConsumerConfiguration> defaultConfigurations, Serializer serializer,
+                           HandlerFactory handlerFactory,
+                           BiConsumer<Object, ConsumerConfiguration> handlerInitializer) {
+        this.messageType = messageType;
+        this.resultGateway = resultGateway;
+        this.customConfigurations = customConfigurations;
+        this.defaultConfigurations = defaultConfigurations;
+        this.serializer = serializer;
+        this.handlerFactory = handlerFactory;
+        this.handlerInitializer = handlerInitializer;
+    }
 
     /**
      * Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared
@@ -189,6 +210,8 @@ public class DefaultTracking implements Tracking {
     @SuppressWarnings("unchecked")
     private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
         Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
+        assignedHandlers.forEach((configuration, targets) ->
+                targets.forEach(target -> handlerInitializer.accept(target, configuration)));
         Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
         assignedHandlers.forEach((config, matches) ->
                 matches.forEach(target -> consumersByHandler.computeIfAbsent(target, t -> new ArrayList<>())
@@ -860,13 +883,7 @@ public class DefaultTracking implements Tracking {
     }
 
     private <T> CompletableFuture<T> handleAsync(DeserializingMessage message, Supplier<T> task) {
-        Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
-        Tracker tracker = Tracker.current().orElse(null);
-        User user = User.getCurrent();
-        Map<MessageType, DispatchInterceptor> adhocInterceptors = AdhocDispatchInterceptor.captureAdhocInterceptors();
-        Supplier<T> contextAwareTask = AsyncCompletionScope.captureContext(
-                () -> withHandlerContext(message, fluxzero, tracker, user, adhocInterceptors, task));
-        return supplyAsync(contextAwareTask, messageHandlerExecutor);
+        return supplyAsync(message.captureContext().wrap(task), messageHandlerExecutor);
     }
 
     @SuppressWarnings("unchecked")
@@ -874,8 +891,12 @@ public class DefaultTracking implements Tracking {
                               ConsumerConfiguration config) {
         try {
             Object result = Invocation.performInvocation(h, h::invoke);
-            return result instanceof CompletionStage<?> ? ((CompletionStage<Object>) result)
-                    .exceptionally(e -> message.apply(m -> processError(e, message, h, handler, config))) : result;
+            if (result instanceof CompletionStage<?>) {
+                var context = message.captureContext();
+                return ((CompletionStage<Object>) result).exceptionally(
+                        context.wrap(e -> processError(e, message, h, handler, config)));
+            }
+            return result;
         } catch (Throwable e) {
             return processError(e, message, h, handler, config, h::invoke);
         }
@@ -886,37 +907,14 @@ public class DefaultTracking implements Tracking {
                               Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
         try {
             Object result = Invocation.performInvocation(h, message);
-            return result instanceof CompletionStage<?> ? ((CompletionStage<Object>) result)
-                    .exceptionally(e -> message.apply(m -> processError(e, message, h, handler, config,
-                                                                         () -> h.invoke(message)))) : result;
+            if (result instanceof CompletionStage<?>) {
+                var context = message.captureContext();
+                return ((CompletionStage<Object>) result).exceptionally(context.wrap(
+                        e -> processError(e, message, h, handler, config, () -> h.invoke(message))));
+            }
+            return result;
         } catch (Throwable e) {
             return processError(e, message, h, handler, config, () -> h.invoke(message));
-        }
-    }
-
-    protected <T> T withHandlerContext(DeserializingMessage message, Fluxzero fluxzero, Tracker tracker, User user,
-                                       Map<MessageType, DispatchInterceptor> adhocInterceptors, Supplier<T> task) {
-        Fluxzero previousFluxzero = Fluxzero.instance.get();
-        Tracker previousTracker = Tracker.current.get();
-        User previousUser = User.getCurrent();
-        try {
-            setThreadLocal(Fluxzero.instance, fluxzero);
-            setThreadLocal(Tracker.current, tracker);
-            setThreadLocal(User.current, user);
-            return AdhocDispatchInterceptor.runWithAdhocInterceptors(
-                    () -> message.apply(m -> task.get()), adhocInterceptors);
-        } finally {
-            setThreadLocal(Fluxzero.instance, previousFluxzero);
-            setThreadLocal(Tracker.current, previousTracker);
-            setThreadLocal(User.current, previousUser);
-        }
-    }
-
-    protected <T> void setThreadLocal(ThreadLocal<T> threadLocal, T value) {
-        if (value == null) {
-            threadLocal.remove();
-        } else {
-            threadLocal.set(value);
         }
     }
 
@@ -939,10 +937,11 @@ public class DefaultTracking implements Tracking {
             CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
             CompletableFuture<?> resultFuture = s.toCompletableFuture();
             outstandingRequests.add(resultFuture);
-            s.whenComplete((r, e) -> {
+            var context = message.captureContext();
+            s.whenComplete(context.wrap((r, e) -> {
                 try {
-                    message.run(m -> reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
-                            .toCompletableFuture().join());
+                    reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
+                            .toCompletableFuture().join();
                     if (completion != null) {
                         completion.complete(null);
                     }
@@ -958,7 +957,7 @@ public class DefaultTracking implements Tracking {
                         close();
                     }
                 }
-            });
+            }));
             return completion == null ? completedReport : completion;
         } else {
             CompletableFuture<Void> postHandlerCompletion = Invocation.resultPublicationBarrier(message);
@@ -973,10 +972,10 @@ public class DefaultTracking implements Tracking {
             }
             CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
             Object response = result;
-            postHandlerCompletion.whenComplete((ignored, error) -> {
+            var context = message.captureContext();
+            postHandlerCompletion.whenComplete(context.wrap((ignored, error) -> {
                 try {
-                    message.run(m -> sendResult(
-                            error == null ? response : unwrapException(error), h, message, config));
+                    sendResult(error == null ? response : unwrapException(error), h, message, config);
                     if (completion != null) {
                         completion.complete(null);
                     }
@@ -987,7 +986,7 @@ public class DefaultTracking implements Tracking {
                         close();
                     }
                 }
-            });
+            }));
             return completion == null ? completedReport : completion;
         }
     }

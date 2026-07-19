@@ -19,6 +19,7 @@ import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -38,10 +39,10 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.EVENT;
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
+import static io.fluxzero.sdk.common.ClientUtils.isApplicationNamespace;
+import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 
@@ -54,7 +55,7 @@ import static java.util.stream.Collectors.toList;
  */
 @AllArgsConstructor
 @Slf4j
-public class DefaultEventStore implements EventStore {
+public class DefaultEventStore extends AbstractNamespaced<EventStore> implements EventStore {
     @With
     private final Client client;
     private final Serializer serializer;
@@ -68,10 +69,10 @@ public class DefaultEventStore implements EventStore {
     @Getter(lazy = true)
     private final EventStoreClient storeClient = client.getEventStoreClient();
 
-    private final Function<String, EventStore> namespaceSwitcher = memoize(this::createForNamespace);
-
-    EventStore createForNamespace(String namespace) {
-        return withClient(client.forNamespace(namespace));
+    @Override
+    protected EventStore createForNamespace(String namespace) {
+        Client namespacedClient = client.forNamespace(namespace);
+        return namespacedClient == client ? this : withClient(namespacedClient);
     }
 
     @Override
@@ -85,7 +86,8 @@ public class DefaultEventStore implements EventStore {
                 if (e instanceof DeserializingMessage) {
                     deserializingMessage = (DeserializingMessage) e;
                 } else {
-                    Message m = dispatchInterceptor.interceptDispatch(Message.asMessage(e), EVENT, null);
+                    Message m = dispatchInterceptor.interceptDispatch(
+                            Message.asMessage(e), EVENT, null, client.namespace());
                     SerializedMessage serializedMessage
                             = m == null ? null :
                             dispatchInterceptor.modifySerializedMessage(m.serialize(serializer), m, EVENT,
@@ -96,6 +98,8 @@ public class DefaultEventStore implements EventStore {
                     deserializingMessage = new DeserializingMessage(serializedMessage, type -> m.getPayload(), EVENT,
                                                                     null, serializer);
                 }
+                deserializingMessage = setConsumerNamespace(
+                        deserializingMessage, isApplicationNamespace(client) ? null : client.namespace());
                 messages.add(deserializingMessage);
             });
             List<SerializedMessage> serializedEvents
@@ -149,10 +153,5 @@ public class DefaultEventStore implements EventStore {
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to obtain events for aggregate %s", aggregateId), e);
         }
-    }
-
-    @Override
-    public EventStore forNamespace(String namespace) {
-        return namespaceSwitcher.apply(namespace);
     }
 }

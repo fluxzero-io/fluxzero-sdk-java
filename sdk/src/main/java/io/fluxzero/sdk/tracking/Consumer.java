@@ -372,7 +372,7 @@ public @interface Consumer {
     /**
      * Specifies the namespace under which the consumer tracks messages.
      * <p>
-     * If left empty, the default namespace of the client application is used.
+     * If left empty, the namespace configured for the client application is used.
      *
      * @return The namespace under which the consumer tracks messages, or an empty string if the default client
      * namespace should be used.

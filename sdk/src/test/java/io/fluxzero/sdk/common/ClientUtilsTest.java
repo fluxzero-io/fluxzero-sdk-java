@@ -14,8 +14,13 @@
 
 package io.fluxzero.sdk.common;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.MemoizingSupplier;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.junit.jupiter.api.Nested;
@@ -24,7 +29,10 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientUtilsTest {
@@ -54,6 +62,24 @@ class ClientUtilsTest {
                                                                                          double.class)).isPresent());
         assertTrue(ClientUtils.isTrackingHandler(Handler.class, Handler.class.getDeclaredMethod("handleLocalOrExternal",
                                                                                                 double.class)));
+    }
+
+    @Test
+    void localHandlerNamespaceIsClearedAfterFailure() {
+        DeserializingMessage message = new DeserializingMessage(
+                new Message("local"), MessageType.COMMAND, new JacksonSerializer());
+        Tracker.current.set(new Tracker("tracker", MessageType.EVENT, null,
+                                        ConsumerConfiguration.builder().name("customer-events")
+                                                .namespace("customer").build(), null));
+        try {
+            assertThrows(IllegalStateException.class, () -> ClientUtils.runInLocalHandlerNamespace(() -> {
+                assertNull(ClientUtils.getConsumerNamespace(message));
+                throw new IllegalStateException("failed local handler");
+            }));
+            assertEquals("customer", ClientUtils.getConsumerNamespace(message));
+        } finally {
+            Tracker.current.remove();
+        }
     }
 
     @Nested

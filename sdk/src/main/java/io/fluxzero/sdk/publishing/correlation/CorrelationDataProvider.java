@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static io.fluxzero.sdk.Fluxzero.currentTime;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -64,6 +65,7 @@ import static java.util.Optional.ofNullable;
  *   <li><b>{@code $traceId}</b> – ID representing the trace this message belongs to (usually inherited from the message root)</li>
  *   <li><b>{@code $trigger}</b> – Fully qualified class name of the message that triggered this one</li>
  *   <li><b>{@code $triggerType}</b> – Type of the triggering message (e.g. COMMAND, QUERY, etc.)</li>
+ *   <li><b>{@code $triggerNamespace}</b> – Namespace containing the triggering message (optional)</li>
  *   <li><b>{@code $invocation}</b> – ID of the current handler {@link Invocation}, if any</li>
  * </ul>
  *
@@ -94,14 +96,18 @@ public interface CorrelationDataProvider {
      * @return a map of correlation metadata entries
      */
     default Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
-        Map<String, String> result = getBasicCorrelationData(
-                Fluxzero.getOptionally().map(Fluxzero::client).orElse(null));
+        Client applicationClient = Fluxzero.getOptionally().map(Fluxzero::client).orElse(null);
+        Map<String, String> result = getBasicCorrelationData(applicationClient);
         ofNullable(currentMessage).ifPresent(m -> {
             String correlationId = ofNullable(m.getIndex()).map(Object::toString).orElse(m.getMessageId());
             result.put(getCorrelationIdKey(), correlationId);
             result.put(getTraceIdKey(), currentMessage.getMetadata().getOrDefault(getTraceIdKey(), correlationId));
             result.put(getTriggerKey(), m.getType());
             result.put(getTriggerTypeKey(), m.getMessageType().name());
+            String consumerNamespace = getConsumerNamespace(m);
+            ofNullable(consumerNamespace == null && applicationClient != null
+                               ? applicationClient.namespace() : consumerNamespace).ifPresent(
+                    namespace -> result.put(getTriggerNamespaceKey(), namespace));
             result.putAll(currentMessage.getMetadata().getTraceEntries());
             result.put(getDelayKey(), Long.toString(Duration.between(m.getTimestamp(), currentTime()).toMillis()));
         });
@@ -131,6 +137,8 @@ public interface CorrelationDataProvider {
             if (messageType != null) {
                 result.put(getTriggerTypeKey(), messageType.name());
             }
+            ofNullable(client).map(Client::namespace).ifPresent(
+                    namespace -> result.put(getTriggerNamespaceKey(), namespace));
             result.putAll(currentMessage.getMetadata().getTraceEntries());
         });
         return result;
@@ -251,6 +259,16 @@ public interface CorrelationDataProvider {
      */
     default String getTriggerTypeKey() {
         return "$triggerType";
+    }
+
+    /**
+     * Returns the key containing the namespace in which the triggering message is stored.
+     * <p>
+     * Messages produced before this correlation field was introduced may omit it; consumers should then use the
+     * application namespace.
+     */
+    default String getTriggerNamespaceKey() {
+        return "$triggerNamespace";
     }
 
     /**

@@ -22,10 +22,12 @@ import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.AggregateCommitPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
@@ -43,6 +45,7 @@ import io.fluxzero.sdk.modeling.LazyAggregateRoot;
 import io.fluxzero.sdk.modeling.ModifiableAggregateRoot;
 import io.fluxzero.sdk.modeling.NoOpEntity;
 import io.fluxzero.sdk.modeling.SideEffectFreeEntity;
+import io.fluxzero.sdk.persisting.caching.NamedCache;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
@@ -55,10 +58,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.SnapshotTrigger;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.NonNull;
-import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Method;
@@ -128,9 +128,8 @@ import static java.util.stream.Collectors.toSet;
  * @see Entity
  */
 @Slf4j
-@Getter(AccessLevel.PRIVATE)
-@Accessors(fluent = true)
-public class DefaultAggregateRepository implements AggregateRepository {
+public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepository>
+        implements AggregateRepository {
     /**
      * Property that overrides the commit policy for aggregates whose annotation uses
      * {@link AggregateCommitPolicy#DEFAULT}.
@@ -141,30 +140,106 @@ public class DefaultAggregateRepository implements AggregateRepository {
 
     private final EventStore eventStore;
     private final EventStoreClient eventStoreClient;
+    private final Client client;
+    private final DefaultAggregateRepository defaultRepository;
     private final SnapshotStore snapshotStore;
+    private final Cache aggregateCacheSource;
+    private final Cache relationshipsCacheSource;
     private final Cache aggregateCache;
     private final RelationshipsCache relationshipsCache;
+    private final Cache relationshipsCacheDelegate;
     private final DocumentStore documentStore;
     private final Serializer serializer;
+    private final DispatchInterceptor dispatchInterceptorSource;
     private final DispatchInterceptor dispatchInterceptor;
     private final EntityHelper entityHelper;
 
     private final Function<Class<?>, AnnotatedAggregateRepository<?>> delegates =
             memoize(AnnotatedAggregateRepository::new);
 
-    public DefaultAggregateRepository(EventStore eventStore, EventStoreClient eventStoreClient,
+    /**
+     * Creates a repository whose storage clients and caches can be switched together to another namespace.
+     *
+     * @param client              the client used to obtain namespace-specific low-level event store clients
+     * @param eventStore          the event store for the client's current namespace
+     * @param snapshotStore       the snapshot store for the client's current namespace
+     * @param aggregateCache      the shared cache used for aggregates
+     * @param relationshipsCache the shared cache used for aggregate relationships
+     * @param documentStore       the document store for the client's current namespace
+     * @param serializer          the serializer used for aggregate events
+     * @param dispatchInterceptor interceptor for published aggregate events
+     * @param entityHelper        helper for aggregate entity models
+     */
+    public DefaultAggregateRepository(Client client, EventStore eventStore,
                                       SnapshotStore snapshotStore, Cache aggregateCache, Cache relationshipsCache,
                                       DocumentStore documentStore, Serializer serializer,
                                       DispatchInterceptor dispatchInterceptor, EntityHelper entityHelper) {
         this.eventStore = eventStore;
-        this.eventStoreClient = eventStoreClient;
+        this.eventStoreClient = client.getEventStoreClient();
+        this.client = client;
+        this.defaultRepository = null;
         this.snapshotStore = snapshotStore;
-        this.aggregateCache = aggregateCache;
-        this.relationshipsCache = RelationshipsCache.of(relationshipsCache);
+        this.aggregateCacheSource = aggregateCache;
+        this.relationshipsCacheSource = relationshipsCache;
+        this.aggregateCache = new NamedCache(aggregateCache, id -> "$Aggregate:" + id);
+        this.relationshipsCacheDelegate = relationshipsCache;
+        this.relationshipsCache = RelationshipsCache.of(relationshipsCacheDelegate);
         this.documentStore = documentStore;
         this.serializer = serializer;
-        this.dispatchInterceptor = dispatchInterceptor;
+        this.dispatchInterceptorSource = dispatchInterceptor;
+        this.dispatchInterceptor = dispatchInterceptor.withNamespace(client.namespace());
         this.entityHelper = entityHelper;
+    }
+
+    private DefaultAggregateRepository(Client client, DefaultAggregateRepository defaultRepository,
+                                       EventStore eventStore, SnapshotStore snapshotStore, DocumentStore documentStore) {
+        this.eventStore = eventStore;
+        this.eventStoreClient = client.getEventStoreClient();
+        this.client = client;
+        this.defaultRepository = defaultRepository;
+        this.snapshotStore = snapshotStore;
+        this.aggregateCacheSource = defaultRepository.aggregateCacheSource;
+        this.relationshipsCacheSource = defaultRepository.relationshipsCacheSource;
+        this.aggregateCache = new RepositoryCache(aggregateCacheSource, "$Aggregate", client.namespace());
+        this.relationshipsCacheDelegate = new RepositoryCache(
+                relationshipsCacheSource, "$AggregateRelationships", client.namespace());
+        this.relationshipsCache = RelationshipsCache.of(relationshipsCacheDelegate);
+        this.documentStore = documentStore;
+        this.serializer = defaultRepository.serializer;
+        this.dispatchInterceptorSource = defaultRepository.dispatchInterceptorSource;
+        this.dispatchInterceptor = dispatchInterceptorSource.withNamespace(client.namespace());
+        this.entityHelper = defaultRepository.entityHelper;
+    }
+
+    @Override
+    protected AggregateRepository createForNamespace(String namespace) {
+        DefaultAggregateRepository root = defaultRepository == null ? this : defaultRepository;
+        if (Objects.equals(namespace, client.namespace())) {
+            return this;
+        }
+        if (namespace == null || Objects.equals(namespace, root.client.namespace())) {
+            return root;
+        }
+        Client namespacedClient = client.forNamespace(namespace);
+        return new DefaultAggregateRepository(namespacedClient, root, root.eventStore.forNamespace(namespace),
+                                              root.snapshotStore.forNamespace(namespace),
+                                              root.documentStore.forNamespace(namespace));
+    }
+
+    Cache aggregateCache() {
+        return aggregateCache;
+    }
+
+    Cache aggregateCacheSource() {
+        return aggregateCacheSource;
+    }
+
+    Cache relationshipsCacheDelegate() {
+        return relationshipsCacheDelegate;
+    }
+
+    Cache relationshipsCacheSource() {
+        return relationshipsCacheSource;
     }
 
     @Override

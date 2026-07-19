@@ -75,6 +75,8 @@ public class DefaultSocketSession implements SocketSession {
     @Getter
     @Accessors(fluent = true)
     private final String sessionId;
+    @Getter(AccessLevel.PACKAGE)
+    private final String namespace;
     private final String target;
     @Getter
     private final String url;

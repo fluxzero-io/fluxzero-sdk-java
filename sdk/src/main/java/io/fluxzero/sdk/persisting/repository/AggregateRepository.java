@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import jakarta.validation.constraints.NotNull;
@@ -42,7 +43,22 @@ import java.util.concurrent.CompletableFuture;
  * {@code Fluxzero.loadAggregate(...)} or via delegation
  * in {@link io.fluxzero.sdk.modeling.Entity} classes.
  */
-public interface AggregateRepository {
+public interface AggregateRepository extends Namespaced<AggregateRepository> {
+
+    /**
+     * Returns this repository scoped to the requested namespace.
+     * <p>
+     * Custom repository implementations that are not namespace-aware retain their existing behavior and return the
+     * same instance. The default Fluxzero repository overrides this method and isolates all aggregate storage and
+     * caching operations by namespace.
+     *
+     * @param namespace the namespace to which the returned repository is scoped
+     * @return the repository associated with the specified namespace
+     */
+    @Override
+    default AggregateRepository forNamespace(String namespace) {
+        return this;
+    }
 
     /**
      * Load an aggregate by a typed identifier.

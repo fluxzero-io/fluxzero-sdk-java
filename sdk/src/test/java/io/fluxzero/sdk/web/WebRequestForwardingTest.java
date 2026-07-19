@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -78,6 +79,21 @@ public class WebRequestForwardingTest {
                 .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.WEBRESPONSE)).append(
                         any(), ArgumentMatchers.<SerializedMessage>argThat(message -> "200".equals(message.getMetadata().get(WebResponse.statusKey)))))
                 .expectResult("object".getBytes());
+    }
+
+    @Test
+    void forwardsResponseInConsumerNamespace() {
+        TestFixture fixture = TestFixture.createAsync(DefaultFluxzero.builder()
+                .forwardWebRequestsToLocalServer(
+                        LocalServerConfig.builder().port(port).build(),
+                        configuration -> configuration.toBuilder().namespace("customer").build()));
+
+        fixture.whenApplying(fc -> fc.webRequestGateway().forNamespace("customer")
+                        .sendAndWait(WebRequest.get("/get").build()))
+                .expectResult(response -> {
+                    assertArrayEquals("get".getBytes(UTF_8), ((WebResponse) response).getPayload());
+                    return true;
+                });
     }
 
     private static void handleGet(HttpExchange exchange) throws IOException {

@@ -62,7 +62,7 @@ import static java.util.Arrays.stream;
  * @see io.fluxzero.sdk.publishing.QueryGateway
  * @see io.fluxzero.sdk.publishing.EventGateway
  */
-public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHandlers {
+public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHandlers, AutoCloseable {
 
     /**
      * Sends a message asynchronously without waiting for a result or acknowledgement.
@@ -272,6 +272,7 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     /**
      * Closes this gateway and releases any underlying resources.
      */
+    @Override
     void close();
 
 }

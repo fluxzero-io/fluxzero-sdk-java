@@ -16,7 +16,9 @@
 package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import lombok.AllArgsConstructor;
 import lombok.With;
 import lombok.experimental.Delegate;
@@ -33,8 +35,8 @@ import java.util.concurrent.CompletableFuture;
  * @see GenericGateway
  */
 @AllArgsConstructor
-public class DefaultEventGateway implements EventGateway {
-    @Delegate
+public class DefaultEventGateway extends AbstractNamespaced<EventGateway> implements EventGateway {
+    @Delegate(excludes = Namespaced.class)
     @With
     private final GenericGateway delegate;
 
@@ -54,12 +56,13 @@ public class DefaultEventGateway implements EventGateway {
     }
 
     @Override
-    public DefaultEventGateway forDefaultNamespace() {
-        return forNamespace(null);
+    protected EventGateway createForNamespace(String namespace) {
+        GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
+        return namespacedDelegate == delegate ? this : new DefaultEventGateway(namespacedDelegate);
     }
 
     @Override
     public DefaultEventGateway forNamespace(String namespace) {
-        return withDelegate(delegate.forNamespace(namespace));
+        return (DefaultEventGateway) super.forNamespace(namespace);
     }
 }

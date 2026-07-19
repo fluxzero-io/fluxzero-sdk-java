@@ -14,9 +14,7 @@
 
 package io.fluxzero.sdk.common;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -33,7 +31,7 @@ import java.util.function.Supplier;
  */
 public final class AsyncCompletionScope {
 
-    private static final ThreadLocal<Deque<Scope>> scopes = new ThreadLocal<>();
+    private static final ThreadLocal<ScopeStack> scopes = ThreadLocalContext.create();
 
     private AsyncCompletionScope() {
     }
@@ -48,21 +46,18 @@ public final class AsyncCompletionScope {
      */
     public static void runAndAwait(Runnable task) {
         Scope scope = new Scope();
-        Deque<Scope> stack = scopes.get();
-        if (stack == null) {
-            stack = new ArrayDeque<>();
-            scopes.set(stack);
-        }
-        stack.push(scope);
+        ScopeStack previous = scopes.get();
+        scopes.set(new ScopeStack(scope, previous));
         Throwable taskFailure = null;
         try {
             task.run();
         } catch (Throwable e) {
             taskFailure = e;
         } finally {
-            stack.pop();
-            if (stack.isEmpty()) {
+            if (previous == null) {
                 scopes.remove();
+            } else {
+                scopes.set(previous);
             }
         }
         Throwable waitFailure = scope.await();
@@ -109,9 +104,9 @@ public final class AsyncCompletionScope {
      */
     public static <T> CompletableFuture<T> register(CompletableFuture<T> future, Runnable afterCompletion) {
         CompletableFuture<T> completion = future == null ? CompletableFuture.completedFuture(null) : future;
-        Deque<Scope> stack = scopes.get();
-        if (stack != null && !stack.isEmpty()) {
-            stack.peek().add(completion, afterCompletion);
+        ScopeStack stack = scopes.get();
+        if (stack != null) {
+            stack.scope().add(completion, afterCompletion);
         }
         return completion;
     }
@@ -122,8 +117,7 @@ public final class AsyncCompletionScope {
      * @return {@code true} when futures registered by this thread will be awaited by a surrounding scope
      */
     public static boolean isActive() {
-        Deque<Scope> stack = scopes.get();
-        return stack != null && !stack.isEmpty();
+        return scopes.get() != null;
     }
 
     /**
@@ -137,30 +131,20 @@ public final class AsyncCompletionScope {
      * @return a context-aware supplier
      */
     public static <T> Supplier<T> captureContext(Supplier<T> supplier) {
-        Scope captured = currentScope();
+        ScopeStack captured = scopes.get();
         return captured == null ? supplier : () -> runWithScope(captured, supplier);
     }
 
-    private static Scope currentScope() {
-        Deque<Scope> stack = scopes.get();
-        return stack == null || stack.isEmpty() ? null : stack.peek();
-    }
-
-    private static <T> T runWithScope(Scope scope, Supplier<T> supplier) {
-        Deque<Scope> stack = scopes.get();
-        boolean createdStack = false;
-        if (stack == null) {
-            stack = new ArrayDeque<>();
-            scopes.set(stack);
-            createdStack = true;
-        }
-        stack.push(scope);
+    private static <T> T runWithScope(ScopeStack captured, Supplier<T> supplier) {
+        ScopeStack previous = scopes.get();
+        scopes.set(captured);
         try {
             return supplier.get();
         } finally {
-            stack.pop();
-            if (createdStack || stack.isEmpty()) {
+            if (previous == null) {
                 scopes.remove();
+            } else {
+                scopes.set(previous);
             }
         }
     }
@@ -224,5 +208,8 @@ public final class AsyncCompletionScope {
     }
 
     private record Completion(CompletableFuture<?> future, Runnable afterCompletion) {
+    }
+
+    private record ScopeStack(Scope scope, ScopeStack parent) {
     }
 }

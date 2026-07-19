@@ -22,18 +22,36 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 public abstract class AbstractNamespaced<T> implements Namespaced<T> {
 
-    private final MemoizingFunction<String, T> namespaceSwitcher = memoize(this::createForNamespace);
+    private volatile AbstractNamespaced<T> root = this;
+    private volatile MemoizingFunction<String, T> namespaceSwitcher = memoize(this::createAndAttach);
 
     protected abstract T createForNamespace(String namespace);
 
     @Override
-    public final T forNamespace(String namespace) {
-        return namespaceSwitcher.apply(namespace);
+    public T forNamespace(String namespace) {
+        return root.namespaceSwitcher.apply(namespace);
+    }
+
+    @SuppressWarnings("unchecked")
+    private T createAndAttach(String namespace) {
+        T resource = createForNamespace(namespace);
+        if (resource instanceof AbstractNamespaced<?> namespaced) {
+            ((AbstractNamespaced<T>) namespaced).attachTo(root);
+        }
+        return resource;
+    }
+
+    private void attachTo(AbstractNamespaced<T> root) {
+        this.root = root;
+        this.namespaceSwitcher = root.namespaceSwitcher;
     }
 
     protected void close() {
+        if (root != this) {
+            return;
+        }
         namespaceSwitcher.forEach(resource -> {
-            if (resource instanceof AutoCloseable c) {
+            if (resource != this && resource instanceof AutoCloseable c) {
                 ObjectUtils.tryRun(ObjectUtils.asRunnable(c::close));
             }
         });

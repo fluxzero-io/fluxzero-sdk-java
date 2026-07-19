@@ -15,14 +15,29 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.tracking.client.TrackingClient;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class TriggerParameterResolverTest {
 
@@ -77,6 +92,38 @@ class TriggerParameterResolverTest {
     void triggerAsMethodAnnotation() {
         testFixture.whenCommand(new TriggerOnMethod("some result"))
                 .expectOnlyEvents(new ResultReceived("some result", TriggerOnMethod.class));
+    }
+
+    @Test
+    void loadsTriggerFromNamespaceStoredInCorrelationData() {
+        Client applicationClient = mock(Client.class);
+        Client sourceClient = mock(Client.class);
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        JacksonSerializer serializer = new JacksonSerializer();
+        SerializedMessage serializedTrigger = new Message("original").serialize(serializer);
+        serializedTrigger.setIndex(42L);
+        when(applicationClient.forNamespace("source")).thenReturn(sourceClient);
+        when(sourceClient.getTrackingClient(MessageType.COMMAND)).thenReturn(trackingClient);
+        when(trackingClient.readFromIndex(42L, 1)).thenReturn(List.of(serializedTrigger));
+        var provider = DefaultCorrelationDataProvider.INSTANCE;
+        DeserializingMessage resultMessage = new DeserializingMessage(
+                new Message("result", Metadata.of(
+                        provider.getCorrelationIdKey(), "42",
+                        provider.getTriggerKey(), String.class.getName(),
+                        provider.getTriggerTypeKey(), MessageType.COMMAND.name(),
+                        provider.getTriggerNamespaceKey(), "source")),
+                MessageType.RESULT, serializer);
+        Tracker.current.set(new Tracker("tracker", MessageType.RESULT, null,
+                                        ConsumerConfiguration.builder().name("result-handler")
+                                                .namespace("destination").build(), null));
+        try {
+            assertEquals("original", new TriggerParameterResolver(applicationClient, serializer)
+                    .getTriggerMessage(resultMessage).orElseThrow().getPayload());
+        } finally {
+            Tracker.current.remove();
+        }
+
+        verify(applicationClient).forNamespace("source");
     }
 
     @Consumer(name = "main")

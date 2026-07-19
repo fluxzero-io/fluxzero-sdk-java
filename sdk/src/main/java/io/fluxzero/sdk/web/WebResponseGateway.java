@@ -82,7 +82,8 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                                             Guarantee guarantee) {
 
         rawResponse = WebResponseContentNegotiator.negotiate(rawResponse);
-        WebResponse response = (WebResponse) dispatchInterceptor.interceptDispatch(rawResponse, WEBRESPONSE, null);
+        WebResponse response = (WebResponse) dispatchInterceptor.interceptDispatch(
+                rawResponse, WEBRESPONSE, null, client.namespace());
         if (response == null) {
             return CompletableFuture.completedFuture(null);
         }

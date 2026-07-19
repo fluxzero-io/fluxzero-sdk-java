@@ -17,7 +17,9 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import lombok.AllArgsConstructor;
 import lombok.With;
 import lombok.experimental.Delegate;
@@ -37,8 +39,8 @@ import java.util.concurrent.CompletableFuture;
  */
 @AllArgsConstructor
 @Slf4j
-public class DefaultMetricsGateway implements MetricsGateway {
-    @Delegate
+public class DefaultMetricsGateway extends AbstractNamespaced<MetricsGateway> implements MetricsGateway {
+    @Delegate(excludes = Namespaced.class)
     @With
     private final GenericGateway delegate;
 
@@ -48,12 +50,13 @@ public class DefaultMetricsGateway implements MetricsGateway {
     }
 
     @Override
-    public DefaultMetricsGateway forDefaultNamespace() {
-        return forNamespace(null);
+    protected MetricsGateway createForNamespace(String namespace) {
+        GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
+        return namespacedDelegate == delegate ? this : new DefaultMetricsGateway(namespacedDelegate);
     }
 
     @Override
     public DefaultMetricsGateway forNamespace(String namespace) {
-        return withDelegate(delegate.forNamespace(namespace));
+        return (DefaultMetricsGateway) super.forNamespace(namespace);
     }
 }

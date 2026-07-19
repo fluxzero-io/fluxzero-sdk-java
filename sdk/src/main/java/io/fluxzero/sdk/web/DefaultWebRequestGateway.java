@@ -17,6 +17,8 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.GenericGateway;
@@ -45,8 +47,9 @@ import static java.lang.Thread.currentThread;
  * @see GenericGateway
  */
 @AllArgsConstructor
-public class DefaultWebRequestGateway implements WebRequestGateway {
-    @Delegate
+public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGateway>
+        implements WebRequestGateway {
+    @Delegate(excludes = Namespaced.class)
     @With
     private final GenericGateway delegate;
 
@@ -92,13 +95,14 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     }
 
     @Override
-    public DefaultWebRequestGateway forDefaultNamespace() {
-        return forNamespace(null);
+    protected WebRequestGateway createForNamespace(String namespace) {
+        GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
+        return namespacedDelegate == delegate ? this : new DefaultWebRequestGateway(namespacedDelegate);
     }
 
     @Override
     public DefaultWebRequestGateway forNamespace(String namespace) {
-        return withDelegate(delegate.forNamespace(namespace));
+        return (DefaultWebRequestGateway) super.forNamespace(namespace);
     }
 
     private WebResponse stripHeadPayload(WebRequest request, WebResponse response) {

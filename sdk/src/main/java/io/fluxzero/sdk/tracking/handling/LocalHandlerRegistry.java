@@ -48,7 +48,9 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
+import static io.fluxzero.sdk.common.ClientUtils.runInLocalHandlerNamespace;
 import static java.util.Collections.emptyList;
 
 /**
@@ -166,12 +168,19 @@ public class LocalHandlerRegistry implements HandlerRegistry {
 
     @Override
     public LocalHandlerResult handleResult(DeserializingMessage message) {
-        MessageHandlerInput input = new MessageHandlerInput(message);
-        return handleResult(input);
+        return runInLocalHandlerNamespace(message,
+                                          () -> handleResultInConsumerNamespace(new MessageHandlerInput(message)));
     }
 
     @Override
     public LocalHandlerResult handleResult(LocalHandlerInput input) {
+        DeserializingMessage message = input.getMessageIfAvailable();
+        return message == null
+                ? runInLocalHandlerNamespace(() -> handleResultInConsumerNamespace(input))
+                : runInLocalHandlerNamespace(message, () -> handleResultInConsumerNamespace(input));
+    }
+
+    private LocalHandlerResult handleResultInConsumerNamespace(LocalHandlerInput input) {
         Class<?> payloadClass = payloadClass(input.getPayload());
         long version = handlerVersion.get();
         PreparedLocalPlan rawPlan = input.getMessageIfAvailable() == null
@@ -317,6 +326,11 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     @SuppressWarnings("unchecked")
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
+        return runInLocalHandlerNamespace(message, () -> handleInConsumerNamespace(message));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<CompletableFuture<Object>> handleInConsumerNamespace(DeserializingMessage message) {
         List<Handler<DeserializingMessage>> localHandlers = getLocalHandlers(message);
         if (localHandlers.isEmpty()) {
             return Optional.empty();
@@ -369,7 +383,8 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                         serializedMessage = dispatchInterceptor.modifySerializedMessage(
                                 serializedMessage, m.toMessage(), m.getMessageType(), m.getTopic());
                         if (serializedMessage != null) {
-                            fc.client().getGatewayClient(m.getMessageType(), m.getTopic())
+                            fc.client().forNamespace(getConsumerNamespace(m))
+                                    .getGatewayClient(m.getMessageType(), m.getTopic())
                                     .append(Guarantee.NONE, serializedMessage);
                         }
                     });

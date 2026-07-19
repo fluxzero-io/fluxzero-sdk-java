@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 
 import java.util.Optional;
@@ -31,7 +32,21 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Usage of this interface is optional—if no snapshot is found, the aggregate is reconstructed from its full event history.
  */
-public interface SnapshotStore {
+public interface SnapshotStore extends Namespaced<SnapshotStore> {
+
+    /**
+     * Returns this snapshot store scoped to the requested namespace.
+     * <p>
+     * Implementations that do not use namespace-aware backing storage may keep returning the same instance. The
+     * default implementation switches both its document and event stores to the requested namespace.
+     *
+     * @param namespace the namespace to which the returned store is scoped
+     * @return the snapshot store associated with the specified namespace
+     */
+    @Override
+    default SnapshotStore forNamespace(String namespace) {
+        return this;
+    }
 
     /**
      * Stores a new snapshot for the given aggregate entity.

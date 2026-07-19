@@ -16,9 +16,11 @@ package io.fluxzero.sdk.persisting.keyvalue;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
-import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import java.util.concurrent.TimeUnit;
 
@@ -28,16 +30,29 @@ import java.util.concurrent.TimeUnit;
  * serialization and deserialization of values and ensures that operations conform to the guarantees provided by the
  * client.
  */
-@AllArgsConstructor
-public class DefaultKeyValueStore implements KeyValueStore {
+public class DefaultKeyValueStore extends AbstractNamespaced<KeyValueStore> implements KeyValueStore {
 
-    private final KeyValueClient client;
+    private final Client client;
     private final Serializer serializer;
+
+    @Getter(lazy = true)
+    private final KeyValueClient keyValueClient = client.getKeyValueClient();
+
+    public DefaultKeyValueStore(Client client, Serializer serializer) {
+        this.client = client;
+        this.serializer = serializer;
+    }
+
+    @Override
+    protected KeyValueStore createForNamespace(String namespace) {
+        Client namespacedClient = client.forNamespace(namespace);
+        return namespacedClient == client ? this : new DefaultKeyValueStore(namespacedClient, serializer);
+    }
 
     @Override
     public void store(String key, Object value, Guarantee guarantee) {
         try {
-            client.putValue(key, serializer.serialize(value), guarantee).get();
+            getKeyValueClient().putValue(key, serializer.serialize(value), guarantee).get();
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not store a value %s for key %s", value, key), e);
         }
@@ -46,7 +61,7 @@ public class DefaultKeyValueStore implements KeyValueStore {
     @Override
     public boolean storeIfAbsent(String key, Object value) {
         try {
-            return client.putValueIfAbsent(key, serializer.serialize(value)).get(5, TimeUnit.SECONDS);
+            return getKeyValueClient().putValueIfAbsent(key, serializer.serialize(value)).get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not store a value %s for key %s", value, key), e);
         }
@@ -55,7 +70,7 @@ public class DefaultKeyValueStore implements KeyValueStore {
     @Override
     public <R> R get(String key) {
         try {
-            Data<byte[]> value = client.getValue(key);
+            Data<byte[]> value = getKeyValueClient().getValue(key);
             return value == null ? null : serializer.deserialize(value);
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not get the value for key %s", key), e);
@@ -65,7 +80,7 @@ public class DefaultKeyValueStore implements KeyValueStore {
     @Override
     public void delete(String key) {
         try {
-            client.deleteValue(key).get();
+            getKeyValueClient().deleteValue(key).get();
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not delete the value at key %s", key), e);
         }

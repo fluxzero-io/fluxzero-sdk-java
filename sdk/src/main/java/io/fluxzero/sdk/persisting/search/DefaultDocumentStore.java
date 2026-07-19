@@ -38,6 +38,7 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import lombok.AllArgsConstructor;
@@ -275,7 +276,11 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
     @Override
     protected DocumentStore createForNamespace(String namespace) {
-        return withClient(client.forNamespace(namespace));
+        Client namespacedClient = client.forNamespace(namespace);
+        HasLocalHandlers namespacedHandlerRegistry = handlerRegistry instanceof LocalDocumentHandlerRegistry local
+                ? local.forNamespace(namespace) : handlerRegistry;
+        return namespacedClient == client && namespacedHandlerRegistry == handlerRegistry ? this
+                : new DefaultDocumentStore(namespacedClient, serializer, namespacedHandlerRegistry);
     }
 
     @RequiredArgsConstructor

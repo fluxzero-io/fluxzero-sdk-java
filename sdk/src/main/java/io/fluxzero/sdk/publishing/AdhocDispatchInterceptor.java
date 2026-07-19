@@ -18,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import lombok.SneakyThrows;
 
@@ -74,7 +75,7 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
         };
     }
 
-    private static final ThreadLocal<Map<MessageType, DispatchInterceptor>> delegates = new ThreadLocal<>();
+    private static final ThreadLocal<Map<MessageType, DispatchInterceptor>> delegates = ThreadLocalContext.create();
 
     /**
      * Returns the current thread-local ad hoc interceptor for the given {@link MessageType}, if present.
@@ -185,9 +186,14 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
      */
     @Override
     public Message interceptDispatch(Message message, MessageType messageType, String topic) {
+        return interceptDispatch(message, messageType, topic, null);
+    }
+
+    @Override
+    public Message interceptDispatch(Message message, MessageType messageType, String topic, String namespace) {
         var adhocInterceptor = getAdhocInterceptor(messageType);
-        return adhocInterceptor.isPresent() ? adhocInterceptor.get().interceptDispatch(message, messageType, topic) :
-                message;
+        return adhocInterceptor.isPresent()
+                ? adhocInterceptor.get().interceptDispatch(message, messageType, topic, namespace) : message;
     }
 
     /**

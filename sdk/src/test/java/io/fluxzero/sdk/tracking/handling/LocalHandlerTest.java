@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.METRICS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,6 +54,18 @@ public class LocalHandlerTest {
     void testNoMetricsPublication() {
         testFixture.whenCommand(1.1f)
                 .expectThat(fc -> verify(fc.client().getGatewayClient(METRICS), never()).append(any(), any()));
+    }
+
+    @Test
+    void customGatewayInvokesLocalHandlerAndLogsMessageInCustomNamespace() {
+        TestFixture fixture = TestFixture.createAsync(new PublishingLocalHandler());
+
+        fixture.whenApplying(fc -> fc.commandGateway().forNamespace("customer").sendAndWait("a"))
+                .expectResult("a")
+                .expectThat(fc -> assertEquals(1, fc.client().forNamespace("customer")
+                        .getTrackingClient(COMMAND).readFromIndex(0, 10).size()))
+                .expectThat(fc -> assertEquals(0, fc.client().getTrackingClient(COMMAND)
+                        .readFromIndex(0, 10).size()));
     }
 
     @LocalHandler(logMessage = true, logMetrics = true)

@@ -31,6 +31,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.UuidFactory;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -145,7 +146,7 @@ public interface Fluxzero extends AutoCloseable {
      * automatically use the correct instance, without needing manual wiring.
      * </p>
      */
-    ThreadLocal<Fluxzero> instance = new ThreadLocal<>();
+    ThreadLocal<Fluxzero> instance = ThreadLocalContext.create();
 
     /**
      * Returns the Fluxzero instance bound to the current thread or else set by the current application. Throws an

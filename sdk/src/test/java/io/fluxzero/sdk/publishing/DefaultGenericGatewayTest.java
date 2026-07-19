@@ -26,6 +26,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -34,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultGenericGatewayTest {
@@ -58,9 +61,34 @@ class DefaultGenericGatewayTest {
         assertDoesNotThrow(() -> scopedCompletion.get(1, TimeUnit.SECONDS));
     }
 
+    @Test
+    void customNamespaceInvokesLocalHandlers() {
+        Client applicationClient = mock(Client.class);
+        Client customClient = mock(Client.class);
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        HandlerRegistry localHandlers = mock(HandlerRegistry.class);
+        when(customClient.namespace()).thenReturn("tenant");
+        when(customClient.forNamespace(null)).thenReturn(applicationClient);
+        when(gatewayClient.append(eq(Guarantee.STORED), any(SerializedMessage[].class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(localHandlers.handle(any())).thenReturn(Optional.of(CompletableFuture.completedFuture(null)));
+        DefaultGenericGateway gateway = gateway(customClient, gatewayClient, localHandlers);
+
+        gateway.sendAndForget(Guarantee.STORED, new Message("command")).join();
+
+        verify(localHandlers).handle(any());
+        verify(gatewayClient, never()).append(eq(Guarantee.STORED), any(SerializedMessage[].class));
+    }
+
     private static DefaultGenericGateway gateway(GatewayClient gatewayClient) {
         Client client = mock(Client.class);
         when(client.namespace()).thenReturn(null);
+        when(client.forNamespace(null)).thenReturn(client);
+        return gateway(client, gatewayClient, HandlerRegistry.noOp());
+    }
+
+    private static DefaultGenericGateway gateway(Client client, GatewayClient gatewayClient,
+                                                 HandlerRegistry handlerRegistry) {
         return new DefaultGenericGateway(
                 client,
                 gatewayClient,
@@ -69,7 +97,7 @@ class DefaultGenericGatewayTest {
                 DispatchInterceptor.noOp,
                 MessageType.COMMAND,
                 null,
-                HandlerRegistry.noOp(),
+                handlerRegistry,
                 mock(ResponseMapper.class));
     }
 }

@@ -81,7 +81,7 @@ public class LocalClient extends AbstractClient {
     @Getter @Accessors(fluent = true)
     private final String namespace;
     @Getter(AccessLevel.PRIVATE)
-    private final LocalClient defaultClient;
+    private final LocalClient applicationClient;
 
     @Getter(lazy = true)
     @Accessors(fluent = true)
@@ -102,14 +102,14 @@ public class LocalClient extends AbstractClient {
         this(messageExpiration, "public", null, null);
     }
 
-    protected LocalClient(Duration messageExpiration, String namespace, LocalClient defaultClient, Clock clock) {
+    protected LocalClient(Duration messageExpiration, String namespace, LocalClient applicationClient, Clock clock) {
         this.messageExpiration = messageExpiration;
         this.eventStore = new LocalEventStoreClient(messageExpiration);
         this.scheduleStore = clock == null ? new LocalSchedulingClient(messageExpiration)
                 : new LocalSchedulingClient(messageExpiration, clock);
         this.clock = clock;
         this.namespace = namespace;
-        this.defaultClient = defaultClient;
+        this.applicationClient = applicationClient;
     }
 
     /**
@@ -119,8 +119,8 @@ public class LocalClient extends AbstractClient {
      * rest of the SDK.
      */
     public void setClock(@NonNull Clock clock) {
-        if (defaultClient != null && defaultClient.clock != clock) {
-            defaultClient.setClock(clock);
+        if (applicationClient != null && applicationClient.clock != clock) {
+            applicationClient.setClock(clock);
         }
         this.clock = clock;
         scheduleStore.setClock(clock);
@@ -182,13 +182,13 @@ public class LocalClient extends AbstractClient {
         if (Objects.equals(namespace(), namespace)) {
             return this;
         }
-        var defaultClient = getDefaultClient();
-        if (defaultClient != null) {
-            return namespace == null ? defaultClient : defaultClient.forNamespace(namespace);
+        var applicationClient = getApplicationClient();
+        if (applicationClient != null) {
+            return namespace == null ? applicationClient : applicationClient.forNamespace(namespace);
         }
         if (namespace == null) {
             return this;
         }
-        return new LocalClient(getMessageExpiration(), namespace, this, clock);
+        return registerNamespaceClient(new LocalClient(getMessageExpiration(), namespace, this, clock));
     }
 }

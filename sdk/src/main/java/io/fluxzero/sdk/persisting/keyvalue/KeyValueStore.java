@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.persisting.keyvalue;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.sdk.common.Namespaced;
 
 /**
  * A simple interface for storing, retrieving, and removing key-value pairs.
@@ -30,7 +31,18 @@ import io.fluxzero.common.Guarantee;
  *
  * @see io.fluxzero.sdk.persisting.search.DocumentStore
  */
-public interface KeyValueStore {
+public interface KeyValueStore extends Namespaced<KeyValueStore> {
+
+    /**
+     * Returns this key-value store scoped to the requested namespace.
+     *
+     * @param namespace the namespace to which the returned store is scoped
+     * @return the key-value store associated with the specified namespace
+     */
+    @Override
+    default KeyValueStore forNamespace(String namespace) {
+        return this;
+    }
 
     /**
      * Stores a value under the given key with the default {@link Guarantee#SENT} delivery guarantee.

@@ -19,14 +19,30 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.search.SearchTest.SomeDocument;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInspector;
 import lombok.Builder;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class HandleDocumentTest {
 
@@ -152,6 +168,45 @@ public class HandleDocumentTest {
                 })
                 .whenExecuting(fc -> Fluxzero.index(new DocumentWithId(new DocumentId("CMA"))).get())
                 .expectOnlyEvents("CMA");
+    }
+
+    @Test
+    void handlerResultUpdatesDocumentInApplicationNamespace() {
+        DocumentStore defaultStore = mock(DocumentStore.class);
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new NamespacedDocumentHandler(), HandleDocument.class, List.of(new PayloadParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(() -> defaultStore).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new MyDocument("tenant")), MessageType.DOCUMENT, new JacksonSerializer())
+                .putContext(ConsumerConfiguration.class, ConsumerConfiguration.builder()
+                        .name("namespaced-document-handler").namespace("tenant").build());
+
+        wrapped.getInvokerOrNull(message).invoke();
+
+        verify(defaultStore).deleteDocument(any(), any());
+        verify(defaultStore, never()).forNamespace(any());
+    }
+
+    @Test
+    void namespacedDocumentStoreInvokesLocalHandlerInThatNamespace() {
+        AtomicReference<String> handled = new AtomicReference<>();
+        TestFixture fixture = TestFixture.create(new Object() {
+            @HandleDocument
+            void handle(MyDocument document) {
+                handled.set(document.getValue());
+            }
+        });
+
+        fixture.whenExecuting(fc -> fc.documentStore().forNamespace("customer")
+                        .index(new MyDocument("customer"), "document", MyDocument.class).join())
+                .expectThat(fc -> assertEquals("customer", handled.get()));
+    }
+
+    static class NamespacedDocumentHandler {
+        @HandleDocument
+        MyDocument delete(MyDocument document) {
+            return null;
+        }
     }
 
     @Revision(1)

@@ -48,6 +48,8 @@ import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
+import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 import static io.fluxzero.sdk.web.DefaultWebRequestContext.getWebRequestContext;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
@@ -99,7 +101,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     private final TaskScheduler taskScheduler;
 
     private final Set<String> websocketPaths = new CopyOnWriteArraySet<>();
-    private final Map<String, DefaultSocketSession> openSessions = new ConcurrentHashMap<>();
+    private final Map<SessionKey, DefaultSocketSession> openSessions = new ConcurrentHashMap<>();
     private final Set<Handler<DeserializingMessage>> websocketHandlers = new CopyOnWriteArraySet<>();
 
     /**
@@ -118,13 +120,15 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     }
 
     protected DefaultSocketSession getOrCreateSocketSession(HasMessage m) {
-        return openSessions.computeIfAbsent(requireSocketSessionId(m.getMetadata()), sId -> {
+        String namespace = m instanceof DeserializingMessage dm ? getConsumerNamespace(dm) : null;
+        SessionKey key = new SessionKey(namespace, requireSocketSessionId(m.getMetadata()));
+        return openSessions.computeIfAbsent(key, ignored -> {
             String target = m instanceof DeserializingMessage dm ? dm.getSerializedObject().getSource() : null;
-            return new DefaultSocketSession(sId, target,
+            return new DefaultSocketSession(key.sessionId(), namespace, target,
                                             WebRequest.getUrl(m.getMetadata()),
                                             WebRequest.getHeaders(m.getMetadata()),
                                             new RefreshableUser(User.getCurrent()),
-                                            webResponseGateway, taskScheduler, this::onAbort);
+                                            webResponseGateway.forNamespace(namespace), taskScheduler, this::onAbort);
         });
     }
 
@@ -163,7 +167,8 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                 .headers(session.getHeaders()).url(session.getUrl())
                 .method(WS_CLOSE).payload(String.valueOf(code)).build()
                 .addMetadata("sessionId", session.sessionId());
-        var message = new DeserializingMessage(abortRequest, WEBREQUEST, serializer);
+        var message = setConsumerNamespace(new DeserializingMessage(abortRequest, WEBREQUEST, serializer),
+                                           session.getNamespace());
         message.run(m -> {
             for (Handler<DeserializingMessage> handler : websocketHandlers) {
                 try {
@@ -318,7 +323,8 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             return message;
         }
         return ofNullable(WebRequest.getSocketSessionId(message.getMetadata()))
-                .flatMap(sessionId -> ofNullable(openSessions.get(sessionId)))
+                .flatMap(sessionId -> ofNullable(
+                        openSessions.get(new SessionKey(getConsumerNamespace(message), sessionId))))
                 .map(session -> message.putContext(RefreshableUser.class, session.getSessionUser()))
                 .orElse(message);
     }
@@ -337,7 +343,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                 if (!matches(message)) {
                     return delegate.getInvoker(message);
                 }
-                return ofNullable(openSessions.get(requireSocketSessionId(message.getMetadata())))
+                return ofNullable(openSessions.get(sessionKey(message)))
                         .flatMap(session -> session.tryHandleRequest(message, delegate)
                                 .or(() -> session.tryCompleteRequest(message)))
                         .or(() -> delegate.getInvoker(message));
@@ -395,13 +401,13 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                 if (!matches(message)) {
                     return delegate.getInvoker(message);
                 }
-                String sessionId = requireSocketSessionId(message.getMetadata());
-                HandlerInvoker remover = HandlerInvoker.run(() -> ofNullable(openSessions.get(sessionId))
+                SessionKey key = sessionKey(message);
+                HandlerInvoker remover = HandlerInvoker.run(() -> ofNullable(openSessions.get(key))
                         .ifPresent(session -> {
                             try {
                                 session.onClose();
                             } finally {
-                                openSessions.remove(session.sessionId(), session);
+                                openSessions.remove(key, session);
                             }
                         }));
                 return delegate.getInvoker(message).map(i -> i.andFinally(remover))
@@ -416,6 +422,13 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     }
 
     protected record SocketPattern(Executable executable, WebPattern pattern) {
+    }
+
+    private SessionKey sessionKey(DeserializingMessage message) {
+        return new SessionKey(getConsumerNamespace(message), requireSocketSessionId(message.getMetadata()));
+    }
+
+    private record SessionKey(String namespace, String sessionId) {
     }
 
 }

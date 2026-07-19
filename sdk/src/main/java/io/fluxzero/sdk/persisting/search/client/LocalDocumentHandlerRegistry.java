@@ -18,7 +18,9 @@ package io.fluxzero.sdk.persisting.search.client;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerFilter;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -26,6 +28,9 @@ import lombok.AllArgsConstructor;
 import lombok.experimental.Delegate;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.fluxzero.sdk.common.ClientUtils.isApplicationNamespace;
+import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 
 /**
  * A handler registry implementation intended for local testing and development that registers handlers for document
@@ -35,24 +40,43 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @see HandlerRegistry
  */
 @AllArgsConstructor
-public class LocalDocumentHandlerRegistry implements HasLocalHandlers {
-    private final InMemorySearchStore searchStore;
+public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHandlers> implements HasLocalHandlers {
+    private final Client client;
     @Delegate
     private final HandlerRegistry handlerRegistry;
     private final DispatchInterceptor dispatchInterceptor;
     private final Serializer serializer;
-
     private final AtomicBoolean initialized = new AtomicBoolean();
 
     @Override
-    public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
-        if (initialized.compareAndSet(false, true)) {
-            searchStore.registerMonitor((collection, messages) -> serializer.deserializeMessages(
-                    messages.stream(), MessageType.DOCUMENT, collection).forEach(message -> {
-                dispatchInterceptor.monitorDispatch(message.toMessage(), MessageType.DOCUMENT, collection, null, false);
-                handle(message);
-            }));
+    protected HasLocalHandlers createForNamespace(String namespace) {
+        Client namespacedClient = client.forNamespace(namespace);
+        if (namespacedClient == client) {
+            return this;
         }
+        LocalDocumentHandlerRegistry result = new LocalDocumentHandlerRegistry(
+                namespacedClient, handlerRegistry, dispatchInterceptor, serializer);
+        result.initializeMonitor();
+        return result;
+    }
+
+    @Override
+    public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
+        initializeMonitor();
         return handlerRegistry.registerHandler(target, handlerFilter);
+    }
+
+    private void initializeMonitor() {
+        if (initialized.compareAndSet(false, true)) {
+            ((InMemorySearchStore) client.getSearchClient()).registerMonitor(
+                    (collection, messages) -> serializer.deserializeMessages(
+                            messages.stream(), MessageType.DOCUMENT, collection).forEach(message -> {
+                        message = setConsumerNamespace(
+                                message, isApplicationNamespace(client) ? null : client.namespace());
+                        dispatchInterceptor.monitorDispatch(
+                                message.toMessage(), MessageType.DOCUMENT, collection, client.namespace(), false);
+                        handle(message);
+                    }));
+        }
     }
 }

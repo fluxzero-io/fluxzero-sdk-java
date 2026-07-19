@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.ErrorGateway;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ErrorReportingInterceptorTest {
 
@@ -80,6 +82,41 @@ class ErrorReportingInterceptorTest {
         assertThrows(CompletionException.class, () -> result.toCompletableFuture().join());
         assertEquals(1, errorGateway.errors.size());
         assertInstanceOf(TechnicalException.class, errorGateway.errors.getFirst().getPayload());
+    }
+
+    @Test
+    void asyncErrorRestoresMessageContext() {
+        CompletableFuture<Void> handlerResult = new CompletableFuture<>();
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new DeferredThrowingHandler(handlerResult), HandleEvent.class,
+                List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = message("payload");
+
+        wrapped.getHandlerMethodOrNull(message).invoke(message);
+        assertTrue(DeserializingMessage.getOptionally().isEmpty());
+
+        handlerResult.completeExceptionally(new IllegalStateException("boom"));
+
+        assertSame(message, errorGateway.currentMessageDuringReport);
+        assertTrue(DeserializingMessage.getOptionally().isEmpty());
+    }
+
+    @Test
+    void consumerNamespaceDoesNotChangeApplicationErrorGateway() {
+        RecordingErrorGateway applicationGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new ThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(applicationGateway).wrap(handler);
+        DeserializingMessage message = message("payload").putContext(
+                ConsumerConfiguration.class, ConsumerConfiguration.builder()
+                        .name("customer-consumer").namespace("customer").build());
+
+        assertThrows(IllegalStateException.class, () -> wrapped.getHandlerMethodOrNull(message).invoke(message));
+
+        assertEquals(1, applicationGateway.errors.size());
+        assertEquals(List.of(), applicationGateway.requestedNamespaces);
     }
 
     @Test
@@ -130,6 +167,13 @@ class ErrorReportingInterceptorTest {
         }
     }
 
+    private record DeferredThrowingHandler(CompletableFuture<Void> result) {
+        @HandleEvent
+        CompletionStage<Void> handle(DeserializingMessage ignored) {
+            return result;
+        }
+    }
+
     private static class LocalThrowingHandler {
         @HandleEvent
         @LocalHandler
@@ -148,21 +192,26 @@ class ErrorReportingInterceptorTest {
 
     private static class RecordingErrorGateway implements ErrorGateway {
         private final List<Message> errors = new ArrayList<>();
+        private final List<String> requestedNamespaces = new ArrayList<>();
+        private DeserializingMessage currentMessageDuringReport;
 
         @Override
         public CompletableFuture<Void> report(Guarantee guarantee, Message... errors) {
+            currentMessageDuringReport = DeserializingMessage.getOptionally().orElse(null);
             this.errors.addAll(List.of(errors));
             return CompletableFuture.completedFuture(null);
         }
 
         @Override
         public CompletableFuture<Void> report(Object payload, Metadata metadata, Guarantee guarantee) {
+            currentMessageDuringReport = DeserializingMessage.getOptionally().orElse(null);
             errors.add(new Message(payload, metadata));
             return CompletableFuture.completedFuture(null);
         }
 
         @Override
         public ErrorGateway forNamespace(String namespace) {
+            requestedNamespaces.add(namespace);
             return this;
         }
 

@@ -21,6 +21,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -77,7 +78,7 @@ import java.util.function.BiConsumer;
 @Value
 public class Invocation {
 
-    private static final ThreadLocal<Invocation> current = new ThreadLocal<>();
+    private static final ThreadLocal<Invocation> current = ThreadLocalContext.create();
     private static final CompletableFuture<Void> completedResultPublicationBarrier =
             CompletableFuture.completedFuture(null);
     String handler;

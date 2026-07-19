@@ -46,7 +46,6 @@ import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
-import io.fluxzero.sdk.persisting.caching.NamedCache;
 import io.fluxzero.sdk.persisting.caching.SelectiveCache;
 import io.fluxzero.sdk.persisting.eventsourcing.DefaultEventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore;
@@ -741,7 +740,7 @@ public class DefaultFluxzero implements Fluxzero {
                     Entry::getKey, e -> List.copyOf(e.getValue())));
             Map<MessageType, List<BatchInterceptor>> internalBatchInterceptors = new HashMap<>();
 
-            KeyValueStore keyValueStore = new DefaultKeyValueStore(client.getKeyValueClient(), serializer);
+            KeyValueStore keyValueStore = new DefaultKeyValueStore(client, serializer);
 
             //enable message routing
             Arrays.stream(MessageType.values()).forEach(
@@ -904,8 +903,8 @@ public class DefaultFluxzero implements Fluxzero {
 
             documentStore.set(new DefaultDocumentStore(
                     client, documentSerializer,
-                    client.getSearchClient() instanceof InMemorySearchStore searchStore
-                            ? new LocalDocumentHandlerRegistry(searchStore, localHandlerRegistry(
+                    client.getSearchClient() instanceof InMemorySearchStore
+                            ? new LocalDocumentHandlerRegistry(client, localHandlerRegistry(
                             DOCUMENT, handlerChains, runtimeParameterResolvers, dispatchChains,
                             handlerRepositorySupplier,
                             repositorySupplier), dispatchChains.get(DOCUMENT), serializer)
@@ -921,15 +920,14 @@ public class DefaultFluxzero implements Fluxzero {
                                                                                repositorySupplier));
             var snapshotStore = new DefaultSnapshotStore(documentStore.get(), snapshotSerializer, eventStore);
 
-            Cache aggregateCache = new NamedCache(cache, id -> "$Aggregate:" + id);
             AggregateRepository aggregateRepository = new DefaultAggregateRepository(
-                    eventStore, client.getEventStoreClient(), snapshotStore, aggregateCache,
+                    client, eventStore, snapshotStore, cache,
                     relationshipsCache, documentStore.get(),
                     serializer, dispatchChains.get(EVENT), entityMatcher);
 
             if (!disableAutomaticAggregateCaching) {
                 aggregateRepository = new CachingAggregateRepository(
-                        aggregateRepository, client, aggregateCache, relationshipsCache, this.serializer);
+                        aggregateRepository, client, cache, relationshipsCache, this.serializer);
             }
 
 
@@ -992,7 +990,12 @@ public class DefaultFluxzero implements Fluxzero {
                             new DefaultHandlerFactory(m, handlerChains.get(m == NOTIFICATION ? EVENT : m),
                                                       runtimeParameterResolvers, methodInvocationValidator(m),
                                                       handlerRepositorySupplier,
-                                                      repositorySupplier, !disableTrackingMetrics, this.serializer))));
+                                                      repositorySupplier, !disableTrackingMetrics, this.serializer),
+                            m == SCHEDULE
+                                    ? (target, configuration) -> schedulingInterceptor.initializePeriodicSchedules(
+                                            target, configuration.getNamespace())
+                                    : (target, configuration) -> {
+                                    })));
 
             //misc
             MessageScheduler messageScheduler = new DefaultMessageScheduler(client,

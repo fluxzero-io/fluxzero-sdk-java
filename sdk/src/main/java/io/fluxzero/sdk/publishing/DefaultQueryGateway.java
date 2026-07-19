@@ -15,6 +15,8 @@
 
 package io.fluxzero.sdk.publishing;
 
+import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.Namespaced;
 import lombok.AllArgsConstructor;
 import lombok.With;
 import lombok.experimental.Delegate;
@@ -29,18 +31,19 @@ import lombok.experimental.Delegate;
  * @see GenericGateway
  */
 @AllArgsConstructor
-public class DefaultQueryGateway implements QueryGateway {
-    @Delegate
+public class DefaultQueryGateway extends AbstractNamespaced<QueryGateway> implements QueryGateway {
+    @Delegate(excludes = Namespaced.class)
     @With
     private final GenericGateway delegate;
 
     @Override
-    public DefaultQueryGateway forDefaultNamespace() {
-        return forNamespace(null);
+    protected QueryGateway createForNamespace(String namespace) {
+        GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
+        return namespacedDelegate == delegate ? this : new DefaultQueryGateway(namespacedDelegate);
     }
 
     @Override
     public DefaultQueryGateway forNamespace(String namespace) {
-        return withDelegate(delegate.forNamespace(namespace));
+        return (DefaultQueryGateway) super.forNamespace(namespace);
     }
 }

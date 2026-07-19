@@ -27,7 +27,6 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
-import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
@@ -57,6 +56,7 @@ import static java.util.Optional.ofNullable;
  * <ul>
  *   <li>{@code _trigger}: The fully qualified class name of the triggering message’s payload.</li>
  *   <li>{@code _triggerType}: The {@link MessageType} of the trigger (e.g., COMMAND, EVENT, etc.).</li>
+ *   <li>{@code _triggerNamespace}: The namespace containing the trigger, when known.</li>
  *   <li>{@code _consumer}: (Optional) Name of the client that originally consumed the trigger.</li>
  *   <li>{@code _correlation}: A message index pointing to the trigger message in the Runtime.</li>
  * </ul>
@@ -248,7 +248,9 @@ public class TriggerParameterResolver
                     }
                 }).flatMap(index -> getTriggerClass(message, correlationDataProvider).flatMap(
                         triggerClass -> getTriggerMessageType(message, correlationDataProvider).flatMap(
-                                triggerType -> getTriggerMessage(index, triggerClass, triggerType))));
+                                triggerType -> getTriggerMessage(
+                                        index, triggerClass, triggerType,
+                                        message.getMetadata().get(correlationDataProvider.getTriggerNamespaceKey())))));
     }
 
     protected Optional<Class<?>> getTriggerClass(HasMessage message) {
@@ -326,9 +328,12 @@ public class TriggerParameterResolver
     }
 
     protected Optional<DeserializingMessage> getTriggerMessage(long index, Class<?> type, MessageType messageType) {
-        var client = Tracker.current().map(tracker -> tracker.getConfiguration().getNamespace()).map(
-                this.client::forNamespace).orElse(this.client);
-        return client.getTrackingClient(messageType).readFromIndex(index, 1).stream()
+        return getTriggerMessage(index, type, messageType, null);
+    }
+
+    protected Optional<DeserializingMessage> getTriggerMessage(long index, Class<?> type, MessageType messageType,
+                                                               String namespace) {
+        return client.forNamespace(namespace).getTrackingClient(messageType).readFromIndex(index, 1).stream()
                 .flatMap(s -> serializer.deserializeMessages(Stream.of(s), messageType))
                 .filter(d -> type.isAssignableFrom(d.getPayloadClass()))
                 .findFirst();

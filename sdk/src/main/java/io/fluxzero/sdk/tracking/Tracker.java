@@ -18,6 +18,7 @@ import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -45,7 +46,7 @@ public class Tracker {
     /**
      * Thread-local variable that holds the current tracker instance. This is automatically set by the Fluxzero Java SDK.
      */
-    public static final ThreadLocal<Tracker> current = new ThreadLocal<>();
+    public static final ThreadLocal<Tracker> current = ThreadLocalContext.create();
 
     /**
      * Returns the current tracker instance, if any.

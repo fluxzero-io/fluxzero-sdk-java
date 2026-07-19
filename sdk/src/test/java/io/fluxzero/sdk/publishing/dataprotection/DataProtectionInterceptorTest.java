@@ -30,6 +30,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
@@ -58,7 +59,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DataProtectionInterceptorTest {
     private final TestFixture testFixture = TestFixture.createAsync();
@@ -68,6 +75,113 @@ class DataProtectionInterceptorTest {
         testFixture.registerHandlers(new SomeHandler())
                 .whenExecuting(fc -> Fluxzero.publishEvent(new SomeEvent("something super secret")))
                 .expectEvents(new SomeEvent(null));
+    }
+
+    @Test
+    void storesProtectedDataInDispatchNamespace() {
+        KeyValueStore defaultStore = mock(KeyValueStore.class);
+        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
+
+        new DataProtectionInterceptor(defaultStore, new JacksonSerializer()).interceptDispatch(
+                new Message(new SomeEvent("secret")), MessageType.EVENT, null, "tenant");
+
+        verify(namespacedStore).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
+        verify(defaultStore, never()).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
+    }
+
+    @Test
+    void replacesInheritedProtectedDataReferencesInDispatchNamespace() {
+        KeyValueStore defaultStore = mock(KeyValueStore.class);
+        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
+        Message message = new Message(new SomeEvent("secret"), Metadata.of(
+                DataProtectionInterceptor.METADATA_KEY, Map.of("sensitiveData", "old-key"),
+                DataProtectionInterceptor.NAMESPACE_METADATA_KEY, "application"));
+
+        Message result = new DataProtectionInterceptor(defaultStore, new JacksonSerializer())
+                .interceptDispatch(message, MessageType.EVENT, null, "tenant");
+
+        Map<String, String> references = result.getMetadata().get(
+                DataProtectionInterceptor.METADATA_KEY, Map.class);
+        assertFalse(references.containsValue("old-key"));
+        assertEquals("tenant", result.getMetadata().get(DataProtectionInterceptor.NAMESPACE_METADATA_KEY));
+        verify(namespacedStore).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
+    }
+
+    @Test
+    void removesInheritedReferencesWhenProtectedValueIsUnavailableInNewNamespace() {
+        Message message = new Message(new SomeEvent(null), Metadata.of(
+                DataProtectionInterceptor.METADATA_KEY, Map.of("sensitiveData", "old-key"),
+                DataProtectionInterceptor.NAMESPACE_METADATA_KEY, "application"));
+
+        Message result = new DataProtectionInterceptor(mock(KeyValueStore.class), new JacksonSerializer())
+                .interceptDispatch(message, MessageType.EVENT, null, "tenant");
+
+        assertFalse(result.getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
+        assertFalse(result.getMetadata().containsKey(DataProtectionInterceptor.NAMESPACE_METADATA_KEY));
+    }
+
+    @Test
+    void removesProtectedDataMetadataWhenPayloadHasNothingToProtect() {
+        Message result = new DataProtectionInterceptor(mock(KeyValueStore.class), new JacksonSerializer())
+                .interceptDispatch(new Message("plain", Metadata.of(
+                        DataProtectionInterceptor.METADATA_KEY, Map.of("secret", "old-key"))),
+                                   MessageType.EVENT, null, "tenant");
+
+        assertFalse(result.getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
+        assertFalse(result.getMetadata().containsKey(DataProtectionInterceptor.NAMESPACE_METADATA_KEY));
+    }
+
+    @Test
+    void restoresProtectedDataFromConsumerNamespace() {
+        KeyValueStore defaultStore = mock(KeyValueStore.class);
+        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
+        when(namespacedStore.get("protected-key")).thenReturn("secret");
+        SomeHandler target = new SomeHandler();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                target, HandleEvent.class, List.of(new PayloadParameterResolver(), new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new DataProtectionInterceptor(
+                defaultStore, new JacksonSerializer()).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new SomeEvent(null), Metadata.of(
+                        DataProtectionInterceptor.METADATA_KEY, Map.of("sensitiveData", "protected-key"))),
+                MessageType.EVENT, new JacksonSerializer());
+        message.putContext(ConsumerConfiguration.class,
+                           ConsumerConfiguration.builder().name("tenant-consumer").namespace("tenant").build());
+
+        wrapped.getInvokerOrNull(message).invoke();
+
+        assertEquals("secret", target.getLastEvent().getSensitiveData());
+        verify(namespacedStore).get("protected-key");
+    }
+
+    @Test
+    void localDispatchRestoresProtectedDataFromApplicationNamespaceInsideCustomConsumer() {
+        KeyValueStore defaultStore = mock(KeyValueStore.class);
+        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        when(defaultStore.forNamespace(null)).thenReturn(defaultStore);
+        when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
+        when(defaultStore.get("protected-key")).thenReturn("secret");
+        SomeHandler target = new SomeHandler();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                target, HandleEvent.class, List.of(new PayloadParameterResolver(), new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new DataProtectionInterceptor(
+                defaultStore, new JacksonSerializer()).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new SomeEvent(null), Metadata.of(
+                        DataProtectionInterceptor.METADATA_KEY, Map.of("sensitiveData", "protected-key"),
+                        DataProtectionInterceptor.NAMESPACE_METADATA_KEY, "")),
+                MessageType.EVENT, new JacksonSerializer());
+        message.putContext(ConsumerConfiguration.class,
+                           ConsumerConfiguration.builder().name("tenant-consumer").namespace("tenant").build());
+
+        wrapped.getInvokerOrNull(message).invoke();
+
+        assertEquals("secret", target.getLastEvent().getSensitiveData());
+        verify(defaultStore).get("protected-key");
+        verify(namespacedStore, never()).get("protected-key");
     }
 
     @Test
@@ -350,6 +464,7 @@ class DataProtectionInterceptorTest {
     private HandlerInvoker invokeWithMissingProtectedData(Object target, MissingProtectedDataPolicy applicationPolicy,
                                                           ConsumerConfiguration consumerConfiguration) {
         KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        when(keyValueStore.forNamespace(nullable(String.class))).thenReturn(keyValueStore);
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
                 target, HandleEvent.class, List.of(new PayloadParameterResolver()));
         Handler<DeserializingMessage> wrapped = new DataProtectionInterceptor(
@@ -367,7 +482,8 @@ class DataProtectionInterceptorTest {
 
     private Metadata missingProtectedDataMetadata() {
         return Metadata.of(DataProtectionInterceptor.METADATA_KEY,
-                           Map.of("sensitiveData", "missing-key"));
+                           Map.of("sensitiveData", "missing-key"),
+                           DataProtectionInterceptor.NAMESPACE_METADATA_KEY, "public");
     }
 
     @Value

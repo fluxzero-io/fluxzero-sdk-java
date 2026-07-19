@@ -49,6 +49,8 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.SCHEDULE;
+import static io.fluxzero.sdk.common.ClientUtils.isApplicationNamespace;
+import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 
 /**
@@ -85,7 +87,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
         if (Entity.isLoading()) {
             return CompletableFuture.completedFuture(null);
         }
-        message = (Schedule) dispatchInterceptor.interceptDispatch(message, SCHEDULE, null);
+        message = (Schedule) dispatchInterceptor.interceptDispatch(message, SCHEDULE, null, client.namespace());
         if (message == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -113,7 +115,8 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
             return CompletableFuture.completedFuture(null);
         }
         var commandMessage = schedule.withMessageId(Fluxzero.currentIdentityProvider().nextTechnicalId());
-        var intercepted = commandDispatchInterceptor.interceptDispatch(commandMessage, COMMAND, null);
+        var intercepted = commandDispatchInterceptor.interceptDispatch(
+                commandMessage, COMMAND, null, client.namespace());
         if (intercepted == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -261,8 +264,9 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
     protected DeserializingMessage deserializingMessage(Schedule schedule) {
         var serializedMessage = schedule.serialize(serializer);
         serializedMessage.setIndex(indexFromTimestamp(schedule.getDeadline()));
-        return new DeserializingMessage(
-                serializedMessage, type -> serializer.convert(schedule.getPayload(), type), SCHEDULE, null, serializer);
+        return setConsumerNamespace(new DeserializingMessage(
+                serializedMessage, type -> serializer.convert(schedule.getPayload(), type), SCHEDULE, null, serializer),
+                isApplicationNamespace(client) ? null : client.namespace());
     }
 
     protected boolean sameSchedule(Schedule left, Schedule right) {

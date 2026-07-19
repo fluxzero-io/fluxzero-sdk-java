@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.common.ObjectUtils.asConsumer;
 import static io.fluxzero.common.ObjectUtils.memoize;
@@ -98,6 +99,14 @@ public abstract class AbstractClient extends AbstractNamespaced<Client> implemen
      * Tracks shutdown callbacks that will be run when {@link #shutDown()} is invoked.
      */
     protected final Set<Runnable> shutdownTasks = new CopyOnWriteArraySet<>();
+    Set<Client> namespaceClients = new CopyOnWriteArraySet<>();
+    AtomicBoolean shutDown = new AtomicBoolean();
+
+    /** Registers a namespace-specific child so shutting down the application client also closes that child. */
+    protected <T extends Client> T registerNamespaceClient(T namespaceClient) {
+        namespaceClients.add(namespaceClient);
+        return namespaceClient;
+    }
 
     /**
      * Subclasses must implement this method to return a {@link GatewayClient} for the given message type and topic.
@@ -183,13 +192,16 @@ public abstract class AbstractClient extends AbstractNamespaced<Client> implemen
 
     @Override
     public void shutDown() {
-        shutdownTasks.forEach(ObjectUtils::tryRun);
-        trackingClients.forEach(asConsumer(AutoCloseable::close));
-        gatewayClients.forEach(asConsumer(AutoCloseable::close));
-        getEventStoreClient().close();
-        getSchedulingClient().close();
-        getKeyValueClient().close();
-        getSearchClient().close();
+        if (shutDown.compareAndSet(false, true)) {
+            shutdownTasks.forEach(ObjectUtils::tryRun);
+            namespaceClients.forEach(Client::shutDown);
+            trackingClients.forEach(asConsumer(AutoCloseable::close));
+            gatewayClients.forEach(asConsumer(AutoCloseable::close));
+            getEventStoreClient().close();
+            getSchedulingClient().close();
+            getKeyValueClient().close();
+            getSearchClient().close();
+        }
     }
 
     @Override

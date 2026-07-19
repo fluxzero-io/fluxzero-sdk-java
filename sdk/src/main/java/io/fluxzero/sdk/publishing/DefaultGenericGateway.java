@@ -52,6 +52,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.Guarantee.SENT;
+import static io.fluxzero.sdk.common.ClientUtils.isApplicationNamespace;
+import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -67,6 +69,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private final DispatchInterceptor dispatchInterceptor;
     private final MessageType messageType;
     private final String topic;
+    private final String namespace;
+    private final boolean applicationNamespace;
     @Delegate
     private final HandlerRegistry localHandlerRegistry;
     private final ResponseMapper responseMapper;
@@ -92,6 +96,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         this.dispatchInterceptor = dispatchInterceptor;
         this.messageType = messageType;
         this.topic = topic;
+        this.namespace = client.namespace();
+        this.applicationNamespace = isApplicationNamespace(client);
         this.localHandlerRegistry = localHandlerRegistry;
         this.responseMapper = responseMapper;
     }
@@ -117,13 +123,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                                                  Message... messages) {
         List<SerializedMessage> serializedMessages = new ArrayList<>();
         for (Message message : messages) {
-            message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
+            message = dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
             if (message == null) {
                 continue;
             }
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), false);
-            Optional<CompletableFuture<Object>> localResult
-                    = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
+            Optional<CompletableFuture<Object>> localResult = localHandlerRegistry.handle(localMessage(message));
             if (localResult.isEmpty()) {
                 SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                         message.serialize(serializer), message, messageType, topic);
@@ -179,7 +184,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         PreparedDispatchEntry preparedDispatch = lastDispatch
                 ? cachedDispatch : preparedLocalDispatch.get(payloadClass);
         PreparedLocalDispatch dispatch = preparedDispatch.dispatch();
-        if (dispatch != null) {
+        if (dispatch != null && applicationNamespace) {
             if (!lastDispatch) {
                 lastPreparedDispatch = preparedDispatch;
             }
@@ -210,13 +215,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @SneakyThrows
     public <R> R sendAndWait(Message message) {
         Duration timeout = sendAndWaitTimeout(message);
-        message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
+        message = dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
         if (message == null) {
             return null;
         }
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), true);
-        LocalHandlerResult localResult = localHandlerRegistry.handleResult(
-                new DeserializingMessage(message, messageType, topic, serializer));
+        dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+        LocalHandlerResult localResult = handleLocally(message);
         if (localResult.isCompletedSuccessfully()) {
             return (R) responseMapper.mapPayload(localResult.getValue());
         }
@@ -257,13 +261,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private PendingRequest prepareRequest(Message message, Duration timeout) {
-        message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
+        message = dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
         if (message == null) {
             return PendingRequest.completed(emptyReturnMessage());
         }
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), true);
-        LocalHandlerResult localResult = localHandlerRegistry.handleResult(
-                new DeserializingMessage(message, messageType, topic, serializer));
+        dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+        LocalHandlerResult localResult = handleLocally(message);
         if (localResult.isHandled()) {
             return prepareLocalRequest(message, localResult.asFuture(), timeout);
         }
@@ -277,6 +280,16 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             result.orTimeout(timeout.toMillis(), MILLISECONDS);
         }
         return PendingRequest.completed(trackCallback(message.getMessageId(), result));
+    }
+
+    private LocalHandlerResult handleLocally(Message message) {
+        return localHandlerRegistry.handleResult(localMessage(message));
+    }
+
+    private DeserializingMessage localMessage(Message message) {
+        return setConsumerNamespace(
+                new DeserializingMessage(message, messageType, topic, serializer),
+                applicationNamespace ? null : namespace);
     }
 
     private PendingRequest prepareExternalRequest(Message message, Duration timeout) {

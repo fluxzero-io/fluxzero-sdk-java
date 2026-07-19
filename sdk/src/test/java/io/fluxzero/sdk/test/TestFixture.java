@@ -63,6 +63,7 @@ import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.Schedule;
+import io.fluxzero.sdk.scheduling.SchedulingInterceptor;
 import io.fluxzero.sdk.scheduling.ScheduledCommand;
 import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
@@ -614,6 +615,11 @@ public class TestFixture implements Given<TestFixture>, When {
                         .map(s -> handlers.stream().map(h -> s.registerHandler(h, handlerFilter))
                                 .reduce(Registration::merge).orElse(Registration.noOp()))
                         .orElse(Registration.noOp());
+                SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
+                fixture.assignHandlersToConsumers(MessageType.SCHEDULE, handlers)
+                        .forEach((configuration, targets) -> targets.forEach(target ->
+                                schedulingInterceptor.initializePeriodicSchedules(
+                                        target, configuration.getNamespace())));
                 return local.merge(schedules);
             });
             fixture.registration = fixture.registration.merge(registration);

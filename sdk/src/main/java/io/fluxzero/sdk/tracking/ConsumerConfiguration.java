@@ -396,7 +396,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     /**
      * Specifies the namespace under which the consumer tracks messages.
      * <p>
-     * If set to {@code null}, the default namespace of the client application is used.
+     * If set to {@code null}, the namespace configured for the client application is used.
      *
      * @see Client#forNamespace(String)
      */

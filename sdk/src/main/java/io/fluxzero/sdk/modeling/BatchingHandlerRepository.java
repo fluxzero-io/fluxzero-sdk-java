@@ -19,6 +19,7 @@ import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
@@ -55,10 +56,17 @@ import static io.fluxzero.sdk.common.serialization.DeserializingMessage.whenBatc
  * </ul>
  */
 @AllArgsConstructor
-public class BatchingHandlerRepository implements HandlerRepository {
+public class BatchingHandlerRepository extends AbstractNamespaced<HandlerRepository> implements HandlerRepository {
 
     private final DefaultHandlerRepository delegate;
     private final DocumentSerializer documentSerializer;
+
+    @Override
+    protected HandlerRepository createForNamespace(String namespace) {
+        HandlerRepository namespacedDelegate = delegate.forNamespace(namespace);
+        return namespacedDelegate == delegate ? this
+                : new BatchingHandlerRepository((DefaultHandlerRepository) namespacedDelegate, documentSerializer);
+    }
 
     @Override
     public Collection<? extends Entry<?>> findByAssociation(Map<Object, String> associations) {

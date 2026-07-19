@@ -50,11 +50,16 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
 
     @Override
     public Message interceptDispatch(Message message, MessageType messageType, String topic) {
+        return interceptDispatch(message, messageType, topic, null);
+    }
+
+    @Override
+    public Message interceptDispatch(Message message, MessageType messageType, String topic, String namespace) {
         for (DispatchInterceptor interceptor : interceptors) {
             if (message == null) {
                 return null;
             }
-            message = interceptor.interceptDispatch(message, messageType, topic);
+            message = interceptor.interceptDispatch(message, messageType, topic, namespace);
         }
         return message;
     }

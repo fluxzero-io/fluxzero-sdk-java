@@ -17,7 +17,9 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import lombok.AllArgsConstructor;
 import lombok.With;
 import lombok.experimental.Delegate;
@@ -37,8 +39,8 @@ import java.util.concurrent.CompletableFuture;
  */
 @AllArgsConstructor
 @Slf4j
-public class DefaultErrorGateway implements ErrorGateway {
-    @Delegate
+public class DefaultErrorGateway extends AbstractNamespaced<ErrorGateway> implements ErrorGateway {
+    @Delegate(excludes = Namespaced.class)
     @With
     private final GenericGateway delegate;
 
@@ -53,12 +55,13 @@ public class DefaultErrorGateway implements ErrorGateway {
     }
 
     @Override
-    public DefaultErrorGateway forDefaultNamespace() {
-        return forNamespace(null);
+    protected ErrorGateway createForNamespace(String namespace) {
+        GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
+        return namespacedDelegate == delegate ? this : new DefaultErrorGateway(namespacedDelegate);
     }
 
     @Override
     public DefaultErrorGateway forNamespace(String namespace) {
-        return withDelegate(delegate.forNamespace(namespace));
+        return (DefaultErrorGateway) super.forNamespace(namespace);
     }
 }

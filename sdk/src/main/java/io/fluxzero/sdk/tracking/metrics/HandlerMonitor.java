@@ -149,11 +149,13 @@ public class HandlerMonitor implements HandlerInterceptor {
                     typeFormatter.apply(message), exceptionalResult, start.until(Instant.now(), NANOS), completed)));
             if (!completed) {
                 Map<String, String> correlationData = Fluxzero.currentCorrelationData();
-                ((CompletionStage<?>) result).whenComplete((r, e) -> message.run(
-                        m -> Fluxzero.getOptionally().ifPresent(fc -> fc.metricsGateway().publish(
+                var context = message.captureContext();
+                ((CompletionStage<?>) result).whenComplete(context.wrap((r, e) ->
+                        Fluxzero.getOptionally().ifPresent(fc -> fc.metricsGateway().publish(
                                 new CompleteMessageEvent(
                                         consumer, handler.getTargetClass().getSimpleName(),
-                                        m.getIndex(), m.getMessageType(), m.getTopic(), typeFormatter.apply(m),
+                                        message.getIndex(), message.getMessageType(), message.getTopic(),
+                                        typeFormatter.apply(message),
                                         e != null, start.until(Instant.now(), NANOS)),
                                 Metadata.of(correlationData)))));
             }

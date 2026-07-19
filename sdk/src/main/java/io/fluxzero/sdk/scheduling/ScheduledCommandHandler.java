@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.NONE;
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 import static io.fluxzero.sdk.common.serialization.UnknownTypeStrategy.IGNORE;
 
 /**
@@ -56,15 +57,16 @@ import static io.fluxzero.sdk.common.serialization.UnknownTypeStrategy.IGNORE;
 @Consumer(name = "ScheduledCommandHandler", typeFilter = "\\Qio.fluxzero.sdk.scheduling.ScheduledCommand\\E")
 public class ScheduledCommandHandler {
     @HandleSchedule
-    void handle(ScheduledCommand schedule) {
+    void handle(ScheduledCommand schedule, DeserializingMessage message) {
         SerializedMessage command = schedule.getCommand();
         command.setTimestamp(Fluxzero.currentTime().toEpochMilli());
         var commands = Fluxzero.get().serializer().deserializeMessages(Stream.of(command), COMMAND, IGNORE)
                 .map(DeserializingMessage::toMessage).toArray();
+        String namespace = getConsumerNamespace(message);
         if (commands.length != 0) {
-            Fluxzero.sendAndForgetCommands(commands);
+            Fluxzero.get().commandGateway().forNamespace(namespace).sendAndForget(commands);
         } else {
-            Fluxzero.get().client().getGatewayClient(COMMAND).append(NONE, command);
+            Fluxzero.get().client().forNamespace(namespace).getGatewayClient(COMMAND).append(NONE, command);
         }
     }
 }

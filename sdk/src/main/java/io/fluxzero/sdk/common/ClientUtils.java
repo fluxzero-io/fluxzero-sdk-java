@@ -27,8 +27,12 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
@@ -95,6 +99,9 @@ import static java.time.temporal.ChronoUnit.DAYS;
  */
 @Slf4j
 public class ClientUtils {
+    private static final ConsumerNamespaceContext applicationHandlerNamespace = new ConsumerNamespaceContext(null);
+    private static final ThreadLocal<ConsumerNamespaceContext> handlerNamespace = ThreadLocalContext.create();
+
     private static final ClassValue<LocalHandlerAnnotationCache> localHandlerAnnotationCache = new ClassValue<>() {
         @Override
         protected LocalHandlerAnnotationCache computeValue(Class<?> type) {
@@ -110,6 +117,83 @@ public class ClientUtils {
      * scenarios where certain log messages need to be flagged for exclusion from error-reporting workflows.
      */
     public static final Marker ignoreMarker = MarkerFactory.getMarker("ignoreError");
+
+    /**
+     * Returns whether the supplied client addresses the namespace configured for the application itself.
+     * <p>
+     * A namespaced client resolves {@code forNamespace(null)} back to its application client. Identity is used so a
+     * custom namespace with equivalent configuration cannot accidentally enable in-process handling.
+     */
+    public static boolean isApplicationNamespace(Client client) {
+        return client.forNamespace(null) == client;
+    }
+
+    /**
+     * Returns the namespace of the consumer that is handling the supplied message.
+     * <p>
+     * An explicit context is used for framework-created and locally dispatched messages. A local handler explicitly
+     * overrides the active tracker with the namespace of its direct messaging input. Regular tracked handling falls
+     * back to the consumer configuration or active tracker.
+     *
+     * @param message the message being handled
+     * @return the consumer namespace, or {@code null} for the application namespace
+     */
+    public static String getConsumerNamespace(DeserializingMessage message) {
+        ConsumerNamespaceContext activeHandlerNamespace = handlerNamespace.get();
+        if (activeHandlerNamespace != null) {
+            return activeHandlerNamespace.namespace();
+        }
+        Optional<ConsumerNamespaceContext> explicitContext = message.getContext(ConsumerNamespaceContext.class);
+        if (explicitContext.isPresent()) {
+            return explicitContext.get().namespace();
+        }
+        return message.getContext(ConsumerConfiguration.class).map(ConsumerConfiguration::getNamespace)
+                .orElseGet(() -> Tracker.current().map(t -> t.getConfiguration().getNamespace()).orElse(null));
+    }
+
+    /** Attaches an explicit consumer namespace, including the application namespace represented by {@code null}. */
+    public static DeserializingMessage setConsumerNamespace(DeserializingMessage message, String namespace) {
+        return message.putContext(ConsumerNamespaceContext.class, new ConsumerNamespaceContext(namespace));
+    }
+
+    /**
+     * Runs local handler work with the application namespace as the namespace of its direct messaging input.
+     * <p>
+     * The active tracker remains available for tracing and other request context, but cannot implicitly redirect
+     * entity injection, trigger correlation, responses, or rescheduling performed for the local message. Nested scopes
+     * restore the namespace that was active before the local handler was entered.
+     */
+    public static <T> T runInLocalHandlerNamespace(Supplier<T> task) {
+        return runInLocalHandlerNamespace(applicationHandlerNamespace, task);
+    }
+
+    /**
+     * Runs local handler work in the explicit consumer namespace attached to the locally dispatched message.
+     * Messages without an explicit namespace are application-local.
+     */
+    public static <T> T runInLocalHandlerNamespace(DeserializingMessage message, Supplier<T> task) {
+        ConsumerNamespaceContext namespace = message.getContext(ConsumerNamespaceContext.class)
+                .orElse(applicationHandlerNamespace);
+        return runInLocalHandlerNamespace(namespace, task);
+    }
+
+    private static <T> T runInLocalHandlerNamespace(ConsumerNamespaceContext namespace, Supplier<T> task) {
+        ConsumerNamespaceContext previous = handlerNamespace.get();
+        handlerNamespace.set(namespace);
+        try {
+            return task.get();
+        } finally {
+            if (previous == null) {
+                handlerNamespace.remove();
+            } else {
+                handlerNamespace.set(previous);
+            }
+        }
+    }
+
+    /** Namespace of the consumer handling a framework-created message. */
+    public record ConsumerNamespaceContext(String namespace) {
+    }
 
     /**
      * Blocks until all futures are complete or the maximum duration has elapsed.

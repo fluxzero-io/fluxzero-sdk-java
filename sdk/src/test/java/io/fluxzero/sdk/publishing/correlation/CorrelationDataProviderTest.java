@@ -16,13 +16,16 @@
 package io.fluxzero.sdk.publishing.correlation;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,11 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.METADATA_KEY;
+import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.NAMESPACE_METADATA_KEY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class CorrelationDataProviderTest {
     private final CorrelationDataProvider testProvider = new TestCorrelationDataProvider();
@@ -56,6 +64,49 @@ class CorrelationDataProviderTest {
                 .expectEvents(command.addMetadata("foo", "bar", "msgId", command.getMessageId(),
                                                   defaultProvider.getCorrelationIdKey(), command.getMessageId()))
                 .<Message>expectEvent(m -> m.getMetadata().containsKey(defaultProvider.getDelayKey()));
+    }
+
+    @Test
+    void includesNamespaceOfTriggeringMessage() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        DeserializingMessage tenantMessage = new DeserializingMessage(
+                new Message("trigger"), MessageType.EVENT, serializer)
+                .putContext(ConsumerConfiguration.class, ConsumerConfiguration.builder()
+                        .name("tenant-events").namespace("tenant").build());
+
+        Map<String, String> tenantCorrelation = defaultProvider.getCorrelationData(tenantMessage);
+        Map<String, String> applicationCorrelation = defaultProvider.getCorrelationData(
+                new DeserializingMessage(new Message("trigger"), MessageType.EVENT,
+                                         serializer));
+
+        assertEquals("tenant", tenantCorrelation.get(defaultProvider.getTriggerNamespaceKey()));
+        assertFalse(applicationCorrelation.containsKey(defaultProvider.getTriggerNamespaceKey()));
+    }
+
+    @Test
+    void replacesInheritedTriggerNamespaceForEveryMessagingHop() {
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("current", Metadata.of(defaultProvider.getTriggerNamespaceKey(), "previous")),
+                MessageType.COMMAND, new JacksonSerializer());
+
+        Message outgoing = current.apply(ignored -> new CorrelatingInterceptor().interceptDispatch(
+                new Message("outgoing"), MessageType.EVENT, null));
+
+        assertFalse(outgoing.getMetadata().containsKey(defaultProvider.getTriggerNamespaceKey()));
+    }
+
+    @Test
+    void doesNotInheritProtectedDataReferencesFromTriggeringRequest() {
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("current", Metadata.of(METADATA_KEY, Map.of("secret", "old-key"),
+                                                   NAMESPACE_METADATA_KEY, "tenant")),
+                MessageType.COMMAND, new JacksonSerializer());
+
+        Message outgoing = current.apply(ignored -> new CorrelatingInterceptor().interceptDispatch(
+                new Message("outgoing"), MessageType.EVENT, null));
+
+        assertFalse(outgoing.getMetadata().containsKey(METADATA_KEY));
+        assertFalse(outgoing.getMetadata().containsKey(NAMESPACE_METADATA_KEY));
     }
 
     private static class CommandHandler {

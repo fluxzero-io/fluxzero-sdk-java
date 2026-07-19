@@ -24,6 +24,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.handling.LocalExecution;
@@ -107,7 +108,7 @@ public class DeserializingMessage implements HasMessage {
      *   <li>Constructing exceptions or results that are scoped to the current message</li>
      * </ul>
      */
-    private static final ThreadLocal<DeserializingMessage> current = new ThreadLocal<>();
+    private static final ThreadLocal<DeserializingMessage> current = ThreadLocalContext.create();
 
     @Getter(AccessLevel.NONE)
     DeserializingObject<byte[], SerializedMessage> delegate;
@@ -162,6 +163,7 @@ public class DeserializingMessage implements HasMessage {
         this.serializer = input.serializer;
         this.delegate = input.delegate;
         this.serializedMessage = input.serializedMessage;
+        this.context = input.context;
     }
 
     /*
@@ -189,6 +191,26 @@ public class DeserializingMessage implements HasMessage {
             current.set(previous);
             completeBatch(e);
             throw e;
+        }
+    }
+
+    /**
+     * Captures the complete request context with this message bound as the current message.
+     * <p>
+     * This also works for framework paths that prepare an asynchronous callback outside a surrounding
+     * {@link #apply(Function)} call. The context that was active before capturing is restored immediately.
+     */
+    public ThreadLocalContext.Snapshot captureContext() {
+        DeserializingMessage previous = getCurrent();
+        current.set(this);
+        try {
+            return ThreadLocalContext.capture();
+        } finally {
+            if (previous == null) {
+                current.remove();
+            } else {
+                current.set(previous);
+            }
         }
     }
 
@@ -224,14 +246,15 @@ public class DeserializingMessage implements HasMessage {
 
     public DeserializingMessage withMetadata(Metadata metadata) {
         if (delegate != null) {
-            return new DeserializingMessage(
+            return withSameContext(new DeserializingMessage(
                     delegate.getSerializedObject().withMetadata(metadata),
                     delegate.getObjectFunction(),
                     messageType,
                     topic,
-                    serializer);
+                    serializer));
         }
-        return new DeserializingMessage(message.withMetadata(metadata), messageType, topic, serializer);
+        return withSameContext(new DeserializingMessage(
+                message.withMetadata(metadata), messageType, topic, serializer));
     }
 
     public DeserializingMessage withPayload(Object payload) {

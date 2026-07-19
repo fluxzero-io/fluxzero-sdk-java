@@ -81,6 +81,62 @@ public interface DispatchInterceptor {
     Message interceptDispatch(Message message, MessageType messageType, String topic);
 
     /**
+     * Intercepts a dispatch to a specific namespace.
+     * <p>
+     * The default implementation delegates to the namespace-agnostic method so existing interceptors retain their
+     * behavior. Interceptors that access namespace-sensitive resources can override this method.
+     *
+     * @param message     the message to be dispatched
+     * @param messageType the type of the message
+     * @param topic       the target topic or {@code null}
+     * @param namespace   the target namespace or {@code null} for the application namespace
+     * @return the modified message, the same message, or {@code null} to prevent dispatch
+     */
+    default Message interceptDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        return interceptDispatch(message, messageType, topic);
+    }
+
+    /**
+     * Returns a view that supplies the given namespace when callers use the namespace-agnostic dispatch method.
+     * Other dispatch hooks continue to delegate to this interceptor.
+     *
+     * @param namespace the namespace to attach to dispatch interception
+     * @return a namespace-bound view of this interceptor
+     */
+    default DispatchInterceptor withNamespace(String namespace) {
+        DispatchInterceptor delegate = this;
+        return new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, MessageType messageType, String topic) {
+                return delegate.interceptDispatch(message, messageType, topic, namespace);
+            }
+
+            @Override
+            public Message interceptDispatch(Message message, MessageType messageType, String topic,
+                                             String dispatchNamespace) {
+                return delegate.interceptDispatch(message, messageType, topic, dispatchNamespace);
+            }
+
+            @Override
+            public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
+                return delegate.prepareLocalDispatch(descriptor);
+            }
+
+            @Override
+            public SerializedMessage modifySerializedMessage(SerializedMessage serializedMessage, Message message,
+                                                             MessageType messageType, String topic) {
+                return delegate.modifySerializedMessage(serializedMessage, message, messageType, topic);
+            }
+
+            @Override
+            public void monitorDispatch(Message message, MessageType messageType, String topic,
+                                        String dispatchNamespace, boolean request) {
+                delegate.monitorDispatch(message, messageType, topic, dispatchNamespace, request);
+            }
+        };
+    }
+
+    /**
      * Prepares this interceptor for repeated local dispatches with the same static message characteristics.
      *
      * <p>This optional method lets local handling apply an interceptor without creating a complete {@link Message}

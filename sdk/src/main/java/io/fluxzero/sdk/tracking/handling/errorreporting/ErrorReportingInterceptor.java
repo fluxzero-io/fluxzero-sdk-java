@@ -125,11 +125,12 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
 
     private Object monitorResult(Object result, HandlerDescriptor invoker, DeserializingMessage message) {
         if (result instanceof CompletionStage<?> s) {
-            s.whenComplete((r, e) -> {
+            var context = message.captureContext();
+            s.whenComplete(context.wrap((r, e) -> {
                 if (e != null) {
-                    message.run(m -> reportError(e, invoker, m));
+                    reportError(e, invoker, message);
                 }
-            });
+            }));
         }
         return result;
     }

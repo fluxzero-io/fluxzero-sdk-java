@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking.handling.authentication;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import lombok.SneakyThrows;
 
 import java.security.Principal;
@@ -39,7 +40,7 @@ public interface User extends Principal {
      * Thread-local reference to the current user. Typically managed by the Fluxzero Runtime and automatically
      * injected for message handling.
      */
-    ThreadLocal<User> current = new ThreadLocal<>();
+    ThreadLocal<User> current = ThreadLocalContext.create();
 
     /**
      * Returns the user currently associated with the executing thread.

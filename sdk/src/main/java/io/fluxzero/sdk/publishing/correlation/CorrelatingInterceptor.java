@@ -25,6 +25,8 @@ import io.fluxzero.sdk.publishing.PreparedLocalDispatch;
 import lombok.AllArgsConstructor;
 
 import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
+import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.METADATA_KEY;
+import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.NAMESPACE_METADATA_KEY;
 
 /**
  * A {@link DispatchInterceptor} that enriches outgoing messages with correlation metadata,
@@ -71,11 +73,15 @@ public class CorrelatingInterceptor implements DispatchInterceptor {
     @Override
     public Message interceptDispatch(Message message, MessageType messageType, String topic) {
         Metadata metadata = message.getMetadata();
+        DeserializingMessage currentMessage = DeserializingMessage.getCurrent();
         if (messageType == MessageType.EVENT) {
-            DeserializingMessage currentMessage = DeserializingMessage.getCurrent();
             if (currentMessage != null && currentMessage.getMessageType().isRequest()) {
-                metadata = currentMessage.getMetadata().with(metadata);
+                metadata = currentMessage.getMetadata().without(METADATA_KEY).without(NAMESPACE_METADATA_KEY)
+                        .with(metadata);
             }
+        }
+        if (currentMessage != null) {
+            metadata = metadata.without(DefaultCorrelationDataProvider.INSTANCE.getTriggerNamespaceKey());
         }
         return message.withMetadata(metadata.with(currentCorrelationData()));
     }

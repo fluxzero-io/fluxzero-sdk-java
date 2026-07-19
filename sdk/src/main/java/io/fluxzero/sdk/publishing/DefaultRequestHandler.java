@@ -22,6 +22,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -43,13 +44,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
@@ -89,7 +88,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class DefaultRequestHandler implements RequestHandler {
+public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> implements RequestHandler {
 
     private final Client client;
     private final MessageType resultType;
@@ -100,12 +99,12 @@ public class DefaultRequestHandler implements RequestHandler {
     private final Map<Integer, ResponseCallback> callbacks = new ConcurrentHashMap<>();
     private final AtomicInteger nextId = new AtomicInteger();
     private final AtomicBoolean started = new AtomicBoolean();
+    private final AtomicBoolean closed = new AtomicBoolean();
     private final ScheduledThreadPoolExecutor timeoutExecutor = timeoutExecutor();
     private volatile Registration registration;
 
-    private final Function<String, RequestHandler> handlerSupplier = memoize(this::supplyRequestHandler);
-
-    private RequestHandler supplyRequestHandler(String namespace) {
+    @Override
+    protected RequestHandler createForNamespace(String namespace) {
         var clientForNamespace = client.forNamespace(namespace);
         return clientForNamespace == client
                 ? this : new DefaultRequestHandler(clientForNamespace, resultType, timeout, responseConsumerName);
@@ -169,11 +168,6 @@ public class DefaultRequestHandler implements RequestHandler {
         CompletableFuture<SerializedMessage> future = prepareRequest(request, timeout, intermediateCallback);
         requestSender.accept(request);
         return future;
-    }
-
-    @Override
-    public RequestHandler forNamespace(String namespace) {
-        return handlerSupplier.apply(namespace);
     }
 
     @Override
@@ -283,14 +277,17 @@ public class DefaultRequestHandler implements RequestHandler {
 
     @Override
     public void close() {
-        waitForResults(Duration.ofSeconds(2),
-                       callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
-        completePendingRequests(new IllegalStateException("Request handler has closed"));
-        if (registration != null) {
-            registration.cancel();
+        if (closed.compareAndSet(false, true)) {
+            super.close();
+            waitForResults(Duration.ofSeconds(2),
+                           callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
+            completePendingRequests(new IllegalStateException("Request handler has closed"));
+            if (registration != null) {
+                registration.cancel();
+            }
+            timeoutExecutor.shutdownNow();
+            responseExecutor.shutdown();
         }
-        timeoutExecutor.shutdownNow();
-        responseExecutor.shutdown();
     }
 
     private void completePendingRequests(Throwable error) {

@@ -37,6 +37,7 @@ import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import lombok.Builder;
 import lombok.With;
 import org.junit.jupiter.api.Nested;
@@ -1340,6 +1341,20 @@ public class StatefulHandlerTest {
 
     @Nested
     class StorageActionTests {
+        @Test
+        void usesApplicationRepositoryForCustomConsumer() {
+            CountingRepository defaultRepository = new CountingRepository()
+                    .add("customer-1", new PlainCountingCustomer("customer-1", 0));
+            DeserializingMessage message = message(new PlainCountingCustomerChanged("customer-1"))
+                    .putContext(ConsumerConfiguration.class, ConsumerConfiguration.builder()
+                            .name("tenant-consumer").namespace("tenant").build());
+
+            statefulHandler(PlainCountingCustomer.class, defaultRepository)
+                    .getInvoker(message).orElseThrow().invoke();
+
+            assertEquals(new PlainCountingCustomer("customer-1", 1), defaultRepository.get("customer-1"));
+        }
+
         @Test
         void existingStatefulWithoutMembersStillStoresOnce() {
             CountingRepository repository =

@@ -15,11 +15,13 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
@@ -37,6 +39,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 
 /**
  * Resolves handler method parameters that reference an {@link Entity} or the entity's value.
@@ -47,9 +50,8 @@ import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
  * <p>Resolution logic supports both {@link HasEntity} and {@link HasMessage} sources:
  * <ul>
  *   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>
- *   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID.
- *   Aggregate metadata is resolved directly using {@code Fluxzero#loadAggregate}; routing keys still use
- *   {@code Fluxzero#loadEntity} because they may point at nested entities.</li>
+ *   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID. Event
+ *   and notification inputs load from their consumer namespace; other handler types use the application repository.</li>
  * </ul>
  *
  * <p>The entity is only resolved if:
@@ -179,7 +181,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
-        return Fluxzero.loadAggregate(aggregateId, (Class) aggregateType);
+        return playbackToHandledMessage(currentRepository().load(aggregateId, (Class) aggregateType));
     }
 
     private Entity<?> loadAggregate(Object input, String aggregateId, Class<?> aggregateType) {
@@ -191,7 +193,40 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     private Entity<?> loadEntity(Object input, String entityId) {
         return cachedEntity(input, new EntityCacheKey("entity", entityId, null),
                             () -> Fluxzero.getOptionally()
-                                    .map(fc -> Fluxzero.loadEntity(entityId)).orElse(null));
+                                    .map(fc -> loadEntity(entityId)).orElse(null));
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Entity<?> loadEntity(String entityId) {
+        AggregateRepository repository = currentRepository();
+        Entity<?> aggregate = playbackToHandledMessage(repository.loadFor(entityId, Object.class));
+        return aggregate.getEntity(entityId).orElseGet(
+                () -> playbackToHandledMessage(repository.load(entityId, (Class) Object.class)));
+    }
+
+    private AggregateRepository currentRepository() {
+        AggregateRepository repository = Fluxzero.get().aggregateRepository();
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        return current != null && (current.getMessageType() == MessageType.EVENT
+                                   || current.getMessageType() == MessageType.NOTIFICATION)
+                ? repository.forNamespace(getConsumerNamespace(current)) : repository;
+    }
+
+    private static <T> Entity<T> playbackToHandledMessage(Entity<T> entity) {
+        DeserializingMessage message = DeserializingMessage.getCurrent();
+        if (message != null && (message.getMessageType() == MessageType.EVENT
+                                || message.getMessageType() == MessageType.NOTIFICATION)
+            && !Entity.isApplying()
+            && entity.id().toString().equals(Entity.getAggregateId(message))
+            && entity.rootAnnotation().eventSourced()
+            && entity.sequenceNumber() >= 0L) {
+            return entity.playBackToEvent(message.getIndex(), message.getMessageId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Could not load entity %s of type %s for event %s. Entity (%s) started at event %s"
+                                    .formatted(entity.id(), entity.type().getSimpleName(), message.getIndex(),
+                                               entity, entity.lastEventIndex())));
+        }
+        return entity;
     }
 
     private Entity<?> cachedEntity(Object input, EntityCacheKey key, Supplier<Entity<?>> loader) {

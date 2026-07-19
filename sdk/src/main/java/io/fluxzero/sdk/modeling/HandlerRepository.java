@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.common.Entry;
+import io.fluxzero.sdk.common.Namespaced;
 
 import java.util.Collection;
 import java.util.Map;
@@ -30,7 +31,12 @@ import java.util.concurrent.CompletableFuture;
  * stateful event-driven components where runtime state needs to be persisted and recalled based on
  * message correlation data.
  */
-public interface HandlerRepository {
+public interface HandlerRepository extends Namespaced<HandlerRepository> {
+
+    @Override
+    default HandlerRepository forNamespace(String namespace) {
+        return this;
+    }
 
     /**
      * Finds all handler instances that match the given set of associations.

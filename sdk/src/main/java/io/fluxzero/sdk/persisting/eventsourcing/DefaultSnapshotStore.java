@@ -18,6 +18,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.common.search.SearchInclude;
 import io.fluxzero.common.search.Sortable;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.Entity;
@@ -45,12 +46,20 @@ import static java.lang.String.format;
  */
 @Slf4j
 @AllArgsConstructor
-public class DefaultSnapshotStore implements SnapshotStore {
+public class DefaultSnapshotStore extends AbstractNamespaced<SnapshotStore> implements SnapshotStore {
     static final String SNAPSHOT_COLLECTION = "$snapshots";
 
     private final DocumentStore documentStore;
     private final Serializer serializer;
     private final EventStore eventStore;
+
+    @Override
+    protected SnapshotStore createForNamespace(String namespace) {
+        DocumentStore namespacedDocumentStore = documentStore.forNamespace(namespace);
+        EventStore namespacedEventStore = eventStore.forNamespace(namespace);
+        return namespacedDocumentStore == documentStore && namespacedEventStore == eventStore
+                ? this : new DefaultSnapshotStore(namespacedDocumentStore, serializer, namespacedEventStore);
+    }
 
     @Override
     public <T> CompletableFuture<Void> storeSnapshot(Entity<T> snapshot) {

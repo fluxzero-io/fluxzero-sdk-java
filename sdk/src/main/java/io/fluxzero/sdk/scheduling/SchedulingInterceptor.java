@@ -21,6 +21,7 @@ import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -40,10 +41,12 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
+import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedMethods;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 import static io.fluxzero.sdk.tracking.IndexUtils.millisFromIndex;
 import static java.lang.String.format;
@@ -84,23 +87,32 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
-        List<Method> methods = getAnnotatedMethods(handler.getTargetClass(), HandleSchedule.class);
+        return HandlerInterceptor.super.wrap(handler);
+    }
+
+    /** Initializes auto-start schedules for one handler in the namespace of the consumer it was assigned to. */
+    public void initializePeriodicSchedules(Object target, String namespace) {
+        Class<?> targetClass = target instanceof Handler<?> handler ? handler.getTargetClass() : asClass(target);
+        List<Method> methods = getAnnotatedMethods(targetClass, HandleSchedule.class);
         for (Method method : methods) {
             Periodic periodic = method.getAnnotation(Periodic.class);
             if (method.getParameterCount() > 0) {
                 Class<?> type = method.getParameters()[0].getType();
                 periodic = periodic == null ? getTypeAnnotation(type, Periodic.class) : periodic;
                 try {
-                    initializePeriodicSchedule(type, periodic);
+                    initializePeriodicSchedule(type, periodic, namespace);
                 } catch (Exception e) {
                     log.error("Failed to initialize periodic schedule on method {}. Continuing...", method, e);
                 }
             }
         }
-        return HandlerInterceptor.super.wrap(handler);
     }
 
     protected void initializePeriodicSchedule(Class<?> payloadType, Periodic periodic) {
+        initializePeriodicSchedule(payloadType, periodic, null);
+    }
+
+    protected void initializePeriodicSchedule(Class<?> payloadType, Periodic periodic, String namespace) {
         if (periodic == null) {
             return;
         }
@@ -127,7 +139,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                             p -> ofNullable(p.getSystemUser()).map(u -> p.addToMetadata(Metadata.empty(), u)))
                     .orElse(Metadata.empty());
             Schedule schedule = new Schedule(payload, markCron(metadata, periodic), scheduleId, firstDeadline);
-            initializePeriodicSchedule(fluxzero.messageScheduler(), schedule, periodic);
+            initializePeriodicSchedule(fluxzero.messageScheduler().forNamespace(namespace), schedule, periodic);
         }
     }
 
@@ -205,7 +217,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     protected Object handleResult(Object result, DeserializingMessage schedule, Instant now, Periodic periodic) {
         if (result instanceof CompletionStage<?> f) {
-            f.whenComplete((r, e) -> {
+            f.whenComplete(ThreadLocalContext.capture().wrap((r, e) -> {
                 if (e == null) {
                     handleResult(r, schedule, now, periodic);
                 } else {
@@ -214,14 +226,14 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                     } catch (Throwable ignored) {
                     }
                 }
-            });
+            }));
             return result;
         } else if (result instanceof TemporalAmount) {
             schedule(schedule, now.plus((TemporalAmount) result));
         } else if (result instanceof TemporalAccessor) {
             schedule(schedule, Instant.from((TemporalAccessor) result));
         } else if (result instanceof Schedule) {
-            schedule((Schedule) result);
+            schedule((Schedule) result, schedule);
         } else if (result != null) {
             Metadata metadata = schedule.getMetadata();
             Object nextPayload = result;
@@ -234,14 +246,14 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                     Instant dispatched = schedule.getTimestamp();
                     Duration previousDelay = between(dispatched, now);
                     if (previousDelay.compareTo(Duration.ZERO) > 0) {
-                        schedule(nextPayload, metadata, now.plus(previousDelay));
+                        schedule(nextPayload, metadata, now.plus(previousDelay), schedule);
                     } else {
                         log.info("Delay between the time this schedule was created and scheduled is <= 0, "
                                  + "rescheduling with delay of 1 minute");
-                        schedule(nextPayload, metadata, now.plus(Duration.of(1, MINUTES)));
+                        schedule(nextPayload, metadata, now.plus(Duration.of(1, MINUTES)), schedule);
                     }
                 } else {
-                    schedule(nextPayload, metadata, nextDeadline(periodic, now), periodic);
+                    schedule(nextPayload, metadata, nextDeadline(periodic, now), periodic, schedule);
                 }
             } else if (periodic != null) {
                 schedule(schedule, nextDeadline(periodic, now), periodic);
@@ -260,7 +272,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                     .or(() -> ofNullable(periodic).map(Periodic::scheduleId))
                     .orElseGet(() -> schedule.getPayloadClass().getName());
             log.info("Periodic schedule {} will be cancelled.", scheduleId);
-            Fluxzero.get().messageScheduler().cancelSchedule(scheduleId);
+            scheduler(schedule).cancelSchedule(scheduleId);
             return null;
         }
         if (periodic != null && periodic.continueOnError()) {
@@ -274,34 +286,39 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
     }
 
     private void schedule(DeserializingMessage message, Instant instant) {
-        schedule(message.getPayload(), clearCron(message.getMetadata()), instant);
+        schedule(message.getPayload(), clearCron(message.getMetadata()), instant, message);
     }
 
     private void schedule(DeserializingMessage message, Instant instant, Periodic periodic) {
-        schedule(message.getPayload(), message.getMetadata(), instant, periodic);
+        schedule(message.getPayload(), message.getMetadata(), instant, periodic, message);
     }
 
-    private void schedule(Object payload, Metadata metadata, Instant instant) {
+    private void schedule(Object payload, Metadata metadata, Instant instant, DeserializingMessage source) {
         if (instant != null) {
             scheduleInternal(new Schedule(payload, metadata, metadata.getOrDefault(
-                    Schedule.scheduleIdMetadataKey, currentIdentityProvider().nextTechnicalId()), instant));
+                    Schedule.scheduleIdMetadataKey, currentIdentityProvider().nextTechnicalId()), instant), source);
         }
     }
 
-    private void schedule(Object payload, Metadata metadata, Instant instant, Periodic periodic) {
-        schedule(payload, markCron(metadata, periodic), instant);
+    private void schedule(Object payload, Metadata metadata, Instant instant, Periodic periodic,
+                          DeserializingMessage source) {
+        schedule(payload, markCron(metadata, periodic), instant, source);
     }
 
-    private void schedule(Schedule schedule) {
-        scheduleInternal(schedule.withMetadata(clearCron(schedule.getMetadata())));
+    private void schedule(Schedule schedule, DeserializingMessage source) {
+        scheduleInternal(schedule.withMetadata(clearCron(schedule.getMetadata())), source);
     }
 
-    private void scheduleInternal(Schedule schedule) {
+    private void scheduleInternal(Schedule schedule, DeserializingMessage source) {
         try {
-            Fluxzero.get().messageScheduler().schedule(schedule);
+            scheduler(source).schedule(schedule);
         } catch (Exception e) {
             log.error("Failed to reschedule a {}", schedule.getPayloadClass(), e);
         }
+    }
+
+    private MessageScheduler scheduler(DeserializingMessage source) {
+        return Fluxzero.get().messageScheduler().forNamespace(getConsumerNamespace(source));
     }
 
     private static Metadata markCron(Metadata metadata, Periodic periodic) {
