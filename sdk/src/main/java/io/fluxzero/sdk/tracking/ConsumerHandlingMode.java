@@ -29,7 +29,9 @@ public enum ConsumerHandlingMode {
     SYNC,
 
     /**
-     * Invoke handlers on a worker thread while preserving the Fluxzero tracking context.
+     * Invoke handlers on a worker thread while preserving the Fluxzero tracking context. Messages in the same batch
+     * that have the same non-null serialized segment are handled in batch order. Messages with different segments, or
+     * without a segment, remain eligible for parallel handling.
      */
     ASYNC;
 

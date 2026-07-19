@@ -149,6 +149,7 @@ public class DefaultTracking implements Tracking {
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
     private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
+    private final ThreadLocal<SegmentedBatchHandlerQueue> batchHandlerQueue = new ThreadLocal<>();
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
     private final ConcurrentHashMap<Class<?>, Integer> registeredHandlerTypes = new ConcurrentHashMap<>();
 
@@ -618,12 +619,42 @@ public class DefaultTracking implements Tracking {
                                ConsumerConfiguration config, boolean reportResult) {
         List<CompletableFuture<Void>> resultCompletions = config.awaitAsyncResults()
                 ? new ArrayList<>() : null;
-        DeserializingMessage.forEachInBatch(messages, m -> {
-            CompletionStage<Void> completion = tryHandle(m, handlers, config, reportResult);
-            if (resultCompletions != null && completion != completedReport) {
-                resultCompletions.add(completion.toCompletableFuture());
+        SegmentedBatchHandlerQueue previousQueue = batchHandlerQueue.get();
+        SegmentedBatchHandlerQueue currentQueue = config.getHandlingMode() == ASYNC
+                ? new SegmentedBatchHandlerQueue() : null;
+        boolean queueChanged = currentQueue != previousQueue;
+        if (queueChanged) {
+            if (currentQueue == null) {
+                batchHandlerQueue.remove();
+            } else {
+                batchHandlerQueue.set(currentQueue);
             }
-        });
+        }
+        try {
+            DeserializingMessage.forEachInBatch(messages, m -> {
+                if (currentQueue != null) {
+                    currentQueue.beginMessage(m.getSerializedObject().getSegment());
+                }
+                try {
+                    CompletionStage<Void> completion = tryHandle(m, handlers, config, reportResult);
+                    if (resultCompletions != null && completion != completedReport) {
+                        resultCompletions.add(completion.toCompletableFuture());
+                    }
+                } finally {
+                    if (currentQueue != null) {
+                        currentQueue.endMessage();
+                    }
+                }
+            });
+        } finally {
+            if (queueChanged) {
+                if (previousQueue == null) {
+                    batchHandlerQueue.remove();
+                } else {
+                    batchHandlerQueue.set(previousQueue);
+                }
+            }
+        }
         awaitAsyncResultCompletions(resultCompletions);
     }
 
@@ -883,7 +914,82 @@ public class DefaultTracking implements Tracking {
     }
 
     private <T> CompletableFuture<T> handleAsync(DeserializingMessage message, Supplier<T> task) {
-        return supplyAsync(message.captureContext().wrap(task), messageHandlerExecutor);
+        Supplier<T> contextAwareTask = message.captureContext().wrap(task);
+        SegmentedBatchHandlerQueue queue = batchHandlerQueue.get();
+        return queue == null
+                ? supplyAsync(contextAwareTask, messageHandlerExecutor)
+                : queue.submit(contextAwareTask, messageHandlerExecutor);
+    }
+
+    private static class SegmentedBatchHandlerQueue {
+        private static final CompletableFuture<Void> completedHandling = CompletableFuture.completedFuture(null);
+
+        private final Map<Integer, CompletableFuture<?>> segmentTails = new HashMap<>();
+        private Integer currentSegment;
+        private CompletableFuture<?> currentStart;
+        private CompletableFuture<?> currentCompletion;
+        private List<CompletableFuture<?>> additionalCompletions;
+
+        void beginMessage(Integer segment) {
+            currentSegment = segment;
+            currentStart = segment == null ? null : segmentTails.getOrDefault(segment, completedHandling);
+            currentCompletion = null;
+            additionalCompletions = null;
+        }
+
+        <T> CompletableFuture<T> submit(Supplier<T> task, ExecutorService executor) {
+            if (currentSegment == null) {
+                return supplyAsync(task, executor);
+            }
+            CompletableFuture<T> result = currentStart.handleAsync((ignored, error) -> task.get(), executor);
+            registerCompletion(handlingCompletion(result));
+            return result;
+        }
+
+        void endMessage() {
+            if (currentSegment != null) {
+                segmentTails.put(currentSegment, combinedCompletion());
+            }
+            currentSegment = null;
+            currentStart = null;
+            currentCompletion = null;
+            additionalCompletions = null;
+        }
+
+        private void registerCompletion(CompletableFuture<?> completion) {
+            if (currentCompletion == null) {
+                currentCompletion = completion;
+            } else {
+                if (additionalCompletions == null) {
+                    additionalCompletions = new ArrayList<>();
+                }
+                additionalCompletions.add(completion);
+            }
+        }
+
+        private CompletableFuture<?> combinedCompletion() {
+            if (currentCompletion == null) {
+                return completedHandling;
+            }
+            if (additionalCompletions == null) {
+                return currentCompletion;
+            }
+            CompletableFuture<?>[] completions = new CompletableFuture<?>[additionalCompletions.size() + 1];
+            completions[0] = currentCompletion;
+            for (int i = 0; i < additionalCompletions.size(); i++) {
+                completions[i + 1] = additionalCompletions.get(i);
+            }
+            return CompletableFuture.allOf(completions);
+        }
+
+        private static CompletableFuture<Void> handlingCompletion(CompletionStage<?> invocation) {
+            return invocation.thenCompose(result -> {
+                if (result instanceof CompletionStage<?> stage) {
+                    return handlingCompletion(stage);
+                }
+                return completedHandling;
+            }).toCompletableFuture();
+        }
     }
 
     @SuppressWarnings("unchecked")

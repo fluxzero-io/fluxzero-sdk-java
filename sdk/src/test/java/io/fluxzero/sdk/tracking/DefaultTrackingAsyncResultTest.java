@@ -42,11 +42,13 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -249,6 +251,160 @@ class DefaultTrackingAsyncResultTest {
             assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
         } finally {
             releaseHandler.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void asyncHandlingQueuesMessagesWithTheSameSegment() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> releaseFirst = new CompletableFuture<>();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        List<String> order = new CopyOnWriteArrayList<>();
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
+                    List.of(handler(message -> {
+                        order.add(message.getMessageId() + "-start");
+                        if (message.getMessageId().equals("first")) {
+                            firstStarted.countDown();
+                            releaseFirst.join();
+                            order.add("first-end");
+                        } else {
+                            secondStarted.countDown();
+                        }
+                    })),
+                    asyncConfig(false),
+                    true);
+
+            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+            assertFalse(secondStarted.await(100, TimeUnit.MILLISECONDS));
+
+            releaseFirst.complete(null);
+
+            assertTrue(secondStarted.await(1, TimeUnit.SECONDS));
+            assertEquals(List.of("first-start", "first-end", "second-start"), order);
+        } finally {
+            releaseFirst.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void asyncHandlingLetsDifferentOrMissingSegmentsRunInParallel() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> releaseFirst = new CompletableFuture<>();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch otherMessagesStarted = new CountDownLatch(2);
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer, "first", 42),
+                            message(serializer, "different-segment", 43),
+                            message(serializer, "no-segment", null)),
+                    List.of(handler(message -> {
+                        if (message.getMessageId().equals("first")) {
+                            firstStarted.countDown();
+                            releaseFirst.join();
+                        } else {
+                            otherMessagesStarted.countDown();
+                        }
+                    })),
+                    asyncConfig(false),
+                    true);
+
+            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(otherMessagesStarted.await(1, TimeUnit.SECONDS));
+        } finally {
+            releaseFirst.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void asyncHandlingKeepsHandlersForOneMessageParallel() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> releaseFirst = new CompletableFuture<>();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer, "message", 42)),
+                    List.of(handler(message -> {
+                                firstStarted.countDown();
+                                releaseFirst.join();
+                            }),
+                            handler(message -> secondStarted.countDown())),
+                    asyncConfig(false),
+                    true);
+
+            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(secondStarted.await(1, TimeUnit.SECONDS));
+        } finally {
+            releaseFirst.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void sameSegmentWaitsForAsynchronousHandlerResult() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> firstResult = new CompletableFuture<>();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+
+        Handler<DeserializingMessage> handler = new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return DefaultTrackingAsyncResultTest.class;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.of(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                return HandlerInvoker.call(() -> {
+                    if (message.getMessageId().equals("first")) {
+                        firstStarted.countDown();
+                        return firstResult;
+                    }
+                    secondStarted.countDown();
+                    return null;
+                });
+            }
+        };
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
+                    List.of(handler), asyncConfig(false), true);
+
+            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+            assertFalse(secondStarted.await(100, TimeUnit.MILLISECONDS));
+
+            firstResult.complete(null);
+
+            assertTrue(secondStarted.await(1, TimeUnit.SECONDS));
+        } finally {
+            firstResult.complete(null);
             tracking.close();
         }
     }
@@ -509,11 +665,16 @@ class DefaultTrackingAsyncResultTest {
     }
 
     private static DeserializingMessage message(JacksonSerializer serializer) {
+        return message(serializer, "message-1", null);
+    }
+
+    private static DeserializingMessage message(JacksonSerializer serializer, String messageId, Integer segment) {
         SerializedMessage message = new SerializedMessage(
                 serializer.serialize("request"),
                 Metadata.of(WebRequest.methodKey, "POST", WebRequest.urlKey, "/benchmark"),
-                "message-1",
+                messageId,
                 System.currentTimeMillis());
+        message.setSegment(segment);
         message.setSource("benchmark-app");
         message.setRequestId(7);
         return new DeserializingMessage(message, type -> "request", MessageType.WEBREQUEST, null, serializer);
@@ -545,6 +706,25 @@ class DefaultTrackingAsyncResultTest {
             @Override
             public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
                 return invoker;
+            }
+        };
+    }
+
+    private static Handler<DeserializingMessage> handler(java.util.function.Consumer<DeserializingMessage> task) {
+        return new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return DefaultTrackingAsyncResultTest.class;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.of(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                return HandlerInvoker.run(() -> task.accept(message));
             }
         };
     }
