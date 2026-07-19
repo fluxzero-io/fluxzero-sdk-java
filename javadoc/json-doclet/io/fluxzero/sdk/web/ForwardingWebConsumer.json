@@ -137,6 +137,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "responseGateway",
+    "qualifiedName" : "io.fluxzero.sdk.web.ForwardingWebConsumer#responseGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.sdk.web.ForwardingWebConsumer#start",
     "returnType" : "void",

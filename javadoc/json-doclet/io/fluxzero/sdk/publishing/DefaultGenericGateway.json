@@ -13,6 +13,14 @@
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.publishing.GenericGateway>",
   "interfaces" : [ "io.fluxzero.sdk.publishing.GenericGateway" ],
   "fields" : [ {
+    "name" : "applicationNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.applicationNamespace",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "callbacks",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.callbacks",
     "type" : "java.util.Map<java.lang.String,java.util.concurrent.CompletableFuture<?>>",
@@ -72,6 +80,14 @@
     "name" : "messageType",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.messageType",
     "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.namespace",
+    "type" : "java.lang.String",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -262,6 +278,38 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleLocally",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#handleLocally",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "localMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#localMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

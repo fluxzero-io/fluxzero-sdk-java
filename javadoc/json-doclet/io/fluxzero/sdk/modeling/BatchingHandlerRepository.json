@@ -10,7 +10,7 @@
   } ],
   "documentation" : " A batching wrapper for {@link HandlerRepository} that delays persistence operations until the end of the current\n message batch.\n <p>\n This implementation is intended for use with {@link Stateful#commitInBatch() @Stateful(commitInBatch = true)}\n handlers. It buffers all {@code put()} and {@code delete()} calls and flushes them via\n {@link DocumentStore#bulkUpdate} once batch processing completes.\n <p>\n Association lookups during batch processing always take into account:\n <ul>\n     <li>The persisted state (from the backing repository), and</li>\n     <li>The in-memory cache of batch-local updates (created, updated, or deleted handlers) that have not been committed.</li>\n </ul>\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.modeling.HandlerRepository>",
   "interfaces" : [ "io.fluxzero.sdk.modeling.HandlerRepository" ],
   "fields" : [ {
     "name" : "delegate",
@@ -41,6 +41,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.BatchingHandlerRepository#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.modeling.HandlerRepository",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.modeling.BatchingHandlerRepository#delete",
     "returnType" : "java.util.concurrent.CompletableFuture<?>",

@@ -73,6 +73,37 @@
     "varArgs" : false,
     "documentation" : " Intercepts the dispatch of a message before it is serialized and published or locally handled.\n <p>\n You may modify the message or return {@code null} to block dispatching. Throwing an exception also prevents\n dispatching.\n\n @param message     the message to be dispatched\n @param messageType the type of the message (e.g., COMMAND, EVENT, etc.)\n @param topic       the target topic or null if not applicable\n @return the modified message, the same message, or {@code null} to prevent dispatch\n"
   }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts a dispatch to a specific namespace.\n <p>\n The default implementation delegates to the namespace-agnostic method so existing interceptors retain their\n behavior. Interceptors that access namespace-sensitive resources can override this method.\n\n @param message     the message to be dispatched\n @param messageType the type of the message\n @param topic       the target topic or {@code null}\n @param namespace   the target namespace or {@code null} for the application namespace\n @return the modified message, the same message, or {@code null} to prevent dispatch\n"
+  }, {
     "name" : "modifySerializedMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#modifySerializedMessage",
     "returnType" : "io.fluxzero.common.api.SerializedMessage",
@@ -155,6 +186,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Prepares this interceptor for repeated local dispatches with the same static message characteristics.\n\n <p>This optional method lets local handling apply an interceptor without creating a complete {@link Message}\n first. Implementations must preserve the observable behavior of {@link #interceptDispatch(Message, MessageType,\n String)}. Return {@code null} when that is not possible; Fluxzero will then use the regular dispatch path for\n this payload type.</p>\n\n <p>The returned policy may be cached and used concurrently. State belonging to a single dispatch must be stored\n in the supplied {@link io.fluxzero.sdk.tracking.handling.LocalExecution}, not in the policy itself.</p>\n\n @param descriptor payload class, message type, and topic shared by the local dispatches\n @return a thread-safe prepared policy, or {@code null} to use regular message-based dispatch\n"
+  }, {
+    "name" : "withNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#withNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a view that supplies the given namespace when callers use the namespace-agnostic dispatch method.\n Other dispatch hooks continue to delegate to this interceptor.\n\n @param namespace the namespace to attach to dispatch interception\n @return a namespace-bound view of this interceptor\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

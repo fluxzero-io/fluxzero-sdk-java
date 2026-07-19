@@ -61,6 +61,14 @@
     "documentation" : " Map of message type to a list of dispatch monitors and their corresponding registrations.\n",
     "constantValue" : null
   }, {
+    "name" : "namespaceClients",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.namespaceClients",
+    "type" : "java.util.Set<io.fluxzero.sdk.configuration.client.Client>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "schedulingClient",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.schedulingClient",
     "type" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
@@ -84,6 +92,14 @@
         "lazy" : "true"
       }
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.shutDown",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -291,6 +307,22 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : null
+  }, {
+    "name" : "registerNamespaceClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#registerNamespaceClient",
+    "returnType" : "T",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "namespaceClient",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Registers a namespace-specific child so shutting down the application client also closes that child. "
   }, {
     "name" : "shutDown",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#shutDown",

@@ -585,6 +585,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator",
     "kind" : "class"
   }, {
+    "file" : "WebsocketHandlerDecorator.SessionKey.json",
+    "name" : "WebsocketHandlerDecorator.SessionKey",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator$SessionKey",
+    "kind" : "record"
+  }, {
     "file" : "WebsocketHandlerDecorator.SocketPattern.json",
     "name" : "WebsocketHandlerDecorator.SocketPattern",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator$SocketPattern",

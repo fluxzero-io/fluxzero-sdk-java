@@ -13,7 +13,7 @@
   } ],
   "documentation" : " Default implementation of the {@link EventStore} interface, providing mechanisms to store and retrieve events\n associated with aggregate instances.\n <p>\n This implementation includes support for intercepting and modifying event messages during dispatch. The\n {@link HandlerRegistry} is used to locally invoke event handlers after events are published.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.eventsourcing.EventStore>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.EventStore" ],
   "fields" : [ {
     "name" : "client",
@@ -59,14 +59,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "namespaceSwitcher",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultEventStore.namespaceSwitcher",
-    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.persisting.eventsourcing.EventStore>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultEventStore.serializer",
     "type" : "io.fluxzero.sdk.common.serialization.Serializer",
@@ -103,23 +95,7 @@
     "name" : "createForNamespace",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultEventStore#createForNamespace",
     "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "namespace",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "forNamespace",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultEventStore#forNamespace",
-    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}

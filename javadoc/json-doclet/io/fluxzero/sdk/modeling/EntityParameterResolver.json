@@ -8,7 +8,7 @@
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
-  "documentation" : " Resolves handler method parameters that reference an {@link Entity} or the entity's value.\n\n <p>This resolver supports parameters of either {@code Entity<T>} or the entity's actual type {@code T}.\n It will traverse the hierarchy of parent-child relationships between entities (if any) to find the closest match.\n\n <p>Resolution logic supports both {@link HasEntity} and {@link HasMessage} sources:\n <ul>\n   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>\n   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID.\n   Aggregate metadata is resolved directly using {@code Fluxzero#loadAggregate}; routing keys still use\n   {@code Fluxzero#loadEntity} because they may point at nested entities.</li>\n </ul>\n\n <p>The entity is only resolved if:\n <ul>\n   <li>The parameter type is assignable from the resolved entity type (or the {@code Entity<T>} type).</li>\n   <li>Or, the entity has a parent matching the required parameter type.</li>\n </ul>\n\n <p>This resolver determines handler method specificity and can thus be used in disambiguation when multiple\n handler methods are present in the same target class.\n",
+  "documentation" : " Resolves handler method parameters that reference an {@link Entity} or the entity's value.\n\n <p>This resolver supports parameters of either {@code Entity<T>} or the entity's actual type {@code T}.\n It will traverse the hierarchy of parent-child relationships between entities (if any) to find the closest match.\n\n <p>Resolution logic supports both {@link HasEntity} and {@link HasMessage} sources:\n <ul>\n   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>\n   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID. Event\n   and notification inputs load from their consumer namespace; other handler types use the application repository.</li>\n </ul>\n\n <p>The entity is only resolved if:\n <ul>\n   <li>The parameter type is assignable from the resolved entity type (or the {@code Entity<T>} type).</li>\n   <li>Or, the entity has a parent matching the required parameter type.</li>\n </ul>\n\n <p>This resolver determines handler method specificity and can thus be used in disambiguation when multiple\n handler methods are present in the same target class.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.PreparedParameterResolver<java.lang.Object>" ],
@@ -84,6 +84,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#currentRepository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -254,6 +265,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#loadEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"rawtypes\",\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",
     "returnType" : "boolean",
@@ -321,6 +353,22 @@
     }, {
       "name" : "targetClass",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "playbackToHandledMessage",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#playbackToHandledMessage",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

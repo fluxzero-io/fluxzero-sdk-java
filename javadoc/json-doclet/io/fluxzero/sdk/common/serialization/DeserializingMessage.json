@@ -319,6 +319,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "captureContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#captureContext",
+    "returnType" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Captures the complete request context with this message bound as the current message.\n <p>\n This also works for framework paths that prepare an asynchronous callback outside a surrounding\n {@link #apply(Function)} call. The context that was active before capturing is restored immediately.\n"
+  }, {
     "name" : "completeBatch",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#completeBatch",
     "returnType" : "void",

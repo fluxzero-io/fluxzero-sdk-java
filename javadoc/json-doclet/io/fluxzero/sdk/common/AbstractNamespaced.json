@@ -13,7 +13,15 @@
     "name" : "namespaceSwitcher",
     "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced.namespaceSwitcher",
     "type" : "io.fluxzero.common.MemoizingFunction<java.lang.String,T>",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "root",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced.root",
+    "type" : "io.fluxzero.sdk.common.AbstractNamespaced<T>",
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -30,6 +38,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "attachTo",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#attachTo",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.common.AbstractNamespaced<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#close",
     "returnType" : "void",
@@ -37,6 +61,27 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createAndAttach",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#createAndAttach",
+    "returnType" : "T",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -60,7 +105,7 @@
     "name" : "forNamespace",
     "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#forNamespace",
     "returnType" : "T",
-    "modifiers" : [ "final", "public" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}

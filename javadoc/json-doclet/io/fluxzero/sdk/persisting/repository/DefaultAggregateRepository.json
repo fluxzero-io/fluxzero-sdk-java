@@ -7,20 +7,10 @@
   "annotations" : [ {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
-  }, {
-    "annotationType" : "lombok.Getter",
-    "values" : {
-      "value" : "PRIVATE"
-    }
-  }, {
-    "annotationType" : "lombok.experimental.Accessors",
-    "values" : {
-      "fluent" : "true"
-    }
   } ],
   "documentation" : " Default implementation of the {@link AggregateRepository} interface.\n <p>\n This class supports aggregates that are either event-sourced or document-based. Its behavior is driven by the\n {@link Aggregate @Aggregate} annotation on the aggregate class, which determines aspects such as:\n <ul>\n   <li>Whether the aggregate is event-sourced or backed by a document store.</li>\n   <li>If snapshots should be used and their frequency (via {@code snapshotPeriod}).</li>\n   <li>Whether the aggregate is searchable (indexed for queries).</li>\n   <li>Whether events should be published and how (via {@link EventPublicationStrategy}).</li>\n </ul>\n\n <p>It supports caching of aggregates and entity-aggregate relationship metadata via the provided {@link Cache} instances.\n These are consulted and updated during load and commit operations.\n\n <p>This repository coordinates with several components to manage aggregates:\n <ul>\n   <li>{@link EventStore} and {@link EventStoreClient} for storing and loading events.</li>\n   <li>{@link SnapshotStore} for loading and storing snapshots.</li>\n   <li>{@link DocumentStore} for searchable aggregates (non-event-sourced).</li>\n   <li>{@link DispatchInterceptor} to inspect or modify outgoing events before dispatch.</li>\n </ul>\n\n <p>This implementation also tracks relationships between aggregates and nested entities (e.g., value objects or sub-entities)\n and can repair these links after structural refactors using {@link #repairRelationships(Entity)}.\n\n <p>The inner {@code AnnotatedAggregateRepository<T>} class handles aggregate-specific operations by introspecting the\n annotations and metadata declared on a given aggregate type.\n\n @see Aggregate\n @see AggregateRepository\n @see Entity\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.repository.AggregateRepository>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.repository.AggregateRepository" ],
   "fields" : [ {
     "name" : "AGGREGATE_COMMIT_POLICY_PROPERTY",
@@ -47,6 +37,30 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "aggregateCacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.aggregateCacheSource",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.defaultRepository",
+    "type" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "delegates",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.delegates",
     "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.AnnotatedAggregateRepository<?>>",
@@ -57,6 +71,14 @@
   }, {
     "name" : "dispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.dispatchInterceptor",
+    "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dispatchInterceptorSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.dispatchInterceptorSource",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
@@ -103,6 +125,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "relationshipsCacheDelegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.relationshipsCacheDelegate",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationshipsCacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.relationshipsCacheSource",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.serializer",
     "type" : "io.fluxzero.sdk.common.serialization.Serializer",
@@ -126,13 +164,13 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "eventStore",
-      "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "eventStoreClient",
-      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+      "name" : "eventStore",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -173,9 +211,66 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
+    "documentation" : " Creates a repository whose storage clients and caches can be switched together to another namespace.\n\n @param client              the client used to obtain namespace-specific low-level event store clients\n @param eventStore          the event store for the client's current namespace\n @param snapshotStore       the snapshot store for the client's current namespace\n @param aggregateCache      the shared cache used for aggregates\n @param relationshipsCache the shared cache used for aggregate relationships\n @param documentStore       the document store for the client's current namespace\n @param serializer          the serializer used for aggregate events\n @param dispatchInterceptor interceptor for published aggregate events\n @param entityHelper        helper for aggregate entity models\n"
+  }, {
+    "name" : "DefaultAggregateRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#DefaultAggregateRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultRepository",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventStore",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshotStore",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentStore",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "aggregateCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#aggregateCache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "aggregateCacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#aggregateCacheSource",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "asEntity",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#asEntity",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -207,6 +302,25 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -365,6 +479,28 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "relationshipsCacheDelegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#relationshipsCacheDelegate",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "relationshipsCacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#relationshipsCacheSource",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

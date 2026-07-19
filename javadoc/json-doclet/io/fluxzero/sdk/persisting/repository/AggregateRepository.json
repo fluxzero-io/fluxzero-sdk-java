@@ -8,7 +8,7 @@
   "documentation" : " Repository interface for loading, managing, and repairing aggregates in Fluxzero.\n <p>\n Aggregates in Fluxzero can be persisted using different storage strategies, including event sourcing and\n document-based storage (e.g., {@code DocumentStore}). The {@code AggregateRepository} abstracts these details and\n provides a unified API to interact with aggregate instances as {@link Entity} wrappers.\n\n <p>Core capabilities include:\n <ul>\n   <li>Loading aggregates by ID, whether event-sourced or document-based.</li>\n   <li>Mapping entities to their associated aggregates (e.g., for child-to-parent traversal).</li>\n   <li>Repairing relationships between entities and aggregates (especially useful after structural refactors).</li>\n   <li>Deleting aggregates and their associated data.</li>\n </ul>\n\n <p>Note: While this interface is accessible directly, most typical usage is through the static\n {@code Fluxzero.loadAggregate(...)} or via delegation\n in {@link io.fluxzero.sdk.modeling.Entity} classes.\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.repository.AggregateRepository>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
@@ -43,6 +43,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Deletes the persisted state for an aggregate, including its events or document and relationships.\n\n @param aggregateId the ID of the aggregate to delete.\n @return a future that completes when deletion has been confirmed.\n"
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.AggregateRepository#forNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this repository scoped to the requested namespace.\n <p>\n Custom repository implementations that are not namespace-aware retain their existing behavior and return the\n same instance. The default Fluxzero repository overrides this method and isolates all aggregate storage and\n caching operations by namespace.\n\n @param namespace the namespace to which the returned repository is scoped\n @return the repository associated with the specified namespace\n"
   }, {
     "name" : "getAggregatesFor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.AggregateRepository#getAggregatesFor",

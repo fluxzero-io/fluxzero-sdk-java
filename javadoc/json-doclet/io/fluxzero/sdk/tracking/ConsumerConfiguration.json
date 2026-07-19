@@ -385,7 +385,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Specifies the namespace under which the consumer tracks messages.\n <p>\n If set to {@code null}, the default namespace of the client application is used.\n\n @see Client#forNamespace(String)\n",
+    "documentation" : " Specifies the namespace under which the consumer tracks messages.\n <p>\n If set to {@code null}, the namespace configured for the client application is used.\n\n @see Client#forNamespace(String)\n",
     "constantValue" : null
   }, {
     "name" : "onMissingProtectedData",

@@ -43,6 +43,19 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession.namespace",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "PACKAGE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "pendingRequests",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession.pendingRequests",
     "type" : "java.util.Map<java.lang.Long,io.fluxzero.sdk.web.DefaultSocketSession.PendingRequest<?>>",

@@ -10,7 +10,7 @@
   } ],
   "documentation" : " Default implementation of the {@link WebRequestGateway} interface that delegates requests to a configured\n {@link GenericGateway}. This class acts as a bridge for handling outbound web requests using Fluxzero Runtime’s proxy\n mechanism.\n <p>\n It supports sending web requests in both asynchronous (fire-and-forget, future-based) and synchronous (blocking)\n manners, utilizing the underlying delegate to process the actual interactions with the Fluxzero Runtime.\n\n @see WebRequestGateway\n @see GenericGateway\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.publishing.WebRequestGateway>",
   "interfaces" : [ "io.fluxzero.sdk.publishing.WebRequestGateway" ],
   "fields" : [ {
     "name" : "delegate",
@@ -19,7 +19,9 @@
     "modifiers" : [ "final", "private" ],
     "annotations" : [ {
       "annotationType" : "lombok.experimental.Delegate",
-      "values" : {}
+      "values" : {
+        "excludes" : "io.fluxzero.sdk.common.Namespaced.class"
+      }
     }, {
       "annotationType" : "lombok.With",
       "values" : {}
@@ -60,16 +62,21 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "forDefaultNamespace",
-    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#forDefaultNamespace",
-    "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
-    "modifiers" : [ "public" ],
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.WebRequestGateway",
+    "modifiers" : [ "protected" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

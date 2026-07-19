@@ -25,10 +25,20 @@
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope",
     "kind" : "class"
   }, {
+    "file" : "AsyncCompletionScope.ScopeStack.json",
+    "name" : "AsyncCompletionScope.ScopeStack",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack",
+    "kind" : "record"
+  }, {
     "file" : "ClientUtils.json",
     "name" : "ClientUtils",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils",
     "kind" : "class"
+  }, {
+    "file" : "ClientUtils.ConsumerNamespaceContext.json",
+    "name" : "ClientUtils.ConsumerNamespaceContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$ConsumerNamespaceContext",
+    "kind" : "record"
   }, {
     "file" : "ClientUtils.LocalHandlerAnnotationCache.json",
     "name" : "ClientUtils.LocalHandlerAnnotationCache",
@@ -83,6 +93,16 @@
     "file" : "SdkVersion.json",
     "name" : "SdkVersion",
     "qualifiedName" : "io.fluxzero.sdk.common.SdkVersion",
+    "kind" : "class"
+  }, {
+    "file" : "ThreadLocalContext.json",
+    "name" : "ThreadLocalContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext",
+    "kind" : "class"
+  }, {
+    "file" : "ThreadLocalContext.Snapshot.json",
+    "name" : "ThreadLocalContext.Snapshot",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot",
     "kind" : "class"
   }, {
     "file" : "UuidFactory.json",

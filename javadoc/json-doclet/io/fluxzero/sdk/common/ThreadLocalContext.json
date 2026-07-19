@@ -1,0 +1,106 @@
+{
+  "name" : "ThreadLocalContext",
+  "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Shared, opt-in context for thread-local values that belong to the same logical request.\n <p>\n A participating value is created using {@link #create()}. Calling {@link #capture()} takes one snapshot of all\n participating values, which can subsequently be activated around work on another thread. Activation is nested and\n restores the context that was previously present on that thread.\n <p>\n Participating values remain regular thread locals on the hot path. The shared registry is only consulted when a\n context is captured or activated, so merely entering and leaving a request context does not allocate a map.\n Removing a participating value removes its thread-local value in the usual way; once the final child is removed,\n there is therefore no request context left on that thread.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "participants",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext.participants",
+    "type" : "java.lang.ThreadLocal<?>[]",
+    "modifiers" : [ "private", "static", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ThreadLocalContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#ThreadLocalContext",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "capture",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#capture",
+    "returnType" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns an immutable snapshot of every context value active on the current thread. "
+  }, {
+    "name" : "create",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#create",
+    "returnType" : "java.lang.ThreadLocal<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a thread local whose value participates in this shared context.\n <p>\n The returned holder is an ordinary {@link ThreadLocal}; participation only adds work when a snapshot is captured\n or activated.\n"
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#register",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "participant",
+      "type" : "java.lang.ThreadLocal<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#setValue",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "participant",
+      "type" : "java.lang.ThreadLocal<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Snapshot",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -18,7 +18,7 @@
   "fields" : [ {
     "name" : "openSessions",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator.openSessions",
-    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.web.DefaultSocketSession>",
+    "type" : "java.util.Map<io.fluxzero.sdk.web.WebsocketHandlerDecorator.SessionKey,io.fluxzero.sdk.web.DefaultSocketSession>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -318,6 +318,22 @@
     "varArgs" : false,
     "documentation" : " Resolves a {@link SocketSession} parameter from the current {@link HasMessage} context.\n <p>\n The session is tracked per session ID and reused for subsequent requests over the same connection. If no session\n exists for the current message's session ID, a new one is created.\n\n @param p                the method parameter being resolved\n @param methodAnnotation the handler method's annotation (e.g. {@code @HandleWeb})\n @return a function that resolves the {@link SocketSession} from the message\n"
   }, {
+    "name" : "sessionKey",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#sessionKey",
+    "returnType" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator.SessionKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "socketPatterns",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#socketPatterns",
     "returnType" : "java.util.List<io.fluxzero.sdk.web.WebsocketHandlerDecorator.SocketPattern>",
@@ -409,6 +425,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "SessionKey",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator$SessionKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "SocketPattern",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator$SocketPattern",
     "kind" : "record",

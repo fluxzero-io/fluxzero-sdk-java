@@ -8,7 +8,7 @@
   "documentation" : " A simple interface for storing, retrieving, and removing key-value pairs.\n <p>\n This interface provides basic persistence operations such as storing values (with optional guarantees),\n retrieving them by key, conditionally storing only if absent, and deleting by key.\n\n <p><strong>Note:</strong> This API is considered legacy in the Fluxzero Runtime. It is recommended\n to use the more advanced and flexible {@code DocumentStore} instead, which supports structured querying,\n indexing, updates, and document lifecycle features.\n\n <p>This interface is still supported internally for backward compatibility and simple data use cases.\n\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.keyvalue.KeyValueStore>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
@@ -27,6 +27,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Removes the value associated with the given key.\n\n @param key the key to delete\n"
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#forNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this key-value store scoped to the requested namespace.\n\n @param namespace the namespace to which the returned store is scoped\n @return the key-value store associated with the specified namespace\n"
   }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#get",

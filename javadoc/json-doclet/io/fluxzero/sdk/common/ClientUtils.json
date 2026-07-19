@@ -13,6 +13,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "applicationHandlerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.applicationHandlerNamespace",
+    "type" : "io.fluxzero.sdk.common.ClientUtils.ConsumerNamespaceContext",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.handlerNamespace",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.common.ClientUtils.ConsumerNamespaceContext>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "ignoreMarker",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.ignoreMarker",
     "type" : "org.slf4j.Marker",
@@ -96,6 +112,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Determines the collection name used for document indexing and search based on the annotated handler or document\n type.\n"
+  }, {
+    "name" : "getConsumerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#getConsumerNamespace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the namespace of the consumer that is handling the supplied message.\n <p>\n An explicit context is used for framework-created and locally dispatched messages. A local handler explicitly\n overrides the active tracker with the namespace of its direct messaging input. Regular tracked handling falls\n back to the consumer configuration or active tracker.\n\n @param message the message being handled\n @return the consumer namespace, or {@code null} for the application namespace\n"
   }, {
     "name" : "getLocalHandlerAnnotation",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#getLocalHandlerAnnotation",
@@ -249,6 +281,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "isApplicationNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#isApplicationNamespace",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the supplied client addresses the namespace configured for the application itself.\n <p>\n A namespaced client resolves {@code forNamespace(null)} back to its application client. Identity is used so a\n custom namespace with equivalent configuration cannot accidentally enable in-process handling.\n"
   }, {
     "name" : "isLocalHandler",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#isLocalHandler",
@@ -540,6 +588,85 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "runInLocalHandlerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#runInLocalHandlerNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "io.fluxzero.sdk.common.ClientUtils.ConsumerNamespaceContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runInLocalHandlerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#runInLocalHandlerNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs local handler work in the explicit consumer namespace attached to the locally dispatched message.\n Messages without an explicit namespace are application-local.\n"
+  }, {
+    "name" : "runInLocalHandlerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#runInLocalHandlerNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs local handler work with the application namespace as the namespace of its direct messaging input.\n <p>\n The active tracker remains available for tracing and other request context, but cannot implicitly redirect\n entity injection, trigger correlation, responses, or rescheduling performed for the local message. Nested scopes\n restore the namespace that was active before the local handler was entered.\n"
+  }, {
+    "name" : "setConsumerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#setConsumerNamespace",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Attaches an explicit consumer namespace, including the application namespace represented by {@code null}. "
+  }, {
     "name" : "springOrderOf",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#springOrderOf",
     "returnType" : "java.util.Optional<java.lang.Integer>",
@@ -606,6 +733,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "ConsumerNamespaceContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$ConsumerNamespaceContext",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "LocalHandlerAnnotationCache",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache",
     "kind" : "class",

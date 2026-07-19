@@ -155,7 +155,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Optional project identifier. If set, it will be included in all communication with the Runtime.\n <p>\n If not set, the default namespace will be used.\n",
+    "documentation" : " Optional project identifier. If set, it will be included in all communication with the Runtime.\n <p>\n If not set, the namespace configured for the application will be used.\n",
     "constantValue" : null
   }, {
     "name" : "pingDelay",

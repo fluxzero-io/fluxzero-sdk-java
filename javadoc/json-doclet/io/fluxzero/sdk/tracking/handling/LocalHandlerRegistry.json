@@ -294,6 +294,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "handleInConsumerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handleInConsumerNamespace",
+    "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleLocal",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handleLocal",
     "returnType" : "boolean",
@@ -340,6 +361,22 @@
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleResultInConsumerNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handleResultInConsumerNamespace",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "input",

@@ -8,9 +8,9 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " A wrapper around a delegate {@link AggregateRepository} that ensures cached aggregates stay in sync with the event\n log.\n <p>\n This repository starts an internal {@link io.fluxzero.sdk.tracking.client.TrackingClient} that tails the\n global event log. It deserializes received events and applies them to any corresponding aggregate in the cache,\n thereby ensuring that all cached aggregates reflect the latest known state.\n\n <p>This design makes it possible to load up-to-date aggregates within event and notification handlers, allowing\n these types of handlers to rely on the event model as a read model. This enables event-sourced read models without\n requiring the developer to maintain separate query-oriented state.\n\n <p>Specifically, when an event handler loads an aggregate, the repository first ensures that all events up to and\n including the event being handled have been processed by the tracker and applied to the cache. This prevents race\n conditions and stale reads.\n\n <p>If a cache miss occurs, the aggregate is loaded from the delegate repository and cached for future access.\n\n <h2>Features</h2>\n <ul>\n   <li>Transparent event replay on cached aggregates.</li>\n   <li>Ensures correct ordering and consistency during event handling via index synchronization.</li>\n   <li>Relationship metadata is kept up to date using {@link Relationship} updates.</li>\n   <li>Configurable slow-tracking detection via {@link #slowTrackingThreshold} (default 10 seconds).</li>\n </ul>\n\n <p>This caching repository is enabled by default in all Fluxzero applications to support aggregate access\n during event processing. If needed, it can be disabled using\n {@link FluxzeroBuilder#disableAutomaticAggregateCaching()}, in which case aggregate state will not be tracked\n or kept in sync automatically, and developers are expected to manage consistency manually.\n\n @see AggregateRepository\n @see Entity\n @see io.fluxzero.sdk.tracking.client.TrackingClient\n",
+  "documentation" : " A wrapper around a delegate {@link AggregateRepository} that ensures cached aggregates stay in sync with the event\n log.\n <p>\n This repository starts an internal {@link io.fluxzero.sdk.tracking.client.TrackingClient} that tails the\n global event log. It deserializes received events and applies them to any corresponding aggregate in the cache,\n thereby ensuring that all cached aggregates reflect the latest known state.\n Each namespaced repository follows the event log in its own namespace. For custom namespaces, tracking starts\n lazily when the first aggregate is added to that namespace's cache.\n\n <p>This design makes it possible to load up-to-date aggregates within event and notification handlers, allowing\n these types of handlers to rely on the event model as a read model. This enables event-sourced read models without\n requiring the developer to maintain separate query-oriented state.\n\n <p>Specifically, when an event handler loads an aggregate, the repository first ensures that all events up to and\n including the event being handled have been processed by the tracker and applied to the cache. This prevents race\n conditions and stale reads.\n\n <p>If a cache miss occurs, the aggregate is loaded from the delegate repository and cached for future access.\n\n <h2>Features</h2>\n <ul>\n   <li>Transparent event replay on cached aggregates.</li>\n   <li>Ensures correct ordering and consistency during event handling via index synchronization.</li>\n   <li>Relationship metadata is kept up to date using {@link Relationship} updates.</li>\n   <li>Configurable slow-tracking detection via {@link #slowTrackingThreshold} (default 10 seconds).</li>\n </ul>\n\n <p>This caching repository is enabled by default in all Fluxzero applications to support aggregate access\n during event processing. If needed, it can be disabled using\n {@link FluxzeroBuilder#disableAutomaticAggregateCaching()}, in which case aggregate state will not be tracked\n or kept in sync automatically, and developers are expected to manage consistency manually.\n\n @see AggregateRepository\n @see Entity\n @see io.fluxzero.sdk.tracking.client.TrackingClient\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.repository.AggregateRepository>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.repository.AggregateRepository" ],
   "fields" : [ {
     "name" : "cache",
@@ -21,9 +21,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "cacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository.cacheSource",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository.client",
     "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository.defaultRepository",
+    "type" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -48,6 +64,22 @@
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository.relationshipsCache",
     "type" : "io.fluxzero.sdk.persisting.repository.RelationshipsCache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationshipsCacheDelegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository.relationshipsCacheDelegate",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationshipsCacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository.relationshipsCacheSource",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -112,6 +144,46 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "CachingAggregateRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#CachingAggregateRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cache",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationshipsCache",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootRepository",
+      "type" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "asEntity",
@@ -140,6 +212,25 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -268,6 +359,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "registerLazyTrackerStart",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#registerLazyTrackerStart",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidate",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "repairRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#repairRelationships",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -287,6 +394,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "replayMinIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#replayMinIndex",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "startTrackerIfNeeded",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#startTrackerIfNeeded",
     "returnType" : "void",
@@ -294,6 +412,22 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "startTrackerIfNeeded",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.CachingAggregateRepository#startTrackerIfNeeded",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

@@ -10,9 +10,17 @@
   } ],
   "documentation" : " A handler registry implementation intended for local testing and development that registers handlers for document\n updates in a specific collection.\n\n @see InMemorySearchStore\n @see HandlerRegistry\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.tracking.handling.HasLocalHandlers>",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "dispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry.dispatchInterceptor",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
@@ -40,14 +48,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "searchStore",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry.searchStore",
-    "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry.serializer",
     "type" : "io.fluxzero.sdk.common.serialization.Serializer",
@@ -68,6 +68,36 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "initializeMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry#initializeMonitor",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerHandler",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry#registerHandler",
     "returnType" : "io.fluxzero.common.Registration",

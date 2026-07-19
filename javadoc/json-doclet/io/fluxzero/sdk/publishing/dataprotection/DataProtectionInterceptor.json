@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data\n fields by removing them from the payload before dispatch and restoring them during handling.\n\n <p>This interceptor works in two phases:\n <ul>\n   <li><strong>Dispatch phase:</strong>\n     <ul>\n       <li>Scans the payload for fields annotated with {@link ProtectData}.</li>\n       <li>Each such field is serialized and stored securely in a designated store, indexed by a generated key.</li>\n       <li>The payload is cloned and sensitive fields are removed (set to {@code null}).</li>\n       <li>The generated key references are stored in the message metadata under {@link #METADATA_KEY}.</li>\n     </ul>\n   </li>\n   <li><strong>Handling phase:</strong>\n     <ul>\n       <li>Looks for protected data references in the message metadata.</li>\n       <li>If present, retrieves the original values from the store using the stored keys.</li>\n       <li>Injects the retrieved values back into the message payload before invocation.</li>\n       <li>If the target method is annotated with {@link DropProtectedData}, the stored entries are deleted after injection.</li>\n     </ul>\n   </li>\n </ul>\n\n <p>This strategy is useful for preventing sensitive or private data from being persisted to the message log,\n while still allowing handlers to receive full context during execution.\n\n <h2>Example</h2>\n <pre>{@code\n public class MyHandler {\n   @HandleCommand\n   public void handle(@ProtectData String ssn, ...) {\n     ...\n   }\n\n   @HandleCommand\n   @DropProtectedData\n   public void auditSensitive(@ProtectData String secretField, ...) {\n     ...\n     // After invocation, the secret is permanently removed\n   }\n }\n }\n </pre>\n\n <p>Note: The payload is cloned via (de)serialization to ensure the original object remains unmodified.\n\n @see ProtectData\n @see DropProtectedData\n @see DispatchInterceptor\n @see HandlerInterceptor\n",
+  "documentation" : " A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data\n fields by removing them from the payload before dispatch and restoring them during handling.\n\n <p>This interceptor works in two phases:\n <ul>\n   <li><strong>Dispatch phase:</strong>\n     <ul>\n       <li>Scans the payload for fields annotated with {@link ProtectData}.</li>\n       <li>Each such field is serialized and stored securely in a designated store, indexed by a generated key.</li>\n       <li>The payload is cloned and sensitive fields are removed (set to {@code null}).</li>\n       <li>The generated key references and their dispatch namespace are stored in the message metadata under\n       {@link #METADATA_KEY} and {@link #NAMESPACE_METADATA_KEY}.</li>\n     </ul>\n   </li>\n   <li><strong>Handling phase:</strong>\n     <ul>\n       <li>Looks for protected data references in the message metadata.</li>\n       <li>If present, retrieves the original values from the store using the stored keys.</li>\n       <li>Injects the retrieved values back into the message payload before invocation.</li>\n       <li>If the target method is annotated with {@link DropProtectedData}, the stored entries are deleted after injection.</li>\n     </ul>\n   </li>\n </ul>\n\n <p>This strategy is useful for preventing sensitive or private data from being persisted to the message log,\n while still allowing handlers to receive full context during execution.\n\n <h2>Example</h2>\n <pre>{@code\n public class MyHandler {\n   @HandleCommand\n   public void handle(@ProtectData String ssn, ...) {\n     ...\n   }\n\n   @HandleCommand\n   @DropProtectedData\n   public void auditSensitive(@ProtectData String secretField, ...) {\n     ...\n     // After invocation, the secret is permanently removed\n   }\n }\n }\n </pre>\n\n <p>Note: The payload is cloned via (de)serialization to ensure the original object remains unmodified.\n\n @see ProtectData\n @see DropProtectedData\n @see DispatchInterceptor\n @see HandlerInterceptor\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor", "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
@@ -20,6 +20,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "NAMESPACE_METADATA_KEY",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.NAMESPACE_METADATA_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$protectedDataNamespace"
   }, {
     "name" : "keyValueStore",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.keyValueStore",
@@ -130,6 +138,22 @@
     "documentation" : " Creates an interceptor with an application-wide missing protected data policy.\n\n @param keyValueStore store containing protected values\n @param serializer serializer used to sanitize and restore payloads\n @param onMissingProtectedData application-wide fallback policy\n @param trackingMetricsEnabled whether skipped handlers should publish ignore-message metrics\n"
   } ],
   "methods" : [ {
+    "name" : "getProtectedDataNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#getProtectedDataNamespace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getProtectedFields",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#getProtectedFields",
     "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
@@ -139,6 +163,11 @@
     "parameters" : [ {
       "name" : "value",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -165,6 +194,11 @@
     }, {
       "name" : "propertyValue",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -198,6 +232,45 @@
       "annotations" : [ ]
     }, {
       "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
@@ -358,6 +431,11 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "store",
+      "type" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -393,6 +471,27 @@
     "parameters" : [ {
       "name" : "value",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withoutProtectedDataMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#withoutProtectedDataMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

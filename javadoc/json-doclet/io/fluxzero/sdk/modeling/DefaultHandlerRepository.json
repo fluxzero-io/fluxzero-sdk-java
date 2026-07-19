@@ -15,7 +15,7 @@
   } ],
   "documentation" : " Default implementation of {@link HandlerRepository}, backed by a {@link DocumentStore}.\n <p>\n This repository provides direct indexing and retrieval of {@code @Stateful} handlers, using values from fields and\n methods annotated with {@link io.fluxzero.sdk.tracking.handling.Association}.\n <p>\n Timestamp information can optionally be derived from paths specified in the\n {@link Stateful} annotation on the handler class.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.modeling.HandlerRepository>",
   "interfaces" : [ "io.fluxzero.sdk.modeling.HandlerRepository" ],
   "fields" : [ {
     "name" : "collection",
@@ -88,6 +88,41 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "DefaultHandlerRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultHandlerRepository#DefaultHandlerRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentStore",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestampFunction",
+      "type" : "java.util.function.Function<java.lang.Object,java.time.Instant>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endFunction",
+      "type" : "java.util.function.Function<java.lang.Object,java.time.Instant>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "asConstraint",
@@ -99,6 +134,25 @@
     "parameters" : [ {
       "name" : "associations",
       "type" : "java.util.Map<java.lang.Object,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultHandlerRepository#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.modeling.HandlerRepository",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

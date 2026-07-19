@@ -195,6 +195,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "initializePeriodicSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#initializePeriodicSchedule",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "initializePeriodicSchedules",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#initializePeriodicSchedules",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Initializes auto-start schedules for one handler in the namespace of the consumer it was assigned to. "
+  }, {
     "name" : "interceptDispatch",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#interceptDispatch",
     "returnType" : "io.fluxzero.sdk.common.Message",
@@ -367,6 +414,11 @@
       "type" : "io.fluxzero.sdk.scheduling.Schedule",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -391,6 +443,11 @@
     }, {
       "name" : "instant",
       "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -424,6 +481,11 @@
       "type" : "io.fluxzero.sdk.scheduling.Periodic",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -438,6 +500,27 @@
     "parameters" : [ {
       "name" : "schedule",
       "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scheduler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#scheduler",
+    "returnType" : "io.fluxzero.sdk.scheduling.MessageScheduler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

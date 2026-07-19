@@ -8,7 +8,7 @@
   "documentation" : " A generic message gateway for publication of messages in Fluxzero.\n <p>\n The {@code GenericGateway} provides a uniform interface to send and receive messages over any standard or\n user-defined topic, enabling extensibility beyond the default types such as commands, queries, events, and errors.\n <p>\n This interface supports asynchronous and synchronous message dispatching, both with and without awaiting a result. It\n also includes support for delivery guarantees and local handler registration.\n <p>\n Typical usage includes:\n <ul>\n     <li>Custom message flows that don’t fit standard message types</li>\n     <li>Internal APIs that benefit from topic-based routing</li>\n     <li>Feature-specific messaging with isolated topics</li>\n </ul>\n\n <h2>Obtaining a Gateway</h2>\n Use {@link io.fluxzero.sdk.Fluxzero#customGateway(String)} to create or retrieve a\n {@code GenericGateway} for a given topic:\n <pre>{@code\n GenericGateway myGateway = Fluxzero.customGateway(\"myTopic\");\n }</pre>\n\n @see HasLocalHandlers\n @see io.fluxzero.sdk.publishing.CommandGateway\n @see io.fluxzero.sdk.publishing.QueryGateway\n @see io.fluxzero.sdk.publishing.EventGateway\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.GenericGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.GenericGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers", "java.lang.AutoCloseable" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
@@ -16,7 +16,10 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#close",
     "returnType" : "void",
     "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],

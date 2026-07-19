@@ -42,6 +42,11 @@
       "type" : "io.fluxzero.sdk.scheduling.ScheduledCommand",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

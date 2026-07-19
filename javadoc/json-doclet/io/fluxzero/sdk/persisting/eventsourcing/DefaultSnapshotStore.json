@@ -13,7 +13,7 @@
   } ],
   "documentation" : " Default implementation of the {@link SnapshotStore} interface.\n\n <p>Snapshots are stored as documents, keyed by aggregate id and sequence number. The latest snapshot is loaded by\n sorting on the stored sequence number, while older snapshots can be retrieved to support historical\n {@link io.fluxzero.sdk.modeling.Entity#previous()} traversal.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore" ],
   "fields" : [ {
     "name" : "SNAPSHOT_COLLECTION",
@@ -60,6 +60,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deleteSnapshot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#deleteSnapshot",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

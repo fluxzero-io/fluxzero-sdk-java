@@ -13,7 +13,7 @@
   } ],
   "documentation" : " Default implementation of the {@link RequestHandler} interface.\n <p>\n This handler supports both single and batch request dispatching, tracking responses using an internal\n {@link java.util.concurrent.ConcurrentHashMap} keyed by {@code requestId}. When a request is sent, the handler\n subscribes to a corresponding result log (e.g., result or web response) via a\n {@link io.fluxzero.sdk.tracking.client.TrackingClient}, which listens for responses targeted at this client only.\n\n <p>Each request is assigned a unique {@code requestId} and tagged with the client's {@code source} identifier.\n When a response with a matching {@code requestId} is received, the corresponding {@link CompletableFuture} is\n completed.\n\n <p>If no response is received within the configured timeout (default: 200 seconds), the future is completed\n exceptionally.\n <p>\n This request handle supports chunked responses. Request senders that can deal with chunked responses should use\n {@link #sendRequest(SerializedMessage, Consumer, Duration, Consumer)}}. If a chunked response is received, but the\n request sender expected a single response, the intermediate responses are aggregated before completing the request.\n\n <p>Features:\n <ul>\n   <li>Supports both single and batch request dispatching.</li>\n   <li>Tracks responses via the configured {@link MessageType} and filters using {@code filterMessageTarget = true}.</li>\n   <li>Ensures startup of the underlying result tracker on first request dispatch.</li>\n   <li>Cleans up subscriptions and pending futures on {@link #close()}.</li>\n </ul>\n\n @see RequestHandler\n @see MessageType#RESULT\n @see MessageType#WEBRESPONSE\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.publishing.RequestHandler>",
   "interfaces" : [ "io.fluxzero.sdk.publishing.RequestHandler" ],
   "fields" : [ {
     "name" : "callbacks",
@@ -32,9 +32,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "handlerSupplier",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.handlerSupplier",
-    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.publishing.RequestHandler>",
+    "name" : "closed",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.closed",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -207,21 +207,10 @@
     "varArgs" : false,
     "documentation" : " Completes a pending request exceptionally and removes its response callback.\n\n @param requestId the request id assigned by {@link #prepareRequest(SerializedMessage, Duration, Consumer)}\n @param error     the error that should complete the pending request\n @return {@code true} when a pending request was found and completed\n"
   }, {
-    "name" : "ensureStarted",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#ensureStarted",
-    "returnType" : "void",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "forNamespace",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#forNamespace",
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#createForNamespace",
     "returnType" : "io.fluxzero.sdk.publishing.RequestHandler",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
@@ -233,6 +222,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ensureStarted",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#ensureStarted",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -388,22 +388,6 @@
     }, {
       "name" : "timeout",
       "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "supplyRequestHandler",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#supplyRequestHandler",
-    "returnType" : "io.fluxzero.sdk.publishing.RequestHandler",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "namespace",
-      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

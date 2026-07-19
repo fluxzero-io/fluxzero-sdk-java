@@ -15,19 +15,8 @@
   "superClass" : "io.fluxzero.sdk.configuration.client.AbstractClient",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "clientConfig",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.clientConfig",
-    "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Getter",
-      "values" : {}
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "defaultClient",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.defaultClient",
+    "name" : "applicationClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.applicationClient",
     "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ {
@@ -35,6 +24,17 @@
       "values" : {
         "value" : "PRIVATE"
       }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "clientConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.clientConfig",
+    "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null

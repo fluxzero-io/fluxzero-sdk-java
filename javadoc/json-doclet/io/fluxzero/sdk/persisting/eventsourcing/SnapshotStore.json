@@ -8,7 +8,7 @@
   "documentation" : " Interface for managing snapshots of aggregates in an event-sourced system.\n\n <p>Snapshots are serialized representations of an aggregate's state at a certain point in time (i.e., after a certain\n sequence number). They allow the system to avoid replaying the entire event history for aggregates with large event logs.\n\n <p>This interface defines methods for storing, loading, and deleting such snapshots. Snapshots are typically\n used in combination with {@link io.fluxzero.sdk.persisting.repository.AggregateRepository} and\n {@link io.fluxzero.sdk.persisting.eventsourcing.EventStore} to optimize aggregate loading.\n\n <p>Usage of this interface is optional—if no snapshot is found, the aggregate is reconstructed from its full event history.\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
@@ -27,6 +27,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Deletes the snapshot for the specified aggregate ID.\n\n @param aggregateId The ID of the aggregate whose snapshot should be deleted.\n @return A {@link CompletableFuture} indicating completion of the deletion operation.\n"
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore#forNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this snapshot store scoped to the requested namespace.\n <p>\n Implementations that do not use namespace-aware backing storage may keep returning the same instance. The\n default implementation switches both its document and event stores to the requested namespace.\n\n @param namespace the namespace to which the returned store is scoped\n @return the snapshot store associated with the specified namespace\n"
   }, {
     "name" : "getSnapshot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore#getSnapshot",

@@ -10,16 +10,8 @@
   "superClass" : "io.fluxzero.sdk.configuration.client.AbstractClient",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "clock",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.clock",
-    "type" : "java.time.Clock",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "defaultClient",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.defaultClient",
+    "name" : "applicationClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.applicationClient",
     "type" : "io.fluxzero.sdk.configuration.client.LocalClient",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ {
@@ -28,6 +20,14 @@
         "value" : "PRIVATE"
       }
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "clock",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.clock",
+    "type" : "java.time.Clock",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -124,7 +124,7 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "defaultClient",
+      "name" : "applicationClient",
       "type" : "io.fluxzero.sdk.configuration.client.LocalClient",
       "varArgs" : false,
       "annotations" : [ ]
