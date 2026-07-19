@@ -49,6 +49,7 @@ public class DefaultMetricsLog implements MetricsLog {
     @Override
     public CompletableFuture<Void> registerMetrics(Object event, Metadata metadata) {
         var finalMetadata = metadata.with("$applicationId", "FluxzeroTestServer");
+        TestServerMetricsMonitor.record(event, finalMetadata);
         return CompletableFuture.supplyAsync(() -> serializeMetrics(event, finalMetadata), workerPool)
                 .thenCompose(this::appendMetrics);
     }

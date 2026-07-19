@@ -15,9 +15,13 @@
 package io.fluxzero.sdk.test;
 
 import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.support.descriptor.ClassSource;
+import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
+
+import java.util.Optional;
 
 /**
  * A JUnit 5 {@link TestExecutionListener} that shuts down {@link TestFixture} instances when their owning execution
@@ -44,6 +48,9 @@ public class TestFixtureExecutionListener implements TestExecutionListener {
     @Override
     public void executionStarted(TestIdentifier testIdentifier) {
         TestFixtureLifecycle.startScope(testIdentifier.getUniqueId(), testIdentifier.isTest());
+        if (testIdentifier.isTest()) {
+            TestFixtureObservationRecorder.testStarted(testSelector(testIdentifier));
+        }
     }
 
     /**
@@ -51,7 +58,13 @@ public class TestFixtureExecutionListener implements TestExecutionListener {
      */
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
-        TestFixtureLifecycle.finishScope(testIdentifier.getUniqueId());
+        try {
+            TestFixtureLifecycle.finishScope(testIdentifier.getUniqueId());
+        } finally {
+            if (testIdentifier.isTest()) {
+                TestFixtureObservationRecorder.testFinished(testSelector(testIdentifier));
+            }
+        }
     }
 
     /**
@@ -60,5 +73,20 @@ public class TestFixtureExecutionListener implements TestExecutionListener {
     @Override
     public void testPlanExecutionFinished(TestPlan testPlan) {
         TestFixtureLifecycle.shutDownAllActiveFixtures();
+    }
+
+    private static String testSelector(TestIdentifier testIdentifier) {
+        Optional<String> methodSelector = testIdentifier.getSource()
+                .filter(MethodSource.class::isInstance)
+                .map(MethodSource.class::cast)
+                .map(source -> source.getClassName() + "#" + source.getMethodName());
+        if (methodSelector.isPresent()) {
+            return methodSelector.get();
+        }
+        return testIdentifier.getSource()
+                .filter(ClassSource.class::isInstance)
+                .map(ClassSource.class::cast)
+                .map(ClassSource::getClassName)
+                .orElseGet(testIdentifier::getUniqueId);
     }
 }

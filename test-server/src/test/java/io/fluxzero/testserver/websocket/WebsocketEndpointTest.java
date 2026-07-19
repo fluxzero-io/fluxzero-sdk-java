@@ -15,6 +15,10 @@
 
 package io.fluxzero.testserver.websocket;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.ConnectEvent;
 import io.fluxzero.common.api.RequestResult;
@@ -24,10 +28,12 @@ import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +58,48 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class WebsocketEndpointTest {
+
+    @Test
+    void closedTransportIsNotLoggedAsWebsocketError() {
+        Logger logger = (Logger) LoggerFactory.getLogger(WebsocketEndpoint.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        TestEndpoint endpoint = new TestEndpoint();
+        ServerWebsocketSession session = session("session-1");
+        endpoint.onOpen(session);
+        try {
+            endpoint.onError(session, new ClosedChannelException());
+            endpoint.onClose(session, new WebsocketCloseReason(1006, "transport closed"));
+
+            assertTrue(appender.list.stream().noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.WARN)),
+                       () -> "Unexpected transport log events: " + appender.list);
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+            endpoint.shutDown();
+        }
+    }
+
+    @Test
+    void unexpectedWebsocketFailureIsLoggedAsError() {
+        Logger logger = (Logger) LoggerFactory.getLogger(WebsocketEndpoint.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        TestEndpoint endpoint = new TestEndpoint();
+        try {
+            endpoint.onError(session("session-1"), new IllegalArgumentException("broken frame"));
+
+            assertTrue(appender.list.stream().anyMatch(event -> event.getLevel() == Level.ERROR
+                                                               && event.getFormattedMessage().startsWith(
+                               "Error in session session-1")));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+            endpoint.shutDown();
+        }
+    }
 
     @Test
     void capabilityHeaderTakesPrecedenceOverLegacyCompressionParameter() {

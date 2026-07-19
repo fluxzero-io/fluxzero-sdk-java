@@ -145,6 +145,7 @@ public abstract class WebsocketEndpoint {
     private final Map<String, SessionBacklog> sessionBacklogs = new ConcurrentHashMap<>();
     private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> expectedTransportCloseSessionIds = ConcurrentHashMap.newKeySet();
     private final TaskScheduler pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
     private final Semaphore inFlightWebSocketBytes = new Semaphore(DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
@@ -816,13 +817,14 @@ public abstract class WebsocketEndpoint {
     public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
         String sessionId = getNegotiatedSessionId(session);
         boolean wasActive = activeSessionIds.remove(sessionId);
+        boolean expectedTransportClose = expectedTransportCloseSessionIds.remove(sessionId);
         commandIdempotencyStore.unregisterSession(getClientId(session), sessionId);
         ofNullable(sessionBacklogs.remove(sessionId)).ifPresent(SessionBacklog::shutDown);
         ofNullable(pingDeadlines.remove(sessionId)).ifPresent(PingRegistration::cancel);
         if (!wasActive) {
             return;
         }
-        if (!shuttingDown.get()) {
+        if (!shuttingDown.get() && !expectedTransportClose) {
             if (closeReason.code() != WebsocketCloseReason.UNEXPECTED_CONDITION
                 && closeReason.code() > WebsocketCloseReason.NO_STATUS_CODE) {
                 log.warn("Websocket session {} to endpoint {} for client {} with id {} closed abnormally: {}",
@@ -836,8 +838,16 @@ public abstract class WebsocketEndpoint {
     }
 
     public void onError(ServerWebsocketSession session, Throwable e) {
-        log.error("Error in session {} for client {} with id {}",
-                  getNegotiatedSessionId(session), getClientName(session), getClientId(session), e);
+        String sessionId = getNegotiatedSessionId(session);
+        boolean expectedTransportClose = shuttingDown.get() || isClosedChannel(e);
+        if (expectedTransportClose) {
+            expectedTransportCloseSessionIds.add(sessionId);
+            log.debug("Session {} for client {} with id {} closed with the transport",
+                      sessionId, getClientName(session), getClientId(session));
+        } else {
+            log.error("Error in session {} for client {} with id {}",
+                      sessionId, getClientName(session), getClientId(session), e);
+        }
         try {
             session.close(new WebsocketCloseReason(
                     WebsocketCloseReason.UNEXPECTED_CONDITION, "The websocket closed because of an error"));
@@ -860,6 +870,7 @@ public abstract class WebsocketEndpoint {
             } finally {
                 shutDown = true;
                 pingDeadlines.clear();
+                expectedTransportCloseSessionIds.clear();
                 pingScheduler.shutdown();
                 if (ownsCommandIdempotencyStore) {
                     commandIdempotencyStore.close();

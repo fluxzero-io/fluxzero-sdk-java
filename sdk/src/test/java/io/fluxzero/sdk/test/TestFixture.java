@@ -366,6 +366,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final Map<String, String> testProperties = new HashMap<>();
     private final List<HttpCookie> cookies = new ArrayList<>();
     private final Map<String, List<String>> headers = WebUtils.emptyHeaderMap();
+    private final String observationTestId;
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
     private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
@@ -380,6 +381,7 @@ public class TestFixture implements Given<TestFixture>, When {
     protected TestFixture(FluxzeroBuilder fluxzeroBuilder,
                           Function<Fluxzero, List<?>> handlerFactory, Client client, boolean synchronous) {
         TestFixtureLifecycle.register(this);
+        this.observationTestId = TestFixtureObservationRecorder.currentTestId();
         this.synchronous = synchronous;
         this.spying = false;
         this.productionUserProvider = false;
@@ -438,6 +440,7 @@ public class TestFixture implements Given<TestFixture>, When {
     protected TestFixture(TestFixture currentFixture, boolean synchronous, boolean spying,
                           boolean productionUserProvider) {
         TestFixtureLifecycle.register(this);
+        this.observationTestId = currentFixture.observationTestId;
         this.synchronous = synchronous;
         this.spying = spying;
         this.productionUserProvider = productionUserProvider;
@@ -472,6 +475,10 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private Client trackRemoteDocumentUpdates(Client client) {
         return client.unwrap() instanceof LocalClient ? client : new DocumentTrackingClient(client, interceptor);
+    }
+
+    private void recordObservation(TestFixtureObservation observation) {
+        TestFixtureObservationRecorder.record(observationTestId, observation);
     }
 
     /**
@@ -2061,6 +2068,7 @@ public class TestFixture implements Given<TestFixture>, When {
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                     boolean request) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
+            testFixture.recordObservation(TestFixtureObservation.dispatch(message, messageType, topic, namespace));
             testFixture.registerAutomaticTrackSelfHandler(message);
             if (request) {
                 testFixture.requestDispatches.add(message.getMessageId());
@@ -2202,6 +2210,7 @@ public class TestFixture implements Given<TestFixture>, When {
                     activeHandlers.push(activeHandler);
                 }
                 try {
+                    testFixture.recordObservation(TestFixtureObservation.handling(m, invoker));
                     var traceScope = testFixture.fixtureResult.getTrace().beginHandling(m, invoker);
                     Object result = null;
                     Throwable error = null;

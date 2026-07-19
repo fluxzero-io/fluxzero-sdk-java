@@ -169,7 +169,8 @@ public class ProxyServer implements Registration {
         try {
             proxyServer = startHttpProxyOnly(
                     getConfiguredPort(), new ProxyRequestHandler(client), forwardProxy, forwardProxy::force,
-                    Registration.noOp(), true, LifecycleState.STARTING);
+                    Registration.noOp(), true, LifecycleState.STARTING,
+                    getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT));
             proxyServer.probeRuntimeReadiness(client);
         } catch (RuntimeException | Error e) {
             forwardProxy.force();
@@ -199,13 +200,27 @@ public class ProxyServer implements Registration {
      * @return a ProxyServer instance representing the started proxy server and owned embedded resources
      */
     public static ProxyServer start() {
-        Client client = createConfiguredClient();
+        return start(ProxyServerConfig.fromProperties());
+    }
+
+    /**
+     * Starts an embedded proxy server with explicit configuration.
+     *
+     * <p>The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop all
+     * embedded proxy resources by calling {@link #cancel()}.</p>
+     *
+     * @param config proxy server configuration
+     * @return a ProxyServer instance representing the started proxy server and owned embedded resources
+     */
+    public static ProxyServer start(ProxyServerConfig config) {
+        Client client = createClient(config);
         ForwardProxyConsumer.Lifecycle forwardProxyConsumer = null;
         try {
             forwardProxyConsumer = ForwardProxyConsumer.startManaged(client);
             ProxyServer proxyServer = startHttpProxyOnly(
-                    getConfiguredPort(), new ProxyRequestHandler(client), forwardProxyConsumer,
-                    forwardProxyConsumer::force, idempotent(client::shutDown), true, LifecycleState.STARTING);
+                    config.port(), new ProxyRequestHandler(client), forwardProxyConsumer,
+                    forwardProxyConsumer::force, idempotent(client::shutDown), config.gracefulShutdown(),
+                    LifecycleState.STARTING, config.healthEndpoint());
             proxyServer.probeRuntimeReadiness(client);
             logStarted(proxyServer);
             return proxyServer;
@@ -227,7 +242,8 @@ public class ProxyServer implements Registration {
      */
     static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler) {
         return startHttpProxyOnly(port, proxyHandler, Registration.noOp(), () -> {}, Registration.noOp(),
-                                  false, LifecycleState.READY);
+                                  false, LifecycleState.READY,
+                                  getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT));
     }
 
     private static void logStarted(ProxyServer proxyServer) {
@@ -240,7 +256,7 @@ public class ProxyServer implements Registration {
     private static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler,
                                                  Registration shutdownRegistration, Runnable forceShutdown,
                                                  Registration ownedClientShutdown, boolean gracefulShutdown,
-                                                 LifecycleState initialState) {
+                                                 LifecycleState initialState, String healthEndpoint) {
         Server server = new Server(createThreadPool());
         server.setStopAtShutdown(false);
         // Standalone proxy shutdown remains graceful; tests use the HTTP-only helper with immediate Jetty stop.
@@ -268,7 +284,6 @@ public class ProxyServer implements Registration {
         proxyHandler.setMaxInFlightWebRequests(getConfiguredMaxInFlightWebRequests());
         proxyHandler.setMaxPendingWebsocketSends(getConfiguredMaxPendingWebsocketSends());
 
-        String healthEndpoint = getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health");
         String readinessEndpoint = getProperty(READINESS_ENDPOINT_PROPERTY, DEFAULT_READINESS_ENDPOINT);
         if (healthEndpoint.equals(readinessEndpoint)) {
             throw new IllegalArgumentException("Proxy health and readiness endpoints must be different");
@@ -415,21 +430,17 @@ public class ProxyServer implements Registration {
     }
 
     private static Client createConfiguredClient() {
-        return Optional.ofNullable(getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL"))
-                .map(url -> {
-                    WebSocketClient.ClientConfig.ClientConfigBuilder builder =
-                            WebSocketClient.ClientConfig.builder()
-                                    .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
-                                    .runtimeBaseUrl(url)
-                                    .disableMetrics(!getBooleanProperty(
-                                            ForwardProxyConsumer.METRICS_ENABLED_PROPERTY, true))
-                                    .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID",
-                                                                         "FLUX_PROJECT_ID", "PROJECT_ID"));
-                    getConfiguredCompressionAlgorithms().ifPresent(builder::supportedCompressionAlgorithms);
-                    return WebSocketClient.newInstance(builder.build());
-                })
-                .orElseThrow(() -> new IllegalStateException(
-                        "FLUXZERO_BASE_URL, FLUX_BASE_URL or FLUX_URL property is not set"));
+        return createClient(ProxyServerConfig.fromProperties());
+    }
+
+    private static Client createClient(ProxyServerConfig config) {
+        WebSocketClient.ClientConfig.ClientConfigBuilder builder = WebSocketClient.ClientConfig.builder()
+                .name(config.applicationName())
+                .runtimeBaseUrl(config.runtimeBaseUrl())
+                .disableMetrics(!config.metricsEnabled())
+                .namespace(config.namespace());
+        Optional.ofNullable(config.supportedCompressionAlgorithms()).ifPresent(builder::supportedCompressionAlgorithms);
+        return WebSocketClient.newInstance(builder.build());
     }
 
     static Optional<List<CompressionAlgorithm>> getConfiguredCompressionAlgorithms() {

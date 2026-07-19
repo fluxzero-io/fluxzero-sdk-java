@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Isolated;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -59,6 +60,43 @@ class ProxyServerLifecycleTest {
     private static final Duration FORWARDED_HEALTH_ATTEMPT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration FORWARDED_HEALTH_MAX_WAIT = Duration.ofSeconds(25);
     private static final Duration FORWARDED_HEALTH_RETRY_DELAY = Duration.ofMillis(100);
+    private static final Duration LOCAL_HEALTH_MAX_WAIT = Duration.ofSeconds(5);
+
+    @Test
+    @Timeout(20)
+    void explicitConfigStartsEmbeddedProxyWithoutConnectionProperties() throws Exception {
+        Server runtime = null;
+        ProxyServer proxyServer = null;
+        String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
+        String previousFluxBaseUrl = System.getProperty("FLUX_BASE_URL");
+        String previousFluxUrl = System.getProperty("FLUX_URL");
+        try {
+            runtime = TestServer.startServer(0);
+            String runtimeUrl = "ws://localhost:" + localPort(runtime);
+            System.clearProperty("FLUXZERO_BASE_URL");
+            System.clearProperty("FLUX_BASE_URL");
+            System.clearProperty("FLUX_URL");
+
+            proxyServer = ProxyServer.start(ProxyServerConfig.forRuntime(runtimeUrl).withMetricsEnabled(false));
+
+            assertTrue(proxyServer.getPort() > 0);
+            assertLocalHealth("http://localhost:" + proxyServer.getPort()
+                              + ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT);
+            assertEventuallyReady(proxyServer,
+                                  "http://localhost:" + proxyServer.getPort()
+                                  + ProxyServer.DEFAULT_READINESS_ENDPOINT);
+        } finally {
+            if (proxyServer != null) {
+                proxyServer.cancel();
+            }
+            if (runtime != null) {
+                runtime.stop();
+            }
+            restoreProperty("FLUXZERO_BASE_URL", previousFluxzeroBaseUrl);
+            restoreProperty("FLUX_BASE_URL", previousFluxBaseUrl);
+            restoreProperty("FLUX_URL", previousFluxUrl);
+        }
+    }
 
     @Test
     @Timeout(20)
@@ -403,10 +441,21 @@ class ProxyServerLifecycleTest {
     private static void assertLocalHealth(String healthUrl) throws Exception {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {
-            var response = httpClient.send(
-                    HttpRequest.newBuilder(URI.create(healthUrl)).GET().build(), BodyHandlers.ofString());
-            assertEquals(200, response.statusCode());
-            assertEquals("Healthy", response.body());
+            long deadline = System.nanoTime() + LOCAL_HEALTH_MAX_WAIT.toNanos();
+            while (true) {
+                try {
+                    var response = httpClient.send(
+                            HttpRequest.newBuilder(URI.create(healthUrl)).GET().build(), BodyHandlers.ofString());
+                    assertEquals(200, response.statusCode());
+                    assertEquals("Healthy", response.body());
+                    return;
+                } catch (IOException e) {
+                    if (System.nanoTime() >= deadline) {
+                        throw e;
+                    }
+                    Thread.sleep(FORWARDED_HEALTH_RETRY_DELAY.toMillis());
+                }
+            }
         } finally {
             httpClient.shutdownNow();
         }
