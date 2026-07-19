@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.UUID.randomUUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -41,16 +42,20 @@ class TestServerMetricsMonitorTest {
         var observedEvent = new AtomicReference<>();
         var observedMetadata = new AtomicReference<Metadata>();
         var observationCount = new AtomicInteger();
+        var clientId = "metrics-monitor-test-" + randomUUID();
         Registration registration = TestServerMetricsMonitor.monitor((event, metadata) -> {
+            if (!clientId.equals(metadata.get("clientId"))) {
+                return;
+            }
             observedEvent.set(event);
             observedMetadata.set(metadata);
             observationCount.incrementAndGet();
         });
         try {
-            metricsLog.registerMetrics("connected", Metadata.of("clientId", "client-1")).join();
+            metricsLog.registerMetrics("connected", Metadata.of("clientId", clientId)).join();
 
             assertEquals("connected", observedEvent.get());
-            assertEquals("client-1", observedMetadata.get().get("clientId"));
+            assertEquals(clientId, observedMetadata.get().get("clientId"));
             assertEquals("FluxzeroTestServer", observedMetadata.get().get("$applicationId"));
 
             registration.cancel();
