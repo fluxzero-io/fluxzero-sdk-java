@@ -95,6 +95,11 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer$LifecycleState",
     "kind" : "enum"
   }, {
+    "file" : "ProxyServerConfig.json",
+    "name" : "ProxyServerConfig",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig",
+    "kind" : "record"
+  }, {
     "file" : "ProxyWebsocketBackpressureEvent.json",
     "name" : "ProxyWebsocketBackpressureEvent",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketBackpressureEvent",

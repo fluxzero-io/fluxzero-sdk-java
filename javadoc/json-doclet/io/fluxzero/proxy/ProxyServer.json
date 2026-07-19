@@ -586,6 +586,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createClient",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createClient",
+    "returnType" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.proxy.ProxyServerConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createConfiguredClient",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createConfiguredClient",
     "returnType" : "io.fluxzero.sdk.configuration.client.Client",
@@ -878,6 +894,22 @@
     "varArgs" : false,
     "documentation" : " Starts an embedded proxy server using the configured port and runtime base URL.\n\n <p>The port is resolved from {@code FLUXZERO_PROXY_PORT}, {@code PROXY_PORT}, or {@code 8080}, in that order. The\n Fluxzero runtime URL is resolved from {@code FLUXZERO_BASE_URL}, {@code FLUX_BASE_URL}, or {@code FLUX_URL}, in\n that order. The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop\n all embedded proxy resources by calling {@link #cancel()}.</p>\n\n <p>This method does not register a JVM shutdown hook, create a Fluxzero keepalive thread, or set a global\n Fluxzero application instance. Use {@link #main(String[])} for standalone process startup.</p>\n\n @return a ProxyServer instance representing the started proxy server and owned embedded resources\n"
   }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#start",
+    "returnType" : "io.fluxzero.proxy.ProxyServer",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.proxy.ProxyServerConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an embedded proxy server with explicit configuration.\n\n <p>The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop all\n embedded proxy resources by calling {@link #cancel()}.</p>\n\n @param config proxy server configuration\n @return a ProxyServer instance representing the started proxy server and owned embedded resources\n"
+  }, {
     "name" : "startHttpProxyOnly",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
     "returnType" : "io.fluxzero.proxy.ProxyServer",
@@ -938,6 +970,11 @@
     }, {
       "name" : "initialState",
       "type" : "io.fluxzero.proxy.ProxyServer.LifecycleState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "healthEndpoint",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

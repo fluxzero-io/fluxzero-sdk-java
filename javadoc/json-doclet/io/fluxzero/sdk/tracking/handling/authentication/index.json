@@ -60,6 +60,16 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired",
     "kind" : "annotation_type"
   }, {
+    "file" : "OidcUser.json",
+    "name" : "OidcUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUser",
+    "kind" : "record"
+  }, {
+    "file" : "OidcUserProvider.json",
+    "name" : "OidcUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider",
+    "kind" : "class"
+  }, {
     "file" : "RefreshableUser.json",
     "name" : "RefreshableUser",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser",

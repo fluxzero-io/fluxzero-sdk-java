@@ -19,6 +19,11 @@
     "name" : "NoOpMetricsLog",
     "qualifiedName" : "io.fluxzero.testserver.metrics.NoOpMetricsLog",
     "kind" : "class"
+  }, {
+    "file" : "TestServerMetricsMonitor.json",
+    "name" : "TestServerMetricsMonitor",
+    "qualifiedName" : "io.fluxzero.testserver.metrics.TestServerMetricsMonitor",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

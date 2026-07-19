@@ -1,0 +1,403 @@
+{
+  "name" : "OidcUserProvider",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Reference {@link UserProvider} for Fluxzero-compatible OIDC providers.\n\n <p>The provider resolves incoming {@link WebRequest} bearer tokens by calling the configured OIDC\n {@code userinfo_endpoint}. This intentionally keeps the SDK implementation dependency-free while supporting both the\n real Fluxzero IDP and the local dev/test IDP, because both expose the same OIDC userinfo contract.</p>\n\n <p>Typical application setup:</p>\n <pre>{@code\n Fluxzero fluxzero = DefaultFluxzero.builder()\n     .registerUserProvider(OidcUserProvider.fromProperties())\n     .build();\n }</pre>\n\n <p>Configuration is read from {@code fluxzero.auth.oidc.issuer}; optionally\n {@code fluxzero.auth.oidc.userinfo-endpoint} can override discovery.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "CLAIMS_TYPE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.CLAIMS_TYPE",
+    "type" : "com.fasterxml.jackson.core.type.TypeReference<java.util.Map<java.lang.String,java.lang.Object>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "DEFAULT_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.DEFAULT_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ISSUER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.ISSUER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.auth.oidc.issuer"
+  }, {
+    "name" : "USERINFO_ENDPOINT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.USERINFO_ENDPOINT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.auth.oidc.userinfo-endpoint"
+  }, {
+    "name" : "configuredUserInfoEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.configuredUserInfoEndpoint",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "discoveredUserInfoEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.discoveredUserInfoEndpoint",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "httpClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.httpClient",
+    "type" : "java.net.http.HttpClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "issuer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.issuer",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timeout",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider.timeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "OidcUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#OidcUserProvider",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "issuer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "OidcUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#OidcUserProvider",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "issuer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "userInfoEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "OidcUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#OidcUserProvider",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "issuer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "userInfoEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "OidcUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#OidcUserProvider",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "issuer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "userInfoEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addClaimValues",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#addClaimValues",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roles",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "bearerToken",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#bearerToken",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "blankToNull",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#blankToNull",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "discoverUserInfoEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#discoverUserInfoEndpoint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException", "java.lang.InterruptedException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#fromMessage",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#fromProperties",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a provider from application properties.\n"
+  }, {
+    "name" : "getSystemUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#getSystemUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getUserById",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#getUserById",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "userId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "normalizeIssuer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#normalizeIssuer",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "issuer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requiredProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#requiredProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#resolveUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUser",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bearerToken",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "roles",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#roles",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "claims",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "text",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#text",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "userInfoEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.OidcUserProvider#userInfoEndpoint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException", "java.lang.InterruptedException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

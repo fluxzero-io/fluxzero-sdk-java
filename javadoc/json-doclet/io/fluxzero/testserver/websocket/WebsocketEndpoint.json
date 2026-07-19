@@ -93,6 +93,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "expectedTransportCloseSessionIds",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.expectedTransportCloseSessionIds",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "handler",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.handler",
     "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.testserver.websocket.WebsocketEndpoint.ClientMessage>",
