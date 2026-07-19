@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "batchHandlerQueue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.batchHandlerQueue",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.DefaultTracking.SegmentedBatchHandlerQueue>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "completedReport",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.completedReport",
     "type" : "java.util.concurrent.CompletionStage<java.lang.Void>",
@@ -87,7 +95,7 @@
   }, {
     "name" : "outstandingRequests",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.outstandingRequests",
-    "type" : "java.util.Collection<java.util.concurrent.CompletableFuture<?>>",
+    "type" : "java.util.Set<java.util.concurrent.CompletableFuture<?>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1637,6 +1645,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "SegmentedBatchHandlerQueue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "TopicTracker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$TopicTracker",
     "kind" : "class",

@@ -69,7 +69,7 @@
     "name" : "ASYNC",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC",
     "annotations" : [ ],
-    "documentation" : " Invoke handlers on a worker thread while preserving the Fluxzero tracking context.\n"
+    "documentation" : " Invoke handlers on a worker thread while preserving the Fluxzero tracking context. Messages in the same batch\n that have the same non-null serialized segment are handled in batch order. Messages with different segments, or\n without a segment, remain eligible for parallel handling.\n"
   }, {
     "name" : "DEFAULT",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode.DEFAULT",

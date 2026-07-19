@@ -35,6 +35,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking",
     "kind" : "class"
   }, {
+    "file" : "DefaultTracking.SegmentedBatchHandlerQueue.json",
+    "name" : "DefaultTracking.SegmentedBatchHandlerQueue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue",
+    "kind" : "class"
+  }, {
     "file" : "DefaultTracking.TopicTracker.json",
     "name" : "DefaultTracking.TopicTracker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$TopicTracker",
