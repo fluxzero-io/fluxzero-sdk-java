@@ -1,0 +1,5 @@
+{
+  "@class": "io.fluxzero.sdk.common.serialization.casting.GivenWhenThenUpcasterChainTest$RevisionedPayload",
+  "revision": 42,
+  "content": "someContent"
+}

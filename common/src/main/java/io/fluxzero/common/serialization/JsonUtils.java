@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.fluxzero.common.FileUtils;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -102,6 +103,20 @@ import static com.fasterxml.jackson.databind.cfg.JsonNodeFeature.STRIP_TRAILING_
  * <p>
  * The Fluxzero Runtime uses this resolution mechanism internally to support extensibility and polymorphic message
  * deserialization.
+ *
+ * <h2>Revisioned payloads</h2>
+ * Untyped methods such as {@link #fromFile(String)} and {@link #fromJson(String)} recognize an {@code @revision}
+ * property next to {@code @class}. Instead of deserializing the JSON directly, they return a {@link Data} containing
+ * the JSON payload, with {@code @class} as its type and {@code @revision} as its revision. Both control properties are
+ * removed from the payload. A regular {@code revision} property remains part of the payload.
+ * <pre>{@code
+ * {
+ *   "@class": "com.example.UserCreated",
+ *   "@revision": 0,
+ *   "name": "Alice"
+ * }
+ * }</pre>
+ * This representation can be passed to a serializer so that normal upcasting takes place before deserialization.
  *
  * <h2>File Inheritance via @extends</h2>
  * JSON files can extend other JSON files using the {@code @extends} attribute. This allows the reuse of base
@@ -228,7 +243,7 @@ public class JsonUtils {
     @SneakyThrows
     public static <T> T fromFile(Class<?> referencePoint, String fileName) {
         String content = getContent(referencePoint, fileName);
-        return (T) reader.readValue(content, Object.class);
+        return fromJson(content);
     }
 
     @SneakyThrows
@@ -303,7 +318,7 @@ public class JsonUtils {
      */
     @SneakyThrows
     public static <T> T fromFile(Class<?> referencePoint, String fileName, Class<T> type) {
-        return fromJson(FileUtils.loadFile(referencePoint, fileName), type);
+        return fromJson(getContent(referencePoint, fileName), type);
     }
 
     /**
@@ -344,10 +359,14 @@ public class JsonUtils {
         return o;
     }
 
+    /**
+     * Deserializes JSON without a caller-provided target type. If the root object contains {@code @revision}, this
+     * returns revisioned {@link Data} instead of immediately deserializing the declared {@code @class}.
+     */
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public static <T> T fromJson(String json) {
-        return (T) reader.readValue(json, Object.class);
+        return (T) deserializeUntyped(writer.readTree(json));
     }
 
     /**
@@ -392,12 +411,41 @@ public class JsonUtils {
     }
 
     /**
-     * Deserializes a JSON byte array and casts the result to type {@link T}.
+     * Deserializes a JSON byte array without a caller-provided target type. If the root object contains
+     * {@code @revision}, this returns revisioned {@link Data} instead of immediately deserializing the declared
+     * {@code @class}.
      */
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public static <T> T fromJson(byte[] json) {
-        return (T) reader.readValue(json, Object.class);
+        return (T) deserializeUntyped(writer.readTree(json));
+    }
+
+    @SneakyThrows
+    private static Object deserializeUntyped(JsonNode json) {
+        if (json == null) {
+            throw new IllegalArgumentException("JSON must not be empty");
+        }
+        JsonNode revisionNode = json.get("@revision");
+        if (revisionNode == null) {
+            return reader.treeToValue(json, Object.class);
+        }
+        if (!(json instanceof ObjectNode objectNode)) {
+            throw new IllegalArgumentException("JSON must contain an object when using @revision");
+        }
+        JsonNode typeNode = objectNode.get("@class");
+        if (typeNode == null || !typeNode.isTextual() || typeNode.textValue().isBlank()) {
+            throw new IllegalArgumentException("JSON must contain a textual @class when using @revision");
+        }
+        if (!revisionNode.isIntegralNumber() || !revisionNode.canConvertToInt()) {
+            throw new IllegalArgumentException("JSON must contain an integer @revision");
+        }
+        String type = typeNode.textValue();
+        Class<?> resolvedType = ReflectionUtils.classForName(type, null);
+        ObjectNode payload = objectNode.deepCopy();
+        payload.remove(List.of("@class", "@revision"));
+        return new Data<>(payload, resolvedType == null ? type : resolvedType.getName(), revisionNode.intValue(),
+                          Data.JSON_FORMAT);
     }
 
     /**

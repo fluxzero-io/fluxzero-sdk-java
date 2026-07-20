@@ -25,6 +25,7 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
@@ -177,6 +178,18 @@ import static java.util.stream.Stream.empty;
  * will be resolved as a resource, loaded and deserialized using {@link JsonUtils}.
  * <br> The JSON must include an {@code @class} declaration to indicate the object type to deserialize.
  * <br> JSON resources may also {@code @extends} another file to support inheritance and override behavior.
+ * <p>
+ * To test upcasting from an older payload revision without declaring a full {@link Data} wrapper, add an
+ * {@code @revision} property. The {@code @class} value is then used as the serialized data type, {@code @revision}
+ * becomes its revision, and both properties are removed from the payload before it enters the upcaster chain:
+ * <pre>{@code
+ * {
+ *   "@class": "com.example.UserCreated",
+ *   "@revision": 0,
+ *   "name": "Alice"
+ * }
+ * }</pre>
+ * A property named {@code revision} has no special meaning and remains part of the payload.
  *
  * <h2>Example 1: Issue a command and expect a result and event</h2>
  *

@@ -83,6 +83,24 @@ public class GivenWhenThenUpcasterChainTest {
     }
 
     @Test
+    void revisionPropertyRemainsPartOfPayload() {
+        testFixture.whenUpcasting("revisioned-payload-revision-0.json")
+                .expectResult(new RevisionedPayload(42, "patchedContent"));
+    }
+
+    @Test
+    void plainRevisionPropertyDoesNotTriggerUpcasting() {
+        testFixture.whenUpcasting("revisioned-payload-current.json")
+                .expectResult(new RevisionedPayload(42, "someContent"));
+    }
+
+    @Test
+    void revisionMetadataCanBeInherited() {
+        testFixture.whenUpcasting("extended-revisioned-payload.json")
+                .expectResult(new RevisionedPayload(43, "patchedContent"));
+    }
+
+    @Test
     void droppedCommandDoesNotInvokeHandler() {
         testFixture.whenCommand("dropped-create-model-revision-0.json").expectNoEvents().expectNoErrors();
     }
@@ -120,6 +138,12 @@ public class GivenWhenThenUpcasterChainTest {
             return input.put("content", "patchedContent");
         }
 
+        @Upcast(type = "io.fluxzero.sdk.common.serialization.casting.GivenWhenThenUpcasterChainTest$RevisionedPayload",
+                revision = 0)
+        public ObjectNode upcastRevisionedPayload(ObjectNode input) {
+            return input.put("content", "patchedContent");
+        }
+
         @Upcast(type = "io.fluxzero.sdk.common.serialization.casting.GivenWhenThenUpcasterChainTest$DroppedCreateModel",
                 revision = 0)
         public ObjectNode drop(ObjectNode input) {
@@ -149,6 +173,13 @@ public class GivenWhenThenUpcasterChainTest {
     @Value
     @Revision(1)
     public static class CreateModel {
+        String content;
+    }
+
+    @Value
+    @Revision(1)
+    public static class RevisionedPayload {
+        int revision;
         String content;
     }
 

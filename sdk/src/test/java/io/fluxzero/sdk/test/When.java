@@ -71,6 +71,10 @@ import java.util.function.UnaryOperator;
  * }</pre>
  * <p>
  * JSON files can extend other JSON files using {@code @extends}. The extension is recursive and merged deeply.
+ * <p>
+ * To represent an older serialized payload in upcasting tests, add an {@code @revision} property next to
+ * {@code @class}. The class name and revision are used as serialization metadata and removed from the payload before
+ * upcasting. A regular {@code revision} property remains part of the payload.
  *
  * @see When
  * @see TestFixture
@@ -383,8 +387,9 @@ public interface When {
     /**
      * Tests the behavior of upcasting the given value.
      * <p>
-     * The value may be a {@link Data} instance or a {@link String} referencing a serialized Data resource. If the value
-     * is a .json file reference, it will be loaded and deserialized accordingly.
+     * The value may be a {@link Data} instance or a {@link String} referencing a JSON resource. A JSON payload may use
+     * {@code @class} and {@code @revision} to declare its serialized data type and revision without a full
+     * {@code Data} wrapper.
      *
      * @param value the data to upcast
      * @param <R>   the resulting type

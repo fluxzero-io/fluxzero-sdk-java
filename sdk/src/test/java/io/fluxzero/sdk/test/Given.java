@@ -81,6 +81,10 @@ import java.time.Instant;
  *   }
  * }
  * }</pre>
+ * <p>
+ * To represent an older serialized payload in upcasting tests, add an {@code @revision} property next to
+ * {@code @class}. The class name and revision are used as serialization metadata and removed from the payload before
+ * upcasting. A regular {@code revision} property remains part of the payload.
  * This behavior is described in more detail in {@link JsonUtils}.
  *
  * @see When
