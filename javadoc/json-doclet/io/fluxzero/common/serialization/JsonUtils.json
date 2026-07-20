@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Utility class for JSON serialization, deserialization, and file-based JSON resource loading.\n <p>\n {@code JsonUtils} wraps around Jackson's {@link JsonMapper} to provide enhanced handling of JSON processing. It\n supports dynamic type handling, tree merging, custom file loading with `@extends` inheritance, and robust conversion\n between types and structures.\n\n <h2>Key Features</h2>\n <ul>\n   <li>Configurable {@link JsonMapper} for serialization ({@code writer}) and deserialization ({@code reader})</li>\n   <li>Convenience methods for reading from resource files, merging JSON trees, and converting between types</li>\n   <li>Support for deserializing JSON using a {@code @class} field containing fully qualified class or simple class name</li>\n   <li>Support for extending JSON files using a {@code @extends} field</li>\n   <li>Handles file and URI-based input</li>\n </ul>\n\n <h2>Example Usage</h2>\n <pre>{@code\n MyClass object = JsonUtils.fromFile(\"config.json\", MyClass.class);\n String json = JsonUtils.asJson(object);\n }</pre>\n\n <h2>Type Resolution via @class</h2>\n When deserializing JSON using generic methods like {@link #fromFile(String)} or {@link #fromJson(String)} that\n don't specify a target type, a {@code @class} attribute is required in the JSON to indicate the target Java type.\n This type can be either:\n <ul>\n     <li>A fully qualified class name (e.g. {@code com.myapp.model.DepositMoney})</li>\n     <li>A short or partially qualified name (e.g. {@code DepositMoney} or {@code myapp.DepositMoney})</li>\n </ul>\n When a short or partial name is used, it must be registered using {@link RegisterType @RegisterType}\n so that it can be resolved via the {@link TypeRegistry}.\n\n <p>\n The Fluxzero Runtime uses this resolution mechanism internally to support extensibility and polymorphic message\n deserialization.\n\n <h2>File Inheritance via @extends</h2>\n JSON files can extend other JSON files using the {@code @extends} attribute. This allows the reuse of base\n configurations or data structures with overridden values in the extending file.\n\n <p><b>Example:</b>\n <pre>{@code\n // deposit-to-userA.json\n {\n   \"@class\": \"DepositMoney\",\n   \"amount\": 23,\n   \"recipient\": \"userA\"\n }\n\n // deposit-to-userB.json\n {\n   \"@extends\": \"deposit-to-userA.json\",\n   \"recipient\": \"userB\"\n }\n }</pre>\n When {@code deposit-to-userB.json} is loaded, it will inherit all fields from {@code deposit-to-userA.json}\n and override the {@code recipient} field with \"userB\".\n <p>\n The inheritance is recursive and is applied before deserialization.\n\n @see ObjectMapper\n @see JsonNode\n @see FileUtils\n @see RegisterType\n @see TypeRegistry\n",
+  "documentation" : " Utility class for JSON serialization, deserialization, and file-based JSON resource loading.\n <p>\n {@code JsonUtils} wraps around Jackson's {@link JsonMapper} to provide enhanced handling of JSON processing. It\n supports dynamic type handling, tree merging, custom file loading with `@extends` inheritance, and robust conversion\n between types and structures.\n\n <h2>Key Features</h2>\n <ul>\n   <li>Configurable {@link JsonMapper} for serialization ({@code writer}) and deserialization ({@code reader})</li>\n   <li>Convenience methods for reading from resource files, merging JSON trees, and converting between types</li>\n   <li>Support for deserializing JSON using a {@code @class} field containing fully qualified class or simple class name</li>\n   <li>Support for extending JSON files using a {@code @extends} field</li>\n   <li>Handles file and URI-based input</li>\n </ul>\n\n <h2>Example Usage</h2>\n <pre>{@code\n MyClass object = JsonUtils.fromFile(\"config.json\", MyClass.class);\n String json = JsonUtils.asJson(object);\n }</pre>\n\n <h2>Type Resolution via @class</h2>\n When deserializing JSON using generic methods like {@link #fromFile(String)} or {@link #fromJson(String)} that\n don't specify a target type, a {@code @class} attribute is required in the JSON to indicate the target Java type.\n This type can be either:\n <ul>\n     <li>A fully qualified class name (e.g. {@code com.myapp.model.DepositMoney})</li>\n     <li>A short or partially qualified name (e.g. {@code DepositMoney} or {@code myapp.DepositMoney})</li>\n </ul>\n When a short or partial name is used, it must be registered using {@link RegisterType @RegisterType}\n so that it can be resolved via the {@link TypeRegistry}.\n\n <p>\n The Fluxzero Runtime uses this resolution mechanism internally to support extensibility and polymorphic message\n deserialization.\n\n <h2>Revisioned payloads</h2>\n Untyped methods such as {@link #fromFile(String)} and {@link #fromJson(String)} recognize an {@code @revision}\n property next to {@code @class}. Instead of deserializing the JSON directly, they return a {@link Data} containing\n the JSON payload, with {@code @class} as its type and {@code @revision} as its revision. Both control properties are\n removed from the payload. A regular {@code revision} property remains part of the payload.\n <pre>{@code\n {\n   \"@class\": \"com.example.UserCreated\",\n   \"@revision\": 0,\n   \"name\": \"Alice\"\n }\n }</pre>\n This representation can be passed to a serializer so that normal upcasting takes place before deserialization.\n\n <h2>File Inheritance via @extends</h2>\n JSON files can extend other JSON files using the {@code @extends} attribute. This allows the reuse of base\n configurations or data structures with overridden values in the extending file.\n\n <p><b>Example:</b>\n <pre>{@code\n // deposit-to-userA.json\n {\n   \"@class\": \"DepositMoney\",\n   \"amount\": 23,\n   \"recipient\": \"userA\"\n }\n\n // deposit-to-userB.json\n {\n   \"@extends\": \"deposit-to-userA.json\",\n   \"recipient\": \"userB\"\n }\n }</pre>\n When {@code deposit-to-userB.json} is loaded, it will inherit all fields from {@code deposit-to-userA.json}\n and override the {@code recipient} field with \"userB\".\n <p>\n The inheritance is recursive and is applied before deserialization.\n\n @see ObjectMapper\n @see JsonNode\n @see FileUtils\n @see RegisterType\n @see TypeRegistry\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -209,6 +209,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a preconfigured builder for a JsonMapper for writing/serializing objects to JSON.\n <p>\n A better approach for customizing Jackson behavior is to provide your own modules via the Jackson\n {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global\n configuration and ensures compatibility.\n <p>\n <strong>Warning:</strong> This mapper is also used by the default serializer in Fluxzero applications,\n {@code JacksonSerializer}. Misconfiguration may result in inconsistencies in search indexing or data loss.\n"
+  }, {
+    "name" : "deserializeUntyped",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeUntyped",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "disableJsonIgnore",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#disableJsonIgnore",
@@ -508,7 +527,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deserializes a JSON byte array and casts the result to type {@link T}.\n"
+    "documentation" : " Deserializes a JSON byte array without a caller-provided target type. If the root object contains\n {@code @revision}, this returns revisioned {@link Data} instead of immediately deserializing the declared\n {@code @class}.\n"
   }, {
     "name" : "fromJson",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
@@ -628,7 +647,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Deserializes JSON without a caller-provided target type. If the root object contains {@code @revision}, this\n returns revisioned {@link Data} instead of immediately deserializing the declared {@code @class}.\n"
   }, {
     "name" : "fromJson",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
