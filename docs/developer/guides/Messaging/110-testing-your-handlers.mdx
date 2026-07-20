@@ -293,6 +293,25 @@ Or partial paths:
     `"@class": "io.fluxzero.yourapp.user.command.CreateUser"`
 </Aside>
 
+### Testing older revisions with @revision
+
+Add a root-level `@revision` next to `@class` to represent an older serialized payload without writing a full `Data`
+wrapper:
+
+```json
+{
+  "@class": "org.example.UserCreated",
+  "@revision": 0,
+  "revision": 42,
+  "name": "Alice"
+}
+```
+
+`@class` becomes the serialized data type and `@revision` becomes its revision. Both markers are removed before the
+payload enters the upcaster chain; the regular `revision` field remains part of the payload. This works in
+`TestFixture` JSON inputs and in untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls. Explicitly typed
+`JsonUtils` overloads keep their declared return type.
+
 ### Inheriting from other JSON files
 
 JSON resources can <strong>extend</strong> other resources using the `@extends` keyword:

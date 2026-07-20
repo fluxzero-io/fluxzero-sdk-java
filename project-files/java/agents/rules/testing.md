@@ -198,6 +198,25 @@ To ensure reliable type resolution, always use the full class path in the `@clas
 ```
 [//]: # (@formatter:on)
 
+### Testing Older Revisions (`@revision`)
+
+Use a root-level `@revision` next to `@class` when a JSON resource should represent older serialized data:
+
+[//]: # (@formatter:off)
+```json
+{
+  "@class": "io.fluxzero.orders.api.OrderCreated",
+  "@revision": 0,
+  "revision": 42,
+  "orderId": "ORD-123"
+}
+```
+[//]: # (@formatter:on)
+
+The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers, and invokes the normal
+upcaster chain. Never use a plain `revision` field as serialization metadata; it always remains payload data. The same
+interpretation is available through untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls.
+
 ### Extending JSON (@extends)
 
 Reuse base configurations and override specific fields. You can use **absolute paths** (starting with `/`) to reference

@@ -223,6 +223,48 @@ Each object may pass through multiple upcasters in sequence. Fluxzero guarantees
 
 ---
 
+## Testing upcasters from JSON
+
+Use `@class` and `@revision` to pass an older serialized payload through the normal upcaster chain without declaring a
+full `Data` wrapper:
+
+```json
+{
+  "@class": "com.example.CreateUser",
+  "@revision": 0,
+  "id": "user-123"
+}
+```
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenUpcasting("/users/create-user-revision-0.json")
+       .expectResult(new CreateUser("user-123"));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenUpcasting("/users/create-user-revision-0.json")
+    .expectResult(CreateUser("user-123"))
+```
+
+  </TabItem>
+</Tabs>
+
+The `@class` value is used as `Data.type`, so the upcaster is selected by the same type-and-revision pair as stored
+data. Both control markers are removed before upcasting. A property named `revision` without the `@` prefix is always
+ordinary payload data.
+
+Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls expose the same representation as
+`Data<JsonNode>`, making revisioned JSON useful outside `TestFixture` as well. Explicitly typed `JsonUtils` overloads
+keep their declared return type.
+
+---
+
 ## Downcasting
 
 Downcasting does the reverse: it converts a newer object into an older format. This is useful for emitting

@@ -170,16 +170,17 @@ You can verify upcasters in a `TestFixture` by providing the old serialized form
 
 ```json
 {
-  "@class": "io.fluxzero.common.api.Data",
-  "value": {
-    "@class": "com.fasterxml.jackson.databind.JsonNode",
-    "projectId": "PRJ-1",
-    "name": "Legacy Name"
-  },
-  "type": "io.fluxzero.app.api.model.Project",
-  "revision": 0
+  "@class": "io.fluxzero.app.api.model.Project",
+  "@revision": 0,
+  "projectId": "PRJ-1",
+  "name": "Legacy Name"
 }
 ```
+
+`@class` is used as `Data.type` and `@revision` as `Data.revision`; both markers are removed before the payload enters
+the upcaster chain. Always use `@revision` for serialization metadata. A field named `revision` without the `@` prefix
+is normal payload data. Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls return the same
+`Data<JsonNode>` representation, while explicitly typed overloads keep their declared return type.
 
 **Example: Upcaster Test**
 

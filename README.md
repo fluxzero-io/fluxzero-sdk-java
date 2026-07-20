@@ -1937,6 +1937,25 @@ For Kotlin projects, use `kapt` to run the Java annotation processor. Because Ko
 object TypeRegistryMarker
 ```
 
+#### Testing Older Revisions with `@revision`
+
+Add a root-level `@revision` next to `@class` to represent an older serialized payload without writing a full `Data`
+wrapper:
+
+```json
+{
+  "@class": "org.example.UserCreated",
+  "@revision": 0,
+  "revision": 42,
+  "name": "Alice"
+}
+```
+
+`@class` becomes the serialized data type and `@revision` becomes its revision. Both markers are removed before the
+payload enters the upcaster chain; the regular `revision` field remains part of the payload. This works in
+`TestFixture` JSON inputs and in untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls. Explicitly typed
+`JsonUtils` overloads keep their declared return type.
+
 #### Inheriting from Other JSON Files
 
 JSON resources can **extend** other resources using the `@extends` keyword:
@@ -4743,6 +4762,30 @@ ObjectNode upcast(ObjectNode json, @Nullable Metadata metadata) {
 ```
 
 Returning `Metadata` still requires message input because non-message data has nowhere to store it.
+
+---
+
+### Testing Upcasters from JSON
+
+Use `@class` and `@revision` to pass an older serialized payload through the normal upcaster chain:
+
+```json
+{
+  "@class": "com.example.CreateUser",
+  "@revision": 0,
+  "id": "user-123"
+}
+```
+
+[//]: # (@formatter:off)
+```java
+fixture.whenUpcasting("/users/create-user-revision-0.json")
+       .expectResult(new CreateUser("user-123"));
+```
+[//]: # (@formatter:on)
+
+The `@class` value is used as `Data.type`, so the upcaster is selected by the same type-and-revision pair as stored
+data. A property named `revision` without the `@` prefix is always ordinary payload data.
 
 ---
 
