@@ -18,7 +18,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jackson.version>2.22.1</jackson.version>
         <junit.version>6.1.2</junit.version>
-        <kotlin.version>2.4.0</kotlin.version>
+        <kotlin.version>2.4.10</kotlin.version>
         <logback.version>1.5.38</logback.version>
         <maven.deploy.version>3.1.4</maven.deploy.version>
         <maven.enforcer.version>3.6.3</maven.enforcer.version>
