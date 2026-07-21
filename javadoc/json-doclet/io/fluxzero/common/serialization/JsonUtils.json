@@ -13,6 +13,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "classProperty",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.classProperty",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "@class"
+  }, {
+    "name" : "escapedAsciiMarker",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.escapedAsciiMarker",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "\\u00"
+  }, {
     "name" : "extendsPattern",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.extendsPattern",
     "type" : "java.util.regex.Pattern",
@@ -28,6 +44,22 @@
     "annotations" : [ ],
     "documentation" : " Preconfigured JsonMapper for reading/deserializing objects from JSON, including type handling.\n\n <p>\n In advanced scenarios, users may replace this field with a custom {@link JsonMapper}. However, this is generally\n discouraged unless strictly necessary.\n <p>\n A better approach for customizing Jackson behavior is to provide your own modules via the Jackson\n {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global\n configuration and ensures compatibility.\n",
     "constantValue" : null
+  }, {
+    "name" : "revisionMarker",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.revisionMarker",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "\"@revision\""
+  }, {
+    "name" : "revisionProperty",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.revisionProperty",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "@revision"
   }, {
     "name" : "writer",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.writer",
@@ -105,6 +137,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Converts an object to a formatted JSON string.\n"
+  }, {
+    "name" : "containsMarker",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#containsMarker",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "marker",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "convertValue",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#convertValue",
@@ -210,18 +263,15 @@
     "varArgs" : false,
     "documentation" : " Creates a preconfigured builder for a JsonMapper for writing/serializing objects to JSON.\n <p>\n A better approach for customizing Jackson behavior is to provide your own modules via the Jackson\n {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global\n configuration and ensures compatibility.\n <p>\n <strong>Warning:</strong> This mapper is also used by the default serializer in Fluxzero applications,\n {@code JacksonSerializer}. Misconfiguration may result in inconsistencies in search indexing or data loss.\n"
   }, {
-    "name" : "deserializeUntyped",
-    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeUntyped",
+    "name" : "deserializeRevisioned",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeRevisioned",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "json",
-      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "name" : "objectNode",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
