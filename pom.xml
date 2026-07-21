@@ -45,7 +45,7 @@
         <jetty.version>12.1.11</jetty.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
         <jakarta.validation.version>3.1.1</jakarta.validation.version>
-        <kotlin.version>2.4.0</kotlin.version>
+        <kotlin.version>2.4.10</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
