@@ -21,5 +21,8 @@ jobs:
           java-version: '25'
           cache: 'maven'
 
+      - name: Test Maven Central publication recovery
+        run: bash .github/scripts/recover-central-publication.test.sh
+
       - name: Run Maven build
         run: ./mvnw -B install

@@ -80,6 +80,9 @@ jobs:
         run: |
           ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }} -DprocessAllModules=true
 
+      - name: Test Maven Central publication recovery
+        run: bash .github/scripts/recover-central-publication.test.sh
+
       - name: Build and test
         run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
 
@@ -192,7 +195,36 @@ jobs:
           ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }} -DprocessAllModules=true
 
       - name: Deploy to Maven Central
-        run: ./mvnw -P deploy -B deploy -DskipTests
+        shell: bash
+        run: |
+          deployment_log="$(mktemp)"
+          trap 'rm -f "$deployment_log"' EXIT
+
+          maven_arguments=(-P deploy -B deploy -DskipTests)
+          if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+            # A previous attempt may have completed the immutable publication
+            # after losing its final status response.
+            maven_arguments+=(-DignorePublishedComponents=true)
+          fi
+
+          set +e
+          ./mvnw "${maven_arguments[@]}" 2>&1 | tee "$deployment_log"
+          pipeline_status=("${PIPESTATUS[@]}")
+          set -e
+
+          maven_status="${pipeline_status[0]}"
+          tee_status="${pipeline_status[1]}"
+
+          if [ "$maven_status" -eq 0 ]; then
+            exit "$tee_status"
+          fi
+          if [ "$tee_status" -ne 0 ]; then
+            exit "$tee_status"
+          fi
+
+          # Uploading the same immutable version again is unsafe. Resume polling
+          # the deployment that Maven already uploaded instead.
+          bash .github/scripts/recover-central-publication.sh "$deployment_log"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
