@@ -14,12 +14,10 @@ Reported time and allocation are normalized to one representative operation:
 - local command handling: one command through the public gateway and default local handler stack;
 - local self handling: one query whose payload contains a no-argument `@HandleQuery` method;
 - local standalone handling: one query routed to a multi-method local query handler;
-- self-tracked command handling: one concrete command handled by an `@HandleCommand` method on its `@TrackSelf`
-  interface, within a 32-command batch;
-- standalone tracked command handling: one command routed to a multi-method handler within a 32-command batch;
-- standalone tracked event handling: one event routed to a multi-method, multi-parameter handler that injects either
-  `Entity<T>` or `T`, within a 32-event batch;
-- mixed tracking handling: one message handled by standalone and `@Stateful` handlers within a 32-message batch;
+- tracked handling routes: one message across four 32-message batches: a self-tracked command whose `@TrackSelf`
+  interface carries `@HandleCommand`; a standalone command routed to a multi-method handler; a standalone event routed
+  to a multi-method, multi-parameter handler that injects either `Entity<T>` or `T`; and the original mixed standalone
+  plus `@Stateful` event-handler scenario;
 - aggregate lifecycle: one load that replays 50 events, applies three new events, and commits them.
 
 Build and run the scenarios locally with:

@@ -80,13 +80,13 @@ class CompareBenchmarksTest(unittest.TestCase):
 
     def test_known_scenario_describes_the_normalized_operation(self):
         benchmark = [result(
-            "io.fluxzero.sdk.tracking.TrackingHotPathBenchmark.standaloneTrackedEventHandling",
+            "io.fluxzero.sdk.tracking.TrackingHotPathBenchmark.trackedHandlingRoutes",
             100.0,
             1_000.0,
         )]
         comparison = self.compare(benchmark, benchmark)
         self.assertEqual(0, comparison.returncode)
-        self.assertIn("entity-resolving event in a 32-event tracked batch", comparison.stdout)
+        self.assertIn("message across four representative tracked route batches", comparison.stdout)
 
     def test_different_benchmark_sets_are_configuration_error(self):
         comparison = self.compare(

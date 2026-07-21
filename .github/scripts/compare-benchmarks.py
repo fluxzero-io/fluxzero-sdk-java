@@ -19,10 +19,7 @@ SCENARIO_UNITS = {
     "localSelfHandlingQueries": "self-handled query",
     "localStandaloneQueryHandling": "query handled by a multi-method local handler",
     "outboundDispatch": "event in a 32-event batch",
-    "selfTrackedCommandHandling": "self-tracked command in a 32-command batch",
-    "standaloneTrackedCommandHandling": "command in a 32-command tracked batch",
-    "standaloneTrackedEventHandling": "entity-resolving event in a 32-event tracked batch",
-    "statefulAndStandaloneTrackedEventHandling": "event in a 32-event tracked batch",
+    "trackedHandlingRoutes": "message across four representative tracked route batches",
 }
 
 

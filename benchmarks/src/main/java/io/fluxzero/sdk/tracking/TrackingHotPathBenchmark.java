@@ -95,6 +95,7 @@ import java.util.function.IntFunction;
 @Fork(value = 1, jvmArgsAppend = {"-Xms384m", "-Xmx384m", "-XX:+AlwaysPreTouch"})
 public class TrackingHotPathBenchmark {
     private static final int BATCH_SIZE = 32;
+    private static final int TRACKED_ROUTE_COUNT = 4;
     private static final int AGGREGATE_COUNT = 8;
 
     private JacksonSerializer serializer;
@@ -203,30 +204,32 @@ public class TrackingHotPathBenchmark {
     }
 
     /**
-     * Preserves the original mixed tracked-event scenario: a multi-method standalone handler plus a
-     * {@link Stateful} handler repository, with synchronous and already-completed asynchronous results.
+     * Exercises the representative tracked handling routes as one application-shaped acceptance scenario. Combining
+     * the routes makes the regression signal less sensitive to short-lived GitHub runner noise while retaining every
+     * route-specific setup assertion.
      */
     @Benchmark
-    @OperationsPerInvocation(BATCH_SIZE)
-    public long statefulAndStandaloneTrackedEventHandling() {
-        handleBatch(eventTracking, statefulEventMessages, statefulEventHandlers,
-                    statefulEventConfiguration, statefulEventTracker);
-        return statelessHandler.invocations + statefulRepository.total();
+    @OperationsPerInvocation(BATCH_SIZE * TRACKED_ROUTE_COUNT)
+    @Warmup(iterations = 3, time = 700, timeUnit = TimeUnit.MILLISECONDS)
+    @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+    public long trackedHandlingRoutes() {
+        selfTrackedCommandHandling();
+        standaloneTrackedCommandHandling();
+        standaloneTrackedEventHandling();
+        statefulAndStandaloneTrackedEventHandling();
+        return SelfTrackedProbe.checksum + standaloneCommandHandler.checksum + standaloneEventHandler.checksum
+               + statelessHandler.invocations + statefulRepository.total() + metricsSink.checksum();
     }
 
     /** Handles concrete tracked commands through a {@link TrackSelf} interface carrying the handler method. */
-    @Benchmark
-    @OperationsPerInvocation(BATCH_SIZE)
-    public long selfTrackedCommandHandling() {
+    private long selfTrackedCommandHandling() {
         handleBatch(commandTracking, selfTrackedCommandMessages, selfTrackedCommandHandlers,
                     selfTrackedCommandConfiguration, selfTrackedCommandTracker);
         return SelfTrackedProbe.checksum;
     }
 
     /** Handles mixed tracked commands through one standalone handler with several {@link HandleCommand} methods. */
-    @Benchmark
-    @OperationsPerInvocation(BATCH_SIZE)
-    public long standaloneTrackedCommandHandling() {
+    private long standaloneTrackedCommandHandling() {
         handleBatch(commandTracking, standaloneCommandMessages, standaloneCommandHandlers,
                     standaloneCommandConfiguration, standaloneCommandTracker);
         return standaloneCommandHandler.checksum;
@@ -236,12 +239,20 @@ public class TrackingHotPathBenchmark {
      * Handles mixed tracked events through a multi-method standalone handler. Each method resolves several context
      * parameters and injects either {@code Entity<TrackedAccount>} or {@code TrackedAccount}.
      */
-    @Benchmark
-    @OperationsPerInvocation(BATCH_SIZE)
-    public long standaloneTrackedEventHandling() {
+    private long standaloneTrackedEventHandling() {
         handleBatch(eventTracking, standaloneEventMessages, standaloneEventHandlers,
                     standaloneEventConfiguration, standaloneEventTracker);
         return standaloneEventHandler.checksum;
+    }
+
+    /**
+     * Preserves the original mixed tracked-event scenario: a multi-method standalone handler plus a
+     * {@link Stateful} handler repository, with synchronous and already-completed asynchronous results.
+     */
+    private long statefulAndStandaloneTrackedEventHandling() {
+        handleBatch(eventTracking, statefulEventMessages, statefulEventHandlers,
+                    statefulEventConfiguration, statefulEventTracker);
+        return statelessHandler.invocations + statefulRepository.total();
     }
 
     private void handleBatch(DefaultTracking tracking, List<SerializedMessage> serializedMessages,
