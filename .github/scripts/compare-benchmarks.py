@@ -124,7 +124,7 @@ def main() -> int:
 
     report = "\n".join(
         [
-            "## SDK performance APK",
+            "## SDK performance regression gate",
             "",
             "Base and head are the means of two ABBA-ordered JMH runs on the same machine.",
             "",
