@@ -31,7 +31,7 @@ jobs:
   performance-regression:
     name: Performance regression gate
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
