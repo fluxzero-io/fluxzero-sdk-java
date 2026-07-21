@@ -8,7 +8,8 @@ env:
   BUILD_ENVIRONMENT: github
 
 jobs:
-  build-pr:
+  maven-build:
+    name: Maven build
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -26,3 +27,44 @@ jobs:
 
       - name: Run Maven build
         run: ./mvnw -B install
+
+  performance-apk:
+    name: Performance APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Java and Maven
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+          cache: 'maven'
+
+      - name: Test performance comparison gate
+        run: python3 .github/scripts/compare-benchmarks.test.py
+
+      - name: Compare hot-path scenarios with the PR base
+        env:
+          PERFORMANCE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: .github/scripts/run-performance-regression.sh
+
+  build-pr:
+    if: always()
+    needs: [maven-build, performance-apk]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require build and performance APK
+        env:
+          MAVEN_RESULT: ${{ needs.maven-build.result }}
+          PERFORMANCE_RESULT: ${{ needs.performance-apk.result }}
+        run: |
+          if [[ "$MAVEN_RESULT" != "success" || "$PERFORMANCE_RESULT" != "success" ]]; then
+            echo "Maven build: $MAVEN_RESULT"
+            echo "Performance APK: $PERFORMANCE_RESULT"
+            exit 1
+          fi

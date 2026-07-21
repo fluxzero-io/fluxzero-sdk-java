@@ -47,6 +47,7 @@
         <jakarta.validation.version>3.1.1</jakarta.validation.version>
         <kotlin.version>2.4.0</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
+        <jmh.version>1.37</jmh.version>
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
@@ -447,6 +448,12 @@
     </reporting>
 
     <profiles>
+        <profile>
+            <id>benchmarks</id>
+            <modules>
+                <module>benchmarks</module>
+            </modules>
+        </profile>
         <profile>
             <id>deploy</id>
             <build>
