@@ -43,7 +43,7 @@ run_jmh() {
     local output="$2"
     local log_file="${output%.json}.log"
     if ! java -jar "${jar}" '.*HotPathBenchmark.*' \
-            -t 1 -f 1 -wi 2 -i 3 -w 400ms -r 600ms \
+            -t 1 -f 1 \
             -prof gc -rf json -rff "${output}" >"${log_file}" 2>&1; then
         cat "${log_file}" >&2
         return 1
