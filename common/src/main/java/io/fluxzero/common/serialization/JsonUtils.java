@@ -215,6 +215,10 @@ public class JsonUtils {
                                       .init(Id.CLASS, new GlobalTypeIdResolver()).inclusion(JsonTypeInfo.As.PROPERTY))
             .build();
 
+    private static final String classProperty = "@class";
+    private static final String revisionProperty = "@revision";
+    private static final String revisionMarker = '"' + revisionProperty + '"';
+    private static final String escapedAsciiMarker = "\\u00";
     private static final Pattern extendsPattern = Pattern.compile("(\"@extends?\"\\s*:\\s*\"([^\"]+)\"\\s*,?)");
 
     /**
@@ -366,7 +370,13 @@ public class JsonUtils {
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public static <T> T fromJson(String json) {
-        return (T) deserializeUntyped(writer.readTree(json));
+        if (json != null && (json.contains(revisionMarker) || json.contains(escapedAsciiMarker))) {
+            JsonNode tree = reader.readTree(json);
+            if (tree instanceof ObjectNode objectNode && objectNode.has(revisionProperty)) {
+                return (T) deserializeRevisioned(objectNode);
+            }
+        }
+        return (T) reader.readValue(json, Object.class);
     }
 
     /**
@@ -418,22 +428,42 @@ public class JsonUtils {
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public static <T> T fromJson(byte[] json) {
-        return (T) deserializeUntyped(writer.readTree(json));
+        if (containsMarker(json, revisionMarker) || containsMarker(json, escapedAsciiMarker)) {
+            JsonNode tree = reader.readTree(json);
+            if (tree instanceof ObjectNode objectNode && objectNode.has(revisionProperty)) {
+                return (T) deserializeRevisioned(objectNode);
+            }
+        }
+        return (T) reader.readValue(json, Object.class);
     }
 
-    @SneakyThrows
-    private static Object deserializeUntyped(JsonNode json) {
-        if (json == null) {
-            throw new IllegalArgumentException("JSON must not be empty");
+    private static boolean containsMarker(byte[] json, String marker) {
+        if (json == null || json.length < marker.length()) {
+            return false;
         }
-        JsonNode revisionNode = json.get("@revision");
-        if (revisionNode == null) {
-            return reader.treeToValue(json, Object.class);
+        for (int i = 0; i <= json.length - marker.length(); i++) {
+            int inputIndex = i;
+            int markerIndex = 0;
+            while (markerIndex < marker.length()) {
+                while (inputIndex < json.length && json[inputIndex] == 0) {
+                    inputIndex++;
+                }
+                if (inputIndex == json.length || json[inputIndex] != marker.charAt(markerIndex)) {
+                    break;
+                }
+                inputIndex++;
+                markerIndex++;
+            }
+            if (markerIndex == marker.length()) {
+                return true;
+            }
         }
-        if (!(json instanceof ObjectNode objectNode)) {
-            throw new IllegalArgumentException("JSON must contain an object when using @revision");
-        }
-        JsonNode typeNode = objectNode.get("@class");
+        return false;
+    }
+
+    private static Object deserializeRevisioned(ObjectNode objectNode) {
+        JsonNode revisionNode = objectNode.get(revisionProperty);
+        JsonNode typeNode = objectNode.get(classProperty);
         if (typeNode == null || !typeNode.isTextual() || typeNode.textValue().isBlank()) {
             throw new IllegalArgumentException("JSON must contain a textual @class when using @revision");
         }
@@ -443,7 +473,7 @@ public class JsonUtils {
         String type = typeNode.textValue();
         Class<?> resolvedType = ReflectionUtils.classForName(type, null);
         ObjectNode payload = objectNode.deepCopy();
-        payload.remove(List.of("@class", "@revision"));
+        payload.remove(List.of(classProperty, revisionProperty));
         return new Data<>(payload, resolvedType == null ? type : resolvedType.getName(), revisionNode.intValue(),
                           Data.JSON_FORMAT);
     }

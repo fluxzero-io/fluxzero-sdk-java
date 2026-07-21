@@ -15,6 +15,9 @@
 
 package io.fluxzero.sdk.givenwhenthen;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.modeling.Aggregate;
@@ -50,6 +53,18 @@ class GivenWhenThenTest {
     @Test
     void testInjectingMockBeans() {
         testFixture.withBean(new MockBean()).whenCommand(new YieldsMockBean()).expectResult(MockBean.class);
+    }
+
+    @Test
+    void revisionedJsonResolvesRegisteredSimpleType() {
+        Data<JsonNode> data = JsonUtils.fromJson("""
+                {
+                  "@class": "YieldsMockBean",
+                  "@revision": 0
+                }
+                """);
+
+        assertEquals(YieldsMockBean.class.getName(), data.getType());
     }
 
     @Nested

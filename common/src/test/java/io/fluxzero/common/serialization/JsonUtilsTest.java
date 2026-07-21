@@ -15,14 +15,20 @@
 package io.fluxzero.common.serialization;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fluxzero.common.api.Data;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.Map;
 
+import static java.nio.charset.StandardCharsets.UTF_16LE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -89,6 +95,31 @@ class JsonUtilsTest {
     }
 
     @Test
+    void untypedJsonWithNestedRevisionUsesOriginalStringParser() {
+        ParserSensitivePayload payload = JsonUtils.fromJson("""
+                {
+                  "@class": "io.fluxzero.common.serialization.JsonUtilsTest$ParserSensitivePayload",
+                  "nested": {"@revision": 0},
+                  "number": -0
+                }
+                """);
+
+        assertEquals("-0", payload.number().value());
+    }
+
+    @Test
+    void untypedJsonWithoutRevisionUsesOriginalByteParser() {
+        ParserSensitivePayload payload = JsonUtils.fromJson("""
+                {
+                  "@class": "io.fluxzero.common.serialization.JsonUtilsTest$ParserSensitivePayload",
+                  "number": -0
+                }
+                """.getBytes());
+
+        assertEquals("-0", payload.number().value());
+    }
+
+    @Test
     void untypedJsonBytesRecognizeRevisionMetadata() {
         Data<JsonNode> data = JsonUtils.fromJson("""
                 {
@@ -97,6 +128,38 @@ class JsonUtilsTest {
                   "value": "test"
                 }
                 """.getBytes());
+
+        assertEquals("com.example.LegacyEvent", data.getType());
+        assertEquals(2, data.getRevision());
+    }
+
+    @Test
+    void untypedJsonRecognizesEscapedRevisionMetadata() {
+        Data<JsonNode> data = JsonUtils.fromJson(revisionedJsonWithEscapedRevision());
+
+        assertEquals("com.example.LegacyEvent", data.getType());
+        assertEquals(2, data.getRevision());
+        assertFalse(data.getValue().has("@revision"));
+    }
+
+    @Test
+    void untypedJsonBytesRecognizeEscapedRevisionMetadata() {
+        Data<JsonNode> data = JsonUtils.fromJson(revisionedJsonWithEscapedRevision().getBytes());
+
+        assertEquals("com.example.LegacyEvent", data.getType());
+        assertEquals(2, data.getRevision());
+        assertFalse(data.getValue().has("@revision"));
+    }
+
+    @Test
+    void untypedUtf16JsonBytesRecognizeRevisionMetadata() {
+        Data<JsonNode> data = JsonUtils.fromJson("""
+                {
+                  "@class": "com.example.LegacyEvent",
+                  "@revision": 2,
+                  "value": "test"
+                }
+                """.getBytes(UTF_16LE));
 
         assertEquals("com.example.LegacyEvent", data.getType());
         assertEquals(2, data.getRevision());
@@ -118,5 +181,29 @@ class JsonUtilsTest {
     }
 
     private record SamplePayload(int revision, String value) {
+    }
+
+    private static String revisionedJsonWithEscapedRevision() {
+        return """
+                {
+                  "@class": "com.example.LegacyEvent",
+                  "%s": 2,
+                  "value": "test"
+                }
+                """.formatted("\\" + "u0040revision");
+    }
+
+    private record ParserSensitivePayload(LexicalNumber number) {
+    }
+
+    @JsonDeserialize(using = LexicalNumberDeserializer.class)
+    private record LexicalNumber(String value) {
+    }
+
+    private static class LexicalNumberDeserializer extends JsonDeserializer<LexicalNumber> {
+        @Override
+        public LexicalNumber deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            return new LexicalNumber(parser.getText());
+        }
     }
 }
