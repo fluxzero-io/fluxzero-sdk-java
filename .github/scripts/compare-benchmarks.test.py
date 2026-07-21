@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).with_name("compare-benchmarks.py")
@@ -28,6 +30,9 @@ class CompareBenchmarksTest(unittest.TestCase):
             paths = [directory_path / name for name in ("base-1.json", "base-2.json", "head-1.json", "head-2.json")]
             for path, value in zip(paths, (base, base, head, head)):
                 path.write_text(json.dumps(value), encoding="utf-8")
+            environment = os.environ.copy()
+            environment.pop("GITHUB_ACTIONS", None)
+            environment.pop("GITHUB_STEP_SUMMARY", None)
             return subprocess.run(
                 [
                     sys.executable,
@@ -40,11 +45,14 @@ class CompareBenchmarksTest(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                env=environment,
             )
 
     def test_equal_results_pass(self):
         benchmark = [result("example.Scenario.run", 100.0, 1_000.0)]
-        self.assertEqual(0, self.compare(benchmark, benchmark).returncode)
+        comparison = self.compare(benchmark, benchmark)
+        self.assertEqual(0, comparison.returncode)
+        self.assertIn("✅ Performance regression gate passed", comparison.stdout)
 
     def test_time_regression_fails(self):
         comparison = self.compare(
@@ -52,6 +60,7 @@ class CompareBenchmarksTest(unittest.TestCase):
             [result("example.Scenario.run", 116.0, 1_000.0)],
         )
         self.assertEqual(1, comparison.returncode)
+        self.assertIn("❌ Performance regression gate failed", comparison.stdout)
         self.assertIn("time increased", comparison.stdout)
 
     def test_material_allocation_regression_fails(self):
@@ -84,6 +93,17 @@ class CompareBenchmarksTest(unittest.TestCase):
         )
         self.assertEqual(2, comparison.returncode)
         self.assertIn("Non-finite metric", comparison.stderr)
+
+    def test_test_comparisons_do_not_write_the_github_summary(self):
+        benchmark = [result("example.Scenario.run", 100.0, 1_000.0)]
+        with tempfile.TemporaryDirectory() as directory:
+            summary = Path(directory) / "summary.md"
+            with patch.dict(
+                os.environ,
+                {"GITHUB_ACTIONS": "true", "GITHUB_STEP_SUMMARY": str(summary)},
+            ):
+                self.assertEqual(0, self.compare(benchmark, benchmark).returncode)
+            self.assertFalse(summary.exists())
 
 
 if __name__ == "__main__":

@@ -50,6 +50,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
@@ -135,6 +136,7 @@ public class TrackingHotPathBenchmark {
      * Result publication and external position storage are disabled; both would measure an I/O boundary instead.
      */
     @Benchmark
+    @OperationsPerInvocation(BATCH_SIZE)
     public long trackingHandling() {
         List<DeserializingMessage> messages = tracking.deserializeMessageList(
                 serializedMessages, null, null, new ConcurrentHashMap<>(), BATCH_SIZE);

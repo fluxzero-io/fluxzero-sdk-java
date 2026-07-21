@@ -7,6 +7,13 @@ The scenarios cover outbound dispatch, local command handling, tracking handling
 lifecycle. Network and external storage are replaced with deterministic in-memory boundaries so GitHub-hosted runners
 measure SDK work instead of I/O variance.
 
+Reported time and allocation are normalized to one representative operation:
+
+- outbound dispatch: one event within a 32-event batch;
+- local command handling: one command through the public gateway and default local handler stack;
+- tracking handling: one message within a 32-message batch;
+- aggregate lifecycle: one load that replays 50 events, applies three new events, and commits them.
+
 Build and run the scenarios locally with:
 
 ```shell

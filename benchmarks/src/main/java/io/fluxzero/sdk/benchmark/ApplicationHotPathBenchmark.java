@@ -40,6 +40,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
@@ -111,6 +112,7 @@ public class ApplicationHotPathBenchmark {
      * monitoring, and the low-level client boundary. The sink deliberately performs no transport I/O.
      */
     @Benchmark
+    @OperationsPerInvocation(BATCH_SIZE)
     public long outboundDispatch() {
         eventGateway.publish(Guarantee.NONE, dispatchEvents).join();
         return sink.checksum();
@@ -121,6 +123,7 @@ public class ApplicationHotPathBenchmark {
      * and already-completed asynchronous handler results are represented.
      */
     @Benchmark
+    @OperationsPerInvocation(BATCH_SIZE)
     public long localCommandHandling() {
         long result = 0L;
         for (Object command : localCommands) {

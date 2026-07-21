@@ -7,9 +7,18 @@ import argparse
 import json
 import math
 import os
+import re
 import statistics
 import sys
 from pathlib import Path
+
+
+SCENARIO_UNITS = {
+    "aggregateLifecycle": "lifecycle (50 replay + 3 apply)",
+    "localCommandHandling": "command",
+    "outboundDispatch": "event in a 32-event batch",
+    "trackingHandling": "message in a 32-message batch",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,6 +58,15 @@ def short_name(benchmark: str) -> str:
     return ".".join(parts[-2:])
 
 
+def scenario_name(benchmark: str) -> str:
+    method_name = benchmark.rsplit(".", 1)[-1]
+    return re.sub(r"(?<!^)(?=[A-Z])", " ", method_name).capitalize()
+
+
+def scenario_unit(benchmark: str) -> str:
+    return SCENARIO_UNITS.get(benchmark.rsplit(".", 1)[-1], "invocation")
+
+
 def delta(before: float, after: float) -> float:
     if before == 0.0:
         return 0.0 if after == 0.0 else float("inf")
@@ -74,7 +92,8 @@ def main() -> int:
             f"Benchmark sets differ; missing from head={missing_from_head}, missing from base={missing_from_base}"
         )
 
-    rows: list[str] = []
+    summary_rows: list[str] = []
+    detail_rows: list[str] = []
     failures: list[str] = []
     for benchmark in sorted(base):
         if len(base[benchmark]) != 2 or len(head[benchmark]) != 2:
@@ -104,11 +123,18 @@ def main() -> int:
             allocation_delta > args.allocation_threshold
             and head_alloc - base_alloc >= args.allocation_min_bytes
         )
-        status = "fail" if time_regression or allocation_regression else "pass"
-        rows.append(
-            f"| `{short_name(benchmark)}` | {base_time:.3f} | {head_time:.3f} | "
-            f"{percent(time_delta)} | {base_alloc:.0f} | {head_alloc:.0f} | "
-            f"{percent(allocation_delta)} | {status} |"
+        failed = time_regression or allocation_regression
+        status = "❌ Regression" if failed else "✅ Pass"
+        name = scenario_name(benchmark)
+        operation = scenario_unit(benchmark)
+        time_change = percent(time_delta)
+        allocation_change = percent(allocation_delta)
+        summary_rows.append(
+            f"| {name} | {time_change} | {allocation_change} | {status} |"
+        )
+        detail_rows.append(
+            f"| {name} | {operation} | {base_time:.3f} → {head_time:.3f} | {time_change} | "
+            f"{base_alloc:.0f} → {head_alloc:.0f} | {allocation_change} |"
         )
         if time_regression:
             failures.append(
@@ -122,23 +148,46 @@ def main() -> int:
                 f"(limits {args.allocation_threshold:.0%} and {args.allocation_min_bytes:.0f} B/op)"
             )
 
+    headline = "❌ Performance regression gate failed" if failures else "✅ Performance regression gate passed"
+    outcome = (
+        "1 regression criterion was exceeded."
+        if len(failures) == 1
+        else f"{len(failures)} regression criteria were exceeded."
+        if failures
+        else "No material regression was detected against the pull-request base."
+    )
     report = "\n".join(
         [
-            "## SDK performance regression gate",
+            f"## {headline}",
             "",
-            "Base and head are the means of two ABBA-ordered JMH runs on the same machine.",
+            outcome,
             "",
-            "| Scenario | Base time | Head time | Time | Base B/op | Head B/op | Allocation | Gate |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | :---: |",
-            *rows,
+            "| Hot-path scenario | Time vs base | Allocation vs base | Result |",
+            "| --- | ---: | ---: | :---: |",
+            *summary_rows,
             "",
-            f"Time unit: `{time_unit}`. Allocation unit: `{allocation_unit}`.",
+            "<details>",
+            "<summary>Measurement details and regression limits</summary>",
+            "",
+            "Lower is better. Base and head are the means of two ABBA-ordered JMH runs on the same machine.",
+            "",
+            f"The gate fails above **+{args.time_threshold:.0%} time**, or above "
+            f"**+{args.allocation_threshold:.0%} allocation** with at least "
+            f"**+{args.allocation_min_bytes:.0f} B/op**.",
+            "",
+            f"| Hot-path scenario | Measured operation | Time: base → head ({time_unit}) | Change | "
+            f"Allocation: base → head ({allocation_unit}) | Change |",
+            "| --- | --- | ---: | ---: | ---: | ---: |",
+            *detail_rows,
+            "",
+            "</details>",
         ]
     )
     if failures:
-        report += "\n\nRegressions:\n\n" + "\n".join(f"- {failure}" for failure in failures)
-    else:
-        report += "\n\nNo material performance regression detected."
+        report += "\n\n### Regressions\n\n" + "\n".join(f"- {failure}" for failure in failures)
+        if os.environ.get("GITHUB_ACTIONS"):
+            for failure in failures:
+                print(f"::error title=Performance regression::{failure}")
 
     print(report)
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
