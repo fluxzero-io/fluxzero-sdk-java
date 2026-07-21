@@ -28,11 +28,13 @@ import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.publishing.CommandGateway;
 import io.fluxzero.sdk.publishing.EventGateway;
+import io.fluxzero.sdk.publishing.QueryGateway;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -55,7 +57,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/** Application-shaped dispatch and local command scenarios used by the pull-request performance gate. */
+/** Application-shaped dispatch and local handling scenarios used by the pull-request performance gate. */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -67,12 +69,15 @@ public class ApplicationHotPathBenchmark {
 
     private final Object[] dispatchEvents = createDispatchEvents();
     private final Object[] localCommands = createLocalCommands();
+    private final SelfHandlingQuery[] selfHandlingQueries = createSelfHandlingQueries();
+    private final Object[] standaloneQueries = createStandaloneQueries();
 
     private SinkGatewayClient sink;
     private Fluxzero dispatchFluxzero;
     private Fluxzero localFluxzero;
     private EventGateway eventGateway;
     private CommandGateway commandGateway;
+    private QueryGateway queryGateway;
 
     @Setup(Level.Trial)
     public void setUp() {
@@ -80,15 +85,19 @@ public class ApplicationHotPathBenchmark {
         dispatchFluxzero = DefaultFluxzero.builder()
                 .disableAutomaticTracking()
                 .disableShutdownHook()
+                .disableKeepalive()
                 .build(new SinkClient(LocalClient.newInstance(Duration.ofMinutes(5)), sink));
         eventGateway = dispatchFluxzero.eventGateway();
 
         localFluxzero = DefaultFluxzero.builder()
                 .disableAutomaticTracking()
                 .disableShutdownHook()
+                .disableKeepalive()
                 .build(LocalClient.newInstance(Duration.ofMinutes(5)));
         commandGateway = localFluxzero.commandGateway();
         commandGateway.registerHandler(new MixedCommandHandler());
+        queryGateway = localFluxzero.queryGateway();
+        queryGateway.registerHandler(new StandaloneQueryHandler());
 
         long checksumBefore = sink.checksum();
         outboundDispatch();
@@ -98,6 +107,14 @@ public class ApplicationHotPathBenchmark {
         long commandResult = localCommandHandling();
         if (commandResult != 640L) {
             throw new IllegalStateException("Unexpected local command result: " + commandResult);
+        }
+        long selfQueryResult = localSelfHandlingQueries();
+        if (selfQueryResult != 496L) {
+            throw new IllegalStateException("Unexpected self-handling query result: " + selfQueryResult);
+        }
+        long standaloneQueryResult = localStandaloneQueryHandling();
+        if (standaloneQueryResult != 576L) {
+            throw new IllegalStateException("Unexpected standalone query result: " + standaloneQueryResult);
         }
     }
 
@@ -133,6 +150,30 @@ public class ApplicationHotPathBenchmark {
         return result;
     }
 
+    /** Handles queries whose payload carries a conventional no-argument {@link HandleQuery} method. */
+    @Benchmark
+    @OperationsPerInvocation(BATCH_SIZE)
+    public long localSelfHandlingQueries() {
+        long result = 0L;
+        for (SelfHandlingQuery query : selfHandlingQueries) {
+            QueryResult queryResult = queryGateway.sendAndWait(query);
+            result += queryResult.value();
+        }
+        return result;
+    }
+
+    /** Handles mixed query payloads through one registered local handler with several {@link HandleQuery} methods. */
+    @Benchmark
+    @OperationsPerInvocation(BATCH_SIZE)
+    public long localStandaloneQueryHandling() {
+        long result = 0L;
+        for (Object query : standaloneQueries) {
+            QueryResult queryResult = queryGateway.sendAndWait(query);
+            result += queryResult.value();
+        }
+        return result;
+    }
+
     private static Object[] createDispatchEvents() {
         Object[] result = new Object[BATCH_SIZE];
         for (int i = 0; i < result.length; i++) {
@@ -158,6 +199,27 @@ public class ApplicationHotPathBenchmark {
                 case 5 -> new RefundPayment(i);
                 case 6 -> new ReserveStock(i);
                 default -> new ReleaseStock(i);
+            };
+        }
+        return result;
+    }
+
+    private static SelfHandlingQuery[] createSelfHandlingQueries() {
+        SelfHandlingQuery[] result = new SelfHandlingQuery[BATCH_SIZE];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = new SelfHandlingQuery(new QueryResult(i));
+        }
+        return result;
+    }
+
+    private static Object[] createStandaloneQueries() {
+        Object[] result = new Object[BATCH_SIZE];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = switch (i & 3) {
+                case 0 -> new FindOrder(i);
+                case 1 -> new FindPayment(i);
+                case 2 -> new FindStock(i);
+                default -> new FindCustomer(i);
             };
         }
         return result;
@@ -202,6 +264,28 @@ public class ApplicationHotPathBenchmark {
     record CommandResult(long value) {
     }
 
+    record QueryResult(long value) {
+    }
+
+    record SelfHandlingQuery(QueryResult result) {
+        @HandleQuery
+        QueryResult handle() {
+            return result;
+        }
+    }
+
+    record FindOrder(int value) {
+    }
+
+    record FindPayment(int value) {
+    }
+
+    record FindStock(int value) {
+    }
+
+    record FindCustomer(int value) {
+    }
+
     @LocalHandler
     static class MixedCommandHandler {
         @HandleCommand
@@ -242,6 +326,29 @@ public class ApplicationHotPathBenchmark {
         @HandleCommand
         CommandResult handle(ReleaseStock command) {
             return new CommandResult(command.value() + 8L);
+        }
+    }
+
+    @LocalHandler
+    static class StandaloneQueryHandler {
+        @HandleQuery
+        QueryResult handle(FindOrder query) {
+            return new QueryResult(query.value() + 1L);
+        }
+
+        @HandleQuery
+        QueryResult handle(FindPayment query) {
+            return new QueryResult(query.value() + 2L);
+        }
+
+        @HandleQuery
+        QueryResult handle(FindStock query) {
+            return new QueryResult(query.value() + 3L);
+        }
+
+        @HandleQuery
+        QueryResult handle(FindCustomer query) {
+            return new QueryResult(query.value() + 4L);
         }
     }
 

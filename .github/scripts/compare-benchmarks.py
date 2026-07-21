@@ -16,8 +16,13 @@ from pathlib import Path
 SCENARIO_UNITS = {
     "aggregateLifecycle": "lifecycle (50 replay + 3 apply)",
     "localCommandHandling": "command",
+    "localSelfHandlingQueries": "self-handled query",
+    "localStandaloneQueryHandling": "query handled by a multi-method local handler",
     "outboundDispatch": "event in a 32-event batch",
-    "trackingHandling": "message in a 32-message batch",
+    "selfTrackedCommandHandling": "self-tracked command in a 32-command batch",
+    "standaloneTrackedCommandHandling": "command in a 32-command tracked batch",
+    "standaloneTrackedEventHandling": "entity-resolving event in a 32-event tracked batch",
+    "statefulAndStandaloneTrackedEventHandling": "event in a 32-event tracked batch",
 }
 
 
