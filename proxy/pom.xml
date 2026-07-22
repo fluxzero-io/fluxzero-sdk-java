@@ -24,8 +24,8 @@
 
     <artifactId>proxy</artifactId>
 
-    <name>${project.groupId}:${project.artifactId}</name>
-    <description>Server library that forwards web requests to Fluxzero.</description>
+    <name>Fluxzero Proxy</name>
+    <description>Runnable server that forwards web requests to Fluxzero.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <dependencyManagement>
@@ -100,6 +100,15 @@
             </resource>
         </resources>
         <plugins>
+            <plugin>
+                <groupId>io.fluxzero.tools</groupId>
+                <artifactId>fluxzero-maven-plugin</artifactId>
+                <configuration>
+                    <packageName>fluxzero-proxy</packageName>
+                    <mainClass>io.fluxzero.proxy.ProxyServer</mainClass>
+                    <javaToolOptions>-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError</javaToolOptions>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>

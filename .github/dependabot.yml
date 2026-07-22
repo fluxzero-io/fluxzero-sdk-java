@@ -15,13 +15,3 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "deps"
-
-  - package-ecosystem: "docker"
-    directories:
-      - "/proxy"
-      - "/test-server"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: "deps"

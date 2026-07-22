@@ -23,10 +23,15 @@ jobs:
   # Job 1: Build and test (must succeed before anything else)
   build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
     outputs:
       version: ${{ steps.tag_version.outputs.new_version }}
       version-tag: ${{ steps.tag_version.outputs.new_tag }}
       version-changelog: ${{ steps.release_notes.outputs.body }}
+      maven-build-outcome: ${{ steps.maven-build.outcome }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
@@ -80,11 +85,54 @@ jobs:
         run: |
           ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }} -DprocessAllModules=true
 
+      - uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Verify package base image signature
+        run: |
+          base_image=$(./mvnw -q -N help:evaluate \
+            -Dexpression=fluxzero.package.base-image \
+            -DforceStdout)
+          cosign verify \
+            --certificate-identity keyless@distroless.iam.gserviceaccount.com \
+            --certificate-oidc-issuer https://accounts.google.com \
+            "$base_image"
+
       - name: Test Maven Central publication recovery
         run: bash .github/scripts/recover-central-publication.test.sh
 
       - name: Build and test
+        id: maven-build
         run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
+
+      - name: Reserve release tag
+        env:
+          RELEASE_TAG: ${{ steps.tag_version.outputs.new_tag }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "No release tag was calculated" >&2
+            exit 1
+          fi
+
+          git fetch origin --force --tags
+          tag_ref="refs/tags/$RELEASE_TAG"
+          if git show-ref --verify --quiet "$tag_ref"; then
+            tagged_sha=$(git rev-list -n 1 "$tag_ref")
+            if [ "$tagged_sha" != "$RELEASE_SHA" ]; then
+              echo "Tag $RELEASE_TAG already points to $tagged_sha instead of $RELEASE_SHA" >&2
+              exit 1
+            fi
+            echo "Reusing existing tag $RELEASE_TAG on $RELEASE_SHA"
+          else
+            git tag "$RELEASE_TAG" "$RELEASE_SHA"
+            git push origin "$tag_ref"
+          fi
+
+      - name: Publish multi-platform package images
+        env:
+          FLUXZERO_PACKAGE_VERSION: ${{ steps.tag_version.outputs.new_tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./mvnw -B fluxzero:publish-package
 
       - name: Create project files zips
         run: |
@@ -115,7 +163,7 @@ jobs:
   repair-main-ci:
     name: Repair failed main build
     needs: build-and-test
-    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build-and-test.result == 'failure' }}
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build-and-test.result == 'failure' && needs.build-and-test.outputs.maven-build-outcome != 'success' }}
     uses: ./.github/workflows/repair-main-ci.yml
     permissions:
       actions: read
@@ -129,45 +177,9 @@ jobs:
       head_sha: ${{ github.sha }}
       head_branch: main
 
-  # Job 2: Persist the release version only after the complete build succeeds
-  tag-release:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Push release tag
-        env:
-          RELEASE_TAG: ${{ needs.build-and-test.outputs.version-tag }}
-          RELEASE_SHA: ${{ github.sha }}
-        run: |
-          if [ -z "$RELEASE_TAG" ]; then
-            echo "No release tag was calculated" >&2
-            exit 1
-          fi
-
-          git fetch origin --force --tags
-          tag_ref="refs/tags/$RELEASE_TAG"
-          if git show-ref --verify --quiet "$tag_ref"; then
-            tagged_sha=$(git rev-list -n 1 "$tag_ref")
-            if [ "$tagged_sha" != "$RELEASE_SHA" ]; then
-              echo "Tag $RELEASE_TAG already points to $tagged_sha instead of $RELEASE_SHA" >&2
-              exit 1
-            fi
-            echo "Reusing existing tag $RELEASE_TAG on $RELEASE_SHA"
-          else
-            git tag "$RELEASE_TAG" "$RELEASE_SHA"
-            git push origin "$tag_ref"
-          fi
-
-  # Job 3: Deploy to Maven Central (runs in parallel after tagging)
+  # Job 2: Deploy to Maven Central (runs in parallel after tagging and image publication)
   maven-central:
-    needs: [build-and-test, tag-release]
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -231,16 +243,16 @@ jobs:
           MAVEN_GPG_KEY: ${{ secrets.OSSRH_SIGNING_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.OSSRH_SIGNING_PASSPHRASE }}
 
-  # Job 4: Generate and publish javadoc (runs in parallel after tagging)
+  # Job 3: Generate and publish javadoc (runs in parallel after tagging)
   javadoc:
-    needs: [build-and-test, tag-release]
+    needs: build-and-test
     uses: ./.github/workflows/javadoc.yml
     with:
       version: ${{ needs.build-and-test.outputs.version-tag }}
 
-  # Job 5: Create GitHub release (runs in parallel after tagging)
+  # Job 4: Create GitHub release (runs in parallel after tagging)
   github-release:
-    needs: [build-and-test, tag-release]
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -262,9 +274,9 @@ jobs:
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
 
-  # Job 6: Notify fluxzero-site after the SDK release is tagged
+  # Job 5: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:
-    needs: [build-and-test, tag-release]
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Create fluxzero-site app token
@@ -296,161 +308,3 @@ jobs:
                 after: context.sha,
               },
             });
-
-  # Job 7: Build and push test-server Docker image (runs in parallel after tagging)
-  docker-test-server:
-    needs: [build-and-test, tag-release]
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      packages: write
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v7
-
-      - uses: sigstore/cosign-installer@v4.1.2
-
-      - name: Verify docker base image signatures
-        run: |
-          IMAGES=$(grep '^FROM ' test-server/Dockerfile | awk '{print $2}' | sort -u)
-          for IMG in $IMAGES; do
-            echo "Verifying base image $IMG"
-            cosign verify \
-              --certificate-identity keyless@distroless.iam.gserviceaccount.com \
-              --certificate-oidc-issuer https://accounts.google.com \
-              "$IMG"
-          done
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: maven-artifacts
-
-      - name: Log in to Github Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Exchange GitHub OIDC token for test-server
-        id: fluxzero-jwt
-        uses: fluxzero-io/fluxzero-jwt-action@v2
-        with:
-          mode: oidc
-          image-name: fluxzero-test
-
-      - name: Log in to Fluxzero Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ steps.fluxzero-jwt.outputs.registry-host }}
-          username: ${{ steps.fluxzero-jwt.outputs.userId }}
-          password: ${{ steps.fluxzero-jwt.outputs.token }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Extract metadata for test-server
-        id: metadata-test-server
-        uses: docker/metadata-action@v6
-        with:
-          flavor: |
-            latest=true
-          tags: |
-            type=raw,value=${{ needs.build-and-test.outputs.version-tag }}
-          images: |
-            ghcr.io/${{ github.repository }}/fluxzero-test
-            ${{ steps.fluxzero-jwt.outputs.registry-host }}/958e1ee2f6c64facbc7765026a9a6e09/fluxzero-test
-
-      - name: Build and push test-server Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: test-server
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.metadata-test-server.outputs.tags }}
-          labels: ${{ steps.metadata-test-server.outputs.labels }}
-
-  # Job 8: Build and push proxy Docker image (runs in parallel after tagging)
-  docker-proxy:
-    needs: [build-and-test, tag-release]
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      packages: write
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v7
-
-      - uses: sigstore/cosign-installer@v4.1.2
-
-      - name: Verify docker base image signatures
-        run: |
-          IMAGES=$(grep '^FROM ' proxy/Dockerfile | awk '{print $2}' | sort -u)
-          for IMG in $IMAGES; do
-            echo "Verifying base image $IMG"
-            cosign verify \
-              --certificate-identity keyless@distroless.iam.gserviceaccount.com \
-              --certificate-oidc-issuer https://accounts.google.com \
-              "$IMG"
-          done
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: maven-artifacts
-
-      - name: Log in to Github Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Exchange GitHub OIDC token for proxy
-        id: fluxzero-jwt
-        uses: fluxzero-io/fluxzero-jwt-action@v2
-        with:
-          mode: oidc
-          image-name: fluxzero-proxy
-
-      - name: Log in to Fluxzero Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ steps.fluxzero-jwt.outputs.registry-host }}
-          username: ${{ steps.fluxzero-jwt.outputs.userId }}
-          password: ${{ steps.fluxzero-jwt.outputs.token }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Extract metadata for proxy
-        id: metadata-proxy
-        uses: docker/metadata-action@v6
-        with:
-          flavor: |
-            latest=true
-          tags: |
-            type=raw,value=${{ needs.build-and-test.outputs.version-tag }}
-          images: |
-            ghcr.io/${{ github.repository }}/fluxzero-proxy
-            ${{ steps.fluxzero-jwt.outputs.registry-host }}/958e1ee2f6c64facbc7765026a9a6e09/fluxzero-proxy
-
-      - name: Build and push proxy Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: proxy
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.metadata-proxy.outputs.tags }}
-          labels: ${{ steps.metadata-proxy.outputs.labels }}

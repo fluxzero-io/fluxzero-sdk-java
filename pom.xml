@@ -50,6 +50,8 @@
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
+        <fluxzero.maven.plugin.version>1.8.0</fluxzero.maven.plugin.version>
+        <fluxzero.package.base-image>gcr.io/distroless/java25-debian13:nonroot@sha256:9ccf2b8bce700d9f450523e2055afabe4d4ee795e6d69a0647a2dcd6e180e411</fluxzero.package.base-image>
         <argLine/>
     </properties>
 
@@ -342,10 +344,61 @@
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>3.6.2</version>
                 </plugin>
+                <plugin>
+                    <groupId>io.fluxzero.tools</groupId>
+                    <artifactId>fluxzero-maven-plugin</artifactId>
+                    <version>${fluxzero.maven.plugin.version}</version>
+                    <configuration>
+                        <baseImage>${fluxzero.package.base-image}</baseImage>
+                        <images>
+                            <image>ghcr.io/${env.GITHUB_REPOSITORY}/${packageName}</image>
+                            <image>registry.fluxzero.io/${organisationId}/${packageName}</image>
+                        </images>
+                        <tags>
+                            <tag>${env.FLUXZERO_PACKAGE_VERSION}</tag>
+                            <tag>latest</tag>
+                        </tags>
+                        <platforms>
+                            <platform>
+                                <os>linux</os>
+                                <architecture>amd64</architecture>
+                            </platform>
+                            <platform>
+                                <os>linux</os>
+                                <architecture>arm64</architecture>
+                            </platform>
+                        </platforms>
+                        <labels>
+                            <label>
+                                <key>org.opencontainers.image.licenses</key>
+                                <value>Apache-2.0</value>
+                            </label>
+                        </labels>
+                        <authentications>
+                            <authentication>
+                                <host>ghcr.io</host>
+                                <basic>
+                                    <username>${env.GITHUB_ACTOR}</username>
+                                    <token>${env.GITHUB_TOKEN}</token>
+                                </basic>
+                            </authentication>
+                            <authentication>
+                                <host>registry.fluxzero.io</host>
+                                <github-oidc>
+                                    <audience>https://cloud.fluxzero.io</audience>
+                                </github-oidc>
+                            </authentication>
+                        </authentications>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
 
         <plugins>
+            <plugin>
+                <groupId>io.fluxzero.tools</groupId>
+                <artifactId>fluxzero-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -522,7 +575,7 @@
 
     <organization>
         <name>Fluxzero</name>
-        <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
+        <url>https://fluxzero.io</url>
     </organization>
 
     <developers>
@@ -533,7 +586,9 @@
         </developer>
     </developers>
 
-    <scm>
+    <scm child.scm.connection.inherit.append.path="false"
+         child.scm.developerConnection.inherit.append.path="false"
+         child.scm.url.inherit.append.path="false">
         <connection>scm:git:git://github.com/fluxzero-io/fluxzero-sdk-java.git</connection>
         <developerConnection>scm:git:ssh://github.com:fluxzero-io/fluxzero-sdk-java.git</developerConnection>
         <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>

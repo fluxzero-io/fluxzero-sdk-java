@@ -26,8 +26,8 @@
 
     <artifactId>test-server</artifactId>
 
-    <name>${project.groupId}:${project.artifactId}</name>
-    <description>In memory server that can be used for testing applications in your local environment.</description>
+    <name>Fluxzero Test Server</name>
+    <description>In-memory Fluxzero server for local and integration testing.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <dependencyManagement>
@@ -95,6 +95,15 @@
             </resource>
         </resources>
         <plugins>
+            <plugin>
+                <groupId>io.fluxzero.tools</groupId>
+                <artifactId>fluxzero-maven-plugin</artifactId>
+                <configuration>
+                    <packageName>fluxzero-test</packageName>
+                    <mainClass>io.fluxzero.testserver.TestServer</mainClass>
+                    <javaToolOptions>-XX:MaxRAMPercentage=75.0</javaToolOptions>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
