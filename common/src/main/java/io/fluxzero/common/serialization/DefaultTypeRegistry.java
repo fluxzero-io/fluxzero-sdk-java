@@ -74,4 +74,8 @@ public class DefaultTypeRegistry implements TypeRegistry {
         });
     }
 
+    @Override
+    public boolean isRegistered(String fullyQualifiedName) {
+        return fullTypeNames.contains(fullyQualifiedName);
+    }
 }
