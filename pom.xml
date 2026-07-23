@@ -50,7 +50,7 @@
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
-        <fluxzero.maven.plugin.version>1.8.0</fluxzero.maven.plugin.version>
+        <fluxzero.maven.plugin.version>1.8.1</fluxzero.maven.plugin.version>
         <fluxzero.package.base-image>gcr.io/distroless/java25-debian13:nonroot@sha256:9ccf2b8bce700d9f450523e2055afabe4d4ee795e6d69a0647a2dcd6e180e411</fluxzero.package.base-image>
         <argLine/>
     </properties>
