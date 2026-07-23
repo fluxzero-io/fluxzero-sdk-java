@@ -32,7 +32,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <junit.version>6.1.2</junit.version>
         <logback.version>1.5.38</logback.version>
-        <fluxzero.maven.plugin.version>1.8.0</fluxzero.maven.plugin.version>
+        <fluxzero.maven.plugin.version>1.8.1</fluxzero.maven.plugin.version>
         <maven.compiler.version>3.15.0</maven.compiler.version>
         <maven.deploy.version>3.1.4</maven.deploy.version>
         <maven.enforcer.version>3.6.3</maven.enforcer.version>
