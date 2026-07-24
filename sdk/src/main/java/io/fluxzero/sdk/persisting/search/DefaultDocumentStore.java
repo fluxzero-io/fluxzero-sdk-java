@@ -461,8 +461,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public CompletableFuture<Void> delete() {
-            return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED);
+        public CompletableFuture<Void> delete(int batchSize) {
+            return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED, batchSize);
         }
 
         @Override

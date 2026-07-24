@@ -161,7 +161,7 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
-    public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee) {
+    public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize) {
         documents.values().removeIf(query::matches);
         return CompletableFuture.completedFuture(null);
     }

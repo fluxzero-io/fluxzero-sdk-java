@@ -161,8 +161,8 @@ class DocumentTrackingSearchClient implements SearchClient {
     }
 
     @Override
-    public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee) {
-        return delegate.delete(query, guarantee);
+    public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize) {
+        return delegate.delete(query, guarantee, batchSize);
     }
 
     @Override

@@ -170,8 +170,8 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     }
 
     @Override
-    public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee) {
-        return sendCommand(new DeleteDocuments(query, guarantee));
+    public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize) {
+        return sendCommand(new DeleteDocuments(query, guarantee, batchSize));
     }
 
     @Override

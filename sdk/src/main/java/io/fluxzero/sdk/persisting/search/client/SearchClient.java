@@ -128,7 +128,22 @@ public interface SearchClient extends AutoCloseable {
      * @param guarantee delivery guarantee
      * @return a future that completes when the deletion has been performed
      */
-    CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee);
+    default CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee) {
+        return delete(query, guarantee, 0);
+    }
+
+    /**
+     * Deletes documents matching a given query using the requested batch size.
+     * <p>
+     * A value of {@code 0} uses the runtime default, a positive value requests that batch size, and a negative value
+     * requests a single unbounded statement.
+     *
+     * @param query     the search query specifying which documents to delete
+     * @param guarantee delivery guarantee
+     * @param batchSize requested delete batch size
+     * @return a future that completes when the deletion has been performed
+     */
+    CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize);
 
     /**
      * Moves documents matching a given query to the given target collection.

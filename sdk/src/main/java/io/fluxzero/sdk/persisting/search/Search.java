@@ -641,8 +641,33 @@ public interface Search {
 
     /**
      * Deletes all matching documents in the current search.
+     * <p>
+     * This is equivalent to calling {@link #delete(int) delete(0)}, which lets the runtime choose the batch size.
      */
-    CompletableFuture<Void> delete();
+    default CompletableFuture<Void> delete() {
+        return delete(0);
+    }
+
+    /**
+     * Deletes all matching documents in the current search, using the requested batch size to control how many
+     * documents are removed by each delete statement.
+     * <p>
+     * The batch size does not limit the total number of documents that are deleted. For a positive batch size, the
+     * runtime repeatedly selects and deletes at most that many matching documents until no matches remain. This keeps
+     * individual statements and their locks shorter, at the cost of executing multiple statements.
+     * <ul>
+     *     <li>{@code 0} lets the runtime choose its default batch size;</li>
+     *     <li>a positive value sets the maximum number of documents processed per batch;</li>
+     *     <li>a negative value requests deletion with one unbounded statement.</li>
+     * </ul>
+     * Each batch may be committed independently. If a later batch fails, documents removed by earlier batches remain
+     * deleted. The returned future completes only after all matching documents have been processed, or completes
+     * exceptionally when a batch fails.
+     *
+     * @param batchSize requested delete batch size
+     * @return a future that completes when deletion has finished
+     */
+    CompletableFuture<Void> delete(int batchSize);
 
     /**
      * Moves all matching documents in the current search to the given collection.

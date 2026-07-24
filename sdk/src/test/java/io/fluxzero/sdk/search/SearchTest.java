@@ -1140,6 +1140,36 @@ public class SearchTest {
     class AsyncTests {
 
         @Test
+        void deleteUsesRuntimeDefaultBatchSize() {
+            TestFixture.create().spy()
+                    .givenDocument(new SomeDocument(), "id1", "test")
+                    .whenApplying(fc -> {
+                        SearchClient searchClient = fc.client().getSearchClient();
+                        clearInvocations(searchClient);
+
+                        fc.documentStore().search("test").delete().join();
+
+                        verify(searchClient).delete(any(SearchQuery.class), eq(STORED), eq(0));
+                        return true;
+                    }).expectResult(true);
+        }
+
+        @Test
+        void deletePassesRequestedBatchSizeToSearchClient() {
+            TestFixture.create().spy()
+                    .givenDocument(new SomeDocument(), "id1", "test")
+                    .whenApplying(fc -> {
+                        SearchClient searchClient = fc.client().getSearchClient();
+                        clearInvocations(searchClient);
+
+                        fc.documentStore().search("test").delete(5_000).join();
+
+                        verify(searchClient).delete(any(SearchQuery.class), eq(STORED), eq(5_000));
+                        return true;
+                    }).expectResult(true);
+        }
+
+        @Test
         void fetchAsyncUsesSearchClientAsync() {
             TestFixture.create().spy()
                     .givenDocument(new SomeDocument(), "id1", "test")

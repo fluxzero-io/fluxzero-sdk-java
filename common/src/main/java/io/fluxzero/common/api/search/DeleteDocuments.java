@@ -16,6 +16,7 @@ package io.fluxzero.common.api.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Command;
+import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
@@ -27,6 +28,7 @@ import lombok.Value;
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
+@AllArgsConstructor
 public class DeleteDocuments extends Command {
 
     /**
@@ -38,4 +40,17 @@ public class DeleteDocuments extends Command {
      * The delivery/storage guarantee to apply for this deletion operation.
      */
     Guarantee guarantee;
+
+    /**
+     * Controls how many matching documents the runtime deletes per statement. A value of {@code 0} uses the runtime
+     * default, a positive value requests that batch size, and a negative value requests a single unbounded statement.
+     */
+    int batchSize;
+
+    /**
+     * Creates a deletion command that uses the runtime's default batch size.
+     */
+    public DeleteDocuments(SearchQuery query, Guarantee guarantee) {
+        this(query, guarantee, 0);
+    }
 }
