@@ -278,13 +278,29 @@
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#delete",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
-    "modifiers" : [ "abstract", "public" ],
+    "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes all matching documents in the current search.\n"
+    "documentation" : " Deletes all matching documents in the current search.\n <p>\n This is equivalent to calling {@link #delete(int) delete(0)}, which lets the runtime choose the batch size.\n"
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deletes all matching documents in the current search, using the requested batch size to control how many\n documents are removed by each delete statement.\n <p>\n The batch size does not limit the total number of documents that are deleted. For a positive batch size, the\n runtime repeatedly selects and deletes at most that many matching documents until no matches remain. This keeps\n individual statements and their locks shorter, at the cost of executing multiple statements.\n <ul>\n     <li>{@code 0} lets the runtime choose its default batch size;</li>\n     <li>a positive value sets the maximum number of documents processed per batch;</li>\n     <li>a negative value requests deletion with one unbounded statement.</li>\n </ul>\n Each batch may be committed independently. If a later batch fails, documents removed by earlier batches remain\n deleted. The returned future completes only after all matching documents have been processed, or completes\n exceptionally when a batch fails.\n\n @param batchSize requested delete batch size\n @return a future that completes when deletion has finished\n"
   }, {
     "name" : "escapeMetadataKey",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#escapeMetadataKey",

@@ -139,6 +139,11 @@
       "type" : "io.fluxzero.common.Guarantee",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

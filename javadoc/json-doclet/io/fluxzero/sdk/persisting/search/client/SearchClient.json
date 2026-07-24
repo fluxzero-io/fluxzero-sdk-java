@@ -66,7 +66,7 @@
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#delete",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
-    "modifiers" : [ "abstract", "public" ],
+    "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -83,6 +83,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Deletes documents matching a given query.\n\n @param query     the search query specifying which documents to delete\n @param guarantee delivery guarantee\n @return a future that completes when the deletion has been performed\n"
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deletes documents matching a given query using the requested batch size.\n <p>\n A value of {@code 0} uses the runtime default, a positive value requests that batch size, and a negative value\n requests a single unbounded statement.\n\n @param query     the search query specifying which documents to delete\n @param guarantee delivery guarantee\n @param batchSize requested delete batch size\n @return a future that completes when the deletion has been performed\n"
   }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#delete",

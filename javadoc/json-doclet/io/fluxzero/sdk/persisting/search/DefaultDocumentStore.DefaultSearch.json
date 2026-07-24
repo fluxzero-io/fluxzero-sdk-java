@@ -109,7 +109,12 @@
       "values" : {}
     } ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
