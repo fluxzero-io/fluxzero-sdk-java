@@ -124,8 +124,17 @@ that the logical fields occupy zero bytes in every PostgreSQL layout.
 The retained benchmark now uses the public `GetModelEvents` shape rather than the older internal stream shortcut. With
 128-model batches it measured 29,349 current models/s and 25,633 historical models/s. At 1,024-model batches the same
 workload measured 64,223 current models/s; the half-history run returned half as many payloads and measured 83,999
-models/s. SDK reconstruction should therefore begin with chunks of 1,024 models, additionally bounded by requested and
-returned bytes, and remain configurable after cold-cache and production-hardware measurements.
+models/s. SDK reconstruction therefore starts its transport reads with chunks of at most 1,024 models. Each page is
+further bounded to 8,192 requested memberships, 128 memberships per stream, and 8 MiB of unique event payload data. A
+global `stateIndex` prefix preserves per-stream continuity when the byte cap cuts a page; one oversized oldest event is
+returned to guarantee progress. The runtime derives the uncompressed serialized size from the existing Fluxzero
+compression header before deserialization, so the limit adds neither a storage column nor write amplification.
+
+A same-container A/B run repeated reads of 10,000 one-event models ten times at 1,024 models per batch. Unlimited
+requests measured 78,483 models/s; an inactive 8-MiB cap measured 76,490 models/s. The 2.5% local warm-cache overhead
+buys a runtime-enforced memory/wire bound and a safe global state prefix without touching the write path. The initial
+limits remain internal reconstruction settings until cold-cache and production-hardware measurements justify a public
+tuning surface.
 
 A 100,000-event hot stream was used to reject a reverse scan whose work grows with the distance from the current head.
 The retained binary lookup resolved the head at state 49,999 in 6.2 ms warm using about 17 exact primary-key probes.
@@ -137,18 +146,22 @@ ten lightweight memberships.
 
 - Runtime commits: `41a57adcb80e2b0b86a9ae628b80548eeaef080c`,
   `b17806d25130f4627d7d33140e332197c4663c30`,
-  `bf10628438d824696cd5cc09fb6dd2b839d95987`
-- Full runtime module: 511 tests passed.
+  `bf10628438d824696cd5cc09fb6dd2b839d95987`,
+  `8218acbbb31e14c39ede3ec5cfad22a242706ada`.
+- SDK bounded loader/protocol commit: `b51cd43ba38beb78087e46479178608ddc4d0c0a`; the complete SDK reactor passed.
+- Full runtime module: 516 tests passed.
 - Focused model suite covers atomic global publication, multi-target membership, adaptive shared payloads, durable
   restart idempotency, concurrent ordering, transaction rollback, temporal moves and stale actions, multi-parent
   detach, logical delete/history gaps, as-of batch loads, payload range creation, partition pruning, overload/retry,
-  in-memory parity, and lazy lifecycle.
-- The retained benchmark compiles as part of the benchmark module.
+  in-memory parity, byte-bounded global prefixes before deserialization, oversized-event progress, compression-header
+  accounting, and lazy lifecycle.
+- The retained benchmark test-compiles as part of the benchmark reactor.
 
 ## Deliberately open
 
 - Direct model document indexing/loading and its existing cross-store search boundary are Slice 3.4.
-- SDK reconstruction, historical dependency injection, snapshots, and cache synchronization are Phase 5.
+- Domain reconstruction, historical dependency injection, action-prefix overlays, snapshots, and cache
+  synchronization are Phase 5. The bounded pinned stream-delivery layer they consume is complete.
 - Cycle checks, graph traversal APIs, deleted-parent incoming-edge cascade, and GDPR lineage are Phase 6/8.
 - Action-result retention, shared-payload hard-delete garbage collection, cold-cache behavior, vacuum/bloat,
   replication, backup/restore, tuning the explicit action/pending byte limits, and production-hardware 100 GB/min

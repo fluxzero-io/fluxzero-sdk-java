@@ -453,8 +453,9 @@ Slice 5.1 can reconstruct with historical dependencies rather than silently usin
 - [x] Support exact historical heads in the in-memory reference implementation.
 - [x] Resolve exact JDBC historical heads for models that changed after the requested boundary without adding a
   per-transition head-history write to the hot path.
-- [ ] Add bounded/chunked SDK reconstruction over this protocol and verify it against the Phase 0 cold/warm load
-  budgets.
+- [x] Add bounded/chunked SDK stream delivery for reconstruction over this protocol and verify its query overhead
+  against the Phase 0 load budgets. Applying events, historical dependency injection, action-prefix overlays,
+  snapshots, and reconstruction caches remain Slice 5.1.
 
 JDBC current heads, memberships, and unique payloads are loaded in one partition-prunable query. For a model changed
 after an explicit boundary, the runtime finds the exact historical sequence through logarithmic exact probes on the
@@ -462,8 +463,11 @@ existing `(segment, modelId, sequenceNumber)` primary key. A nullable first-inco
 before a non-stored transition usable and rejects boundaries at or after the gap. Stored delete state makes historical
 heads exact across delete/recreate. This adds no per-transition head row or secondary stream index; same-container A/B
 storage measurements showed no physical or WAL regression. The retained load benchmark points to 1,024 models as the
-initial SDK reconstruction chunk, with an additional byte bound; implementing that reconstruction remains the final
-open item in this slice.
+initial SDK reconstruction chunk. The SDK additionally caps a page at 8,192 requested memberships, 128 memberships
+per stream, and 8 MiB of unique event payloads. The runtime selects a global `stateIndex` prefix after deduplication,
+so every returned stream remains a valid prefix and a shared event counts once. One oversized oldest payload is
+allowed through to guarantee progress. JDBC derives its uncompressed size from the existing Fluxzero compression
+header, adding no column or hot-path write amplification.
 
 ## Phase 4 — Conflict handling (contained side quest)
 
@@ -700,4 +704,14 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   primary key; current heads, memberships, and unique payloads share one query. Same-container A/B measurements found
   identical 10.50-MiB physical storage for 5,000 one-target actions and equivalent throughput/WAL. The retained public
   load measured 64,223 current models/s with 1,024-model batches; a 100,000-event head at the midpoint resolved in
-  6.2 ms warm. The complete runtime module passed 511 tests. Byte-bounded SDK reconstruction remains open.
+  6.2 ms warm. The complete runtime module passed 511 tests. Byte-bounded SDK reconstruction remained open at this
+  checkpoint.
+- 2026-07-25 — Slice 3.5 stream delivery (`SDK b51cd43ba38`, runtime `8218acbb`) is byte- and membership-bounded end to
+  end. `GetModelEvents.maxBytes` is a deduplication-aware total response-payload limit; zero preserves the earlier
+  unlimited request behavior. The runtime
+  applies it before deserialization and extracts uncompressed size from the existing compression header, so no
+  storage column or write amplification was added. The SDK pins the first response boundary across 1,024-model chunks
+  and validates heads, sequence continuity, action metadata, payload references, limits, and forward progress page by
+  page. Ten repeated reads of 10,000 one-event models measured 78,483 models/s without a byte cap and 76,490 models/s
+  with an inactive 8-MiB cap: 2.5% overhead in this local warm-cache run for computing the safe global/byte prefix.
+  The complete SDK reactor and all 516 runtime-module tests passed; the benchmark reactor also test-compiled.
