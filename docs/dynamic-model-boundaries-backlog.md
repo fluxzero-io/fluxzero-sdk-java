@@ -451,14 +451,19 @@ Slice 5.1 can reconstruct with historical dependencies rather than silently usin
 - [x] Ensure the JDBC query fetches and deserializes a shared multi-target payload once, rather than once per target.
 - [x] Provide websocket, SDK in-memory, runtime in-memory, and JDBC implementations with structural validation.
 - [x] Support exact historical heads in the in-memory reference implementation.
-- [ ] Resolve exact JDBC historical heads for models that changed after the requested boundary without adding a
+- [x] Resolve exact JDBC historical heads for models that changed after the requested boundary without adding a
   per-transition head-history write to the hot path.
 - [ ] Add bounded/chunked SDK reconstruction over this protocol and verify it against the Phase 0 cold/warm load
   budgets.
 
-The JDBC implementation currently fails explicitly when a requested current head is newer than an explicit historical
-boundary. It never substitutes the newer head. This is safe for current action loads, but Slice 5.1 may not claim
-historical dependency reconstruction until the open as-of-head item is complete.
+JDBC current heads, memberships, and unique payloads are loaded in one partition-prunable query. For a model changed
+after an explicit boundary, the runtime finds the exact historical sequence through logarithmic exact probes on the
+existing `(segment, modelId, sequenceNumber)` primary key. A nullable first-incomplete state index keeps boundaries
+before a non-stored transition usable and rejects boundaries at or after the gap. Stored delete state makes historical
+heads exact across delete/recreate. This adds no per-transition head row or secondary stream index; same-container A/B
+storage measurements showed no physical or WAL regression. The retained load benchmark points to 1,024 models as the
+initial SDK reconstruction chunk, with an additional byte bound; implementing that reconstruction remains the final
+open item in this slice.
 
 ## Phase 4 — Conflict handling (contained side quest)
 
@@ -689,3 +694,10 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   stores enforce all-or-nothing publication/state application. JDBC current reads pin state, heads, and memberships in
   one repeatable-read transaction. Exact JDBC historical heads after intervening model changes remain deliberately
   fail-fast and open in Slice 3.5 before Slice 5.1 reconstruction.
+- 2026-07-25 — Runtime commit `bf106284` completes the exact JDBC as-of-head item in Slice 3.5. A first-gap marker and
+  stored delete bit preserve reconstructibility before a non-stored transition and delete/recreate state without a
+  head-history row per transition. Changed historical heads use logarithmic exact probes on the existing stream
+  primary key; current heads, memberships, and unique payloads share one query. Same-container A/B measurements found
+  identical 10.50-MiB physical storage for 5,000 one-target actions and equivalent throughput/WAL. The retained public
+  load measured 64,223 current models/s with 1,024-model batches; a 100,000-event head at the midpoint resolved in
+  6.2 ms warm. The complete runtime module passed 511 tests. Byte-bounded SDK reconstruction remains open.

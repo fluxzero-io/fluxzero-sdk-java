@@ -63,6 +63,14 @@ for model reconstruction and action-prefix dependency overlays without a high-ca
 - Heads and current relationships are loaded in sets; sequence allocation never performs `max(sequenceNumber)` per
   model.
 - Direct and batched model streams resolve inline/shared payloads in one query shape.
+- Public pinned reads return current heads, memberships, and deduplicated payloads from one partition-prunable SQL
+  statement inside a repeatable-read transaction.
+- An as-of head for a model changed after the requested boundary is found by binary search over its contiguous
+  `sequenceNumber` range. Each step is an exact lookup on the existing stream primary key; this adds neither a
+  per-transition head row nor a second high-cardinality index.
+- `model_head.first_incomplete_state_index` records the first state transition omitted from that stream. Boundaries
+  before it remain reconstructible; at or after it reconstruction fails explicitly. Stored stream memberships retain
+  the logical-delete bit needed to reproduce an exact historical head across delete/recreate.
 - Both relationship directions are physically routed to one stable-segment partition.
 - One action is bounded to 256 MiB estimated write size by default, configurable with
   `fluxzero.maxModelActionBytes`. An action above the ordinary 8-MiB batch bound and below this hard limit progresses
@@ -99,11 +107,38 @@ The relation profile improved from the earlier 733 actions/s row-oriented design
 set-based relation pass alone raised it from 1,328 to 1,870 actions/s and reduced WAL amplification from 16.23× to
 14.66×.
 
+### Pinned public-load follow-up
+
+A same-container A/B run compared the previous pinned-read commit with the exact historical-head implementation. Both
+runs wrote 5,000 one-target 1-KiB actions:
+
+| Variant | Write throughput | Physical | WAL |
+|---|---:|---:|---:|
+| Previous commit | 8,796 actions/s | 10.50 MiB / 2.15× | 14.04 MiB / 2.87× |
+| Exact historical heads | 8,849 actions/s | 10.50 MiB / 2.15× | 14.01 MiB / 2.87× |
+
+No physical storage amplification was observed from replacing the head completeness boolean with a nullable first-gap
+index and retaining delete state in an existing membership row. This is a local page-level observation, not a claim
+that the logical fields occupy zero bytes in every PostgreSQL layout.
+
+The retained benchmark now uses the public `GetModelEvents` shape rather than the older internal stream shortcut. With
+128-model batches it measured 29,349 current models/s and 25,633 historical models/s. At 1,024-model batches the same
+workload measured 64,223 current models/s; the half-history run returned half as many payloads and measured 83,999
+models/s. SDK reconstruction should therefore begin with chunks of 1,024 models, additionally bounded by requested and
+returned bytes, and remain configurable after cold-cache and production-hardware measurements.
+
+A 100,000-event hot stream was used to reject a reverse scan whose work grows with the distance from the current head.
+The retained binary lookup resolved the head at state 49,999 in 6.2 ms warm using about 17 exact primary-key probes.
+Its lookup count grows logarithmically (about 24 probes at 16 million events), while storage and write indexing remain
+unchanged. A ten-target workload also verified that each original payload is returned and deserialized once alongside
+ten lightweight memberships.
+
 ## Verification
 
 - Runtime commits: `41a57adcb80e2b0b86a9ae628b80548eeaef080c`,
-  `b17806d25130f4627d7d33140e332197c4663c30`
-- Full runtime module: 501 tests passed.
+  `b17806d25130f4627d7d33140e332197c4663c30`,
+  `bf10628438d824696cd5cc09fb6dd2b839d95987`
+- Full runtime module: 511 tests passed.
 - Focused model suite covers atomic global publication, multi-target membership, adaptive shared payloads, durable
   restart idempotency, concurrent ordering, transaction rollback, temporal moves and stale actions, multi-parent
   detach, logical delete/history gaps, as-of batch loads, payload range creation, partition pruning, overload/retry,
