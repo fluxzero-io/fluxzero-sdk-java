@@ -433,10 +433,32 @@ membership, and reconstruction are deliberately not simulated here; their produc
 ### Slice 3.4 — Direct search completion
 
 - [ ] Index/delete each directly changed searchable model before SDK commit completes.
-- [ ] Load `eventSourced = false` models from that same direct collection.
+- [x] Load `eventSourced = false` models from that same direct collection.
 - [ ] Preserve custom collection, timestamp/end path, serialization revision, metadata, and publication behavior.
-- [ ] Batch direct document mutations per collection where possible.
-- [ ] Test and document current cross-store partial-failure semantics.
+- [x] Batch direct document mutations per collection where possible.
+- [x] Test and document current cross-store partial-failure semantics.
+
+The direct mutation component is retained and tested, but the first item remains open until normal handler execution
+actually routes model actions through it. Event-sourced model loading also remains deliberately unavailable until
+Slice 5.1 can reconstruct with historical dependencies rather than silently using an aggregate stream.
+
+### Slice 3.5 — Pinned model-stream batch reads
+
+- [x] Add a public SDK/runtime request that pins current `stateIndex`, model heads, and returned memberships in one
+  database snapshot.
+- [x] Batch model IDs and per-stream sequence bounds without one request or query per model.
+- [x] Return one serialized payload per selected `stateIndex` plus lightweight per-model memberships.
+- [x] Ensure the JDBC query fetches and deserializes a shared multi-target payload once, rather than once per target.
+- [x] Provide websocket, SDK in-memory, runtime in-memory, and JDBC implementations with structural validation.
+- [x] Support exact historical heads in the in-memory reference implementation.
+- [ ] Resolve exact JDBC historical heads for models that changed after the requested boundary without adding a
+  per-transition head-history write to the hot path.
+- [ ] Add bounded/chunked SDK reconstruction over this protocol and verify it against the Phase 0 cold/warm load
+  budgets.
+
+The JDBC implementation currently fails explicitly when a requested current head is newer than an explicit historical
+boundary. It never substitutes the newer head. This is safe for current action loads, but Slice 5.1 may not claim
+historical dependency reconstruction until the open as-of-head item is complete.
 
 ## Phase 4 — Conflict handling (contained side quest)
 
@@ -660,3 +682,10 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   benchmark measured 8,839 actions/s for one 1-KiB target, 31,051 memberships/s for ten targets, 39,940 memberships/s
   for one hundred 16-KiB targets, and 18,704 memberships/s with one relationship per target. Details and limitations
   are in the [Phase 3 storage report](dynamic-model-boundaries-phase-3-storage.md). Direct search remains Slice 3.4.
+- 2026-07-25 — SDK commit `e4674571875` and runtime commit `2b77b7dd` add the action commit transport, synchronous
+  direct-document mutation component, document-based model repository, and pinned batched model-stream reads.
+  Multi-target reads carry and deserialize one shared payload while retaining independent stream memberships. The SDK
+  `common`/`sdk` reactor passed 1,800 tests; the complete runtime module passed 508 tests. SDK and runtime in-memory
+  stores enforce all-or-nothing publication/state application. JDBC current reads pin state, heads, and memberships in
+  one repeatable-read transaction. Exact JDBC historical heads after intervening model changes remain deliberately
+  fail-fast and open in Slice 3.5 before Slice 5.1 reconstruction.
