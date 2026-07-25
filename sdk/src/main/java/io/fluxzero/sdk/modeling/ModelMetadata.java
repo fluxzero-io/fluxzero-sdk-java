@@ -61,6 +61,7 @@ public final class ModelMetadata {
     private final Property entityId;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
+    private final Map<Parameter, ModelParameter> modelParameters;
 
     /**
      * Returns the centrally cached model metadata for a Java type.
@@ -109,6 +110,10 @@ public final class ModelMetadata {
             throw invalid("@ParentId is only supported on @Model types, but was found on %s".formatted(type.getName()));
         }
         this.handlerMethods = inspectHandlerMethods(typeMetadata);
+        Map<Parameter, ModelParameter> modelParameters = new LinkedHashMap<>();
+        handlerMethods.stream().map(HandlerMethod::modelParameters).flatMap(Collection::stream)
+                .forEach(parameter -> modelParameters.put(parameter.parameter(), parameter));
+        this.modelParameters = Map.copyOf(modelParameters);
     }
 
     public Class<?> type() {
@@ -138,12 +143,20 @@ public final class ModelMetadata {
         return Optional.ofNullable(entityId);
     }
 
+    String entityIdName() {
+        return entityId == null ? null : entityId.name();
+    }
+
     public List<ParentReference> parentReferences() {
         return parentReferences;
     }
 
     public List<HandlerMethod> handlerMethods() {
         return handlerMethods;
+    }
+
+    Optional<ModelParameter> modelParameter(Parameter parameter) {
+        return Optional.ofNullable(modelParameters.get(parameter));
     }
 
     public List<HandlerMethod> applyMethods() {

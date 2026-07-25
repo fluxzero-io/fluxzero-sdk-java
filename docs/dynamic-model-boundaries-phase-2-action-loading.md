@@ -30,6 +30,22 @@ such an apply may not return `null`, because there would be no way to identify w
 The plan only produces deduplicated load descriptors. Batched repository I/O and pinning one `readStateIndex` remain
 part of the integrated action repository/protocol slice.
 
+## Action context and injection
+
+`ModelActionContext` is the immutable begin-state returned by one future batch load. It accepts exactly the IDs in the
+target resolution, validates each loaded entity's exact ID and compatible model type, rejects unrelated loaded state,
+and exposes one `readStateIndex` for the complete set. It does not inspect or load relationships.
+
+A dedicated model parameter resolver injects from this context into `@AssertLegal`, `@InterceptApply`, and `@Apply`.
+Both model values and `Entity<Model>` are supported. An empty entity can be injected as an `Entity<Model>` so creation
+and missing-state rules remain explicit; an absent non-nullable model value does not make a handler applicable.
+`@Association` selects a same-type model through the source property already recorded by target resolution. Without a
+qualifier, the canonical `@EntityId` property wins, then a single compatible direct target; multiple candidates fail.
+
+The resolver is deliberately not added to the existing aggregate `DefaultEntityHelper`. The model action engine will
+construct its own resolver chain and execute with the context-bearing message active. This preserves the Phase 1
+decision that legacy aggregate matcher discovery must not construct `ModelMetadata`.
+
 ## Hot-path diagnostic
 
 A disposable ten-fork JVM diagnostic measured a retained compiled plan with two million resolutions per fork and used
@@ -49,6 +65,14 @@ small-cardinality deduplication, compact access flags, and only allocates deferr
 |---|---:|---:|
 | one receiver model | 13.3 ns/op | 104 bytes/op |
 | two cross-model targets | 73.4 ns/op | 504 bytes/op |
+
+The first action-context lookup used stream/list materialization and then a capturing error supplier; its successful
+lookups allocated 24 bytes. The retained indexed lookup precomputes entity-ID property names when the context is built:
+
+| Context lookup | Median | Allocation |
+|---|---:|---:|
+| one model, automatic target | 2.73 ns/op | 0 bytes/op |
+| two same-type models, qualified target | 4.59 ns/op | 0 bytes/op |
 
 This is a local microdiagnostic, not the Phase 0 end-to-end storage/load gate. The launcher and temporary classpath file
 were removed after recording the result.

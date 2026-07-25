@@ -354,15 +354,17 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Require only direct target IDs; never inspect or require parent/grandparent IDs for routing.
 - [x] Deduplicate exact ID-string identities and reject one identity requested as incompatible model types before loading.
 - [ ] Batch repository loads and expose a single `readStateIndex` when the action repository/protocol is wired.
-- [ ] Keep unrelated parent, sibling, child, and graph nodes unloaded.
+- [x] Reject unrelated loaded state when constructing an action context; parent, sibling, child, and graph nodes stay
+  unloaded unless they are direct targets of another selected handler.
 
 ### Slice 2.2 — Injection
 
-- [ ] Inject any action-scoped model into `@AssertLegal`.
-- [ ] Inject any action-scoped model into `@InterceptApply`.
-- [ ] Inject any action-scoped model into `@Apply`.
-- [ ] Support both value parameters and `Entity<T>`.
-- [ ] Cache resolution within the action and reconstruction contexts.
+- [x] Inject any action-scoped model into `@AssertLegal`.
+- [x] Inject any action-scoped model into `@InterceptApply`.
+- [x] Inject any action-scoped model into `@Apply`.
+- [x] Support both value parameters and `Entity<T>`, including empty wrappers for creation/missing-state decisions.
+- [x] Cache direct identity/property resolution within one action context.
+- [ ] Reuse the same bounded resolution context during event-sourcing reconstruction.
 
 ### Slice 2.3 — Deterministic execution
 
@@ -621,3 +623,8 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
 - 2026-07-25 — SDK commit `bdbd71e4786` adds aggregate-neutral `ModelRoot`/root configuration, exact-ID
   `ModelRepository` and `Fluxzero.loadModel` APIs, and model-specific `TestFixture` vocabulary without routing models
   through the legacy aggregate protocol. Focused contracts, full reactor, Javadoc, and downstream builds passed.
+- 2026-07-25 — SDK commit `24ee120adc1` compiles retained direct target plans for receiver, parameter, and apply-return
+  models; exact-name, unique typed-ID, and `@Association` resolution; global-ID deduplication; and deferred same-type
+  write selection. Focused tests, Javadoc, and the full SDK reactor passed. The retained resolver measured 13.3 ns /
+  104 bytes for one target and 73.4 ns / 504 bytes for two cross-model targets; the allocation-heavy predecessor was
+  discarded and is documented in the [Phase 2 report](dynamic-model-boundaries-phase-2-action-loading.md).
