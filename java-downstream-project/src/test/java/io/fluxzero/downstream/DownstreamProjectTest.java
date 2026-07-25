@@ -18,6 +18,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.OpenApiProcessor;
 import io.fluxzero.testserver.TestServer;
@@ -57,13 +58,22 @@ class DownstreamProjectTest {
     }
 
     @Test
-    void modelAnnotationIsAvailableToDownstreamProjects() {
+    void modelAnnotationIsAvailableToDownstreamProjects() throws NoSuchMethodException {
         Model model = DownstreamModel.class.getAnnotation(Model.class);
+        ParentId typedParent = DownstreamModel.Child.class.getDeclaredMethod("parentId").getAnnotation(ParentId.class);
+        ParentId untypedParent =
+                DownstreamModel.Child.class.getDeclaredMethod("externalParentId").getAnnotation(ParentId.class);
 
         assertNotNull(model);
         assertFalse(model.eventSourced());
         assertTrue(model.searchable());
         assertEquals("downstream-models", model.collection());
+        assertNotNull(typedParent);
+        assertNotNull(untypedParent);
+        assertEquals("children", typedParent.path());
+        assertEquals(void.class, typedParent.value());
+        assertEquals(DownstreamModel.Parent.class, untypedParent.value());
+        assertEquals("externalChildren", untypedParent.path());
     }
 
     private static String readResource(String name) throws IOException {

@@ -176,6 +176,9 @@ class ModelTest {
 
     @Model
     private static class MutableModel {
+        @EntityId
+        String id;
+
         @Apply
         void apply(Object update) {
         }

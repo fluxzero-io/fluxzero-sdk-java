@@ -151,8 +151,8 @@ runtime stores two transactionally updated temporal adjacency projections:
 - `model_relation_by_parent`, segmented by parent ID;
 - `model_relation_by_child`, segmented by child ID.
 
-Both contain child ID, parent ID, stable role, `validFrom`, `validUntil`, detach reason, and the deleted parent ID needed
-for later lineage/GDPR operations. Intervals are half-open:
+Both contain child ID, parent ID, a compact relationship descriptor, `validFrom`, `validUntil`, detach reason, and the
+deleted parent ID needed for later lineage/GDPR operations. Intervals are half-open:
 
 `validFrom <= requestedStateIndex < validUntil`
 
@@ -162,6 +162,16 @@ updated.
 
 The spike verified exact move behavior at the boundary, absence after `validUntil`, rollback of a partial write, and
 discoverability through `deletedParentId`.
+
+The spike's relationship descriptor used a compact role string. Phase 1 refined the public model: a typed `Id<T>` or
+explicit annotation value identifies the parent model, while an optional explicit path enables automatic document
+composition. There is no required public role. The integrated layout must keep parent routing/type and path metadata
+compact (for example through a descriptor/catalog key) and re-run the relationship byte-amplification gate rather than
+copying repeated class, collection, or path strings into every high-cardinality edge.
+
+The dual adjacency layout also supports a non-materialized read route. Current search documents may be joined through
+current relations and stitched on demand; the asynchronous composite CQRS document is an optional query optimization,
+not the only way to search a graph. Historical full-text graph search is not part of the first implementation.
 
 ### Lifecycle consequence of shared payloads
 

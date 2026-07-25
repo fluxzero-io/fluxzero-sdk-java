@@ -59,10 +59,13 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>The current entity instance (for non-static apply methods)</li>
  *     <li>Any parent, grandparent, or other ancestor entity in the aggregate hierarchy</li>
+ *     <li>Any independently stored model loaded for the current model action, either as its value or as
+ *         {@link io.fluxzero.sdk.modeling.Entity}{@code <T>}</li>
  *     <li>The update object itself</li>
  *     <li>The full {@link io.fluxzero.sdk.common.Message} or its {@link io.fluxzero.common.api.Metadata}</li>
  *     <li>Other context such as the {@link io.fluxzero.sdk.tracking.handling.authentication.User} performing the update</li>
  * </ul>
+ * Injected models are read inputs. Only a model returned by an apply is targeted by that apply.
  *
  * <p>
  * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter

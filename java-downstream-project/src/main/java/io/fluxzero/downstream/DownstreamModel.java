@@ -17,8 +17,10 @@
 package io.fluxzero.downstream;
 
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
 import java.util.List;
@@ -35,5 +37,22 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
     }
 
     public record ChangeValue(String value) {
+    }
+
+    @Model
+    public record Parent(@EntityId DownstreamParentId id) {
+    }
+
+    public static class DownstreamParentId extends Id<Parent> {
+        public DownstreamParentId(String id) {
+            super(id, "downstream-parent-");
+        }
+    }
+
+    @Model
+    public record Child(
+            @EntityId String id,
+            @ParentId(path = "children") DownstreamParentId parentId,
+            @ParentId(value = Parent.class, path = "externalChildren") String externalParentId) {
     }
 }

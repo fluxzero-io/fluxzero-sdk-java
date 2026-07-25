@@ -38,8 +38,11 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>The command or query object itself</li>
  *     <li>Any matching entity from the aggregate tree (including parent or grandparent entities)</li>
+ *     <li>Any independently stored {@link Model @Model} loaded for the current model action, either as its value or
+ *         as {@link Entity}{@code <T>}</li>
  *     <li>Other framework-specific types like {@link io.fluxzero.sdk.common.Message} or {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>
  * </ul>
+ * Action-scoped models injected into an assertion are read-only inputs; injection alone does not target or store them.
  * <p>
  * Note that empty entities (i.e., those with {@code null} values) are not injected unless the parameter is annotated with {@code @Nullable}.
  *

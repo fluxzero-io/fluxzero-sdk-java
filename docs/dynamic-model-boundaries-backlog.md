@@ -28,15 +28,18 @@ phase, not the central abstraction.
   `EventPublicationStrategy` determine whether an applied event is stored and/or published.
 - A searchable model is synchronously indexed/deleted as part of commit completion. A successful commit therefore
   makes the directly changed model immediately searchable, matching current searchable aggregate behavior.
-- A composed tree/graph search document is a separate, asynchronous and rebuildable CQRS projection.
+- Related current model documents can be queried and stitched as a virtual graph at read time when their
+  `@ParentId` declarations provide composition paths. A persisted complete tree/graph document remains a separate,
+  asynchronous and rebuildable CQRS optimization.
 - The authoritative document for `eventSourced = false` remains the ordinary `DocumentStore` record. No versioned
   document history or second `ModelStateStore` is introduced.
 - Storage identity is exactly `Id.toString()` (or the equivalent untyped ID string). `@Model` has no name that is
   concatenated into the key. Existing ID prefix/type conventions remain responsible for uniqueness.
 - Existing `@Member` semantics remain embedded: members share their root's stream, cache, search document, and
   lifecycle. Independently stored nodes use `@Model`.
-- A relationship is declared from a child model using one or more `@ParentId` properties. Multiple parents form a DAG;
-  cycles are rejected.
+- A relationship is declared from a child model using one or more `@ParentId` properties. A typed `Id<T>` determines
+  the parent model type; an untyped ID may declare it explicitly. The optional `path` enables automatic graph-document
+  composition. Multiple parents form a DAG; cycles are rejected.
 - Target IDs are resolved from command payload properties by matching the target model's `@EntityId`. If names are
   ambiguous or deliberately different, parameter-level `@Association("propertyName")` qualifies the ID source.
 - `@AssertLegal`, `@InterceptApply`, and `@Apply` may inject every action-scoped model as either its value or
@@ -118,7 +121,14 @@ Future request/result-log based horizontal scaling is out of scope.
 - Direct model search indexing/deletion is awaited by SDK commit, exactly as it is for current aggregates. A search
   failure fails commit completion but can occur after authoritative event/model storage has succeeded; this existing
   cross-store limitation is documented rather than hidden.
-- Composite graph projections are asynchronous, idempotent, and rebuildable.
+- Current graph search may join current direct documents through current relationships without first materializing a
+  composite document. Co-located JDBC stores should push filtering, traversal, sorting, and pagination into one
+  relational query plan; split stores may use a bounded staged plan.
+- Automatic runtime stitching includes only nodes with available current documents. Otherwise the runtime returns a
+  graph/event bundle and the SDK reconstructs the independent models.
+- Composite graph projections are asynchronous, idempotent, and rebuildable performance optimizations.
+- Historical full-text graph search is deferred. Historical graph membership and model reconstruction remain supported
+  through temporal relationships and model events.
 - Distributed transactions, a general participant coordinator, and multi-runtime consensus are explicitly deferred.
 
 ## Relationship and deletion semantics
@@ -127,15 +137,24 @@ Relationship history uses half-open state-index intervals:
 
 `validFrom <= requestedStateIndex < validUntil`
 
-Each edge is identified by child ID, parent ID, and the stable `@ParentId` property/role. A current-edge projection makes
-ordinary routing and graph loading cheap; interval history supports as-of reconstruction.
+Each edge is identified by child ID, parent ID, and, when present, its explicit composition path. Parent-property
+metadata may be retained for diagnostics but is not a required public relationship name. A current-edge projection
+makes ordinary routing and graph loading cheap; interval history supports as-of reconstruction.
+
+- Parent type is inferred from `Id<T>`. An explicit `@ParentId(ModelType.class)` is available for `String` and other
+  untyped IDs and must agree with an inferred type when both are present.
+- `@ParentId.path` is optional. Without it, attach/detach/move, relationship navigation, lineage, and graph bundles
+  remain available, but automatic virtual-document stitching and CQRS graph placement are not enabled for that edge.
+- No class-name-derived path becomes a silent durable document contract. A configured graph projection may override a
+  child-owned canonical path for that projection.
 
 - Changing a `@ParentId` closes the old interval and opens the new interval. Descendants are untouched.
 - A logical delete (`@Apply` returns `null`) removes the target's current direct search document, closes its outgoing
   parent edges, and relation-cascades over incoming edges by marking them detached because their parent was deleted.
 - That relation cascade does not mutate or delete child models and emits no child model events.
-- Detached edges remain discoverable as tombstones/history, including deleted parent ID, child ID, role, interval, and
-  detach reason. This is required so a later GDPR/lifecycle operation can still find detached descendants.
+- Detached edges remain discoverable as tombstones/history, including deleted parent ID, child ID, compact relation
+  descriptor, interval, and detach reason. This is required so a later GDPR/lifecycle operation can still find
+  detached descendants.
 - Relationship resolution must not silently reactivate a detached edge merely because an unchanged child document still
   contains the deleted parent ID.
 - Explicit hard delete has an explicit cascade mode:
@@ -306,10 +325,14 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 
 ### Slice 1.2 — Reflection metadata
 
-- [ ] Extend `ReflectionUtils.TypeMetadata`; do not add a parallel class-keyed cache.
-- [ ] Cache model annotation, `@EntityId`, `@ParentId` roles, apply return targets, and handler dependency descriptors.
-- [ ] Validate duplicate/ambiguous IDs, missing target IDs, invalid parent roles, and model cycles with actionable errors.
-- [ ] Measure startup/reflection impact.
+- [x] Extend `ReflectionUtils.TypeMetadata`; do not add a parallel class-keyed cache.
+- [x] Cache model annotation, `@EntityId`, `@ParentId` type/path metadata, apply return targets, and handler dependency
+  descriptors.
+- [x] Validate missing/duplicate model IDs, invalid parent types/paths, ambiguous same-type handler dependencies, and
+  statically knowable model cycles with actionable errors.
+- [ ] Validate missing/ambiguous command payload target IDs when target resolution is implemented in Slice 2.1.
+- [x] Measure startup/reflection impact and record the rejected legacy matcher hooks in the
+  [Phase 1 metadata report](dynamic-model-boundaries-phase-1-metadata.md).
 
 ### Slice 1.3 — Entity/model abstraction
 
@@ -422,14 +445,23 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [ ] Keep snapshots as the primary long-stream optimization.
 - [ ] Verify cold and warm reconstruction throughput continuously against the Phase 0 load budgets.
 
-### Slice 5.2 — Document-loaded dependency history
+### Slice 5.2 — Graph reconstruction bundle
+
+- [ ] Pin one `stateIndex`, resolve graph membership as-of that boundary, and batch-load every selected independent
+  model stream up to the same boundary.
+- [ ] Return streams grouped by model plus temporal edges; do not invent a flattened aggregate stream.
+- [ ] Reconstruct each model independently in the SDK and place it only on explicitly configured graph paths.
+- [ ] Preserve existing global event-log correlation and VictoriaLogs audit behavior; the graph bundle is
+  reconstruction transport, not a second audit log.
+
+### Slice 5.3 — Document-loaded dependency history
 
 - [ ] Use stored model events for historical reconstruction even when normal load uses `DocumentStore`.
 - [ ] Track whether model history is complete without retaining document revisions.
 - [ ] Enforce the Phase 0 decision for non-stored history gaps.
 - [ ] Cover delete, recreate, unknown event, upcasting, snapshot, and hard-delete history loss.
 
-### Slice 5.3 — Cache synchronization
+### Slice 5.4 — Cache synchronization
 
 - [ ] Generalize the useful `CachingAggregateRepository` event-index behavior for independent models.
 - [ ] Synchronize published changes through the event log and non-published changes through state/model-head awareness.
@@ -441,7 +473,9 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 
 ### Slice 6.1 — `@ParentId`
 
-- [ ] Add repeatable/multi-property parent metadata with a stable role.
+- [x] Add multi-property parent metadata; infer the parent model from `Id<T>` and allow an explicit model type for
+  untyped IDs.
+- [x] Add an optional explicit composition path without deriving a durable path from the Java class name.
 - [ ] Compute relation deltas only for returned targets.
 - [ ] Support attach, detach, move, and multiple parents by changing only the child model.
 - [ ] Reject cycles at commit with the entire action rolled back.
@@ -471,11 +505,28 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [ ] Keep direct search read-after-commit consistency.
 - [ ] Support bulk model indexing/deletion and per-model lifecycle.
 
-### Slice 7.2 — Graph search document
+### Slice 7.2 — Virtual graph search
+
+- [ ] Add current-state graph search that can return child models constrained by parent/ancestor documents and roots
+  constrained by child/descendant documents.
+- [ ] Compile co-located JDBC graph predicates, traversal, sorting, and pagination into relational query plans without
+  materializing unbounded ID lists in the SDK.
+- [ ] Stitch requested current graph documents at read time using only explicitly configured paths and nodes with
+  available current documents.
+- [ ] Define path collisions, default collection cardinality, deterministic child ordering, and DAG/shared-child
+  placement before exposing stitched documents as a stable contract.
+- [ ] Add bounded staged execution for split relation/search stores, with fan-out/depth/result limits and an actionable
+  refusal when materialized CQRS is required.
+- [ ] Benchmark selective and broad parent/child joins, recursive depth, partition fan-out, pagination, and concurrent
+  relation moves.
+- [ ] Defer historical full-text graph search; do not introduce versioned direct documents implicitly.
+
+### Slice 7.3 — Materialized graph search document
 
 - [ ] Add an opt-in asynchronous projection for a complete model graph.
 - [ ] Consume idempotent model-action/result records.
 - [ ] Rebuild affected roots using temporal relations and batched model loads.
+- [ ] Let a registered root projection override child-owned paths without changing relationship truth.
 - [ ] Handle multi-parent fan-out, moves, deletes, late delivery, duplicate delivery, and rebuild.
 - [ ] Expose projection lag/high-watermark where callers need freshness awareness.
 

@@ -34,3 +34,15 @@ data class KotlinModel(
 data class KotlinModelPart(@EntityId val id: String)
 
 data class RenameKotlinModel(val value: String)
+
+@Model
+data class KotlinParent(@EntityId val id: KotlinParentId)
+
+class KotlinParentId(id: String) : Id<KotlinParent>(id, "kotlin-parent-")
+
+@Model
+data class KotlinChild(
+    @EntityId val id: String,
+    @ParentId(path = "children") val parentId: KotlinParentId,
+    @ParentId(value = KotlinParent::class, path = "externalChildren") val externalParentId: String,
+)
