@@ -323,7 +323,7 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Add documented `@Model` with aggregate-equivalent storage/search/cache settings and no `name`.
 - [x] Define `eventSourced` as load behavior in Javadoc and examples.
 - [x] Reuse `@Member` for embedded members inside either `@Aggregate` or `@Model`.
-- [ ] Add startup validation rejecting `void @Apply` for model targets.
+- [x] Add startup validation rejecting `void @Apply` for model targets.
 - [x] Preserve mutable/void legacy aggregate behavior.
 - [x] Add Java and Kotlin downstream compilation coverage.
 
@@ -410,24 +410,25 @@ membership, and reconstruction are deliberately not simulated here; their produc
 
 ### Slice 3.2 — Runtime storage contract
 
-- [ ] Add action-aware model storage interfaces without changing legacy `AppendEvents`.
-- [ ] Allocate ordered state indices and batch-update current model heads without per-model head queries.
-- [ ] Append an independently sequenced membership entry to every target stream while storing the serialized payload
+- [x] Add action-aware model storage interfaces without changing legacy `AppendEvents`.
+- [x] Allocate ordered state indices and batch-update current model heads without per-model head queries.
+- [x] Append an independently sequenced membership entry to every target stream while storing the serialized payload
   exactly according to the Phase 0 layout; never default to one full payload copy per target.
-- [ ] Append each publishable original event exactly once to the global event log.
-- [ ] Make `actionId` idempotent and return the prior result for a duplicate request.
-- [ ] Store current and historical relationship transitions at the same state boundary.
+- [x] Append each publishable original event exactly once to the global event log.
+- [x] Make `actionId` idempotent and return the prior result for a duplicate request.
+- [x] Store current and historical relationship transitions at the same state boundary.
 
 ### Slice 3.3 — JDBC and in-memory implementations
 
-- [ ] Add migrations/tables/indexes for model heads, action idempotency, and temporal relationship intervals.
-- [ ] Implement the selected stable hash-bucket layout for model streams and heads with verified partition pruning.
-- [ ] Use one JDBC transaction for model streams, state indices, event log, heads, and relationships when co-located.
-- [ ] Avoid splitting one action across segment backlogs before the atomic write.
-- [ ] Use set-based/batched writes with explicit limits and backpressure for large target sets.
-- [ ] Add in-memory parity.
-- [ ] Test partial failure, rollback, retry after lost response, duplicate action, restart, and concurrent commits.
-- [ ] Keep legacy aggregate throughput on its current fast path.
+- [x] Add lazy schema provisioning, tables, and indexes for model heads, action idempotency, payloads, streams, and
+  temporal relationship intervals. No released predecessor schema exists to migrate.
+- [x] Implement the selected stable hash-bucket layout for model streams and heads with verified partition pruning.
+- [x] Use one JDBC transaction for model streams, state indices, event log, heads, and relationships when co-located.
+- [x] Avoid splitting one action across segment backlogs before the atomic write.
+- [x] Use set-based/batched writes with explicit limits and backpressure for large target sets.
+- [x] Add in-memory parity.
+- [x] Test partial failure, rollback, retry after lost response, duplicate action, restart, and concurrent commits.
+- [x] Keep legacy aggregate throughput on its current fast path.
 
 ### Slice 3.4 — Direct search completion
 
@@ -499,8 +500,8 @@ membership, and reconstruction are deliberately not simulated here; their produc
 - [x] Add multi-property parent metadata; infer the parent model from `Id<T>` and allow an explicit model type for
   untyped IDs.
 - [x] Add an optional explicit composition path without deriving a durable path from the Java class name.
-- [ ] Compute relation deltas only for returned targets.
-- [ ] Support attach, detach, move, and multiple parents by changing only the child model.
+- [x] Compute relation deltas only for returned targets.
+- [x] Support attach, detach, move, and multiple parents by changing only the child model.
 - [ ] Reject cycles at commit with the entire action rolled back.
 
 ### Slice 6.2 — Current and historical lookups
@@ -651,3 +652,11 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   reconstruction semantics, and complete in-memory rollback. Focused tests (39), Javadoc, and the full SDK reactor
   passed. The retained complete one-write action measured 305.7 ns / 2,520 bytes median; details are in the
   [Phase 2 report](dynamic-model-boundaries-phase-2-action-loading.md).
+- 2026-07-25 — Runtime commits `41a57adc` and `b17806d2` complete authoritative storage Slices 3.2/3.3: lazy partitioned
+  JDBC schema, ordered namespace state indices, set-based heads/streams/actions/relationships, adaptive inline/shared
+  payloads, compact durable idempotency results, one-transaction global publication when co-located, in-memory parity,
+  and explicit per-action/pending-byte overload protection. Full runtime module passed (501 tests); the focused suite
+  additionally found and fixed multi-parent selective detach being misclassified as a move. The retained diagnostic
+  benchmark measured 8,839 actions/s for one 1-KiB target, 31,051 memberships/s for ten targets, 39,940 memberships/s
+  for one hundred 16-KiB targets, and 18,704 memberships/s with one relationship per target. Details and limitations
+  are in the [Phase 3 storage report](dynamic-model-boundaries-phase-3-storage.md). Direct search remains Slice 3.4.
