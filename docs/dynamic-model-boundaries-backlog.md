@@ -434,13 +434,16 @@ membership, and reconstruction are deliberately not simulated here; their produc
 
 - [ ] Index/delete each directly changed searchable model before SDK commit completes.
 - [x] Load `eventSourced = false` models from that same direct collection.
-- [ ] Preserve custom collection, timestamp/end path, serialization revision, metadata, and publication behavior.
+- [x] Preserve custom collection, timestamp/end path, serialization revision, metadata, and publication behavior.
 - [x] Batch direct document mutations per collection where possible.
 - [x] Test and document current cross-store partial-failure semantics.
 
-The direct mutation component is retained and tested, but the first item remains open until normal handler execution
-actually routes model actions through it. Event-sourced model loading also remains deliberately unavailable until
-Slice 5.1 can reconstruct with historical dependencies rather than silently using an aggregate stream.
+The direct mutation component pre-serializes each final searchable model with the configured document serializer
+before the authoritative model commit, then awaits its batched direct mutation. That preserves model type/revision,
+message metadata, configured collection and time paths, and avoids discovering a serialization failure only after
+authoritative state changed. The first item remains open until Slice 5.1's pinned loader lets normal handler execution
+route model actions through this component without inventing an unpinned document/head read. Event-sourced model
+loading likewise remains unavailable until that reconstruction can resolve historical dependencies.
 
 ### Slice 3.5 — Pinned model-stream batch reads
 
@@ -490,6 +493,8 @@ header, adding no column or hot-path write amplification.
 
 ### Slice 5.1 — Model reconstruction
 
+- [ ] Wire `ModelActionEngine` and `ModelActionCommitter` into normal command handling through the pinned model loader;
+  await direct search mutation before reporting successful completion.
 - [ ] Reconstruct only the requested model's hash-pruned stream using batched/sequential payload resolution from the
   selected Phase 0 layout.
 - [ ] Resolve cross-model dependencies as-of the stored action `readStateIndex`.

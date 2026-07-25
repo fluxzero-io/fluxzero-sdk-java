@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.ConsistentHashing;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
@@ -24,6 +25,7 @@ import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.search.BulkUpdate;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -32,6 +34,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 
 import java.time.Instant;
@@ -60,6 +63,7 @@ final class ModelActionCommitter {
     private final EventStoreClient eventStoreClient;
     private final DocumentStore documentStore;
     private final Serializer serializer;
+    private final DocumentSerializer documentSerializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final String source;
 
@@ -67,11 +71,13 @@ final class ModelActionCommitter {
             EventStoreClient eventStoreClient,
             DocumentStore documentStore,
             Serializer serializer,
+            DocumentSerializer documentSerializer,
             DispatchInterceptor dispatchInterceptor,
             String source) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient);
         this.documentStore = Objects.requireNonNull(documentStore);
         this.serializer = Objects.requireNonNull(serializer);
+        this.documentSerializer = Objects.requireNonNull(documentSerializer);
         this.dispatchInterceptor = Objects.requireNonNull(dispatchInterceptor);
         this.source = source;
     }
@@ -95,7 +101,7 @@ final class ModelActionCommitter {
         Objects.requireNonNull(evaluation, "evaluation");
 
         List<ModelActionSubstep> substeps = new ArrayList<>();
-        LinkedHashMap<String, DirectDocument> documents = new LinkedHashMap<>();
+        LinkedHashMap<String, DirectDocumentCandidate> documents = new LinkedHashMap<>();
         for (ModelActionEngine.AppliedSubstep appliedSubstep : evaluation.substeps()) {
             List<EffectiveTransition> transitions = appliedSubstep.transitions().stream()
                     .map(this::effectiveTransition)
@@ -123,7 +129,9 @@ final class ModelActionCommitter {
                                     .delete(sourceTransition.after() == null)
                                     .relationships(relationships(sourceTransition))
                                     .build());
-                directDocument(sourceTransition, appliedSubstep.message().getTimestamp())
+                directDocument(
+                        sourceTransition, appliedSubstep.message().getTimestamp(),
+                        appliedSubstep.message().getMetadata())
                         .ifPresent(document -> documents.put(sourceTransition.modelId(), document));
             }
             substeps.add(ModelActionSubstep.builder()
@@ -138,7 +146,8 @@ final class ModelActionCommitter {
         CommitModelAction action = new CommitModelAction(
                 actionId, evaluation.readStateIndex(), evaluation.readModelIds(),
                 List.copyOf(substeps), STORED);
-        return new PreparedCommit(action, List.copyOf(documents.values()));
+        return new PreparedCommit(
+                action, documents.values().stream().map(this::serializeDocument).toList());
     }
 
     private SerializedMessage serialize(DeserializingMessage message) {
@@ -244,8 +253,8 @@ final class ModelActionCommitter {
         return List.copyOf(result.values());
     }
 
-    private static Optional<DirectDocument> directDocument(
-            ModelActionEngine.Transition transition, Instant eventTimestamp) {
+    private static Optional<DirectDocumentCandidate> directDocument(
+            ModelActionEngine.Transition transition, Instant eventTimestamp, Metadata metadata) {
         ModelMetadata.RootConfiguration model = ModelMetadata.of(transition.modelType())
                 .rootConfiguration().orElseThrow();
         if (!model.searchable()) {
@@ -257,15 +266,22 @@ final class ModelActionCommitter {
                 .orElse(transition.modelType().getSimpleName());
         Object value = transition.after();
         if (value == null) {
-            return Optional.of(new DirectDocument(
-                    transition.modelId(), collection, null, null, null));
+            return Optional.of(new DirectDocumentCandidate(
+                    transition.modelId(), collection, null, null, null, metadata));
         }
         Instant begin = parseTimeProperty(
                 blankToNull(model.timestampPath()), value, false, () -> eventTimestamp);
         Instant end = parseTimeProperty(
                 blankToNull(model.endPath()), value, true, () -> begin);
-        return Optional.of(new DirectDocument(
-                transition.modelId(), collection, value, begin, end));
+        return Optional.of(new DirectDocumentCandidate(
+                transition.modelId(), collection, value, begin, end, metadata));
+    }
+
+    private DirectDocument serializeDocument(DirectDocumentCandidate candidate) {
+        SerializedDocument document = candidate.value() == null ? null : documentSerializer.toDocument(
+                candidate.value(), candidate.modelId(), candidate.collection(),
+                candidate.begin(), candidate.end(), candidate.metadata());
+        return new DirectDocument(candidate.modelId(), candidate.collection(), document);
     }
 
     private CompletableFuture<Void> updateDirectDocuments(List<DirectDocument> documents) {
@@ -273,18 +289,13 @@ final class ModelActionCommitter {
             return CompletableFuture.completedFuture(null);
         }
         List<BulkUpdate> updates = documents.stream().map(document ->
-                document.value() == null
+                document.document() == null
                         ? DeleteDocument.builder()
                                 .id(document.modelId())
                                 .collection(document.collection())
                                 .build()
-                        : IndexDocument.builder()
-                                .object(document.value())
-                                .id(document.modelId())
-                                .collection(document.collection())
-                                .timestamp(document.begin())
-                                .end(document.end())
-                                .build()).map(BulkUpdate.class::cast).toList();
+                        : IndexDocument.fromDocument(document.document()))
+                .map(BulkUpdate.class::cast).toList();
         return documentStore.bulkUpdate(updates);
     }
 
@@ -296,7 +307,16 @@ final class ModelActionCommitter {
     }
 
     record DirectDocument(
-            String modelId, String collection, Object value, Instant begin, Instant end) {
+            String modelId, String collection, SerializedDocument document) {
+    }
+
+    private record DirectDocumentCandidate(
+            String modelId,
+            String collection,
+            Object value,
+            Instant begin,
+            Instant end,
+            Metadata metadata) {
     }
 
     private record EffectiveTransition(

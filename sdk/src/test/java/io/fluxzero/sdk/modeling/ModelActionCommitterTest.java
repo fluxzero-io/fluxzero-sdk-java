@@ -17,19 +17,23 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.search.BulkUpdate;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
+import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -59,8 +63,9 @@ class ModelActionCommitterTest {
 
     private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
     private final DocumentStore documentStore = mock(DocumentStore.class);
+    private final JacksonSerializer serializer = new JacksonSerializer();
     private final ModelActionCommitter committer = new ModelActionCommitter(
-            eventStoreClient, documentStore, new JacksonSerializer(),
+            eventStoreClient, documentStore, serializer, serializer,
             DispatchInterceptor.noOp, "client-1");
 
     @Test
@@ -72,7 +77,10 @@ class ModelActionCommitterTest {
         UpdateOrder event = new UpdateOrder(orderId);
         var evaluation = evaluation(
                 List.of(orderId.toString(), customerId.toString()),
-                substep(event, transition(orderId, Order.class, before, after, UpdateOrder.class, "apply", Order.class)),
+                substep(
+                        Metadata.of("tenant", "north"),
+                        event,
+                        transition(orderId, Order.class, before, after, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), after));
         when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
@@ -102,11 +110,14 @@ class ModelActionCommitterTest {
         ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
         verify(documentStore).bulkUpdate(updates.capture());
         IndexDocument update = (IndexDocument) updates.getValue().iterator().next();
-        assertEquals(after, update.getObject());
+        SerializedDocument document = (SerializedDocument) update.getObject();
+        assertEquals(after, serializer.fromDocument(document, Order.class));
         assertEquals(orderId.toString(), update.getId());
         assertEquals("orders", update.getCollection());
         assertEquals(after.changedAt(), update.getTimestamp());
         assertEquals(after.changedAt(), update.getEnd());
+        assertEquals(7, document.getDocument().getRevision());
+        assertEquals("north", document.getMetadata().get("tenant"));
     }
 
     @Test
@@ -223,7 +234,8 @@ class ModelActionCommitterTest {
         ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
         verify(documentStore).bulkUpdate(updates.capture());
         IndexDocument update = (IndexDocument) updates.getValue().iterator().next();
-        assertEquals(after, update.getObject());
+        assertEquals(after, serializer.fromDocument(
+                (SerializedDocument) update.getObject(), PrivateDocument.class));
         assertEquals(id.toString(), update.getId());
         assertEquals("privateDocuments", update.getCollection());
     }
@@ -275,6 +287,28 @@ class ModelActionCommitterTest {
         verify(documentStore, times(2)).bulkUpdate(anyCollection());
     }
 
+    @Test
+    void documentSerializationFailureHappensBeforeTheAuthoritativeCommit() throws Exception {
+        OrderId id = new OrderId("invalid-document");
+        Order after = new Order(id, null, "confirmed", Instant.EPOCH);
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(new UpdateOrder(id), transition(
+                        id, Order.class, null, after, UpdateOrder.class, "apply", Order.class)),
+                Map.of(id.toString(), after));
+        DocumentSerializer failingSerializer = mock(DocumentSerializer.class);
+        when(failingSerializer.toDocument(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new MockSearchFailure());
+        ModelActionCommitter failingCommitter = new ModelActionCommitter(
+                eventStoreClient, documentStore, serializer, failingSerializer,
+                DispatchInterceptor.noOp, "client-1");
+
+        assertThrows(MockSearchFailure.class, () -> failingCommitter.commit("action-1", evaluation));
+
+        verify(eventStoreClient, never()).commitModelAction(any());
+        verify(documentStore, never()).bulkUpdate(anyCollection());
+    }
+
     private static ModelActionEngine.ActionEvaluation evaluation(
             List<String> readModelIds,
             ModelActionEngine.AppliedSubstep substep,
@@ -285,8 +319,13 @@ class ModelActionCommitterTest {
 
     private static ModelActionEngine.AppliedSubstep substep(
             Object event, ModelActionEngine.Transition... transitions) {
+        return substep(Metadata.empty(), event, transitions);
+    }
+
+    private static ModelActionEngine.AppliedSubstep substep(
+            Metadata metadata, Object event, ModelActionEngine.Transition... transitions) {
         return new ModelActionEngine.AppliedSubstep(
-                new DeserializingMessage(new Message(event), MessageType.EVENT, null),
+                new DeserializingMessage(new Message(event, metadata), MessageType.EVENT, null),
                 List.of(transitions));
     }
 
@@ -311,6 +350,7 @@ class ModelActionCommitterTest {
                 request.getRequestId(), request.getActionId(), substeps);
     }
 
+    @Revision(7)
     @Model(eventSourced = false, searchable = true, collection = "orders", timestampPath = "changedAt")
     private record Order(
             @EntityId OrderId orderId,
