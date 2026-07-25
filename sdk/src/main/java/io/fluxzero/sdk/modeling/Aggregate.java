@@ -69,10 +69,12 @@ public @interface Aggregate {
     /**
      * Whether the aggregate should use event sourcing (enabled by default).
      * <p>
-     * When enabled, applied updates are stored in the event store and used to reconstruct the aggregate state.
+     * When enabled, the aggregate is reconstructed from its stored event stream, optionally starting at a snapshot.
      * <p>
-     * Disabling event sourcing may be useful for read-heavy aggregates or reference data that seldom changes.
-     * {@link Apply} methods still work even when event sourcing is disabled, but updates will not be stored.
+     * Disabling event sourcing changes the normal load path to current stored state (the searchable document when the
+     * aggregate is searchable, otherwise its snapshot). It does not by itself suppress storing or publishing events
+     * produced by {@link Apply} methods. Event storage and publication remain controlled by
+     * {@link #eventPublication()}, {@link #publicationStrategy()}, and per-apply overrides.
      */
     boolean eventSourced() default true;
 

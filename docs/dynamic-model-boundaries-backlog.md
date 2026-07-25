@@ -153,23 +153,23 @@ ordinary routing and graph loading cheap; interval history supports as-of recons
 - [x] Create `feature/dynamic-model-boundaries` in SDK.
 - [x] Create `feature/dynamic-model-boundaries` in runtime.
 - [x] Record both base SHAs and the cross-repository backlog.
-- [ ] Commit this backlog before implementation commits.
+- [x] Commit this backlog before implementation commits.
 
 ### Slice 0.2 — Baseline verification
 
-- [ ] Run SDK `./mvnw -B install`.
-- [ ] Run runtime `./mvnw -B install`.
-- [ ] Record failures that already exist on the base commits; do not normalize them into feature work.
+- [x] Run SDK `./mvnw -B install`.
+- [x] Run runtime `./mvnw -B install`.
+- [x] Record failures that already exist on the base commits; do not normalize them into feature work.
 
 ### Slice 0.3 — Existing aggregate characterization
 
-- [ ] Lock down that `eventSourced = false` loads from `DocumentStore`.
-- [ ] Lock down that its events are still stored/published unless the publication strategy excludes that.
-- [ ] Lock down direct search visibility before aggregate commit completion.
-- [ ] Lock down `PUBLISH_ONLY`, `STORE_ONLY`, and `EventPublication.NEVER` state/index behavior.
-- [ ] Lock down `CachingAggregateRepository` catch-up and playback behavior using `eventIndex`.
+- [x] Lock down that searchable `eventSourced = false` aggregates load current state from `DocumentStore`.
+- [x] Lock down that their events are still stored/published unless the publication strategy excludes that.
+- [x] Lock down direct search visibility before aggregate commit completion.
+- [x] Lock down `PUBLISH_ONLY`, `STORE_ONLY`, and `EventPublication.NEVER` state/index behavior.
+- [x] Lock down `CachingAggregateRepository` catch-up and playback behavior using `eventIndex`.
 - [ ] Lock down current logical and hard-delete effects on streams, snapshots, documents, cache, and relationships.
-- [ ] Correct misleading `Aggregate.eventSourced` Javadoc without changing behavior.
+- [x] Correct misleading `Aggregate.eventSourced` Javadoc without changing behavior.
 
 ### Slice 0.4 — State-index feasibility spike
 
@@ -411,3 +411,11 @@ ordinary routing and graph loading cheap; interval history supports as-of recons
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
 
 - 2026-07-25 — Branches created from the SHAs recorded above; backlog initialized.
+- 2026-07-25 — Baselines: runtime `./mvnw -B install` passed (477 runtime tests); SDK
+  `./mvnw -B install` passed. A proxy health test first returned 404 while both full builds ran concurrently, then passed
+  both in isolation and in the repeated full SDK build; no base failure recorded.
+- 2026-07-25 — Existing contracts located in `SearchableAggregateTest`, `PublicationStrategyTests`, and
+  `AggregatePlaybackTest`; added explicit non-event-sourced default event-storage/publication coverage and corrected
+  `Aggregate.eventSourced` Javadoc. Focused verification:
+  `./mvnw -pl sdk -Dtest='EventSourcingRepositoryTest,SearchableAggregateTest,AggregatePlaybackTest' test`
+  (102 tests passed).
