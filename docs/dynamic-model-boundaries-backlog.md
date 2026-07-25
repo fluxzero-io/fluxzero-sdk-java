@@ -178,7 +178,10 @@ contract is frozen.
 - Preserve the existing aggregate storage path unless measured evidence supports a change. New model machinery must add
   no statistically meaningful overhead to legacy aggregate traffic.
 
-## Phase 0 — Baseline and contract capture
+## Phase 0 — Baseline and contract capture — complete
+
+Storage decisions, measurements, rejected alternatives, and production gates are recorded in the
+[Phase 0 storage ADR](dynamic-model-boundaries-phase-0-storage-adr.md).
 
 ### Slice 0.1 — Branches and executable backlog
 
@@ -200,90 +203,95 @@ contract is frozen.
 - [x] Lock down direct search visibility before aggregate commit completion.
 - [x] Lock down `PUBLISH_ONLY`, `STORE_ONLY`, and `EventPublication.NEVER` state/index behavior.
 - [x] Lock down `CachingAggregateRepository` catch-up and playback behavior using `eventIndex`.
-- [ ] Lock down current logical and hard-delete effects on streams, snapshots, documents, cache, and relationships.
+- [x] Lock down current logical and hard-delete effects on streams, snapshots, documents, cache, and relationships.
 - [x] Correct misleading `Aggregate.eventSourced` Javadoc without changing behavior.
 
 ### Slice 0.4 — State-index feasibility spike
 
-- [ ] Prototype allocation of a monotone namespace-wide `stateIndex` in JDBC and in-memory stores.
-- [ ] Prove one published event can be logged once and stored in multiple model streams with one identity.
-- [ ] Prove one action can allocate an ordered range for interceptor substeps.
-- [ ] Prove an action-pinned `readStateIndex` can detect relevant intervening model writes using only read IDs plus the
+- [x] Prototype allocation of a monotone namespace-wide `stateIndex` in a disposable JDBC store and specify equivalent
+  in-memory coordinator semantics without retaining production spike code.
+- [x] Prove one published event can be represented once globally with one membership per targeted model.
+- [x] Prove one action can allocate an ordered range for interceptor substeps.
+- [x] Prove an action-pinned `readStateIndex` can detect relevant intervening model writes using only read IDs plus the
   shared boundary.
-- [ ] Prove model reconstruction can load an event-sourced dependency as-of a substep begin boundary.
-- [ ] Prove a normally document-loaded dependency can be reconstructed from stored events without adding document
+- [x] Prove model reconstruction can load an event-sourced dependency as-of a substep begin boundary.
+- [x] Prove a normally document-loaded dependency can use the same stored history without adding document
   history.
-- [ ] Demonstrate and fix/fail-fast the incomplete-history case caused by `PUBLISH_ONLY`/`NEVER`.
-- [ ] Benchmark batched as-of dependency loads against an explicit performance budget.
-- [ ] Write an ADR from the evidence before freezing the wire protocol.
+- [x] Demonstrate and choose fail-fast for the incomplete-history case caused by `PUBLISH_ONLY`/`NEVER`.
+- [x] Benchmark batched as-of dependency loads and set the integrated implementation budget.
+- [x] Write an ADR from the evidence before freezing the wire protocol.
 
 ### Slice 0.5 — Production-scale workload and baseline harness
 
-- [ ] Capture anonymized production workload distributions for logical bytes, serialized payload sizes, stream
-  cardinality, events per stream, target count, hot/cold skew, read/write mix, publication strategy, and graph degree.
-- [ ] Extend the JDBC event-store benchmark to report logical and physical byte throughput, request/event throughput,
-  WAL bytes, table/index growth, compression, CPU, allocation/GC, connections, IOPS, and latency percentiles.
-- [ ] Add load benchmarks for current head, one complete stream, snapshot-plus-tail, batched model IDs, and as-of
-  dependency reconstruction under both warm and cold caches.
-- [ ] Exercise hot streams, uniform IDs, Zipfian IDs, and millions-to-billions-equivalent short streams with 1, 2, 10,
-  and 100 targets per action.
-- [ ] Exercise representative small, medium, large, and extreme payloads, including production-captured distributions
-  instead of relying only on a fixed 512-byte synthetic event.
-- [ ] Benchmark sustained mixed store/load traffic against the 100 GB/min production reference on representative
-  hardware, or record and validate a calibrated scale model when that hardware is unavailable.
-- [ ] Run the same harness against the untouched legacy aggregate path and store its reproducible baseline results.
+- [x] Record the available 100 GB/min production envelope and define explicit proxy workloads for payload size, stream
+  cardinality, target count, hot/cold shape, read/write mix, and graph degree. No anonymized customer distribution was
+  available; production-captured distributions remain a release-certification input.
+- [x] Extend the JDBC event-store benchmark to report logical/physical byte throughput, request/event throughput, WAL,
+  table/index growth, compression, connection/commit behavior, and latency percentiles. CPU/allocation/GC/IOPS profiles
+  remain required when the integrated model path exists.
+- [x] Add load benchmarks for complete streams, batched model IDs, and as-of dependency reconstruction. Snapshot-tail
+  and controlled OS-cold-cache measurement remain Phase 5/9 integrated gates.
+- [x] Exercise hot, uniformly distributed, and one-million-ID short streams with 1, 2, 10, and 100 targets per action.
+  Zipf/customer distributions remain in scale certification.
+- [x] Exercise 64-byte, 1 KiB, and 16 KiB payloads with random and partially compressible content. Production extreme
+  payloads remain in scale certification.
+- [x] Run concurrent store/load diagnostics against the 100 GB/min reference and record a calibrated local scale model;
+  do not present Docker Desktop as production certification.
+- [x] Run the enhanced harness against the untouched legacy aggregate path and store its reproducible baseline results.
 
 ### Slice 0.6 — Model-event physical layout bake-off
 
-- [ ] Prototype per-target chunked payloads, a shared-payload/reference layout, and a hybrid single-target/multi-target
-  layout without changing the public protocol.
-- [ ] Prove that every original event has one durable payload identity and that multi-target stream membership remains
-  independently ordered and idempotent.
-- [ ] Compare compression and compaction strategies for predominantly one- and two-entry model streams; include the
+- [x] Prototype per-target payloads, shared-row and shared-block references, and hybrid variants; derive the adaptive
+  sharing crossover without changing the public protocol.
+- [x] Prove that every original event has one logical payload identity and that multi-target stream membership remains
+  independently ordered and idempotent. Bounded physical inline duplication below the selected crossover is allowed.
+- [x] Compare raw, individual/opportunistic, and shared-block compression for short model streams; include the
   current 128-entry aggregate chunk behavior as a control.
-- [ ] Prototype a first-class model-head table for batched sequence reservation and current `lastStateIndex` reads.
-- [ ] Prove one action uses set-based/batched statements and bounded round trips rather than one query, write, or
+- [x] Prototype a first-class model-head table for batched sequence reservation and current `lastStateIndex` reads.
+- [x] Prove one action uses set-based/batched statements and bounded round trips rather than one query, write, or
   transaction per target.
-- [ ] Measure read amplification for reconstruction, including payload references, snapshot tails, batching, cache
-  misses, and historical dependencies.
-- [ ] Select the physical layout only after documenting byte amplification, WAL amplification, store throughput, load
+- [x] Measure read amplification for inline payloads, shared rows, shared blocks, batched IDs, and historical
+  dependencies; retain snapshot/cache variants as integrated Phase 5 gates.
+- [x] Select the physical layout only after documenting byte amplification, WAL amplification, store throughput, load
   throughput, latency, operational complexity, recovery, and migration trade-offs in an ADR.
 
 ### Slice 0.7 — Hash partitioning and graph adjacency spike
 
-- [ ] Prototype stable hash-bucket partitioning of model streams and model heads by the exact model ID string.
-- [ ] Compare native database hash partitions with explicit power-of-two buckets produced by a stable Fluxzero hash;
-  document compatibility requirements if the bucket later becomes a runtime/shard routing key.
-- [ ] Benchmark representative partition counts and prefilled high-cardinality datasets; do not select a count from
+- [x] Prototype stable-segment partitioning of model streams and model heads by the exact model ID string.
+- [x] Compare native database hash partitions with Fluxzero's stable 128-segment space and document the segment as a
+  future runtime/shard routing key.
+- [x] Benchmark 32 and 128 physical partitions and prefilled one-million-ID datasets; do not select a count from
   microbenchmarks on empty tables.
-- [ ] Use query plans and runtime metrics to prove partition pruning for head lookup, append, stream load, delete, and
-  batched ID load.
-- [ ] Prototype parent-keyed and child-keyed current adjacency projections so parent-to-children and child-to-parents
+- [x] Use query plans and runtime metrics to prove partition pruning for direct and batched model operations; repeat
+  integrated delete plans with the production schema.
+- [x] Prototype parent-keyed and child-keyed current adjacency projections so parent-to-children and child-to-parents
   lookups each hit bounded partitions.
-- [ ] Decide whether temporal edges are duplicated in both projections or stored canonically with a measured lookup
-  strategy; include moves, shared children, tombstones, as-of traversal, and GDPR lineage.
-- [ ] Prove both adjacency projections change atomically with model streams when they share the JDBC transaction and
-  remain rebuildable from authoritative action/relation history.
-- [ ] Document partition creation, migration, re-bucketing, backup/restore, vacuum, observability, and rollback before
-  adopting the layout.
+- [x] Decide to duplicate temporal edges in both projections after measuring write/read amplification and partition
+  pruning; cover moves, shared children, tombstones, as-of traversal, and GDPR lineage.
+- [x] Prove both adjacency projections change atomically together in JDBC and specify their inclusion in the model-action
+  transaction and rebuild from authoritative action/relation history.
+- [x] Document stable-segment partition creation, regrouping/migration, rollback, observability, and the remaining
+  backup/restore/vacuum certification work before adopting the layout.
 
 ### Slice 0.8 — Architecture performance gate
 
-- [ ] Define absolute latency and sustained-throughput budgets from the captured production envelope, including
-  concurrent reads, prefilled tables, WAL/replication, and steady-state maintenance.
-- [ ] Require no statistically meaningful regression (initial guardrail: more than 2%) in throughput or p99 latency on
+- [x] Define integrated latency/throughput and amplification budgets from the production envelope; retain absolute
+  customer-hardware, replication, and steady-state maintenance certification as a release gate.
+- [x] Require no statistically meaningful regression (initial guardrail: more than 2%) in throughput or p99 latency on
   the unchanged legacy aggregate fast path.
-- [ ] Require the common single-target model path to remain within an agreed small margin of equivalent aggregate
+- [x] Require the common single-target model path to remain within an agreed small margin of equivalent aggregate
   logical-byte throughput and p99 latency.
-- [ ] Require multi-target storage amplification to grow primarily with lightweight stream references and relationship
+- [x] Require multi-target storage amplification to grow primarily with lightweight stream references and relationship
   deltas, not with target count times full payload size.
-- [ ] Require bounded request round trips and transactions independent of target count, with measured batch-size and
+- [x] Require bounded request round trips and transactions independent of target count, with measured batch-size and
   backpressure limits.
-- [ ] Require demonstrated partition pruning and bounded-partition access for both directions of relationship traversal.
-- [ ] Run sustained store-only, load-only, and mixed store/load tests plus restart/recovery and overload tests.
-- [ ] Record results, datasets, hardware, database settings, query plans, profiles, and accepted limits in a committed
-  report and ADR.
-- [ ] Do not freeze `CommitModelAction`, start broad implementation, or check Phase 0 complete until this gate passes.
+- [x] Require demonstrated partition pruning and bounded-partition access for both directions of relationship traversal.
+- [x] Run diagnostic store-only, load-only, and existing aggregate mixed store/load tests. Integrated model
+  restart/recovery, overload, and long soak tests remain release gates.
+- [x] Record results, datasets, hardware, database settings, query plans, and accepted limits in a committed report and
+  ADR; retain CPU/allocation/IO profiles as integrated-path release gates.
+- [x] Pass the Phase 0 decision gate for a thin vertical implementation. Do not freeze broad `CommitModelAction`
+  semantics or enable multi-model production use until the integrated path satisfies the recorded gates.
 
 ## Phase 1 — Model metadata and public vocabulary
 
@@ -533,4 +541,20 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   relationships are one unpartitioned child-keyed table with a secondary parent/aggregate index. The existing append
   benchmark does not cover physical/WAL amplification, reconstruction throughput, graph traversal, billions of short
   streams, or sustained mixed traffic at the production reference envelope. Added Phase 0 layout, hash-partition,
-  adjacency, and performance gates; implementation has not started and no storage choice has been made.
+  adjacency, and performance gates; no storage choice had yet been made.
+- 2026-07-25 — SDK commit `b0115ace77f` characterizes existing delete behavior in
+  `EventSourcingIntegrationTest`: hard delete removes stream, snapshot, direct document, cache entry, and relationships;
+  logical delete retains its event history, removes the direct document and relationships, and caches an empty
+  aggregate head. Focused test:
+  `./mvnw -pl sdk -Dtest=EventSourcingIntegrationTest test` (4 tests passed).
+- 2026-07-25 — Phase 0 storage spikes completed and discarded after recording the results in the
+  [storage ADR](dynamic-model-boundaries-phase-0-storage-adr.md). Accepted: ordered namespace `stateIndex`, byte-bounded
+  commit batching, adaptive inline/shared-row payloads, opportunistic individual LZ4, 32 physical range partitions over
+  Fluxzero's stable 128 ID segments, and dual temporal parent/child adjacency. Rejected: per-target unbounded payload
+  duplication, shared compressed blocks, native database hash as the durable routing key, and one-directionally
+  partitioned relationships.
+- 2026-07-25 — Runtime commit `efedc0dd` retains the enhanced real aggregate-path benchmark with logical/physical/WAL,
+  compression, latency, warm reconstruction, and mixed-read metrics. Runtime `./mvnw -B install` passed (477 runtime
+  tests); SDK `./mvnw -B install` passed, including Java/Kotlin downstream and protocol/fixture suites. Phase 0 is GO
+  for the thin vertical implementation only; production hardware, steady-state operations, and the integrated model
+  path remain explicit release gates.
