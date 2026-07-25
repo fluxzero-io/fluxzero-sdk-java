@@ -399,11 +399,14 @@ membership, and reconstruction are deliberately not simulated here; their produc
 
 ### Slice 3.1 — Common protocol
 
-- [ ] Add `CommitModelAction` and result types to `common`.
-- [ ] Carry `actionId`, `readStateIndex`, ordered original events, storage/publication policy, target IDs, relation deltas,
-  and direct model head expectations.
-- [ ] Keep event and state indices semantically distinct.
-- [ ] Add JSON/MessagePack compatibility tests and unknown-request coverage.
+- [x] Add `CommitModelAction` and result types to `common`.
+- [x] Carry `actionId`, `readStateIndex`, exact read IDs, ordered original events, resolved storage/publication effects,
+  target IDs, and complete desired outgoing relationships.
+- [x] Let the runtime reconcile desired relationships against current stored edges so a stale-but-accepted action never
+  reopens an edge from its older read view.
+- [x] Keep event, state, and per-model sequence indices semantically distinct.
+- [x] Add JSON/CBOR compatibility tests, including nullable non-published events, native binary event payloads, and
+  forward-compatible unknown fields. Runtime unknown-request behavior remains covered by its generic request handling.
 
 ### Slice 3.2 — Runtime storage contract
 

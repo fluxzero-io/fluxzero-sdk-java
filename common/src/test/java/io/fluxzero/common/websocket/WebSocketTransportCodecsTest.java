@@ -33,6 +33,13 @@ import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.ModelActionSubstep;
+import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
+import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
@@ -60,6 +67,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -212,6 +220,130 @@ class WebSocketTransportCodecsTest {
         byte[] encoded = cborCodec.encode(new Append(MessageType.EVENT, List.of(message), Guarantee.STORED));
 
         assertTrue(containsBinaryValue(encoded, message.getData().getValue()));
+    }
+
+    @Test
+    void jsonAndCborRoundTripModelActionRequestAndResult() throws Exception {
+        ModelActionTarget storedTarget = ModelActionTarget.builder()
+                .modelId("order-1")
+                .storeEvent(true)
+                .updateState(true)
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId("customer-1")
+                                               .parentType("com.example.Customer")
+                                               .path("orders")
+                                               .build()))
+                .build();
+        ModelActionTarget nonStoredDelete = ModelActionTarget.builder()
+                .modelId("reservation-1")
+                .updateState(true)
+                .delete(true)
+                .relationships(List.of())
+                .build();
+        CommitModelAction request = new CommitModelAction(
+                "action-1", 91L, List.of("order-1", "inventory-1"),
+                List.of(
+                        ModelActionSubstep.builder()
+                                .event(serializedMessage())
+                                .publishEvent(true)
+                                .targets(List.of(storedTarget))
+                                .build(),
+                        ModelActionSubstep.builder()
+                                .targets(List.of(nonStoredDelete))
+                                .build()),
+                Guarantee.STORED);
+        CommitModelActionResult result = new CommitModelActionResult(
+                request.getRequestId(), request.getActionId(),
+                List.of(
+                        new ModelActionSubstepResult(
+                                101L, 501L,
+                                List.of(new ModelActionTargetResult(
+                                        "order-1", 7L, true))),
+                        new ModelActionSubstepResult(
+                                102L, null,
+                                List.of(new ModelActionTargetResult(
+                                        "reservation-1", 2L, false)))));
+        result.setRequestReceivedTimestamp(123L);
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+            CommitModelAction decodedRequest = assertInstanceOf(
+                    CommitModelAction.class, roundTrip(codec, request));
+            assertEquals(request.getRequestId(), decodedRequest.getRequestId());
+            assertEquals("action-1", decodedRequest.getActionId());
+            assertEquals(91L, decodedRequest.getReadStateIndex());
+            assertEquals(
+                    List.of("order-1", "inventory-1"),
+                    decodedRequest.getReadModelIds());
+            assertEquals(2, decodedRequest.getSubsteps().size());
+            assertSerializedMessage(
+                    serializedMessage(),
+                    decodedRequest.getSubsteps().getFirst().getEvent());
+            assertTrue(decodedRequest.getSubsteps().getFirst().isPublishEvent());
+            assertNull(decodedRequest.getSubsteps().get(1).getEvent());
+            assertTrue(decodedRequest.getSubsteps().get(1)
+                               .getTargets().getFirst().isDelete());
+            assertEquals(
+                    "orders",
+                    decodedRequest.getSubsteps().getFirst().getTargets().getFirst()
+                            .getRelationships().getFirst().getPath());
+            assertEquals(2, decodedRequest.toMetric().getSubstepCount());
+            assertEquals(2, decodedRequest.toMetric().getTargetCount());
+            assertEquals(1, decodedRequest.toMetric().getStoredTargetCount());
+            assertEquals(1, decodedRequest.toMetric().getRelationCount());
+            assertEquals(serializedMessage().getBytes(), decodedRequest.toMetric().getBytes());
+
+            CommitModelActionResult decodedResult = assertInstanceOf(
+                    CommitModelActionResult.class, roundTrip(codec, result));
+            assertEquals(result.getRequestId(), decodedResult.getRequestId());
+            assertEquals("action-1", decodedResult.getActionId());
+            assertEquals(123L, decodedResult.getRequestReceivedTimestamp());
+            assertEquals(101L, decodedResult.getSubsteps().getFirst().getStateIndex());
+            assertEquals(501L, decodedResult.getSubsteps().getFirst().getEventIndex());
+            assertNull(decodedResult.getSubsteps().get(1).getEventIndex());
+            assertEquals(
+                    7L,
+                    decodedResult.getSubsteps().getFirst().getTargets().getFirst()
+                            .getSequenceNumber());
+            assertTrue(decodedResult.getSubsteps().getFirst().getTargets().getFirst()
+                               .isHistoryComplete());
+        }
+    }
+
+    @Test
+    void modelActionProtocolIgnoresFutureFields() throws Exception {
+        CommitModelAction request = new CommitModelAction(
+                "action-1", -1L, List.of(), List.of(), Guarantee.STORED);
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode)
+                objectMapper.readTree(objectMapper.writeValueAsBytes(request));
+        json.put("futurePolicy", "future");
+
+        CommitModelAction decoded = assertInstanceOf(
+                CommitModelAction.class,
+                objectMapper.readValue(objectMapper.writeValueAsBytes(json), JsonType.class));
+
+        assertEquals(request.getRequestId(), decoded.getRequestId());
+        assertEquals("action-1", decoded.getActionId());
+        assertEquals(-1L, decoded.getReadStateIndex());
+    }
+
+    @Test
+    void cborWritesModelActionEventBytesAsNativeBinary() throws Exception {
+        CommitModelAction request = new CommitModelAction(
+                "action-1", 1L, List.of("order-1"),
+                List.of(ModelActionSubstep.builder()
+                                .event(serializedMessage())
+                                .publishEvent(true)
+                                .targets(List.of(ModelActionTarget.builder()
+                                                         .modelId("order-1")
+                                                         .storeEvent(true)
+                                                         .updateState(true)
+                                                         .relationships(List.of())
+                                                         .build()))
+                                .build()),
+                Guarantee.STORED);
+
+        assertTrue(containsBinaryValue(
+                cborCodec.encode(request), serializedMessage().getData().getValue()));
     }
 
     private static JsonType roundTrip(WebSocketTransportCodec codec, JsonType value) throws Exception {
