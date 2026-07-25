@@ -137,6 +137,7 @@ class ModelMetadataTest {
         assertSame(ParentModel.class, apply.modelParameters().getFirst().modelType());
         assertTrue(apply.modelParameters().getFirst().entityWrapped());
         assertEquals("parentId", apply.modelParameters().getFirst().associationProperty());
+        assertNull(apply.receiverModelType());
     }
 
     @Test
@@ -145,6 +146,15 @@ class ModelMetadataTest {
 
         assertInstanceOf(java.lang.reflect.Constructor.class, constructor.executable());
         assertEquals(List.of(ConstructorModel.class), constructor.targetModelTypes());
+        assertNull(constructor.receiverModelType());
+    }
+
+    @Test
+    void capturesModelReceiverDependencies() {
+        List<ModelMetadata.HandlerMethod> handlers = ModelMetadata.of(ReceiverModel.class).handlerMethods();
+
+        assertEquals(3, handlers.size());
+        assertTrue(handlers.stream().allMatch(handler -> handler.receiverModelType() == ReceiverModel.class));
     }
 
     @Test
@@ -286,6 +296,26 @@ class ModelMetadataTest {
         ConstructorModel(CreateConstructorModel command) {
             id = command.id();
         }
+    }
+
+    @Model
+    private record ReceiverModel(@EntityId String id) {
+        @Apply
+        ReceiverModel apply(RenameReceiver command) {
+            return this;
+        }
+
+        @AssertLegal
+        void assertLegal(RenameReceiver command) {
+        }
+
+        @InterceptApply
+        Object intercept(RenameReceiver command) {
+            return command;
+        }
+    }
+
+    private record RenameReceiver(String id) {
     }
 
     private record CreateConstructorModel(String id) {

@@ -28,6 +28,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -173,7 +174,8 @@ public final class ModelMetadata {
             }
             ParentId annotation = parentProperty.annotation();
             String path = validateParentPath(parentProperty.property(), annotation.path());
-            Class<?> inferredType = inferIdTarget(parentProperty.property()).orElse(null);
+            Class<?> inferredType = inferIdTarget(
+                    parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
             if (inferredType != null && explicitType != null && !inferredType.equals(explicitType)) {
                 throw invalid("@ParentId %s.%s explicitly refers to %s but its ID type refers to %s"
@@ -247,13 +249,15 @@ public final class ModelMetadata {
         for (Executable executable : methods) {
             List<ModelParameter> parameters = inspectModelParameters(executable);
             List<Class<?>> targets = kind == HandlerKind.APPLY ? inspectApplyTargets(executable) : List.of();
+            Class<?> receiverModelType = model != null && executable instanceof Method method
+                                         && !Modifier.isStatic(method.getModifiers()) ? type : null;
             if (kind == HandlerKind.APPLY && isVoid(executable) && (model != null || !parameters.isEmpty())) {
                 throw invalid("Invalid @Apply method %s: void is not supported for @Model targets. "
                                       .formatted(executable.toGenericString())
                               + "Return the resulting model, or return null to delete it.");
             }
             validateParameterAmbiguity(executable, parameters);
-            result.add(new HandlerMethod(executable, kind, targets, parameters));
+            result.add(new HandlerMethod(executable, kind, receiverModelType, targets, parameters));
         }
     }
 
@@ -369,14 +373,14 @@ public final class ModelMetadata {
         return ReflectionUtils.rawClass(type);
     }
 
-    private static Optional<Class<?>> inferIdTarget(Property property) {
-        if (!Id.class.isAssignableFrom(property.type())) {
+    static Optional<Class<?>> inferIdTarget(Class<?> propertyType, Type genericPropertyType) {
+        if (!Id.class.isAssignableFrom(propertyType)) {
             return Optional.empty();
         }
-        Type idType = property.genericType();
+        Type idType = genericPropertyType;
         if (!(idType instanceof ParameterizedType)
             || !Id.class.isAssignableFrom(ReflectionUtils.rawClass(idType))) {
-            idType = ReflectionUtils.getGenericType(property.type(), Id.class);
+            idType = ReflectionUtils.getGenericType(propertyType, Id.class);
         }
         List<Type> arguments = ReflectionUtils.getTypeArguments(idType);
         if (arguments.size() != 1) {
@@ -450,10 +454,17 @@ public final class ModelMetadata {
 
     /**
      * Model-aware handler descriptor.
+     *
+     * @param executable        annotated handler method or constructor
+     * @param kind              model-aware handler annotation kind
+     * @param receiverModelType model type of a non-static handler receiver, or {@code null}
+     * @param targetModelTypes  model types targeted by an apply return value
+     * @param modelParameters   injected model value or {@link Entity} dependencies
      */
     public record HandlerMethod(
             Executable executable,
             HandlerKind kind,
+            Class<?> receiverModelType,
             List<Class<?>> targetModelTypes,
             List<ModelParameter> modelParameters) {
         public HandlerMethod {

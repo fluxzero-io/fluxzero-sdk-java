@@ -330,7 +330,7 @@ Storage decisions, measurements, rejected alternatives, and production gates are
   descriptors.
 - [x] Validate missing/duplicate model IDs, invalid parent types/paths, ambiguous same-type handler dependencies, and
   statically knowable model cycles with actionable errors.
-- [ ] Validate missing/ambiguous command payload target IDs when target resolution is implemented in Slice 2.1.
+- [x] Validate missing/ambiguous command payload target IDs when compiling target plans in Slice 2.1.
 - [x] Measure startup/reflection impact and record the rejected legacy matcher hooks in the
   [Phase 1 metadata report](dynamic-model-boundaries-phase-1-metadata.md).
 
@@ -349,10 +349,11 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 
 ### Slice 2.1 — Target resolution
 
-- [ ] Resolve target IDs from payload properties matching each model `@EntityId`.
-- [ ] Reuse parameter-level `@Association("propertyName")` only when automatic matching is ambiguous or overridden.
-- [ ] Require only direct target IDs; never require parent or grandparent IDs for routing.
-- [ ] Batch/deduplicate loads and expose a single `readStateIndex`.
+- [x] Resolve target IDs from a payload property matching the model `@EntityId` name, or one unique typed `Id<T>`.
+- [x] Reuse parameter-level `@Association("propertyName")` only when automatic matching is ambiguous or overridden.
+- [x] Require only direct target IDs; never inspect or require parent/grandparent IDs for routing.
+- [x] Deduplicate exact ID-string identities and reject one identity requested as incompatible model types before loading.
+- [ ] Batch repository loads and expose a single `readStateIndex` when the action repository/protocol is wired.
 - [ ] Keep unrelated parent, sibling, child, and graph nodes unloaded.
 
 ### Slice 2.2 — Injection
@@ -613,3 +614,10 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   tests); SDK `./mvnw -B install` passed, including Java/Kotlin downstream and protocol/fixture suites. Phase 0 is GO
   for the thin vertical implementation only; production hardware, steady-state operations, and the integrated model
   path remain explicit release gates.
+- 2026-07-25 — SDK commits `7f4f3fc6a55` and `ff77f4f5e21` add the independent `@Model` contract, child-owned typed
+  `@ParentId`/path metadata, centrally cached handler/model metadata, Java/Kotlin downstream coverage, and the
+  [Phase 1 measurements](dynamic-model-boundaries-phase-1-metadata.md). Full SDK reactor and Javadoc passed; measured
+  legacy aggregate discovery and apply throughput showed no systematic regression.
+- 2026-07-25 — SDK commit `bdbd71e4786` adds aggregate-neutral `ModelRoot`/root configuration, exact-ID
+  `ModelRepository` and `Fluxzero.loadModel` APIs, and model-specific `TestFixture` vocabulary without routing models
+  through the legacy aggregate protocol. Focused contracts, full reactor, Javadoc, and downstream builds passed.
