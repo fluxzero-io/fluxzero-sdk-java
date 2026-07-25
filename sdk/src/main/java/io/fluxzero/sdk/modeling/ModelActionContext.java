@@ -35,12 +35,17 @@ import java.util.Objects;
 public final class ModelActionContext {
     private final long readStateIndex;
     private final List<Entry> entries;
+    private final List<ModelTargetResolver.DeferredWriteTarget> deferredWrites;
     private final Map<Class<?>, String> entityIdProperties;
 
     private ModelActionContext(
-            long readStateIndex, List<Entry> entries, Map<Class<?>, String> entityIdProperties) {
+            long readStateIndex,
+            List<Entry> entries,
+            List<ModelTargetResolver.DeferredWriteTarget> deferredWrites,
+            Map<Class<?>, String> entityIdProperties) {
         this.readStateIndex = readStateIndex;
         this.entries = List.copyOf(entries);
+        this.deferredWrites = List.copyOf(deferredWrites);
         this.entityIdProperties = Map.copyOf(entityIdProperties);
     }
 
@@ -79,7 +84,8 @@ public final class ModelActionContext {
                     "Action load returned unrelated model IDs %s; only direct resolved targets may enter the context"
                             .formatted(remaining.keySet()));
         }
-        return new ModelActionContext(readStateIndex, entries, entityIdProperties);
+        return new ModelActionContext(
+                readStateIndex, entries, resolution.deferredWrites(), entityIdProperties);
     }
 
     private static void validateLoadedEntity(ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
@@ -163,6 +169,63 @@ public final class ModelActionContext {
                             .map(entry -> entry.target().modelId()).toList());
         }
         return candidate;
+    }
+
+    Entry entry(String modelId) {
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            if (entry.target().modelId().equals(modelId)) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    boolean mayWrite(String modelId, Class<?> modelType, String handler) {
+        Entry entry = entry(modelId);
+        if (entry == null) {
+            return false;
+        }
+        if (entry.target().access().writes()) {
+            return true;
+        }
+        for (int i = 0; i < deferredWrites.size(); i++) {
+            ModelTargetResolver.DeferredWriteTarget deferred = deferredWrites.get(i);
+            if (deferred.handler().equals(handler)
+                && deferred.modelType().isAssignableFrom(modelType)
+                && deferred.candidateModelIds().contains(modelId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    ModelActionContext withValues(Map<String, Object> values) {
+        if (values.isEmpty()) {
+            return this;
+        }
+        List<Entry> updated = new ArrayList<>(entries.size());
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            if (!values.containsKey(entry.target().modelId())) {
+                updated.add(entry);
+                continue;
+            }
+            Object value = values.get(entry.target().modelId());
+            Class modelType = value == null ? entry.target().modelType() : value.getClass();
+            Entity<?> entity = entry.entity() instanceof ImmutableEntity<?> immutable
+                    ? immutable.toBuilder().type(modelType).value(value).build()
+                    : ImmutableEntity.builder()
+                            .id(entry.entity().id())
+                            .type(modelType)
+                            .value(value)
+                            .idProperty(entityIdProperties.get(entry.target().modelType()))
+                            .build();
+            updated.add(new Entry(entry.target(), entity));
+        }
+        return new ModelActionContext(
+                readStateIndex, updated, deferredWrites, entityIdProperties);
     }
 
     private String compatibleEntityIdProperty(Class<?> modelType) {

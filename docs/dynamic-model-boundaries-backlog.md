@@ -84,18 +84,22 @@ state transition. Every target stream entry for that original event shares those
 
 ## Historical dependency invariant
 
-When an event at `stateIndex = N` is used to reconstruct target model `A`, injected model `B` must be loaded as it was
-at that event's recorded substep begin boundary, never as its current head.
+When an event at `stateIndex = N` is used to reconstruct target model `A`, injected model `B` must be loaded from the
+same logical state that its original substep observed, never from its current head.
 
 The intended mechanism is:
 
-1. Pin one begin `stateIndex` per event/substep.
-2. Store that boundary with each target stream entry.
-3. Reconstruct all injected dependencies as-of that boundary, batching and caching repeated loads in the reconstruction
-   context.
-4. For `eventSourced = false`, continue to use `DocumentStore` for normal current loads, but use its stored model events
+1. Pin one persisted `readStateIndex = S` when the action starts.
+2. Evaluate ordered interceptor substeps against state as-of `S`, overlaid with successful earlier substeps from the
+   same action.
+3. Store `S`, `actionId`, and the ordered substep identity with every target stream entry.
+4. During reconstruction, load injected dependencies as-of `S` and overlay earlier substeps of the same action. Do not
+   substitute `stateIndex - 1`: with the default stale-read acceptance policy that could include unrelated changes
+   committed after `S` which the original action never observed.
+5. Batch and cache both base dependency loads and action-prefix overlays in the reconstruction context.
+6. For `eventSourced = false`, continue to use `DocumentStore` for normal current loads, but use its stored model events
    for an exceptional historical dependency load.
-5. Do not store per-event dependency version vectors or target-state outcomes on the normal path.
+7. Do not store per-event dependency version vectors or target-state outcomes on the normal path.
 
 An explicitly non-stored state change (`PUBLISH_ONLY` or `EventPublication.NEVER`) creates a gap that cannot be
 historically reconstructed from events. Before cross-model applies ship, a characterization/prototype must prove and
@@ -353,7 +357,8 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Reuse parameter-level `@Association("propertyName")` only when automatic matching is ambiguous or overridden.
 - [x] Require only direct target IDs; never inspect or require parent/grandparent IDs for routing.
 - [x] Deduplicate exact ID-string identities and reject one identity requested as incompatible model types before loading.
-- [ ] Batch repository loads and expose a single `readStateIndex` when the action repository/protocol is wired.
+- [x] Define one deduplicated batch-load input and expose its single `readStateIndex` through `ModelActionContext`;
+  runtime-backed batch I/O remains tracked in Phase 3.
 - [x] Reject unrelated loaded state when constructing an action context; parent, sibling, child, and graph nodes stay
   unloaded unless they are direct targets of another selected handler.
 
@@ -364,25 +369,31 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Inject any action-scoped model into `@Apply`.
 - [x] Support both value parameters and `Entity<T>`, including empty wrappers for creation/missing-state decisions.
 - [x] Cache direct identity/property resolution within one action context.
-- [ ] Reuse the same bounded resolution context during event-sourcing reconstruction.
+- [x] Keep target resolution and the bounded action context independent of live repository state so reconstruction can
+  reuse them; historical repository integration remains tracked in Slice 5.1.
 
 ### Slice 2.3 — Deterministic execution
 
-- [ ] Evaluate all applies for one original event against the same substep begin-state.
-- [ ] Reject ambiguous duplicate writes to the same target unless their semantics are explicitly combined.
-- [ ] Execute interceptor expansions as ordered substeps.
-- [ ] Let later substeps resolve new targets and observe earlier substep results.
-- [ ] Roll back the complete in-memory action on assertion/apply/interceptor failure.
-- [ ] Store/publish no event for a failed action.
+- [x] Evaluate all applies for one original event against the same substep begin-state.
+- [x] Reject ambiguous duplicate writes to the same target unless their semantics are explicitly combined.
+- [x] Execute interceptor expansions as ordered substeps.
+- [x] Let later substeps resolve new targets and observe earlier substep results.
+- [x] Roll back the complete in-memory action on assertion/apply/interceptor failure.
+- [x] Keep evaluation side-effect free so a failed action produces no commit input; runtime rollback and no-store
+  integration remain tracked in Slice 3.3.
 
 ### Slice 2.4 — Return and lifecycle behavior
 
-- [ ] Non-null return upserts only the returned target.
-- [ ] Null return creates a logical-delete target transition and retains the original event.
-- [ ] Void return fails startup validation for models.
-- [ ] Models merely read or injected receive no stream entry.
-- [ ] One event targeting several models is represented once globally and has one lightweight membership entry in each
-  target stream, using the physical payload layout selected in Phase 0.
+- [x] Non-null return upserts only the returned target.
+- [x] Null return creates a logical-delete target transition and retains the original event.
+- [x] Void return fails startup validation for models.
+- [x] Models merely read or injected receive no transition.
+- [x] Represent one event targeting several models once in the action result with all target transitions; physical
+  global-log and membership storage remains tracked in Slice 3.2.
+
+Phase 2 is complete at the side-effect-free SDK engine boundary. Runtime-backed batch loading, atomic commit, stream
+membership, and reconstruction are deliberately not simulated here; their production contracts remain explicit Phase
+3 and Phase 5 work.
 
 ## Phase 3 — Wire protocol and runtime action commit
 
@@ -446,7 +457,9 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 
 - [ ] Reconstruct only the requested model's hash-pruned stream using batched/sequential payload resolution from the
   selected Phase 0 layout.
-- [ ] Resolve cross-model dependencies as-of each stored substep begin `stateIndex`.
+- [ ] Resolve cross-model dependencies as-of the stored action `readStateIndex`.
+- [ ] Reconstruct a later substep from its action `readStateIndex` plus earlier ordered substeps of the same `actionId`;
+  never admit unrelated intervening global state.
 - [ ] Batch and context-cache historical dependency loads.
 - [ ] Preserve normal self-only replay without dependency I/O.
 - [ ] Keep snapshots as the primary long-stream optimization.
@@ -628,3 +641,10 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   write selection. Focused tests, Javadoc, and the full SDK reactor passed. The retained resolver measured 13.3 ns /
   104 bytes for one target and 73.4 ns / 504 bytes for two cross-model targets; the allocation-heavy predecessor was
   discarded and is documented in the [Phase 2 report](dynamic-model-boundaries-phase-2-action-loading.md).
+- 2026-07-25 — SDK commit `ac2922b5f53` adds exact action-scoped model/value injection without touching legacy
+  aggregate discovery. Automatic and qualified context lookup retained zero allocation at 2.73 ns and 4.59 ns median.
+- 2026-07-25 — Phase 2 completed at the side-effect-free SDK action boundary: deterministic cross-model applies,
+  ordered interceptor substeps, logical delete, receiver-side handlers, before/after assertions, action-prefix
+  reconstruction semantics, and complete in-memory rollback. Focused tests (39), Javadoc, and the full SDK reactor
+  passed. The retained complete one-write action measured 305.7 ns / 2,520 bytes median; details are in the
+  [Phase 2 report](dynamic-model-boundaries-phase-2-action-loading.md).

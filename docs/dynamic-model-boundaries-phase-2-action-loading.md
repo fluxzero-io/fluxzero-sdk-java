@@ -76,3 +76,70 @@ lookups allocated 24 bytes. The retained indexed lookup precomputes entity-ID pr
 
 This is a local microdiagnostic, not the Phase 0 end-to-end storage/load gate. The launcher and temporary classpath file
 were removed after recording the result.
+
+## Deterministic action evaluation
+
+`ModelActionEngine` is a dedicated, side-effect-free evaluator. It is not installed in the legacy aggregate helper and
+does not publish or persist anything. A future runtime-backed model repository may therefore commit only a successfully
+returned action result.
+
+For one original event/substep:
+
+1. all applicable before-assertions read the immutable substep begin-state in priority order;
+2. every applicable apply reads that same begin-state, including applies targeting different models;
+3. only models actually returned by applies produce transitions;
+4. duplicate writes to one exact model ID fail the substep;
+5. all transitions become visible together;
+6. `afterHandler` assertions read the resulting state and may still reject the complete substep.
+
+A non-null result selects its target by the returned model's exact `@EntityId`. A null result selects the unambiguous
+receiver/direct parameter target, records a logical-delete transition, and retains the original message as the event.
+An ambiguous null result with two deferred same-type candidates fails. Read-only injected models never produce a
+transition.
+
+Interceptor output is evaluated as ordered substeps under one pinned `readStateIndex`. Every output is target-resolved
+again, allowing it to introduce new direct targets. Prior successful substep values overlay repository state before a
+later substep runs, so two emitted events for one model observe each other in order. Same-payload-type replacement is
+intercepted once and then applied, matching the existing aggregate stabilization rule; changed payload types can be
+intercepted recursively. Suppression emits no substep, and a hard limit prevents unbounded expansion.
+
+That overlay is also a reconstruction invariant. The historical view of a later substep is the action's persisted
+`readStateIndex` plus earlier ordered substeps of that same action—not all global state through the later substep's
+eventual `stateIndex`. This distinction preserves the exact originally observed dependencies when the default policy
+accepts stale reads. Phase 5 reconstructs and caches that action prefix from `actionId` and ordered memberships.
+
+One `AppliedSubstep` retains one original message plus all its target transitions. A cross-model event is therefore not
+duplicated at the SDK action boundary. Phase 3 maps that logical shape onto one global payload and lightweight
+per-target stream memberships.
+
+Any assertion, apply, interceptor, target, or state-boundary failure aborts evaluation without returning commit input.
+Tests cover failure after an earlier successful substep and failure from an `afterHandler` assertion. Runtime
+transactional rollback and no-store behavior remain the Phase 3 integration responsibility.
+
+## Action-engine hot-path diagnostic
+
+A disposable five-fork JVM diagnostic measured warmed side-effect-free evaluation with thread allocation counters. The
+first correct implementation repeatedly filtered handlers through streams and allocated 1,376 bytes even for an empty
+substep; it was rejected. The retained engine compiles assertion/apply/interceptor ordering once per lifecycle-bounded
+handler set and uses indexed normal paths:
+
+| Scenario | Median | Allocation |
+|---|---:|---:|
+| empty substep | 19.0 ns/op | 24 bytes/op |
+| one model apply/transition | 259.3 ns/op | 1,904 bytes/op |
+| complete one-substep action | 305.7 ns/op | 2,520 bytes/op |
+
+The remaining allocation includes the returned immutable model, transition, staged entity/context, and action result;
+it is not repeated structural reflection or handler filtering. This diagnostic does not replace the Phase 0 physical
+store/load, WAL, reconstruction, or mixed-traffic gates. Its source, compiled classes, and temporary classpath were
+deleted after recording the retained result.
+
+## Verification
+
+Focused action tests cover 39 target-resolution, context-injection, and engine scenarios. They include cross-model
+begin-state isolation, same-type qualifiers, conditional handlers, receiver-side handlers, ordered interceptor
+expansion, new and repeated targets, suppression, state-boundary mismatch, before/after assertions,
+duplicate writes, null delete, and rollback after an earlier successful substep.
+
+The SDK/common Javadoc build and full `./mvnw -B install` reactor passed, including 1,780 SDK tests, test-server/proxy,
+annotation processing, and Java/Kotlin downstream compatibility.

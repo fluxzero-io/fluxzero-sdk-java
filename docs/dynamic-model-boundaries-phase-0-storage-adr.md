@@ -72,13 +72,20 @@ revisions. Model-head metadata is still used for coordination and historical-dep
 
 ### Historical dependencies
 
-Every stream entry stores the event/substep begin `readStateIndex`. Reconstructing model `A` loads an injected model `B`
-as-of that boundary:
+Every stream entry stores the action's persisted begin `readStateIndex`, its `actionId`, and its ordered substep
+identity. Reconstructing model `A` loads an injected model `B` from the same logical view as the original substep:
 
-`modelEvent.stateIndex <= readStateIndex`
+`persisted model state <= readStateIndex` plus earlier substeps of the same `actionId`
+
+The action-prefix overlay is required because interceptor substeps execute atomically in order and can observe earlier
+substep results. A later substep must not simply load through `stateIndex - 1`: when stale reads are accepted, that
+boundary may also include unrelated model changes committed after the action's original read which its apply never
+observed. Existing ordered action payloads/memberships provide the prefix; no dependency version vector or stored
+target-state outcome is introduced.
 
 Loads for multiple dependencies are grouped by segment and fetched in batches. Reconstruction snapshots record their
-own `stateIndex`, so the latest snapshot not newer than the requested boundary can be used.
+own `stateIndex`, so the latest snapshot not newer than the action read boundary can be used. Action-prefix overlays
+are cached within the reconstruction context.
 
 Any state transition without a stored target event marks that model's event history incomplete. This includes a
 state-changing `PUBLISH_ONLY` or `EventPublication.NEVER` path. The first implementation rejects an event-sourced
