@@ -60,6 +60,8 @@ import java.lang.annotation.Target;
  * }</pre>
  *
  * @see Aggregate
+ * @see io.fluxzero.sdk.Fluxzero#loadModel(Id)
+ * @see io.fluxzero.sdk.persisting.repository.ModelRepository
  * @see Member
  * @see ParentId
  * @see Apply

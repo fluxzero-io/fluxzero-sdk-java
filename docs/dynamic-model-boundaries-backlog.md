@@ -336,10 +336,14 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 
 ### Slice 1.3 — Entity/model abstraction
 
-- [ ] Generalize internal root metadata so model code does not pretend every root is an aggregate.
-- [ ] Preserve supported `Entity<T>` behavior and legacy aggregate call paths.
-- [ ] Add `Fluxzero.loadModel(...)`, repository APIs, and `TestFixture` vocabulary.
-- [ ] Keep persisted keys exactly equal to ID strings.
+- [x] Generalize persisted-root vocabulary with `ModelRoot` and aggregate-neutral root configuration metadata so model
+  code does not pretend every root is an aggregate.
+- [x] Preserve supported `Entity<T>`, `AggregateRoot<T>`, and legacy aggregate call paths without adding model
+  discovery to the aggregate hot path.
+- [x] Add `Fluxzero.loadModel(...)`, `ModelRepository`, and `TestFixture` model-event vocabulary. The standard
+  runtime-backed repository is wired when the model-action protocol lands; there is deliberately no temporary fallback
+  through `AggregateRepository`.
+- [x] Keep repository keys exactly equal to `ID.toString()` and cover typed and untyped delegation.
 
 ## Phase 2 — Action-scoped loading and apply engine
 

@@ -29,6 +29,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.CommandGateway;
 import io.fluxzero.sdk.publishing.ErrorGateway;
@@ -58,6 +59,7 @@ import java.util.WeakHashMap;
  * Components that are wrapped with {@link Mockito#spy(Object)} include:
  * <ul>
  *     <li>{@link AggregateRepository}</li>
+ *     <li>{@link ModelRepository}</li>
  *     <li>{@link CommandGateway}</li>
  *     <li>{@link QueryGateway}</li>
  *     <li>{@link EventGateway}</li>
@@ -108,6 +110,11 @@ public class SpyingFluxzero implements Fluxzero {
     @Override
     public AggregateRepository aggregateRepository() {
         return decorate(delegate.aggregateRepository());
+    }
+
+    @Override
+    public ModelRepository modelRepository() {
+        return decorate(delegate.modelRepository());
     }
 
     @Override

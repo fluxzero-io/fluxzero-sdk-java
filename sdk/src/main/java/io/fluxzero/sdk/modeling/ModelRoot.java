@@ -4,7 +4,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,18 +19,14 @@ package io.fluxzero.sdk.modeling;
 import java.time.Instant;
 
 /**
- * Represents the root of a legacy aggregate in a domain model.
+ * Root wrapper for independently persisted domain state.
  * <p>
- * This compatibility specialization retains aggregate vocabulary while the shared persisted-root contract lives in
- * {@link ModelRoot}. Existing aggregate implementations and callers remain valid.
+ * Both legacy aggregate roots and independent {@link Model models} have root-level stream, time, and version metadata.
+ * This interface names that shared contract without implying that every stored root is an {@link Aggregate}.
  *
  * @param <T> the type of the underlying domain object
- *
- * @see Entity
- * @see Aggregate
- * @see ModelRoot
  */
-public interface AggregateRoot<T> extends ModelRoot<T> {
+public interface ModelRoot<T> extends Entity<T> {
 
     @Override
     default Entity<?> parent() {

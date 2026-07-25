@@ -27,6 +27,16 @@ worktrees are deliberately not production code.
   `@Association("payloadProperty")` qualifiers.
 - A model-targeting `void @Apply` is invalid. Model registration will enforce this without changing legacy mutable
   aggregate behavior.
+- `ModelRoot` owns persisted-root stream/version/time vocabulary; `AggregateRoot` remains a compatibility
+  specialization with its declared methods intact.
+- `ModelMetadata.RootConfiguration` exposes common `@Model`/`@Aggregate` persistence settings without making model
+  code consume an aggregate annotation. It remains lazily owned by the central type metadata cache.
+- `ModelRepository`, `Fluxzero.loadModel(...)`, and model-specific `TestFixture` event-sourcing methods establish the
+  public boundary. The default `Fluxzero.modelRepository()` fails clearly until the model-action transport is wired in
+  Phase 3; it never falls back to `AggregateRepository`, which would make an old runtime appear to support only part of
+  the model contract.
+- Every repository overload reduces an ID to exactly `ID.toString()`. No model name or Java type is added to the
+  persisted key.
 
 ## Rejected legacy-path hooks
 
@@ -78,3 +88,15 @@ leaves per branch. The latest feature/baseline results in operations per second 
 An earlier matching run produced feature/baseline results of 289/290, 459/446, 378/377, 397/387, and 371/359.
 Variation changes direction by scenario/run and there is no systematic throughput loss. The production Phase 0
 statistical and p99 gates continue to apply once the integrated model path exists.
+
+## Slice 1.3 compatibility and verification
+
+- No existing aggregate load, apply, commit, cache, or repository invocation now performs model discovery.
+  `ModelRoot` adds no state or allocation, and `AggregateRoot` retains all methods it declared before gaining the shared
+  superinterface.
+- `Fluxzero.modelRepository()`, the new model methods on `Given`/`When`, and their typed conveniences have defaults so
+  existing third-party implementations remain source and binary compatible.
+- A parity test compares all `@Model` and `@Aggregate` persistence attributes with `RootConfiguration` record
+  components. Adding an annotation setting can therefore not silently omit it from aggregate-neutral metadata.
+- Focused model/repository/fixture contract tests, Java and Kotlin downstream builds, the full Maven reactor install,
+  Javadoc, and `git diff --check` completed successfully.

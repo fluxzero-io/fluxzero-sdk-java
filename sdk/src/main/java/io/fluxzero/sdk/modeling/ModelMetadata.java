@@ -55,6 +55,8 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
 public final class ModelMetadata {
     private final Class<?> type;
     private final Model model;
+    private final Aggregate aggregate;
+    private final RootConfiguration rootConfiguration;
     private final Property entityId;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
@@ -83,6 +85,13 @@ public final class ModelMetadata {
         this.type = type;
         ReflectionUtils.TypeMetadata typeMetadata = ReflectionUtils.getTypeMetadata(type);
         this.model = typeMetadata.typeAnnotation(Model.class);
+        this.aggregate = typeMetadata.typeAnnotation(Aggregate.class);
+        if (model != null && aggregate != null) {
+            throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
+        }
+        this.rootConfiguration = model == null
+                ? aggregate == null ? null : RootConfiguration.from(aggregate)
+                : RootConfiguration.from(model);
 
         List<? extends AccessibleObject> entityIds = typeMetadata.annotatedProperties(EntityId.class);
         if (model != null && entityIds.size() != 1) {
@@ -92,9 +101,6 @@ public final class ModelMetadata {
         this.entityId = entityIds.isEmpty() ? null : property(entityIds.getFirst());
         if (model != null) {
             validateScalarId(entityId, "@EntityId");
-            if (typeMetadata.typeAnnotation(Aggregate.class) != null) {
-                throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
-            }
         }
 
         this.parentReferences = inspectParentReferences(typeMetadata);
@@ -112,8 +118,19 @@ public final class ModelMetadata {
         return Optional.ofNullable(model);
     }
 
+    public Optional<Aggregate> aggregate() {
+        return Optional.ofNullable(aggregate);
+    }
+
     public boolean isModel() {
         return model != null;
+    }
+
+    /**
+     * Returns aggregate-neutral persistence settings for an explicitly annotated root.
+     */
+    public Optional<RootConfiguration> rootConfiguration() {
+        return Optional.ofNullable(rootConfiguration);
     }
 
     public Optional<Property> entityId() {
@@ -458,6 +475,51 @@ public final class ModelMetadata {
         APPLY,
         ASSERT_LEGAL,
         INTERCEPT_APPLY
+    }
+
+    /**
+     * Aggregate-neutral persistence settings of an explicitly annotated root.
+     */
+    public record RootConfiguration(
+            RootKind kind,
+            boolean eventSourced,
+            boolean ignoreUnknownEvents,
+            int snapshotPeriod,
+            int maxSnapshotCount,
+            boolean cached,
+            int cachingDepth,
+            int checkpointPeriod,
+            AggregateCommitPolicy commitPolicy,
+            EventPublication eventPublication,
+            EventPublicationStrategy publicationStrategy,
+            AggregateEventRouting eventRouting,
+            boolean searchable,
+            String collection,
+            String timestampPath,
+            String endPath) {
+
+        private static RootConfiguration from(Model annotation) {
+            return new RootConfiguration(
+                    RootKind.MODEL, annotation.eventSourced(), annotation.ignoreUnknownEvents(),
+                    annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
+                    annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
+                    annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
+                    annotation.searchable(), annotation.collection(), annotation.timestampPath(), annotation.endPath());
+        }
+
+        private static RootConfiguration from(Aggregate annotation) {
+            return new RootConfiguration(
+                    RootKind.AGGREGATE, annotation.eventSourced(), annotation.ignoreUnknownEvents(),
+                    annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
+                    annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
+                    annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
+                    annotation.searchable(), annotation.collection(), annotation.timestampPath(), annotation.endPath());
+        }
+    }
+
+    public enum RootKind {
+        MODEL,
+        AGGREGATE
     }
 
     private record ParentProperty(Property property, ParentId annotation) {

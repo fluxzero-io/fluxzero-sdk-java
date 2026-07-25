@@ -996,6 +996,15 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public TestFixture givenModelEvents(String modelId, Class<?> modelClass, Object... events) {
+        Class<?> callerClass = getCallerClass();
+        return givenModificationWithTrace(describeFixtureAction("event-sourced model", modelClass),
+                                          fixture -> fixture.applyModelEvents(
+                                                  modelId, modelClass, fixture.getFluxzero(),
+                                                  fixture.asEventMessages(callerClass, events).toList()));
+    }
+
+    @Override
     public TestFixture givenEvents(Object... events) {
         Class<?> callerClass = getCallerClass();
         for (Object event : events) {
@@ -1307,6 +1316,17 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public Then<?> whenModelEventsAreApplied(String modelId, Class<?> modelClass, Object... events) {
+        Class<?> callerClass = getCallerClass();
+        return executeWhenWithTrace(describeFixtureAction("applying events to model", modelClass),
+                                    fc -> {
+                                        applyModelEvents(modelId, modelClass, fc,
+                                                         asMessages(callerClass, events).collect(toList()));
+                                        return null;
+                                    });
+    }
+
+    @Override
     public <R> Then<List<R>> whenSearching(Object collection, UnaryOperator<Search> searchQuery) {
         return executeWhenWithTrace(describeFixtureAction("searching", collection),
                                     fc -> searchQuery.apply(fc.documentStore().search(collection)).fetchAll());
@@ -1554,6 +1574,10 @@ public class TestFixture implements Given<TestFixture>, When {
                                 Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
                                 Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
                                                                                  .toList());
+    }
+
+    protected void applyModelEvents(String modelId, Class<?> modelClass, Fluxzero fc, List<Message> events) {
+        fc.modelRepository().load(modelId, modelClass).apply(events);
     }
 
     protected List<Schedule> getFutureSchedules() {

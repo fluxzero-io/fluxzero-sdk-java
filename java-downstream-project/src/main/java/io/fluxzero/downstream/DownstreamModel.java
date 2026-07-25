@@ -16,6 +16,8 @@
 
 package io.fluxzero.downstream;
 
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Member;
@@ -47,6 +49,10 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
         public DownstreamParentId(String id) {
             super(id, "downstream-parent-");
         }
+    }
+
+    public static Entity<Parent> loadParent(DownstreamParentId id) {
+        return Fluxzero.loadModel(id);
     }
 
     @Model

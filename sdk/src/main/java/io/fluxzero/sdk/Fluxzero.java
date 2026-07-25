@@ -49,6 +49,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.BulkUpdateBuilder;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.IndexOperation;
@@ -113,7 +114,8 @@ import static java.util.Arrays.stream;
  * <ul>
  *   <li>To send or publish messages, use static methods such as {@link #sendCommand(Object)} or {@link #publishEvent(Object)}.</li>
  *   <li>To track incoming messages, register handlers using {@link #registerHandlers(Object...)}.</li>
- *   <li>To interact with aggregates, use {@link #loadAggregate(Id)} or {@link #aggregateRepository()}.</li>
+ *   <li>To interact with independent models, use {@link #loadModel(Id)} or {@link #modelRepository()}.</li>
+ *   <li>To interact with legacy aggregates, use {@link #loadAggregate(Id)} or {@link #aggregateRepository()}.</li>
  * </ul>
  *
  * <p>
@@ -824,6 +826,34 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Loads the independently stored model identified by the given typed ID.
+     * <p>
+     * The persisted key is exactly {@link Id#toString()}; no model name is prefixed or concatenated.
+     */
+    static <T> Entity<T> loadModel(Id<T> modelId) {
+        return get().modelRepository().load(modelId);
+    }
+
+    /**
+     * Loads an independently stored model by ID. Typed IDs provide the requested model type; untyped IDs let the
+     * repository resolve the stored type.
+     * <p>
+     * The persisted key is exactly {@link Object#toString()}.
+     */
+    static <T> Entity<T> loadModel(Object modelId) {
+        return get().modelRepository().load(modelId);
+    }
+
+    /**
+     * Loads an independently stored model by ID and expected type.
+     * <p>
+     * The persisted key is exactly {@link Object#toString()}.
+     */
+    static <T> Entity<T> loadModel(Object modelId, Class<T> modelType) {
+        return get().modelRepository().load(modelId, modelType);
+    }
+
+    /**
      * Loads the aggregate root of type {@code <T>} that currently contains the entity with given entityId. If no such
      * aggregate exists an empty aggregate root is returned with given {@code defaultType} as its type.
      * <p>
@@ -1252,6 +1282,17 @@ public interface Fluxzero extends AutoCloseable {
      * Returns a client to assist with event sourcing.
      */
     AggregateRepository aggregateRepository();
+
+    /**
+     * Returns the repository for independently stored models.
+     * <p>
+     * The default keeps existing custom {@code Fluxzero} implementations binary/source compatible while the model
+     * action transport is introduced. Standard runtime-backed configurations override this when that transport is
+     * available.
+     */
+    default ModelRepository modelRepository() {
+        throw new UnsupportedOperationException("Independent model persistence is not configured");
+    }
 
     /**
      * Returns the store for aggregate events.

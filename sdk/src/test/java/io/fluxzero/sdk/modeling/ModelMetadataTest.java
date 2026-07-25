@@ -23,10 +23,16 @@ import io.fluxzero.sdk.tracking.handling.Association;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
+
+import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.toSet;
 
 import static io.fluxzero.sdk.modeling.ModelMetadata.HandlerKind.APPLY;
 import static io.fluxzero.sdk.modeling.ModelMetadata.HandlerKind.ASSERT_LEGAL;
 import static io.fluxzero.sdk.modeling.ModelMetadata.HandlerKind.INTERCEPT_APPLY;
+import static io.fluxzero.sdk.modeling.ModelMetadata.RootKind.AGGREGATE;
+import static io.fluxzero.sdk.modeling.ModelMetadata.RootKind.MODEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -68,6 +74,45 @@ class ModelMetadataTest {
         assertEquals("parent-parent", metadata.parentReferences().getFirst().read(value).toString());
         assertEquals("external-parent", metadata.parentReferences().getLast().read(value));
         assertTrue(metadata.parentReferences().stream().allMatch(ModelMetadata.ParentReference::automaticallyComposed));
+    }
+
+    @Test
+    void exposesAggregateNeutralRootConfiguration() {
+        ModelMetadata.RootConfiguration model = ModelMetadata.of(ConfiguredModel.class)
+                .rootConfiguration().orElseThrow();
+        ModelMetadata.RootConfiguration aggregate = ModelMetadata.of(ConfiguredAggregate.class)
+                .rootConfiguration().orElseThrow();
+
+        assertEquals(MODEL, model.kind());
+        assertFalse(model.eventSourced());
+        assertEquals("models", model.collection());
+        assertEquals(AGGREGATE, aggregate.kind());
+        assertFalse(aggregate.eventSourced());
+        assertEquals("aggregates", aggregate.collection());
+    }
+
+    @Test
+    void legacyAggregateRootIsAlsoAModelRoot() {
+        assertTrue(ModelRoot.class.isAssignableFrom(AggregateRoot.class));
+        assertEquals(Set.of("parent", "lastEventId", "lastEventIndex", "withEventIndex", "sequenceNumber",
+                            "withSequenceNumber", "timestamp", "previous"),
+                     stream(AggregateRoot.class.getDeclaredMethods()).map(java.lang.reflect.Method::getName)
+                             .collect(toSet()));
+    }
+
+    @Test
+    void rootConfigurationCannotSilentlyDriftFromAnnotations() {
+        Set<String> modelSettings = stream(Model.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName).collect(toSet());
+        Set<String> aggregateSettings = stream(Aggregate.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName).collect(toSet());
+        Set<String> configurationSettings = stream(ModelMetadata.RootConfiguration.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName)
+                .filter(name -> !"kind".equals(name))
+                .collect(toSet());
+
+        assertEquals(modelSettings, aggregateSettings);
+        assertEquals(modelSettings, configurationSettings);
     }
 
     @Test
@@ -177,6 +222,14 @@ class ModelMetadataTest {
 
     @Model
     private record ParentModel(@EntityId ParentModelId parentId) {
+    }
+
+    @Model(eventSourced = false, searchable = true, collection = "models")
+    private record ConfiguredModel(@EntityId String id) {
+    }
+
+    @Aggregate(eventSourced = false, searchable = true, collection = "aggregates")
+    private record ConfiguredAggregate(@EntityId String id) {
     }
 
     private static class ParentModelId extends Id<ParentModel> {
