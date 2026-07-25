@@ -359,7 +359,7 @@ class WebSocketTransportCodecsTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 100),
                         new ModelEventStreamRequest("inventory-1", 4L, 0)),
-                91L);
+                91L, 4_096L);
         GetModelEventsResult result = new GetModelEventsResult(
                 request.getRequestId(), 91L,
                 List.of(new ModelEventPayload(80L, serializedMessage())),
@@ -378,6 +378,7 @@ class WebSocketTransportCodecsTest {
             GetModelEvents decodedRequest = assertInstanceOf(
                     GetModelEvents.class, roundTrip(codec, request));
             assertEquals(91L, decodedRequest.getMaxStateIndex());
+            assertEquals(4_096L, decodedRequest.getMaxBytes());
             assertEquals(2, decodedRequest.getRequests().size());
             assertEquals(0, decodedRequest.getRequests().get(1).getMaxSize());
 

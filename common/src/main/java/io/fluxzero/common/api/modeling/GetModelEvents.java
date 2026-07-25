@@ -26,6 +26,8 @@ import java.util.List;
  * <p>
  * A {@code null} {@link #maxStateIndex} pins the current committed boundary atomically with the model-head read.
  * Supplying a boundary performs an as-of load. A stream request with {@code maxSize == 0} requests only its head.
+ * {@link #maxBytes} bounds the total deduplicated serialized event payload selected by the runtime. The oldest single
+ * payload is always allowed through to guarantee progress, even when it exceeds that bound.
  */
 @Value
 public class GetModelEvents extends Request {
@@ -40,6 +42,14 @@ public class GetModelEvents extends Request {
      */
     Long maxStateIndex;
 
+    /**
+     * Maximum total serialized bytes of unique returned event payloads. Zero disables the byte limit.
+     * <p>
+     * Membership and head metadata are not counted. A response may exceed this value by one payload when the oldest
+     * selected event is larger than the limit.
+     */
+    long maxBytes;
+
     @Override
     public Metric toMetric() {
         int headOnlyCount = 0;
@@ -51,7 +61,7 @@ public class GetModelEvents extends Request {
                 maximumEventCount += request.getMaxSize();
             }
         }
-        return new Metric(requests.size(), headOnlyCount, maximumEventCount, maxStateIndex);
+        return new Metric(requests.size(), headOnlyCount, maximumEventCount, maxStateIndex, maxBytes);
     }
 
     @Value
@@ -60,5 +70,6 @@ public class GetModelEvents extends Request {
         int headOnlyCount;
         long maximumEventCount;
         Long maxStateIndex;
+        long maxBytes;
     }
 }

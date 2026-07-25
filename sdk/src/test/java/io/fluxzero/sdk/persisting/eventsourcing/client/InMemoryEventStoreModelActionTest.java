@@ -129,7 +129,7 @@ class InMemoryEventStoreModelActionTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 10),
                         new ModelEventStreamRequest("inventory-1", -1L, 10)),
-                null));
+                null, 0L));
 
         assertEquals(0L, result.getStateIndex());
         assertEquals(1, result.getPayloads().size());
@@ -139,6 +139,62 @@ class InMemoryEventStoreModelActionTest {
         assertEquals(0L, result.getStreams().get(1).getHead().getSequenceNumber());
         assertEquals(0L, result.getStreams().get(0).getMemberships().getFirst().getStateIndex());
         assertEquals(0L, result.getStreams().get(1).getMemberships().getFirst().getStateIndex());
+    }
+
+    @Test
+    void batchReadBoundsUniquePayloadBytesAndAlwaysReturnsTheOldestPayload() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        store.commitModelAction(action(
+                "action-1",
+                ModelActionSubstep.builder()
+                        .event(event("shared"))
+                        .targets(List.of(storedTarget("order-1"), storedTarget("inventory-1")))
+                        .build(),
+                ModelActionSubstep.builder()
+                        .event(event("next"))
+                        .targets(List.of(storedTarget("order-1")))
+                        .build())).join();
+
+        var result = store.getModelEvents(new GetModelEvents(
+                List.of(
+                        new ModelEventStreamRequest("order-1", -1L, 10),
+                        new ModelEventStreamRequest("inventory-1", -1L, 10)),
+                null, 1L));
+
+        assertEquals(1, result.getPayloads().size());
+        assertEquals(0L, result.getPayloads().getFirst().getStateIndex());
+        assertEquals(1, result.getStreams().getFirst().getMemberships().size());
+        assertEquals(1, result.getStreams().getLast().getMemberships().size());
+    }
+
+    @Test
+    void batchReadDoesNotSkipAnExcludedEarlierStateFromAnotherStream() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        store.commitModelAction(action(
+                "action-1",
+                ModelActionSubstep.builder()
+                        .event(event("a0"))
+                        .targets(List.of(storedTarget("a")))
+                        .build(),
+                ModelActionSubstep.builder()
+                        .event(event("a1"))
+                        .targets(List.of(storedTarget("a")))
+                        .build(),
+                ModelActionSubstep.builder()
+                        .event(event("b0"))
+                        .targets(List.of(storedTarget("b")))
+                        .build())).join();
+
+        var result = store.getModelEvents(new GetModelEvents(
+                List.of(
+                        new ModelEventStreamRequest("a", -1L, 1),
+                        new ModelEventStreamRequest("b", -1L, 1)),
+                null, 0L));
+
+        assertEquals(List.of(0L), result.getPayloads().stream()
+                .map(payload -> payload.getStateIndex()).toList());
+        assertEquals(1, result.getStreams().getFirst().getMemberships().size());
+        assertTrue(result.getStreams().getLast().getMemberships().isEmpty());
     }
 
     @Test
@@ -159,9 +215,9 @@ class InMemoryEventStoreModelActionTest {
                 Guarantee.STORED)).join();
 
         var historical = store.getModelEvents(new GetModelEvents(
-                List.of(new ModelEventStreamRequest("order-1", -1L, 0)), 0L));
+                List.of(new ModelEventStreamRequest("order-1", -1L, 0)), 0L, 0L));
         var current = store.getModelEvents(new GetModelEvents(
-                List.of(new ModelEventStreamRequest("order-1", -1L, 0)), null));
+                List.of(new ModelEventStreamRequest("order-1", -1L, 0)), null, 0L));
 
         assertEquals(0L, historical.getStateIndex());
         assertEquals(0L, historical.getStreams().getFirst().getHead().getSequenceNumber());
@@ -198,7 +254,7 @@ class InMemoryEventStoreModelActionTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 10),
                         new ModelEventStreamRequest("inventory-1", -1L, 10)),
-                null));
+                null, 0L));
         assertEquals(-1L, result.getStateIndex());
         assertTrue(result.getPayloads().isEmpty());
         assertTrue(result.getStreams().stream().allMatch(stream -> stream.getHead() == null));
@@ -226,7 +282,7 @@ class InMemoryEventStoreModelActionTest {
         assertThrows(CompletionException.class, () -> store.commitModelAction(action).join());
         assertEquals(0, store.getBatch(null, 10, true).size());
         assertEquals(-1L, store.getModelEvents(
-                new GetModelEvents(List.of(), null)).getStateIndex());
+                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
     }
 
     @Test
@@ -237,10 +293,13 @@ class InMemoryEventStoreModelActionTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 1),
                         new ModelEventStreamRequest("order-1", -1L, 1)),
-                null)));
+                null, 0L)));
         assertThrows(IllegalArgumentException.class, () -> store.getModelEvents(new GetModelEvents(
                 List.of(new ModelEventStreamRequest("order-1", -1L, -1)),
-                null)));
+                null, 0L)));
+        assertThrows(IllegalArgumentException.class, () -> store.getModelEvents(new GetModelEvents(
+                List.of(new ModelEventStreamRequest("order-1", -1L, 1)),
+                null, -1L)));
     }
 
     private static CommitModelAction action(String actionId, ModelActionSubstep... substeps) {

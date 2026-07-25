@@ -44,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -165,36 +166,75 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     "Model maxStateIndex %d is outside visible range -1..%d"
                             .formatted(stateIndex, modelStateIndex));
         }
-        LinkedHashMap<Long, SerializedMessage> payloads = new LinkedHashMap<>();
+        LinkedHashMap<String, List<ModelStreamMembership>> streamCandidates = new LinkedHashMap<>();
+        long firstExcludedStateIndex = Long.MAX_VALUE;
+        for (var streamRequest : request.getRequests()) {
+            List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0
+                    ? List.of()
+                    : modelStreams.getOrDefault(streamRequest.getModelId(), List.of()).stream()
+                            .filter(entry -> entry.sequenceNumber() > streamRequest.getLastSequenceNumber())
+                            .filter(entry -> entry.stateIndex() <= stateIndex)
+                            .limit((long) streamRequest.getMaxSize() + 1L)
+                            .toList();
+            if (candidates.size() > streamRequest.getMaxSize()) {
+                firstExcludedStateIndex = Math.min(
+                        firstExcludedStateIndex,
+                        candidates.get(streamRequest.getMaxSize()).stateIndex());
+                candidates = candidates.subList(0, streamRequest.getMaxSize());
+            }
+            streamCandidates.put(streamRequest.getModelId(), candidates);
+        }
+
+        TreeMap<Long, SerializedMessage> candidatePayloads = new TreeMap<>();
+        LinkedHashMap<String, List<ModelEventMembership>> candidateMemberships = new LinkedHashMap<>();
+        long stateIndexCutoff = firstExcludedStateIndex;
+        streamCandidates.forEach((modelId, candidates) -> candidateMemberships.put(
+                modelId, candidates.stream()
+                        .filter(entry -> entry.stateIndex() < stateIndexCutoff)
+                        .peek(entry -> candidatePayloads.putIfAbsent(entry.stateIndex(), entry.event()))
+                        .map(entry -> new ModelEventMembership(
+                                entry.sequenceNumber(), entry.stateIndex(), entry.readStateIndex(),
+                                entry.actionId(), entry.substep()))
+                        .toList()));
+        LinkedHashMap<Long, SerializedMessage> payloads =
+                selectPayloads(candidatePayloads, request.getMaxBytes());
+        Set<Long> selectedStateIndices = payloads.keySet();
         List<ModelEventStream> streams = new ArrayList<>(request.getRequests().size());
         for (var streamRequest : request.getRequests()) {
             ModelStreamHead head = modelHeadHistory.getOrDefault(
                             streamRequest.getModelId(), List.of()).stream()
                     .filter(candidate -> candidate.stateIndex() <= stateIndex)
                     .reduce((first, second) -> second).orElse(null);
-            List<ModelEventMembership> memberships = streamRequest.getMaxSize() == 0
-                    ? List.of()
-                    : modelStreams.getOrDefault(streamRequest.getModelId(), List.of()).stream()
-                            .filter(entry -> entry.sequenceNumber() > streamRequest.getLastSequenceNumber())
-                            .filter(entry -> entry.stateIndex() <= stateIndex)
-                            .limit(streamRequest.getMaxSize())
-                            .peek(entry -> payloads.putIfAbsent(entry.stateIndex(), entry.event()))
-                            .map(entry -> new ModelEventMembership(
-                                    entry.sequenceNumber(), entry.stateIndex(), entry.readStateIndex(),
-                                    entry.actionId(), entry.substep()))
-                            .toList();
             streams.add(new ModelEventStream(
                     streamRequest.getModelId(),
                     head == null ? null : new ModelHeadState(
                             streamRequest.getModelId(), head.sequenceNumber(), head.stateIndex(),
                             head.historyComplete(), head.deleted()),
-                    memberships));
+                    candidateMemberships.get(streamRequest.getModelId()).stream()
+                            .filter(membership -> selectedStateIndices.contains(membership.getStateIndex()))
+                            .toList()));
         }
         return new GetModelEventsResult(
                 request.getRequestId(), stateIndex,
                 payloads.entrySet().stream()
                         .map(entry -> new ModelEventPayload(entry.getKey(), entry.getValue())).toList(),
                 List.copyOf(streams));
+    }
+
+    private static LinkedHashMap<Long, SerializedMessage> selectPayloads(
+            TreeMap<Long, SerializedMessage> candidates, long maxBytes) {
+        LinkedHashMap<Long, SerializedMessage> result = new LinkedHashMap<>();
+        long selectedBytes = 0L;
+        for (Map.Entry<Long, SerializedMessage> entry : candidates.entrySet()) {
+            long eventBytes = entry.getValue().getBytes();
+            if (!result.isEmpty() && maxBytes > 0L && eventBytes > maxBytes - selectedBytes) {
+                break;
+            }
+            result.put(entry.getKey(), entry.getValue());
+            selectedBytes = eventBytes > Long.MAX_VALUE - selectedBytes
+                    ? Long.MAX_VALUE : selectedBytes + eventBytes;
+        }
+        return result;
     }
 
     private static void validate(CommitModelAction action) {
@@ -281,6 +321,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
         if (request.getRequests() == null) {
             throw new IllegalArgumentException("Model stream requests are required");
+        }
+        if (request.getMaxBytes() < 0L) {
+            throw new IllegalArgumentException("Model event request maxBytes must not be negative");
         }
         Set<String> modelIds = new HashSet<>();
         for (var stream : request.getRequests()) {
