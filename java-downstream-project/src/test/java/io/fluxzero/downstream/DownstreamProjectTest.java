@@ -17,6 +17,7 @@ package io.fluxzero.downstream;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.OpenApiProcessor;
 import io.fluxzero.testserver.TestServer;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,6 +54,16 @@ class DownstreamProjectTest {
         assertEquals("Downstream Project API", openApi.path("info").path("title").asText());
         assertEquals("getDownstreamCommand",
                      openApi.path("paths").path("/downstream/{id}").path("get").path("operationId").asText());
+    }
+
+    @Test
+    void modelAnnotationIsAvailableToDownstreamProjects() {
+        Model model = DownstreamModel.class.getAnnotation(Model.class);
+
+        assertNotNull(model);
+        assertFalse(model.eventSourced());
+        assertTrue(model.searchable());
+        assertEquals("downstream-models", model.collection());
     }
 
     private static String readResource(String name) throws IOException {

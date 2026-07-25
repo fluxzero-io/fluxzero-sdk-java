@@ -19,6 +19,7 @@ import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
+import io.fluxzero.sdk.modeling.Model;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -42,7 +43,12 @@ import java.lang.annotation.Target;
  *     <li>On a <strong>constructor</strong> or static method of the entity, if the update creates a new instance</li>
  * </ul>
  * <p>
- * For deletions, returning {@code null} signals that the entity should be removed.
+ * For deletions, returning {@code null} signals that the entity should be removed. The applied event is still stored
+ * and/or published according to the configured publication settings.
+ * <p>
+ * For independently stored {@link Model models}, the return value identifies the target model and its resulting state.
+ * A {@code void} apply is therefore invalid for a model. Legacy mutable entities inside aggregates may continue to use
+ * {@code void}, although immutable return values are strongly preferred.
  * <p>
  * When the entity is part of a larger aggregate, Fluxzero automatically routes the update to the correct entity
  * instance using matching identifier fields, typically annotated with {@link EntityId}.
@@ -129,6 +135,7 @@ import java.lang.annotation.Target;
  * Updates targeting `Product` will automatically be routed based on `@EntityId` inside `Product`.
  *
  * @see io.fluxzero.sdk.modeling.Aggregate
+ * @see Model
  * @see AggregateEventRouting
  * @see EntityId
  * @see io.fluxzero.sdk.modeling.Member

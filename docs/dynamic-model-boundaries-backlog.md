@@ -297,12 +297,12 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 
 ### Slice 1.1 — `@Model`
 
-- [ ] Add documented `@Model` with aggregate-equivalent storage/search/cache settings and no `name`.
-- [ ] Define `eventSourced` as load behavior in Javadoc and examples.
-- [ ] Reuse `@Member` for embedded members inside either `@Aggregate` or `@Model`.
+- [x] Add documented `@Model` with aggregate-equivalent storage/search/cache settings and no `name`.
+- [x] Define `eventSourced` as load behavior in Javadoc and examples.
+- [x] Reuse `@Member` for embedded members inside either `@Aggregate` or `@Model`.
 - [ ] Add startup validation rejecting `void @Apply` for model targets.
-- [ ] Preserve mutable/void legacy aggregate behavior.
-- [ ] Add Java and Kotlin downstream compilation coverage.
+- [x] Preserve mutable/void legacy aggregate behavior.
+- [x] Add Java and Kotlin downstream compilation coverage.
 
 ### Slice 1.2 — Reflection metadata
 

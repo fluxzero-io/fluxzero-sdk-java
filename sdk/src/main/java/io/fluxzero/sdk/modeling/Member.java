@@ -23,13 +23,14 @@ import java.lang.annotation.Target;
 
 /**
  * Indicates that the annotated field or getter represents a nested entity or collection of entities within an
- * aggregate or stateful handler.
+ * aggregate, independently stored model, or stateful handler.
  * <p>
- * Entities marked with {@code @Member} participate in aggregate routing, event sourcing, and update application. When
- * an update targets a nested entity, Fluxzero will use this annotation to traverse the aggregate structure and locate
- * the correct entity (or entities) to apply the update to. In {@code @Stateful} handlers, member objects may also
- * declare {@code @Handle...} methods and their own {@code @Association} properties; updates are written back by
- * storing the parent stateful handler.
+ * Entities marked with {@code @Member} share the persistence boundary of their owning root. Within an
+ * {@link Aggregate @Aggregate} or {@link Model @Model}, they share the root's stream, cache, search document,
+ * snapshots, and lifecycle. When an update targets a nested entity, Fluxzero traverses the root structure to locate
+ * the correct entity (or entities). In {@code @Stateful} handlers, member objects may also declare
+ * {@code @Handle...} methods and their own {@code @Association} properties; updates are written back by storing the
+ * parent stateful handler.
  *
  * <p>
  * This annotation supports modeling complex aggregates composed of multiple entities, for example:
@@ -111,6 +112,7 @@ import java.lang.annotation.Target;
  *
  * @see io.fluxzero.sdk.modeling.EntityId
  * @see io.fluxzero.sdk.modeling.Aggregate
+ * @see io.fluxzero.sdk.modeling.Model
  * @see io.fluxzero.sdk.persisting.eventsourcing.Apply
  * @see io.fluxzero.sdk.modeling.AssertLegal
  */

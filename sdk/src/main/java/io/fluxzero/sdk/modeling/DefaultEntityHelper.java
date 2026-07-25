@@ -33,6 +33,8 @@ import lombok.Value;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -109,6 +111,50 @@ public class DefaultEntityHelper implements EntityHelper {
         this.assertLegalMatchers = memoize(type -> inspect(type, (List) parameterResolvers,
                                                            assertLegalHandlerConfiguration()));
         this.disablePayloadValidation = disablePayloadValidation;
+    }
+
+    /**
+     * Validates model apply methods discovered on the given type.
+     * <p>
+     * This method is intended for model registration and handler discovery. A void apply declared by a model, or a
+     * void apply with a model parameter, cannot identify the independently stored target state and is therefore
+     * rejected. Aggregate-only handler types retain their existing mutable-entity behavior.
+     *
+     * @param type model or apply-handler type to validate
+     * @throws IllegalStateException if the type contains a void apply targeting a model
+     */
+    public static void validateModelApplyMethods(Class<?> type) {
+        if (isModelType(type) || ReflectionUtils.getTypeMetadata(type).annotatedMethods(Apply.class).stream()
+                .filter(method -> void.class.equals(method.getReturnType()))
+                .anyMatch(method -> Arrays.stream(method.getParameters()).anyMatch(
+                        DefaultEntityHelper::isModelParameter))) {
+            rejectVoidApplyMethods(type);
+        }
+    }
+
+    private static boolean isModelParameter(Parameter parameter) {
+        Class<?> parameterType = parameter.getType();
+        if (Entity.class.isAssignableFrom(parameterType)) {
+            List<Type> arguments = ReflectionUtils.getTypeArguments(parameter.getParameterizedType());
+            parameterType = arguments.size() == 1 ? ReflectionUtils.rawClass(arguments.getFirst()) : Object.class;
+        }
+        return isModelType(parameterType);
+    }
+
+    private static boolean isModelType(Class<?> type) {
+        return ReflectionUtils.getTypeAnnotation(type, Model.class) != null;
+    }
+
+    private static void rejectVoidApplyMethods(Class<?> type) {
+        ReflectionUtils.getTypeMetadata(type).annotatedMethods(Apply.class).stream()
+                .filter(method -> void.class.equals(method.getReturnType()))
+                .findFirst()
+                .ifPresent(method -> {
+                    throw new IllegalStateException(
+                            "Invalid @Apply method %s: void is not supported for @Model targets. "
+                            .formatted(method.toGenericString())
+                            + "Return the resulting model, or return null to delete it.");
+                });
     }
 
     private static HandlerConfiguration<MessageWithEntity> assertLegalHandlerConfiguration() {
