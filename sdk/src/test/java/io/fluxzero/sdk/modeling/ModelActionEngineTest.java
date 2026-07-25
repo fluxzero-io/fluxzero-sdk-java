@@ -233,6 +233,9 @@ class ModelActionEngineTest {
         assertEquals(List.of(-1L, 77L, 77L), requestedStateIndices);
         assertEquals(77, result.readStateIndex());
         assertEquals(
+                List.of(firstId.toString(), secondId.toString()),
+                result.readModelIds());
+        assertEquals(
                 List.of(firstId, secondId),
                 result.substeps().stream()
                         .map(ModelActionEngine.AppliedSubstep::message)

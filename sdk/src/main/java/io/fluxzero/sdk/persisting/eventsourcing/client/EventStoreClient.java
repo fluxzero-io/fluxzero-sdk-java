@@ -16,7 +16,11 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
@@ -51,6 +55,28 @@ import java.util.concurrent.CompletableFuture;
  * @see io.fluxzero.sdk.persisting.repository.AggregateRepository
  */
 public interface EventStoreClient extends AutoCloseable {
+
+    /**
+     * Atomically commits the ordered state transitions of one independent-model action.
+     * <p>
+     * Unlike aggregate event appends, this operation returns the runtime-assigned state, event, and per-model stream
+     * positions. Implementations predating independent models remain source-compatible and fail only when this
+     * capability is invoked.
+     *
+     * @param action complete model action with its durable idempotency key
+     * @return durable result containing the positions assigned by the event store
+     */
+    default CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Independent model actions are not supported by this event store"));
+    }
+
+    /**
+     * Batch-loads independent model heads and event memberships at one pinned state boundary.
+     */
+    default GetModelEventsResult getModelEvents(GetModelEvents request) {
+        throw new UnsupportedOperationException("Independent model event loading is not supported by this event store");
+    }
 
     /**
      * Stores a list of serialized events for a given aggregate identifier.

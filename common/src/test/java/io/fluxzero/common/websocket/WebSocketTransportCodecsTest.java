@@ -35,10 +35,17 @@ import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelEventMembership;
+import io.fluxzero.common.api.modeling.ModelEventPayload;
+import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
@@ -344,6 +351,51 @@ class WebSocketTransportCodecsTest {
 
         assertTrue(containsBinaryValue(
                 cborCodec.encode(request), serializedMessage().getData().getValue()));
+    }
+
+    @Test
+    void modelEventBatchRoundTripsSharedPayloadsAndMemberships() throws Exception {
+        GetModelEvents request = new GetModelEvents(
+                List.of(
+                        new ModelEventStreamRequest("order-1", -1L, 100),
+                        new ModelEventStreamRequest("inventory-1", 4L, 0)),
+                91L);
+        GetModelEventsResult result = new GetModelEventsResult(
+                request.getRequestId(), 91L,
+                List.of(new ModelEventPayload(80L, serializedMessage())),
+                List.of(
+                        new ModelEventStream(
+                                "order-1",
+                                new ModelHeadState("order-1", 7L, 80L, true, false),
+                                List.of(new ModelEventMembership(
+                                        7L, 80L, 70L, "action-1", 2))),
+                        new ModelEventStream(
+                                "inventory-1",
+                                new ModelHeadState("inventory-1", 4L, 79L, false, true),
+                                List.of())));
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+            GetModelEvents decodedRequest = assertInstanceOf(
+                    GetModelEvents.class, roundTrip(codec, request));
+            assertEquals(91L, decodedRequest.getMaxStateIndex());
+            assertEquals(2, decodedRequest.getRequests().size());
+            assertEquals(0, decodedRequest.getRequests().get(1).getMaxSize());
+
+            GetModelEventsResult decodedResult = assertInstanceOf(
+                    GetModelEventsResult.class, roundTrip(codec, result));
+            assertEquals(91L, decodedResult.getStateIndex());
+            assertEquals(1, decodedResult.getPayloads().size());
+            assertSerializedMessage(
+                    serializedMessage(), decodedResult.getPayloads().getFirst().getEvent());
+            assertEquals(2, decodedResult.getStreams().size());
+            assertEquals(
+                    "action-1",
+                    decodedResult.getStreams().getFirst().getMemberships().getFirst().getActionId());
+            assertTrue(decodedResult.getStreams().get(1).getHead().isDeleted());
+            assertEquals(1, decodedResult.toMetric().getPayloadCount());
+            assertEquals(1, decodedResult.toMetric().getMembershipCount());
+            assertEquals(serializedMessage().getBytes(), decodedResult.toMetric().getBytes());
+        }
     }
 
     private static JsonType roundTrip(WebSocketTransportCodec codec, JsonType value) throws Exception {

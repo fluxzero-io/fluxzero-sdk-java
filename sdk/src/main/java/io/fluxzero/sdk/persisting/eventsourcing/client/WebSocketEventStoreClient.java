@@ -21,8 +21,12 @@ import io.fluxzero.common.api.eventsourcing.DeleteEvents;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.Relationship;
@@ -111,6 +115,19 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     public CompletableFuture<Void> storeEvents(String aggregateId, List<SerializedMessage> events, boolean storeOnly,
                                                Guarantee guarantee) {
         return sendCommand(new AppendEvents(List.of(new EventBatch(aggregateId, events, storeOnly)), guarantee));
+    }
+
+    /**
+     * Commits an independent-model action and retains the positions returned by the runtime.
+     */
+    @Override
+    public CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
+        return send(action);
+    }
+
+    @Override
+    public GetModelEventsResult getModelEvents(GetModelEvents request) {
+        return sendAndWait(request);
     }
 
     /**

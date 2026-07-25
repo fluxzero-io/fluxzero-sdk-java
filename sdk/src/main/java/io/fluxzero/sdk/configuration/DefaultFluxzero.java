@@ -56,6 +56,8 @@ import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.persisting.repository.CachingAggregateRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
@@ -206,6 +208,8 @@ public class DefaultFluxzero implements Fluxzero {
 
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Collection<Runnable> cleanupTasks = new CopyOnWriteArrayList<>();
+    @Getter(lazy = true)
+    private final ModelRepository modelRepository = new DefaultModelRepository(client, documentStore);
     @Getter(lazy = true)
     private final Memoization memoization = new DefaultMemoization(clock());
 
