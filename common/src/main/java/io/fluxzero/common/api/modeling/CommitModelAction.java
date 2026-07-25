@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Command;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
+import java.beans.Transient;
 import java.util.List;
 
 /**
@@ -65,6 +66,19 @@ public class CommitModelAction extends Command {
     @Override
     public String routingKey() {
         return actionId;
+    }
+
+    /**
+     * Returns the logical event payload bytes carried once by this action.
+     */
+    @Transient
+    public long getBytes() {
+        long result = 0L;
+        for (ModelActionSubstep substep : substeps) {
+            long bytes = substep.getBytes();
+            result = bytes > Long.MAX_VALUE - result ? Long.MAX_VALUE : result + bytes;
+        }
+        return result;
     }
 
     /**
