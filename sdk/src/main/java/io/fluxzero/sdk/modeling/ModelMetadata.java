@@ -237,6 +237,16 @@ public final class ModelMetadata {
                 throw invalid("@ParentId path '%s' on %s.%s must not contain '.' or '..' segments"
                                       .formatted(path, type.getName(), property.name()));
             }
+            if (io.fluxzero.common.SearchUtils
+                    .isInteger(segment)) {
+                throw invalid("@ParentId path '%s' on %s.%s must not contain numeric segments because graph children are list-valued"
+                                      .formatted(path, type.getName(), property.name()));
+            }
+        }
+        if (io.fluxzero.common.search.JacksonInverter
+                .isMetadataPath(path)) {
+            throw invalid("@ParentId path '%s' on %s.%s must not use the reserved document metadata path"
+                                  .formatted(path, type.getName(), property.name()));
         }
         return path;
     }

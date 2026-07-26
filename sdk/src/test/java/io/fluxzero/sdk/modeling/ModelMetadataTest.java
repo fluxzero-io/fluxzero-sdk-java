@@ -190,6 +190,8 @@ class ModelMetadataTest {
         assertMessage(PaddedPathModel.class, "must not be blank or have surrounding whitespace");
         assertMessage(InvalidPathModel.class, "relative path without empty segments");
         assertMessage(TraversalPathModel.class, "must not contain '.' or '..' segments");
+        assertMessage(NumericPathModel.class, "must not contain numeric segments");
+        assertMessage(MetadataPathModel.class, "reserved document metadata path");
         assertMessage(UntypedPathModel.class, "requires a typed Id<T> or an explicit parent model type");
         assertMessage(InvalidTypedParentModel.class, "which is not annotated with @Model");
         assertMessage(InvalidExplicitParentModel.class, "which is not annotated with @Model");
@@ -372,6 +374,20 @@ class ModelMetadataTest {
     @Model
     private record TraversalPathModel(@EntityId String id,
                                       @ParentId(value = ParentModel.class, path = "items/../archived") String parent) {
+    }
+
+    @Model
+    private record NumericPathModel(
+            @EntityId String id,
+            @ParentId(value = ParentModel.class, path = "items/0")
+            String parent) {
+    }
+
+    @Model
+    private record MetadataPathModel(
+            @EntityId String id,
+            @ParentId(value = ParentModel.class, path = "$metadata/items")
+            String parent) {
     }
 
     @Model

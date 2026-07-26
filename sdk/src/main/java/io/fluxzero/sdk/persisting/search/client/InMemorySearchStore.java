@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -28,14 +29,17 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchModelDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
+import io.fluxzero.common.search.ModelGraphDocumentStitcher;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -101,16 +105,26 @@ public class InMemorySearchStore implements SearchClient {
     private Duration retentionTime;
 
     private final ModelRelationResolver modelRelationResolver;
+    private final ModelGraphResolver modelGraphResolver;
 
     public InMemorySearchStore(Duration retentionTime) {
-        this(retentionTime, null);
+        this(retentionTime, null, null);
     }
 
     public InMemorySearchStore(
             Duration retentionTime,
             ModelRelationResolver modelRelationResolver) {
+        this(retentionTime, modelRelationResolver,
+             null);
+    }
+
+    public InMemorySearchStore(
+            Duration retentionTime,
+            ModelRelationResolver modelRelationResolver,
+            ModelGraphResolver modelGraphResolver) {
         this.retentionTime = retentionTime;
         this.modelRelationResolver = modelRelationResolver;
+        this.modelGraphResolver = modelGraphResolver;
     }
 
     @Override
@@ -223,6 +237,113 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
+    public Stream<SearchHit<SerializedDocument>>
+    searchModelGraph(
+            SearchModelGraphDocuments request,
+            int fetchSize) {
+        if (modelGraphResolver == null) {
+            throw new UnsupportedOperationException(
+                    "Independent-model graph composition has no graph resolver");
+        }
+        SearchDocuments rootSearch =
+                request.getSearch();
+        SearchDocuments unfiltered =
+                rootSearch.toBuilder()
+                        .pathFilters(List.of())
+                        .build();
+        List<SerializedDocument> roots =
+                (request.getRelations().isEmpty()
+                        ? search(unfiltered, fetchSize)
+                        : searchModels(
+                                new SearchModelDocuments(
+                                        unfiltered,
+                                        request.getRelations()),
+                                fetchSize))
+                        .map(SearchHit::getValue)
+                        .toList();
+        if (roots.isEmpty()) {
+            return Stream.empty();
+        }
+        List<ModelGraphEdge> edges =
+                modelGraphResolver.resolve(
+                        roots.stream()
+                                .map(SerializedDocument::getId)
+                                .collect(
+                                        java.util.stream.Collectors
+                                                .toCollection(
+                                                        LinkedHashSet::new)),
+                        request.getComposition());
+        LinkedHashSet<String> graphIds =
+                roots.stream()
+                        .map(SerializedDocument::getId)
+                        .collect(
+                                java.util.stream.Collectors
+                                        .toCollection(
+                                                LinkedHashSet::new));
+        edges.forEach(edge -> {
+            graphIds.add(edge.getParentId());
+            graphIds.add(edge.getChildId());
+        });
+        LinkedHashMap<String, SerializedDocument>
+                graphDocuments = new LinkedHashMap<>();
+        roots.forEach(document ->
+                              graphDocuments.put(
+                                      document.getId(),
+                                      document));
+        documents.values().stream()
+                .filter(document ->
+                                graphIds.contains(
+                                        document.getId()))
+                .forEach(document -> {
+                    SerializedDocument existing =
+                            graphDocuments.putIfAbsent(
+                                    document.getId(),
+                                    document);
+                    if (existing != null
+                        && !existing.getCollection()
+                                .equals(
+                                        document.getCollection())) {
+                        throw new IllegalArgumentException(
+                                "Model %s has current documents in both %s and %s"
+                                        .formatted(
+                                                document.getId(),
+                                                existing.getCollection(),
+                                                document.getCollection()));
+                    }
+                });
+        long collectionCount =
+                graphDocuments.values().stream()
+                        .map(SerializedDocument::getCollection)
+                        .distinct().count();
+        if (collectionCount
+            > request.getComposition()
+                    .getMaxCollections()) {
+            throw new IllegalArgumentException(
+                    "Model graph composition exceeds maxCollections "
+                    + request.getComposition()
+                            .getMaxCollections()
+                    + "; narrow the result or use a materialized graph projection");
+        }
+        Stream<SerializedDocument> result =
+                ModelGraphDocumentStitcher.stitch(
+                                roots, edges,
+                                graphDocuments,
+                                request.getComposition())
+                        .stream();
+        if (!rootSearch.getPathFilters()
+                .isEmpty()) {
+            result = result.map(document ->
+                                        new SerializedDocument(
+                                                document.deserializeDocument()
+                                                        .filterPaths(
+                                                                rootSearch
+                                                                        .computePathFilter())));
+        }
+        return result.map(
+                SearchHit::fromDocument);
+    }
+
+    @Override
     public boolean documentExists(HasDocument r) {
         return Optional.ofNullable(documents.get(asIdentifier(r.getCollection(), r.getId()))).isPresent();
     }
@@ -240,6 +361,16 @@ public class InMemorySearchStore implements SearchClient {
         Set<String> resolve(
                 Set<String> relatedModelIds,
                 ModelRelationConstraint constraint);
+    }
+
+    /**
+     * Resolves explicitly placed current child edges for root models.
+     */
+    @FunctionalInterface
+    public interface ModelGraphResolver {
+        List<ModelGraphEdge> resolve(
+                Set<String> rootModelIds,
+                ModelGraphComposition composition);
     }
 
     @Override

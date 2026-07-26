@@ -177,7 +177,9 @@ public class LocalClient extends AbstractClient {
         return new InMemorySearchStore(
                 messageExpiration,
                 eventStore.getMessageStore()
-                        ::resolveRelatedModels);
+                        ::resolveRelatedModels,
+                eventStore.getMessageStore()
+                        ::resolveCurrentGraph);
     }
 
     @Override

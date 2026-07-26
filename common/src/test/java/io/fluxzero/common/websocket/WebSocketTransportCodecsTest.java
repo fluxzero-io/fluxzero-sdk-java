@@ -59,10 +59,12 @@ import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchCollectionType;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.constraints.MatchConstraint;
@@ -633,6 +635,53 @@ class WebSocketTransportCodecsTest {
             assertEquals(
                     1,
                     decoded.toMetric().getRelationCount());
+        }
+    }
+
+    @Test
+    void modelGraphCompositionUsesDistinctBoundedWireAction()
+            throws Exception {
+        SearchModelGraphDocuments request =
+                new SearchModelGraphDocuments(
+                        SearchDocuments.builder()
+                                .query(SearchQuery.builder()
+                                               .collection("orders")
+                                               .build())
+                                .maxSize(20)
+                                .build(),
+                        List.of(),
+                        ModelGraphComposition.builder()
+                                .maxDepth(4)
+                                .maxModels(2_000)
+                                .maxPlacements(5_000)
+                                .maxCollections(50)
+                                .maxBytes(8_000_000L)
+                                .build());
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            SearchModelGraphDocuments decoded =
+                    assertInstanceOf(
+                            SearchModelGraphDocuments.class,
+                            roundTrip(codec, request));
+
+            assertEquals(
+                    "orders",
+                    decoded.getSearch().getQuery()
+                            .getCollections().getFirst());
+            assertTrue(decoded.getRelations().isEmpty());
+            assertEquals(
+                    4,
+                    decoded.getComposition()
+                            .getMaxDepth());
+            assertEquals(
+                    5_000,
+                    decoded.toMetric()
+                            .getMaxPlacements());
+            assertEquals(
+                    50,
+                    decoded.getComposition()
+                            .getMaxCollections());
         }
     }
 

@@ -41,6 +41,7 @@ import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
@@ -625,6 +626,102 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             frontier = List.copyOf(next);
         }
         return Set.copyOf(result);
+    }
+
+    /**
+     * Resolves explicitly placed current child edges for one page of root search results.
+     */
+    public synchronized List<ModelGraphEdge>
+    resolveCurrentGraph(
+            Set<String> rootModelIds,
+            ModelGraphComposition composition) {
+        Objects.requireNonNull(
+                rootModelIds, "Model graph roots");
+        Objects.requireNonNull(
+                composition,
+                "Model graph composition");
+        LinkedHashSet<String> modelIds =
+                new LinkedHashSet<>(
+                        rootModelIds);
+        if (modelIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Model graph roots are required");
+        }
+        if (modelIds.size()
+            > composition.getMaxModels()) {
+            throw new IllegalArgumentException(
+                    "Model graph roots exceed maxModels "
+                    + composition.getMaxModels());
+        }
+        List<String> frontier =
+                List.copyOf(modelIds);
+        List<ModelGraphEdge> edges =
+                new ArrayList<>();
+        for (int depth = 0;
+             depth < composition.getMaxDepth()
+             && !frontier.isEmpty();
+             depth++) {
+            Set<String> parents =
+                    Set.copyOf(frontier);
+            List<MutableModelRelationship> batch =
+                    modelRelationshipHistory.stream()
+                            .filter(relation ->
+                                            parents.contains(
+                                                    relation.relationship
+                                                            .getParentId()))
+                            .filter(relation ->
+                                            relation.isValidAt(
+                                                    modelStateIndex))
+                            .filter(relation ->
+                                            relation.relationship
+                                                    .getPath()
+                                            != null)
+                            .sorted(Comparator
+                                    .comparing(
+                                            (MutableModelRelationship
+                                                     relation) ->
+                                                    relation.relationship
+                                                            .getParentId())
+                                    .thenComparing(
+                                            relation ->
+                                                    relation.relationship
+                                                            .getPath())
+                                    .thenComparing(
+                                            relation ->
+                                                    relation.childId))
+                            .toList();
+            List<String> next =
+                    new ArrayList<>();
+            for (MutableModelRelationship relation :
+                    batch) {
+                edges.add(new ModelGraphEdge(
+                        relation.childId,
+                        relation.relationship
+                                .getParentId(),
+                        relation.relationship
+                                .getParentType(),
+                        relation.relationship
+                                .getPath(),
+                        relation.validFrom,
+                        relation.validUntil));
+                if (modelIds.add(
+                        relation.childId)) {
+                    if (modelIds.size()
+                        > composition
+                                .getMaxModels()) {
+                        throw new IllegalArgumentException(
+                                "Model graph exceeds maxModels "
+                                + composition
+                                        .getMaxModels()
+                                + "; narrow the result or use a materialized graph projection");
+                    }
+                    next.add(
+                            relation.childId);
+                }
+            }
+            frontier = next;
+        }
+        return List.copyOf(edges);
     }
 
     private long modelBoundary(

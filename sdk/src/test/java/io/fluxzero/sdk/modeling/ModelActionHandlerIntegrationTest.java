@@ -324,6 +324,63 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
+    void composesCurrentModelTreeFromExplicitParentPaths() {
+        FamilyRootId rootId =
+                new FamilyRootId("composed");
+        FamilyChildId childId =
+                new FamilyChildId("composed");
+        FamilyGrandchildId grandchildId =
+                new FamilyGrandchildId("composed");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(
+                                rootId, "root"),
+                        new CreateFamilyChild(
+                                childId, rootId,
+                                "child"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, childId,
+                                childId))
+                .whenApplying(fluxzero -> {
+                    var document = Fluxzero.search(
+                                            FamilyRoot.class)
+                            .constraint(match(
+                                    "root", true,
+                                    "name"))
+                            .includeModelGraph()
+                            .includeOnly("children")
+                            .fetch(
+                                    1,
+                                    io.fluxzero.common.api.search
+                                            .SerializedDocument.class)
+                            .getFirst()
+                            .deserializeDocument();
+                    return List.of(
+                            document.getEntryAtPath(
+                                            "children/0/name")
+                                    .orElseThrow()
+                                    .getValue(),
+                            document.getEntryAtPath(
+                                            "children/0/primaryGrandchildren/0/familyGrandchildId")
+                                    .orElseThrow()
+                                    .getValue(),
+                            document.getEntryAtPath(
+                                            "children/0/secondaryGrandchildren/0/familyGrandchildId")
+                                    .orElseThrow()
+                                    .getValue(),
+                            document.getEntryAtPath(
+                                            "name")
+                                    .isEmpty());
+                })
+                .expectResult(List.of(
+                        "child",
+                        "composed",
+                        "composed",
+                        true));
+    }
+
+    @Test
     void movingAChildChangesItsNextInjectedParentWithoutLoadingEitherParent() {
         TestFixture fixture = TestFixture.create();
         FamilyRootId rootId = new FamilyRootId("move");

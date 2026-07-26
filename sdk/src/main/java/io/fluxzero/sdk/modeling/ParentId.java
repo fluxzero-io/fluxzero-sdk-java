@@ -35,7 +35,8 @@ import java.lang.annotation.Target;
  * <p>
  * {@link #path()} is an optional path relative to the parent document. Supplying it opts this edge into automatic
  * virtual-document stitching and CQRS graph placement. Omitting it leaves relationship navigation and graph bundles
- * available without silently deriving a durable document path from a Java class name.
+ * available without silently deriving a durable document path from a Java class name. The path names a list-valued
+ * collection: the runtime appends deterministic numeric child positions, so numeric path segments are not allowed.
  * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
  *
@@ -53,7 +54,7 @@ public @interface ParentId {
     Class<?> value() default void.class;
 
     /**
-     * Optional slash-separated placement path relative to the parent document.
+     * Optional slash-separated, non-reserved collection path relative to the parent document.
      */
     String path() default "";
 }

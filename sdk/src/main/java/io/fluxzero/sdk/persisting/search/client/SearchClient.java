@@ -28,6 +28,7 @@ import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
@@ -94,6 +95,16 @@ public interface SearchClient extends AutoCloseable {
     }
 
     /**
+     * Executes a current-state model search and composes each matching root's explicitly placed child graph.
+     */
+    default Stream<SearchHit<SerializedDocument>> searchModelGraph(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph composition is not supported by this client");
+    }
+
+    /**
      * Asynchronously executes a search query using the given criteria and fetch size and materializes the matching hits.
      * <p>
      * The default implementation adapts {@link #search(SearchDocuments, int)} to a future. Remote clients can override
@@ -116,6 +127,17 @@ public interface SearchClient extends AutoCloseable {
             int fetchSize) {
         return SearchClientAsyncSupport.supplyAsync(
                 () -> searchModels(
+                        searchDocuments, fetchSize).toList());
+    }
+
+    /**
+     * Asynchronously searches and composes current independent-model graphs.
+     */
+    default CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelGraphAsync(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        return SearchClientAsyncSupport.supplyAsync(
+                () -> searchModelGraph(
                         searchDocuments, fetchSize).toList());
     }
 

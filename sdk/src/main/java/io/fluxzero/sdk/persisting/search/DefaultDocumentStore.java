@@ -29,10 +29,12 @@ import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.Group;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
@@ -294,6 +296,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         private final List<String> pathFilters = new ArrayList<>();
         private final List<ModelRelationConstraint> relationConstraints =
                 new ArrayList<>();
+        private ModelGraphComposition graphComposition;
         private volatile int skip;
 
         protected DefaultSearch() {
@@ -343,6 +346,14 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                 constraint,
                                 "Model relation constraint"));
             }
+            return this;
+        }
+
+        @Override
+        public Search includeModelGraph(
+                ModelGraphComposition composition) {
+            this.graphComposition = Objects.requireNonNull(
+                    composition, "Model graph composition");
             return this;
         }
 
@@ -421,20 +432,24 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         @Override
         public <T> CompletableFuture<List<T>> fetchAsync(int maxSize, Class<T> type) {
             SearchDocuments request = searchRequest(maxSize);
+            int fetchSize = Math.min(
+                    maxSize, defaultFetchSize);
             CompletableFuture<List<SearchHit<SerializedDocument>>> future =
-                    relationConstraints.isEmpty()
-                            ? getSearchClient().searchAsync(
-                                    request,
-                                    Math.min(
-                                            maxSize,
-                                            defaultFetchSize))
-                            : getSearchClient().searchModelsAsync(
-                                    new SearchModelDocuments(
+                    graphComposition != null
+                            ? getSearchClient().searchModelGraphAsync(
+                                    new SearchModelGraphDocuments(
                                             request,
-                                            relationConstraints),
-                                    Math.min(
-                                            maxSize,
-                                            defaultFetchSize));
+                                            relationConstraints,
+                                            graphComposition),
+                                    fetchSize)
+                            : relationConstraints.isEmpty()
+                                    ? getSearchClient().searchAsync(
+                                            request, fetchSize)
+                                    : getSearchClient().searchModelsAsync(
+                                            new SearchModelDocuments(
+                                                    request,
+                                                    relationConstraints),
+                                            fetchSize);
             return future.thenApply(hits -> mapHits(hits, type));
         }
 
@@ -457,14 +472,21 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         protected <T> Stream<SearchHit<T>> fetchHitStream(Integer maxSize, Class<T> type, int fetchSize) {
             SearchDocuments request = searchRequest(maxSize);
             Stream<SearchHit<SerializedDocument>> hitStream =
-                    relationConstraints.isEmpty()
-                            ? getSearchClient().search(
-                                    request, fetchSize)
-                            : getSearchClient().searchModels(
-                                    new SearchModelDocuments(
+                    graphComposition != null
+                            ? getSearchClient().searchModelGraph(
+                                    new SearchModelGraphDocuments(
                                             request,
-                                            relationConstraints),
-                                    fetchSize);
+                                            relationConstraints,
+                                            graphComposition),
+                                    fetchSize)
+                            : relationConstraints.isEmpty()
+                                    ? getSearchClient().search(
+                                            request, fetchSize)
+                                    : getSearchClient().searchModels(
+                                            new SearchModelDocuments(
+                                                    request,
+                                                    relationConstraints),
+                                            fetchSize);
             if (SerializedDocument.class.equals(type)) {
                 return (Stream) hitStream;
             }
@@ -525,9 +547,10 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         private void requireOrdinarySearch(
                 String operation) {
-            if (!relationConstraints.isEmpty()) {
+            if (!relationConstraints.isEmpty()
+                || graphComposition != null) {
                 throw new UnsupportedOperationException(
-                        "Model relationship constraints are not yet supported for "
+                        "Model relationship search and graph composition are not yet supported for "
                         + operation);
             }
         }
