@@ -19,6 +19,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -76,6 +78,13 @@ public interface EventStoreClient extends AutoCloseable {
      */
     default GetModelEventsResult getModelEvents(GetModelEvents request) {
         throw new UnsupportedOperationException("Independent model event loading is not supported by this event store");
+    }
+
+    /**
+     * Loads one bounded temporal model graph and an optional first page of its grouped model streams.
+     */
+    default GetModelGraphResult getModelGraph(GetModelGraph request) {
+        throw new UnsupportedOperationException("Independent model graph loading is not supported by this event store");
     }
 
     /**

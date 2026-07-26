@@ -16,17 +16,21 @@
 
 package io.fluxzero.common.api.modeling;
 
-import lombok.Value;
-
 /**
- * Coordination head observed for one model at the response boundary.
+ * Reserved metadata keys identifying events emitted by an independent-model action.
  */
-@Value
-public class ModelHeadState {
-    String modelId;
-    String modelType;
-    long sequenceNumber;
-    long stateIndex;
-    boolean historyComplete;
-    boolean deleted;
+public final class ModelEventMetadata {
+
+    /**
+     * Durable idempotency identity of the model action that emitted an event.
+     */
+    public static final String ACTION_ID = "$modelActionId";
+
+    /**
+     * Ordered substep within the model action.
+     */
+    public static final String SUBSTEP = "$modelActionSubstep";
+
+    private ModelEventMetadata() {
+    }
 }

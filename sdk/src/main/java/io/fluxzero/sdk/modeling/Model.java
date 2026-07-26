@@ -109,13 +109,17 @@ public @interface Model {
     /**
      * Number of older model versions retained in the shared cache. {@code -1} retains all available cached versions;
      * {@code 0} retains only the latest version.
+     * <p>
+     * Independent models default to latest-only caching. Retaining an unbounded revision chain must be an explicit
+     * choice because model caches are expected to contain far more keys than aggregate caches.
      */
-    int cachingDepth() default -1;
+    int cachingDepth() default 0;
 
     /**
-     * Frequency at which intermediate states are checkpointed for cache reconstruction.
+     * Frequency at which intermediate states are checkpointed within one reconstruction session.
      * <p>
-     * This applies to event-sourced models with a positive {@link #cachingDepth()}.
+     * Checkpoints avoid replaying the same prefix for repeated historical dependency loads. They are bounded by the
+     * reconstruction session and are not retained as document revisions.
      */
     int checkpointPeriod() default 100;
 

@@ -22,6 +22,7 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
@@ -44,6 +45,8 @@ import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.modeling.ModelActionHandlerRegistry;
+import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SelectiveCache;
@@ -209,7 +212,11 @@ public class DefaultFluxzero implements Fluxzero {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Collection<Runnable> cleanupTasks = new CopyOnWriteArrayList<>();
     @Getter(lazy = true)
-    private final ModelRepository modelRepository = new DefaultModelRepository(client, documentStore);
+    private final ModelRepository modelRepository = new DefaultModelRepository(
+            client, documentStore, serializer,
+            DefaultEntityHelper.forModels(configuration.parameterResolvers(), false),
+            serializer, cache,
+            configuration.parameterResolvers());
     @Getter(lazy = true)
     private final Memoization memoization = new DefaultMemoization(clock());
 
@@ -308,6 +315,11 @@ public class DefaultFluxzero implements Fluxzero {
         private Cache cache;
         private boolean cacheConfigured;
         private Cache relationshipsCache;
+        private DocumentStore runtimeDocumentStore;
+        private ModelActionHandlerRegistry modelActionHandlerRegistry;
+        private ModelConflictPolicy modelConflictPolicy = ModelConflictPolicy.ACCEPT;
+        private ModelConflictResolver modelConflictResolver = ModelConflictResolver.fail();
+        private int maxModelConflictRetries;
         private ResponseMapper defaultResponseMapper = new DefaultResponseMapper();
         private WebResponseMapper webResponseMapper = new DefaultWebResponseMapper();
         private boolean disableErrorReporting;
@@ -562,6 +574,21 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction) {
             relationshipsCache = replaceFunction.apply(initialRelationshipsCache());
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder configureModelConflictHandling(
+                @NonNull ModelConflictPolicy policy,
+                @NonNull ModelConflictResolver resolver,
+                int maxRetries) {
+            if (maxRetries < 0) {
+                throw new IllegalArgumentException(
+                        "Maximum model conflict retries must not be negative");
+            }
+            modelConflictPolicy = ModelConflictPolicy.resolve(policy);
+            modelConflictResolver = resolver;
+            maxModelConflictRetries = maxRetries;
             return this;
         }
 
@@ -913,6 +940,7 @@ public class DefaultFluxzero implements Fluxzero {
                             handlerRepositorySupplier,
                             repositorySupplier), dispatchChains.get(DOCUMENT), serializer)
                             : HandlerRegistry.noOp()));
+            runtimeDocumentStore = documentStore.get();
 
             //event sourcing
             var entityMatcher = new DefaultEntityHelper(runtimeParameterResolvers, disablePayloadValidation);
@@ -934,6 +962,21 @@ public class DefaultFluxzero implements Fluxzero {
                         aggregateRepository, client, cache, relationshipsCache, this.serializer);
             }
 
+            DefaultModelRepository commandModelRepository =
+                    new DefaultModelRepository(
+                            client, runtimeDocumentStore, serializer,
+                            DefaultEntityHelper.forModels(
+                                    runtimeParameterResolvers,
+                                    disablePayloadValidation),
+                            snapshotSerializer, cache,
+                            runtimeParameterResolvers);
+            modelActionHandlerRegistry = new ModelActionHandlerRegistry(
+                    commandModelRepository, client.getEventStoreClient(),
+                    runtimeDocumentStore, serializer, documentSerializer,
+                    dispatchChains.get(EVENT), client.id(),
+                    runtimeParameterResolvers, handlerChains.get(COMMAND),
+                    modelConflictPolicy, modelConflictResolver,
+                    maxModelConflictRetries);
 
             //create gateways
             RequestHandler defaultRequestHandler = new DefaultRequestHandler(client, RESULT);
@@ -988,18 +1031,38 @@ public class DefaultFluxzero implements Fluxzero {
 
             //tracking
             Map<MessageType, Tracking> trackingMap = stream(MessageType.values())
-                    .collect(toMap(identity(), m -> new DefaultTracking(
-                            m, m == WEBREQUEST ? webResponseGateway : resultGateway,
-                            customConsumerConfigurations.get(m), defaultConsumerConfigurations.get(m), this.serializer,
-                            new DefaultHandlerFactory(m, handlerChains.get(m == NOTIFICATION ? EVENT : m),
-                                                      runtimeParameterResolvers, methodInvocationValidator(m),
-                                                      handlerRepositorySupplier,
-                                                      repositorySupplier, !disableTrackingMetrics, this.serializer),
-                            m == SCHEDULE
-                                    ? (target, configuration) -> schedulingInterceptor.initializePeriodicSchedules(
-                                            target, configuration.getNamespace())
-                                    : (target, configuration) -> {
-                                    })));
+                    .collect(toMap(identity(), m -> {
+                        DefaultHandlerFactory handlerFactory =
+                                new DefaultHandlerFactory(
+                                        m, handlerChains.get(
+                                                m == NOTIFICATION ? EVENT : m),
+                                        runtimeParameterResolvers,
+                                        methodInvocationValidator(m),
+                                        handlerRepositorySupplier,
+                                        repositorySupplier,
+                                        !disableTrackingMetrics,
+                                        this.serializer);
+                        if (m == COMMAND) {
+                            handlerFactory.withFallback(
+                                    modelActionHandlerRegistry);
+                        }
+                        return new DefaultTracking(
+                                m,
+                                m == WEBREQUEST
+                                        ? webResponseGateway : resultGateway,
+                                customConsumerConfigurations.get(m),
+                                defaultConsumerConfigurations.get(m),
+                                this.serializer, handlerFactory,
+                                m == SCHEDULE
+                                        ? (target, configuration) ->
+                                                schedulingInterceptor
+                                                        .initializePeriodicSchedules(
+                                                                target,
+                                                                configuration
+                                                                        .getNamespace())
+                                        : (target, configuration) -> {
+                                        });
+                    }));
 
             //misc
             MessageScheduler messageScheduler = new DefaultMessageScheduler(client,
@@ -1220,12 +1283,16 @@ public class DefaultFluxzero implements Fluxzero {
                                                       Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
                                                       RepositoryProvider repositoryProvider,
                                                       ResponseMapper responseMapper) {
+            HandlerRegistry localHandlers = localHandlerRegistry(
+                    messageType, handlerDecorators, parameterResolvers, dispatchInterceptors,
+                    handlerRepositorySupplier, repositoryProvider);
+            if (messageType == COMMAND && topic == null) {
+                localHandlers = localHandlers.orThen(
+                        Objects.requireNonNull(modelActionHandlerRegistry));
+            }
             return new DefaultGenericGateway(client, client.getGatewayClient(messageType, topic), requestHandler,
                                              this.serializer, dispatchInterceptors.get(messageType), messageType,
-                                             topic, localHandlerRegistry(messageType, handlerDecorators,
-                                                                         parameterResolvers, dispatchInterceptors,
-                                                                         handlerRepositorySupplier,
-                                                                         repositoryProvider),
+                                             topic, localHandlers,
                                              responseMapper);
         }
 

@@ -52,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -378,7 +379,7 @@ class ModelActionCommitterTest {
     }
 
     @Test
-    void searchFailureAfterAuthoritativeCommitIsRepairableByRetryingSameActionId() throws Exception {
+    void searchFailureRetainsOriginalRepairStateWhenSameActionIsReevaluated() throws Exception {
         OrderId id = new OrderId("retry");
         Order after = new Order(id, null, "confirmed", Instant.EPOCH);
         var evaluation = evaluation(
@@ -396,14 +397,34 @@ class ModelActionCommitterTest {
                 CompletionException.class,
                 () -> committer.commit("action-retry", evaluation).join());
         assertInstanceOf(MockSearchFailure.class, failure.getCause());
-        assertTrue(committer.commit("action-retry", evaluation).join().isPresent());
+        Order divergent = new Order(
+                id, null, "divergent", Instant.EPOCH.plusSeconds(1));
+        var reevaluated = evaluation(
+                List.of(id.toString()),
+                substep(new UpdateOrder(id), transition(
+                        id, Order.class, after, divergent,
+                        UpdateOrder.class, "apply", Order.class)),
+                Map.of(id.toString(), divergent));
+        assertTrue(committer.commit(
+                "action-retry", reevaluated).join().isPresent());
 
         ArgumentCaptor<CommitModelAction> actions = ArgumentCaptor.forClass(CommitModelAction.class);
         verify(eventStoreClient, times(2)).commitModelAction(actions.capture());
         assertEquals(
                 List.of("action-retry", "action-retry"),
                 actions.getAllValues().stream().map(CommitModelAction::getActionId).toList());
-        verify(documentStore, times(2)).bulkUpdate(anyCollection());
+        assertSame(
+                actions.getAllValues().getFirst(),
+                actions.getAllValues().getLast());
+        @SuppressWarnings("rawtypes")
+        ArgumentCaptor<java.util.Collection> updates =
+                ArgumentCaptor.forClass(
+                        java.util.Collection.class);
+        verify(documentStore, times(2))
+                .bulkUpdate(updates.capture());
+        assertEquals(
+                updates.getAllValues().getFirst(),
+                updates.getAllValues().getLast());
     }
 
     @Test

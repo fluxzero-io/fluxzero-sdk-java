@@ -20,6 +20,7 @@ import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelGraph;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 
@@ -73,4 +74,22 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage
      */
     <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);
+
+    /**
+     * Reconstructs a model and every descendant connected through an explicit graph path at one state boundary.
+     */
+    default <T> ModelGraph<T> loadGraph(@NonNull Id<T> rootId) {
+        return loadGraph(rootId.toString(), rootId.getType(), ModelGraph.Options.DEFAULT);
+    }
+
+    /**
+     * Reconstructs a bounded model graph using exact persisted identity and root type.
+     */
+    default <T> ModelGraph<T> loadGraph(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            @NonNull ModelGraph.Options options) {
+        throw new UnsupportedOperationException(
+                "Independent model graph reconstruction is not supported by this repository");
+    }
 }

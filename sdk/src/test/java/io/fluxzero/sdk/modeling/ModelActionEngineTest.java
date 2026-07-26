@@ -230,7 +230,7 @@ class ModelActionEngineTest {
                     return resolveSubstep(substep, 77, stored);
                 });
 
-        assertEquals(List.of(-1L, 77L, 77L), requestedStateIndices);
+        assertEquals(java.util.Arrays.asList(null, 77L, 77L), requestedStateIndices);
         assertEquals(77, result.readStateIndex());
         assertEquals(
                 List.of(firstId.toString(), secondId.toString()),
@@ -358,7 +358,7 @@ class ModelActionEngineTest {
                 () -> engine.evaluate(
                         message(command),
                         (substep, requestedStateIndex) -> resolveSubstep(
-                                substep, requestedStateIndex < 0 ? 70 : 71, stored)));
+                                substep, requestedStateIndex == null ? 70 : 71, stored)));
 
         assertTrue(exception.getMessage().contains(
                 "loaded at state index 71 while action is pinned at 70"));

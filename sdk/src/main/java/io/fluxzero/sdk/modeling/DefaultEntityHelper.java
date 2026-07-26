@@ -112,6 +112,23 @@ public class DefaultEntityHelper implements EntityHelper {
     }
 
     /**
+     * Creates an entity helper for replaying independent model events.
+     * <p>
+     * The dedicated model resolver is intentionally absent from the aggregate helper so legacy aggregate handler
+     * discovery and replay remain on their existing path.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static DefaultEntityHelper forModels(
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            boolean disablePayloadValidation) {
+        List<ParameterResolver<? super DeserializingMessage>> resolvers =
+                new java.util.ArrayList<>(parameterResolvers.size() + 1);
+        resolvers.add((ParameterResolver) new ModelParameterResolver());
+        resolvers.addAll(parameterResolvers);
+        return new DefaultEntityHelper(List.copyOf(resolvers), disablePayloadValidation);
+    }
+
+    /**
      * Validates model apply methods discovered on the given type.
      * <p>
      * This method is intended for model registration and handler discovery. A void apply declared by a model, or a

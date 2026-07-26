@@ -19,13 +19,17 @@ package io.fluxzero.common.api.modeling;
 import io.fluxzero.common.api.Request;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
 import java.util.List;
 
 /**
  * Batch-loads independent model stream memberships at one namespace-wide state boundary.
  * <p>
  * A {@code null} {@link #maxStateIndex} pins the current committed boundary atomically with the model-head read.
- * Supplying a boundary performs an as-of load. A stream request with {@code maxSize == 0} requests only its head.
+ * Supplying a state boundary performs an as-of load. Alternatively, {@link #boundaryActionId} and
+ * {@link #boundarySubstep} resolve the state boundary of one published model event through its already persisted
+ * action result inside the same runtime request. The two boundary forms are mutually exclusive. A stream request with
+ * {@code maxSize == 0} requests only its head.
  * {@link #maxBytes} bounds the total deduplicated serialized event payload selected by the runtime. The oldest single
  * payload is always allowed through to guarantee progress, even when it exceeds that bound.
  */
@@ -43,12 +47,47 @@ public class GetModelEvents extends Request {
     Long maxStateIndex;
 
     /**
+     * Durable model action whose persisted result contains the exact boundary, or {@code null}.
+     */
+    String boundaryActionId;
+
+    /**
+     * Ordered substep within {@link #boundaryActionId}, or {@code null}.
+     */
+    Integer boundarySubstep;
+
+    /**
      * Maximum total serialized bytes of unique returned event payloads. Zero disables the byte limit.
      * <p>
      * Membership and head metadata are not counted. A response may exceed this value by one payload when the oldest
      * selected event is larger than the limit.
      */
     long maxBytes;
+
+    public GetModelEvents(
+            List<ModelEventStreamRequest> requests,
+            Long maxStateIndex,
+            long maxBytes) {
+        this(
+                requests, maxStateIndex,
+                null, null, maxBytes);
+    }
+
+    @ConstructorProperties({
+            "requests", "maxStateIndex", "boundaryActionId",
+            "boundarySubstep", "maxBytes"})
+    public GetModelEvents(
+            List<ModelEventStreamRequest> requests,
+            Long maxStateIndex,
+            String boundaryActionId,
+            Integer boundarySubstep,
+            long maxBytes) {
+        this.requests = requests;
+        this.maxStateIndex = maxStateIndex;
+        this.boundaryActionId = boundaryActionId;
+        this.boundarySubstep = boundarySubstep;
+        this.maxBytes = maxBytes;
+    }
 
     @Override
     public Metric toMetric() {
@@ -61,7 +100,10 @@ public class GetModelEvents extends Request {
                 maximumEventCount += request.getMaxSize();
             }
         }
-        return new Metric(requests.size(), headOnlyCount, maximumEventCount, maxStateIndex, maxBytes);
+        return new Metric(
+                requests.size(), headOnlyCount, maximumEventCount,
+                maxStateIndex, boundaryActionId,
+                boundarySubstep, maxBytes);
     }
 
     @Value
@@ -70,6 +112,8 @@ public class GetModelEvents extends Request {
         int headOnlyCount;
         long maximumEventCount;
         Long maxStateIndex;
+        String boundaryActionId;
+        Integer boundarySubstep;
         long maxBytes;
     }
 }

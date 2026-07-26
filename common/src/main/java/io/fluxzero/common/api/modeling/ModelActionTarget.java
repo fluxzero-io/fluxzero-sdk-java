@@ -34,6 +34,13 @@ public class ModelActionTarget {
     String modelId;
 
     /**
+     * Stable serialized model type descriptor.
+     * <p>
+     * This is coordination metadata for untyped and graph loads; it is not part of model identity.
+     */
+    String modelType;
+
+    /**
      * Whether the substep event receives a membership in this model's stream.
      */
     boolean storeEvent;

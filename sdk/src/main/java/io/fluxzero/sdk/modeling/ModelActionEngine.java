@@ -119,7 +119,7 @@ final class ModelActionEngine {
                 }
                 PendingSubstep current = pending.removeFirst();
                 ResolvedSubstep resolved = Objects.requireNonNull(
-                        resolver.resolve(current.message(), stateIndexPinned ? readStateIndex : -1L),
+                        resolver.resolve(current.message(), stateIndexPinned ? readStateIndex : null),
                         "Substep resolver returned null");
                 if (!stateIndexPinned) {
                     readStateIndex = resolved.context().readStateIndex();
@@ -157,7 +157,16 @@ final class ModelActionEngine {
                         HandlerInvoker selected = applicable;
                         Object intercepted = current.message().apply(
                                 ignored -> selected.invoke());
+                        int pendingBefore = pending.size();
                         enqueueOutputs(current.message(), intercepted, pending);
+                        int added = pending.size() - pendingBefore;
+                        if (added > 0) {
+                            resolver.prefetch(
+                                    pending.stream().limit(added)
+                                            .map(PendingSubstep::message)
+                                            .toList(),
+                                    readStateIndex);
+                        }
                         continue;
                     }
                 }
@@ -450,7 +459,12 @@ final class ModelActionEngine {
 
     @FunctionalInterface
     interface SubstepResolver {
-        ResolvedSubstep resolve(DeserializingMessage message, long readStateIndex);
+        ResolvedSubstep resolve(DeserializingMessage message, Long readStateIndex);
+
+        default void prefetch(
+                List<DeserializingMessage> messages, long readStateIndex) {
+            // Optional batch optimization.
+        }
     }
 
     record ResolvedSubstep(

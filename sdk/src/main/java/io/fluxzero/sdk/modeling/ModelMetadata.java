@@ -262,6 +262,9 @@ public final class ModelMetadata {
         for (Executable executable : methods) {
             List<ModelParameter> parameters = inspectModelParameters(executable);
             List<Class<?>> targets = kind == HandlerKind.APPLY ? inspectApplyTargets(executable) : List.of();
+            List<Class<?>> emittedPayloadTypes =
+                    kind == HandlerKind.INTERCEPT_APPLY
+                            ? inspectInterceptOutputs(executable) : List.of();
             Class<?> receiverModelType = model != null && executable instanceof Method method
                                          && !Modifier.isStatic(method.getModifiers()) ? type : null;
             if (kind == HandlerKind.APPLY && isVoid(executable) && (model != null || !parameters.isEmpty())) {
@@ -270,7 +273,9 @@ public final class ModelMetadata {
                               + "Return the resulting model, or return null to delete it.");
             }
             validateParameterAmbiguity(executable, parameters);
-            result.add(new HandlerMethod(executable, kind, receiverModelType, targets, parameters));
+            result.add(new HandlerMethod(
+                    executable, kind, receiverModelType, targets,
+                    parameters, emittedPayloadTypes));
         }
     }
 
@@ -281,6 +286,62 @@ public final class ModelMetadata {
             default -> Object.class;
         };
         return isModelType(resultType) ? List.of(resultType) : List.of();
+    }
+
+    private static List<Class<?>> inspectInterceptOutputs(
+            Executable executable) {
+        if (!(executable instanceof Method method)) {
+            return List.of();
+        }
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        collectOutputTypes(method.getGenericReturnType(), result, new LinkedHashSet<>());
+        return List.copyOf(result);
+    }
+
+    private static void collectOutputTypes(
+            Type type,
+            Set<Class<?>> result,
+            Set<Type> visited) {
+        if (type == null || !visited.add(type)) {
+            return;
+        }
+        if (type instanceof WildcardType wildcard) {
+            for (Type bound : wildcard.getLowerBounds()) {
+                collectOutputTypes(bound, result, visited);
+            }
+            for (Type bound : wildcard.getUpperBounds()) {
+                collectOutputTypes(bound, result, visited);
+            }
+            return;
+        }
+        if (type instanceof java.lang.reflect.GenericArrayType array) {
+            collectOutputTypes(array.getGenericComponentType(), result, visited);
+            return;
+        }
+        if (type instanceof ParameterizedType parameterized) {
+            Class<?> rawType = ReflectionUtils.rawClass(parameterized);
+            if (Collection.class.isAssignableFrom(rawType)
+                || Optional.class.isAssignableFrom(rawType)
+                || java.util.stream.Stream.class.isAssignableFrom(rawType)) {
+                for (Type argument : parameterized.getActualTypeArguments()) {
+                    collectOutputTypes(argument, result, visited);
+                }
+                return;
+            }
+            if (!Object.class.equals(rawType)) {
+                result.add(rawType);
+            }
+            return;
+        }
+        if (type instanceof Class<?> outputType) {
+            if (outputType.isArray()) {
+                collectOutputTypes(
+                        outputType.getComponentType(), result, visited);
+            } else if (!Object.class.equals(outputType)
+                       && !void.class.equals(outputType)) {
+                result.add(outputType);
+            }
+        }
     }
 
     private static List<ModelParameter> inspectModelParameters(Executable executable) {
@@ -473,16 +534,19 @@ public final class ModelMetadata {
      * @param receiverModelType model type of a non-static handler receiver, or {@code null}
      * @param targetModelTypes  model types targeted by an apply return value
      * @param modelParameters   injected model value or {@link Entity} dependencies
+     * @param emittedPayloadTypes statically known payload types emitted by an interceptor
      */
     public record HandlerMethod(
             Executable executable,
             HandlerKind kind,
             Class<?> receiverModelType,
             List<Class<?>> targetModelTypes,
-            List<ModelParameter> modelParameters) {
+            List<ModelParameter> modelParameters,
+            List<Class<?>> emittedPayloadTypes) {
         public HandlerMethod {
             targetModelTypes = List.copyOf(targetModelTypes);
             modelParameters = List.copyOf(modelParameters);
+            emittedPayloadTypes = List.copyOf(emittedPayloadTypes);
         }
     }
 

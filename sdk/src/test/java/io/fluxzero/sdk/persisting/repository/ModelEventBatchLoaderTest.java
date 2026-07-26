@@ -30,6 +30,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -70,10 +71,94 @@ class ModelEventBatchLoaderTest {
     }
 
     @Test
+    void eventBoundaryIsResolvedOnlyByTheFirstChunk() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        List<GetModelEvents> requests = new ArrayList<>();
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            requests.add(request);
+            return emptyResponse(request, 42L);
+        });
+        ModelEventBatchLoader loader = new ModelEventBatchLoader(
+                client,
+                new ModelEventBatchLoader.Settings(
+                        2, 8, 4, 1_024L));
+        LinkedHashMap<String, Long> cursors =
+                new LinkedHashMap<>();
+        cursors.put("a", -1L);
+        cursors.put("b", -1L);
+        cursors.put("c", -1L);
+
+        var result = loader.load(
+                cursors, null,
+                "action-991", 3, ignored -> {
+                });
+
+        assertEquals(42L, result.stateIndex());
+        assertEquals(
+                "action-991",
+                requests.getFirst().getBoundaryActionId());
+        assertEquals(
+                3,
+                requests.getFirst().getBoundarySubstep());
+        assertNull(requests.getFirst().getMaxStateIndex());
+        assertNull(requests.getLast().getBoundaryActionId());
+        assertNull(requests.getLast().getBoundarySubstep());
+        assertEquals(42L, requests.getLast().getMaxStateIndex());
+    }
+
+    @Test
+    void headOnlyLoadTransfersNoMembershipsAndPinsEveryChunk() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        List<GetModelEvents> requests = new ArrayList<>();
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            requests.add(request);
+            return new GetModelEventsResult(
+                    request.getRequestId(), 42L, List.of(),
+                    request.getRequests().stream()
+                            .map(stream -> new ModelEventStream(
+                                    stream.getModelId(),
+                                    new ModelHeadState(
+                                            stream.getModelId(),
+                                            "example.Model",
+                                            9L, 41L,
+                                            true, false),
+                                    List.of()))
+                            .toList());
+        });
+        ModelEventBatchLoader loader = new ModelEventBatchLoader(
+                client,
+                new ModelEventBatchLoader.Settings(
+                        2, 8, 4, 1_024L));
+
+        var result = loader.loadHeads(
+                List.of("a", "b", "c"),
+                null, "action-991", 3);
+
+        assertEquals(42L, result.stateIndex());
+        assertEquals(List.of("a", "b", "c"),
+                     List.copyOf(result.heads().keySet()));
+        assertEquals(
+                List.of(0, 0, 0),
+                requests.stream()
+                        .flatMap(request ->
+                                         request.getRequests().stream())
+                        .map(request -> request.getMaxSize())
+                        .toList());
+        assertEquals(
+                "action-991",
+                requests.getFirst().getBoundaryActionId());
+        assertEquals(
+                42L,
+                requests.getLast().getMaxStateIndex());
+    }
+
+    @Test
     void pagesAStreamWithBoundedMembershipsAndKeepsThePinnedBoundary() {
         EventStoreClient client = mock(EventStoreClient.class);
         List<GetModelEvents> requests = new ArrayList<>();
-        ModelHeadState head = new ModelHeadState("a", 2L, 2L, true, false);
+        ModelHeadState head = new ModelHeadState("a", "example.A", 2L, 2L, true, false);
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
             GetModelEvents request = invocation.getArgument(0);
             requests.add(request);
@@ -108,8 +193,8 @@ class ModelEventBatchLoaderTest {
     void continuesWhenTheByteBoundAdvancesOnlyOneOfSeveralStreams() {
         EventStoreClient client = mock(EventStoreClient.class);
         AtomicInteger invocation = new AtomicInteger();
-        ModelHeadState aHead = new ModelHeadState("a", 0L, 0L, true, false);
-        ModelHeadState bHead = new ModelHeadState("b", 0L, 1L, true, false);
+        ModelHeadState aHead = new ModelHeadState("a", "example.A", 0L, 0L, true, false);
+        ModelHeadState bHead = new ModelHeadState("b", "example.B", 0L, 1L, true, false);
         when(client.getModelEvents(any())).thenAnswer(answer -> {
             GetModelEvents request = answer.getArgument(0);
             boolean first = invocation.getAndIncrement() == 0;
@@ -144,7 +229,7 @@ class ModelEventBatchLoaderTest {
             return new GetModelEventsResult(
                     request.getRequestId(), 0L, List.of(),
                     List.of(new ModelEventStream(
-                            "a", new ModelHeadState("a", 0L, 0L, true, false),
+                            "a", new ModelHeadState("a", "example.A", 0L, 0L, true, false),
                             List.of(new ModelEventMembership(0L, 0L, -1L, "action", 0)))));
         });
         EventStoreClient incompleteClient = mock(EventStoreClient.class);
@@ -153,7 +238,7 @@ class ModelEventBatchLoaderTest {
             return new GetModelEventsResult(
                     request.getRequestId(), 0L, List.of(),
                     List.of(new ModelEventStream(
-                            "a", new ModelHeadState("a", 0L, 0L, false, false), List.of())));
+                            "a", new ModelHeadState("a", "example.A", 0L, 0L, false, false), List.of())));
         });
 
         assertThrows(
@@ -196,7 +281,7 @@ class ModelEventBatchLoaderTest {
                     request.getRequestId(), 1L,
                     List.of(new ModelEventPayload(1L, event("event"))),
                     List.of(new ModelEventStream(
-                            "a", new ModelHeadState("a", 0L, 0L, true, false),
+                            "a", new ModelHeadState("a", "example.A", 0L, 0L, true, false),
                             List.of(new ModelEventMembership(0L, 1L, 0L, "action", 0)))));
         });
 

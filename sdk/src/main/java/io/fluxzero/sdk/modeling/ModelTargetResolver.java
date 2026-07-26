@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -96,6 +97,21 @@ public final class ModelTargetResolver {
             throw new IllegalArgumentException("Cannot resolve model targets from a null payload");
         }
         return plan(value.getClass(), handlerMethods).resolve(value);
+    }
+
+    /**
+     * Returns statically typed independent model types referenced by {@link Id} properties on a payload.
+     * <p>
+     * This supports receiver-side model handler discovery without traversing relationships or inspecting an ID value.
+     */
+    public static List<Class<?>> referencedModelTypes(Class<?> payloadType) {
+        Objects.requireNonNull(payloadType, "payloadType");
+        LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
+        PayloadMetadata.of(payloadType).properties.values().forEach(property ->
+                ModelMetadata.inferIdTarget(property.type, property.genericType)
+                        .filter(type -> ModelMetadata.of(type).isModel())
+                        .ifPresent(result::add));
+        return List.copyOf(result);
     }
 
     private static void compileHandler(

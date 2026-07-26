@@ -144,6 +144,41 @@ class InMemoryEventStoreModelActionTest {
     }
 
     @Test
+    void batchReadResolvesPublishedEventBoundaryInsideTheLoadRequest() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        SerializedMessage published = event("published");
+        store.commitModelAction(action(
+                "published-action",
+                ModelActionSubstep.builder()
+                        .event(published)
+                        .publishEvent(true)
+                        .targets(List.of(storedTarget("order-1")))
+                        .build())).join();
+        store.commitModelAction(action(
+                "later-store-only",
+                ModelActionSubstep.builder()
+                        .event(event("later"))
+                        .targets(List.of(storedTarget("order-1")))
+                        .build())).join();
+
+        var result = store.getModelEvents(
+                new GetModelEvents(
+                        List.of(new ModelEventStreamRequest(
+                                "order-1", -1L, 10)),
+                        null, "published-action", 0, 0L));
+
+        assertEquals(0L, result.getStateIndex());
+        assertEquals(
+                0L,
+                result.getStreams().getFirst()
+                        .getHead().getSequenceNumber());
+        assertEquals(
+                1,
+                result.getStreams().getFirst()
+                        .getMemberships().size());
+    }
+
+    @Test
     void batchReadBoundsUniquePayloadBytesAndAlwaysReturnsTheOldestPayload() {
         InMemoryEventStore store = new InMemoryEventStore();
         store.commitModelAction(action(
@@ -461,6 +496,12 @@ class InMemoryEventStoreModelActionTest {
         assertThrows(IllegalArgumentException.class, () -> store.getModelEvents(new GetModelEvents(
                 List.of(new ModelEventStreamRequest("order-1", -1L, 1)),
                 null, -1L)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> store.getModelEvents(
+                        new GetModelEvents(
+                                List.of(), 0L,
+                                "action", 0, 0L)));
     }
 
     private static CommitModelAction action(String actionId, ModelActionSubstep... substeps) {

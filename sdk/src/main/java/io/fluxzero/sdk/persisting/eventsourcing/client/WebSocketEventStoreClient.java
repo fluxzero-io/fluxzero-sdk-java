@@ -25,6 +25,8 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -127,6 +129,11 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
 
     @Override
     public GetModelEventsResult getModelEvents(GetModelEvents request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public GetModelGraphResult getModelGraph(GetModelGraph request) {
         return sendAndWait(request);
     }
 

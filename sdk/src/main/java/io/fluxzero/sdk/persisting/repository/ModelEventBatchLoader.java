@@ -71,39 +71,214 @@ final class ModelEventBatchLoader {
             List<String> modelIds,
             Long maxStateIndex,
             Consumer<GetModelEventsResult> pageConsumer) {
-        Objects.requireNonNull(modelIds, "modelIds");
+        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
+        validateIds(modelIds).forEach(modelId -> cursors.put(modelId, -1L));
+        return load(cursors, maxStateIndex, pageConsumer).stateIndex();
+    }
+
+    /**
+     * Loads stream suffixes after a caller-supplied sequence per model.
+     * <p>
+     * This is the cache/snapshot catch-up path: one request still pins all heads and suffixes to the same state
+     * boundary, while already reconstructed prefixes are not transferred again.
+     */
+    LoadResult load(
+            Map<String, Long> lastSequenceNumbers,
+            Long maxStateIndex,
+            Consumer<GetModelEventsResult> pageConsumer) {
+        return load(
+                lastSequenceNumbers, maxStateIndex,
+                null, null,
+                pageConsumer);
+    }
+
+    /**
+     * Loads stream suffixes at either an explicit state boundary or the persisted state of one action substep.
+     * The action boundary is resolved by the runtime in the first stream request and all following pages use the
+     * returned state index.
+     */
+    LoadResult load(
+            Map<String, Long> lastSequenceNumbers,
+            Long maxStateIndex,
+            String boundaryActionId,
+            Integer boundarySubstep,
+            Consumer<GetModelEventsResult> pageConsumer) {
+        Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
         if (maxStateIndex != null && maxStateIndex < -1L) {
             throw new IllegalArgumentException("Model maxStateIndex must be at least -1");
         }
-        List<String> ids = validateIds(modelIds);
+        if (maxStateIndex != null
+            && boundaryActionId != null) {
+            throw new IllegalArgumentException(
+                    "Specify either maxStateIndex or an action boundary, not both");
+        }
+        if ((boundaryActionId == null)
+            != (boundarySubstep == null)) {
+            throw new IllegalArgumentException(
+                    "Model action boundary requires both actionId and substep");
+        }
+        if (boundaryActionId != null
+            && (boundaryActionId.isBlank()
+                || boundarySubstep < 0)) {
+            throw new IllegalArgumentException(
+                    "Model action boundary must be non-blank with a non-negative substep");
+        }
+        LinkedHashMap<String, Long> validatedCursors = validateCursors(lastSequenceNumbers);
+        List<String> ids = List.copyOf(validatedCursors.keySet());
         if (ids.isEmpty()) {
             GetModelEventsResult response = eventStoreClient.getModelEvents(
-                    new GetModelEvents(List.of(), maxStateIndex, settings.maxPayloadBytes()));
+                    new GetModelEvents(
+                            List.of(), maxStateIndex,
+                            boundaryActionId, boundarySubstep,
+                            settings.maxPayloadBytes()));
             validateBoundary(response, maxStateIndex);
             pageConsumer.accept(response);
-            return response.getStateIndex();
+            return new LoadResult(response.getStateIndex(), Map.of());
         }
 
         Long pinnedStateIndex = maxStateIndex;
+        String actionBoundary = boundaryActionId;
+        Integer actionSubstep = boundarySubstep;
+        LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         int maxStreamsPerChunk = Math.min(
                 settings.maxStreamsPerRequest(), settings.maxMembershipsPerRequest());
         for (int offset = 0; offset < ids.size(); offset += maxStreamsPerChunk) {
             int until = Math.min(ids.size(), offset + maxStreamsPerChunk);
-            pinnedStateIndex = loadChunk(
-                    ids.subList(offset, until), pinnedStateIndex, pageConsumer);
+            List<String> chunkIds = ids.subList(offset, until);
+            LinkedHashMap<String, Long> chunkCursors = new LinkedHashMap<>();
+            chunkIds.forEach(modelId -> chunkCursors.put(modelId, validatedCursors.get(modelId)));
+            LoadResult chunk = loadChunk(
+                    chunkCursors, pinnedStateIndex,
+                    actionBoundary, actionSubstep,
+                    pageConsumer);
+            pinnedStateIndex = chunk.stateIndex();
+            actionBoundary = null;
+            actionSubstep = null;
+            heads.putAll(chunk.heads());
         }
-        return Objects.requireNonNull(pinnedStateIndex);
+        return new LoadResult(Objects.requireNonNull(pinnedStateIndex), heads);
     }
 
-    private long loadChunk(
+    /**
+     * Loads only model heads while pinning the same boundary across every request chunk.
+     * <p>
+     * This is used to prove that a directly document-loaded dependency still has complete stored event history before
+     * an event-sourced model is allowed to depend on it. No event membership or payload is transferred.
+     */
+    LoadResult loadHeads(
             List<String> modelIds,
+            Long maxStateIndex,
+            String boundaryActionId,
+            Integer boundarySubstep) {
+        List<String> ids = validateIds(modelIds);
+        if (ids.isEmpty()) {
+            return load(
+                    Map.of(), maxStateIndex,
+                    boundaryActionId, boundarySubstep,
+                    ignored -> {
+                    });
+        }
+        Long pinnedStateIndex = maxStateIndex;
+        String actionBoundary = boundaryActionId;
+        Integer actionSubstep = boundarySubstep;
+        LinkedHashMap<String, ModelHeadState> heads =
+                new LinkedHashMap<>();
+        for (int offset = 0;
+             offset < ids.size();
+             offset += settings.maxStreamsPerRequest()) {
+            int until = Math.min(
+                    ids.size(),
+                    offset + settings.maxStreamsPerRequest());
+            List<String> chunkIds =
+                    ids.subList(offset, until);
+            GetModelEventsResult response =
+                    eventStoreClient.getModelEvents(
+                            new GetModelEvents(
+                                    chunkIds.stream()
+                                            .map(modelId ->
+                                                         new ModelEventStreamRequest(
+                                                                 modelId, -1L, 0))
+                                            .toList(),
+                                    pinnedStateIndex,
+                                    actionBoundary,
+                                    actionSubstep,
+                                    settings.maxPayloadBytes()));
+            long responseStateIndex =
+                    validateBoundary(response, pinnedStateIndex);
+            validateHeadPage(response, chunkIds, heads);
+            if (pinnedStateIndex == null) {
+                pinnedStateIndex = responseStateIndex;
+            }
+            actionBoundary = null;
+            actionSubstep = null;
+        }
+        return new LoadResult(
+                Objects.requireNonNull(pinnedStateIndex), heads);
+    }
+
+    private static void validateHeadPage(
+            GetModelEventsResult response,
+            List<String> requestedIds,
+            Map<String, ModelHeadState> heads) {
+        if (!Objects.requireNonNull(
+                response.getPayloads(),
+                "Model event payloads").isEmpty()) {
+            throw invalid(
+                    "Head-only model response contains event payloads");
+        }
+        List<ModelEventStream> streams =
+                Objects.requireNonNull(
+                        response.getStreams(),
+                        "Model event streams");
+        if (streams.size() != requestedIds.size()) {
+            throw invalid(
+                    "Model head response contains %d streams for %d requests"
+                            .formatted(
+                                    streams.size(),
+                                    requestedIds.size()));
+        }
+        for (int i = 0; i < streams.size(); i++) {
+            String requestedId = requestedIds.get(i);
+            ModelEventStream stream = streams.get(i);
+            if (stream == null
+                || !requestedId.equals(stream.getModelId())) {
+                throw invalid(
+                        "Model head stream %d should be '%s' but was '%s'"
+                                .formatted(
+                                        i, requestedId,
+                                        stream == null
+                                                ? null
+                                                : stream.getModelId()));
+            }
+            if (!Objects.requireNonNull(
+                    stream.getMemberships(),
+                    "Model event memberships").isEmpty()) {
+                throw invalid(
+                        "Head-only model response contains memberships for "
+                        + requestedId);
+            }
+            ModelHeadState head = stream.getHead();
+            if (head != null) {
+                validateHead(
+                        requestedId, head,
+                        response.getStateIndex(), null);
+            }
+            heads.put(requestedId, head);
+        }
+    }
+
+    private LoadResult loadChunk(
+            LinkedHashMap<String, Long> initialCursors,
             Long requestedStateIndex,
+            String requestedActionId,
+            Integer requestedSubstep,
             Consumer<GetModelEventsResult> pageConsumer) {
-        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
+        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(initialCursors);
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        modelIds.forEach(modelId -> cursors.put(modelId, -1L));
         Long pinnedStateIndex = requestedStateIndex;
+        String actionBoundary = requestedActionId;
+        Integer actionSubstep = requestedSubstep;
 
         while (true) {
             List<String> active = cursors.entrySet().stream()
@@ -116,7 +291,7 @@ final class ModelEventBatchLoader {
                     .map(Map.Entry::getKey)
                     .toList();
             if (active.isEmpty()) {
-                return Objects.requireNonNull(pinnedStateIndex);
+                return new LoadResult(Objects.requireNonNull(pinnedStateIndex), heads);
             }
 
             int perStreamLimit = Math.min(
@@ -127,11 +302,16 @@ final class ModelEventBatchLoader {
                             modelId, cursors.get(modelId), perStreamLimit))
                     .toList();
             GetModelEventsResult response = eventStoreClient.getModelEvents(
-                    new GetModelEvents(requests, pinnedStateIndex, settings.maxPayloadBytes()));
+                    new GetModelEvents(
+                            requests, pinnedStateIndex,
+                            actionBoundary, actionSubstep,
+                            settings.maxPayloadBytes()));
             long responseStateIndex = validateBoundary(response, pinnedStateIndex);
             if (pinnedStateIndex == null) {
                 pinnedStateIndex = responseStateIndex;
             }
+            actionBoundary = null;
+            actionSubstep = null;
 
             int advanced = validatePage(
                     response, active, cursors, heads, perStreamLimit, settings.maxPayloadBytes());
@@ -143,6 +323,7 @@ final class ModelEventBatchLoader {
     }
 
     private static List<String> validateIds(List<String> modelIds) {
+        Objects.requireNonNull(modelIds, "modelIds");
         LinkedHashSet<String> unique = new LinkedHashSet<>();
         for (String modelId : modelIds) {
             if (modelId == null || modelId.isBlank()) {
@@ -153,6 +334,24 @@ final class ModelEventBatchLoader {
             }
         }
         return List.copyOf(unique);
+    }
+
+    private static LinkedHashMap<String, Long> validateCursors(
+            Map<String, Long> lastSequenceNumbers) {
+        LinkedHashMap<String, Long> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> entry : lastSequenceNumbers.entrySet()) {
+            String modelId = entry.getKey();
+            Long sequenceNumber = entry.getValue();
+            if (modelId == null || modelId.isBlank()) {
+                throw new IllegalArgumentException("Model ID must not be blank");
+            }
+            if (sequenceNumber == null || sequenceNumber < -1L) {
+                throw new IllegalArgumentException(
+                        "Last model sequence number must be at least -1 for " + modelId);
+            }
+            result.put(modelId, sequenceNumber);
+        }
+        return result;
     }
 
     private static long validateBoundary(GetModelEventsResult response, Long expected) {
@@ -218,6 +417,7 @@ final class ModelEventBatchLoader {
                                 .formatted(i, requestedId, stream == null ? null : stream.getModelId()));
             }
             ModelHeadState head = stream.getHead();
+            long cursor = cursors.get(requestedId);
             boolean knownHead = knownHeads.containsKey(requestedId);
             ModelHeadState previousHead = knownHeads.get(requestedId);
             if (head != null) {
@@ -225,6 +425,11 @@ final class ModelEventBatchLoader {
                     throw invalid("Model head appeared while loading " + requestedId);
                 }
                 validateHead(requestedId, head, response.getStateIndex(), previousHead);
+                if (cursor > head.getSequenceNumber()) {
+                    throw invalid(
+                            "Model stream '%s' starts after pinned head sequence %d"
+                                    .formatted(requestedId, head.getSequenceNumber()));
+                }
             } else if (knownHead && previousHead != null) {
                 throw invalid("Model head disappeared while loading " + requestedId);
             }
@@ -239,7 +444,6 @@ final class ModelEventBatchLoader {
                         "Model stream '%s' returned %d memberships, exceeding requested limit %d"
                                 .formatted(requestedId, memberships.size(), perStreamLimit));
             }
-            long cursor = cursors.get(requestedId);
             for (ModelEventMembership membership : memberships) {
                 if (membership == null) {
                     throw invalid("Model stream '" + requestedId + "' contains a null membership");
@@ -304,15 +508,15 @@ final class ModelEventBatchLoader {
             throw invalid(
                     "Model head for '%s' reports ID '%s'".formatted(requestedId, head.getModelId()));
         }
-        if (head.getSequenceNumber() < 0L
-            || head.getStateIndex() < 0L
-            || head.getStateIndex() > responseStateIndex) {
-            throw invalid("Model head for '" + requestedId + "' contains invalid positions");
-        }
         if (!head.isHistoryComplete()) {
             throw invalid(
                     "Model '%s' cannot be reconstructed at state index %d because its stored history is incomplete"
                             .formatted(requestedId, responseStateIndex));
+        }
+        if (head.getSequenceNumber() < 0L
+            || head.getStateIndex() < 0L
+            || head.getStateIndex() > responseStateIndex) {
+            throw invalid("Model head for '" + requestedId + "' contains invalid positions");
         }
         if (previous != null && !previous.equals(head)) {
             throw invalid("Model head changed while loading " + requestedId);
@@ -348,6 +552,12 @@ final class ModelEventBatchLoader {
                 || maxPayloadBytes <= 0L) {
                 throw new IllegalArgumentException("Model event batch limits must be positive");
             }
+        }
+    }
+
+    record LoadResult(long stateIndex, Map<String, ModelHeadState> heads) {
+        LoadResult {
+            heads = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(heads));
         }
     }
 }

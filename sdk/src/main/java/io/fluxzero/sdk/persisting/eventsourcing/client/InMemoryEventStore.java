@@ -19,6 +19,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -31,6 +33,8 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.Relationship;
@@ -45,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -140,8 +145,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     long sequenceNumber = previousHead.sequenceNumber() + (target.isStoreEvent() ? 1L : 0L);
                     boolean historyComplete = previousHead.historyComplete()
                                               && (!target.isUpdateState() || target.isStoreEvent());
+                    String modelType = target.getModelType() == null
+                            ? previousHead.modelType() : target.getModelType();
+                    if (previousHead.modelType() != null
+                        && target.getModelType() != null
+                        && !previousHead.modelType().equals(target.getModelType())) {
+                        throw new IllegalArgumentException(
+                                "Model %s already has type %s instead of %s"
+                                        .formatted(target.getModelId(), previousHead.modelType(),
+                                                   target.getModelType()));
+                    }
                     ModelStreamHead head = new ModelStreamHead(
-                            sequenceNumber, stateIndex, historyComplete, target.isDelete());
+                            modelType, sequenceNumber, stateIndex,
+                            historyComplete, target.isDelete());
                     modelHeads.put(target.getModelId(), head);
                     modelHeadHistory.computeIfAbsent(
                             target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(head);
@@ -255,8 +271,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
         validate(request);
-        long stateIndex = request.getMaxStateIndex() == null
-                ? modelStateIndex : request.getMaxStateIndex();
+        long stateIndex = modelBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryActionId(),
+                request.getBoundarySubstep());
         if (stateIndex < -1L || stateIndex > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -304,7 +322,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             streams.add(new ModelEventStream(
                     streamRequest.getModelId(),
                     head == null ? null : new ModelHeadState(
-                            streamRequest.getModelId(), head.sequenceNumber(), head.stateIndex(),
+                            streamRequest.getModelId(), head.modelType(),
+                            head.sequenceNumber(), head.stateIndex(),
                             head.historyComplete(), head.deleted()),
                     candidateMemberships.get(streamRequest.getModelId()).stream()
                             .filter(membership -> selectedStateIndices.contains(membership.getStateIndex()))
@@ -315,6 +334,79 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 payloads.entrySet().stream()
                         .map(entry -> new ModelEventPayload(entry.getKey(), entry.getValue())).toList(),
                 List.copyOf(streams));
+    }
+
+    @Override
+    public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
+        validate(request);
+        long boundary = modelBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryActionId(),
+                request.getBoundarySubstep());
+        if (boundary < -1L || boundary > modelStateIndex) {
+            throw new IllegalArgumentException(
+                    "Model maxStateIndex %d is outside visible range -1..%d"
+                            .formatted(boundary, modelStateIndex));
+        }
+        LinkedHashSet<String> modelIds = new LinkedHashSet<>();
+        modelIds.add(request.getRootId());
+        List<String> frontier = List.of(request.getRootId());
+        List<ModelGraphEdge> edges = new ArrayList<>();
+        for (int depth = 0; depth < request.getMaxDepth() && !frontier.isEmpty(); depth++) {
+            Set<String> parents = Set.copyOf(frontier);
+            List<String> next = new ArrayList<>();
+            for (MutableModelRelationship relation : modelRelationshipHistory) {
+                if (!parents.contains(relation.relationship.getParentId())
+                    || !relation.isValidAt(boundary)
+                    || request.isComposableOnly()
+                       && relation.relationship.getPath() == null) {
+                    continue;
+                }
+                edges.add(new ModelGraphEdge(
+                        relation.childId, relation.relationship.getParentId(),
+                        relation.relationship.getParentType(), relation.relationship.getPath(),
+                        relation.validFrom, relation.validUntil));
+                if (modelIds.add(relation.childId)) {
+                    if (modelIds.size() > request.getMaxModels()) {
+                        throw new IllegalArgumentException(
+                                "Model graph exceeds maxModels " + request.getMaxModels());
+                    }
+                    next.add(relation.childId);
+                }
+            }
+            frontier = next;
+        }
+        GetModelEventsResult events = getModelEvents(new GetModelEvents(
+                modelIds.stream()
+                        .map(id -> new ModelEventStreamRequest(
+                                id, -1L, request.getMaxEventsPerModel()))
+                        .toList(),
+                boundary, request.getMaxBytes()));
+        return new GetModelGraphResult(
+                request.getRequestId(), boundary, List.copyOf(edges),
+                events.getPayloads(), events.getStreams());
+    }
+
+    private long modelBoundary(
+            Long maxStateIndex,
+            String boundaryActionId,
+            Integer boundarySubstep) {
+        if (boundaryActionId != null) {
+            CommitModelActionResult result =
+                    modelActions.get(boundaryActionId);
+            if (result == null
+                || boundarySubstep >= result.getSubsteps().size()) {
+                throw new IllegalArgumentException(
+                        "Model action boundary %s[%d] is not visible"
+                                .formatted(
+                                        boundaryActionId,
+                                        boundarySubstep));
+            }
+            return result.getSubsteps().get(
+                    boundarySubstep).getStateIndex();
+        }
+        return maxStateIndex == null
+                ? modelStateIndex : maxStateIndex;
     }
 
     private static LinkedHashMap<Long, SerializedMessage> selectPayloads(
@@ -446,6 +538,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         if (request.getMaxStateIndex() != null && request.getMaxStateIndex() < -1L) {
             throw new IllegalArgumentException("Model state index must be at least -1");
         }
+        validateEventBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryActionId(),
+                request.getBoundarySubstep());
         if (request.getRequests() == null) {
             throw new IllegalArgumentException("Model stream requests are required");
         }
@@ -470,9 +566,55 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
     }
 
+    private static void validate(GetModelGraph request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Model graph request is required");
+        }
+        validateModelId(request.getRootId());
+        if (request.getMaxStateIndex() != null && request.getMaxStateIndex() < -1L) {
+            throw new IllegalArgumentException("Model state index must be at least -1");
+        }
+        validateEventBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryActionId(),
+                request.getBoundarySubstep());
+        if (request.getMaxDepth() < 0 || request.getMaxDepth() > 1_024) {
+            throw new IllegalArgumentException("Model graph maxDepth must be between 0 and 1024");
+        }
+        if (request.getMaxModels() < 1 || request.getMaxModels() > 100_000) {
+            throw new IllegalArgumentException("Model graph maxModels must be between 1 and 100000");
+        }
+        if (request.getMaxEventsPerModel() < 0 || request.getMaxEventsPerModel() > 8_192) {
+            throw new IllegalArgumentException(
+                    "Model graph maxEventsPerModel must be between 0 and 8192");
+        }
+        if (request.getMaxBytes() < 0L) {
+            throw new IllegalArgumentException("Model graph maxBytes must not be negative");
+        }
+    }
+
     private static void validateModelId(String modelId) {
         if (modelId == null || modelId.isBlank()) {
             throw new IllegalArgumentException("Model ID must not be blank");
+        }
+    }
+
+    private static void validateEventBoundary(
+            Long stateIndex,
+            String actionId,
+            Integer substep) {
+        if (stateIndex != null && actionId != null) {
+            throw new IllegalArgumentException(
+                    "Specify either maxStateIndex or an action boundary, not both");
+        }
+        if ((actionId == null) != (substep == null)) {
+            throw new IllegalArgumentException(
+                    "Model action boundary requires both actionId and substep");
+        }
+        if (actionId != null
+            && (actionId.isBlank() || substep < 0)) {
+            throw new IllegalArgumentException(
+                    "Model action boundary must be non-blank with a non-negative substep");
         }
     }
 
@@ -529,9 +671,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private record ModelStreamHead(
-            long sequenceNumber, long stateIndex, boolean historyComplete, boolean deleted) {
+            String modelType, long sequenceNumber, long stateIndex,
+            boolean historyComplete, boolean deleted) {
         private ModelStreamHead(long sequenceNumber, boolean historyComplete) {
-            this(sequenceNumber, -1L, historyComplete, false);
+            this(null, sequenceNumber, -1L, historyComplete, false);
         }
     }
 

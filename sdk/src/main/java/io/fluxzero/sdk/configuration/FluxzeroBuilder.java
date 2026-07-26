@@ -17,6 +17,7 @@ package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -25,6 +26,7 @@ import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ErrorGateway;
@@ -163,6 +165,24 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Replaces the internal relationships cache with a new implementation.
      */
     FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction);
+
+    /**
+     * Configures the optional policy used when an independent-model action was evaluated against an older model state.
+     * <p>
+     * {@link ModelConflictPolicy#ACCEPT} is the default and adds no strict conflict check. Rejecting policies roll back
+     * the complete runtime action before invoking {@code resolver}. A resolver-requested retry performs a fresh pinned
+     * model load and is bounded by {@code maxRetries}.
+     *
+     * @param policy conflict policy sent with model actions
+     * @param resolver client-side decision after a rolled-back conflict
+     * @param maxRetries maximum number of complete action reevaluations
+     * @return this builder
+     */
+    default FluxzeroBuilder configureModelConflictHandling(
+            ModelConflictPolicy policy, ModelConflictResolver resolver, int maxRetries) {
+        throw new UnsupportedOperationException(
+                "Independent model conflict handling is not supported by this builder");
+    }
 
     /**
      * Forwards incoming {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP server on

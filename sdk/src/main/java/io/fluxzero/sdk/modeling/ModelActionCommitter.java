@@ -24,6 +24,7 @@ import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -42,10 +43,15 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -61,6 +67,7 @@ import static io.fluxzero.common.SearchUtils.parseTimeProperty;
  * failed document update using the same durable action ID.
  */
 final class ModelActionCommitter {
+    private static final int MAX_PENDING_REPAIRS = 10_000;
 
     private final EventStoreClient eventStoreClient;
     private final DocumentStore documentStore;
@@ -68,6 +75,11 @@ final class ModelActionCommitter {
     private final DocumentSerializer documentSerializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final String source;
+    private final Function<CommittedAction, CompletableFuture<Void>> afterCommit;
+    private final Map<String, PendingCommit> pendingRepairs =
+            new ConcurrentHashMap<>();
+    private final Semaphore pendingRepairCapacity =
+            new Semaphore(MAX_PENDING_REPAIRS);
 
     ModelActionCommitter(
             EventStoreClient eventStoreClient,
@@ -76,12 +88,26 @@ final class ModelActionCommitter {
             DocumentSerializer documentSerializer,
             DispatchInterceptor dispatchInterceptor,
             String source) {
+        this(eventStoreClient, documentStore, serializer, documentSerializer,
+             dispatchInterceptor, source,
+             ignored -> CompletableFuture.completedFuture(null));
+    }
+
+    ModelActionCommitter(
+            EventStoreClient eventStoreClient,
+            DocumentStore documentStore,
+            Serializer serializer,
+            DocumentSerializer documentSerializer,
+            DispatchInterceptor dispatchInterceptor,
+            String source,
+            Function<CommittedAction, CompletableFuture<Void>> afterCommit) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient);
         this.documentStore = Objects.requireNonNull(documentStore);
         this.serializer = Objects.requireNonNull(serializer);
         this.documentSerializer = Objects.requireNonNull(documentSerializer);
         this.dispatchInterceptor = Objects.requireNonNull(dispatchInterceptor);
         this.source = source;
+        this.afterCommit = Objects.requireNonNull(afterCommit);
     }
 
     CompletableFuture<Optional<CommitModelActionResult>> commit(
@@ -93,15 +119,61 @@ final class ModelActionCommitter {
             String actionId,
             ModelActionEngine.ActionEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
-        PreparedCommit prepared = prepare(actionId, evaluation, conflictPolicy);
-        if (prepared.action() == null) {
-            return CompletableFuture.completedFuture(Optional.empty());
+        PendingCommit pending = pendingRepairs.get(actionId);
+        if (pending == null) {
+            PreparedCommit prepared =
+                    prepare(actionId, evaluation, conflictPolicy);
+            if (prepared.action() == null) {
+                return CompletableFuture.completedFuture(
+                        Optional.empty());
+            }
+            if (!pendingRepairCapacity.tryAcquire()) {
+                throw new RejectedExecutionException(
+                        "Too many model actions are awaiting commit or direct-document repair");
+            }
+            PendingCommit candidate =
+                    new PendingCommit(evaluation, prepared);
+            PendingCommit known =
+                    pendingRepairs.putIfAbsent(
+                            actionId, candidate);
+            if (known != null) {
+                pendingRepairCapacity.release();
+            }
+            pending = known == null
+                    ? candidate : known;
         }
+        PendingCommit retained = pending;
+        PreparedCommit prepared = pending.prepared();
         return eventStoreClient.commitModelAction(prepared.action())
-                .thenCompose(result -> result.isAccepted()
-                        ? updateDirectDocuments(prepared.documents())
-                                .thenApply(ignored -> Optional.of(result))
-                        : CompletableFuture.completedFuture(Optional.of(result)));
+                .thenCompose(result -> {
+                    if (!result.isAccepted()) {
+                        clearPending(
+                                actionId, retained);
+                        return CompletableFuture.completedFuture(
+                                Optional.of(result));
+                    }
+                    return updateDirectDocuments(
+                            prepared.documents())
+                            .thenCompose(ignored ->
+                                                 afterCommit.apply(
+                                                         new CommittedAction(
+                                                                 retained.evaluation(),
+                                                                 prepared,
+                                                                 result)))
+                            .thenApply(ignored -> {
+                                clearPending(
+                                        actionId, retained);
+                                return Optional.of(result);
+                            });
+                });
+    }
+
+    private void clearPending(
+            String actionId, PendingCommit pending) {
+        if (pendingRepairs.remove(
+                actionId, pending)) {
+            pendingRepairCapacity.release();
+        }
     }
 
     CompletableFuture<Optional<CommitModelActionResult>> commit(
@@ -175,8 +247,13 @@ final class ModelActionCommitter {
         Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
         List<ModelActionSubstep> substeps = new ArrayList<>();
+        List<List<EffectiveTransition>> transitionGroups = new ArrayList<>();
         LinkedHashMap<String, DirectDocumentCandidate> documents = new LinkedHashMap<>();
-        for (ModelActionEngine.AppliedSubstep appliedSubstep : evaluation.substeps()) {
+        for (int evaluatedSubstep = 0;
+             evaluatedSubstep < evaluation.substeps().size();
+             evaluatedSubstep++) {
+            ModelActionEngine.AppliedSubstep appliedSubstep =
+                    evaluation.substeps().get(evaluatedSubstep);
             List<EffectiveTransition> transitions = appliedSubstep.transitions().stream()
                     .map(this::effectiveTransition)
                     .flatMap(Optional::stream)
@@ -190,6 +267,9 @@ final class ModelActionCommitter {
             SerializedMessage event = eventRequired ? serialize(appliedSubstep.message()) : null;
             if (event != null) {
                 event.setSource(source);
+                event.setMetadata(event.getMetadata().with(
+                        ModelEventMetadata.ACTION_ID, actionId,
+                        ModelEventMetadata.SUBSTEP, substeps.size()));
                 applyEventRouting(event, transitions);
             }
 
@@ -198,6 +278,7 @@ final class ModelActionCommitter {
                 ModelActionEngine.Transition sourceTransition = transition.transition();
                 targets.add(ModelActionTarget.builder()
                                     .modelId(sourceTransition.modelId())
+                                    .modelType(sourceTransition.modelType().getName())
                                     .storeEvent(transition.storeEvent())
                                     .updateState(true)
                                     .delete(sourceTransition.after() == null)
@@ -213,15 +294,17 @@ final class ModelActionCommitter {
                                  .publishEvent(publishEvent)
                                  .targets(List.copyOf(targets))
                                  .build());
+            transitionGroups.add(transitions);
         }
         if (substeps.isEmpty()) {
-            return new PreparedCommit(null, List.of());
+            return new PreparedCommit(null, List.of(), List.of());
         }
         CommitModelAction action = new CommitModelAction(
                 actionId, evaluation.readStateIndex(), evaluation.readModelIds(),
                 List.copyOf(substeps), conflictPolicy, STORED);
         return new PreparedCommit(
-                action, documents.values().stream().map(this::serializeDocument).toList());
+                action, documents.values().stream().map(this::serializeDocument).toList(),
+                List.copyOf(transitionGroups));
     }
 
     private SerializedMessage serialize(DeserializingMessage message) {
@@ -377,7 +460,21 @@ final class ModelActionCommitter {
         return value == null || value.isBlank() ? null : value;
     }
 
-    record PreparedCommit(CommitModelAction action, List<DirectDocument> documents) {
+    record PreparedCommit(
+            CommitModelAction action,
+            List<DirectDocument> documents,
+            List<List<EffectiveTransition>> transitionGroups) {
+    }
+
+    record CommittedAction(
+            ModelActionEngine.ActionEvaluation evaluation,
+            PreparedCommit prepared,
+            CommitModelActionResult result) {
+    }
+
+    private record PendingCommit(
+            ModelActionEngine.ActionEvaluation evaluation,
+            PreparedCommit prepared) {
     }
 
     record DirectDocument(
@@ -393,7 +490,7 @@ final class ModelActionCommitter {
             Metadata metadata) {
     }
 
-    private record EffectiveTransition(
+    record EffectiveTransition(
             ModelActionEngine.Transition transition,
             boolean storeEvent,
             boolean publishEvent,

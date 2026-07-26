@@ -31,6 +31,8 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -124,6 +126,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = CommitModelActionResult.class, name = "commitModelActionResult"),
         @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
         @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),
+        @JsonSubTypes.Type(value = GetModelGraph.class, name = "getModelGraph"),
+        @JsonSubTypes.Type(value = GetModelGraphResult.class, name = "getModelGraphResult"),
         @JsonSubTypes.Type(value = UpdateRelationships.class, name = "updateRelationships"),
         @JsonSubTypes.Type(value = RepairRelationships.class, name = "repairRelationships"),
         @JsonSubTypes.Type(value = GetAggregateIds.class, name = "getAggregateIds"),

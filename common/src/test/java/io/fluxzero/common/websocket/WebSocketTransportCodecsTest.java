@@ -35,6 +35,8 @@ import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
@@ -46,6 +48,7 @@ import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelRelationship;
@@ -236,6 +239,7 @@ class WebSocketTransportCodecsTest {
     void jsonAndCborRoundTripModelActionRequestAndResult() throws Exception {
         ModelActionTarget storedTarget = ModelActionTarget.builder()
                 .modelId("order-1")
+                .modelType("com.example.Order")
                 .storeEvent(true)
                 .updateState(true)
                 .relationships(List.of(ModelRelationship.builder()
@@ -405,25 +409,30 @@ class WebSocketTransportCodecsTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 100),
                         new ModelEventStreamRequest("inventory-1", 4L, 0)),
-                91L, 4_096L);
+                null, "action-991", 3, 4_096L);
         GetModelEventsResult result = new GetModelEventsResult(
                 request.getRequestId(), 91L,
                 List.of(new ModelEventPayload(80L, serializedMessage())),
                 List.of(
                         new ModelEventStream(
                                 "order-1",
-                                new ModelHeadState("order-1", 7L, 80L, true, false),
+                                new ModelHeadState("order-1", "example.Order", 7L, 80L, true, false),
                                 List.of(new ModelEventMembership(
                                         7L, 80L, 70L, "action-1", 2))),
                         new ModelEventStream(
                                 "inventory-1",
-                                new ModelHeadState("inventory-1", 4L, 79L, false, true),
+                                new ModelHeadState("inventory-1", "example.Inventory", 4L, 79L, false, true),
                                 List.of())));
 
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
             GetModelEvents decodedRequest = assertInstanceOf(
                     GetModelEvents.class, roundTrip(codec, request));
-            assertEquals(91L, decodedRequest.getMaxStateIndex());
+            assertNull(decodedRequest.getMaxStateIndex());
+            assertEquals(
+                    "action-991",
+                    decodedRequest.getBoundaryActionId());
+            assertEquals(
+                    3, decodedRequest.getBoundarySubstep());
             assertEquals(4_096L, decodedRequest.getMaxBytes());
             assertEquals(2, decodedRequest.getRequests().size());
             assertEquals(0, decodedRequest.getRequests().get(1).getMaxSize());
@@ -442,6 +451,51 @@ class WebSocketTransportCodecsTest {
             assertEquals(1, decodedResult.toMetric().getPayloadCount());
             assertEquals(1, decodedResult.toMetric().getMembershipCount());
             assertEquals(serializedMessage().getBytes(), decodedResult.toMetric().getBytes());
+        }
+    }
+
+    @Test
+    void modelGraphRoundTripsTemporalEdgesAndGroupedStreams() throws Exception {
+        GetModelGraph request = new GetModelGraph(
+                "order-1", null, "action-991", 3,
+                12, 1_000,
+                128, 8_388_608L, true);
+        GetModelGraphResult result = new GetModelGraphResult(
+                request.getRequestId(), 91L,
+                List.of(new ModelGraphEdge(
+                        "line-1", "order-1", "example.Order",
+                        "lines", 80L, null)),
+                List.of(new ModelEventPayload(80L, serializedMessage())),
+                List.of(new ModelEventStream(
+                        "order-1",
+                        new ModelHeadState(
+                                "order-1", "example.Order",
+                                7L, 80L, true, false),
+                        List.of(new ModelEventMembership(
+                                7L, 80L, 70L, "action-1", 2)))));
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+            GetModelGraph decodedRequest = assertInstanceOf(
+                    GetModelGraph.class, roundTrip(codec, request));
+            assertEquals("order-1", decodedRequest.getRootId());
+            assertNull(decodedRequest.getMaxStateIndex());
+            assertEquals(
+                    "action-991",
+                    decodedRequest.getBoundaryActionId());
+            assertEquals(
+                    3, decodedRequest.getBoundarySubstep());
+            assertTrue(decodedRequest.isComposableOnly());
+
+            GetModelGraphResult decodedResult = assertInstanceOf(
+                    GetModelGraphResult.class, roundTrip(codec, result));
+            assertEquals(91L, decodedResult.getStateIndex());
+            assertEquals("lines", decodedResult.getEdges().getFirst().getPath());
+            assertEquals(
+                    "example.Order",
+                    decodedResult.getStreams().getFirst().getHead().getModelType());
+            assertSerializedMessage(
+                    result.getPayloads().getFirst().getEvent(),
+                    decodedResult.getPayloads().getFirst().getEvent());
         }
     }
 

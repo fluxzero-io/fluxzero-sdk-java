@@ -45,6 +45,13 @@ public interface ModelRoot<T> extends Entity<T> {
     @Override
     long sequenceNumber();
 
+    /**
+     * Namespace-wide state boundary at which this model revision became current.
+     */
+    default long stateIndex() {
+        return -1L;
+    }
+
     @Override
     Entity<T> withSequenceNumber(long sequenceNumber);
 

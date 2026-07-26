@@ -49,6 +49,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -125,6 +126,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final boolean trackingMetricsEnabled;
     private final Serializer serializer;
     private volatile Predicate<Class<?>> registeredHandlerType = ignored -> false;
+    private HandlerFactory fallbackFactory;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
     private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
@@ -157,7 +159,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         HandlerDecorator handlerDecorator =
                 ObjectUtils.concat(extraInterceptors.stream(), Stream.of(defaultDecorator))
                         .reduce(HandlerDecorator::andThen).orElseThrow();
-        return Optional.of(handlerAnnotation)
+        Optional<Handler<DeserializingMessage>> result = Optional.of(handlerAnnotation)
                 .map(a -> HandlerConfiguration.<DeserializingMessage>builder().methodAnnotation(a)
                         .handlerFilter(handlerFilter).messageFilter(messageFilter)
                         .methodInvocationValidator(methodInvocationValidator).build())
@@ -167,6 +169,22 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
                         : handler)
                 .map(handlerDecorator::wrap);
+        return result.isPresent() || fallbackFactory == null
+                ? result
+                : fallbackFactory.createHandler(
+                        target, handlerFilter, extraInterceptors);
+    }
+
+    /**
+     * Adds a fallback for handler vocabularies that are intentionally outside the standard {@code @Handle...}
+     * annotations.
+     * <p>
+     * The regular handler path always wins. This method is intended for framework composition during configuration,
+     * before the factory is shared with tracking.
+     */
+    public DefaultHandlerFactory withFallback(HandlerFactory fallbackFactory) {
+        this.fallbackFactory = Objects.requireNonNull(fallbackFactory);
+        return this;
     }
 
     /**

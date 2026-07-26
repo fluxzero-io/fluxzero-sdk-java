@@ -19,14 +19,14 @@ package io.fluxzero.common.api.modeling;
 import lombok.Value;
 
 /**
- * Coordination head observed for one model at the response boundary.
+ * One temporal child-to-parent edge selected for a model graph.
  */
 @Value
-public class ModelHeadState {
-    String modelId;
-    String modelType;
-    long sequenceNumber;
-    long stateIndex;
-    boolean historyComplete;
-    boolean deleted;
+public class ModelGraphEdge {
+    String childId;
+    String parentId;
+    String parentType;
+    String path;
+    long validFrom;
+    Long validUntil;
 }
