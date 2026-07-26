@@ -52,7 +52,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Loads a model by ID, inferring its requested type when the ID is typed.
      * <p>
-     * An untyped ID requests {@link Object}; the repository may resolve the stored model type from its model head.
+     * An untyped ID requests {@link Object}. An event-sourced repository may infer the model type from payload-side
+     * {@code @Apply} factories in the model stream. Stored model type metadata is a fallback for model-side handlers,
+     * document-loaded models, or histories that do not expose such a factory.
      */
     @SuppressWarnings("unchecked")
     default <T> Entity<T> load(@NotNull Object modelId) {

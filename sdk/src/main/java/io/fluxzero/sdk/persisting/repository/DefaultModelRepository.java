@@ -16,19 +16,21 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
-import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.caching.Cache;
-import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
-import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
-import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.NoOpCache;
+import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -162,7 +164,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         if (Object.class.equals(modelType)) {
             return cast(load(
                     modelId,
-                    resolveStoredType(modelId, handlerBoundary)));
+                    resolveUntypedType(
+                            modelId, handlerBoundary)));
         }
         ModelMetadata metadata = ModelMetadata.validate(modelType);
         Model annotation = metadata.model().orElseThrow(() -> new IllegalArgumentException(
@@ -225,6 +228,96 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return composeGraph(
                 rootId, graph.getStateIndex(),
                 reconstructed.entities(), graph.getEdges());
+    }
+
+    private Class<?> resolveUntypedType(
+            String modelId,
+            ModelEventStateBoundary handlerBoundary) {
+        Class<?> payloadType = resolvePayloadFactoryType(
+                modelId, handlerBoundary);
+        return payloadType == null
+                ? resolveStoredType(modelId, handlerBoundary)
+                : payloadType;
+    }
+
+    private Class<?> resolvePayloadFactoryType(
+            String modelId,
+            ModelEventStateBoundary handlerBoundary) {
+        if (client.getEventStoreClient() == null
+            || serializer == null) {
+            return null;
+        }
+        GetModelEventsResult result =
+                client.getEventStoreClient().getModelEvents(
+                        new GetModelEvents(
+                                List.of(
+                                        new ModelEventStreamRequest(
+                                                modelId, -1L, 1)),
+                                stateIndex(handlerBoundary),
+                                actionId(handlerBoundary),
+                                actionSubstep(handlerBoundary),
+                                ModelEventBatchLoader.DEFAULT_SETTINGS
+                                        .maxPayloadBytes()));
+        pin(handlerBoundary, result.getStateIndex());
+        if (result.getStreams().size() != 1) {
+            return null;
+        }
+        ModelEventStream stream =
+                result.getStreams().getFirst();
+        if (!modelId.equals(stream.getModelId())
+            || stream.getMemberships().isEmpty()) {
+            return null;
+        }
+        long firstStateIndex = stream.getMemberships()
+                .getFirst().getStateIndex();
+        ModelEventPayload firstPayload =
+                result.getPayloads().stream()
+                        .filter(payload -> payload.getStateIndex()
+                                == firstStateIndex)
+                        .findFirst().orElse(null);
+        if (firstPayload == null) {
+            return null;
+        }
+        LinkedHashSet<Class<?>> candidates =
+                new LinkedHashSet<>();
+        try {
+            serializer.deserializeMessages(
+                            Stream.of(firstPayload.getEvent()),
+                            EVENT, UnknownTypeStrategy.FAIL)
+                    .map(DeserializingMessage::getPayload)
+                    .forEach(payload -> payloadFactoryTarget(
+                                    modelId, payload)
+                            .ifPresent(candidates::add));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        return candidates.size() == 1
+                ? candidates.getFirst() : null;
+    }
+
+    private Optional<Class<?>> payloadFactoryTarget(
+            String modelId, Object payload) {
+        try {
+            List<ModelMetadata.HandlerMethod> handlers =
+                    ModelMetadata.of(payload.getClass())
+                            .applyMethods();
+            if (handlers.isEmpty()) {
+                return Optional.empty();
+            }
+            return ModelTargetResolver.resolve(
+                            payload, handlers)
+                    .models().stream()
+                    .filter(target -> target.access().writes())
+                    .filter(target -> modelId.equals(
+                            target.modelId()))
+                    .map(ModelTargetResolver.ResolvedModel::modelType)
+                    .filter(type -> ModelMetadata.of(type)
+                            .isModel())
+                    .findFirst();
+        } catch (IllegalArgumentException
+                 | IllegalStateException ignored) {
+            return Optional.empty();
+        }
     }
 
     private Class<?> resolveStoredType(

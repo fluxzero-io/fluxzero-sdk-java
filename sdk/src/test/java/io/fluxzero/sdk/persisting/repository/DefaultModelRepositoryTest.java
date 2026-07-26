@@ -147,15 +147,16 @@ class DefaultModelRepositoryTest {
 
     @Test
     void untypedLoadResolvesStoredModelTypeThroughSerializerAlias() {
-        AccountId id = new AccountId("renamed-type");
+        AliasedAccountId id =
+                new AliasedAccountId("renamed-type");
         try (Fluxzero fluxzero = configuredFluxzero()) {
             fluxzero.serializer().registerTypeCaster(
-                    "legacy.example.Account",
-                    Account.class.getName());
+                    "legacy.example.AliasedAccount",
+                    AliasedAccount.class.getName());
             ModelActionSubstep substep =
                     ModelActionSubstep.builder()
                             .event(new Message(
-                                    new CreateAccount(
+                                    new CreateAliasedAccount(
                                             id, 7))
                                            .serialize(
                                                    fluxzero.serializer()))
@@ -164,8 +165,8 @@ class DefaultModelRepositoryTest {
                                             .modelId(
                                                     id.toString())
                                             .modelType(
-                                                    "legacy.example.Account")
-                                            .storeEvent(true)
+                                                    "legacy.example.AliasedAccount")
+                                            .storeEvent(false)
                                             .updateState(true)
                                             .relationships(
                                                     List.of())
@@ -185,16 +186,64 @@ class DefaultModelRepositoryTest {
                                             Guarantee.STORED))
                             .join();
             assertTrue(result.isAccepted());
+            fluxzero.documentStore().index(
+                    new AliasedAccount(id, 7),
+                    id, "aliasedAccounts").join();
 
             Entity<Object> loaded =
                     fluxzero.modelRepository()
                             .load(id.toString(),
                                   Object.class);
 
-            assertEquals(Account.class,
+            assertEquals(AliasedAccount.class,
                          loaded.type());
-            assertEquals(new Account(id, 7),
+            assertEquals(new AliasedAccount(id, 7),
                          loaded.get());
+        }
+    }
+
+    @Test
+    void untypedLoadInfersModelTypeFromPayloadApplyFactory() {
+        AccountId id =
+                new AccountId("payload-type");
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            ModelActionSubstep substep =
+                    ModelActionSubstep.builder()
+                            .event(new Message(
+                                    new CreateAccount(id, 9))
+                                           .serialize(
+                                                   fluxzero.serializer()))
+                            .targets(List.of(
+                                    ModelActionTarget.builder()
+                                            .modelId(id.toString())
+                                            .modelType(
+                                                    "missing.example.Account")
+                                            .storeEvent(true)
+                                            .updateState(true)
+                                            .relationships(List.of())
+                                            .build()))
+                            .build();
+            CommitModelActionResult result =
+                    fluxzero.client()
+                            .getEventStoreClient()
+                            .commitModelAction(
+                                    new CommitModelAction(
+                                            "payload-type",
+                                            -1L,
+                                            List.of(id.toString()),
+                                            List.of(substep),
+                                            ModelConflictPolicy.ACCEPT,
+                                            Guarantee.STORED))
+                            .join();
+            assertTrue(result.isAccepted());
+
+            Entity<Object> loaded =
+                    fluxzero.modelRepository()
+                            .load(id.toString(),
+                                  Object.class);
+
+            assertEquals(Account.class, loaded.type());
+            assertEquals(new Account(id, 9), loaded.get());
         }
     }
 
@@ -904,6 +953,25 @@ class DefaultModelRepositoryTest {
         Account apply() {
             return new Account(accountId, balance);
         }
+    }
+
+    @Model(
+            eventSourced = false, searchable = true,
+            collection = "aliasedAccounts")
+    private record AliasedAccount(
+            @EntityId AliasedAccountId accountId,
+            int balance) {
+    }
+
+    private static class AliasedAccountId
+            extends Id<AliasedAccount> {
+        private AliasedAccountId(String id) {
+            super(id, "aliased-account-");
+        }
+    }
+
+    private record CreateAliasedAccount(
+            AliasedAccountId accountId, int balance) {
     }
 
     private record DeleteAccount(AccountId accountId) {
