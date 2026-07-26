@@ -74,7 +74,7 @@ class ModelActionCommitterTest {
             DispatchInterceptor.noOp, "client-1");
 
     @Test
-    void commitsOriginalEventOnceWithTargetMembershipAndChildOwnedRelationship() throws Exception {
+    void commitsOriginalEventOnceWithoutResendingAnUnchangedChildOwnedRelationship() throws Exception {
         OrderId orderId = new OrderId("1");
         CustomerId customerId = new CustomerId("1");
         Order before = new Order(orderId, customerId, "pending", Instant.parse("2026-01-01T00:00:00Z"));
@@ -113,10 +113,8 @@ class ModelActionCommitterTest {
                 serializer.fromDocument(
                         target.getDocument().getDocument(),
                         Order.class));
-        assertEquals(1, target.getRelationships().size());
-        assertEquals(customerId.toString(), target.getRelationships().getFirst().getParentId());
-        assertEquals(Customer.class.getName(), target.getRelationships().getFirst().getParentType());
-        assertEquals("orders", target.getRelationships().getFirst().getPath());
+        assertFalse(target.isUpdateRelationships());
+        assertTrue(target.getRelationships().isEmpty());
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
         verify(documentStore).bulkUpdate(updates.capture());
@@ -129,6 +127,55 @@ class ModelActionCommitterTest {
         assertEquals(after.changedAt(), update.getEnd());
         assertEquals(7, document.getDocument().getRevision());
         assertEquals("north", document.getMetadata().get("tenant"));
+    }
+
+    @Test
+    void includesTheCompleteRelationshipReplacementWhenAParentChanges() throws Exception {
+        OrderId orderId = new OrderId("1");
+        CustomerId previousCustomer = new CustomerId("1");
+        CustomerId nextCustomer = new CustomerId("2");
+        Order before = new Order(
+                orderId, previousCustomer, "pending",
+                Instant.parse("2026-01-01T00:00:00Z"));
+        Order after = new Order(
+                orderId, nextCustomer, "confirmed",
+                Instant.parse("2026-01-02T00:00:00Z"));
+        var evaluation = evaluation(
+                List.of(
+                        orderId.toString(),
+                        previousCustomer.toString(),
+                        nextCustomer.toString()),
+                substep(
+                        new UpdateOrder(orderId),
+                        transition(
+                                orderId, Order.class, before, after,
+                                UpdateOrder.class, "apply", Order.class)),
+                Map.of(orderId.toString(), after));
+        when(eventStoreClient.commitModelAction(any()))
+                .thenAnswer(invocation ->
+                                    CompletableFuture.completedFuture(
+                                            result(invocation.getArgument(0))));
+        when(documentStore.bulkUpdate(anyCollection()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        committer.commit("move-order", evaluation).join();
+
+        ArgumentCaptor<CommitModelAction> captor =
+                ArgumentCaptor.forClass(CommitModelAction.class);
+        verify(eventStoreClient).commitModelAction(captor.capture());
+        var target = captor.getValue().getSubsteps()
+                .getFirst().getTargets().getFirst();
+        assertTrue(target.isUpdateRelationships());
+        assertEquals(1, target.getRelationships().size());
+        assertEquals(
+                nextCustomer.toString(),
+                target.getRelationships().getFirst().getParentId());
+        assertEquals(
+                Customer.class.getName(),
+                target.getRelationships().getFirst().getParentType());
+        assertEquals(
+                "orders",
+                target.getRelationships().getFirst().getPath());
     }
 
     @Test
@@ -432,6 +479,7 @@ class ModelActionCommitterTest {
         assertTrue(substep.isPublishEvent());
         assertTrue(substep.getTargets().getFirst().isStoreEvent());
         assertTrue(substep.getTargets().getFirst().isDelete());
+        assertTrue(substep.getTargets().getFirst().isUpdateRelationships());
         assertNotNull(substep.getTargets().getFirst().getDocument());
         assertNull(substep.getTargets().getFirst().getDocument().getDocument());
         assertTrue(substep.getTargets().getFirst().getRelationships().isEmpty());

@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Value;
 
@@ -73,10 +74,20 @@ public class ModelActionTarget {
     ModelSnapshotMutation snapshot;
 
     /**
-     * Complete desired outgoing parent relationships after this target transition.
+     * Whether {@link #relationships} intentionally replaces the model's outgoing parent relationships.
+     * <p>
+     * A regular transition whose {@code @ParentId} values did not change leaves this false. This prevents such a
+     * transition from reopening relationships which the runtime closed because a parent was deleted. Logical model
+     * deletion always sets this to true.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean updateRelationships;
+
+    /**
+     * Complete desired outgoing parent relationships when {@link #updateRelationships} is true.
      * <p>
      * The runtime reconciles these against its actual current relationships; they are not blindly applied as
-     * client-calculated previous/current deltas.
+     * client-calculated previous/current deltas. The list is empty when relationships are not updated.
      */
     List<ModelRelationship> relationships;
 }

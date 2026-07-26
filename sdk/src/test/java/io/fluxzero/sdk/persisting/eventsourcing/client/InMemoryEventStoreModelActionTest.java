@@ -23,6 +23,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -372,6 +373,7 @@ class InMemoryEventStoreModelActionTest {
     void relationAwarePolicyAllowsRetryWhenOnlyModelStateChanged() {
         InMemoryEventStore store = new InMemoryEventStore();
         ModelActionTarget target = storedTarget("order-1").toBuilder()
+                .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
                                                .parentId("customer-1")
                                                .parentType("Customer")
@@ -402,6 +404,7 @@ class InMemoryEventStoreModelActionTest {
     void relationAwarePolicyForbidsRetryWhenARelevantRelationshipChanged() {
         InMemoryEventStore store = new InMemoryEventStore();
         ModelActionTarget initial = storedTarget("order-1").toBuilder()
+                .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
                                                .parentId("customer-1")
                                                .parentType("Customer")
@@ -438,6 +441,7 @@ class InMemoryEventStoreModelActionTest {
     void staleUnchangedRelationshipDoesNotOverwriteTheCurrentEdge() {
         InMemoryEventStore store = new InMemoryEventStore();
         ModelActionTarget attached = storedTarget("order-1").toBuilder()
+                .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
                                                .parentId("customer-1")
                                                .parentType("Customer")
@@ -477,6 +481,79 @@ class InMemoryEventStoreModelActionTest {
         assertFalse(result.isAccepted());
         assertTrue(result.isRetryAllowed());
         assertEquals(1L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
+    }
+
+    @Test
+    void parentDeleteDetachesAChildAndAnOrdinaryChildWriteDoesNotReattachIt() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        store.commitModelAction(action(
+                "create-parent", -1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("parent"))
+                        .targets(List.of(
+                                storedTarget("parent-1")))
+                        .build())).join();
+        ModelActionTarget attached =
+                storedTarget("child-1").toBuilder()
+                        .updateRelationships(true)
+                        .relationships(List.of(
+                                ModelRelationship.builder()
+                                        .parentId("parent-1")
+                                        .parentType("Parent")
+                                        .path("children")
+                                        .build()))
+                        .build();
+        store.commitModelAction(action(
+                "create-child", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("child"))
+                        .targets(List.of(attached))
+                        .build())).join();
+
+        ModelActionTarget deletedParent =
+                storedTarget("parent-1").toBuilder()
+                        .delete(true)
+                        .updateRelationships(true)
+                        .relationships(List.of())
+                        .build();
+        store.commitModelAction(action(
+                "delete-parent", 1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("delete"))
+                        .targets(List.of(deletedParent))
+                        .build())).join();
+
+        assertEquals(
+                1,
+                store.getModelGraph(new GetModelGraph(
+                                "parent-1", 1L,
+                                1, 10, 0, 0L, false))
+                        .getEdges().size());
+        assertTrue(
+                store.getModelGraph(new GetModelGraph(
+                                "parent-1", 2L,
+                                1, 10, 0, 0L, false))
+                        .getEdges().isEmpty());
+
+        ModelActionTarget ordinaryChildUpdate =
+                storedTarget("child-1");
+        store.commitModelAction(action(
+                "rename-child", 2L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("rename"))
+                        .targets(List.of(
+                                ordinaryChildUpdate))
+                        .build())).join();
+
+        assertTrue(
+                store.getModelGraph(new GetModelGraph(
+                                "parent-1", 3L,
+                                1, 10, 0, 0L, false))
+                        .getEdges().isEmpty());
     }
 
     @Test

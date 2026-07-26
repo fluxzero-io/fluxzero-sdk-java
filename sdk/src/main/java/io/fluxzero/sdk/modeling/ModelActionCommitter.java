@@ -426,6 +426,8 @@ final class ModelActionCommitter {
                                 nextSequence,
                                 appliedSubstep.message()
                                         .getTimestamp());
+                RelationshipUpdate relationshipUpdate =
+                        relationshipUpdate(sourceTransition);
                 targets.add(ModelActionTarget.builder()
                                     .modelId(sourceTransition.modelId())
                                     .modelType(sourceTransition.modelType().getName())
@@ -437,7 +439,10 @@ final class ModelActionCommitter {
                                                               directDocument.collection(),
                                                               directDocument.document()))
                                     .snapshot(snapshot)
-                                    .relationships(relationships(sourceTransition))
+                                    .updateRelationships(
+                                            relationshipUpdate.update())
+                                    .relationships(
+                                            relationshipUpdate.relationships())
                                     .build());
                 if (directDocument != null) {
                     documents.put(sourceTransition.modelId(), directDocument);
@@ -554,6 +559,8 @@ final class ModelActionCommitter {
                         transition,
                         effectiveTransition,
                         nextSequences);
+                RelationshipUpdate relationshipUpdate =
+                        relationshipUpdate(transition);
                 targets.add(originalTarget.toBuilder()
                                     .delete(
                                             transition.after()
@@ -573,9 +580,10 @@ final class ModelActionCommitter {
                                                     nextSequence,
                                                     rebased.message()
                                                             .getTimestamp()))
+                                    .updateRelationships(
+                                            relationshipUpdate.update())
                                     .relationships(
-                                            relationships(
-                                                    transition))
+                                            relationshipUpdate.relationships())
                                     .build());
                 if (directDocument != null) {
                     documents.put(
@@ -684,14 +692,27 @@ final class ModelActionCommitter {
         }
     }
 
-    private static List<ModelRelationship> relationships(ModelActionEngine.Transition transition) {
-        if (transition.after() == null) {
+    private static RelationshipUpdate relationshipUpdate(
+            ModelActionEngine.Transition transition) {
+        List<ModelRelationship> before =
+                relationships(transition.modelId(), transition.before());
+        List<ModelRelationship> after =
+                relationships(transition.modelId(), transition.after());
+        boolean update = transition.after() == null
+                         || !before.equals(after);
+        return new RelationshipUpdate(
+                update, update ? after : List.of());
+    }
+
+    private static List<ModelRelationship> relationships(
+            String modelId, Object model) {
+        if (model == null) {
             return List.of();
         }
         LinkedHashMap<RelationshipKey, ModelRelationship> result = new LinkedHashMap<>();
         for (ModelMetadata.ParentReference parent :
-                ModelMetadata.of(transition.after().getClass()).parentReferences()) {
-            Object parentId = parent.read(transition.after());
+                ModelMetadata.of(model.getClass()).parentReferences()) {
+            Object parentId = parent.read(model);
             if (parentId == null) {
                 continue;
             }
@@ -701,9 +722,9 @@ final class ModelActionCommitter {
                                         ? null : parent.parentModelType().getName())
                     .path(parent.path().isEmpty() ? null : parent.path())
                     .build();
-            if (transition.modelId().equals(relationship.getParentId())) {
+            if (modelId.equals(relationship.getParentId())) {
                 throw new IllegalStateException(
-                        "Model '%s' cannot be its own parent".formatted(transition.modelId()));
+                        "Model '%s' cannot be its own parent".formatted(modelId));
             }
             result.putIfAbsent(new RelationshipKey(
                     relationship.getParentId(), relationship.getParentType(), relationship.getPath()), relationship);
@@ -867,5 +888,10 @@ final class ModelActionCommitter {
     }
 
     private record RelationshipKey(String parentId, String parentType, String path) {
+    }
+
+    private record RelationshipUpdate(
+            boolean update,
+            List<ModelRelationship> relationships) {
     }
 }

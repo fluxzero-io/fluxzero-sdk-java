@@ -269,6 +269,7 @@ class WebSocketTransportCodecsTest {
                                 "com.example.Order",
                                 2, "application/json"),
                         123L, 100, 2))
+                .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
                                                .parentId("customer-1")
                                                .parentType("com.example.Customer")
@@ -279,6 +280,7 @@ class WebSocketTransportCodecsTest {
                 .modelId("reservation-1")
                 .updateState(true)
                 .delete(true)
+                .updateRelationships(true)
                 .relationships(List.of())
                 .build();
         CommitModelAction request = new CommitModelAction(
@@ -328,6 +330,9 @@ class WebSocketTransportCodecsTest {
             assertNull(decodedRequest.getSubsteps().get(1).getEvent());
             assertTrue(decodedRequest.getSubsteps().get(1)
                                .getTargets().getFirst().isDelete());
+            assertTrue(decodedRequest.getSubsteps().getFirst()
+                               .getTargets().getFirst()
+                               .isUpdateRelationships());
             assertEquals(
                     "orders",
                     decodedRequest.getSubsteps().getFirst().getTargets().getFirst()
@@ -442,6 +447,11 @@ class WebSocketTransportCodecsTest {
 
         assertTrue(containsBinaryValue(
                 cborCodec.encode(request), serializedMessage().getData().getValue()));
+        var json = objectMapper.readTree(
+                jsonCodec.encode(request));
+        assertFalse(json.path("substeps").get(0)
+                            .path("targets").get(0)
+                            .has("updateRelationships"));
     }
 
     @Test

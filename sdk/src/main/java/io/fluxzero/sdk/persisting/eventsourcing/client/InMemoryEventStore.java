@@ -182,6 +182,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     targetResults.add(new ModelActionTargetResult(
                             target.getModelId(), sequenceNumber, historyComplete));
                 }
+                cascadeDeletedModelRelationships(
+                        substep.getTargets().stream()
+                                .filter(ModelActionTarget::isDelete)
+                                .map(ModelActionTarget::getModelId)
+                                .collect(Collectors.toUnmodifiableSet()),
+                        stateIndex);
                 substepResults.add(new ModelActionSubstepResult(
                         stateIndex,
                         substep.isPublishEvent() ? substep.getEvent().getIndex() : null,
@@ -243,6 +249,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             ModelActionTarget target,
             long stateIndex,
             Map<String, Set<ModelRelationship>> actionRelationshipView) {
+        if (!target.isDelete()
+            && !target.isUpdateRelationships()) {
+            return;
+        }
         Set<ModelRelationship> desired = Set.copyOf(target.getRelationships());
         Set<ModelRelationship> expected = actionRelationshipView.computeIfAbsent(
                 target.getModelId(),
@@ -280,6 +290,36 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         if (actual.isEmpty()) {
             currentModelRelationships.remove(target.getModelId());
         }
+    }
+
+    private void cascadeDeletedModelRelationships(
+            Set<String> deletedParentIds,
+            long stateIndex) {
+        if (deletedParentIds.isEmpty()) {
+            return;
+        }
+        List<String> emptyChildren = new ArrayList<>();
+        currentModelRelationships.forEach((childId, relationships) -> {
+            var iterator = relationships.entrySet().iterator();
+            while (iterator.hasNext()) {
+                MutableModelRelationship relationship =
+                        iterator.next().getValue();
+                if (!deletedParentIds.contains(
+                        relationship.relationship.getParentId())) {
+                    continue;
+                }
+                iterator.remove();
+                relationship.validUntil = stateIndex;
+                modelRelationStateIndices.put(childId, stateIndex);
+                modelRelationStateIndices.put(
+                        relationship.relationship.getParentId(),
+                        stateIndex);
+            }
+            if (relationships.isEmpty()) {
+                emptyChildren.add(childId);
+            }
+        });
+        emptyChildren.forEach(currentModelRelationships::remove);
     }
 
     @Override
@@ -694,6 +734,17 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 if (target.isDelete() && !target.getRelationships().isEmpty()) {
                     throw new IllegalArgumentException(
                             "Deleted target model %s must not retain parent relationships"
+                                    .formatted(target.getModelId()));
+                }
+                if (target.isDelete() && !target.isUpdateRelationships()) {
+                    throw new IllegalArgumentException(
+                            "Deleted target model %s must update relationships"
+                                    .formatted(target.getModelId()));
+                }
+                if (!target.isUpdateRelationships()
+                    && !target.getRelationships().isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Target model %s supplies relationships without update intent"
                                     .formatted(target.getModelId()));
                 }
                 Set<ModelRelationship> relationships = new HashSet<>();
