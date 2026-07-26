@@ -152,6 +152,11 @@ Future request/result-log based horizontal scaling is out of scope.
 - Current graph search may join current direct documents through current relationships without first materializing a
   composite document. Co-located JDBC stores should push filtering, traversal, sorting, and pagination into one
   relational query plan; split stores may use a bounded staged plan.
+- The first graph-search contract uses ordinary related-document queries plus a target-relative relationship
+  direction, minimum/maximum depth, and optional explicit `@ParentId(path)` filters. The related search collection is
+  the model-type qualifier; no duplicate relationship role/type qualifier is required in the normal typed case.
+- Graph search has a distinct wire request so an older runtime rejects it instead of accepting an ordinary search while
+  silently dropping relationship constraints.
 - Automatic runtime stitching includes only nodes with available current documents. Otherwise the runtime returns a
   graph/event bundle and the SDK reconstructs the independent models.
 - Composite graph projections are asynchronous, idempotent, and rebuildable performance optimizations.
@@ -678,22 +683,27 @@ Implementation and measurement details:
 
 ### Slice 7.2 — Virtual graph search
 
-- [ ] Add current-state graph search that can return child models constrained by parent/ancestor documents and roots
+- [x] Add current-state graph search that can return child models constrained by parent/ancestor documents and roots
   constrained by child/descendant documents.
-- [ ] Add a bounded ancestor/descendant constraint that composes an ordinary document constraint with relationship
-  direction, optional type/path qualification, and explicit minimum/maximum depth; support parent, grandparent, and
-  arbitrary ancestor matching without exposing recursive SQL in the SDK API.
+- [x] Add a bounded ancestor/descendant constraint that composes an ordinary document constraint with relationship
+  direction, related collection/type and optional path qualification, and explicit minimum/maximum depth; support
+  parent, grandparent, and arbitrary ancestor matching without exposing recursive SQL in the SDK API.
 - [ ] Compile co-located JDBC graph predicates, traversal, sorting, and pagination into relational query plans without
   materializing unbounded ID lists in the SDK.
 - [ ] Stitch requested current graph documents at read time using only explicitly configured paths and nodes with
   available current documents.
 - [ ] Define path collisions, default collection cardinality, deterministic child ordering, and DAG/shared-child
   placement before exposing stitched documents as a stable contract.
-- [ ] Add bounded staged execution for split relation/search stores, with fan-out/depth/result limits and an actionable
+- [x] Add bounded staged execution for split relation/search stores, with fan-out/depth/result limits and an actionable
   refusal when materialized CQRS is required.
-- [ ] Benchmark selective and broad parent/child joins, recursive depth, partition fan-out, pagination, and concurrent
-  relation moves.
-- [ ] Defer historical full-text graph search; do not introduce versioned direct documents implicitly.
+- [x] Retain a repeatable selective/broad JDBC graph-search benchmark that reports state-boundary, related-query,
+  relationship-traversal, and target-query latency separately.
+- [ ] Extend graph-search certification to recursive depth, paging, concurrent relationship moves, cold cache, and
+  production-scale partition fan-out.
+- [x] Defer historical full-text graph search; do not introduce versioned direct documents implicitly.
+
+Implementation and initial measurement details:
+[`dynamic-model-boundaries-phase-7-graph-search.md`](dynamic-model-boundaries-phase-7-graph-search.md).
 
 ### Slice 7.3 — Materialized graph search document
 
@@ -877,3 +887,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   site/Javadoc, downstream, and runtime reactors passed; runtime reported 540 tests. The retained local JDBC diagnostic
   measured 25,479 ancestor roots/s and 4.797 / 5.363 / 7.002 ms p50/p95/p99 latency for 128-root batches. Deep/wide DAG
   certification and payload-only untyped `Object` reconstruction remain open.
+- 2026-07-26 — Current graph search (`SDK 7c83d714573`, runtime `619ceeee`) adds bounded parent/ancestor and
+  child/descendant document constraints without requiring a materialized whole-tree projection. A distinct wire
+  request preserves old-runtime failure semantics; split stores use related-document search, one durable relationship
+  boundary, hash-pruned traversal, and a candidate-constrained ordinary target query. Null and wire-normalized empty
+  internal ID lists preserve ordinary search compatibility, while empty graph candidates short-circuit before target
+  search. Full SDK/site/downstream and runtime reactors passed; runtime reported 546 tests. The retained 5,000-model
+  diagnostic measured 1.462 / 1.785 / 1.895 ms selective and 66.260 / 72.755 / 74.959 ms broad p50/p95/p99, with target
+  document retrieval dominating the broad result. Co-located recursive query compilation, stitched current documents,
+  recursive/paging/move certification, and historical full-text graph search remain open.
