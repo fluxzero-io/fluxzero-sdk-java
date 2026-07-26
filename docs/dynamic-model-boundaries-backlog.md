@@ -735,21 +735,21 @@ Implementation, consistency, performance, and rollout details:
 
 ### Slice 8.1 — Delete API
 
-- [ ] Add `deleteModel(id, NONE)` and planned `deleteModel(..., DESCENDANTS)`.
-- [ ] Make cascade mode mandatory at the wire boundary; `NONE` may execute directly, while `DESCENDANTS` requires a
+- [x] Add `deleteModel(id, NONE)` and planned `deleteModel(..., DESCENDANTS)`.
+- [x] Make cascade mode mandatory at the wire boundary; `NONE` may execute directly, while `DESCENDANTS` requires a
   matching dry-run fingerprint.
-- [ ] Add a bounded dry-run plan with counts, published-event disclosure, externally shared-descendant count, and a
+- [x] Add a bounded dry-run plan with counts, published-event disclosure, externally shared-descendant count, and a
   deterministic sample.
 - [x] Define DAG shared-descendant behavior: an explicit descendant cascade is inclusive and deletes every reachable
   model exactly once, including models with surviving parents outside the selected set.
 
 ### Slice 8.2 — Physical cleanup
 
-- [ ] Delete the selected streams, snapshots, cache entries, and direct documents.
-- [ ] Traverse current plus parent-deletion-detached lineage for descendant cascade.
-- [ ] Coordinate relationship tombstone retention and final purge.
-- [ ] Define what historical reconstruction and graph projections report after intentional erasure.
-- [ ] Test retries/idempotency, partial cross-store failure, huge cascades, and resumable cleanup.
+- [x] Delete the selected streams, snapshots, cache entries, and direct documents.
+- [x] Traverse current plus parent-deletion-detached lineage for descendant cascade.
+- [x] Coordinate relationship tombstone retention and final purge.
+- [x] Define what historical reconstruction and graph projections report after intentional erasure.
+- [x] Test retries/idempotency, partial cross-store failure, huge cascades, and resumable cleanup.
 
 Detailed erasure, safety, lineage-protection, and resumability contract:
 [`dynamic-model-boundaries-phase-8-erasure.md`](dynamic-model-boundaries-phase-8-erasure.md).
@@ -960,3 +960,11 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   7.41/13.15 MiB at the default projection profile. Cross-instance configuration propagation remains a Phase 9 rollout
   gate; the SDK-only `TestFixture` acknowledges definitions but deliberately does not claim its absent async worker is
   caught up.
+- 2026-07-26 — Phase 8 SDK commit `49000dd69f1` and runtime commit `d3a74b60` add bounded deletion planning and
+  explicitly confirmed `NONE`/`DESCENDANTS` hard deletion. JDBC execution is a fenced, hash-partitioned, resumable
+  1,024-target saga across streams, relationships, action materializations, snapshots, direct search, and materialized
+  graph search; detached lineage remains lifecycle-discoverable through HMAC tokens and the global event log is
+  retained. Focused verification passed 51 SDK and 173 runtime tests. Retained benchmark results range from 0.097 s for
+  `NONE` to 70.804 s for a 100,000-model wide cascade; a paired direct-document hot-path A/B measured 6,020 versus 6,070
+  actions/s (about -0.8%, with unchanged p50/physical amplification). Full measurements and remaining key-management
+  limitation are recorded in [the Phase 8 erasure contract](dynamic-model-boundaries-phase-8-erasure.md).

@@ -65,6 +65,11 @@ and an erasure fence before cleanup starts. Model commits check selected target 
 fences and cannot recreate a hard-deleted model accidentally. Retrying a request or restarting a runtime resumes the
 same job.
 
+Execution uses batches of at most 1,024 targets by default (`fluxzero.modelErasureBatchSize`). Search cleanup completes
+idempotently before the corresponding relational batch is marked processed. A crash at either side therefore repeats
+at most one search batch and never skips relational cleanup. Prepared jobs are resumed at runtime startup, including
+deployments without a configured search store.
+
 The relational store owns the durable job and stream/relationship cleanup. Search can be a separate database, so the
 operation is a resumable saga rather than a fictitious cross-database transaction:
 
@@ -82,6 +87,8 @@ not merely that the relational delete was accepted.
 - Loading an erased model, at any state boundary, returns no model history.
 - Graph reconstruction omits erased nodes and their edges.
 - Surviving materialized graph roots are rebuilt; freshness remains visible through the existing projection status.
+- An erasure projection signal is visible to the projection worker only after the durable deletion job reaches
+  `COMPLETE`, so a multi-batch delete cannot expose an intermediate graph.
 - Audit/event search may still find the globally published event as described above.
 - Reusing an erased exact model ID is rejected by the durable erasure fence. Explicit administrative fence removal, if
   ever supported, is outside this phase.
@@ -93,5 +100,42 @@ not merely that the relational delete was accepted.
 - Execution deletes by the stable 128 model segments and keeps shared-payload reference checks set-based.
 - The ordinary commit and model-load paths perform no erasure-table query until hard deletion has been used in the
   namespace. After opt-in, target fence checks are batched once per action.
+- Direct-document and graph-document writes fold the lifecycle lock and HMAC fence lookup into their existing fence
+  statement. A concurrent erasure causes a transient retry with a fresh database snapshot; it cannot recreate a
+  document after the tombstone commits.
 - Phase 8 benchmarks must cover `NONE`, 100/10,000/100,000-node cascades, deep and wide graphs, shared descendants,
   restart/resume, and simultaneous ordinary model traffic.
+
+## Completed implementation and evidence
+
+Phase 8 is implemented by SDK commit `49000dd69f1` and runtime commit `d3a74b60`.
+
+- The SDK exposes planning and execution through the model repository and websocket protocol. `DESCENDANTS` requires
+  the exact fingerprint and bounds returned by planning; `NONE` may execute directly. Automatic descendant erasure
+  invalidates the complete local model cache because the bounded result intentionally does not return an unbounded raw
+  ID list.
+- JDBC stores durable deletion jobs, targets, HMAC fences, and protected detached lineage in hash/range-partitioned
+  lifecycle tables. Stream memberships, heads, relationships, action materializations, snapshots, direct documents,
+  graph documents, and unused shared payloads are cleaned in resumable batches. Global published events remain.
+- Functional verification passed 51 focused SDK tests and 173 focused runtime tests. These include duplicate requests,
+  changed-plan rejection, shared descendants, logical-parent-detached lineage, restart with and without search,
+  failure between search and relational cleanup, 1,025-target multi-batch execution, surviving-root rematerialization,
+  document/index races, regular PostgreSQL search, and RUM search.
+- The retained PostgreSQL benchmark measured:
+
+  | Selection | Shape | Plan | Erase | Notes |
+  | --- | --- | ---: | ---: | --- |
+  | 1 of 100 | `NONE` | 0.007 s | 0.097 s | one membership; cold lifecycle path |
+  | 100 | wide | 0.040 s | 0.057 s | set-based one-level traversal |
+  | 1,025 | depth 1,024 | 1.943 s | 2.065 s | deliberately exercises the configured maximum depth |
+  | 10,000 | wide | 0.216 s | 4.652 s | 46,311 planned and 2,150 erased models/s |
+  | 100,000 | wide | 2.558 s | 70.804 s | 39,089 planned and 1,412 erased models/s |
+
+  The 100,000-model run removed 100,000 stream memberships while retaining its single published global event.
+- An A/B run against the pre-erasure runtime found no material ordinary-write regression. The paired 5,000-action
+  direct-document run measured 6,020 actions/s with erasure support versus 6,070 actions/s before it (about -0.8%),
+  with the same p50 latency and physical amplification. The 20,000-action event-only run was slightly faster in the
+  new build (5,705 versus 5,541 actions/s); this is treated as run variance, not an improvement claim.
+
+The lifecycle tables currently generate and retain their HMAC keys inside their owning database. Supplying externally
+managed keys and production hardware/steady-state operational certification remain Phase 9 rollout gates.
