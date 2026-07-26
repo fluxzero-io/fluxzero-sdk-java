@@ -640,18 +640,21 @@ covers model commit/load/search, ancestor injection, and exactly-once global EVE
 - [x] Add an optional explicit composition path without deriving a durable path from the Java class name.
 - [x] Compute relation deltas only for returned targets.
 - [x] Support attach, detach, move, and multiple parents by changing only the child model.
-- [ ] Reject cycles at commit with the entire action rolled back.
+- [x] Reject cycles at commit with the entire action rolled back.
 
 ### Slice 6.2 — Current and historical lookups
 
-- [ ] Query parents, children, roots, ancestors, and descendants at current state.
-- [ ] Query the same graph as-of a `stateIndex`.
+- [x] Query parents, children, roots, ancestors, and descendants at current state.
+- [x] Query the same graph as-of a `stateIndex`.
 - [x] Route parent-to-children and child-to-parents lookups to their respective bounded hash partitions.
-- [ ] Use half-open validity intervals and deterministic boundary tests.
+- [x] Use half-open validity intervals and deterministic boundary tests.
 - [x] Batch breadth/depth graph fetches and enforce protocol safety limits with one partition-pruned query per breadth
   level, never one query per node; retain a recursive single-query variant as a benchmark-driven optimization because
   it requires preserving child-hash pruning across recursion.
 - [ ] Benchmark deep, wide, and highly shared DAGs.
+
+Integrity, temporal-boundary, and hot-path details:
+[`dynamic-model-boundaries-phase-6-temporal-graph.md`](dynamic-model-boundaries-phase-6-temporal-graph.md).
 
 ### Slice 6.3 — Deleted-parent lineage
 
@@ -912,3 +915,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   remain separate and why global aggregate `Fluxzero.assertAndApply` inference is not safe. Focused SDK coverage passed
   71 tests; complete SDK, site/Javadoc, downstream, and runtime reactors passed. The runtime feature branch now
   resolves SDK `0-SNAPSHOT` so it cannot accidentally test these contracts against a published pre-feature SDK.
+- 2026-07-26 — Temporal graph integrity (`SDK 3f62c0bada4`, runtime `af521f6c`) adds explicit
+  `ModelRepository.loadGraphAt`, rejects model-relation cycles before event publication with complete action rollback,
+  preserves atomic same-substep edge reversals, and isolates invalid actions from valid coordinator neighbours.
+  Current/as-of traversal and half-open interval boundaries are covered in memory and JDBC. The retained batched
+  validator measured 493 actions/s versus 513 with validation temporarily disabled (3.9% throughput and 3.4% p99 cost)
+  on the exact local relation-heavy A/B; the per-action-query predecessor was discarded. The complete SDK,
+  site/Javadoc, downstream, and runtime reactors passed; runtime reported 560 tests. Details and open production-scale
+  DAG certification are in the
+  [Phase 6 temporal graph report](dynamic-model-boundaries-phase-6-temporal-graph.md).
