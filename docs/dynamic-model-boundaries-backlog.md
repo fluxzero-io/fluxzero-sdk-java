@@ -721,12 +721,15 @@ Implementation and initial measurement details:
 
 ### Slice 7.3 — Materialized graph search document
 
-- [ ] Add an opt-in asynchronous projection for a complete model graph.
-- [ ] Consume idempotent model-action/result records.
-- [ ] Rebuild affected roots using temporal relations and batched model loads.
-- [ ] Let a registered root projection override child-owned paths without changing relationship truth.
-- [ ] Handle multi-parent fan-out, moves, deletes, late delivery, duplicate delivery, and rebuild.
-- [ ] Expose projection lag/high-watermark where callers need freshness awareness.
+- [x] Add an opt-in asynchronous projection for a complete model graph.
+- [x] Consume idempotent model-action/result records.
+- [x] Rebuild affected roots using temporal relations and batched model loads.
+- [x] Let a registered root projection override child-owned paths without changing relationship truth.
+- [x] Handle multi-parent fan-out, moves, deletes, late delivery, duplicate delivery, and rebuild.
+- [x] Expose projection lag/high-watermark where callers need freshness awareness.
+
+Implementation, consistency, performance, and rollout details:
+[`dynamic-model-boundaries-phase-7-graph-search.md`](dynamic-model-boundaries-phase-7-graph-search.md).
 
 ## Phase 8 — Explicit hard delete and GDPR
 
@@ -939,3 +942,15 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   site/Javadoc, downstream, and runtime reactors passed; runtime reported 560 tests. Details and open production-scale
   DAG certification are in the
   [Phase 6 temporal graph report](dynamic-model-boundaries-phase-6-temporal-graph.md).
+- 2026-07-26 — Materialized model graphs (`SDK 304756a3f70`, runtime `a236277c`) add opt-in
+  `@Model(graphProjection = @GraphProjection(...))` definitions, automatic typed-root registration, durable
+  action-transaction signals, coalesced hash-partitioned root tasks, resumable rebuilds, projection-local path
+  overrides, and configuration/state-fenced graph documents in a collection distinct from direct model search.
+  Direct documents remain synchronously visible; graph lag and both durable backlog stages are explicit. No projection
+  table, query, signal, or hot-path write exists before opt-in. Full SDK, site/Javadoc, and runtime suites passed
+  (1,882 SDK tests and 580 runtime tests), plus an SDK-to-runtime websocket materialization test. On the retained local
+  2,000-root diagnostic, conservative default bounds materialized about 1,110 roots/s in 1.802 s; the leaf-model
+  profile materialized about 7,491 roots/s in 0.267 s. Storage/WAL grew from 4.45/7.66 MiB without projection to
+  7.41/13.15 MiB at the default projection profile. Cross-instance configuration propagation remains a Phase 9 rollout
+  gate; the SDK-only `TestFixture` acknowledges definitions but deliberately does not claim its absent async worker is
+  caught up.

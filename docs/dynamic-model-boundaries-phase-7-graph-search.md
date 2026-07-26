@@ -4,6 +4,7 @@ Date: 2026-07-26
 
 - Graph-search implementation: SDK `7c83d714573`, runtime `619ceeee`
 - Graph-composition implementation: SDK `e4de8597314`, runtime `f95cb5c4`
+- Materialized-graph implementation: SDK `304756a3f70`, runtime `a236277c`
 
 ## Outcome
 
@@ -24,6 +25,11 @@ the public search API.
 `includeModelGraph()` additionally returns each matching current root document with its explicitly placed current child
 graph stitched into it. This remains a read-time operation over independent direct documents; it does not create or
 silently enable a materialized whole-tree projection.
+
+An independent root can now also opt into an asynchronously maintained graph collection with
+`@Model(graphProjection = @GraphProjection(collection = "..."))`. This never replaces or weakens the direct model
+collection: direct model search remains part of command success, while the separately named graph collection has an
+explicit observable lag.
 
 ## Execution contract
 
@@ -121,6 +127,75 @@ their cross-product and locator p50 was about 799 ms. Joining aligned `(segment,
 p50 without adding an index or denormalizing collection names. This failure and correction are retained because the
 same query shape matters much more at the intended scale than the happy-path API timings.
 
+## Opt-in materialized graph projection
+
+The durable definition contains the root's stored type descriptor, synchronous direct-document collection, distinct
+graph collection, explicit composition bounds, and optional canonical-path replacements. A root must be searchable.
+Every stitched child must likewise have an available direct document; non-searchable nodes retain their relationships
+but are deliberately omitted from the search document.
+
+The SDK registers configured roots before an action that can affect them commits. It discovers roots from direct
+transition types and recursively from statically typed `Id<Parent>` references, including payload-side applies.
+Ambiguous or untyped parent links require explicit application registration because their Java root type cannot be
+derived without loading application state. A transient registration failure is not cached permanently.
+
+Registration is idempotent. A first registration always performs a bounded resumable scan of current roots, even when
+the caller does not explicitly request a rebuild. Changing paths or bounds advances a monotone configuration version
+and rebuilds. The target collection cannot later be rebound to another root type or direct collection.
+
+### Durable execution and fences
+
+With at least one projection registered, every accepted model substep writes one compact projection signal in the same
+JDBC transaction as its events, stream memberships, heads, temporal relationships, action result, and global event
+publication when that log is co-located. The signal refers to the already idempotent action/substep and target IDs; it
+does not duplicate event payloads or graph documents.
+
+The asynchronous worker:
+
+1. waits until that action's direct document/snapshot materialization package is durably complete;
+2. coalesces consecutive signals;
+3. resolves affected roots at both the pre-batch and post-batch temporal boundaries, so moves update the old and new
+   roots;
+4. upserts one durable task per `(hash segment, graph collection, root ID)`;
+5. resolves graph heads and temporal edges at a safe contiguous projection boundary;
+6. batch-loads direct root and child documents by collection and stitches each root under its configured bounds;
+7. applies one bulk graph-document mutation and then removes only tasks not superseded by newer work.
+
+Signals are unique by `stateIndex`; root tasks coalesce by root; search writes use a lexicographic
+`(configurationVersion, stateIndex)` fence. Duplicate delivery, reversed completion, restarts, changed definitions, and
+late older work therefore cannot overwrite a newer graph. A logical root delete emits a fenced graph-document delete.
+An already pending root or delete is atomically carried to a changed configuration version instead of becoming an
+unreachable old-version task.
+
+Projection progress reports four distinct facts: current source `stateIndex`, highest contiguous consumed-signal
+`processedStateIndex`, pending signals, and pending materialized roots, plus whether a resumable root scan is active.
+`processedStateIndex` alone does not promise that every queued graph document has been written; callers requiring
+freshness wait for both backlog counts and rebuild state.
+
+No projection storage is created eagerly. When no definition exists, model commits do not query a projection table,
+allocate signal objects, or write projection bytes. Once enabled, signal and task tables are separate from model
+streams and the task table uses the same stable 128 hash segments over 32 physical PostgreSQL partitions. Direct search
+and asynchronous graph search use separate fence tables and may live in separate databases; the graph write is a
+recoverable durable projection, not part of direct model commit success.
+
+### Retained materialization diagnostic
+
+The retained local PostgreSQL comparison writes 2,000 independent roots with one 256-byte event and one 256-byte
+direct document per action at concurrency 128. Publication, relationships, and model loading are disabled so the
+measurement isolates direct action storage plus optional graph materialization.
+
+| Profile | Action write throughput | Projection catch-up | Physical storage | WAL |
+| --- | ---: | ---: | ---: | ---: |
+| projection disabled | 2,097 actions/s | n/a | 4.45 MiB | 7.66 MiB |
+| default bounds (`maxModels=10,000`) | 4,957 actions/s | 1.802 s / ~1,110 roots/s | 7.41 MiB | 13.15 MiB |
+| leaf profile (`maxModels=1`) | 5,201 actions/s | 0.267 s / ~7,491 roots/s | 6.98 MiB | 13.18 MiB |
+
+These are noisy single local runs; the apparently higher write throughput with projection enabled is not treated as an
+improvement. The retained conclusions are the measured storage/WAL amplification, the zero-storage disabled route,
+and the effect of configured per-root bounds on safe set-based materialization batch width. Phase 9 must repeat this
+against long runs, deep/wide/shared graphs, cold cache, multiple runtimes, vacuum/bloat, IOPS, and the 100-GB/min
+customer envelope.
+
 ## Verification
 
 Coverage includes:
@@ -138,6 +213,13 @@ Coverage includes:
 - deterministic child/grandchild placement, shared-DAG placement limits, missing documents, metadata omission, and
   direct/nested path collisions in the shared stitcher;
 - direct `TestFixture` model creation and search through a composed multi-path grandchild graph;
+- automatic projection registration through a typed ancestor, including retry after a transient registration failure;
+- dormant projection storage before opt-in;
+- projection-local path replacement without modifying canonical relationship truth;
+- old/new root rematerialization after a move, logical root deletion, late registration, full rebuild, changed
+  configuration with pending work, failure retry, and process restart;
+- configuration-before-state graph-document fences in both JDBC search implementations;
+- a real SDK-to-websocket-to-runtime-to-PostgreSQL-to-search materialization round trip;
 - one multi-collection JDBC child-document lookup in both regular and RUM stores;
 - compact collection-registry persistence, preservation across state-only writes, clearing on delete, and duplicate-ID
   input handling;
@@ -148,5 +230,12 @@ Coverage includes:
 
 - Compile a co-located search/relation store into one relational query plan.
 - Recursive-depth, paging, concurrent-move, cold-cache, and production-scale performance certification.
-- The opt-in asynchronous materialized root projection in Slice 7.3.
 - Historical full-text graph search.
+- Propagate newly registered projection definitions to already-running sibling runtime instances. The current
+  in-process fast-path flag intentionally avoids a configuration query on every model commit; one websocket/runtime
+  instance is coherent, and restart discovers durable definitions, but horizontal rollout needs the request/result-log
+  coordination planned for the runtime architecture before this can be certified.
+- The SDK-only `TestFixture` has no asynchronous search worker. It accepts and validates projection definitions so
+  model actions remain fixture-compatible, but reports the projection as rebuilding instead of falsely claiming
+  catch-up. Use virtual `includeModelGraph()` assertions for pure SDK fixtures and the runtime integration fixture for
+  materializer behavior.
