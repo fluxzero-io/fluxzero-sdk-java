@@ -51,12 +51,15 @@ import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchCollectionType;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.api.tracking.ReadFromIndex;
@@ -66,6 +69,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
@@ -242,6 +246,23 @@ class WebSocketTransportCodecsTest {
                 .modelType("com.example.Order")
                 .storeEvent(true)
                 .updateState(true)
+                .document(new ModelDocumentMutation(
+                        "orders",
+                        new SerializedDocument(
+                                "order-1", 123L, null,
+                                "orders",
+                                new Data<>(
+                                        new byte[]{4, 5, 6},
+                                        "com.example.Order",
+                                        2, "application/json"),
+                                "Order one", Set.of(),
+                                Set.of())))
+                .snapshot(new ModelSnapshotMutation(
+                        new Data<>(
+                                new byte[]{7, 8},
+                                "com.example.Order",
+                                2, "application/json"),
+                        123L, 100, 2))
                 .relationships(List.of(ModelRelationship.builder()
                                                .parentId("customer-1")
                                                .parentType("com.example.Customer")
@@ -276,7 +297,9 @@ class WebSocketTransportCodecsTest {
                         new ModelActionSubstepResult(
                                 102L, null,
                                 List.of(new ModelActionTargetResult(
-                                        "reservation-1", 2L, false)))));
+                                        "reservation-1", 2L, false)))))
+                .withDocumentsApplied()
+                .withSnapshotsApplied();
         result.setRequestReceivedTimestamp(123L);
 
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
@@ -303,11 +326,21 @@ class WebSocketTransportCodecsTest {
                     "orders",
                     decodedRequest.getSubsteps().getFirst().getTargets().getFirst()
                             .getRelationships().getFirst().getPath());
+            assertEquals(
+                    "Order one",
+                    decodedRequest.getSubsteps().getFirst()
+                            .getTargets().getFirst()
+                            .getDocument().getDocument()
+                            .getSummary());
             assertEquals(2, decodedRequest.toMetric().getSubstepCount());
             assertEquals(2, decodedRequest.toMetric().getTargetCount());
             assertEquals(1, decodedRequest.toMetric().getStoredTargetCount());
+            assertEquals(1, decodedRequest.toMetric().getDirectDocumentCount());
+            assertEquals(3L, decodedRequest.toMetric().getDirectDocumentBytes());
+            assertEquals(1, decodedRequest.toMetric().getSnapshotCount());
+            assertEquals(2L, decodedRequest.toMetric().getSnapshotBytes());
             assertEquals(1, decodedRequest.toMetric().getRelationCount());
-            assertEquals(serializedMessage().getBytes(), decodedRequest.toMetric().getBytes());
+            assertEquals(serializedMessage().getBytes(), decodedRequest.toMetric().getEventBytes());
 
             CommitModelActionResult decodedResult = assertInstanceOf(
                     CommitModelActionResult.class, roundTrip(codec, result));
@@ -326,6 +359,8 @@ class WebSocketTransportCodecsTest {
             assertTrue(decodedResult.isAccepted());
             assertTrue(decodedResult.getConflicts().isEmpty());
             assertFalse(decodedResult.isRetryAllowed());
+            assertTrue(decodedResult.isDocumentsApplied());
+            assertTrue(decodedResult.isSnapshotsApplied());
         }
     }
 

@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -106,6 +107,12 @@ class ModelActionCommitterTest {
         var target = action.getSubsteps().getFirst().getTargets().getFirst();
         assertEquals(orderId.toString(), target.getModelId());
         assertTrue(target.isStoreEvent());
+        assertNotNull(target.getDocument());
+        assertEquals(
+                after,
+                serializer.fromDocument(
+                        target.getDocument().getDocument(),
+                        Order.class));
         assertEquals(1, target.getRelationships().size());
         assertEquals(customerId.toString(), target.getRelationships().getFirst().getParentId());
         assertEquals(Customer.class.getName(), target.getRelationships().getFirst().getParentType());
@@ -296,6 +303,114 @@ class ModelActionCommitterTest {
     }
 
     @Test
+    void runtimeCompletedDocumentsSkipTheSdkFallbackWrite() throws Exception {
+        OrderId id = new OrderId("runtime-document");
+        Order after = new Order(
+                id, null, "confirmed",
+                Instant.parse("2026-01-02T00:00:00Z"));
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(new UpdateOrder(id), transition(
+                        id, Order.class, null, after,
+                        UpdateOrder.class, "apply",
+                        Order.class)),
+                Map.of(id.toString(), after));
+        when(eventStoreClient.commitModelAction(any()))
+                .thenAnswer(invocation ->
+                                    CompletableFuture.completedFuture(
+                                            result(invocation.getArgument(0))
+                                                    .withDocumentsApplied()));
+
+        assertTrue(committer.commit(
+                "runtime-document",
+                evaluation).join().isPresent());
+
+        verify(documentStore, never())
+                .bulkUpdate(anyCollection());
+    }
+
+    @Test
+    void acceptKeepsTheOriginalEventAndRebasesItsDerivedDocument() throws Exception {
+        OrderId id = new OrderId("rebase");
+        Order stale = new Order(
+                id, null, "stale",
+                Instant.parse("2026-01-01T00:00:00Z"));
+        Order merged = new Order(
+                id, null, "merged",
+                Instant.parse("2026-01-03T00:00:00Z"));
+        UpdateOrder event = new UpdateOrder(id);
+        var original = evaluation(
+                List.of(id.toString()),
+                substep(event, transition(
+                        id, Order.class, null, stale,
+                        UpdateOrder.class, "apply",
+                        Order.class)),
+                Map.of(id.toString(), stale));
+        var rebased = new ModelActionEngine.ActionEvaluation(
+                51L, List.of(id.toString()),
+                List.of(substep(event, transition(
+                        id, Order.class, stale, merged,
+                        UpdateOrder.class, "apply",
+                        Order.class))),
+                Map.of(id.toString(), merged));
+        AtomicInteger commits = new AtomicInteger();
+        when(eventStoreClient.commitModelAction(any()))
+                .thenAnswer(invocation -> {
+                    CommitModelAction request =
+                            invocation.getArgument(0);
+                    if (commits.getAndIncrement() == 0) {
+                        return CompletableFuture.completedFuture(
+                                CommitModelActionResult.rebase(
+                                        request.getRequestId(),
+                                        request.getActionId(),
+                                        List.of(
+                                                new ModelActionConflict(
+                                                        id.toString(),
+                                                        51L, -1L)),
+                                        51L));
+                    }
+                    return CompletableFuture.completedFuture(
+                            result(request)
+                                    .withDocumentsApplied());
+                });
+
+        var accepted = committer.commitAcceptingRebase(
+                "action-rebase", original,
+                (messages, boundary) -> {
+                    assertEquals(51L, boundary);
+                    assertEquals(1, messages.size());
+                    return CompletableFuture.completedFuture(
+                            rebased);
+                }).join();
+
+        assertTrue(accepted.orElseThrow().isAccepted());
+        ArgumentCaptor<CommitModelAction> requests =
+                ArgumentCaptor.forClass(
+                        CommitModelAction.class);
+        verify(eventStoreClient, times(2))
+                .commitModelAction(requests.capture());
+        CommitModelAction initial =
+                requests.getAllValues().getFirst();
+        CommitModelAction retried =
+                requests.getAllValues().getLast();
+        assertEquals(
+                initial.getSubsteps().getFirst().getEvent()
+                        .getData(),
+                retried.getSubsteps().getFirst().getEvent()
+                        .getData());
+        assertEquals(51L, retried.getReadStateIndex());
+        assertEquals(
+                merged,
+                serializer.fromDocument(
+                        retried.getSubsteps().getFirst()
+                                .getTargets().getFirst()
+                                .getDocument().getDocument(),
+                        Order.class));
+        verify(documentStore, never())
+                .bulkUpdate(anyCollection());
+    }
+
+    @Test
     void nullApplyStillStoresEventAndDeletesDirectDocument() throws Exception {
         OrderId id = new OrderId("1");
         Order before = new Order(id, null, "pending", Instant.EPOCH);
@@ -317,6 +432,8 @@ class ModelActionCommitterTest {
         assertTrue(substep.isPublishEvent());
         assertTrue(substep.getTargets().getFirst().isStoreEvent());
         assertTrue(substep.getTargets().getFirst().isDelete());
+        assertNotNull(substep.getTargets().getFirst().getDocument());
+        assertNull(substep.getTargets().getFirst().getDocument().getDocument());
         assertTrue(substep.getTargets().getFirst().getRelationships().isEmpty());
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
@@ -449,6 +566,55 @@ class ModelActionCommitterTest {
         verify(documentStore, never()).bulkUpdate(anyCollection());
     }
 
+    @Test
+    void embedsSnapshotOnlyWhenAssignedSequenceIsDue() throws Exception {
+        SnapshotId id = new SnapshotId("due");
+        SnapshotModel after = new SnapshotModel(
+                id, "second");
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(
+                        new UpdateSnapshot(id),
+                        transition(
+                                id, SnapshotModel.class,
+                                0L,
+                                new SnapshotModel(id, "first"),
+                                after,
+                                UpdateSnapshot.class, "apply",
+                                SnapshotModel.class)),
+                Map.of(id.toString(), after));
+
+        CommitModelAction action = committer.prepare(
+                "action-snapshot", evaluation).action();
+
+        var snapshot = action.getSubsteps().getFirst()
+                .getTargets().getFirst().getSnapshot();
+        assertNotNull(snapshot);
+        assertEquals(2, snapshot.getSnapshotPeriod());
+        assertEquals(3, snapshot.getMaxSnapshotCount());
+        assertEquals(after, serializer.deserialize(
+                snapshot.getValue()));
+        assertEquals(1, action.toMetric().getSnapshotCount());
+
+        var nextEvaluation = evaluation(
+                List.of(id.toString()),
+                substep(
+                        new UpdateSnapshot(id),
+                        transition(
+                                id, SnapshotModel.class,
+                                1L, after,
+                                new SnapshotModel(id, "third"),
+                                UpdateSnapshot.class, "apply",
+                                SnapshotModel.class)),
+                Map.of(id.toString(),
+                       new SnapshotModel(id, "third")));
+        assertNull(committer.prepare(
+                        "action-no-snapshot",
+                        nextEvaluation)
+                           .action().getSubsteps().getFirst()
+                           .getTargets().getFirst().getSnapshot());
+    }
+
     private static ModelActionEngine.ActionEvaluation evaluation(
             List<String> readModelIds,
             ModelActionEngine.AppliedSubstep substep,
@@ -472,9 +638,20 @@ class ModelActionCommitterTest {
     private static ModelActionEngine.Transition transition(
             Object id, Class<?> modelType, Object before, Object after,
             Class<?> handlerType, String methodName, Class<?> parameterType) throws Exception {
+        return transition(
+                id, modelType, -1L, before, after,
+                handlerType, methodName, parameterType);
+    }
+
+    private static ModelActionEngine.Transition transition(
+            Object id, Class<?> modelType, long beforeSequenceNumber,
+            Object before, Object after,
+            Class<?> handlerType, String methodName,
+            Class<?> parameterType) throws Exception {
         Method handler = handlerType.getDeclaredMethod(methodName, parameterType);
         return new ModelActionEngine.Transition(
-                id.toString(), modelType, before, after, handler);
+                id.toString(), modelType, beforeSequenceNumber,
+                before, after, handler);
     }
 
     private static CommitModelActionResult result(CommitModelAction request) {
@@ -577,6 +754,26 @@ class ModelActionCommitterTest {
     private record TouchConditional(ConditionalId conditionalId) {
         @Apply
         ConditionalModel apply(ConditionalModel current) {
+            return current;
+        }
+    }
+
+    @Model(snapshotPeriod = 2, maxSnapshotCount = 3)
+    private record SnapshotModel(
+            @EntityId SnapshotId id, String value) {
+    }
+
+    private static class SnapshotId
+            extends Id<SnapshotModel> {
+        SnapshotId(String id) {
+            super(id, "snapshot-");
+        }
+    }
+
+    private record UpdateSnapshot(SnapshotId id) {
+        @Apply
+        SnapshotModel apply(
+                SnapshotModel current) {
             return current;
         }
     }

@@ -25,13 +25,16 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 
+import java.lang.ref.Reference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,8 +46,17 @@ public class ModelCacheBenchmark {
             Integer.getInteger("eventCount", 10_000);
     private static final int WARM_LOADS =
             Integer.getInteger("warmLoads", 10_000);
+    private static final int MEMORY_KEY_COUNT =
+            Integer.getInteger("keyCount", 250_000);
+    private static final int MEMORY_CACHING_DEPTH =
+            Integer.getInteger("cachingDepth", 1);
 
     public static void main(String[] args) {
+        if ("memory".equalsIgnoreCase(
+                System.getProperty("mode", "load"))) {
+            measureRetainedModelRevisions();
+            return;
+        }
         CounterId id = new CounterId("cache-benchmark");
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableKeepalive()
@@ -99,6 +111,77 @@ public class ModelCacheBenchmark {
                     millis(catchUp),
                     millis(invalidated));
         }
+    }
+
+    private static void measureRetainedModelRevisions() {
+        if (MEMORY_CACHING_DEPTH < 0
+            || MEMORY_CACHING_DEPTH > 1) {
+            throw new IllegalArgumentException(
+                    "Memory benchmark supports cachingDepth 0 or 1");
+        }
+        forceGc();
+        long before = usedHeap();
+        Object[] entries =
+                new Object[MEMORY_KEY_COUNT];
+        for (int i = 0; i < entries.length; i++) {
+            CounterId id =
+                    new CounterId("memory-" + i);
+            Entity<Counter> previous =
+                    MEMORY_CACHING_DEPTH == 0
+                            ? null
+                            : revision(
+                                    id,
+                                    new Counter(id, 1),
+                                    0L, null);
+            entries[i] = revision(
+                    id, new Counter(id, 2),
+                    1L, previous);
+        }
+        forceGc();
+        long retained = usedHeap() - before;
+        System.out.printf(
+                "model cache retained heap: %,d keys; cachingDepth=%d; "
+                + "%.2f MiB; %.1f bytes/key%n",
+                entries.length, MEMORY_CACHING_DEPTH,
+                retained / 1_048_576d,
+                (double) retained / entries.length);
+        Reference.reachabilityFence(entries);
+    }
+
+    private static ImmutableModelRoot<Counter> revision(
+            CounterId id,
+            Counter value,
+            long sequenceNumber,
+            Entity<Counter> previous) {
+        return ImmutableModelRoot.<Counter>builder()
+                .id(id.toString())
+                .type(Counter.class)
+                .idProperty("counterId")
+                .value(value)
+                .sequenceNumber(sequenceNumber)
+                .stateIndex(sequenceNumber)
+                .previous(previous)
+                .build();
+    }
+
+    private static void forceGc() {
+        for (int i = 0; i < 3; i++) {
+            System.gc();
+            try {
+                Thread.sleep(50L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(
+                        "Interrupted while stabilizing heap",
+                        e);
+            }
+        }
+    }
+
+    private static long usedHeap() {
+        Runtime runtime = Runtime.getRuntime();
+        return runtime.totalMemory()
+               - runtime.freeMemory();
     }
 
     private static long timed(Runnable task) {

@@ -110,7 +110,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             validate(action);
             CommitModelActionResult previous = modelActions.get(action.getActionId());
             if (previous != null) {
-                return CompletableFuture.completedFuture(previous.forRequest(action.getRequestId()));
+                return CompletableFuture.completedFuture(
+                        previous.asDuplicateForRequest(
+                                action.getRequestId()));
             }
             if (action.getReadStateIndex() > modelStateIndex) {
                 throw new IllegalArgumentException(
@@ -118,11 +120,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 .formatted(action.getReadStateIndex(), modelStateIndex));
             }
             ModelConflictPolicy conflictPolicy = ModelConflictPolicy.resolve(action.getConflictPolicy());
-            if (conflictPolicy != ModelConflictPolicy.ACCEPT) {
-                CommitModelActionResult conflict = conflict(action, conflictPolicy);
-                if (conflict != null) {
-                    return CompletableFuture.completedFuture(conflict);
-                }
+            CommitModelActionResult conflict = conflict(
+                    action, conflictPolicy);
+            if (conflict != null) {
+                return CompletableFuture.completedFuture(
+                        conflict);
             }
 
             List<SerializedMessage> publishedEvents = action.getSubsteps().stream()
@@ -218,6 +220,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     });
                 }
             }
+        }
+        if (conflictPolicy
+            == ModelConflictPolicy.ACCEPT) {
+            return CommitModelActionResult.rebase(
+                    action.getRequestId(),
+                    action.getActionId(),
+                    List.copyOf(conflicts.values()),
+                    modelStateIndex);
         }
         return CommitModelActionResult.conflict(
                 action.getRequestId(), action.getActionId(), List.copyOf(conflicts.values()),

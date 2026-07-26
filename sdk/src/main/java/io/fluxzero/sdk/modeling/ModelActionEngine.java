@@ -189,6 +189,70 @@ final class ModelActionEngine {
         }
     }
 
+    /**
+     * Re-applies already produced action events against a new pinned model boundary.
+     * <p>
+     * Command handling, assertions, and interceptors are deliberately not invoked. The supplied messages are the
+     * original post-interception substeps and only their {@link Apply @Apply} handlers contribute new derived state.
+     */
+    ActionEvaluation rebase(
+            List<DeserializingMessage> appliedMessages,
+            SubstepResolver resolver) {
+        Objects.requireNonNull(appliedMessages, "appliedMessages");
+        Objects.requireNonNull(resolver, "resolver");
+        if (appliedMessages.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "A model action rebase requires at least one applied message");
+        }
+        Map<String, Object> stagedValues = new LinkedHashMap<>();
+        LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+        List<AppliedSubstep> appliedSubsteps =
+                new ArrayList<>(appliedMessages.size());
+        long readStateIndex = -1L;
+        boolean stateIndexPinned = false;
+
+        for (DeserializingMessage message : appliedMessages) {
+            ResolvedSubstep resolved = Objects.requireNonNull(
+                    resolver.resolve(
+                            message,
+                            stateIndexPinned ? readStateIndex : null),
+                    "Rebase substep resolver returned null");
+            if (!stateIndexPinned) {
+                readStateIndex = resolved.context().readStateIndex();
+                stateIndexPinned = true;
+            } else if (resolved.context().readStateIndex()
+                       != readStateIndex) {
+                throw new IllegalStateException(
+                        "Rebase substep loaded at state index %d while action is pinned at %d"
+                                .formatted(
+                                        resolved.context().readStateIndex(),
+                                        readStateIndex));
+            }
+            ModelActionContext context =
+                    resolved.context().withValues(stagedValues);
+            resolved.context().entries().forEach(
+                    entry -> readModelIds.add(
+                            entry.target().modelId()));
+            List<ModelMetadata.HandlerMethod> applies =
+                    resolved.handlers().stream()
+                            .filter(handler -> handler.kind()
+                                               == ModelMetadata.HandlerKind.APPLY)
+                            .toList();
+            Evaluation evaluation =
+                    evaluate(message, context, applies);
+            for (Transition transition : evaluation.transitions()) {
+                stagedValues.put(
+                        transition.modelId(),
+                        transition.after());
+            }
+            appliedSubsteps.add(new AppliedSubstep(
+                    message, evaluation.transitions()));
+        }
+        return new ActionEvaluation(
+                readStateIndex, List.copyOf(readModelIds),
+                appliedSubsteps, stagedValues);
+    }
+
     private Evaluation evaluateInContext(
             DeserializingMessage message,
             ModelActionContext beginState,
@@ -223,7 +287,11 @@ final class ModelActionEngine {
                                 .formatted(handler.executable().toGenericString(), targetId));
             }
             Transition transition = new Transition(
-                    targetId, targetType, target.entity().get(), result, handler.executable());
+                    targetId, targetType,
+                    target.entity() instanceof ModelRoot<?> modelRoot
+                            ? modelRoot.sequenceNumber() : -1L,
+                    target.entity().get(), result,
+                    handler.executable());
             if (transitions == null) {
                 transitions = new LinkedHashMap<>();
             }
@@ -509,7 +577,12 @@ final class ModelActionEngine {
     }
 
     record Transition(
-            String modelId, Class<?> modelType, Object before, Object after, Executable handler) {
+            String modelId,
+            Class<?> modelType,
+            long beforeSequenceNumber,
+            Object before,
+            Object after,
+            Executable handler) {
     }
 
     private record PendingSubstep(

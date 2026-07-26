@@ -29,7 +29,9 @@ import java.util.List;
  * <p>
  * The request carries one persisted read boundary and the exact model IDs read while evaluating the action. Each
  * {@link ModelActionSubstep} contains its original event once, regardless of the number of targeted model streams.
- * Direct search documents are intentionally not part of this authoritative commit request.
+ * Target transitions may also carry pre-serialized direct current-document mutations and snapshot candidates. The
+ * runtime assigns their state-index fence, verifies snapshot boundaries, and completes them as part of the action
+ * workflow.
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
@@ -95,18 +97,50 @@ public class CommitModelAction extends Command {
         int targetCount = 0;
         int storedTargetCount = 0;
         int relationCount = 0;
+        int directDocumentCount = 0;
+        int snapshotCount = 0;
         int publishedEventCount = 0;
-        long bytes = 0L;
+        long eventBytes = 0L;
+        long directDocumentBytes = 0L;
+        long snapshotBytes = 0L;
         for (ModelActionSubstep substep : substeps) {
             targetCount += substep.getTargets().size();
             storedTargetCount += substep.getStoredTargetCount();
             relationCount += substep.getRelationCount();
             publishedEventCount += substep.isPublishEvent() ? 1 : 0;
-            bytes += substep.getBytes();
+            eventBytes = addSaturated(
+                    eventBytes, substep.getBytes());
+            for (ModelActionTarget target :
+                    substep.getTargets()) {
+                if (target.getDocument() != null) {
+                    directDocumentCount++;
+                    directDocumentBytes = addSaturated(
+                            directDocumentBytes,
+                            target.getDocument()
+                                    .getBytes());
+                }
+                if (target.getSnapshot() != null) {
+                    snapshotCount++;
+                    snapshotBytes = addSaturated(
+                            snapshotBytes,
+                            target.getSnapshot()
+                                    .getBytes());
+                }
+            }
         }
         return new Metric(
                 readModelIds.size(), substeps.size(), targetCount, storedTargetCount,
-                relationCount, publishedEventCount, bytes, ModelConflictPolicy.resolve(conflictPolicy));
+                relationCount, directDocumentCount,
+                snapshotCount, publishedEventCount,
+                eventBytes, directDocumentBytes,
+                snapshotBytes,
+                ModelConflictPolicy.resolve(conflictPolicy));
+    }
+
+    private static long addSaturated(
+            long left, long right) {
+        return right > Long.MAX_VALUE - left
+                ? Long.MAX_VALUE : left + right;
     }
 
     /**
@@ -119,8 +153,20 @@ public class CommitModelAction extends Command {
         int targetCount;
         int storedTargetCount;
         int relationCount;
+        int directDocumentCount;
+        int snapshotCount;
         int publishedEventCount;
-        long bytes;
+        long eventBytes;
+        long directDocumentBytes;
+        long snapshotBytes;
         ModelConflictPolicy conflictPolicy;
+
+        /**
+         * Legacy name for {@link #getEventBytes()}.
+         */
+        @Deprecated
+        public long getBytes() {
+            return eventBytes;
+        }
     }
 }

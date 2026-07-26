@@ -89,6 +89,7 @@ class InMemoryEventStoreModelActionTest {
 
         assertEquals(firstResult.getSubsteps(), retryResult.getSubsteps());
         assertEquals(retry.getRequestId(), retryResult.getRequestId());
+        assertTrue(retryResult.isDuplicate());
         assertEquals(1, store.getBatch(null, 10, true).size());
         assertEquals(1, store.getEvents("order-1").count());
     }
@@ -299,7 +300,7 @@ class InMemoryEventStoreModelActionTest {
     }
 
     @Test
-    void acceptPolicyCommitsAgainstAStaleReadBoundary() {
+    void acceptPolicyRequestsRebaseBeforeCommittingAgainstAStaleReadBoundary() {
         InMemoryEventStore store = new InMemoryEventStore();
         store.commitModelAction(action(
                 "action-1",
@@ -308,15 +309,26 @@ class InMemoryEventStoreModelActionTest {
                         .targets(List.of(storedTarget("order-1")))
                         .build())).join();
 
-        CommitModelActionResult result = store.commitModelAction(action(
+        CommitModelAction stale = action(
                 "action-2", -1L, ModelConflictPolicy.ACCEPT,
                 ModelActionSubstep.builder()
                         .event(event("event-2"))
                         .targets(List.of(storedTarget("order-1")))
-                        .build())).join();
+                        .build());
+
+        CommitModelActionResult rebase = store.commitModelAction(stale).join();
+
+        assertTrue(rebase.isRebaseRequired());
+        assertEquals(0L, rebase.getRebaseStateIndex());
+        assertEquals(1, store.getEvents("order-1").count());
+
+        CommitModelActionResult result = store.commitModelAction(action(
+                stale.getActionId(), rebase.getRebaseStateIndex(),
+                ModelConflictPolicy.ACCEPT, stale.getSubsteps().toArray(ModelActionSubstep[]::new))).join();
 
         assertTrue(result.isAccepted());
         assertEquals(1L, result.getSubsteps().getFirst().getStateIndex());
+        assertEquals(2, store.getEvents("order-1").count());
     }
 
     @Test
@@ -346,8 +358,13 @@ class InMemoryEventStoreModelActionTest {
         assertEquals(0L, store.getModelEvents(
                 new GetModelEvents(List.of(), null, 0L)).getStateIndex());
 
-        CommitModelActionResult accepted = store.commitModelAction(action(
+        CommitModelActionResult rebase = store.commitModelAction(action(
                 "retryable-action", -1L, ModelConflictPolicy.ACCEPT, staleSubstep)).join();
+        assertTrue(rebase.isRebaseRequired());
+
+        CommitModelActionResult accepted = store.commitModelAction(action(
+                "retryable-action", rebase.getRebaseStateIndex(),
+                ModelConflictPolicy.ACCEPT, staleSubstep)).join();
         assertTrue(accepted.isAccepted());
     }
 
@@ -442,10 +459,15 @@ class InMemoryEventStoreModelActionTest {
                 "move", 0L, ModelConflictPolicy.ACCEPT,
                 ModelActionSubstep.builder().event(event("event-2"))
                         .targets(List.of(moved)).build())).join();
-        store.commitModelAction(action(
+        CommitModelActionResult rebase = store.commitModelAction(action(
                 "stale-rename", 0L, ModelConflictPolicy.ACCEPT,
                 ModelActionSubstep.builder().event(event("event-3"))
                         .targets(List.of(attached)).build())).join();
+        assertTrue(rebase.isRebaseRequired());
+        store.commitModelAction(action(
+                "stale-rename", rebase.getRebaseStateIndex(), ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-3"))
+                        .targets(List.of(moved)).build())).join();
 
         CommitModelActionResult result = store.commitModelAction(action(
                 "probe", 1L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,

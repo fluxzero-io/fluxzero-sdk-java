@@ -19,11 +19,13 @@ package io.fluxzero.sdk.persisting.repository;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -32,21 +34,27 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelGraph;
+import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,6 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.atLeastOnce;
@@ -137,6 +146,59 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void untypedLoadResolvesStoredModelTypeThroughSerializerAlias() {
+        AccountId id = new AccountId("renamed-type");
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            fluxzero.serializer().registerTypeCaster(
+                    "legacy.example.Account",
+                    Account.class.getName());
+            ModelActionSubstep substep =
+                    ModelActionSubstep.builder()
+                            .event(new Message(
+                                    new CreateAccount(
+                                            id, 7))
+                                           .serialize(
+                                                   fluxzero.serializer()))
+                            .targets(List.of(
+                                    ModelActionTarget.builder()
+                                            .modelId(
+                                                    id.toString())
+                                            .modelType(
+                                                    "legacy.example.Account")
+                                            .storeEvent(true)
+                                            .updateState(true)
+                                            .relationships(
+                                                    List.of())
+                                            .build()))
+                            .build();
+            CommitModelActionResult result =
+                    fluxzero.client()
+                            .getEventStoreClient()
+                            .commitModelAction(
+                                    new CommitModelAction(
+                                            "renamed-type",
+                                            -1L,
+                                            List.of(
+                                                    id.toString()),
+                                            List.of(substep),
+                                            ModelConflictPolicy.ACCEPT,
+                                            Guarantee.STORED))
+                            .join();
+            assertTrue(result.isAccepted());
+
+            Entity<Object> loaded =
+                    fluxzero.modelRepository()
+                            .load(id.toString(),
+                                  Object.class);
+
+            assertEquals(Account.class,
+                         loaded.type());
+            assertEquals(new Account(id, 7),
+                         loaded.get());
+        }
+    }
+
+    @Test
     void reconstructsEventSourcedModelFromItsIndependentStream() {
         AccountId id = new AccountId("one");
         try (Fluxzero fluxzero = configuredFluxzero()) {
@@ -151,7 +213,7 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void staleAcceptedEventReconstructsAgainstItsRecordedReadBoundary() {
+    void staleAcceptedEventReconstructsAgainstItsRebasedReadBoundary() {
         AccountId id = new AccountId("stale");
         try (Fluxzero fluxzero = configuredFluxzero()) {
             commit(fluxzero, "create-stale", -1L, new CreateAccount(id, 0), id.toString());
@@ -160,7 +222,7 @@ class DefaultModelRepositoryTest {
 
             var result = fluxzero.modelRepository().load(id);
 
-            assertEquals(new Account(id, 10), result.get());
+            assertEquals(new Account(id, 11), result.get());
             assertEquals(2L, result.sequenceNumber());
         }
     }
@@ -420,7 +482,7 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void modelCacheDefaultsToLatestRevisionOnly() {
+    void modelCacheRetainsOnePreviousRevisionByDefault() {
         AccountId id = new AccountId("latest-only");
         try (Fluxzero fluxzero = configuredFluxzero()) {
             fluxzero.commandGateway().send(
@@ -431,8 +493,67 @@ class DefaultModelRepositoryTest {
             var result = fluxzero.modelRepository().load(id);
 
             assertEquals(new Account(id, 2), result.get());
-            assertNull(result.previous());
+            assertNotNull(result.previous());
+            assertEquals(
+                    new Account(id, 1),
+                    result.previous().get());
+            assertNull(result.previous().previous());
         }
+    }
+
+    @Test
+    void olderCommitCompletionCannotOverwriteANewerCachedModel() {
+        JacksonSerializer serializer =
+                new JacksonSerializer();
+        Cache cache = new DefaultCache();
+        DefaultModelRepository repository =
+                new DefaultModelRepository(
+                        client, documentStore, serializer,
+                        mock(EntityHelper.class), null,
+                        cache, List.of());
+        AccountId id = new AccountId("fenced");
+        repository.updateAfterCommit(List.of(
+                committed(id, 20, 1L, 20L)))
+                .join();
+        repository.updateAfterCommit(List.of(
+                committed(id, 10, 0L, 10L)))
+                .join();
+        AtomicReference<Entity<?>> cached =
+                new AtomicReference<>();
+        cache.<Object>modifyEach((ignored, value) -> {
+            if (value instanceof Entity<?> entity) {
+                cached.set(entity);
+            }
+            return value;
+        });
+
+        assertNotNull(cached.get());
+        assertEquals(
+                new Account(id, 20),
+                cached.get().get());
+        assertEquals(20L,
+                     ((ModelRoot<?>) cached.get())
+                             .stateIndex());
+        cache.close();
+    }
+
+    private static DefaultModelRepository.CommittedModel
+            committed(
+                    AccountId id,
+                    int balance,
+                    long sequenceNumber,
+                    long stateIndex) {
+        return new DefaultModelRepository.CommittedModel(
+                id.toString(), Account.class, true,
+                false,
+                List.of(
+                        new DefaultModelRepository.CommittedRevision(
+                                new Account(id, balance),
+                                sequenceNumber, stateIndex,
+                                "event-" + stateIndex,
+                                stateIndex,
+                                Instant.ofEpochMilli(
+                                        stateIndex))));
     }
 
     @Test
@@ -700,10 +821,19 @@ class DefaultModelRepositoryTest {
                                          .build())
                                  .toList())
                 .build();
-        fluxzero.client().getEventStoreClient().commitModelAction(
-                new CommitModelAction(
-                        actionId, readStateIndex, List.of(targetIds),
-                        List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED)).join();
+        CommitModelAction action = new CommitModelAction(
+                actionId, readStateIndex, List.of(targetIds),
+                List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+        CommitModelActionResult result = fluxzero.client().getEventStoreClient()
+                .commitModelAction(action).join();
+        if (result.isRebaseRequired()) {
+            action = new CommitModelAction(
+                    actionId, result.getRebaseStateIndex(), List.of(targetIds),
+                    List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+            result = fluxzero.client().getEventStoreClient()
+                    .commitModelAction(action).join();
+        }
+        assertTrue(result.isAccepted());
     }
 
     private static void commitAction(
@@ -724,10 +854,19 @@ class DefaultModelRepositoryTest {
                                                  .build()))
                         .build())
                 .toList();
-        fluxzero.client().getEventStoreClient().commitModelAction(
-                new CommitModelAction(
-                        actionId, readStateIndex, readModelIds, substeps,
-                        ModelConflictPolicy.ACCEPT, Guarantee.STORED)).join();
+        CommitModelAction action = new CommitModelAction(
+                actionId, readStateIndex, readModelIds, substeps,
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+        CommitModelActionResult result = fluxzero.client().getEventStoreClient()
+                .commitModelAction(action).join();
+        if (result.isRebaseRequired()) {
+            action = new CommitModelAction(
+                    actionId, result.getRebaseStateIndex(), readModelIds, substeps,
+                    ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+            result = fluxzero.client().getEventStoreClient()
+                    .commitModelAction(action).join();
+        }
+        assertTrue(result.isAccepted());
     }
 
     private record ActionEvent(Object payload, String targetId) {

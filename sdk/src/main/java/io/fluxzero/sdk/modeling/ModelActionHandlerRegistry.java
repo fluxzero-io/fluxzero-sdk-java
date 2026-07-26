@@ -82,7 +82,27 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             String source,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerDecorator handlerDecorator) {
-        this(repository, eventStoreClient, documentStore, serializer, documentSerializer,
+        this(repository, eventStoreClient, documentStore, serializer,
+             serializer, documentSerializer, eventDispatchInterceptor,
+             source, parameterResolvers, handlerDecorator);
+    }
+
+    /**
+     * Creates a model-action registry with a dedicated snapshot serializer.
+     */
+    public ModelActionHandlerRegistry(
+            DefaultModelRepository repository,
+            EventStoreClient eventStoreClient,
+            DocumentStore documentStore,
+            Serializer serializer,
+            Serializer snapshotSerializer,
+            DocumentSerializer documentSerializer,
+            DispatchInterceptor eventDispatchInterceptor,
+            String source,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            HandlerDecorator handlerDecorator) {
+        this(repository, eventStoreClient, documentStore, serializer,
+             snapshotSerializer, documentSerializer,
              eventDispatchInterceptor, source, parameterResolvers, handlerDecorator,
              ModelConflictPolicy.ACCEPT, ModelConflictResolver.fail(), 0);
     }
@@ -103,10 +123,34 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             ModelConflictPolicy conflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries) {
+        this(repository, eventStoreClient, documentStore, serializer,
+             serializer, documentSerializer, eventDispatchInterceptor,
+             source, parameterResolvers, handlerDecorator, conflictPolicy,
+             conflictResolver, maxConflictRetries);
+    }
+
+    /**
+     * Creates a model-action registry with dedicated snapshot serialization and an explicit optional conflict policy.
+     */
+    public ModelActionHandlerRegistry(
+            DefaultModelRepository repository,
+            EventStoreClient eventStoreClient,
+            DocumentStore documentStore,
+            Serializer serializer,
+            Serializer snapshotSerializer,
+            DocumentSerializer documentSerializer,
+            DispatchInterceptor eventDispatchInterceptor,
+            String source,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            HandlerDecorator handlerDecorator,
+            ModelConflictPolicy conflictPolicy,
+            ModelConflictResolver conflictResolver,
+            int maxConflictRetries) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.committer = new ModelActionCommitter(
                 eventStoreClient, documentStore, serializer, documentSerializer,
-                eventDispatchInterceptor, source, this::afterCommit);
+                eventDispatchInterceptor, source, snapshotSerializer,
+                this::afterCommit);
         this.engine = new ModelActionEngine(parameterResolvers);
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
         this.conflictResolver = Objects.requireNonNull(
@@ -223,7 +267,17 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private CompletableFuture<Object> execute(DeserializingMessage message) {
         ModelActionEngine.ActionEvaluation evaluation = evaluate(message);
         CompletableFuture<?> result = conflictPolicy == ModelConflictPolicy.ACCEPT
-                ? committer.commit(message.getMessageId(), evaluation, conflictPolicy)
+                ? committer.commitAcceptingRebase(
+                        message.getMessageId(), evaluation,
+                        (messages, stateIndex) -> {
+                            try {
+                                return CompletableFuture.completedFuture(
+                                        rebase(messages, stateIndex));
+                            } catch (Throwable failure) {
+                                return CompletableFuture.failedFuture(
+                                        failure);
+                            }
+                        })
                 : committer.commit(
                         message.getMessageId(), evaluation, conflictPolicy,
                         conflictResolver, maxConflictRetries,
@@ -311,6 +365,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                 transition.modelId(), transition.modelType(),
                                 targetResult.isHistoryComplete(),
                                 snapshotDue
+                                && !committed.result()
+                                        .isSnapshotsApplied()
                                 || previous != null && previous.snapshotDue(),
                                 revisions));
             }
@@ -398,6 +454,86 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             }
         }
         return engine.evaluate(initialMessage, new ActionLoader());
+    }
+
+    private ModelActionEngine.ActionEvaluation rebase(
+            List<DeserializingMessage> messages,
+            long stateIndex) {
+        class RebaseLoader
+                implements ModelActionEngine.SubstepResolver {
+            private final Map<String, Entity<?>> actionEntities =
+                    new LinkedHashMap<>();
+
+            @Override
+            public ModelActionEngine.ResolvedSubstep resolve(
+                    DeserializingMessage substep,
+                    Long requestedStateIndex) {
+                long boundary = requestedStateIndex == null
+                        ? stateIndex : requestedStateIndex;
+                if (boundary != stateIndex) {
+                    throw new IllegalStateException(
+                            "Apply-only rebase moved from state index %d to %d"
+                                    .formatted(
+                                            stateIndex, boundary));
+                }
+                List<ModelMetadata.HandlerMethod> handlers =
+                        handlersFor(
+                                substep.getPayloadClass()).stream()
+                                .filter(handler -> handler.kind()
+                                                   == ModelMetadata.HandlerKind.APPLY)
+                                .toList();
+                ModelTargetResolver.Resolution resolution =
+                        ModelTargetResolver.resolve(
+                                substep.getPayload(),
+                                handlers);
+                List<ModelTargetResolver.ResolvedModel> missing =
+                        resolution.models().stream()
+                                .filter(target ->
+                                                !actionEntities
+                                                        .containsKey(
+                                                                target.modelId()))
+                                .toList();
+                if (!missing.isEmpty()) {
+                    ModelActionContext loaded =
+                            repository.loadContext(
+                                    new ModelTargetResolver.Resolution(
+                                            missing, List.of()),
+                                    stateIndex);
+                    if (loaded.readStateIndex()
+                        != stateIndex) {
+                        throw new IllegalStateException(
+                                "Apply-only rebase requested state index %d but loaded %d"
+                                        .formatted(
+                                                stateIndex,
+                                                loaded.readStateIndex()));
+                    }
+                    loaded.entries().forEach(entry ->
+                                                     actionEntities.put(
+                                                             entry.target()
+                                                                     .modelId(),
+                                                             entry.entity()));
+                }
+                LinkedHashMap<String, Entity<?>> selected =
+                        new LinkedHashMap<>();
+                for (ModelTargetResolver.ResolvedModel target :
+                        resolution.models()) {
+                    selected.put(
+                            target.modelId(),
+                            Objects.requireNonNull(
+                                    actionEntities.get(
+                                            target.modelId()),
+                                    "Missing rebased model "
+                                    + target.modelId()));
+                }
+                return new ModelActionEngine.ResolvedSubstep(
+                        ModelActionContext.create(
+                                stateIndex, resolution,
+                                selected),
+                        handlers);
+            }
+        }
+        return engine.rebase(
+                messages, new RebaseLoader());
     }
 
     private List<ModelMetadata.HandlerMethod> handlersFor(Class<?> payloadType) {

@@ -59,6 +59,20 @@ public class ModelActionTarget {
     boolean delete;
 
     /**
+     * Optional direct current-document mutation produced by this transition.
+     * <p>
+     * The runtime applies it with the same assigned state index as this target. A missing mutation means that the model
+     * is not directly searchable; a mutation with a {@code null} document means delete.
+     */
+    ModelDocumentMutation document;
+
+    /**
+     * Optional snapshot value produced when this transition is predicted to reach the model's configured snapshot
+     * period. The runtime verifies the candidate against its assigned target sequence before storing it.
+     */
+    ModelSnapshotMutation snapshot;
+
+    /**
      * Complete desired outgoing parent relationships after this target transition.
      * <p>
      * The runtime reconciles these against its actual current relationships; they are not blindly applied as

@@ -24,10 +24,12 @@ import java.beans.Transient;
 import java.util.List;
 
 /**
- * Result of an accepted or conflict-rejected {@link CommitModelAction}.
+ * Result of an accepted, rebase-requested, or conflict-rejected
+ * {@link CommitModelAction}.
  * <p>
  * Accepted results are durable. A duplicate accepted {@code actionId} returns the same logical result with the new
- * request ID used for response correlation. Conflict results are not retained under the idempotency key.
+ * request ID used for response correlation. Rebase and conflict results are
+ * not retained under the idempotency key.
  */
 @Value
 public class CommitModelActionResult extends AbstractRequestResult {
@@ -53,10 +55,34 @@ public class CommitModelActionResult extends AbstractRequestResult {
     List<ModelActionConflict> conflicts;
 
     /**
-     * Whether the runtime verified that the rejected action's scoped relationships are unchanged and an SDK retry is
-     * therefore permitted by the requested policy.
+     * Whether the runtime permits an SDK retry. For strict conflict results
+     * this means the scoped relationships were unchanged; a default-policy
+     * apply-only rebase is always retryable at
+     * {@link #rebaseStateIndex}.
      */
     boolean retryAllowed;
+
+    /**
+     * Whether an accepted response represents an already committed action ID rather than a new commit.
+     */
+    boolean duplicate;
+
+    /**
+     * New pinned boundary requested for an internal apply-only rebase, or {@code null} when no rebase is required.
+     */
+    Long rebaseStateIndex;
+
+    /**
+     * Whether direct model-document consequences were completed by the authoritative store.
+     * <p>
+     * This remains {@code false} for SDK-local/in-memory compatibility stores that require the SDK fallback.
+     */
+    boolean documentsApplied;
+
+    /**
+     * Whether due model snapshots were completed by the authoritative store.
+     */
+    boolean snapshotsApplied;
 
     /**
      * Timestamp at which this result object was created.
@@ -66,18 +92,29 @@ public class CommitModelActionResult extends AbstractRequestResult {
     /**
      * Creates a model action result, normalizing omitted compatibility fields to empty collections.
      */
-    @ConstructorProperties({"requestId", "actionId", "substeps", "conflicts", "retryAllowed"})
+    @ConstructorProperties({
+            "requestId", "actionId", "substeps", "conflicts", "retryAllowed",
+            "duplicate", "rebaseStateIndex", "documentsApplied",
+            "snapshotsApplied"})
     public CommitModelActionResult(
             long requestId,
             String actionId,
             List<ModelActionSubstepResult> substeps,
             List<ModelActionConflict> conflicts,
-            boolean retryAllowed) {
+            boolean retryAllowed,
+            boolean duplicate,
+            Long rebaseStateIndex,
+            boolean documentsApplied,
+            boolean snapshotsApplied) {
         this.requestId = requestId;
         this.actionId = actionId;
         this.substeps = substeps == null ? List.of() : List.copyOf(substeps);
         this.conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
         this.retryAllowed = retryAllowed;
+        this.duplicate = duplicate;
+        this.rebaseStateIndex = rebaseStateIndex;
+        this.documentsApplied = documentsApplied;
+        this.snapshotsApplied = snapshotsApplied;
     }
 
     /**
@@ -85,7 +122,9 @@ public class CommitModelActionResult extends AbstractRequestResult {
      */
     public static CommitModelActionResult accepted(
             long requestId, String actionId, List<ModelActionSubstepResult> substeps) {
-        return new CommitModelActionResult(requestId, actionId, substeps, List.of(), false);
+        return new CommitModelActionResult(
+                requestId, actionId, substeps, List.of(), false,
+                false, null, false, false);
     }
 
     /**
@@ -96,7 +135,9 @@ public class CommitModelActionResult extends AbstractRequestResult {
             String actionId,
             List<ModelActionConflict> conflicts,
             boolean retryAllowed) {
-        return new CommitModelActionResult(requestId, actionId, List.of(), conflicts, retryAllowed);
+        return new CommitModelActionResult(
+                requestId, actionId, List.of(), conflicts, retryAllowed,
+                false, null, false, false);
     }
 
     /**
@@ -104,14 +145,68 @@ public class CommitModelActionResult extends AbstractRequestResult {
      */
     @Transient
     public boolean isAccepted() {
-        return conflicts.isEmpty();
+        return conflicts.isEmpty() && !isRebaseRequired();
+    }
+
+    /**
+     * Returns whether the runtime requests an internal apply-only rebase without rejecting the original event.
+     */
+    @Transient
+    public boolean isRebaseRequired() {
+        return rebaseStateIndex != null;
     }
 
     /**
      * Copies this logical result with another transport request ID.
      */
     public CommitModelActionResult forRequest(long requestId) {
-        return new CommitModelActionResult(requestId, actionId, substeps, conflicts, retryAllowed);
+        return new CommitModelActionResult(
+                requestId, actionId, substeps, conflicts, retryAllowed,
+                duplicate, rebaseStateIndex, documentsApplied,
+                snapshotsApplied);
+    }
+
+    /**
+     * Copies this accepted result for an idempotent duplicate request.
+     */
+    public CommitModelActionResult asDuplicateForRequest(long requestId) {
+        return new CommitModelActionResult(
+                requestId, actionId, substeps, conflicts, retryAllowed,
+                true, rebaseStateIndex, documentsApplied,
+                snapshotsApplied);
+    }
+
+    /**
+     * Marks runtime-owned direct document completion on an accepted result.
+     */
+    public CommitModelActionResult withDocumentsApplied() {
+        return new CommitModelActionResult(
+                requestId, actionId, substeps, conflicts, retryAllowed,
+                duplicate, rebaseStateIndex, true,
+                snapshotsApplied);
+    }
+
+    /**
+     * Marks runtime-owned snapshot completion on an accepted result.
+     */
+    public CommitModelActionResult withSnapshotsApplied() {
+        return new CommitModelActionResult(
+                requestId, actionId, substeps, conflicts, retryAllowed,
+                duplicate, rebaseStateIndex, documentsApplied,
+                true);
+    }
+
+    /**
+     * Requests an internal apply-only rebase at the supplied current boundary.
+     */
+    public static CommitModelActionResult rebase(
+            long requestId,
+            String actionId,
+            List<ModelActionConflict> changedModels,
+            long rebaseStateIndex) {
+        return new CommitModelActionResult(
+                requestId, actionId, List.of(), changedModels, true,
+                false, rebaseStateIndex, false, false);
     }
 
     /**
@@ -124,7 +219,9 @@ public class CommitModelActionResult extends AbstractRequestResult {
             targetCount += substep.getTargets().size();
         }
         return new Metric(
-                substeps.size(), targetCount, conflicts.size(), retryAllowed, timestamp);
+                substeps.size(), targetCount, conflicts.size(), retryAllowed,
+                duplicate, isRebaseRequired(), documentsApplied,
+                snapshotsApplied, timestamp);
     }
 
     /**
@@ -136,6 +233,10 @@ public class CommitModelActionResult extends AbstractRequestResult {
         int targetCount;
         int conflictCount;
         boolean retryAllowed;
+        boolean duplicate;
+        boolean rebaseRequired;
+        boolean documentsApplied;
+        boolean snapshotsApplied;
         long timestamp;
     }
 }

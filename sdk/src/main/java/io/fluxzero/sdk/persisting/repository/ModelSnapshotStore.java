@@ -17,15 +17,14 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.api.Data;
-import io.fluxzero.common.search.SearchExclude;
-import io.fluxzero.common.search.SearchInclude;
-import io.fluxzero.common.search.Sortable;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
+import io.fluxzero.common.api.search.FacetEntry;
+import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
-import io.fluxzero.sdk.persisting.search.Searchable;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -33,7 +32,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.MODEL_ID_FACET;
+import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.SEQUENCE_NUMBER;
+import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.STATE_INDEX;
 
 /**
  * Snapshot persistence dedicated to independent models.
@@ -44,7 +45,8 @@ import static io.fluxzero.common.Guarantee.STORED;
  */
 @Slf4j
 final class ModelSnapshotStore {
-    static final String SNAPSHOT_COLLECTION = "$modelSnapshots";
+    static final String SNAPSHOT_COLLECTION =
+            ModelSnapshotMutation.COLLECTION;
 
     private final DocumentStore documentStore;
     private final Serializer serializer;
@@ -57,12 +59,14 @@ final class ModelSnapshotStore {
     Optional<Snapshot> getSnapshot(String modelId, Long maxStateIndex) {
         try {
             var search = documentStore.search(SNAPSHOT_COLLECTION)
-                    .match(modelId, true, "modelId")
+                    .matchFacet(MODEL_ID_FACET,
+                                modelId)
                     .sortBy("sequenceNumber", true);
             if (maxStateIndex != null && maxStateIndex < Long.MAX_VALUE) {
                 search = search.below(maxStateIndex + 1L, "stateIndex");
             }
-            return search.fetchFirst(SnapshotDocument.class)
+            return search.fetchFirst(
+                            SerializedDocument.class)
                     .flatMap(this::deserialize);
         } catch (Exception e) {
             throw new EventSourcingException(
@@ -81,11 +85,21 @@ final class ModelSnapshotStore {
             return CompletableFuture.completedFuture(null);
         }
         try {
-            SnapshotDocument document = new SnapshotDocument(
-                    snapshotKey(modelId, sequenceNumber),
-                    modelId, sequenceNumber, stateIndex, timestamp,
-                    serializer.serialize(value));
-            return documentStore.prepareIndex(document).index(STORED)
+            SerializedDocument document =
+                    new ModelSnapshotMutation(
+                            serializer.serialize(value),
+                            timestamp.toEpochMilli(),
+                            1,
+                            Math.max(1,
+                                     maxSnapshotCount))
+                            .toDocument(
+                                    modelId,
+                                    sequenceNumber,
+                                    stateIndex);
+            return documentStore.bulkUpdate(
+                            List.of(
+                                    IndexDocument.fromDocument(
+                                            document)))
                     .thenCompose(ignored -> trim(modelId, maxSnapshotCount));
         } catch (Exception e) {
             throw new EventSourcingException(
@@ -96,49 +110,91 @@ final class ModelSnapshotStore {
     private CompletableFuture<Void> trim(
             String modelId, int configuredMaxSnapshotCount) {
         int maxSnapshotCount = Math.max(1, configuredMaxSnapshotCount);
-        List<SnapshotDocument> snapshots = documentStore.search(SNAPSHOT_COLLECTION)
-                .match(modelId, true, "modelId")
+        List<SerializedDocument> snapshots = documentStore.search(SNAPSHOT_COLLECTION)
+                .matchFacet(MODEL_ID_FACET,
+                            modelId)
                 .sortBy("sequenceNumber", true)
-                .fetch(maxSnapshotCount + 1, SnapshotDocument.class);
+                .fetch(maxSnapshotCount + 1,
+                       SerializedDocument.class);
         if (snapshots.size() <= maxSnapshotCount) {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(
                 snapshots.subList(maxSnapshotCount, snapshots.size()).stream()
                         .map(snapshot -> documentStore.deleteDocument(
-                                snapshot.id(), SNAPSHOT_COLLECTION))
+                                snapshot.getId(), SNAPSHOT_COLLECTION))
                         .toArray(CompletableFuture[]::new));
     }
 
-    private Optional<Snapshot> deserialize(SnapshotDocument document) {
+    private Optional<Snapshot> deserialize(
+            SerializedDocument document) {
         try {
+            Object value = serializer.deserialize(
+                    document.getDocument());
+            if (value instanceof SnapshotDocument legacy) {
+                return Optional.of(new Snapshot(
+                        serializer.deserialize(
+                                legacy.serializedValue()),
+                        legacy.sequenceNumber(),
+                        legacy.stateIndex(),
+                        legacy.timestamp()));
+            }
             return Optional.of(new Snapshot(
-                    serializer.deserialize(document.serializedValue()),
-                    document.sequenceNumber(), document.stateIndex(),
-                    document.timestamp()));
+                    value,
+                    facetLong(document,
+                              SEQUENCE_NUMBER),
+                    facetLong(document,
+                              STATE_INDEX),
+                    Instant.ofEpochMilli(
+                            document.getTimestamp())));
         } catch (DeserializationException e) {
             log.warn("Failed to deserialize model snapshot {} for {}. Deleting snapshot.",
-                     document.id(), document.modelId(), e);
-            documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION);
+                     document.getId(),
+                     facetValue(document,
+                                MODEL_ID_FACET),
+                     e);
+            documentStore.deleteDocument(document.getId(), SNAPSHOT_COLLECTION);
             return Optional.empty();
         }
     }
 
-    private static String snapshotKey(String modelId, long sequenceNumber) {
-        return "$modelSnapshot_" + modelId + "_" + sequenceNumber;
+    private static long facetLong(
+            SerializedDocument document,
+            String name) {
+        return Long.parseLong(
+                facetValue(document, name));
+    }
+
+    private static String facetValue(
+            SerializedDocument document,
+            String name) {
+        return document.getFacets().stream()
+                .filter(facet ->
+                                name.equals(
+                                        facet.getName()))
+                .map(FacetEntry::getValue)
+                .findFirst()
+                .orElseThrow(() ->
+                                     new IllegalStateException(
+                                             "Model snapshot %s has no %s facet"
+                                                     .formatted(
+                                                             document.getId(),
+                                                             name)));
     }
 
     record Snapshot(
             Object value, long sequenceNumber, long stateIndex, Instant timestamp) {
     }
 
-    @Searchable(collection = SNAPSHOT_COLLECTION, timestampPath = "timestamp")
-    @SearchExclude
-    private record SnapshotDocument(
-            @EntityId String id,
-            @SearchInclude String modelId,
-            @Sortable long sequenceNumber,
-            @Sortable long stateIndex,
+    /**
+     * Retained solely to deserialize snapshots written by the first independent-model implementation.
+     */
+    @SuppressWarnings("unused")
+    record SnapshotDocument(
+            String id,
+            String modelId,
+            long sequenceNumber,
+            long stateIndex,
             Instant timestamp,
             Data<byte[]> serializedValue) {
     }

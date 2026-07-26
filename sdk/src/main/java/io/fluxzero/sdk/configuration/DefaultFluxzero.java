@@ -972,7 +972,8 @@ public class DefaultFluxzero implements Fluxzero {
                             runtimeParameterResolvers);
             modelActionHandlerRegistry = new ModelActionHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),
-                    runtimeDocumentStore, serializer, documentSerializer,
+                    runtimeDocumentStore, serializer, snapshotSerializer,
+                    documentSerializer,
                     dispatchChains.get(EVENT), client.id(),
                     runtimeParameterResolvers, handlerChains.get(COMMAND),
                     modelConflictPolicy, modelConflictResolver,

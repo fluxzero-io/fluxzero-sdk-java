@@ -64,6 +64,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -241,7 +242,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             throw new EventSourcingException(
                     "Model '%s' has no stored type metadata".formatted(modelId));
         }
-        return classForName(stream.getHead().getModelType());
+        return classForName(serializer.upcastType(
+                stream.getHead().getModelType()));
     }
 
     private ModelEventStateBoundary handlerBoundary() {
@@ -333,7 +335,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         }
         Class<?> result;
         try {
-            result = classForName(storedType);
+            result = classForName(serializer.upcastType(storedType));
         } catch (Throwable failure) {
             throw new EventSourcingException(
                     "Could not resolve stored model type '%s' for %s"
@@ -506,19 +508,43 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             ModelMetadata metadata = ModelMetadata.validate(committed.modelType());
             Model model = metadata.model().orElseThrow();
             if (!committed.historyComplete()) {
-                modelCache.remove(committed.modelId());
+                modelCache.<Entity<?>>compute(
+                        committed.modelId(),
+                        (ignored, current) ->
+                                current != null
+                                && stateIndex(current)
+                                   > committed.stateIndex()
+                                        ? current : null);
                 continue;
             }
-            Entity<?> previous = model.cached()
-                    ? modelCache.get(committed.modelId()) : null;
-            Entity<?> entity = committedEntity(
-                    committed, metadata, model, previous);
+            AtomicReference<Entity<?>> accepted =
+                    new AtomicReference<>();
+            Entity<?> entity;
             if (model.cached()) {
-                modelCache.put(committed.modelId(), entity);
+                entity = modelCache.compute(
+                        committed.modelId(),
+                        (ignored, current) -> {
+                            if (current != null
+                                && stateIndex(current)
+                                   >= committed.stateIndex()) {
+                                return current;
+                            }
+                            Entity<?> updated =
+                                    committedEntity(
+                                            committed, metadata,
+                                            model, current);
+                            accepted.set(updated);
+                            return updated;
+                        });
             } else {
                 modelCache.remove(committed.modelId());
+                entity = committedEntity(
+                        committed, metadata, model,
+                        null);
+                accepted.set(entity);
             }
-            if (committed.snapshotDue()
+            if (accepted.get() != null
+                && committed.snapshotDue()
                 && model.eventSourced()
                 && model.snapshotPeriod() > 0
                 && snapshotStore != null

@@ -24,8 +24,10 @@ import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
@@ -50,28 +52,30 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
-import java.util.function.Supplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 
 /**
- * Converts a side-effect-free {@link ModelActionEngine} evaluation into one authoritative runtime commit and then
- * synchronously updates every directly searchable model document.
+ * Converts a side-effect-free {@link ModelActionEngine} evaluation into one authoritative runtime action package.
  * <p>
  * The original event payload is serialized once per substep. Per-target stream membership remains separate, while
- * global publication is the union of all targeted model publication policies. Direct search is deliberately awaited
- * after the authoritative commit so a successful model action is immediately searchable and retries can repair a
- * failed document update using the same durable action ID.
+ * global publication is the union of all targeted model publication policies. Optional direct documents and snapshots
+ * travel with the same package. The runtime durably retains incomplete materialization work and reports completion
+ * before a successful model action returns, preserving immediate direct-search visibility across retries and restarts.
+ * The local document path remains only as compatibility fallback for stores that do not apply packaged documents.
  */
 final class ModelActionCommitter {
     private static final int MAX_PENDING_REPAIRS = 10_000;
+    private static final int MAX_ACCEPT_REBASE_ATTEMPTS = 10;
 
     private final EventStoreClient eventStoreClient;
     private final DocumentStore documentStore;
     private final Serializer serializer;
+    private final Serializer snapshotSerializer;
     private final DocumentSerializer documentSerializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final String source;
@@ -89,7 +93,7 @@ final class ModelActionCommitter {
             DispatchInterceptor dispatchInterceptor,
             String source) {
         this(eventStoreClient, documentStore, serializer, documentSerializer,
-             dispatchInterceptor, source,
+             dispatchInterceptor, source, serializer,
              ignored -> CompletableFuture.completedFuture(null));
     }
 
@@ -101,9 +105,24 @@ final class ModelActionCommitter {
             DispatchInterceptor dispatchInterceptor,
             String source,
             Function<CommittedAction, CompletableFuture<Void>> afterCommit) {
+        this(eventStoreClient, documentStore, serializer,
+             documentSerializer, dispatchInterceptor, source,
+             serializer, afterCommit);
+    }
+
+    ModelActionCommitter(
+            EventStoreClient eventStoreClient,
+            DocumentStore documentStore,
+            Serializer serializer,
+            DocumentSerializer documentSerializer,
+            DispatchInterceptor dispatchInterceptor,
+            String source,
+            Serializer snapshotSerializer,
+            Function<CommittedAction, CompletableFuture<Void>> afterCommit) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient);
         this.documentStore = Objects.requireNonNull(documentStore);
         this.serializer = Objects.requireNonNull(serializer);
+        this.snapshotSerializer = snapshotSerializer;
         this.documentSerializer = Objects.requireNonNull(documentSerializer);
         this.dispatchInterceptor = Objects.requireNonNull(dispatchInterceptor);
         this.source = source;
@@ -119,10 +138,96 @@ final class ModelActionCommitter {
             String actionId,
             ModelActionEngine.ActionEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
+        return commitPrepared(
+                actionId, evaluation,
+                prepare(actionId, evaluation, conflictPolicy));
+    }
+
+    CompletableFuture<Optional<CommitModelActionResult>> commitAcceptingRebase(
+            String actionId,
+            ModelActionEngine.ActionEvaluation evaluation,
+            RebaseEvaluator rebaseEvaluator) {
+        Objects.requireNonNull(
+                rebaseEvaluator, "rebaseEvaluator");
+        PreparedCommit original = prepare(
+                actionId, evaluation,
+                ModelConflictPolicy.ACCEPT);
+        return commitAcceptingRebase(
+                actionId, evaluation, original, original,
+                rebaseEvaluator, 0);
+    }
+
+    private CompletableFuture<Optional<CommitModelActionResult>>
+            commitAcceptingRebase(
+                    String actionId,
+                    ModelActionEngine.ActionEvaluation evaluation,
+                    PreparedCommit original,
+                    PreparedCommit prepared,
+                    RebaseEvaluator rebaseEvaluator,
+                    int attempts) {
+        return commitPrepared(
+                actionId, evaluation, prepared)
+                .thenCompose(optional -> {
+                    if (optional.isEmpty()
+                        || !optional.get().isRebaseRequired()) {
+                        return CompletableFuture.completedFuture(
+                                optional);
+                    }
+                    if (attempts
+                        >= MAX_ACCEPT_REBASE_ATTEMPTS) {
+                        return CompletableFuture.failedFuture(
+                                new IllegalStateException(
+                                        "Model action '%s' remained stale after %d apply-only rebases"
+                                                .formatted(
+                                                        actionId,
+                                                        MAX_ACCEPT_REBASE_ATTEMPTS)));
+                    }
+                    long boundary = optional.get()
+                            .getRebaseStateIndex();
+                    CompletableFuture<ModelActionEngine.ActionEvaluation>
+                            rebased;
+                    try {
+                        rebased = Objects.requireNonNull(
+                                rebaseEvaluator.rebase(
+                                        original.messages(),
+                                        boundary),
+                                "Model action rebase returned null");
+                    } catch (Throwable failure) {
+                        return CompletableFuture.failedFuture(
+                                failure);
+                    }
+                    return rebased.thenCompose(next -> {
+                        if (next.readStateIndex()
+                            != boundary) {
+                            return CompletableFuture.failedFuture(
+                                    new IllegalStateException(
+                                            "Model action '%s' rebase loaded state index %d instead of requested %d"
+                                                    .formatted(
+                                                            actionId,
+                                                            next.readStateIndex(),
+                                                            boundary)));
+                        }
+                        PreparedCommit nextPrepared =
+                                prepareRebased(
+                                        actionId, original, next);
+                        return commitAcceptingRebase(
+                                actionId, next, original,
+                                nextPrepared, rebaseEvaluator,
+                                attempts + 1);
+                    });
+                });
+    }
+
+    private CompletableFuture<Optional<CommitModelActionResult>>
+            commitPrepared(
+                    String actionId,
+                    ModelActionEngine.ActionEvaluation evaluation,
+                    PreparedCommit candidatePrepared) {
         PendingCommit pending = pendingRepairs.get(actionId);
+        boolean retainedRepair = pending != null;
         if (pending == null) {
             PreparedCommit prepared =
-                    prepare(actionId, evaluation, conflictPolicy);
+                    candidatePrepared;
             if (prepared.action() == null) {
                 return CompletableFuture.completedFuture(
                         Optional.empty());
@@ -141,9 +246,11 @@ final class ModelActionCommitter {
             }
             pending = known == null
                     ? candidate : known;
+            retainedRepair = known != null;
         }
         PendingCommit retained = pending;
         PreparedCommit prepared = pending.prepared();
+        boolean repairFromRetainedEvaluation = retainedRepair;
         return eventStoreClient.commitModelAction(prepared.action())
                 .thenCompose(result -> {
                     if (!result.isAccepted()) {
@@ -152,14 +259,39 @@ final class ModelActionCommitter {
                         return CompletableFuture.completedFuture(
                                 Optional.of(result));
                     }
-                    return updateDirectDocuments(
-                            prepared.documents())
-                            .thenCompose(ignored ->
-                                                 afterCommit.apply(
-                                                         new CommittedAction(
-                                                                 retained.evaluation(),
-                                                                 prepared,
-                                                                 result)))
+                    if (result.isDuplicate()
+                        && !repairFromRetainedEvaluation) {
+                        clearPending(actionId, retained);
+                        if (!result.isDocumentsApplied()
+                            && !prepared.documents().isEmpty()) {
+                            return CompletableFuture.failedFuture(
+                                    new IllegalStateException(
+                                            "Duplicate model action '%s' has incomplete runtime document "
+                                            + "materialization and no retained original SDK evaluation"
+                                                    .formatted(actionId)));
+                        }
+                        if (!result.isSnapshotsApplied()
+                            && prepared.hasSnapshots()) {
+                            return CompletableFuture.failedFuture(
+                                    new IllegalStateException(
+                                            "Duplicate model action '%s' has incomplete runtime snapshot "
+                                            + "materialization and no retained original SDK evaluation"
+                                                    .formatted(actionId)));
+                        }
+                        return CompletableFuture.completedFuture(
+                                Optional.of(result));
+                    }
+                    CompletableFuture<Void> documents =
+                            result.isDocumentsApplied()
+                                    ? CompletableFuture.completedFuture(null)
+                                    : updateDirectDocuments(
+                                            prepared.documents());
+                    return documents.thenCompose(ignored ->
+                                                          afterCommit.apply(
+                                                                  new CommittedAction(
+                                                                          retained.evaluation(),
+                                                                          prepared,
+                                                                          result)))
                             .thenApply(ignored -> {
                                 clearPending(
                                         actionId, retained);
@@ -248,7 +380,10 @@ final class ModelActionCommitter {
 
         List<ModelActionSubstep> substeps = new ArrayList<>();
         List<List<EffectiveTransition>> transitionGroups = new ArrayList<>();
-        LinkedHashMap<String, DirectDocumentCandidate> documents = new LinkedHashMap<>();
+        List<DeserializingMessage> messages = new ArrayList<>();
+        LinkedHashMap<String, DirectDocument> documents = new LinkedHashMap<>();
+        Map<String, Long> nextSequences =
+                new LinkedHashMap<>();
         for (int evaluatedSubstep = 0;
              evaluatedSubstep < evaluation.substeps().size();
              evaluatedSubstep++) {
@@ -276,18 +411,37 @@ final class ModelActionCommitter {
             List<ModelActionTarget> targets = new ArrayList<>(transitions.size());
             for (EffectiveTransition transition : transitions) {
                 ModelActionEngine.Transition sourceTransition = transition.transition();
+                DirectDocument directDocument = directDocument(
+                        sourceTransition, appliedSubstep.message().getTimestamp(),
+                        appliedSubstep.message().getMetadata())
+                        .map(this::serializeDocument)
+                        .orElse(null);
+                long nextSequence = nextSequence(
+                        sourceTransition, transition,
+                        nextSequences);
+                ModelSnapshotMutation snapshot =
+                        snapshot(
+                                sourceTransition,
+                                transition,
+                                nextSequence,
+                                appliedSubstep.message()
+                                        .getTimestamp());
                 targets.add(ModelActionTarget.builder()
                                     .modelId(sourceTransition.modelId())
                                     .modelType(sourceTransition.modelType().getName())
                                     .storeEvent(transition.storeEvent())
                                     .updateState(true)
                                     .delete(sourceTransition.after() == null)
+                                    .document(directDocument == null
+                                                      ? null : new ModelDocumentMutation(
+                                                              directDocument.collection(),
+                                                              directDocument.document()))
+                                    .snapshot(snapshot)
                                     .relationships(relationships(sourceTransition))
                                     .build());
-                directDocument(
-                        sourceTransition, appliedSubstep.message().getTimestamp(),
-                        appliedSubstep.message().getMetadata())
-                        .ifPresent(document -> documents.put(sourceTransition.modelId(), document));
+                if (directDocument != null) {
+                    documents.put(sourceTransition.modelId(), directDocument);
+                }
             }
             substeps.add(ModelActionSubstep.builder()
                                  .event(event)
@@ -295,16 +449,163 @@ final class ModelActionCommitter {
                                  .targets(List.copyOf(targets))
                                  .build());
             transitionGroups.add(transitions);
+            messages.add(appliedSubstep.message());
         }
         if (substeps.isEmpty()) {
-            return new PreparedCommit(null, List.of(), List.of());
+            return new PreparedCommit(
+                    null, List.of(), List.of(), List.of());
         }
         CommitModelAction action = new CommitModelAction(
                 actionId, evaluation.readStateIndex(), evaluation.readModelIds(),
                 List.copyOf(substeps), conflictPolicy, STORED);
         return new PreparedCommit(
-                action, documents.values().stream().map(this::serializeDocument).toList(),
-                List.copyOf(transitionGroups));
+                action, List.copyOf(documents.values()),
+                List.copyOf(transitionGroups),
+                List.copyOf(messages));
+    }
+
+    private PreparedCommit prepareRebased(
+            String actionId,
+            PreparedCommit original,
+            ModelActionEngine.ActionEvaluation evaluation) {
+        if (original.action() == null) {
+            throw new IllegalArgumentException(
+                    "Cannot rebase an empty model action");
+        }
+        if (evaluation.substeps().size()
+            != original.action().getSubsteps().size()) {
+            throw new IllegalStateException(
+                    "Apply-only rebase changed the number of model action substeps");
+        }
+        List<ModelActionSubstep> substeps =
+                new ArrayList<>(evaluation.substeps().size());
+        List<List<EffectiveTransition>> transitionGroups =
+                new ArrayList<>(evaluation.substeps().size());
+        LinkedHashMap<String, DirectDocument> documents =
+                new LinkedHashMap<>();
+        Map<String, Long> nextSequences =
+                new LinkedHashMap<>();
+        for (int substepIndex = 0;
+             substepIndex < evaluation.substeps().size();
+             substepIndex++) {
+            ModelActionEngine.AppliedSubstep rebased =
+                    evaluation.substeps().get(substepIndex);
+            ModelActionSubstep source =
+                    original.action().getSubsteps().get(
+                            substepIndex);
+            LinkedHashMap<String, ModelActionEngine.Transition>
+                    transitionsById = new LinkedHashMap<>();
+            for (ModelActionEngine.Transition transition :
+                    rebased.transitions()) {
+                ModelActionEngine.Transition previous =
+                        transitionsById.putIfAbsent(
+                                transition.modelId(),
+                                transition);
+                if (previous != null) {
+                    throw new IllegalStateException(
+                            "Apply-only rebase produced duplicate target '%s'"
+                                    .formatted(
+                                            transition.modelId()));
+                }
+            }
+            List<ModelActionTarget> targets =
+                    new ArrayList<>(source.getTargets().size());
+            List<EffectiveTransition> effective =
+                    new ArrayList<>(source.getTargets().size());
+            for (ModelActionTarget originalTarget :
+                    source.getTargets()) {
+                ModelActionEngine.Transition transition =
+                        transitionsById.remove(
+                                originalTarget.getModelId());
+                if (transition == null) {
+                    throw new IllegalStateException(
+                            "Apply-only rebase no longer returned original target '%s'"
+                                    .formatted(
+                                            originalTarget.getModelId()));
+                }
+                if (!Objects.equals(
+                        originalTarget.getModelType(),
+                        transition.modelType().getName())) {
+                    throw new IllegalStateException(
+                            "Apply-only rebase changed target '%s' from %s to %s"
+                                    .formatted(
+                                            originalTarget.getModelId(),
+                                            originalTarget.getModelType(),
+                                            transition.modelType()
+                                                    .getName()));
+                }
+                DirectDocument directDocument =
+                        directDocument(
+                                transition,
+                                rebased.message()
+                                        .getTimestamp(),
+                                rebased.message()
+                                        .getMetadata())
+                                .map(this::serializeDocument)
+                                .orElse(null);
+                EffectiveTransition effectiveTransition =
+                        new EffectiveTransition(
+                                transition,
+                                originalTarget.isStoreEvent(),
+                                source.isPublishEvent(),
+                                publication(transition)
+                                        .eventRouting());
+                long nextSequence = nextSequence(
+                        transition,
+                        effectiveTransition,
+                        nextSequences);
+                targets.add(originalTarget.toBuilder()
+                                    .delete(
+                                            transition.after()
+                                            == null)
+                                    .document(
+                                            directDocument == null
+                                                    ? null
+                                                    : new ModelDocumentMutation(
+                                                            directDocument
+                                                                    .collection(),
+                                                            directDocument
+                                                                    .document()))
+                                    .snapshot(
+                                            snapshot(
+                                                    transition,
+                                                    effectiveTransition,
+                                                    nextSequence,
+                                                    rebased.message()
+                                                            .getTimestamp()))
+                                    .relationships(
+                                            relationships(
+                                                    transition))
+                                    .build());
+                if (directDocument != null) {
+                    documents.put(
+                            transition.modelId(),
+                            directDocument);
+                }
+                effective.add(effectiveTransition);
+            }
+            if (!transitionsById.isEmpty()) {
+                throw new IllegalStateException(
+                        "Apply-only rebase introduced new targets "
+                        + transitionsById.keySet());
+            }
+            substeps.add(source.toBuilder()
+                                 .targets(List.copyOf(targets))
+                                 .build());
+            transitionGroups.add(
+                    List.copyOf(effective));
+        }
+        CommitModelAction action = new CommitModelAction(
+                actionId, evaluation.readStateIndex(),
+                evaluation.readModelIds(),
+                List.copyOf(substeps),
+                ModelConflictPolicy.ACCEPT,
+                original.action().getGuarantee());
+        return new PreparedCommit(
+                action,
+                List.copyOf(documents.values()),
+                List.copyOf(transitionGroups),
+                original.messages());
     }
 
     private SerializedMessage serialize(DeserializingMessage message) {
@@ -410,6 +711,50 @@ final class ModelActionCommitter {
         return List.copyOf(result.values());
     }
 
+    private static long nextSequence(
+            ModelActionEngine.Transition transition,
+            EffectiveTransition effective,
+            Map<String, Long> nextSequences) {
+        long previous = nextSequences.getOrDefault(
+                transition.modelId(),
+                transition.beforeSequenceNumber());
+        long result = previous
+                      + (effective.storeEvent()
+                                 ? 1L : 0L);
+        nextSequences.put(
+                transition.modelId(), result);
+        return result;
+    }
+
+    private ModelSnapshotMutation snapshot(
+            ModelActionEngine.Transition transition,
+            EffectiveTransition effective,
+            long nextSequence,
+            Instant timestamp) {
+        ModelMetadata.RootConfiguration model =
+                ModelMetadata.of(transition.modelType())
+                        .rootConfiguration()
+                        .orElseThrow();
+        if (snapshotSerializer == null
+            || !model.eventSourced()
+            || !effective.storeEvent()
+            || transition.after() == null
+            || model.snapshotPeriod() <= 0
+            || Math.floorMod(
+                    nextSequence + 1L,
+                    model.snapshotPeriod()) != 0L) {
+            return null;
+        }
+        return new ModelSnapshotMutation(
+                snapshotSerializer.serialize(
+                        transition.after()),
+                timestamp.toEpochMilli(),
+                model.snapshotPeriod(),
+                Math.max(
+                        1,
+                        model.maxSnapshotCount()));
+    }
+
     private static Optional<DirectDocumentCandidate> directDocument(
             ModelActionEngine.Transition transition, Instant eventTimestamp, Metadata metadata) {
         ModelMetadata.RootConfiguration model = ModelMetadata.of(transition.modelType())
@@ -463,7 +808,25 @@ final class ModelActionCommitter {
     record PreparedCommit(
             CommitModelAction action,
             List<DirectDocument> documents,
-            List<List<EffectiveTransition>> transitionGroups) {
+            List<List<EffectiveTransition>> transitionGroups,
+            List<DeserializingMessage> messages) {
+        boolean hasSnapshots() {
+            return action != null
+                   && action.getSubsteps().stream()
+                           .flatMap(substep ->
+                                            substep.getTargets()
+                                                    .stream())
+                           .anyMatch(target ->
+                                             target.getSnapshot()
+                                             != null);
+        }
+    }
+
+    @FunctionalInterface
+    interface RebaseEvaluator {
+        CompletableFuture<ModelActionEngine.ActionEvaluation> rebase(
+                List<DeserializingMessage> messages,
+                long stateIndex);
     }
 
     record CommittedAction(
