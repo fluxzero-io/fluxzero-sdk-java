@@ -432,7 +432,7 @@ membership, and reconstruction are deliberately not simulated here; their produc
 
 ### Slice 3.4 — Direct search completion
 
-- [ ] Index/delete each directly changed searchable model before SDK commit completes.
+- [x] Index/delete each directly changed searchable model before SDK commit completes.
 - [x] Load `eventSourced = false` models from that same direct collection.
 - [x] Preserve custom collection, timestamp/end path, serialization revision, metadata, and publication behavior.
 - [x] Batch direct document mutations per collection where possible.
@@ -441,9 +441,10 @@ membership, and reconstruction are deliberately not simulated here; their produc
 The direct mutation component pre-serializes each final searchable model with the configured document serializer
 before the authoritative model commit, then awaits its batched direct mutation. That preserves model type/revision,
 message metadata, configured collection and time paths, and avoids discovering a serialization failure only after
-authoritative state changed. The first item remains open until Slice 5.1's pinned loader lets normal handler execution
-route model actions through this component without inventing an unpinned document/head read. Event-sourced model
-loading likewise remains unavailable until that reconstruction can resolve historical dependencies.
+authoritative state changed. Slice 5.1 now routes normal handler execution through this component using the pinned
+model loader. If the authoritative commit succeeds but the direct mutation fails, an in-process repair entry preserves
+the originally evaluated state for an exact same-action retry; process-loss reconciliation remains explicit future
+work rather than a claimed cross-store transaction.
 
 ### Slice 3.5 — Pinned model-stream batch reads
 
@@ -498,43 +499,46 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 
 ### Slice 5.1 — Model reconstruction
 
-- [ ] Wire `ModelActionEngine` and `ModelActionCommitter` into normal command handling through the pinned model loader;
+- [x] Wire `ModelActionEngine` and `ModelActionCommitter` into normal command handling through the pinned model loader;
   await direct search mutation before reporting successful completion.
-- [ ] Connect the Phase 4 conflict reload seam to that loader and evict/refresh its action-scoped cache entries after
+- [x] Connect the Phase 4 conflict reload seam to that loader and evict/refresh its action-scoped cache entries after
   rejected actions and accepted stale evaluations.
-- [ ] Reconstruct only the requested model's hash-pruned stream using batched/sequential payload resolution from the
+- [x] Reconstruct only the requested model's hash-pruned stream using batched/sequential payload resolution from the
   selected Phase 0 layout.
-- [ ] Resolve cross-model dependencies as-of the stored action `readStateIndex`.
-- [ ] Reconstruct a later substep from its action `readStateIndex` plus earlier ordered substeps of the same `actionId`;
+- [x] Resolve cross-model dependencies as-of the stored action `readStateIndex`.
+- [x] Reconstruct a later substep from its action `readStateIndex` plus earlier ordered substeps of the same `actionId`;
   never admit unrelated intervening global state.
-- [ ] Batch and context-cache historical dependency loads.
-- [ ] Preserve normal self-only replay without dependency I/O.
-- [ ] Keep snapshots as the primary long-stream optimization.
-- [ ] Verify cold and warm reconstruction throughput continuously against the Phase 0 load budgets.
+- [x] Batch and context-cache historical dependency loads.
+- [x] Preserve normal self-only replay without dependency I/O.
+- [x] Keep snapshots as the primary long-stream optimization.
+- [x] Verify cold and warm reconstruction throughput continuously against the Phase 0 load budgets.
 
 ### Slice 5.2 — Graph reconstruction bundle
 
-- [ ] Pin one `stateIndex`, resolve graph membership as-of that boundary, and batch-load every selected independent
+- [x] Pin one `stateIndex`, resolve graph membership as-of that boundary, and batch-load every selected independent
   model stream up to the same boundary.
-- [ ] Return streams grouped by model plus temporal edges; do not invent a flattened aggregate stream.
-- [ ] Reconstruct each model independently in the SDK and place it only on explicitly configured graph paths.
-- [ ] Preserve existing global event-log correlation and VictoriaLogs audit behavior; the graph bundle is
+- [x] Return streams grouped by model plus temporal edges; do not invent a flattened aggregate stream.
+- [x] Reconstruct each model independently in the SDK and place it only on explicitly configured graph paths.
+- [x] Preserve existing global event-log correlation and VictoriaLogs audit behavior; the graph bundle is
   reconstruction transport, not a second audit log.
 
 ### Slice 5.3 — Document-loaded dependency history
 
-- [ ] Use stored model events for historical reconstruction even when normal load uses `DocumentStore`.
-- [ ] Track whether model history is complete without retaining document revisions.
-- [ ] Enforce the Phase 0 decision for non-stored history gaps.
-- [ ] Cover delete, recreate, unknown event, upcasting, snapshot, and hard-delete history loss.
+- [x] Use stored model events for historical reconstruction even when normal load uses `DocumentStore`.
+- [x] Track whether model history is complete without retaining document revisions.
+- [x] Enforce the Phase 0 decision for non-stored history gaps.
+- [x] Cover logical delete/recreate, unknown events, upcasting, and snapshots. Explicit hard-delete history loss stays
+  with the hard-delete API and erasure contract in Phase 8.
 
 ### Slice 5.4 — Cache synchronization
 
-- [ ] Generalize the useful `CachingAggregateRepository` event-index behavior for independent models.
-- [ ] Synchronize published changes through the event log and non-published changes through state/model-head awareness.
-- [ ] Pin event/notification handler loads to the correct historical state.
-- [ ] Never use a timeless relationship cache for as-of model reconstruction.
-- [ ] Benchmark cache hit, miss, catch-up, invalidation, and billion-key pressure assumptions.
+- [x] Generalize the useful `CachingAggregateRepository` revision-chain and event-handler boundary behavior for
+  independent models; retain one head/suffix path instead of adding a second full global-event tracker.
+- [x] Seed accepted local changes exactly and synchronize both published and non-published external changes through
+  state/model-head suffix awareness.
+- [x] Pin event/notification handler loads to the correct historical state.
+- [x] Never use a timeless relationship cache for as-of model reconstruction.
+- [x] Benchmark cache hit, miss, catch-up, invalidation, and billion-key pressure assumptions.
 
 ## Phase 6 — Temporal DAG relationships and graph loading
 
@@ -568,8 +572,8 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 
 ### Slice 7.1 — Independent collections
 
-- [ ] Make every `searchable = true` model independently searchable without a custom event handler.
-- [ ] Keep direct search read-after-commit consistency.
+- [x] Make every `searchable = true` model independently searchable without a custom event handler.
+- [x] Keep direct search read-after-commit consistency.
 - [ ] Support bulk model indexing/deletion and per-model lifecycle.
 
 ### Slice 7.2 — Virtual graph search
@@ -624,6 +628,8 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 - [ ] Certify action latency and byte throughput for 1, 2, 10, and 100 targets under concurrent model reconstruction.
 - [ ] Certify cold/warm reconstruction, graph loads, and projection rebuilds for deep/wide/shared DAGs.
 - [ ] Certify storage/WAL amplification, cache memory, vacuum/bloat, recovery, and overload/backpressure budgets.
+- [ ] Certify the non-JDBC publish-first event/action visibility race with the intended tracker retry policy; boundary
+  loads must fail instead of admitting wrong state until the durable action result is visible.
 - [ ] Compare every result with the Phase 0 baseline and explain every material regression before release.
 
 ### Slice 9.2 — Compatibility
@@ -727,3 +733,17 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   page. Ten repeated reads of 10,000 one-event models measured 78,483 models/s without a byte cap and 76,490 models/s
   with an inactive 8-MiB cap: 2.5% overhead in this local warm-cache run for computing the safe global/byte prefix.
   The complete SDK reactor and all 516 runtime-module tests passed; the benchmark reactor also test-compiled.
+- 2026-07-26 — Phase 4 (`SDK 2b59b35d0d5`, runtime `a2a6d6d5`) adds optional global-read-boundary conflict handling
+  without making it the model design frame: `ACCEPT` remains the zero-rejection default; strict policies roll back the
+  whole runtime action and may fail or retry after a fresh pinned load, optionally only while relationships remain
+  unchanged. Details are in the [Phase 4 report](dynamic-model-boundaries-phase-4-conflicts.md).
+- 2026-07-26 — Phase 5 (`SDK 0249394ba5c`, runtime `e0ea56e1`) connects independent model actions to normal local and
+  tracked command handling; reconstructs exact self/cross-model state through bounded hash-pruned stream pages,
+  snapshots, cache suffixes, and action-prefix views; makes direct searchable documents visible before command success;
+  and returns grouped temporal graph bundles with explicit child-owned paths. Existing compact action results pin
+  event-handler loads without a second event→state table. The complete SDK reactor, site/Javadoc reactor, Java/Kotlin
+  downstream projects, and complete runtime reactor passed; runtime reported 528 tests. The retained local integrated
+  diagnostics measured 9,193 one-target actions/s, 18,925 ten-target memberships/s, roughly 19–25k model loads/s, and
+  220,714 SDK replayed events/s. Full evidence and limitations are in the
+  [Phase 5 report](dynamic-model-boundaries-phase-5-reconstruction.md). Production 100-GB/min certification,
+  action-result retention/archival, and the explicit non-JDBC publish-first visibility race remain Phase 9 gates.
