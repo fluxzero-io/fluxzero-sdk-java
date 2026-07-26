@@ -36,10 +36,10 @@ phase, not the central abstraction.
 - Storage identity is exactly `Id.toString()` (or the equivalent untyped ID string). `@Model` has no name that is
   concatenated into the key. Existing ID prefix/type conventions remain responsible for uniqueness.
 - Stored model type is optional reconstruction metadata, never part of model identity. A typed load uses its supplied
-  Java type. An untyped load may reconstruct as `Object` when the first stored payload exposes all required
-  `@Apply` factories; otherwise graph reconstruction may use the stored model type. Stored fully-qualified type names
-  are resolved through the serializer's existing chained type-caster/upcasting registry before class loading, exactly
-  as for aggregate relationship types.
+  Java type. An untyped `Object` request may infer its runtime model type from the first stored payload's `@Apply`
+  factory; otherwise reconstruction may use the stored model type. Stored fully-qualified type names are resolved
+  through the serializer's existing chained type-caster/upcasting registry before class loading, exactly as for
+  aggregate relationship types.
 - Existing `@Member` semantics remain embedded: members share their root's stream, cache, search document, and
   lifecycle. Independently stored nodes use `@Model`.
 - A relationship is declared from a child model using one or more `@ParentId` properties. A typed `Id<T>` determines
@@ -596,7 +596,7 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 ### Slice 5.6 — Type evolution, cache defaults, and parity
 
 - [x] Resolve stored model FQNs through `Serializer.upcastType` before class loading, matching aggregate behavior.
-- [ ] Let untyped loads use `Object` and payload-side `@Apply` factories when no explicit model class is supplied;
+- [x] Let untyped loads use `Object` and payload-side `@Apply` factories when no explicit model class is supplied;
   require stored type metadata only when reconstruction actually needs model-side handlers.
 - [x] Change the new-model cache default to `cachingDepth = 1`; retain deterministic latest-only (`0`) and explicit
   unbounded (`-1`) behavior.
@@ -605,10 +605,16 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
   immutable models: +176.63 MiB, or about 185 bytes per actually hot key. This is a 54% increase for the deliberately
   wrapper-heavy minimum, not an unbounded-history multiplier. The shared cache remains count- and
   memory-pressure-bounded.
-- [ ] Parameterize applicable aggregate repository, playback, publication, search, snapshot, cache, fixture, and
+- [x] Parameterize applicable aggregate repository, playback, publication, search, snapshot, cache, fixture, and
   runtime integration contracts so every semantically shared behavior runs for both `@Aggregate` and `@Model`.
-- [ ] Keep model-specific tests only for intentionally different identity, stream, relationship, action, and lifecycle
+- [x] Keep model-specific tests only for intentionally different identity, stream, relationship, action, and lifecycle
   behavior; record every aggregate-only contract that is deliberately inapplicable.
+
+The completed contract matrix and the deliberately non-shared cases are recorded in
+[`dynamic-model-boundaries-phase-5-parity.md`](dynamic-model-boundaries-phase-5-parity.md). The shared executable
+fixture covers event-sourced lifecycle, direct search visibility, previous revisions, logical delete/recreate,
+document-based loading with stored events, and publication-free current documents. A real runtime integration test
+covers model commit/load/search, ancestor injection, and exactly-once global EVENT delivery over websocket.
 
 ### Slice 5.7 — Assert-and-apply convenience
 
@@ -896,3 +902,13 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   diagnostic measured 1.462 / 1.785 / 1.895 ms selective and 66.260 / 72.755 / 74.959 ms broad p50/p95/p99, with target
   document retrieval dominating the broad result. Co-located recursive query compilation, stitched current documents,
   recursive/paging/move certification, and historical full-text graph search remain open.
+- 2026-07-26 — Model/aggregate parity and untyped loading (`SDK fd6709f1f7c`, runtime `dbaefbea`) add one executable
+  lifecycle fixture for the semantically shared event-sourced, document-loaded, direct-search, previous-revision,
+  logical-delete/recreate, and publication-free contracts. The separate real-runtime fixture verifies model
+  commit/load/search, arbitrary ancestor injection across assert/intercept/apply, and exactly-once global EVENT
+  delivery over websocket. Untyped `Object` loads inspect at most one stream membership for a payload-side `@Apply`
+  factory and fall back safely to Serializer-upcast stored metadata; typed loads retain their zero-extra-read path.
+  The [parity matrix](dynamic-model-boundaries-phase-5-parity.md) records the aggregate-only contracts that deliberately
+  remain separate and why global aggregate `Fluxzero.assertAndApply` inference is not safe. Focused SDK coverage passed
+  71 tests; complete SDK, site/Javadoc, downstream, and runtime reactors passed. The runtime feature branch now
+  resolves SDK `0-SNAPSHOT` so it cannot accidentally test these contracts against a published pre-feature SDK.
