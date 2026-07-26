@@ -2,8 +2,15 @@
 
 ## Decision
 
-The complete implementation is **GO for merge and controlled rollout**. No local result exposes an architectural
-reason to return to aggregate-sized consistency boundaries or to change the model-action/storage protocol.
+Phase 9 concluded that the complete implementation was **GO for merge and controlled rollout**. A post-certification
+API review on 2026-07-26 subsequently accepted corrective pre-merge work for time-derived state indices, scoped
+conflict and automatic-handling overrides, configurable graph-result completion, projection metrics, an explicit
+shared-payload erasure proof, and a genuinely paired aggregate/model end-to-end benchmark.
+
+The architectural result below remains valid, but the rollout GO is now conditional on completing Phases 10 and 11 in
+the [implementation backlog](dynamic-model-boundaries-backlog.md) and updating this decision with their evidence. No
+local result exposes a reason to return to aggregate-sized consistency boundaries or abandon the model-action/storage
+protocol.
 
 This is deliberately not a claim that one laptop certified the production reference envelope. Unchanged Fluxzero
 installations already demonstrate roughly 100 GB/min on their event paths, while the retained tests below ran on one
