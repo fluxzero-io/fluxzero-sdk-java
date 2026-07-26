@@ -32,6 +32,7 @@ import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
@@ -152,9 +153,11 @@ final class ModelActionCommitter {
         PreparedCommit original = prepare(
                 actionId, evaluation,
                 ModelConflictPolicy.ACCEPT);
+        ThreadLocalContext.Snapshot context =
+                ThreadLocalContext.capture();
         return commitAcceptingRebase(
                 actionId, evaluation, original, original,
-                rebaseEvaluator, 0);
+                rebaseEvaluator, context, 0);
     }
 
     private CompletableFuture<Optional<CommitModelActionResult>>
@@ -164,6 +167,7 @@ final class ModelActionCommitter {
                     PreparedCommit original,
                     PreparedCommit prepared,
                     RebaseEvaluator rebaseEvaluator,
+                    ThreadLocalContext.Snapshot context,
                     int attempts) {
         return commitPrepared(
                 actionId, evaluation, prepared)
@@ -184,19 +188,19 @@ final class ModelActionCommitter {
                     }
                     long boundary = optional.get()
                             .getRebaseStateIndex();
-                    CompletableFuture<ModelActionEngine.ActionEvaluation>
-                            rebased;
-                    try {
-                        rebased = Objects.requireNonNull(
-                                rebaseEvaluator.rebase(
-                                        original.messages(),
-                                        boundary),
-                                "Model action rebase returned null");
-                    } catch (Throwable failure) {
-                        return CompletableFuture.failedFuture(
-                                failure);
-                    }
-                    return rebased.thenCompose(next -> {
+                    /*
+                     * A websocket client may complete the commit future on its serialized result callback.
+                     * Reconstructing models can issue another request through that same client, so invoking the
+                     * evaluator inline would make the callback wait for a result that it must dispatch itself.
+                     * Only the stale path is offloaded; the normal accepted fast path remains allocation-free here.
+                     */
+                    return invokeAsync(
+                            context,
+                            () -> rebaseEvaluator.rebase(
+                                    original.messages(),
+                                    boundary),
+                            "Model action rebase returned null")
+                            .thenCompose(next -> {
                         if (next.readStateIndex()
                             != boundary) {
                             return CompletableFuture.failedFuture(
@@ -213,6 +217,7 @@ final class ModelActionCommitter {
                         return commitAcceptingRebase(
                                 actionId, next, original,
                                 nextPrepared, rebaseEvaluator,
+                                context,
                                 attempts + 1);
                     });
                 });
@@ -320,8 +325,11 @@ final class ModelActionCommitter {
         if (maxRetries < 0) {
             throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
         }
+        ThreadLocalContext.Snapshot context =
+                ThreadLocalContext.capture();
         return commit(
-                actionId, evaluation, conflictPolicy, conflictResolver, maxRetries, reload, 0);
+                actionId, evaluation, conflictPolicy, conflictResolver,
+                maxRetries, reload, context, 0);
     }
 
     private CompletableFuture<Optional<CommitModelActionResult>> commit(
@@ -331,36 +339,56 @@ final class ModelActionCommitter {
             ModelConflictResolver conflictResolver,
             int maxRetries,
             Supplier<CompletableFuture<ModelActionEngine.ActionEvaluation>> reload,
+            ThreadLocalContext.Snapshot context,
             int retries) {
         return commit(actionId, evaluation, conflictPolicy).thenCompose(optional -> {
             if (optional.isEmpty() || optional.get().isAccepted()) {
                 return CompletableFuture.completedFuture(optional);
             }
             CommitModelActionResult conflict = optional.get();
-            ModelConflictResolver.Resolution resolution;
-            try {
-                resolution = Objects.requireNonNull(
-                        conflictResolver.resolve(
-                                new ModelConflictResolver.Context(conflict, retries, maxRetries)),
-                        "Model conflict resolver returned null");
-            } catch (Throwable failure) {
-                return CompletableFuture.failedFuture(failure);
-            }
-            if (resolution != ModelConflictResolver.Resolution.RETRY
-                || !conflict.isRetryAllowed() || retries >= maxRetries) {
-                return CompletableFuture.failedFuture(new ModelActionConflictException(conflict));
-            }
-            CompletableFuture<ModelActionEngine.ActionEvaluation> reloaded;
-            try {
-                reloaded = Objects.requireNonNull(
-                        reload.get(), "Model conflict reload returned null");
-            } catch (Throwable failure) {
-                return CompletableFuture.failedFuture(failure);
-            }
-            return reloaded.thenCompose(next -> commit(
-                    actionId, next, conflictPolicy, conflictResolver,
-                    maxRetries, reload, retries + 1));
+            return CompletableFuture.supplyAsync(
+                            context.wrap(
+                                    () -> Objects.requireNonNull(
+                                    conflictResolver.resolve(
+                                            new ModelConflictResolver.Context(
+                                                    conflict,
+                                                    retries,
+                                                    maxRetries)),
+                                            "Model conflict resolver returned null")))
+                    .thenCompose(resolution -> {
+                        if (resolution
+                            != ModelConflictResolver.Resolution.RETRY
+                            || !conflict.isRetryAllowed()
+                            || retries >= maxRetries) {
+                            return CompletableFuture.failedFuture(
+                                    new ModelActionConflictException(
+                                            conflict));
+                        }
+                        return invokeAsync(
+                                context,
+                                reload,
+                                "Model conflict reload returned null")
+                                .thenCompose(next -> commit(
+                                        actionId, next,
+                                        conflictPolicy,
+                                        conflictResolver,
+                                        maxRetries,
+                                        reload,
+                                        context,
+                                        retries + 1));
+                    });
         });
+    }
+
+    private static <T> CompletableFuture<T> invokeAsync(
+            ThreadLocalContext.Snapshot context,
+            Supplier<CompletableFuture<T>> action,
+            String nullMessage) {
+        return CompletableFuture.supplyAsync(
+                        context.wrap(
+                                () -> Objects.requireNonNull(
+                                        action.get(), nullMessage)))
+                .thenCompose(Function.identity());
     }
 
     PreparedCommit prepare(String actionId, ModelActionEngine.ActionEvaluation evaluation) {

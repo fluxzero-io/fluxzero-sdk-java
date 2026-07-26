@@ -103,6 +103,8 @@ final class ModelActionEngine {
         pending.add(new PendingSubstep(initialMessage, true));
         Map<String, Object> stagedValues = new LinkedHashMap<>();
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+        Map<String, Class<?>> readModelTypes =
+                new LinkedHashMap<>();
         List<AppliedSubstep> appliedSubsteps = new ArrayList<>();
         long readStateIndex = -1L;
         boolean stateIndexPinned = false;
@@ -134,8 +136,12 @@ final class ModelActionEngine {
                                     .formatted(resolved.context().readStateIndex(), readStateIndex));
                 }
                 ModelActionContext context = resolved.context().withValues(stagedValues);
-                resolved.context().entries().forEach(
-                        entry -> readModelIds.add(entry.target().modelId()));
+                resolved.context().entries().forEach(entry -> {
+                    readModelIds.add(entry.target().modelId());
+                    readModelTypes.putIfAbsent(
+                            entry.target().modelId(),
+                            entry.target().modelType());
+                });
                 List<ModelMetadata.HandlerMethod> interceptors =
                         handlerPlan(resolved.handlers()).interceptors();
                 if (current.interceptionAllowed() && !interceptors.isEmpty()) {
@@ -183,7 +189,9 @@ final class ModelActionEngine {
                         current.message(), evaluation.transitions()));
             }
             return new ActionEvaluation(
-                    readStateIndex, List.copyOf(readModelIds), appliedSubsteps, stagedValues);
+                    readStateIndex, List.copyOf(readModelIds),
+                    readModelTypes, appliedSubsteps,
+                    stagedValues);
         } finally {
             ModelActionContext restore =
                     originalContext == null ? actionBeginContext : originalContext;
@@ -210,6 +218,8 @@ final class ModelActionEngine {
         }
         Map<String, Object> stagedValues = new LinkedHashMap<>();
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+        Map<String, Class<?>> readModelTypes =
+                new LinkedHashMap<>();
         List<AppliedSubstep> appliedSubsteps =
                 new ArrayList<>(appliedMessages.size());
         long readStateIndex = -1L;
@@ -235,9 +245,13 @@ final class ModelActionEngine {
             }
             ModelActionContext context =
                     resolved.context().withValues(stagedValues);
-            resolved.context().entries().forEach(
-                    entry -> readModelIds.add(
-                            entry.target().modelId()));
+            resolved.context().entries().forEach(entry -> {
+                readModelIds.add(
+                        entry.target().modelId());
+                readModelTypes.putIfAbsent(
+                        entry.target().modelId(),
+                        entry.target().modelType());
+            });
             List<ModelMetadata.HandlerMethod> applies =
                     resolved.handlers().stream()
                             .filter(handler -> handler.kind()
@@ -255,7 +269,8 @@ final class ModelActionEngine {
         }
         return new ActionEvaluation(
                 readStateIndex, List.copyOf(readModelIds),
-                appliedSubsteps, stagedValues);
+                readModelTypes, appliedSubsteps,
+                stagedValues);
     }
 
     private Evaluation evaluateInContext(
@@ -556,10 +571,15 @@ final class ModelActionEngine {
     record ActionEvaluation(
             long readStateIndex,
             List<String> readModelIds,
+            Map<String, Class<?>> readModelTypes,
             List<AppliedSubstep> substeps,
             Map<String, Object> finalValues) {
         ActionEvaluation {
             readModelIds = List.copyOf(readModelIds);
+            readModelTypes =
+                    Collections.unmodifiableMap(
+                            new LinkedHashMap<>(
+                                    readModelTypes));
             substeps = List.copyOf(substeps);
             finalValues = Collections.unmodifiableMap(new LinkedHashMap<>(finalValues));
         }

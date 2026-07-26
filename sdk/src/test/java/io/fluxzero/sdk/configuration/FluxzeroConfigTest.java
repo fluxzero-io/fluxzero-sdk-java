@@ -16,10 +16,14 @@
 package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
+import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
@@ -40,6 +44,86 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class FluxzeroConfigTest {
+
+    @Test
+    void modelConflictPropertiesSupplyApplicationDefaults() {
+        DefaultFluxzero.Builder builder =
+                DefaultFluxzero.builder();
+        builder.replacePropertySource(existing ->
+                new SimplePropertySource(
+                        Map.of(
+                                "fluxzero.model.conflictPolicy",
+                                "retry",
+                                "fluxzero.model.maxConflictRetries",
+                                "7"))
+                        .andThen(existing));
+
+        assertEquals(ModelConflictPolicy.RETRY,
+                     builder.configuredModelConflictPolicy());
+        assertEquals(7,
+                     builder.configuredMaxModelConflictRetries());
+    }
+
+    @Test
+    void explicitModelConflictConfigurationOverridesProperties() {
+        DefaultFluxzero.Builder builder =
+                DefaultFluxzero.builder();
+        builder.replacePropertySource(existing ->
+                new SimplePropertySource(
+                        Map.of(
+                                "fluxzero.model.conflictPolicy",
+                                "retry",
+                                "fluxzero.model.maxConflictRetries",
+                                "7"))
+                        .andThen(existing));
+        builder.configureModelConflictHandling(
+                ModelConflictPolicy.FAIL,
+                ModelConflictResolver.fail(),
+                2);
+
+        assertEquals(ModelConflictPolicy.FAIL,
+                     builder.configuredModelConflictPolicy());
+        assertEquals(2,
+                     builder.configuredMaxModelConflictRetries());
+    }
+
+    @Test
+    void automaticModelHandlingUsesPropertyUnlessBuilderOverridesIt() {
+        DefaultFluxzero.Builder builder =
+                DefaultFluxzero.builder();
+        builder.replacePropertySource(existing ->
+                new SimplePropertySource(
+                        Map.of(
+                                "fluxzero.model.automaticHandling",
+                                "disabled"))
+                        .andThen(existing));
+
+        assertEquals(AutomaticModelHandling.DISABLED,
+                     builder.configuredAutomaticModelHandling());
+        builder.configureAutomaticModelHandling(
+                AutomaticModelHandling.ENABLED);
+        assertEquals(AutomaticModelHandling.ENABLED,
+                     builder.configuredAutomaticModelHandling());
+    }
+
+    @Test
+    void graphProjectionCompletionUsesPropertyUnlessBuilderOverridesIt() {
+        DefaultFluxzero.Builder builder =
+                DefaultFluxzero.builder();
+        builder.replacePropertySource(existing ->
+                new SimplePropertySource(
+                        Map.of(
+                                "fluxzero.model.graphProjectionCompletion",
+                                "await"))
+                        .andThen(existing));
+
+        assertEquals(GraphProjectionCompletion.AWAIT,
+                     builder.configuredGraphProjectionCompletion());
+        builder.configureGraphProjectionCompletion(
+                GraphProjectionCompletion.ASYNC);
+        assertEquals(GraphProjectionCompletion.ASYNC,
+                     builder.configuredGraphProjectionCompletion());
+    }
 
     @Test
     void testAddConsumerWithExistingNameNotAllowed() {

@@ -18,6 +18,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
@@ -122,6 +123,17 @@ public interface EventStoreClient extends AutoCloseable {
                     GetModelGraphProjectionStatus request) {
         throw new UnsupportedOperationException(
                 "Materialized model graph projection status is not supported by this event store");
+    }
+
+    /**
+     * Completes after every affected root in a graph projection has crossed the requested committed state boundary.
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            awaitModelGraphProjection(
+                    AwaitModelGraphProjection request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized model graph projection completion is not supported by this event store"));
     }
 
     /**

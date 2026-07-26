@@ -22,6 +22,7 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
@@ -349,8 +350,11 @@ class DefaultModelRepositoryTest {
     void reconstructsEventSourcedModelFromItsIndependentStream() {
         AccountId id = new AccountId("one");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            commit(fluxzero, "create", -1L, new CreateAccount(id, 5), id.toString());
-            commit(fluxzero, "change", 0L, new ChangeAccount(id, 2), id.toString());
+            long created = commit(
+                    fluxzero, "create", -1L,
+                    new CreateAccount(id, 5), id.toString());
+            commit(fluxzero, "change", created,
+                   new ChangeAccount(id, 2), id.toString());
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -363,9 +367,13 @@ class DefaultModelRepositoryTest {
     void staleAcceptedEventReconstructsAgainstItsRebasedReadBoundary() {
         AccountId id = new AccountId("stale");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            commit(fluxzero, "create-stale", -1L, new CreateAccount(id, 0), id.toString());
-            commit(fluxzero, "first-writer", 0L, new ChangeAccount(id, 1), id.toString());
-            commit(fluxzero, "stale-writer", 0L, new ChangeAccount(id, 10), id.toString());
+            long created = commit(
+                    fluxzero, "create-stale", -1L,
+                    new CreateAccount(id, 0), id.toString());
+            commit(fluxzero, "first-writer", created,
+                   new ChangeAccount(id, 1), id.toString());
+            commit(fluxzero, "stale-writer", created,
+                   new ChangeAccount(id, 10), id.toString());
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -379,11 +387,15 @@ class DefaultModelRepositoryTest {
         InventoryId inventoryId = new InventoryId("one");
         OrderId orderId = new OrderId("one");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            commit(fluxzero, "stock-5", -1L,
-                   new CreateInventory(inventoryId, 5), inventoryId.toString());
-            commit(fluxzero, "create-order", 0L,
-                   new CreateOrder(orderId, inventoryId), orderId.toString());
-            commit(fluxzero, "stock-100", 1L,
+            long stock = commit(
+                    fluxzero, "stock-5", -1L,
+                    new CreateInventory(inventoryId, 5),
+                    inventoryId.toString());
+            long order = commit(
+                    fluxzero, "create-order", stock,
+                    new CreateOrder(orderId, inventoryId),
+                    orderId.toString());
+            commit(fluxzero, "stock-100", order,
                    new ChangeInventory(inventoryId, 95), inventoryId.toString());
 
             var result = fluxzero.modelRepository().load(orderId);
@@ -450,10 +462,11 @@ class DefaultModelRepositoryTest {
             assertInstanceOf(
                     EventSourcingException.class,
                     failure.getCause());
-            assertEquals(
-                    "Model 'document-inventory-gap' cannot be reconstructed at state index 1 "
-                    + "because its stored history is incomplete",
-                    failure.getCause().getMessage());
+            assertTrue(
+                    failure.getCause().getMessage()
+                            .matches(
+                                    "Model 'document-inventory-gap' cannot be reconstructed at state index \\d+ "
+                                    + "because its stored history is incomplete"));
             assertFalse(
                     fluxzero.modelRepository()
                             .load(orderId).isPresent());
@@ -519,10 +532,12 @@ class DefaultModelRepositoryTest {
         InventoryId inventoryId = new InventoryId("prefix");
         OrderId orderId = new OrderId("prefix");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            commit(fluxzero, "prefix-stock", -1L,
-                   new CreateInventory(inventoryId, 5), inventoryId.toString());
+            long stock = commit(
+                    fluxzero, "prefix-stock", -1L,
+                    new CreateInventory(inventoryId, 5),
+                    inventoryId.toString());
             commitAction(
-                    fluxzero, "prefix-action", 0L,
+                    fluxzero, "prefix-action", stock,
                     List.of(inventoryId.toString(), orderId.toString()),
                     new ActionEvent(
                             new ChangeInventory(inventoryId, 1),
@@ -619,7 +634,8 @@ class DefaultModelRepositoryTest {
         AccountId id = new AccountId("external");
         try (Fluxzero fluxzero = configuredFluxzero()) {
             fluxzero.commandGateway().send(new CreateAccount(id, 5)).join();
-            commit(fluxzero, "external-change", 0L,
+            commit(fluxzero, "external-change",
+                   currentStateIndex(fluxzero),
                    new ChangeAccount(id, 2), id.toString());
 
             assertEquals(
@@ -776,13 +792,22 @@ class DefaultModelRepositoryTest {
         AccountId accountId = new AccountId("unknown");
         LenientAccountId lenientId = new LenientAccountId("unknown");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            commit(fluxzero, "unknown-account-create", -1L,
-                   new CreateAccount(accountId, 1), accountId.toString());
-            commit(fluxzero, "unknown-account-event", 0L,
-                   new UnknownAccountEvent(accountId), accountId.toString());
-            commit(fluxzero, "unknown-lenient-create", 1L,
-                   new CreateLenientAccount(lenientId, 2), lenientId.toString());
-            commit(fluxzero, "unknown-lenient-event", 2L,
+            long accountCreated = commit(
+                    fluxzero, "unknown-account-create", -1L,
+                    new CreateAccount(accountId, 1),
+                    accountId.toString());
+            long accountUnknown = commit(
+                    fluxzero, "unknown-account-event",
+                    accountCreated,
+                    new UnknownAccountEvent(accountId),
+                    accountId.toString());
+            long lenientCreated = commit(
+                    fluxzero, "unknown-lenient-create",
+                    accountUnknown,
+                    new CreateLenientAccount(lenientId, 2),
+                    lenientId.toString());
+            commit(fluxzero, "unknown-lenient-event",
+                   lenientCreated,
                    new UnknownLenientEvent(lenientId), lenientId.toString());
 
             assertThrows(
@@ -807,11 +832,15 @@ class DefaultModelRepositoryTest {
                 .disableKeepalive()
                 .disableShutdownHook()
                 .build(client)) {
-            commit(fluxzero, "batch-account", -1L,
-                   new CreateAccount(accountId, 3), accountId.toString());
-            commit(fluxzero, "batch-inventory", 0L,
-                   new CreateInventory(inventoryId, 5), inventoryId.toString());
-            commit(fluxzero, "batch-shipment", 1L,
+            long account = commit(
+                    fluxzero, "batch-account", -1L,
+                    new CreateAccount(accountId, 3),
+                    accountId.toString());
+            long inventory = commit(
+                    fluxzero, "batch-inventory", account,
+                    new CreateInventory(inventoryId, 5),
+                    inventoryId.toString());
+            commit(fluxzero, "batch-shipment", inventory,
                    new CreateShipment(shipmentId, inventoryId, accountId),
                    shipmentId.toString());
             clearInvocations(eventStoreClient);
@@ -940,6 +969,73 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void currentGraphReusesCachedModelsAtItsPinnedBoundary() {
+        GraphRootId rootId =
+                new GraphRootId("cached");
+        GraphChildId childId =
+                new GraphChildId("cached");
+        LocalClient localClient =
+                LocalClient.newInstance(null);
+        EventStoreClient eventStoreClient =
+                spy(localClient
+                            .getEventStoreClient());
+        LocalClient client = spy(localClient);
+        doReturn(eventStoreClient)
+                .when(client)
+                .getEventStoreClient();
+        try (Fluxzero fluxzero =
+                     DefaultFluxzero.builder()
+                             .disableKeepalive()
+                             .disableShutdownHook()
+                             .build(client)) {
+            fluxzero.commandGateway().send(
+                    new CreateGraphRoot(
+                            rootId, "root"))
+                    .join();
+            fluxzero.commandGateway().send(
+                    new CreateGraphChild(
+                            childId, rootId,
+                            "child"))
+                    .join();
+            ((DefaultModelRepository)
+                    fluxzero.modelRepository())
+                    .invalidateModels(
+                            List.of(
+                                    rootId.toString(),
+                                    childId.toString()));
+
+            fluxzero.modelRepository()
+                    .loadGraph(rootId);
+            clearInvocations(
+                    eventStoreClient);
+            fluxzero.modelRepository()
+                    .loadGraph(rootId);
+
+            var captor =
+                    org.mockito.ArgumentCaptor
+                            .forClass(
+                                    GetModelEvents.class);
+            verify(eventStoreClient,
+                   atLeastOnce())
+                    .getModelEvents(
+                            captor.capture());
+            List<ModelEventStreamRequest> requests =
+                    captor.getAllValues()
+                            .stream()
+                            .flatMap(request ->
+                                             request.getRequests()
+                                                     .stream())
+                            .toList();
+            assertFalse(requests.isEmpty());
+            assertTrue(
+                    requests.stream()
+                            .allMatch(request ->
+                                              request.getLastSequenceNumber()
+                                              >= 0L));
+        }
+    }
+
+    @Test
     void modelEventHandlerLoadsEveryModelAtItsMappedStateBoundary() {
         AccountId accountId = new AccountId("event-boundary");
         InventoryId inventoryId =
@@ -969,6 +1065,14 @@ class DefaultModelRepositoryTest {
                     new ChangeInventory(inventoryId, 95)).join();
             fluxzero.commandGateway().send(
                     new ChangeAccount(accountId, 90)).join();
+            long handledStateIndex =
+                    eventStoreClient.getModelEvents(
+                                    new GetModelEvents(
+                                            List.of(), null,
+                                            handledEvent.getMetadata().get(
+                                                    ModelEventMetadata.ACTION_ID),
+                                            0, 0L))
+                            .getStateIndex();
             clearInvocations(eventStoreClient);
 
             List<Object> handledView = fluxzero.serializer()
@@ -998,7 +1102,7 @@ class DefaultModelRepositoryTest {
                     requests.getAllValues().getFirst()
                             .getBoundarySubstep());
             assertEquals(
-                    1L,
+                    handledStateIndex,
                     requests.getAllValues().getLast()
                             .getMaxStateIndex());
         }
@@ -1011,7 +1115,7 @@ class DefaultModelRepositoryTest {
                 .build(LocalClient.newInstance(null));
     }
 
-    private static void commit(
+    private static long commit(
             Fluxzero fluxzero,
             String actionId,
             long readStateIndex,
@@ -1042,9 +1146,11 @@ class DefaultModelRepositoryTest {
                     .commitModelAction(action).join();
         }
         assertTrue(result.isAccepted());
+        return result.getSubsteps().getLast()
+                .getStateIndex();
     }
 
-    private static void commitAction(
+    private static long commitAction(
             Fluxzero fluxzero,
             String actionId,
             long readStateIndex,
@@ -1075,6 +1181,18 @@ class DefaultModelRepositoryTest {
                     .commitModelAction(action).join();
         }
         assertTrue(result.isAccepted());
+        return result.getSubsteps().getLast()
+                .getStateIndex();
+    }
+
+    private static long currentStateIndex(
+            Fluxzero fluxzero) {
+        return fluxzero.client()
+                .getEventStoreClient()
+                .getModelEvents(
+                        new GetModelEvents(
+                                List.of(), null, 0L))
+                .getStateIndex();
     }
 
     private record ActionEvent(Object payload, String targetId) {

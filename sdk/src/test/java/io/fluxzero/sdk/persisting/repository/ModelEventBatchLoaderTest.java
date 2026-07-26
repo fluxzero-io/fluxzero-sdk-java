@@ -170,7 +170,10 @@ class ModelEventBatchLoaderTest {
                     List.of(new ModelEventStream(
                             "a", head,
                             List.of(new ModelEventMembership(
-                                    sequenceNumber, stateIndex, stateIndex - 1L,
+                                    sequenceNumber, stateIndex,
+                                    sequenceNumber == 0L
+                                            ? -1L
+                                            : sequenceNumber - 1L,
                                     "action-" + stateIndex, 0)))));
         });
         ModelEventBatchLoader loader = new ModelEventBatchLoader(

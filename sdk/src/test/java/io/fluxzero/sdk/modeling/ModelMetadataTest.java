@@ -143,8 +143,11 @@ class ModelMetadataTest {
                 aggregateSettings,
                 modelSettings.stream()
                         .filter(name ->
-                                        !"graphProjection"
-                                                .equals(name))
+                                        !Set.of(
+                                                "automaticHandling",
+                                                "conflictPolicy",
+                                                "graphProjection")
+                                                .contains(name))
                         .collect(toSet()));
         assertEquals(modelSettings, configurationSettings);
     }

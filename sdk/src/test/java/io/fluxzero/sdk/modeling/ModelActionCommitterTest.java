@@ -29,6 +29,7 @@ import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -44,14 +45,17 @@ import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -218,6 +222,7 @@ class ModelActionCommitterTest {
                 Map.of(orderId.toString(), first));
         var reloadedEvaluation = new ModelActionEngine.ActionEvaluation(
                 42L, firstEvaluation.readModelIds(),
+                firstEvaluation.readModelTypes(),
                 List.of(substep(
                         new UpdateOrder(orderId),
                         transition(
@@ -236,7 +241,7 @@ class ModelActionCommitterTest {
 
         var result = committer.commit(
                 "action-1", firstEvaluation,
-                ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelConflictPolicy.RETRY,
                 ModelConflictResolver.retryIfAllowed(), 1,
                 () -> {
                     reloads.incrementAndGet();
@@ -272,7 +277,7 @@ class ModelActionCommitterTest {
 
         CompletionException bounded = assertThrows(CompletionException.class, () -> committer.commit(
                 "action-1", evaluation,
-                ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelConflictPolicy.RETRY,
                 ModelConflictResolver.retryIfAllowed(), 1,
                 () -> {
                     reloads.incrementAndGet();
@@ -395,6 +400,7 @@ class ModelActionCommitterTest {
                 Map.of(id.toString(), stale));
         var rebased = new ModelActionEngine.ActionEvaluation(
                 51L, List.of(id.toString()),
+                Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
                         id, Order.class, stale, merged,
                         UpdateOrder.class, "apply",
@@ -455,6 +461,105 @@ class ModelActionCommitterTest {
                         Order.class));
         verify(documentStore, never())
                 .bulkUpdate(anyCollection());
+    }
+
+    @Test
+    void acceptRebaseDoesNotLoadModelsOnTheCommitResultCallback() throws Exception {
+        OrderId id = new OrderId("callback-rebase");
+        Order stale = new Order(
+                id, null, "stale",
+                Instant.parse("2026-01-01T00:00:00Z"));
+        Order merged = new Order(
+                id, null, "merged",
+                Instant.parse("2026-01-03T00:00:00Z"));
+        UpdateOrder event = new UpdateOrder(id);
+        var original = evaluation(
+                List.of(id.toString()),
+                substep(event, transition(
+                        id, Order.class, null, stale,
+                        UpdateOrder.class, "apply",
+                        Order.class)),
+                Map.of(id.toString(), stale));
+        var rebased = new ModelActionEngine.ActionEvaluation(
+                51L, List.of(id.toString()),
+                Map.of(id.toString(), Order.class),
+                List.of(substep(event, transition(
+                        id, Order.class, stale, merged,
+                        UpdateOrder.class, "apply",
+                        Order.class))),
+                Map.of(id.toString(), merged));
+        CompletableFuture<CommitModelActionResult> firstCommit =
+                new CompletableFuture<>();
+        AtomicReference<CommitModelAction> firstRequest =
+                new AtomicReference<>();
+        AtomicInteger commits = new AtomicInteger();
+        when(eventStoreClient.commitModelAction(any()))
+                .thenAnswer(invocation -> {
+                    CommitModelAction request =
+                            invocation.getArgument(0);
+                    if (commits.getAndIncrement() == 0) {
+                        firstRequest.set(request);
+                        return firstCommit;
+                    }
+                    return CompletableFuture.completedFuture(
+                            result(request)
+                                    .withDocumentsApplied());
+                });
+        AtomicReference<String> completionThread =
+                new AtomicReference<>();
+        AtomicReference<String> rebaseThread =
+                new AtomicReference<>();
+        Fluxzero expectedContext =
+                mock(Fluxzero.class);
+
+        CompletableFuture<Optional<CommitModelActionResult>> completion;
+        Fluxzero.instance.set(
+                expectedContext);
+        try {
+            completion =
+                    committer.commitAcceptingRebase(
+                            "callback-rebase",
+                            original,
+                            (messages, boundary) -> {
+                                assertSame(
+                                        expectedContext,
+                                        Fluxzero.instance.get());
+                                rebaseThread.set(
+                                        Thread.currentThread()
+                                                .getName());
+                                return CompletableFuture.completedFuture(
+                                        rebased);
+                            });
+        } finally {
+            Fluxzero.instance.remove();
+        }
+        Thread transportCallback =
+                new Thread(() -> {
+                    completionThread.set(
+                            Thread.currentThread()
+                                    .getName());
+                    CommitModelAction request =
+                            firstRequest.get();
+                    firstCommit.complete(
+                            CommitModelActionResult.rebase(
+                                    request.getRequestId(),
+                                    request.getActionId(),
+                                    List.of(
+                                            new ModelActionConflict(
+                                                    id.toString(),
+                                                    51L, -1L)),
+                                    51L));
+                }, "serialized-transport-result");
+        transportCallback.start();
+        transportCallback.join();
+
+        assertTrue(completion.orTimeout(
+                5, java.util.concurrent.TimeUnit.SECONDS)
+                           .join().orElseThrow()
+                           .isAccepted());
+        assertNotEquals(
+                completionThread.get(),
+                rebaseThread.get());
     }
 
     @Test
@@ -668,7 +773,15 @@ class ModelActionCommitterTest {
             ModelActionEngine.AppliedSubstep substep,
             Map<String, Object> finalValues) {
         return new ModelActionEngine.ActionEvaluation(
-                41L, readModelIds, List.of(substep), finalValues);
+                41L, readModelIds,
+                finalValues.entrySet().stream()
+                        .filter(entry ->
+                                        entry.getValue() != null)
+                        .collect(java.util.stream.Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> entry.getValue()
+                                        .getClass())),
+                List.of(substep), finalValues);
     }
 
     private static ModelActionEngine.AppliedSubstep substep(

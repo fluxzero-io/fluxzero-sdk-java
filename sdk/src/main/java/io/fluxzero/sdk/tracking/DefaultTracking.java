@@ -192,20 +192,34 @@ public class DefaultTracking implements Tracking {
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
         return fluxzero.apply(fc -> {
+            List<?> trackingTargets = expandTrackingTargets(handlers);
             if (handlerFactory instanceof DefaultHandlerFactory defaultHandlerFactory) {
                 defaultHandlerFactory.setRegisteredHandlerTypePredicate(registeredHandlerTypes::containsKey);
             }
-            Set<Class<?>> handlerTypes = handlers.stream().map(handler -> handler instanceof Handler<?> h
+            Set<Class<?>> handlerTypes = trackingTargets.stream().map(handler -> handler instanceof Handler<?> h
                             ? h.getTargetClass() : ReflectionUtils.asClass(handler))
                     .filter(Objects::nonNull).collect(toSet());
             handlerTypes.forEach(type -> registeredHandlerTypes.merge(type, 1, Integer::sum));
             try {
-                return startHandlers(fc, handlers, handlerTypes);
+                return startHandlers(fc, trackingTargets, handlerTypes);
             } catch (RuntimeException | Error e) {
                 unregisterHandlerTypes(handlerTypes);
                 throw e;
             }
         });
+    }
+
+    private List<?> expandTrackingTargets(List<?> handlers) {
+        List<Object> result = new ArrayList<>();
+        Set<Class<?>> classTargets = new HashSet<>();
+        for (Object handler : handlers) {
+            for (Object target : handlerFactory.trackingTargets(handler, handlerFilter)) {
+                if (!(target instanceof Class<?> type) || classTargets.add(type)) {
+                    result.add(target);
+                }
+            }
+        }
+        return List.copyOf(result);
     }
 
     @SuppressWarnings("unchecked")

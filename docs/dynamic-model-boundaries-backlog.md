@@ -808,140 +808,142 @@ Detailed erasure, safety, lineage-protection, and resumability contract:
 - [x] Resolve every checked item's evidence link/commit in the log below.
 
 Phase 9 was a successful implementation checkpoint. The post-certification review deliberately reopened pre-merge
-readiness for the API corrections and paired benchmark below; its earlier GO decision becomes conditional on completing
-Phases 10 and 11.
+readiness for the API corrections and paired benchmark below. Phases 10 and 11 are now complete and renew the decision:
+the implementation is GO for merge and controlled rollout. Absolute 100 GB/min capacity, production-duration
+operations, and workload-specific physical sizing remain infrastructure deployment gates.
 
 ## Phase 10 — Pre-merge semantics and completion controls
 
 ### Slice 10.1 — Shared-payload lifecycle proof
 
-- [ ] Add an explicit JDBC contract in which models A and B share one stored event payload, hard deletion of A removes
+- [x] Add an explicit JDBC contract in which models A and B share one stored event payload, hard deletion of A removes
   only A's membership, current and historical reconstruction of B still succeeds, and deletion of B finally removes
   the now-unreferenced model payload.
-- [ ] Verify logical deletion of A retains both model histories, hard deletion never removes the independently owned
+- [x] Verify logical deletion of A retains both model histories, hard deletion never removes the independently owned
   global event-log entry, and an inclusive cascade removes shared memberships only when the selected lifecycle set
   actually contains their models.
-- [ ] Exercise retry, restart, and concurrent erasure/commit ordering so payload reference cleanup cannot race a
+- [x] Exercise retry, restart, and concurrent erasure/commit ordering so payload reference cleanup cannot race a
   surviving membership into data loss.
-- [ ] Keep the single-target path always inline and retain the measured adaptive sharing threshold; confirm the new
+- [x] Keep the single-target path always inline and retain the measured adaptive sharing threshold; confirm the new
   proof adds no ordinary commit/load query.
 
 ### Slice 10.2 — Time-derived state indices
 
-- [ ] Allocate the first state index of each accepted commit batch as
+- [x] Allocate the first state index of each accepted commit batch as
   `max(IndexUtils.indexForCurrentTime(), previousStateIndex + 1)` and assign its ordered substeps from that range in
   both JDBC and in-memory stores.
-- [ ] Treat state indices as opaque ordered positions everywhere. Remove tests, diagnostics, and production logic that
+- [x] Treat state indices as opaque ordered positions everywhere. Remove tests, diagnostics, and production logic that
   infer a historical boundary through arithmetic such as `stateIndex - eventCount`; obtain an observed boundary
   explicitly instead.
-- [ ] Preserve the separate `stateIndex` and `eventIndex` namespaces while documenting and testing
+- [x] Preserve the separate `stateIndex` and `eventIndex` namespaces while documenting and testing
   `IndexUtils.timestampFromIndex(stateIndex)`.
-- [ ] Cover multiple substeps in one millisecond, more than one commit in one millisecond, clock rollback, restart,
+- [x] Cover multiple substeps in one millisecond, more than one commit in one millisecond, clock rollback, restart,
   non-published transitions, temporal relation boundaries, graph high-watermarks, caches, snapshots, and write fences.
-- [ ] Repeat the complete model-action store/load matrix and confirm that one clock read per commit batch causes no
+- [x] Repeat the complete model-action store/load matrix and confirm that one clock read per commit batch causes no
   material throughput, p99, storage, or WAL regression.
 
 ### Slice 10.3 — Scoped conflict policy and retry
 
-- [ ] Replace unreleased `RETRY_IF_RELATIONS_UNCHANGED` with `RETRY`; a rejected action may always perform a bounded
+- [x] Replace unreleased `RETRY_IF_RELATIONS_UNCHANGED` with `RETRY`; a rejected action may always perform a bounded
   complete reload/assert/intercept/apply evaluation against the new model and relationship boundary.
-- [ ] Add `DEFAULT` inheritance and support explicit policy at application, `@Model`, and `@Apply` scope. Resolve an
+- [x] Add `DEFAULT` inheritance and support explicit policy at application, `@Model`, and `@Apply` scope. Resolve an
   apply override before its returned target's model setting; use the model setting for read-only dependencies; resolve
   remaining defaults through the application builder/property and finally `ACCEPT`.
-- [ ] Combine participant policies for one atomic action using `FAIL > RETRY > ACCEPT`. If one participant requires
+- [x] Combine participant policies for one atomic action using `FAIL > RETRY > ACCEPT`. If one participant requires
   `FAIL` and another requests `RETRY`, roll back and fail; if one requires `RETRY` and another accepts stale state, roll
   back and retry.
-- [ ] Retain relationship transition indices in conflict diagnostics and custom resolver context, but do not make an
+- [x] Retain relationship transition indices in conflict diagnostics and custom resolver context, but do not make an
   intervening relationship change a runtime retry veto. A fresh `@AssertLegal` decides whether the new graph is legal.
-- [ ] Reuse `FluxzeroBuilder.configureModelConflictHandling(...)` for the application resolver and retry bound; add
+- [x] Reuse `FluxzeroBuilder.configureModelConflictHandling(...)` for the application resolver and retry bound; add
   documented property fallbacks with explicit builder configuration taking precedence.
-- [ ] Keep custom behavior as the existing `ModelConflictResolver` SPI. Do not add a `CUSTOM` enum until a concrete
+- [x] Keep custom behavior as the existing `ModelConflictResolver` SPI. Do not add a `CUSTOM` enum until a concrete
   per-model named-resolver registry is required, but keep the scoped policy representation evolvable toward it.
-- [ ] Cover same-type multi-target applies, read-only ancestors, mixed model/apply overrides, retry assertion failure,
+- [x] Cover same-type multi-target applies, read-only ancestors, mixed model/apply overrides, retry assertion failure,
   retry after a move, retry exhaustion, custom application exceptions, and JSON/CBOR compatibility.
 
 ### Slice 10.4 — Automatic model-action handling controls
 
-- [ ] Add `DEFAULT`, `ENABLED`, and `DISABLED` automatic model handling at application, `@Model`, and `@Apply` scope,
+- [x] Add `DEFAULT`, `ENABLED`, and `DISABLED` automatic model handling at application, `@Model`, and `@Apply` scope,
   with explicit apply override, then returned-target model setting, then builder/property, then `ENABLED` precedence.
-- [ ] When any applicable model-producing apply is explicitly disabled for automatic handling, make the automatic
+- [x] When any applicable model-producing apply is explicitly disabled for automatic handling, make the automatic
   registry decline the complete command rather than partially applying the enabled targets.
-- [ ] Ensure an explicit non-passive `@HandleCommand` and the automatic model registry can never both apply the same
+- [x] Ensure an explicit non-passive `@HandleCommand` and the automatic model registry can never both apply the same
   command. Preserve the supported custom-handler pattern that invokes `Fluxzero.assertAndApply(update)` exactly once.
-- [ ] Make the switch affect only automatic command-handler selection. Explicit `assertAndApply`, event sourcing,
+- [x] Make the switch affect only automatic command-handler selection. Explicit `assertAndApply`, event sourcing,
   event-log replay, fixtures, and direct repository operations must continue to use the same apply methods.
-- [ ] Cover application-wide migration opt-out, per-model and per-apply overrides, mixed multi-model commands, creation
+- [x] Cover application-wide migration opt-out, per-model and per-apply overrides, mixed multi-model commands, creation
   factories, model-side handlers, nested dispatch, local and websocket consumers, and Java/Kotlin downstream usage.
 
 ### Slice 10.5 — Graph-projection result completion and observability
 
-- [ ] Add projection completion `DEFAULT`, `ASYNC`, and `AWAIT` to the application, active
+- [x] Add projection completion `DEFAULT`, `ASYNC`, and `AWAIT` to the application, active
   `Consumer`/`ConsumerConfiguration`, `@GraphProjection`, and `@Apply` scopes. Resolve an explicit apply override first,
   then an explicit active-consumer setting, each affected root's graph definition, application builder/property, and
   finally `ASYNC`.
-- [ ] Keep projection execution on the existing durable signal/task worker. `AWAIT` delays request-result publication
+- [x] Keep projection execution on the existing durable signal/task worker. `AWAIT` delays request-result publication
   until every affected root requiring it has crossed the committed action boundary; it never moves graph traversal or
   search writes into the authoritative model transaction.
-- [ ] If several transitions affect the same root, let `AWAIT` dominate `ASYNC` for that root. Mixed roots may complete
+- [x] If several transitions affect the same root, let `AWAIT` dominate `ASYNC` for that root. Mixed roots may complete
   independently; the command result waits only for roots whose effective policy is `AWAIT`.
-- [ ] Use the existing result-publication barrier so a command result cannot be observed before required root documents.
+- [x] Use the existing result-publication barrier so a command result cannot be observed before required root documents.
   Preserve `ConsumerConfiguration.awaitAsyncResults` as the independent choice of whether tracker/batch progress also
   waits. Direct `Fluxzero.assertAndApply` waits for required projection completion as part of its returned completion.
-- [ ] Define duplicate, timeout, disconnect, restart, worker-failure, split-search-store, move, delete, and rebuild
+- [x] Define duplicate, timeout, disconnect, restart, worker-failure, split-search-store, move, delete, and rebuild
   semantics. The model action remains durably committed after projection failure; a duplicate request resumes waiting
   for the same fenced projection work rather than reevaluating the action.
-- [ ] Emit bounded runtime projection-batch metrics with collection/root type, configuration and state boundaries,
+- [x] Emit bounded runtime projection-batch metrics with collection/root type, configuration and state boundaries,
   root/upsert/delete counts, bytes, stage durations, retry status, and remaining backlog. Evaluate an opt-in exact-root
   update metric separately for ID cardinality and privacy; metrics are never the correctness source.
-- [ ] Measure `ASYNC` commit latency, `AWAIT` command-result latency, time-to-root-search-visible, metric volume, and
+- [x] Measure `ASYNC` commit latency, `AWAIT` command-result latency, time-to-root-search-visible, metric volume, and
   graph worker throughput for selective, broad, moved, deleted, and shared-DAG roots.
 
 ## Phase 11 — Paired aggregate/model end-to-end benchmark
 
 ### Slice 11.1 — Equivalent domain shapes
 
-- [ ] Build one benchmark domain twice: an aggregate root with three direct `@Member` collections, including one branch
+- [x] Build one benchmark domain twice: an aggregate root with three direct `@Member` collections, including one branch
   type with two descendant member collections, and an equivalent graph of independently stored `@Model` nodes linked
   through `@ParentId`.
-- [ ] Use identical IDs, immutable values, update payloads, serialized event sizes, publication strategies, snapshot
+- [x] Use identical IDs, immutable values, update payloads, serialized event sizes, publication strategies, snapshot
   periods, logical-delete behavior, and graph cardinalities. Record any unavoidable mechanism-specific difference
   rather than hiding it in the result.
-- [ ] Parameterize narrow/deep, broad, and mixed trees plus hot-root, uniform-random, and Zipf-distributed target access.
+- [x] Parameterize narrow/deep, broad, and mixed trees plus hot-root, uniform-random, and Zipf-distributed target access.
 
 ### Slice 11.2 — Equivalent mutations and loads
 
-- [ ] Measure root, direct-child, grandchild, cross-branch two-target, move, create, logical-delete, and recreate actions
+- [x] Measure root, direct-child, grandchild, cross-branch two-target, move, create, logical-delete, and recreate actions
   through the real SDK-to-websocket-to-runtime path.
-- [ ] Compare cold/warm direct-target loads and cold/warm whole-root loads. For models report both independent target
+- [x] Compare cold/warm direct-target loads and cold/warm whole-root loads. For models report both independent target
   load and `loadGraph`; for aggregates report the one root load and the amount of unrelated history/materialization it
   necessarily reads.
-- [ ] Run sustained leaf-heavy histories through at least 100,000 and 1,000,000 updates and report stream growth,
+- [x] Run sustained leaf-heavy histories through at least 100,000 and 1,000,000 updates and report stream growth,
   replayed events, applied events, physical reads, cache behavior, heap, GC, and time to reconstruct the requested
   direct target and complete root.
-- [ ] Retain a matching JDBC-core profile to attribute end-to-end differences to storage, transport, reconstruction,
+- [x] Retain a matching JDBC-core profile to attribute end-to-end differences to storage, transport, reconstruction,
   cache, search, or projection rather than presenting one unexplained total.
 
 ### Slice 11.3 — Searchable and composed-root comparison
 
-- [ ] Repeat the mutation/load matrix with `searchable = false` and `true`.
-- [ ] Compare synchronous aggregate root-document mutation/search with synchronous direct-model document mutation/search.
-- [ ] Compare current whole-root read/search using aggregate document loading, model `loadGraph`, relation-backed
+- [x] Repeat the mutation/load matrix with `searchable = false` and `true`.
+- [x] Compare synchronous aggregate root-document mutation/search with synchronous direct-model document mutation/search.
+- [x] Compare current whole-root read/search using aggregate document loading, model `loadGraph`, relation-backed
   `includeModelGraph`, and materialized graph documents.
-- [ ] For asynchronous model graph projection report action commit latency and time-to-root-search-visible separately.
+- [x] For asynchronous model graph projection report action commit latency and time-to-root-search-visible separately.
   For `AWAIT`, report command-result latency and prove that an immediate root query after receiving the result observes
   the committed tree.
-- [ ] Measure document bytes rewritten per leaf update, search/query latency, graph lag, rebuild throughput, storage,
+- [x] Measure document bytes rewritten per leaf update, search/query latency, graph lag, rebuild throughput, storage,
   WAL, and the crossover points at which independent models outperform or underperform the aggregate representation.
 
 ### Slice 11.4 — Re-certification and honest terminology
 
-- [ ] Report stream requests/s, memberships/s, unique payload MiB/s, document loads/s, reconstructed models/s, and
+- [x] Report stream requests/s, memberships/s, unique payload MiB/s, document loads/s, reconstructed models/s, and
   applied events/s separately. Do not label a one-event serialized stream fetch as full model reconstruction.
-- [ ] Publish paired p50/p95/p99, throughput, physical/WAL, allocation, cache, and result-visibility tables with exact
-  environment, configuration, warm-up, run count, variance, and confidence limitations.
-- [ ] Re-run all focused suites, both full Maven reactors, site/Javadoc, protocol compatibility, Java/Kotlin downstream
+- [x] Publish paired p50/p95/p99, throughput, physical/WAL, allocation, cache, and result-visibility tables with exact
+  environment, configuration, warm-up, run count, variance, and confidence limitations. Latency, throughput,
+  physical/WAL, cache mode, GC, and visibility are retained; direct allocation uses process/thread MXBean counters.
+- [x] Re-run all focused suites, both full Maven reactors, site/Javadoc, protocol compatibility, Java/Kotlin downstream
   builds, and a final regression-only review.
-- [ ] Update the Phase 9 rollout decision using the paired evidence and resolve every new checkbox to a report and
+- [x] Update the Phase 9 rollout decision using the paired evidence and resolve every new checkbox to a report and
   implementation commit before merge.
 
 ## Evidence log
@@ -1142,3 +1144,14 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   indices, scoped conflict and automatic-handling overrides, configurable graph-result completion, projection metrics,
   an explicit shared-payload erasure proof, and one genuinely paired aggregate/model end-to-end benchmark. No
   implementation or renewed rollout GO is claimed until their open checkboxes are resolved.
+- 2026-07-27 — Phases 10 and 11 are complete (SDK: this commit; runtime: `5ff09709`). The final SDK reactor passed all
+  nine modules, including protocol, annotation processor, proxy, test server, and Java/Kotlin downstream contracts; the
+  site/Javadoc reactor passed. The final runtime reactor passed all four modules and 617 runtime tests. Focused
+  post-review verification passed 81 SDK model commit/handler/repository tests and the JDBC scoped-`AWAIT` deletion
+  contract. The separate regression review corrected async retry/rebase request-context propagation, prevented an
+  unresolved root scope from releasing projection completion early, and removed a misleading unsupported in-memory
+  projection no-op. The [Phase 10 semantics](dynamic-model-boundaries-phase-10-semantics.md) and
+  [paired Phase 11 report](dynamic-model-boundaries-phase-11-e2e.md) retain the complete contracts and measurements.
+  The [Phase 9 decision](dynamic-model-boundaries-phase-9-certification.md) is renewed as GO for merge and controlled
+  rollout, with absolute 100 GB/min qualification, production-duration operations, action-result retention, and
+  workload-specific physical sizing retained as deployment gates.

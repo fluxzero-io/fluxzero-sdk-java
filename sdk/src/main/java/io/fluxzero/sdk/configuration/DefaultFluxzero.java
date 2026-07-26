@@ -45,7 +45,9 @@ import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.ModelActionHandlerRegistry;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
@@ -330,9 +332,23 @@ public class DefaultFluxzero implements Fluxzero {
         private Cache relationshipsCache;
         private DocumentStore runtimeDocumentStore;
         private ModelActionHandlerRegistry modelActionHandlerRegistry;
-        private ModelConflictPolicy modelConflictPolicy = ModelConflictPolicy.ACCEPT;
-        private ModelConflictResolver modelConflictResolver = ModelConflictResolver.fail();
-        private int maxModelConflictRetries;
+        private static final String MODEL_CONFLICT_POLICY_PROPERTY =
+                "fluxzero.model.conflictPolicy";
+        private static final String MODEL_CONFLICT_MAX_RETRIES_PROPERTY =
+                "fluxzero.model.maxConflictRetries";
+        private static final String AUTOMATIC_MODEL_HANDLING_PROPERTY =
+                "fluxzero.model.automaticHandling";
+        private static final String GRAPH_PROJECTION_COMPLETION_PROPERTY =
+                "fluxzero.model.graphProjectionCompletion";
+        private static final int DEFAULT_MODEL_CONFLICT_RETRIES =
+                3;
+
+        private ModelConflictPolicy modelConflictPolicy;
+        private ModelConflictResolver modelConflictResolver =
+                ModelConflictResolver.retryIfAllowed();
+        private Integer maxModelConflictRetries;
+        private AutomaticModelHandling automaticModelHandling;
+        private GraphProjectionCompletion graphProjectionCompletion;
         private ResponseMapper defaultResponseMapper = new DefaultResponseMapper();
         private WebResponseMapper webResponseMapper = new DefaultWebResponseMapper();
         private boolean disableErrorReporting;
@@ -599,9 +615,23 @@ public class DefaultFluxzero implements Fluxzero {
                 throw new IllegalArgumentException(
                         "Maximum model conflict retries must not be negative");
             }
-            modelConflictPolicy = ModelConflictPolicy.resolve(policy);
+            modelConflictPolicy = policy;
             modelConflictResolver = resolver;
             maxModelConflictRetries = maxRetries;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder configureAutomaticModelHandling(
+                @NonNull AutomaticModelHandling handling) {
+            automaticModelHandling = handling;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder configureGraphProjectionCompletion(
+                @NonNull GraphProjectionCompletion completion) {
+            graphProjectionCompletion = completion;
             return this;
         }
 
@@ -989,8 +1019,11 @@ public class DefaultFluxzero implements Fluxzero {
                     documentSerializer,
                     dispatchChains.get(EVENT), client.id(),
                     runtimeParameterResolvers, handlerChains.get(COMMAND),
-                    modelConflictPolicy, modelConflictResolver,
-                    maxModelConflictRetries);
+                    configuredModelConflictPolicy(),
+                    modelConflictResolver,
+                    configuredMaxModelConflictRetries(),
+                    configuredAutomaticModelHandling(),
+                    configuredGraphProjectionCompletion());
 
             //create gateways
             RequestHandler defaultRequestHandler = new DefaultRequestHandler(client, RESULT);
@@ -1232,6 +1265,94 @@ public class DefaultFluxzero implements Fluxzero {
                     .ignoreSegment(messageType == NOTIFICATION)
                     .clientControlledIndex(messageType == NOTIFICATION)
                     .build();
+        }
+
+        ModelConflictPolicy configuredModelConflictPolicy() {
+            if (modelConflictPolicy != null
+                && modelConflictPolicy
+                   != ModelConflictPolicy.DEFAULT) {
+                return modelConflictPolicy;
+            }
+            String configured =
+                    propertySource.get(
+                            MODEL_CONFLICT_POLICY_PROPERTY);
+            if (configured == null
+                || configured.isBlank()) {
+                return ModelConflictPolicy.ACCEPT;
+            }
+            return ModelConflictPolicy.resolve(
+                    ModelConflictPolicy.valueOf(
+                            configured.trim()
+                                    .toUpperCase(
+                                            java.util.Locale.ROOT)));
+        }
+
+        int configuredMaxModelConflictRetries() {
+            if (maxModelConflictRetries != null) {
+                return maxModelConflictRetries;
+            }
+            String configured =
+                    propertySource.get(
+                            MODEL_CONFLICT_MAX_RETRIES_PROPERTY);
+            if (configured == null
+                || configured.isBlank()) {
+                return DEFAULT_MODEL_CONFLICT_RETRIES;
+            }
+            int result =
+                    Integer.parseInt(
+                            configured.trim());
+            if (result < 0) {
+                throw new IllegalArgumentException(
+                        MODEL_CONFLICT_MAX_RETRIES_PROPERTY
+                        + " must not be negative");
+            }
+            return result;
+        }
+
+        AutomaticModelHandling configuredAutomaticModelHandling() {
+            if (automaticModelHandling != null
+                && automaticModelHandling
+                   != AutomaticModelHandling.DEFAULT) {
+                return automaticModelHandling;
+            }
+            String configured =
+                    propertySource.get(
+                            AUTOMATIC_MODEL_HANDLING_PROPERTY);
+            if (configured == null
+                || configured.isBlank()) {
+                return AutomaticModelHandling.ENABLED;
+            }
+            AutomaticModelHandling result =
+                    AutomaticModelHandling.valueOf(
+                            configured.trim()
+                                    .toUpperCase(
+                                            java.util.Locale.ROOT));
+            return result == AutomaticModelHandling.DEFAULT
+                    ? AutomaticModelHandling.ENABLED
+                    : result;
+        }
+
+        GraphProjectionCompletion configuredGraphProjectionCompletion() {
+            if (graphProjectionCompletion != null
+                && graphProjectionCompletion
+                   != GraphProjectionCompletion.DEFAULT) {
+                return graphProjectionCompletion;
+            }
+            String configured =
+                    propertySource.get(
+                            GRAPH_PROJECTION_COMPLETION_PROPERTY);
+            if (configured == null
+                || configured.isBlank()) {
+                return GraphProjectionCompletion.ASYNC;
+            }
+            GraphProjectionCompletion result =
+                    GraphProjectionCompletion.valueOf(
+                            configured.trim()
+                                    .toUpperCase(
+                                            java.util.Locale.ROOT));
+            return result == GraphProjectionCompletion.DEFAULT
+                    ? GraphProjectionCompletion.ASYNC
+                    : result;
         }
 
         private ConsumerHandlingMode resolvedAppDefaultConsumerHandlingMode() {

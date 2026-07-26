@@ -169,3 +169,25 @@ These are operational qualifications, not unfinished model semantics:
 
 Those results determine deployment sizing and rollout rate. They do not require changing the API or storage design
 unless they reveal a material regression against the explicit budgets above.
+
+## Post-certification decision after Phases 10 and 11
+
+The pre-merge semantics corrections and paired end-to-end comparison renew the Phase 9 decision: the implementation is
+**GO for merge and controlled rollout**.
+
+The paired one-million-action history strengthened the functional case. Compared with the equivalent aggregate, models
+stored 12.2% more actions/s, wrote 51.8% of the WAL, loaded the selected cold leaf 4.1 times faster, and reconstructed
+the complete cold tree 2.8 times faster after bounded parallel graph reconstruction. The isolated 20,000-action profile
+used 43.8% of aggregate allocation. Synchronous direct-model search remained intact; asynchronous graph projection
+restored sub-millisecond root search, while `AWAIT` explicitly exposed its full-root materialization cost in result
+latency.
+
+The paired result also sharpened one deployment caveat rather than hiding it. On the highly compressible repeated
+1-KiB million-action payload, the retained model schema was 1.95 times the aggregate schema because individual event
+compression cannot match aggregate block compression and model actions retain durable idempotency state. Removing an
+unused 73-MiB stream action index materially improved the layout, but did not erase that workload-specific difference.
+Physical capacity, action-result retention, and the production 100-GB/min envelope therefore remain rollout sizing
+gates. They are not blockers to the API/storage design or to a controlled deployment.
+
+Full methodology and the exact latency, storage, WAL, allocation, GC, cache, and search tables are in the
+[paired Phase 11 report](dynamic-model-boundaries-phase-11-e2e.md).

@@ -46,7 +46,9 @@ public interface ModelRoot<T> extends Entity<T> {
     long sequenceNumber();
 
     /**
-     * Namespace-wide state boundary at which this model revision became current.
+     * Opaque, time-derived namespace-wide state boundary at which this model revision became current.
+     * Callers may compare boundaries and decode their approximate timestamp with
+     * {@link io.fluxzero.sdk.tracking.IndexUtils#timestampFromIndex(long)}, but must not assume dense adjacency.
      */
     default long stateIndex() {
         return -1L;

@@ -21,6 +21,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -202,6 +203,14 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     @Default
     @NonNull
     Duration maxWaitDuration = Duration.ofSeconds(60);
+
+    /**
+     * Overrides graph-projection result completion for model actions handled by this consumer.
+     */
+    @Default
+    @NonNull
+    GraphProjectionCompletion graphProjectionCompletion =
+            GraphProjectionCompletion.DEFAULT;
 
     /**
      * Interceptors that are invoked before and after a batch of messages is processed.
@@ -501,6 +510,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .maxFetchSize(consumer.maxFetchSize())
                 .maxFetchBytes(consumer.maxFetchBytes())
                 .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
+                .graphProjectionCompletion(
+                        consumer.graphProjectionCompletion())
                 .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(
                         ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))
                 .handlerInterceptors(Arrays.stream(consumer.handlerInterceptors()).map(

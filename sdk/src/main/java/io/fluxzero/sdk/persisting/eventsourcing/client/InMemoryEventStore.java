@@ -18,6 +18,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
@@ -53,6 +54,7 @@ import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 
 import java.nio.ByteBuffer;
@@ -77,6 +79,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -113,6 +116,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, LinkedHashMap<ModelRelationship, MutableModelRelationship>> currentModelRelationships =
             new ConcurrentHashMap<>();
     private final Map<String, Long> modelRelationStateIndices = new ConcurrentHashMap<>();
+    private final LongSupplier modelStateTimeIndexSupplier;
     private long modelStateIndex = -1L;
 
     public InMemoryEventStore() {
@@ -120,7 +124,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     public InMemoryEventStore(Duration messageExpiration) {
+        this(messageExpiration, IndexUtils::indexForCurrentTime);
+    }
+
+    InMemoryEventStore(
+            Duration messageExpiration,
+            LongSupplier modelStateTimeIndexSupplier) {
         super(EVENT, messageExpiration);
+        this.modelStateTimeIndexSupplier =
+                Objects.requireNonNull(
+                        modelStateTimeIndexSupplier);
     }
 
     @Override
@@ -181,9 +194,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
             List<ModelActionSubstepResult> substepResults = new ArrayList<>(action.getSubsteps().size());
             Map<String, Set<ModelRelationship>> actionRelationshipView = new HashMap<>();
+            long nextStateIndex =
+                    nextModelStateIndex();
             for (int substepNumber = 0; substepNumber < action.getSubsteps().size(); substepNumber++) {
                 ModelActionSubstep substep = action.getSubsteps().get(substepNumber);
-                long stateIndex = ++modelStateIndex;
+                long stateIndex =
+                        modelStateIndex =
+                                nextStateIndex++;
                 List<ModelActionTargetResult> targetResults = new ArrayList<>(substep.getTargets().size());
                 for (ModelActionTarget target : substep.getTargets()) {
                     ModelStreamHead previousHead = modelHeads.getOrDefault(
@@ -283,6 +300,28 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return modelGraphProjectionStatus(
                 request.getRequestId(),
                 request.getCollection());
+    }
+
+    @Override
+    public synchronized CompletableFuture<ModelGraphProjectionStatus>
+            awaitModelGraphProjection(
+                    AwaitModelGraphProjection request) {
+        if (!modelGraphProjections.containsKey(
+                request.getCollection())) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException(
+                            "Unknown model graph projection collection "
+                            + request.getCollection()));
+        }
+        return CompletableFuture.completedFuture(
+                new ModelGraphProjectionStatus(
+                        request.getRequestId(),
+                        request.getCollection(),
+                        modelStateIndex,
+                        Math.max(
+                                modelStateIndex,
+                                request.getStateIndex()),
+                        0L, 0L, false));
     }
 
     @Override
@@ -503,7 +542,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             sanitizeModelActionResults(
                     selected);
             long deletionStateIndex =
-                    ++modelStateIndex;
+                    modelStateIndex =
+                            nextModelStateIndex();
             ModelDeletionResult result =
                     new ModelDeletionResult(
                             request.getRequestId(),
@@ -523,6 +563,17 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             return CompletableFuture
                     .failedFuture(failure);
         }
+    }
+
+    private long nextModelStateIndex() {
+        if (modelStateIndex == Long.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "Model state index space is exhausted");
+        }
+        return Math.max(
+                modelStateTimeIndexSupplier
+                        .getAsLong(),
+                modelStateIndex + 1L);
     }
 
     private Set<String> resolveDeletionIds(
@@ -688,20 +739,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         if (conflicts.isEmpty()) {
             return null;
         }
-        boolean relationsUnchanged = true;
-        if (conflictPolicy == ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED) {
-            for (String modelId : action.getReadModelIds()) {
-                long relationStateIndex = modelRelationStateIndices.getOrDefault(modelId, -1L);
-                if (relationStateIndex > action.getReadStateIndex()) {
-                    relationsUnchanged = false;
-                    conflicts.computeIfAbsent(modelId, ignored -> {
-                        ModelStreamHead head = modelHeads.get(modelId);
-                        return new ModelActionConflict(
-                                modelId, head == null ? -1L : head.stateIndex(), relationStateIndex);
-                    });
-                }
-            }
-        }
         if (conflictPolicy
             == ModelConflictPolicy.ACCEPT) {
             return CommitModelActionResult.rebase(
@@ -712,7 +749,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
         return CommitModelActionResult.conflict(
                 action.getRequestId(), action.getActionId(), List.copyOf(conflicts.values()),
-                conflictPolicy == ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED && relationsUnchanged);
+                conflictPolicy == ModelConflictPolicy.RETRY);
     }
 
     private void updateModelRelationships(

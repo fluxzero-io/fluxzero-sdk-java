@@ -78,6 +78,9 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -94,6 +97,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> implements ModelRepository {
     private static final int ACTION_ANCESTOR_MAX_DEPTH = 64;
     private static final int ACTION_ANCESTOR_MAX_MODELS = 10_000;
+    private static final int MAX_PARALLEL_GRAPH_RECONSTRUCTIONS = 8;
 
     private final Client client;
     private final DocumentStore documentStore;
@@ -389,8 +393,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                     .entityId().orElseThrow().name())));
         }
         ReconstructionBatch reconstructed =
-                new ReconstructionSession().reconstruct(
-                        targets, graph.getStateIndex());
+                reconstructGraph(
+                        targets, graph.getStateIndex(),
+                        maxStateIndex == null
+                        && boundaryActionId == null);
         if (reconstructed.stateIndex() != graph.getStateIndex()) {
             throw new EventSourcingException(
                     "Model graph moved from state index %d to %d during reconstruction"
@@ -399,6 +405,93 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return composeGraph(
                 rootId, graph.getStateIndex(),
                 reconstructed.entities(), graph.getEdges());
+    }
+
+    /**
+     * Reconstructs independent graph streams concurrently at the already pinned graph boundary. Every batch owns its
+     * reconstruction context, so cross-model historical dependencies still resolve through the normal exact-boundary
+     * path. The fixed upper bound prevents a large graph from turning into an unbounded number of store requests.
+     */
+    private ReconstructionBatch reconstructGraph(
+            List<ModelTargetResolver.ResolvedModel> targets,
+            long stateIndex,
+            boolean cacheAtBoundary) {
+        int batchCount = Math.min(
+                MAX_PARALLEL_GRAPH_RECONSTRUCTIONS,
+                targets.size());
+        if (batchCount < 2) {
+            return new ReconstructionSession().reconstruct(
+                    targets, stateIndex,
+                    null, null,
+                    cacheAtBoundary);
+        }
+        List<List<ModelTargetResolver.ResolvedModel>> batches =
+                new ArrayList<>(batchCount);
+        for (int i = 0; i < batchCount; i++) {
+            batches.add(new ArrayList<>());
+        }
+        for (int i = 0; i < targets.size(); i++) {
+            batches.get(i % batchCount)
+                    .add(targets.get(i));
+        }
+
+        Map<String, Entity<?>> reconstructed =
+                new HashMap<>(targets.size());
+        try (ExecutorService executor =
+                     Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<ReconstructionBatch>> futures =
+                    batches.stream()
+                            .map(batch ->
+                                         CompletableFuture.supplyAsync(
+                                                 () -> new ReconstructionSession()
+                                                         .reconstruct(
+                                                                 batch, stateIndex,
+                                                                 null, null,
+                                                                 cacheAtBoundary),
+                                                 executor))
+                            .toList();
+            for (CompletableFuture<ReconstructionBatch> future : futures) {
+                ReconstructionBatch result;
+                try {
+                    result = future.join();
+                } catch (CompletionException failure) {
+                    Throwable cause = failure.getCause();
+                    if (cause instanceof RuntimeException runtimeException) {
+                        throw runtimeException;
+                    }
+                    if (cause instanceof Error error) {
+                        throw error;
+                    }
+                    throw new EventSourcingException(
+                            "Failed to reconstruct model graph", cause);
+                }
+                if (result.stateIndex() != stateIndex) {
+                    throw new EventSourcingException(
+                            "Model graph batch moved from state index %d to %d during reconstruction"
+                                    .formatted(
+                                            stateIndex,
+                                            result.stateIndex()));
+                }
+                reconstructed.putAll(
+                        result.entities());
+            }
+        }
+        LinkedHashMap<String, Entity<?>> ordered =
+                new LinkedHashMap<>(targets.size());
+        for (ModelTargetResolver.ResolvedModel target : targets) {
+            Entity<?> entity =
+                    reconstructed.get(
+                            target.modelId());
+            if (entity == null) {
+                throw new EventSourcingException(
+                        "Model graph reconstruction omitted "
+                        + target.modelId());
+            }
+            ordered.put(
+                    target.modelId(), entity);
+        }
+        return new ReconstructionBatch(
+                stateIndex, ordered);
     }
 
     private Class<?> resolveUntypedType(
@@ -1349,7 +1442,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 List<ModelTargetResolver.ResolvedModel> targets, Long maxStateIndex) {
             return reconstruct(
                     targets, maxStateIndex,
-                    null, null);
+                    null, null,
+                    maxStateIndex == null);
         }
 
         ReconstructionBatch reconstruct(
@@ -1357,6 +1451,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 Long maxStateIndex,
                 String boundaryActionId,
                 Integer boundarySubstep) {
+            return reconstruct(
+                    targets, maxStateIndex,
+                    boundaryActionId, boundarySubstep,
+                    maxStateIndex == null
+                    && boundaryActionId == null);
+        }
+
+        ReconstructionBatch reconstruct(
+                List<ModelTargetResolver.ResolvedModel> targets,
+                Long maxStateIndex,
+                String boundaryActionId,
+                Integer boundarySubstep,
+                boolean cacheAtBoundary) {
             if (targets.isEmpty()) {
                 long boundary = eventLoader.load(
                         Map.of(), maxStateIndex,
@@ -1398,8 +1505,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 }
                 validateReconstruction(target, head, entity);
                 result.put(target.modelId(), entity);
-                if (maxStateIndex == null
-                    && boundaryActionId == null
+                if (cacheAtBoundary
                     && ModelMetadata.of(target.modelType()).model().orElseThrow().cached()
                     && (head == null || head.isHistoryComplete())) {
                     modelCache.put(target.modelId(), entity);
@@ -1416,16 +1522,27 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 Long maxStateIndex,
                 boolean allowCurrentCache) {
             Model model = ModelMetadata.of(target.modelType()).model().orElseThrow();
-            if (maxStateIndex == null
-                && allowCurrentCache && model.cached()) {
-                Entity<?> cached = modelCache.get(target.modelId());
-                if (cached != null) {
-                    if (!target.modelType().equals(cached.type())) {
-                        modelCache.remove(target.modelId());
+            if (allowCurrentCache
+                && model.cached()) {
+                Entity<?> cached =
+                        modelCache.get(
+                                target.modelId());
+                if (cached != null
+                    && (maxStateIndex == null
+                        || stateIndex(cached)
+                           <= maxStateIndex)) {
+                    if (!target.modelType()
+                            .equals(cached.type())) {
+                        modelCache.remove(
+                                target.modelId());
                         throw new EventSourcingException(
                                 "Cached model '%s' has type %s instead of %s"
-                                        .formatted(target.modelId(), cached.type().getName(),
-                                                   target.modelType().getName()));
+                                        .formatted(
+                                                target.modelId(),
+                                                cached.type()
+                                                        .getName(),
+                                                target.modelType()
+                                                        .getName()));
                     }
                     return cached;
                 }
@@ -1621,7 +1738,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         target.modelId(),
                         base.get(target.modelId()).sequenceNumber()));
                 eventLoader.load(
-                        cursors, actionStateIndex - 1L,
+                        cursors, null, actionId,
+                        substep - 1,
                         page -> applyActionPrefix(
                                 page, missing, base, readStateIndex,
                                 actionId, substep));
@@ -1764,10 +1882,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         ModelTargetResolver.resolve(payload, handlers);
                 if (resolution.hasAncestorDependencies()) {
                     long relationshipBoundary =
-                            membership.getStateIndex() - 1L;
+                            membership.getReadStateIndex();
                     if (relationshipBoundary < 0L) {
                         throw new EventSourcingException(
-                                "Model event at state %d requires an ancestor before the model state namespace exists"
+                                "Model event at state %d requires an ancestor before any model state was observed"
                                         .formatted(
                                                 membership
                                                         .getStateIndex()));
@@ -1775,26 +1893,58 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     ReplayAncestorKey key =
                             new ReplayAncestorKey(
                                     resolution,
-                                    relationshipBoundary);
+                                    relationshipBoundary,
+                                    membership.getActionId(),
+                                    membership.getSubstep());
                     ModelTargetResolver.Resolution directResolution =
                             resolution;
+                    boolean firstSubstep =
+                            membership.getSubstep() == 0;
                     resolution =
                             replayAncestorResolutions.computeIfAbsent(
                                     key, ignored -> {
                                         AncestorResolution ancestors =
                                                 resolveAncestors(
                                                         directResolution,
-                                                        relationshipBoundary,
-                                                        null, null,
+                                                        firstSubstep
+                                                                ? relationshipBoundary
+                                                                : null,
+                                                        firstSubstep
+                                                                ? null
+                                                                : membership
+                                                                        .getActionId(),
+                                                        firstSubstep
+                                                                ? null
+                                                                : membership
+                                                                        .getSubstep()
+                                                                  - 1,
                                                         Map.of());
-                                        if (ancestors.stateIndex()
-                                            != relationshipBoundary) {
+                                        boolean invalidBoundary =
+                                                firstSubstep
+                                                        ? ancestors
+                                                                  .stateIndex()
+                                                          != relationshipBoundary
+                                                        : ancestors
+                                                                  .stateIndex()
+                                                          < relationshipBoundary
+                                                          || ancestors
+                                                                     .stateIndex()
+                                                             >= membership
+                                                                     .getStateIndex();
+                                        if (invalidBoundary) {
                                             throw new EventSourcingException(
-                                                    "Historical ancestor graph moved from state index %d to %d"
+                                                    "Historical ancestor graph for action %s substep %d "
+                                                    + "resolved invalid boundary %d (read=%d, event=%d)"
                                                             .formatted(
-                                                                    relationshipBoundary,
+                                                                    membership
+                                                                            .getActionId(),
+                                                                    membership
+                                                                            .getSubstep(),
                                                                     ancestors
-                                                                            .stateIndex()));
+                                                                            .stateIndex(),
+                                                                    relationshipBoundary,
+                                                                    membership
+                                                                            .getStateIndex()));
                                         }
                                         return ancestors.resolution();
                                     });
@@ -1869,7 +2019,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             .anyMatch(target -> compatible(target, modelType)))
                     .forEach(result::add);
             ModelMetadata.of(modelType).applyMethods().stream()
-                    .filter(handler -> handler.receiverModelType() != null)
                     .filter(handler -> potentiallyAcceptsPayload(handler, payloadType))
                     .forEach(result::add);
             return List.copyOf(result);
@@ -2042,7 +2191,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
     private record ReplayAncestorKey(
             ModelTargetResolver.Resolution resolution,
-            long relationshipBoundary) {
+            long relationshipBoundary,
+            String actionId,
+            int substep) {
     }
 
     private static final class ModelEventStateBoundary {

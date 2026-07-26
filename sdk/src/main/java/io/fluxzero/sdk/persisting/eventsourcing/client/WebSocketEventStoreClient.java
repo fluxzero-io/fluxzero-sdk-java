@@ -23,6 +23,7 @@ import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
@@ -162,6 +163,13 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
             getModelGraphProjectionStatus(
                     GetModelGraphProjectionStatus request) {
         return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<ModelGraphProjectionStatus>
+            awaitModelGraphProjection(
+                    AwaitModelGraphProjection request) {
+        return send(request);
     }
 
     @Override

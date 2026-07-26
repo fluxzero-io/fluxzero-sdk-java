@@ -14,26 +14,24 @@
  * limitations under the License.
  */
 
-package io.fluxzero.common.api.modeling;
-
-import lombok.Value;
+package io.fluxzero.sdk.modeling;
 
 /**
- * Lightweight membership of one shared event payload in one model stream.
+ * Controls whether model applies may be exposed as an automatic command handler.
  */
-@Value
-public class ModelEventMembership {
-    long sequenceNumber;
+public enum AutomaticModelHandling {
+    /**
+     * Inherit from the next broader scope.
+     */
+    DEFAULT,
 
     /**
-     * Opaque namespace-wide boundary at which this membership was stored.
+     * Enable automatic command handling.
      */
-    long stateIndex;
+    ENABLED,
 
     /**
-     * Exact state boundary read by the action before this membership was produced.
+     * Require an explicit command handler, which may still invoke {@code Fluxzero.assertAndApply(update)}.
      */
-    long readStateIndex;
-    String actionId;
-    int substep;
+    DISABLED
 }

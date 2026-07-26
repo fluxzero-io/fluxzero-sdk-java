@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -114,6 +115,12 @@ public @interface Consumer {
      * time unit. Default is {@code 60} (seconds).
      */
     long maxWaitDuration() default 60;
+
+    /**
+     * Overrides graph-projection result completion for model actions handled by this consumer.
+     */
+    GraphProjectionCompletion graphProjectionCompletion()
+            default GraphProjectionCompletion.DEFAULT;
 
     /**
      * Unit for {@link #maxWaitDuration()}. Default is {@link ChronoUnit#SECONDS}.

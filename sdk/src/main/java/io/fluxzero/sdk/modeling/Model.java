@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.search.Searchable;
 
@@ -74,6 +75,16 @@ import java.lang.annotation.Target;
 @Inherited
 @Searchable
 public @interface Model {
+
+    /**
+     * Conflict handling for this model when an apply does not provide an explicit override.
+     */
+    ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
+
+    /**
+     * Controls whether applies producing this model may be exposed as automatic command handlers.
+     */
+    AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
 
     /**
      * Whether normal loads reconstruct the model from its event stream.

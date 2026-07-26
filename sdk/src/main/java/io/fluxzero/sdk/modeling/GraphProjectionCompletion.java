@@ -14,26 +14,24 @@
  * limitations under the License.
  */
 
-package io.fluxzero.common.api.modeling;
-
-import lombok.Value;
+package io.fluxzero.sdk.modeling;
 
 /**
- * Lightweight membership of one shared event payload in one model stream.
+ * Controls whether command-result completion waits for affected materialized model-graph documents.
  */
-@Value
-public class ModelEventMembership {
-    long sequenceNumber;
+public enum GraphProjectionCompletion {
+    /**
+     * Inherit from the next broader scope.
+     */
+    DEFAULT,
 
     /**
-     * Opaque namespace-wide boundary at which this membership was stored.
+     * Let durable graph projection continue asynchronously after the authoritative model action completes.
      */
-    long stateIndex;
+    ASYNC,
 
     /**
-     * Exact state boundary read by the action before this membership was produced.
+     * Delay the handler result until all affected graph roots crossed the committed model state boundary.
      */
-    long readStateIndex;
-    String actionId;
-    int substep;
+    AWAIT
 }

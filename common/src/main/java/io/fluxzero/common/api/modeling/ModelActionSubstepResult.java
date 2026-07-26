@@ -27,7 +27,11 @@ import java.util.List;
 public class ModelActionSubstepResult {
 
     /**
-     * Namespace-wide state transition position.
+     * Namespace-wide, time-derived state transition position.
+     * <p>
+     * This is an opaque monotone boundary, independent from {@link #eventIndex}. Its millisecond timestamp can be
+     * decoded with the SDK's {@code IndexUtils.timestampFromIndex}; callers must not infer adjacent transitions using
+     * arithmetic.
      */
     long stateIndex;
 

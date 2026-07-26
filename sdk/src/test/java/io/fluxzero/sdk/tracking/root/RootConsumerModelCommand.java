@@ -14,26 +14,10 @@
  * limitations under the License.
  */
 
-package io.fluxzero.common.api.modeling;
-
-import lombok.Value;
+package io.fluxzero.sdk.tracking.root;
 
 /**
- * Lightweight membership of one shared event payload in one model stream.
+ * Receiver-side model command used to prove that automatic applies inherit this package's root consumer.
  */
-@Value
-public class ModelEventMembership {
-    long sequenceNumber;
-
-    /**
-     * Opaque namespace-wide boundary at which this membership was stored.
-     */
-    long stateIndex;
-
-    /**
-     * Exact state boundary read by the action before this membership was produced.
-     */
-    long readStateIndex;
-    String actionId;
-    int substep;
+public record RootConsumerModelCommand(String rootConsumerModelId) {
 }

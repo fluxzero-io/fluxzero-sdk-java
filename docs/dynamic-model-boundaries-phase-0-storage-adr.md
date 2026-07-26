@@ -99,7 +99,8 @@ The spike verified:
 
 - ordered range allocation;
 - rollback invisibility of a reserved range;
-- `readStateIndex = stateIndex - 1` for the one-event diagnostic actions;
+- an explicit observed read boundary for every diagnostic action (the original discarded spike used
+  `readStateIndex = stateIndex - 1` only because its synthetic state indices were contiguous);
 - batched as-of reconstruction;
 - explicit incomplete-history detection.
 
@@ -141,8 +142,11 @@ split or regroup segment ranges without changing IDs or rehashing models.
 Model streams and heads use the same segment boundary. Direct load, append, head lookup, and delete therefore prune to
 one physical partition. A batched multi-ID load touches only the distinct segment partitions represented in the batch.
 
-The separately stored shared-payload table is ordered/range-partitioned by `stateIndex`; it is not hash-partitioned by
-an arbitrary target. Action-idempotency lookup receives its own appropriate index/partition strategy.
+The separately stored shared-payload table is ordered/range-partitioned by the time-derived `stateIndex`; it is not
+hash-partitioned by an arbitrary target. The integrated store uses one UTC-day-sized index range and only creates a
+day partition when an action actually contains a shared payload. A dense row-count range would rotate partitions many
+times per second after adopting time-derived indices. Action-idempotency lookup receives its own appropriate
+index/partition strategy.
 
 PostgreSQL-native hash partitioning is not selected even though it was slightly cheaper locally. Its internal hash is
 not a stable Fluxzero routing or future shard key.

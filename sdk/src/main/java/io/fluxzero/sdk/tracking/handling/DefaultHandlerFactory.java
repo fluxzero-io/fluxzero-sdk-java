@@ -175,6 +175,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         target, handlerFilter, extraInterceptors);
     }
 
+    @Override
+    public List<?> trackingTargets(Object target, HandlerFilter handlerFilter) {
+        if (fallbackFactory == null) {
+            return List.of(target);
+        }
+        return Stream.concat(
+                        Stream.of(target),
+                        fallbackFactory.trackingTargets(target, handlerFilter).stream())
+                .distinct()
+                .toList();
+    }
+
     /**
      * Adds a fallback for handler vocabularies that are intentionally outside the standard {@code @Handle...}
      * annotations.

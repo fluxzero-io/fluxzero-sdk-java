@@ -1,5 +1,10 @@
 # Phase 4 — Optional model conflict handling
 
+> Historical implementation record. Phase 10 superseded the unreleased public policy names and default semantics:
+> the final contract is `DEFAULT`/`ACCEPT`/`FAIL`/`RETRY`, and stale `ACCEPT` rebases derived state after appending the
+> original event. See [Phase 10 semantics](dynamic-model-boundaries-phase-10-semantics.md). The measurements below
+> remain the retained evidence for the original strict-policy storage spike.
+
 ## Scope
 
 Conflict handling is deliberately a contained policy layer, not the design framework for dynamic model boundaries.

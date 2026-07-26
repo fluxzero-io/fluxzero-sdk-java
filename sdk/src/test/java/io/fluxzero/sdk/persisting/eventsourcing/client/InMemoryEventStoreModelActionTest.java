@@ -32,8 +32,11 @@ import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -48,8 +51,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InMemoryEventStoreModelActionTest {
 
     @Test
+    void allocatesTimeDerivedContiguousStateIndices() {
+        long timeIndex = IndexUtils.indexFromTimestamp(
+                Instant.parse("2026-07-26T12:34:56.789Z"));
+        InMemoryEventStore store =
+                new InMemoryEventStore(
+                        Duration.ofMinutes(2),
+                        () -> timeIndex);
+
+        CommitModelActionResult result =
+                store.commitModelAction(action(
+                        "time-based",
+                        ModelActionSubstep.builder()
+                                .event(event("first"))
+                                .targets(List.of(
+                                        storedTarget("a")))
+                                .build(),
+                        ModelActionSubstep.builder()
+                                .event(event("second"))
+                                .targets(List.of(
+                                        storedTarget("b")))
+                                .build())).join();
+
+        assertEquals(
+                List.of(timeIndex, timeIndex + 1L),
+                result.getSubsteps().stream()
+                        .map(substep ->
+                                     substep.getStateIndex())
+                        .toList());
+        assertEquals(
+                Instant.parse("2026-07-26T12:34:56.789Z"),
+                IndexUtils.timestampFromIndex(
+                        result.getSubsteps()
+                                .getFirst()
+                                .getStateIndex()));
+    }
+
+    @Test
     void publishesOneEventAndStoresSharedMembershipsForEveryTarget() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         SerializedMessage event = event("event-1");
         CommitModelAction action = action(
                 "action-1",
@@ -72,7 +112,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void duplicateActionReturnsDurableResultWithoutWritingAgain() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         CommitModelAction first = action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -100,7 +140,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void nonStoredStateUpdateMarksHistoryIncompleteWithoutAdvancingStream() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         CommitModelAction action = action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -122,7 +162,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void batchReadDeduplicatesSharedPayloadAcrossTargetStreams() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         SerializedMessage event = event("event-1");
         store.commitModelAction(action(
                 "action-1",
@@ -150,7 +190,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void batchReadResolvesPublishedEventBoundaryInsideTheLoadRequest() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         SerializedMessage published = event("published");
         store.commitModelAction(action(
                 "published-action",
@@ -185,7 +225,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void batchReadBoundsUniquePayloadBytesAndAlwaysReturnsTheOldestPayload() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         store.commitModelAction(action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -211,7 +251,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void batchReadDoesNotSkipAnExcludedEarlierStateFromAnotherStream() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         store.commitModelAction(action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -241,7 +281,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void headOnlyAndHistoricalReadsUseTheRequestedStateBoundary() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         store.commitModelAction(action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -271,7 +311,10 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void publicationFailureLeavesEveryModelStreamUntouched() {
-        InMemoryEventStore store = new InMemoryEventStore() {
+        InMemoryEventStore store =
+                new InMemoryEventStore(
+                        Duration.ofMinutes(2),
+                        () -> 0L) {
             @Override
             public CompletableFuture<Void> append(List<SerializedMessage> messages) {
                 return CompletableFuture.failedFuture(new IllegalStateException("simulated"));
@@ -305,7 +348,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void acceptPolicyRequestsRebaseBeforeCommittingAgainstAStaleReadBoundary() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         store.commitModelAction(action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -337,7 +380,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void failPolicyRejectsBeforePublicationAndDoesNotRetainTheActionId() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         store.commitModelAction(action(
                 "action-1",
                 ModelActionSubstep.builder()
@@ -374,7 +417,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void relationAwarePolicyAllowsRetryWhenOnlyModelStateChanged() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         ModelActionTarget target = storedTarget("order-1").toBuilder()
                 .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
@@ -393,7 +436,7 @@ class InMemoryEventStoreModelActionTest {
                         .targets(List.of(target)).build())).join();
 
         CommitModelActionResult result = store.commitModelAction(action(
-                "action-3", 0L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                "action-3", 0L, ModelConflictPolicy.RETRY,
                 ModelActionSubstep.builder().event(event("event-3"))
                         .targets(List.of(target)).build())).join();
 
@@ -404,8 +447,8 @@ class InMemoryEventStoreModelActionTest {
     }
 
     @Test
-    void relationAwarePolicyForbidsRetryWhenARelevantRelationshipChanged() {
-        InMemoryEventStore store = new InMemoryEventStore();
+    void retryPolicyAllowsFreshEvaluationWhenARelevantRelationshipChanged() {
+        InMemoryEventStore store = denseStore();
         ModelActionTarget initial = storedTarget("order-1").toBuilder()
                 .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
@@ -431,18 +474,18 @@ class InMemoryEventStoreModelActionTest {
                         .targets(List.of(moved)).build())).join();
 
         CommitModelActionResult result = store.commitModelAction(action(
-                "action-3", 0L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                "action-3", 0L, ModelConflictPolicy.RETRY,
                 ModelActionSubstep.builder().event(event("event-3"))
                         .targets(List.of(initial)).build())).join();
 
         assertFalse(result.isAccepted());
-        assertFalse(result.isRetryAllowed());
+        assertTrue(result.isRetryAllowed());
         assertEquals(1L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
     }
 
     @Test
     void staleUnchangedRelationshipDoesNotOverwriteTheCurrentEdge() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         ModelActionTarget attached = storedTarget("order-1").toBuilder()
                 .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
@@ -477,7 +520,7 @@ class InMemoryEventStoreModelActionTest {
                         .targets(List.of(moved)).build())).join();
 
         CommitModelActionResult result = store.commitModelAction(action(
-                "probe", 1L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                "probe", 1L, ModelConflictPolicy.RETRY,
                 ModelActionSubstep.builder().event(event("event-4"))
                         .targets(List.of(moved)).build())).join();
 
@@ -488,7 +531,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void parentDeleteDetachesAChildAndAnOrdinaryChildWriteDoesNotReattachIt() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         store.commitModelAction(action(
                 "create-parent", -1L,
                 ModelConflictPolicy.ACCEPT,
@@ -562,7 +605,7 @@ class InMemoryEventStoreModelActionTest {
     @Test
     void deletionPlanIncludesDetachedAndExternallySharedDescendantsWithoutMutating() {
         InMemoryEventStore store =
-                new InMemoryEventStore();
+                denseStore();
         store.commitModelAction(action(
                 "create-parent", -1L,
                 ModelConflictPolicy.ACCEPT,
@@ -712,7 +755,7 @@ class InMemoryEventStoreModelActionTest {
     @Test
     void descendantDeletionRequiresTheCurrentPlanFingerprint() {
         InMemoryEventStore store =
-                new InMemoryEventStore();
+                denseStore();
         ModelActionTarget child =
                 storedTarget("child")
                         .toBuilder()
@@ -787,7 +830,7 @@ class InMemoryEventStoreModelActionTest {
     @Test
     void deletionPlanFailsInsteadOfReturningATruncatedClosure() {
         InMemoryEventStore store =
-                new InMemoryEventStore();
+                denseStore();
         ModelActionTarget child =
                 storedTarget("child")
                         .toBuilder()
@@ -822,7 +865,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void validatesWholeActionBeforePublishingAnything() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
         CommitModelAction action = new CommitModelAction(
                 "invalid", -1L, List.of("order-1"),
                 List.of(
@@ -846,7 +889,7 @@ class InMemoryEventStoreModelActionTest {
 
     @Test
     void rejectsDuplicateAndNegativeBatchRequests() {
-        InMemoryEventStore store = new InMemoryEventStore();
+        InMemoryEventStore store = denseStore();
 
         assertThrows(IllegalArgumentException.class, () -> store.getModelEvents(new GetModelEvents(
                 List.of(
@@ -869,6 +912,11 @@ class InMemoryEventStoreModelActionTest {
 
     private static CommitModelAction action(String actionId, ModelActionSubstep... substeps) {
         return action(actionId, -1L, ModelConflictPolicy.ACCEPT, substeps);
+    }
+
+    private static InMemoryEventStore denseStore() {
+        return new InMemoryEventStore(
+                Duration.ofMinutes(2), () -> 0L);
     }
 
     private static CommitModelAction action(

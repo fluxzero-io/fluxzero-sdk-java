@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -655,6 +656,8 @@ public final class ModelMetadata {
      */
     public record RootConfiguration(
             RootKind kind,
+            ModelConflictPolicy conflictPolicy,
+            AutomaticModelHandling automaticHandling,
             boolean eventSourced,
             boolean ignoreUnknownEvents,
             int snapshotPeriod,
@@ -674,7 +677,8 @@ public final class ModelMetadata {
 
         private static RootConfiguration from(Model annotation) {
             return new RootConfiguration(
-                    RootKind.MODEL, annotation.eventSourced(), annotation.ignoreUnknownEvents(),
+                    RootKind.MODEL, annotation.conflictPolicy(), annotation.automaticHandling(),
+                    annotation.eventSourced(), annotation.ignoreUnknownEvents(),
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
@@ -684,7 +688,8 @@ public final class ModelMetadata {
 
         private static RootConfiguration from(Aggregate annotation) {
             return new RootConfiguration(
-                    RootKind.AGGREGATE, annotation.eventSourced(), annotation.ignoreUnknownEvents(),
+                    RootKind.AGGREGATE, ModelConflictPolicy.DEFAULT, AutomaticModelHandling.DEFAULT,
+                    annotation.eventSourced(), annotation.ignoreUnknownEvents(),
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),

@@ -27,6 +27,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ErrorGateway;
@@ -169,9 +171,13 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     /**
      * Configures the optional policy used when an independent-model action was evaluated against an older model state.
      * <p>
-     * {@link ModelConflictPolicy#ACCEPT} is the default and adds no strict conflict check. Rejecting policies roll back
-     * the complete runtime action before invoking {@code resolver}. A resolver-requested retry performs a fresh pinned
-     * model load and is bounded by {@code maxRetries}.
+     * {@link ModelConflictPolicy#ACCEPT} is the final default and never rejects the original event; stale derived
+     * state is internally rebased without rerunning assertions or interceptors. Scoped
+     * {@link io.fluxzero.sdk.modeling.Model @Model} and {@link io.fluxzero.sdk.persisting.eventsourcing.Apply @Apply}
+     * settings may override this policy. Rejecting policies roll back the complete runtime action before invoking
+     * {@code resolver}. A resolver-requested retry performs a fresh pinned model load and is bounded by
+     * {@code maxRetries}. If this method is not called, properties {@code fluxzero.model.conflictPolicy} and
+     * {@code fluxzero.model.maxConflictRetries} are consulted before falling back to {@code ACCEPT} and three retries.
      *
      * @param policy conflict policy sent with model actions
      * @param resolver client-side decision after a rolled-back conflict
@@ -182,6 +188,28 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
             ModelConflictPolicy policy, ModelConflictResolver resolver, int maxRetries) {
         throw new UnsupportedOperationException(
                 "Independent model conflict handling is not supported by this builder");
+    }
+
+    /**
+     * Configures whether model applies are exposed as automatic command handlers by default.
+     * Scoped {@code @Model} and {@code @Apply} settings take precedence. If this method is not called,
+     * {@code fluxzero.model.automaticHandling} is consulted before falling back to {@link AutomaticModelHandling#ENABLED}.
+     */
+    default FluxzeroBuilder configureAutomaticModelHandling(
+            AutomaticModelHandling handling) {
+        throw new UnsupportedOperationException(
+                "Automatic model handling configuration is not supported by this builder");
+    }
+
+    /**
+     * Configures the application default for materialized graph-projection result completion.
+     * Properties fall back through {@code fluxzero.model.graphProjectionCompletion}, then
+     * {@link GraphProjectionCompletion#ASYNC}.
+     */
+    default FluxzeroBuilder configureGraphProjectionCompletion(
+            GraphProjectionCompletion completion) {
+        throw new UnsupportedOperationException(
+                "Graph projection completion configuration is not supported by this builder");
     }
 
     /**

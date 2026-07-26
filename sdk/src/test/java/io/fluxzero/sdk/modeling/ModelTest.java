@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -53,6 +54,8 @@ class ModelTest {
         assertEquals(EventPublication.DEFAULT, model.eventPublication());
         assertEquals(EventPublicationStrategy.DEFAULT, model.publicationStrategy());
         assertEquals(AggregateEventRouting.MESSAGE_ROUTING_KEY, model.eventRouting());
+        assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
+        assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
         assertFalse(model.searchable());
         assertEquals("", model.collection());
         assertEquals("", model.timestampPath());
@@ -74,6 +77,8 @@ class ModelTest {
         assertEquals(IF_MODIFIED, model.eventPublication());
         assertEquals(STORE_ONLY, model.publicationStrategy());
         assertEquals(AGGREGATE_ID, model.eventRouting());
+        assertEquals(ModelConflictPolicy.FAIL, model.conflictPolicy());
+        assertEquals(AutomaticModelHandling.DISABLED, model.automaticHandling());
         assertTrue(model.searchable());
         assertEquals("configured-models", model.collection());
         assertEquals("createdAt", model.timestampPath());
@@ -81,14 +86,17 @@ class ModelTest {
     }
 
     @Test
-    void addsOnlyIndependentGraphProjectionToAggregateEquivalentSettings() {
+    void addsIndependentActionAndGraphSettingsToAggregateEquivalentSettings() {
         Set<String> modelSettings = Arrays.stream(Model.class.getDeclaredMethods())
                 .map(method -> method.getName()).collect(Collectors.toSet());
         Set<String> aggregateSettings = Arrays.stream(Aggregate.class.getDeclaredMethods())
                 .map(method -> method.getName()).collect(Collectors.toSet());
 
         assertEquals(
-                Set.of("graphProjection"),
+                Set.of(
+                        "automaticHandling",
+                        "conflictPolicy",
+                        "graphProjection"),
                 modelSettings.stream()
                         .filter(setting ->
                                         !aggregateSettings
@@ -170,6 +178,8 @@ class ModelTest {
             eventPublication = IF_MODIFIED,
             publicationStrategy = STORE_ONLY,
             eventRouting = AGGREGATE_ID,
+            conflictPolicy = ModelConflictPolicy.FAIL,
+            automaticHandling = AutomaticModelHandling.DISABLED,
             searchable = true,
             collection = "configured-models",
             timestampPath = "createdAt",

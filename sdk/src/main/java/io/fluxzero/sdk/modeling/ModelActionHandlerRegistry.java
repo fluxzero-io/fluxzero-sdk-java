@@ -18,6 +18,8 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
@@ -30,10 +32,12 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -71,6 +75,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
+    private final AutomaticModelHandling automaticHandling;
+    private final GraphProjectionCompletion graphProjectionCompletion;
     private final Serializer serializer;
     private final EventStoreClient eventStoreClient;
     private final List<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
@@ -112,7 +118,9 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         this(repository, eventStoreClient, documentStore, serializer,
              snapshotSerializer, documentSerializer,
              eventDispatchInterceptor, source, parameterResolvers, handlerDecorator,
-             ModelConflictPolicy.ACCEPT, ModelConflictResolver.fail(), 0);
+             ModelConflictPolicy.ACCEPT, ModelConflictResolver.fail(), 0,
+             AutomaticModelHandling.ENABLED,
+             GraphProjectionCompletion.ASYNC);
     }
 
     /**
@@ -134,7 +142,9 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         this(repository, eventStoreClient, documentStore, serializer,
              serializer, documentSerializer, eventDispatchInterceptor,
              source, parameterResolvers, handlerDecorator, conflictPolicy,
-             conflictResolver, maxConflictRetries);
+             conflictResolver, maxConflictRetries,
+             AutomaticModelHandling.ENABLED,
+             GraphProjectionCompletion.ASYNC);
     }
 
     /**
@@ -154,6 +164,36 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             ModelConflictPolicy conflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries) {
+        this(repository, eventStoreClient, documentStore,
+             serializer, snapshotSerializer,
+             documentSerializer,
+             eventDispatchInterceptor, source,
+             parameterResolvers, handlerDecorator,
+             conflictPolicy, conflictResolver,
+             maxConflictRetries,
+             AutomaticModelHandling.ENABLED,
+             GraphProjectionCompletion.ASYNC);
+    }
+
+    /**
+     * Creates a model-action registry with scoped automatic handling defaults.
+     */
+    public ModelActionHandlerRegistry(
+            DefaultModelRepository repository,
+            EventStoreClient eventStoreClient,
+            DocumentStore documentStore,
+            Serializer serializer,
+            Serializer snapshotSerializer,
+            DocumentSerializer documentSerializer,
+            DispatchInterceptor eventDispatchInterceptor,
+            String source,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            HandlerDecorator handlerDecorator,
+            ModelConflictPolicy conflictPolicy,
+            ModelConflictResolver conflictResolver,
+            int maxConflictRetries,
+            AutomaticModelHandling automaticHandling,
+            GraphProjectionCompletion graphProjectionCompletion) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         this.eventStoreClient =
@@ -171,6 +211,16 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     "Maximum model conflict retries must not be negative");
         }
         this.maxConflictRetries = maxConflictRetries;
+        this.automaticHandling =
+                Objects.requireNonNull(
+                        automaticHandling,
+                        "automaticHandling");
+        this.graphProjectionCompletion =
+                graphProjectionCompletion == GraphProjectionCompletion.DEFAULT
+                        ? GraphProjectionCompletion.ASYNC
+                        : Objects.requireNonNull(
+                                graphProjectionCompletion,
+                                "graphProjectionCompletion");
         this.handlerDecorator = Objects.requireNonNull(
                 handlerDecorator, "handlerDecorator");
         this.decoratedHandler = handlerDecorator.wrap(new ActionHandler(null));
@@ -188,7 +238,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
-            if (!canHandle(message)) {
+            if (!hasModelApplies(
+                    message.getPayloadClass())) {
                 return CompletableFuture.failedFuture(new IllegalArgumentException(
                         "No model @Apply handler found for "
                         + message.getPayloadClass().getName()));
@@ -226,7 +277,82 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     @Override
     public boolean canHandle(DeserializingMessage message) {
         return message.getMessageType() == MessageType.COMMAND
-               && !handlersFor(message.getPayloadClass()).isEmpty();
+               && hasModelApplies(
+                       message.getPayloadClass())
+               && automaticHandlingEnabled(
+                       message.getPayloadClass(),
+                       new LinkedHashSet<>());
+    }
+
+    private boolean hasModelApplies(
+            Class<?> payloadType) {
+        return !handlersFor(payloadType)
+                .isEmpty();
+    }
+
+    private boolean automaticHandlingEnabled(
+            Class<?> payloadType,
+            Set<Class<?>> visiting) {
+        if (!visiting.add(payloadType)) {
+            return true;
+        }
+        try {
+            for (ModelMetadata.HandlerMethod handler :
+                    handlersFor(payloadType)) {
+                if (handler.kind()
+                    == ModelMetadata.HandlerKind.APPLY
+                    && !handler.targetModelTypes()
+                            .isEmpty()
+                    && !automaticHandlingEnabled(
+                            handler)) {
+                    return false;
+                }
+                if (handler.kind()
+                    == ModelMetadata.HandlerKind.INTERCEPT_APPLY) {
+                    for (Class<?> emitted :
+                            handler.emittedPayloadTypes()) {
+                        if (!automaticHandlingEnabled(
+                                emitted, visiting)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        } finally {
+            visiting.remove(payloadType);
+        }
+    }
+
+    private boolean automaticHandlingEnabled(
+            ModelMetadata.HandlerMethod handler) {
+        Apply apply =
+                handler.executable()
+                        .getAnnotation(
+                                Apply.class);
+        AutomaticModelHandling policy =
+                apply == null
+                        ? AutomaticModelHandling.DEFAULT
+                        : apply.automaticHandling();
+        if (policy == AutomaticModelHandling.DEFAULT) {
+            policy = handler.targetModelTypes()
+                    .stream()
+                    .map(type -> type.getAnnotation(
+                            Model.class))
+                    .filter(Objects::nonNull)
+                    .map(Model::automaticHandling)
+                    .filter(value ->
+                                    value
+                                    != AutomaticModelHandling.DEFAULT)
+                    .findFirst()
+                    .orElse(
+                            AutomaticModelHandling.DEFAULT);
+        }
+        if (policy == AutomaticModelHandling.DEFAULT) {
+            policy = automaticHandling;
+        }
+        return policy
+               != AutomaticModelHandling.DISABLED;
     }
 
     @Override
@@ -244,6 +370,38 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         };
     }
 
+    @Override
+    public List<?> trackingTargets(Object target, HandlerFilter handlerFilter) {
+        Class<?> targetType = ReflectionUtils.asClass(target);
+        if (!ModelMetadata.of(targetType).isModel()) {
+            return List.of(target);
+        }
+        LinkedHashSet<Class<?>> payloadTypes = ModelMetadata.of(targetType)
+                .handlerMethods().stream()
+                .filter(handler -> handler.kind()
+                        == ModelMetadata.HandlerKind.APPLY)
+                .filter(handler -> handlerFilter.test(
+                        handler.executable().getDeclaringClass(),
+                        handler.executable()))
+                .flatMap(handler -> commandPayloadTypes(handler).stream())
+                .collect(java.util.stream.Collectors.toCollection(
+                        LinkedHashSet::new));
+        return payloadTypes.isEmpty()
+                ? List.of(target)
+                : List.copyOf(payloadTypes);
+    }
+
+    private static List<Class<?>> commandPayloadTypes(
+            ModelMetadata.HandlerMethod handler) {
+        return Stream.of(handler.executable().getParameters())
+                .filter(parameter -> handler.modelParameters().stream()
+                        .noneMatch(model ->
+                                model.parameter().equals(parameter)))
+                .map(Parameter::getType)
+                .filter(type -> !isFrameworkParameter(type))
+                .toList();
+    }
+
     /**
      * Creates one tracked command handler for a registered model receiver or a payload type that declares model
      * applies. The handler remains scoped to that registration so ordinary command handlers retain precedence.
@@ -257,8 +415,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         boolean modelReceiver = ModelMetadata.of(targetType).isModel();
         boolean payloadAction = declaresModelAction(
                 targetType, new LinkedHashSet<>())
-                                && ModelMetadata.of(targetType)
-                                        .handlerMethods().stream()
+                                && handlersFor(targetType).stream()
                                         .anyMatch(handler ->
                                                 handlerFilter.test(
                                                         handler.executable()
@@ -268,17 +425,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             return Optional.empty();
         }
         if (modelReceiver) {
-            boolean receiverAction = ModelMetadata.of(targetType)
-                    .handlerMethods().stream()
-                    .filter(handler -> handler.kind()
-                            == ModelMetadata.HandlerKind.APPLY)
-                    .filter(handler -> handler.receiverModelType() != null)
-                    .anyMatch(handler -> handlerFilter.test(
-                            handler.executable().getDeclaringClass(),
-                            handler.executable()));
-            if (!receiverAction) {
-                return Optional.empty();
-            }
+            return Optional.empty();
         }
         HandlerDecorator decorator = Stream.concat(
                         extraInterceptors.stream(),
@@ -314,10 +461,17 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             DeserializingMessage message) {
         ModelActionEngine.ActionEvaluation evaluation =
                 evaluate(message);
+        ModelConflictPolicy effectiveConflictPolicy =
+                ModelConflictPolicies.resolve(
+                        evaluation,
+                        conflictPolicy);
+        Map<String, Set<String>> awaitedGraphProjections =
+                awaitedGraphProjectionTargets(
+                        evaluation);
         return ensureGraphProjections(evaluation)
                 .thenCompose(ignored -> {
-                    CompletableFuture<?> result =
-                            conflictPolicy
+                    CompletableFuture<Optional<CommitModelActionResult>> result =
+                            effectiveConflictPolicy
                             == ModelConflictPolicy.ACCEPT
                                     ? committer.commitAcceptingRebase(
                                             message.getMessageId(),
@@ -337,17 +491,22 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                             })
                                     : committer.commit(
                                             message.getMessageId(),
-                                            evaluation, conflictPolicy,
+                                            evaluation,
+                                            effectiveConflictPolicy,
                                             conflictResolver,
                                             maxConflictRetries,
                                             () -> reload(
                                                     message,
                                                     evaluation
                                                             .readModelIds()));
-                    return result.handle(
+                    return result.thenCompose(commitResult ->
+                                    awaitGraphProjections(
+                                            commitResult,
+                                            awaitedGraphProjections))
+                            .handle(
                             (commitResult, failure) -> {
                                 if (failure != null) {
-                                    if (conflictPolicy
+                                    if (effectiveConflictPolicy
                                         != ModelConflictPolicy.ACCEPT) {
                                         repository.invalidateModels(
                                                 evaluation
@@ -365,6 +524,148 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                 return null;
                             });
                 });
+    }
+
+    private CompletableFuture<Optional<CommitModelActionResult>>
+            awaitGraphProjections(
+                    Optional<CommitModelActionResult> result,
+                    Map<String, Set<String>> collections) {
+        if (result.isEmpty()
+            || collections.isEmpty()
+            || result.get().getSubsteps().isEmpty()) {
+            return CompletableFuture.completedFuture(result);
+        }
+        long stateIndex =
+                result.get().getSubsteps().getLast()
+                        .getStateIndex();
+        long firstStateIndex =
+                result.get().getSubsteps().getFirst()
+                        .getStateIndex();
+        return CompletableFuture.allOf(
+                        collections.entrySet().stream()
+                                .map(entry ->
+                                             eventStoreClient
+                                                     .awaitModelGraphProjection(
+                                                             new AwaitModelGraphProjection(
+                                                                     entry.getKey(),
+                                                                     stateIndex,
+                                                                     firstStateIndex,
+                                                                     entry.getValue())))
+                                .toArray(
+                                        CompletableFuture[]::new))
+                .thenApply(ignored -> result);
+    }
+
+    Set<String> awaitedGraphProjections(
+            ModelActionEngine.ActionEvaluation evaluation) {
+        return awaitedGraphProjectionTargets(
+                evaluation).keySet();
+    }
+
+    Map<String, Set<String>> awaitedGraphProjectionTargets(
+            ModelActionEngine.ActionEvaluation evaluation) {
+        GraphProjectionCompletion consumer =
+                Tracker.current()
+                        .map(Tracker::getConfiguration)
+                        .map(configuration ->
+                                     configuration
+                                             .getGraphProjectionCompletion())
+                        .orElse(
+                                GraphProjectionCompletion.DEFAULT);
+        LinkedHashMap<String, LinkedHashSet<String>> result =
+                new LinkedHashMap<>();
+        for (ModelActionEngine.Transition transition :
+                evaluation.transitions()) {
+            Apply apply =
+                    transition.handler()
+                            .getAnnotation(
+                                    Apply.class);
+            GraphProjectionCompletion applyPolicy =
+                    apply == null
+                            ? GraphProjectionCompletion.DEFAULT
+                            : apply.graphProjectionCompletion();
+            projectionRoots(
+                    transition.modelType(),
+                    new LinkedHashSet<>())
+                    .forEach(root -> {
+                        GraphProjectionCompletion policy =
+                                resolveProjectionCompletion(
+                                        applyPolicy,
+                                        consumer,
+                                        root.projection()
+                                                .completion());
+                        if (policy
+                            == GraphProjectionCompletion.AWAIT) {
+                            result.computeIfAbsent(
+                                            root.collection(),
+                                            ignored ->
+                                                    new LinkedHashSet<>())
+                                    .add(
+                                            transition.modelId());
+                        }
+                    });
+        }
+        return result.entrySet().stream()
+                .collect(
+                        java.util.stream.Collectors
+                                .toUnmodifiableMap(
+                                        Map.Entry::getKey,
+                                        entry ->
+                                                Set.copyOf(
+                                                        entry.getValue())));
+    }
+
+    private GraphProjectionCompletion resolveProjectionCompletion(
+            GraphProjectionCompletion apply,
+            GraphProjectionCompletion consumer,
+            GraphProjectionCompletion root) {
+        if (apply != GraphProjectionCompletion.DEFAULT) {
+            return apply;
+        }
+        if (consumer != GraphProjectionCompletion.DEFAULT) {
+            return consumer;
+        }
+        if (root != GraphProjectionCompletion.DEFAULT) {
+            return root;
+        }
+        return graphProjectionCompletion;
+    }
+
+    private List<ProjectionRoot> projectionRoots(
+            Class<?> modelType,
+            Set<Class<?>> visited) {
+        if (!visited.add(modelType)) {
+            return List.of();
+        }
+        List<ProjectionRoot> result =
+                new ArrayList<>();
+        ModelMetadata.of(modelType).model()
+                .filter(model ->
+                                !model.graphProjection()
+                                        .collection().isEmpty())
+                .flatMap(ignored ->
+                                 ModelGraphProjections.configuration(
+                                         modelType))
+                .ifPresent(configuration ->
+                                   result.add(
+                                           new ProjectionRoot(
+                                                   configuration
+                                                           .getCollection(),
+                                                   ModelMetadata.of(
+                                                                   modelType)
+                                                           .model()
+                                                           .orElseThrow()
+                                                           .graphProjection())));
+        ModelMetadata.of(modelType).parentReferences()
+                .stream()
+                .map(ModelMetadata.ParentReference::parentModelType)
+                .filter(Objects::nonNull)
+                .forEach(parent ->
+                                 result.addAll(
+                                         projectionRoots(
+                                                 parent,
+                                                 visited)));
+        return List.copyOf(result);
     }
 
     private CompletableFuture<Void> ensureGraphProjections(
@@ -828,7 +1129,6 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         receiverTypes.addAll(registeredModelTypes);
         for (Class<?> receiverType : receiverTypes) {
             ModelMetadata.of(receiverType).handlerMethods().stream()
-                    .filter(handler -> handler.receiverModelType() != null)
                     .filter(handler -> potentiallyAcceptsPayload(handler, payloadType))
                     .forEach(result::add);
         }
@@ -856,8 +1156,6 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     ModelMetadata.of(receiverType).handlerMethods().stream()
                             .filter(handler -> handler.kind()
                                     == ModelMetadata.HandlerKind.APPLY)
-                            .filter(handler ->
-                                    handler.receiverModelType() != null)
                             .anyMatch(handler -> potentiallyAcceptsPayload(
                                     handler, payloadType)))) {
                 return true;
@@ -901,14 +1199,13 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                || parameterType.equals(DeserializingMessage.class);
     }
 
-    private boolean ownsReceiverAction(
+    private boolean ownsRegisteredModelAction(
             Class<?> receiverType, Class<?> payloadType) {
         return registeredModelTypes.stream()
                 .distinct()
                 .filter(type -> ModelMetadata.of(type).handlerMethods().stream()
                         .filter(handler -> handler.kind()
                                 == ModelMetadata.HandlerKind.APPLY)
-                        .filter(handler -> handler.receiverModelType() != null)
                         .anyMatch(handler -> potentiallyAcceptsPayload(
                                 handler, payloadType)))
                 .min(java.util.Comparator.comparing(Class::getName))
@@ -930,6 +1227,11 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             String parentId,
             Class<?> parentType,
             String path) {
+    }
+
+    private record ProjectionRoot(
+            String collection,
+            GraphProjection projection) {
     }
 
     private final class ActionHandler
@@ -955,7 +1257,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
             boolean selected = trackingTarget == null
                     || ModelMetadata.of(trackingTarget).isModel()
-                       && ownsReceiverAction(
+                       && ownsRegisteredModelAction(
                                trackingTarget, message.getPayloadClass())
                     || !ModelMetadata.of(trackingTarget).isModel()
                        && trackingTarget.isAssignableFrom(

@@ -71,8 +71,11 @@ final class ModelParameterResolver implements PreparedParameterResolver<Object> 
             || !modelParameter.entityWrapped() && entity.get() == null && !isNullable(parameter)) {
             return null;
         }
-        Object value = modelParameter.entityWrapped() ? entity : entity.get();
-        return ignored -> value;
+        return invocation -> {
+            Entity<?> current = resolve(invocation, modelParameter);
+            return current == null || modelParameter.entityWrapped()
+                    ? current : current.get();
+        };
     }
 
     private static Optional<ModelMetadata.ModelParameter> modelParameter(Parameter parameter) {

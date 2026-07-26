@@ -29,6 +29,7 @@ import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
@@ -139,6 +140,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetModelAncestors.class, name = "getModelAncestors"),
         @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),
         @JsonSubTypes.Type(value = GetModelGraphProjectionStatus.class, name = "getModelGraphProjectionStatus"),
+        @JsonSubTypes.Type(value = AwaitModelGraphProjection.class, name = "awaitModelGraphProjection"),
         @JsonSubTypes.Type(value = ModelGraphProjectionStatus.class, name = "modelGraphProjectionStatus"),
         @JsonSubTypes.Type(value = PlanModelDeletion.class, name = "planModelDeletion"),
         @JsonSubTypes.Type(value = ModelDeletionPlan.class, name = "modelDeletionPlan"),

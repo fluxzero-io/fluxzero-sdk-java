@@ -33,6 +33,7 @@ import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
@@ -306,7 +307,7 @@ class WebSocketTransportCodecsTest {
                         ModelActionSubstep.builder()
                                 .targets(List.of(nonStoredDelete))
                                 .build()),
-                ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED, Guarantee.STORED);
+                ModelConflictPolicy.RETRY, Guarantee.STORED);
         CommitModelActionResult result = CommitModelActionResult.accepted(
                 request.getRequestId(), request.getActionId(),
                 List.of(
@@ -329,7 +330,7 @@ class WebSocketTransportCodecsTest {
             assertEquals("action-1", decodedRequest.getActionId());
             assertEquals(91L, decodedRequest.getReadStateIndex());
             assertEquals(
-                    ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                    ModelConflictPolicy.RETRY,
                     decodedRequest.getConflictPolicy());
             assertEquals(
                     List.of("order-1", "inventory-1"),
@@ -716,6 +717,11 @@ class WebSocketTransportCodecsTest {
         GetModelGraphProjectionStatus statusRequest =
                 new GetModelGraphProjectionStatus(
                         "orderGraphs");
+        AwaitModelGraphProjection awaitRequest =
+                new AwaitModelGraphProjection(
+                        "orderGraphs", 10L,
+                        8L,
+                        List.of("line-1"));
         ModelGraphProjectionStatus status =
                 new ModelGraphProjectionStatus(
                         statusRequest.getRequestId(),
@@ -754,6 +760,25 @@ class WebSocketTransportCodecsTest {
             assertEquals(
                     "orderGraphs",
                     decodedRequest.getCollection());
+
+            AwaitModelGraphProjection decodedAwait =
+                    assertInstanceOf(
+                            AwaitModelGraphProjection.class,
+                            roundTrip(
+                                    codec,
+                                    awaitRequest));
+            assertEquals(
+                    "orderGraphs",
+                    decodedAwait.getCollection());
+            assertEquals(
+                    10L,
+                    decodedAwait.getStateIndex());
+            assertEquals(
+                    8L,
+                    decodedAwait.getFirstStateIndex());
+            assertEquals(
+                    List.of("line-1"),
+                    decodedAwait.getModelIds());
 
             ModelGraphProjectionStatus decodedStatus =
                     assertInstanceOf(

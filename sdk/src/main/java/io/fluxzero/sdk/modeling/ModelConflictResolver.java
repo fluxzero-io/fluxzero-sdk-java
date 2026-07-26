@@ -42,7 +42,7 @@ public interface ModelConflictResolver {
     }
 
     /**
-     * Silently retries conflicts which the runtime proved relation-safe and whose retry bound is not exhausted.
+     * Silently retries conflicts whose action policy permits retry and whose retry bound is not exhausted.
      */
     static ModelConflictResolver retryIfAllowed() {
         return context -> context.canRetry() ? Resolution.RETRY : Resolution.FAIL;

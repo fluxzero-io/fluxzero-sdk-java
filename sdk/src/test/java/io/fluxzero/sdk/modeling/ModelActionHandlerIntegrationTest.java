@@ -26,7 +26,9 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.root.RootConsumerModelCommand;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 
@@ -170,6 +172,63 @@ class ModelActionHandlerIntegrationTest {
                             fluxzero.modelRepository().load(accountId).get();
                     return value != null && value.name().equals("after");
                 });
+    }
+
+    @Test
+    void registeredStaticModelApplyCanBeReplayed() {
+        TestFixture fixture =
+                TestFixture.create(
+                        StaticCreatedModel.class);
+
+        fixture.whenCommand(
+                        new CreateStaticModel(
+                                "static-created"))
+                .expectTrue(fluxzero ->
+                                    new StaticCreatedModel(
+                                            "static-created",
+                                            "created")
+                                            .equals(
+                                                    fluxzero.modelRepository()
+                                                            .load(
+                                                                    "static-created",
+                                                                    StaticCreatedModel.class)
+                                                            .get()));
+    }
+
+    @Test
+    void receiverApplyUsesConsumerConfiguredForCommandRootPackage()
+            throws Throwable {
+        LocalClient client = LocalClient.newInstance(null);
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(client)) {
+            String modelId = "root-consumer-model";
+            fluxzero.commandGateway().send(
+                    new CreateRootConsumerModel(modelId)).join();
+            Registration registration =
+                    fluxzero.registerHandlers(
+                            RootConsumerModel.class);
+            try {
+                client.getGatewayClient(COMMAND).append(
+                        STORED,
+                        new Message(
+                                new RootConsumerModelCommand(
+                                        modelId))
+                                .serialize(
+                                        fluxzero.serializer())).join();
+
+                assertEventually(() -> assertEquals(
+                        new RootConsumerModel(
+                                modelId, "root"),
+                        fluxzero.modelRepository()
+                                .load(modelId,
+                                      RootConsumerModel.class)
+                                .get()));
+            } finally {
+                registration.cancel();
+            }
+        }
     }
 
     @Test
@@ -401,7 +460,7 @@ class ModelActionHandlerIntegrationTest {
                                            "projectionRoots")
                            && status
                                       .getSourceStateIndex()
-                              == 0L
+                              > 0L
                            && status.isRebuilding()
                            && status
                                       .getProcessedStateIndex()
@@ -459,11 +518,19 @@ class ModelActionHandlerIntegrationTest {
                                 grandchildId, secondId, false),
                         new FamilyStep(
                                 grandchildId, secondId, true))))
-                .expectTrue(fluxzero -> new FamilyGrandchild(
-                        grandchildId, secondId, secondId,
-                        "same-action:second/root")
-                        .equals(fluxzero.modelRepository()
-                                        .load(grandchildId).get()));
+                .expectTrue(fluxzero -> {
+                    var actual = fluxzero.modelRepository()
+                            .load(grandchildId).get();
+                    var expected = new FamilyGrandchild(
+                            grandchildId, secondId, secondId,
+                            "same-action:second/root");
+                    if (!expected.equals(actual)) {
+                        throw new AssertionError(
+                                "Expected " + expected
+                                + " but got " + actual);
+                    }
+                    return true;
+                });
     }
 
     @Test
@@ -751,6 +818,24 @@ class ModelActionHandlerIntegrationTest {
         }
     }
 
+    @Model(cached = false)
+    private record StaticCreatedModel(
+            @EntityId String staticCreatedModelId,
+            String value) {
+
+        @Apply
+        static StaticCreatedModel create(
+                CreateStaticModel command) {
+            return new StaticCreatedModel(
+                    command.staticCreatedModelId(),
+                    "created");
+        }
+    }
+
+    private record CreateStaticModel(
+            String staticCreatedModelId) {
+    }
+
     private record FailingCreate(AccountId accountId) {
         @Apply
         Account apply() {
@@ -905,6 +990,29 @@ class ModelActionHandlerIntegrationTest {
     private record IncrementBoth(
             FirstCounterId firstCounterId,
             SecondCounterId secondCounterId) {
+    }
+
+    @Model
+    private record RootConsumerModel(
+            @EntityId String rootConsumerModelId,
+            String consumerName) {
+        @Apply
+        RootConsumerModel apply(
+                RootConsumerModelCommand command) {
+            return new RootConsumerModel(
+                    rootConsumerModelId,
+                    Tracker.current().orElseThrow()
+                            .getName());
+        }
+    }
+
+    private record CreateRootConsumerModel(
+            String rootConsumerModelId) {
+        @Apply
+        RootConsumerModel apply() {
+            return new RootConsumerModel(
+                    rootConsumerModelId, null);
+        }
     }
 
     @Model(searchable = true)

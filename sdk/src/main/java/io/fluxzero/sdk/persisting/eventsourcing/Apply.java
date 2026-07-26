@@ -15,10 +15,13 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.Model;
 
 import java.lang.annotation.Documented;
@@ -149,6 +152,22 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Apply {
+
+    /**
+     * Overrides conflict handling for the model produced by this apply.
+     */
+    ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
+
+    /**
+     * Overrides whether this apply participates in automatic model command handling.
+     */
+    AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
+
+    /**
+     * Overrides command-result completion for graph projections affected by this apply.
+     */
+    GraphProjectionCompletion graphProjectionCompletion()
+            default GraphProjectionCompletion.DEFAULT;
 
     /**
      * Controls whether the update should result in a published update, depending on whether the entity was actually
