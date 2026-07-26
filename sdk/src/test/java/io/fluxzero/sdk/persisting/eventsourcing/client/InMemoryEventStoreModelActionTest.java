@@ -22,6 +22,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
@@ -633,6 +634,154 @@ class InMemoryEventStoreModelActionTest {
         assertEquals(
                 2,
                 store.getEvents("parent-1").count());
+
+        var deleted = store.deleteModel(
+                DeleteModel.builder()
+                        .deletionId(
+                                "erase-parent")
+                        .modelId("parent-1")
+                        .cascade(
+                                ModelDeletionCascade.NONE)
+                        .maxDepth(0)
+                        .maxModels(1)
+                        .build()).join();
+
+        assertEquals(
+                1,
+                deleted.getDeletedModelCount());
+        assertEquals(
+                2L,
+                deleted
+                        .getDeletedEventMembershipCount());
+        assertEquals(
+                1L,
+                deleted
+                        .getRetainedPublishedEventCount());
+        assertTrue(
+                store.deleteModel(
+                                DeleteModel.builder()
+                                        .deletionId(
+                                                "erase-parent")
+                                        .modelId(
+                                                "parent-1")
+                                        .cascade(
+                                                ModelDeletionCascade.NONE)
+                                        .maxDepth(0)
+                                        .maxModels(1)
+                                        .build())
+                        .join()
+                        .isDuplicate());
+
+        var followupPlan =
+                store.planModelDeletion(
+                        new PlanModelDeletion(
+                                "parent-1",
+                                ModelDeletionCascade.DESCENDANTS,
+                                10, 100, 10));
+        assertEquals(
+                2,
+                followupPlan.getModelCount());
+        assertEquals(
+                List.of(
+                        "child-1", "parent-1"),
+                followupPlan.getSampleModelIds());
+        assertEquals(
+                2,
+                store.getBatch(
+                                null, 10, true)
+                        .size());
+
+        assertThrows(
+                CompletionException.class,
+                () -> store.commitModelAction(
+                                action(
+                                        "recreate-parent",
+                                        ModelActionSubstep
+                                                .builder()
+                                                .event(
+                                                        event(
+                                                                "again"))
+                                                .targets(
+                                                        List.of(
+                                                                storedTarget(
+                                                                        "parent-1")))
+                                                .build()))
+                        .join());
+    }
+
+    @Test
+    void descendantDeletionRequiresTheCurrentPlanFingerprint() {
+        InMemoryEventStore store =
+                new InMemoryEventStore();
+        ModelActionTarget child =
+                storedTarget("child")
+                        .toBuilder()
+                        .updateRelationships(true)
+                        .relationships(List.of(
+                                ModelRelationship.builder()
+                                        .parentId("parent")
+                                        .build()))
+                        .build();
+        store.commitModelAction(action(
+                "create-child",
+                ModelActionSubstep.builder()
+                        .event(event("child"))
+                        .targets(List.of(child))
+                        .build())).join();
+        var plan =
+                store.planModelDeletion(
+                        new PlanModelDeletion(
+                                "parent",
+                                ModelDeletionCascade.DESCENDANTS,
+                                10, 100, 10));
+
+        assertThrows(
+                CompletionException.class,
+                () -> store.deleteModel(
+                                DeleteModel.builder()
+                                        .deletionId(
+                                                "stale")
+                                        .modelId("parent")
+                                        .cascade(
+                                                ModelDeletionCascade.DESCENDANTS)
+                                        .planFingerprint(
+                                                "not-the-plan")
+                                        .maxDepth(10)
+                                        .maxModels(100)
+                                        .build())
+                        .join());
+
+        var result = store.deleteModel(
+                DeleteModel.builder()
+                        .deletionId("confirmed")
+                        .modelId("parent")
+                        .cascade(
+                                ModelDeletionCascade.DESCENDANTS)
+                        .planFingerprint(
+                                plan.getFingerprint())
+                        .maxDepth(
+                                plan.getMaxDepth())
+                        .maxModels(
+                                plan.getMaxModels())
+                        .build()).join();
+
+        assertEquals(
+                2,
+                result.getDeletedModelCount());
+        var streams = store.getModelEvents(
+                new GetModelEvents(
+                        List.of(
+                                new ModelEventStreamRequest(
+                                        "parent", -1L, 10),
+                                new ModelEventStreamRequest(
+                                        "child", -1L, 10)),
+                        null, 0L));
+        assertTrue(
+                streams.getStreams()
+                        .stream()
+                        .allMatch(stream ->
+                                          stream.getHead()
+                                          == null));
     }
 
     @Test

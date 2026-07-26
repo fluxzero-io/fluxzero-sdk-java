@@ -18,6 +18,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -34,6 +35,7 @@ import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
@@ -99,6 +101,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, List<ModelStreamMembership>> modelStreams = new ConcurrentHashMap<>();
     private final Map<String, ModelGraphProjectionConfiguration> modelGraphProjections =
             new ConcurrentHashMap<>();
+    private final Map<String, ModelDeletionResult>
+            modelDeletions =
+            new ConcurrentHashMap<>();
+    private final Set<String> erasedModelTokens =
+            ConcurrentHashMap.newKeySet();
+    private final Map<String, Set<String>>
+            protectedModelDescendants =
+            new ConcurrentHashMap<>();
     private final List<MutableModelRelationship> modelRelationshipHistory = new ArrayList<>();
     private final Map<String, LinkedHashMap<ModelRelationship, MutableModelRelationship>> currentModelRelationships =
             new ConcurrentHashMap<>();
@@ -133,6 +143,21 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         previous.asDuplicateForRequest(
                                 action.getRequestId()));
             }
+            action.getSubsteps().stream()
+                    .flatMap(substep ->
+                                     substep.getTargets()
+                                             .stream())
+                    .map(ModelActionTarget::getModelId)
+                    .filter(modelId ->
+                                    erasedModelTokens.contains(
+                                            protectedToken(
+                                                    modelId)))
+                    .findFirst()
+                    .ifPresent(modelId -> {
+                        throw new IllegalStateException(
+                                "Model '%s' was hard-deleted and cannot be recreated"
+                                        .formatted(modelId));
+                    });
             if (action.getReadStateIndex() > modelStateIndex) {
                 throw new IllegalArgumentException(
                         "Model readStateIndex %d is newer than visible stateIndex %d"
@@ -265,72 +290,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             PlanModelDeletion request) {
         validate(request);
         long boundary = modelStateIndex;
-        LinkedHashSet<String> selected =
-                new LinkedHashSet<>();
-        selected.add(request.getModelId());
-        if (request.getCascade()
-            == ModelDeletionCascade.DESCENDANTS) {
-            List<String> frontier =
-                    List.of(request.getModelId());
-            for (int depth = 0;
-                 depth < request.getMaxDepth()
-                 && !frontier.isEmpty();
-                 depth++) {
-                Set<String> parentIds =
-                        Set.copyOf(frontier);
-                List<String> next =
-                        new ArrayList<>();
-                modelRelationshipHistory.stream()
-                        .filter(relation ->
-                                        parentIds.contains(
-                                                relation.relationship
-                                                        .getParentId()))
-                        .filter(relation ->
-                                        relation.isValidAt(boundary)
-                                        || relation.parentDeleted
-                                           && relation.validUntil != null
-                                           && relation.validUntil
-                                              <= boundary)
-                        .map(relation ->
-                                     relation.childId)
-                        .distinct()
-                        .sorted()
-                        .forEach(childId -> {
-                            if (selected.add(childId)) {
-                                if (selected.size()
-                                    > request.getMaxModels()) {
-                                    throw new IllegalArgumentException(
-                                            "Model deletion plan exceeds maxModels "
-                                            + request.getMaxModels());
-                                }
-                                next.add(childId);
-                            }
-                        });
-                frontier = List.copyOf(next);
-            }
-            if (!frontier.isEmpty()) {
-                Set<String> parentIds =
-                        Set.copyOf(frontier);
-                boolean truncated =
-                        modelRelationshipHistory.stream()
-                                .anyMatch(relation ->
-                                                  parentIds.contains(
-                                                          relation.relationship
-                                                                  .getParentId())
-                                                  && (relation.isValidAt(
-                                                          boundary)
-                                                      || relation.parentDeleted
-                                                         && relation.validUntil
-                                                            != null
-                                                         && relation.validUntil
-                                                            <= boundary));
-                if (truncated) {
-                    throw new IllegalArgumentException(
-                            "Model deletion plan exceeds maxDepth "
-                            + request.getMaxDepth());
-                }
-            }
-        }
+        Set<String> selected =
+                request.getCascade()
+                == ModelDeletionCascade.NONE
+                        ? Set.of(
+                                request.getModelId())
+                        : resolveDeletionIds(
+                                request.getModelId(),
+                                boundary,
+                                request.getMaxDepth(),
+                                request.getMaxModels());
         List<String> ordered = selected.stream()
                 .sorted()
                 .toList();
@@ -380,6 +349,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 request.getRequestId(),
                 request.getModelId(),
                 request.getCascade(),
+                request.getMaxDepth(),
+                request.getMaxModels(),
                 boundary,
                 deletionFingerprint(
                         request.getModelId(),
@@ -392,6 +363,294 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 ordered.stream()
                         .limit(request.getMaxSampleSize())
                         .toList());
+    }
+
+    @Override
+    public synchronized CompletableFuture<ModelDeletionResult>
+            deleteModel(DeleteModel request) {
+        try {
+            validate(request);
+            ModelDeletionResult duplicate =
+                    modelDeletions.get(
+                            request.getDeletionId());
+            if (duplicate != null) {
+                return CompletableFuture
+                        .completedFuture(
+                                duplicate.forRequest(
+                                        request.getRequestId(),
+                                        true));
+            }
+            ModelDeletionPlan plan =
+                    planModelDeletion(
+                            new PlanModelDeletion(
+                                    request.getModelId(),
+                                    request.getCascade(),
+                                    request.getMaxDepth(),
+                                    request.getMaxModels(),
+                                    0));
+            if (request.getCascade()
+                == ModelDeletionCascade.DESCENDANTS
+                && !plan.getFingerprint()
+                        .equals(
+                                request.getPlanFingerprint())) {
+                throw new IllegalStateException(
+                        "Model deletion plan is stale; create and confirm a new plan");
+            }
+            Set<String> selected =
+                    request.getCascade()
+                    == ModelDeletionCascade.NONE
+                            ? Set.of(
+                                    request.getModelId())
+                            : resolveDeletionIds(
+                                    request.getModelId(),
+                                    modelStateIndex,
+                                    request.getMaxDepth(),
+                                    request.getMaxModels());
+            if (request.getCascade()
+                == ModelDeletionCascade.NONE) {
+                Set<String> children =
+                        modelRelationshipHistory.stream()
+                                .filter(relation ->
+                                                relation.relationship
+                                                        .getParentId()
+                                                        .equals(
+                                                                request.getModelId()))
+                                .filter(relation ->
+                                                relation.isValidAt(
+                                                        modelStateIndex)
+                                                || relation.parentDeleted)
+                                .map(relation ->
+                                             relation.childId)
+                                .filter(childId ->
+                                                !selected.contains(
+                                                        childId))
+                                .collect(
+                                        Collectors
+                                                .toUnmodifiableSet());
+                if (!children.isEmpty()) {
+                    protectedModelDescendants
+                            .compute(
+                                    protectedToken(
+                                            request.getModelId()),
+                                    (ignored, existing) -> {
+                                        LinkedHashSet<String> merged =
+                                                new LinkedHashSet<>();
+                                        if (existing != null) {
+                                            merged.addAll(
+                                                    existing);
+                                        }
+                                        merged.addAll(children);
+                                        return Set.copyOf(
+                                                merged);
+                                    });
+                }
+            }
+            selected.stream()
+                    .map(InMemoryEventStore
+                                 ::protectedToken)
+                    .forEach(erasedModelTokens::add);
+            protectedModelDescendants
+                    .replaceAll((ignored, children) ->
+                                        children.stream()
+                                                .filter(childId ->
+                                                                !selected.contains(
+                                                                        childId))
+                                                .collect(
+                                                        Collectors
+                                                                .toUnmodifiableSet()));
+            protectedModelDescendants
+                    .entrySet()
+                    .removeIf(entry ->
+                                      (selected.stream()
+                                               .map(InMemoryEventStore
+                                                            ::protectedToken)
+                                               .anyMatch(entry
+                                                                 .getKey()
+                                                                 ::equals)
+                                       && request.getCascade()
+                                          == ModelDeletionCascade.DESCENDANTS)
+                                      || entry.getValue()
+                                              .isEmpty());
+            currentModelRelationships
+                    .entrySet()
+                    .removeIf(entry -> {
+                        if (selected.contains(
+                                entry.getKey())) {
+                            return true;
+                        }
+                        entry.getValue()
+                                .keySet()
+                                .removeIf(
+                                        relationship ->
+                                                selected.contains(
+                                                        relationship
+                                                                .getParentId()));
+                        return entry.getValue()
+                                .isEmpty();
+                    });
+            modelRelationshipHistory
+                    .removeIf(relation ->
+                                      selected.contains(
+                                              relation.childId)
+                                      || selected.contains(
+                                              relation.relationship
+                                                      .getParentId()));
+            selected.forEach(modelHeads::remove);
+            selected.forEach(modelHeadHistory::remove);
+            selected.forEach(modelStreams::remove);
+            selected.forEach(modelRelationStateIndices::remove);
+            selected.forEach(appliedEvents::remove);
+            sanitizeModelActionResults(
+                    selected);
+            long deletionStateIndex =
+                    ++modelStateIndex;
+            ModelDeletionResult result =
+                    new ModelDeletionResult(
+                            request.getRequestId(),
+                            request.getDeletionId(),
+                            request.getCascade(),
+                            deletionStateIndex,
+                            selected.size(),
+                            plan.getStoredEventMembershipCount(),
+                            plan.getPublishedEventCount(),
+                            false);
+            modelDeletions.put(
+                    request.getDeletionId(),
+                    result);
+            return CompletableFuture
+                    .completedFuture(result);
+        } catch (Throwable failure) {
+            return CompletableFuture
+                    .failedFuture(failure);
+        }
+    }
+
+    private Set<String> resolveDeletionIds(
+            String rootId,
+            long boundary,
+            int maxDepth,
+            int maxModels) {
+        LinkedHashSet<String> selected =
+                new LinkedHashSet<>();
+        selected.add(rootId);
+        List<String> frontier =
+                List.of(rootId);
+        for (int depth = 0;
+             depth < maxDepth
+             && !frontier.isEmpty();
+             depth++) {
+            Set<String> parentIds =
+                    Set.copyOf(frontier);
+            LinkedHashSet<String> children =
+                    modelRelationshipHistory.stream()
+                            .filter(relation ->
+                                            parentIds.contains(
+                                                    relation.relationship
+                                                            .getParentId()))
+                            .filter(relation ->
+                                            relation.isValidAt(
+                                                    boundary)
+                                            || relation.parentDeleted
+                                               && relation.validUntil
+                                                  != null
+                                               && relation.validUntil
+                                                  <= boundary)
+                            .map(relation ->
+                                         relation.childId)
+                            .collect(
+                                    Collectors
+                                            .toCollection(
+                                                    LinkedHashSet::new));
+            parentIds.stream()
+                    .map(InMemoryEventStore
+                                 ::protectedToken)
+                    .map(protectedModelDescendants
+                                 ::get)
+                    .filter(Objects::nonNull)
+                    .forEach(children::addAll);
+            List<String> next =
+                    new ArrayList<>();
+            children.stream()
+                    .sorted()
+                    .forEach(childId -> {
+                        if (selected.add(childId)) {
+                            if (selected.size()
+                                > maxModels) {
+                                throw new IllegalArgumentException(
+                                        "Model deletion plan exceeds maxModels "
+                                        + maxModels);
+                            }
+                            next.add(childId);
+                        }
+                    });
+            frontier = List.copyOf(next);
+        }
+        if (!frontier.isEmpty()) {
+            Set<String> parentIds =
+                    Set.copyOf(frontier);
+            boolean truncated =
+                    modelRelationshipHistory.stream()
+                            .anyMatch(relation ->
+                                              parentIds.contains(
+                                                      relation.relationship
+                                                              .getParentId())
+                                              && (relation.isValidAt(
+                                                      boundary)
+                                                  || relation.parentDeleted
+                                                     && relation.validUntil
+                                                        != null
+                                                     && relation.validUntil
+                                                        <= boundary))
+                    || parentIds.stream()
+                            .map(InMemoryEventStore
+                                         ::protectedToken)
+                            .map(protectedModelDescendants
+                                         ::get)
+                            .filter(Objects::nonNull)
+                            .anyMatch(children ->
+                                              !children.isEmpty());
+            if (truncated) {
+                throw new IllegalArgumentException(
+                        "Model deletion plan exceeds maxDepth "
+                        + maxDepth);
+            }
+        }
+        return Set.copyOf(selected);
+    }
+
+    private void sanitizeModelActionResults(
+            Set<String> selected) {
+        modelActions.replaceAll(
+                (actionId, result) ->
+                        new CommitModelActionResult(
+                                result.getRequestId(),
+                                result.getActionId(),
+                                result.getSubsteps()
+                                        .stream()
+                                        .map(substep ->
+                                                     new ModelActionSubstepResult(
+                                                             substep.getStateIndex(),
+                                                             substep.getEventIndex(),
+                                                             substep.getTargets()
+                                                                     .stream()
+                                                                     .map(target ->
+                                                                                  selected.contains(
+                                                                                          target.getModelId())
+                                                                                          ? new ModelActionTargetResult(
+                                                                                                  "erased:"
+                                                                                                  + protectedToken(
+                                                                                                          target.getModelId()),
+                                                                                                  target.getSequenceNumber(),
+                                                                                                  target.isHistoryComplete())
+                                                                                          : target)
+                                                                     .toList()))
+                                        .toList(),
+                                result.getConflicts(),
+                                result.isRetryAllowed(),
+                                result.isDuplicate(),
+                                result.getRebaseStateIndex(),
+                                result.isDocumentsApplied(),
+                                result.isSnapshotsApplied()));
     }
 
     private ModelGraphProjectionStatus
@@ -1229,6 +1488,48 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
     }
 
+    private static void validate(
+            DeleteModel request) {
+        if (request == null) {
+            throw new IllegalArgumentException(
+                    "Model deletion request is required");
+        }
+        validateModelId(
+                request.getDeletionId());
+        validateModelId(
+                request.getModelId());
+        if (request.getCascade() == null) {
+            throw new IllegalArgumentException(
+                    "Model deletion cascade is required");
+        }
+        if (request.getGuarantee() == null) {
+            throw new IllegalArgumentException(
+                    "Model deletion guarantee is required");
+        }
+        if (request.getCascade()
+            == ModelDeletionCascade.DESCENDANTS
+            && (request.getPlanFingerprint() == null
+                || request.getPlanFingerprint()
+                        .isBlank())) {
+            throw new IllegalArgumentException(
+                    "Descendant model deletion requires a plan fingerprint");
+        }
+        if (request.getCascade()
+            == ModelDeletionCascade.NONE
+            && request.getPlanFingerprint()
+               != null) {
+            throw new IllegalArgumentException(
+                    "Non-cascading model deletion must not include a plan fingerprint");
+        }
+        if (request.getMaxDepth() < 0
+            || request.getMaxDepth() > 1_024
+            || request.getMaxModels() < 1
+            || request.getMaxModels() > 100_000) {
+            throw new IllegalArgumentException(
+                    "Invalid model deletion bounds");
+        }
+    }
+
     private static String deletionFingerprint(
             String rootId,
             ModelDeletionCascade cascade,
@@ -1248,6 +1549,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             throw new IllegalStateException(
                     "SHA-256 is unavailable", e);
         }
+    }
+
+    private static String protectedToken(
+            String modelId) {
+        return deletionFingerprint(
+                "model-erasure",
+                ModelDeletionCascade.NONE,
+                List.of(modelId));
     }
 
     private static void updateDigest(

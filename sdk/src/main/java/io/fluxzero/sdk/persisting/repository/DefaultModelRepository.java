@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
@@ -24,6 +25,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
@@ -73,6 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -174,6 +177,85 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         new PlanModelDeletion(
                                 modelId.toString(),
                                 cascade));
+    }
+
+    @Override
+    public CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        return deleteModel(
+                UUID.randomUUID().toString(),
+                modelId, cascade);
+    }
+
+    @Override
+    public CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull String deletionId,
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        if (cascade
+            != ModelDeletionCascade.NONE) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException(
+                            "DESCENDANTS hard deletion requires a confirmed plan from planDeletion"));
+        }
+        String exactId =
+                modelId.toString();
+        return executeDeletion(
+                DeleteModel.builder()
+                        .deletionId(
+                                deletionId)
+                        .modelId(exactId)
+                        .cascade(cascade)
+                        .maxDepth(0)
+                        .maxModels(1)
+                        .build());
+    }
+
+    @Override
+    public CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull ModelDeletionPlan plan) {
+        return deleteModel(
+                UUID.randomUUID().toString(),
+                plan);
+    }
+
+    @Override
+    public CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull String deletionId,
+            @NonNull ModelDeletionPlan plan) {
+        return executeDeletion(
+                DeleteModel.builder()
+                        .deletionId(deletionId)
+                        .modelId(plan.getModelId())
+                        .cascade(plan.getCascade())
+                        .planFingerprint(
+                                plan.getCascade()
+                                == ModelDeletionCascade.DESCENDANTS
+                                        ? plan.getFingerprint()
+                                        : null)
+                        .maxDepth(
+                                plan.getMaxDepth())
+                        .maxModels(
+                                plan.getMaxModels())
+                        .build());
+    }
+
+    private CompletableFuture<ModelDeletionResult>
+            executeDeletion(
+                    DeleteModel request) {
+        return client.getEventStoreClient()
+                .deleteModel(request)
+                .thenApply(result -> {
+                    if (result.getCascade()
+                        == ModelDeletionCascade.DESCENDANTS) {
+                        modelCache.clear();
+                    } else {
+                        modelCache.remove(
+                                request.getModelId());
+                    }
+                    return result;
+                });
     }
 
     @Override
@@ -1305,7 +1387,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             for (ModelTargetResolver.ResolvedModel target : targets) {
                 ModelHeadState head = loaded.heads().get(target.modelId());
                 MutableReconstruction state = states.get(target.modelId());
-                Entity<?> entity = withHead(state.current, head);
+                Entity<?> entity;
+                if (head == null) {
+                    modelCache.remove(
+                            target.modelId());
+                    entity = empty(target);
+                } else {
+                    entity = withHead(
+                            state.current, head);
+                }
                 validateReconstruction(target, head, entity);
                 result.put(target.modelId(), entity);
                 if (maxStateIndex == null
@@ -1465,8 +1555,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     cursors, stateIndex, page -> applyPage(page, states));
             for (ModelTargetResolver.ResolvedModel target : missing) {
                 ModelHeadState head = loaded.heads().get(target.modelId());
-                Entity<?> entity = withHead(
-                        states.get(target.modelId()).current, head);
+                Entity<?> entity;
+                if (head == null) {
+                    modelCache.remove(
+                            target.modelId());
+                    entity = empty(target);
+                } else {
+                    entity = withHead(
+                            states.get(target.modelId())
+                                    .current,
+                            head);
+                }
                 validateReconstruction(target, head, entity);
                 reconstructed.put(new ViewKey(
                         target.modelId(), target.modelType(), stateIndex,

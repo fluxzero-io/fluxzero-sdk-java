@@ -18,6 +18,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -27,6 +28,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.Relationship;
@@ -129,6 +131,16 @@ public interface EventStoreClient extends AutoCloseable {
             PlanModelDeletion request) {
         throw new UnsupportedOperationException(
                 "Independent model deletion planning is not supported by this event store");
+    }
+
+    /**
+     * Executes or resumes an idempotent independent-model hard deletion.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            DeleteModel request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this event store"));
     }
 
     /**

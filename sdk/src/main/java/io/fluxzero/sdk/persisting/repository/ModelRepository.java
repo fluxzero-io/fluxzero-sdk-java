@@ -19,6 +19,7 @@ package io.fluxzero.sdk.persisting.repository;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
@@ -93,6 +94,54 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             @NonNull ModelDeletionCascade cascade) {
         throw new UnsupportedOperationException(
                 "Independent model deletion planning is not supported by this repository");
+    }
+
+    /**
+     * Hard-deletes exactly one model.
+     * <p>
+     * Passing {@link ModelDeletionCascade#DESCENDANTS} without a confirmed plan is rejected. Use
+     * {@link #deleteModel(ModelDeletionPlan)} for descendant cascades.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Executes or resumes an exact-model hard deletion using an explicit durable idempotency key.
+     * Descendant deletion still requires a confirmed plan.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull String deletionId,
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Executes a previously confirmed hard-deletion plan with a new durable idempotency key.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull ModelDeletionPlan plan) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Executes or resumes a confirmed plan using an explicit durable idempotency key.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull String deletionId,
+            @NonNull ModelDeletionPlan plan) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
     }
 
     /**

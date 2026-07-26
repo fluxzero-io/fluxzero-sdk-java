@@ -23,6 +23,7 @@ import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
@@ -33,6 +34,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
@@ -166,6 +168,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     public ModelDeletionPlan planModelDeletion(
             PlanModelDeletion request) {
         return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<ModelDeletionResult> deleteModel(
+            DeleteModel request) {
+        return send(request);
     }
 
     /**

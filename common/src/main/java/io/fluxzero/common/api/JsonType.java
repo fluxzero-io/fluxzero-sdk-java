@@ -29,6 +29,7 @@ import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
@@ -40,6 +41,7 @@ import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RepairRelationships;
@@ -140,6 +142,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = ModelGraphProjectionStatus.class, name = "modelGraphProjectionStatus"),
         @JsonSubTypes.Type(value = PlanModelDeletion.class, name = "planModelDeletion"),
         @JsonSubTypes.Type(value = ModelDeletionPlan.class, name = "modelDeletionPlan"),
+        @JsonSubTypes.Type(value = DeleteModel.class, name = "deleteModel"),
+        @JsonSubTypes.Type(value = ModelDeletionResult.class, name = "modelDeletionResult"),
         @JsonSubTypes.Type(value = UpdateRelationships.class, name = "updateRelationships"),
         @JsonSubTypes.Type(value = RepairRelationships.class, name = "repairRelationships"),
         @JsonSubTypes.Type(value = GetAggregateIds.class, name = "getAggregateIds"),

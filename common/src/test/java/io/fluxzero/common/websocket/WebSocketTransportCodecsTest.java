@@ -35,6 +35,7 @@ import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
@@ -59,6 +60,7 @@ import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
@@ -779,6 +781,8 @@ class WebSocketTransportCodecsTest {
                         request.getRequestId(),
                         "order-1",
                         ModelDeletionCascade.DESCENDANTS,
+                        12,
+                        5_000,
                         42L,
                         "aabbcc",
                         73,
@@ -816,6 +820,44 @@ class WebSocketTransportCodecsTest {
             assertEquals(
                     41L,
                     decodedResult.getPublishedEventCount());
+
+            DeleteModel deletion =
+                    DeleteModel.builder()
+                            .deletionId(
+                                    "deletion-1")
+                            .modelId("order-1")
+                            .cascade(
+                                    ModelDeletionCascade.DESCENDANTS)
+                            .planFingerprint(
+                                    result.getFingerprint())
+                            .maxDepth(
+                                    result.getMaxDepth())
+                            .maxModels(
+                                    result.getMaxModels())
+                            .build();
+            DeleteModel decodedDeletion =
+                    assertInstanceOf(
+                            DeleteModel.class,
+                            roundTrip(codec, deletion));
+            assertEquals(
+                    "deletion-1",
+                    decodedDeletion
+                            .getDeletionId());
+            ModelDeletionResult deletionResult =
+                    new ModelDeletionResult(
+                            deletion.getRequestId(),
+                            "deletion-1",
+                            ModelDeletionCascade.DESCENDANTS,
+                            43L, 73, 101L, 41L,
+                            false);
+            assertEquals(
+                    73,
+                    assertInstanceOf(
+                            ModelDeletionResult.class,
+                            roundTrip(
+                                    codec,
+                                    deletionResult))
+                            .getDeletedModelCount());
         }
     }
 

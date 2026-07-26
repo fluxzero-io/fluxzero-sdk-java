@@ -46,6 +46,16 @@ public class ModelDeletionPlan extends AbstractRequestResult {
     ModelDeletionCascade cascade;
 
     /**
+     * Maximum child-edge depth used to compute the complete selection.
+     */
+    int maxDepth;
+
+    /**
+     * Maximum distinct model count used to compute the complete selection.
+     */
+    int maxModels;
+
+    /**
      * Model state boundary at which the plan was observed.
      */
     long stateIndex;
@@ -88,7 +98,8 @@ public class ModelDeletionPlan extends AbstractRequestResult {
     @Override
     public Metric toMetric() {
         return new Metric(
-                cascade, stateIndex, modelCount,
+                cascade, maxDepth, maxModels,
+                stateIndex, modelCount,
                 externallySharedModelCount,
                 storedEventMembershipCount,
                 publishedEventCount,
@@ -98,6 +109,8 @@ public class ModelDeletionPlan extends AbstractRequestResult {
     @Value
     public static class Metric {
         ModelDeletionCascade cascade;
+        int maxDepth;
+        int maxModels;
         long stateIndex;
         int modelCount;
         int externallySharedModelCount;

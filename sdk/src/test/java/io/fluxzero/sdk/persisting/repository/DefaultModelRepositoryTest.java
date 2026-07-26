@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
@@ -27,6 +28,7 @@ import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -90,6 +92,7 @@ class DefaultModelRepositoryTest {
                 new ModelDeletionPlan(
                         1L, "product-1",
                         ModelDeletionCascade.DESCENDANTS,
+                        12, 5_000,
                         12L, "fingerprint",
                         3, 1, 5L, 2L,
                         List.of("product-1"));
@@ -112,6 +115,67 @@ class DefaultModelRepositoryTest {
                                                 request.getModelId())
                                         && request.getCascade()
                                            == ModelDeletionCascade.DESCENDANTS));
+    }
+
+    @Test
+    void executesConfirmedDeletionPlanWithExplicitIdempotencyKey() {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ModelDeletionPlan plan =
+                new ModelDeletionPlan(
+                        1L, "product-1",
+                        ModelDeletionCascade.DESCENDANTS,
+                        12, 5_000,
+                        12L, "fingerprint",
+                        3, 1, 5L, 2L,
+                        List.of("product-1"));
+        ModelDeletionResult expected =
+                new ModelDeletionResult(
+                        2L, "erasure-1",
+                        ModelDeletionCascade.DESCENDANTS,
+                        13L, 3, 5L, 2L,
+                        false);
+        when(client.getEventStoreClient())
+                .thenReturn(eventStore);
+        when(eventStore.deleteModel(any()))
+                .thenReturn(
+                        java.util.concurrent.CompletableFuture
+                                .completedFuture(expected));
+
+        ModelDeletionResult result =
+                repository.deleteModel(
+                                "erasure-1", plan)
+                        .join();
+
+        assertEquals(expected, result);
+        verify(eventStore).deleteModel(
+                org.mockito.ArgumentMatchers
+                        .argThat(request ->
+                                         "erasure-1".equals(
+                                                 request.getDeletionId())
+                                         && "product-1".equals(
+                                                 request.getModelId())
+                                         && "fingerprint".equals(
+                                                 request.getPlanFingerprint())
+                                         && request.getMaxDepth()
+                                            == 12
+                                         && request.getMaxModels()
+                                            == 5_000));
+    }
+
+    @Test
+    void refusesUnplannedDescendantDeletion() {
+        CompletionException failure =
+                assertThrows(
+                        CompletionException.class,
+                        () -> repository.deleteModel(
+                                        new ProductId("1"),
+                                        ModelDeletionCascade.DESCENDANTS)
+                                .join());
+
+        assertInstanceOf(
+                IllegalArgumentException.class,
+                failure.getCause());
     }
 
     @Test
@@ -561,6 +625,48 @@ class DefaultModelRepositoryTest {
             assertEquals(
                     new Account(id, 7),
                     fluxzero.modelRepository().load(id).get());
+        }
+    }
+
+    @Test
+    void cachedModelDisappearsAfterExternallyCompletedHardDelete() {
+        AccountId id =
+                new AccountId(
+                        "externally-erased");
+        LocalClient localClient =
+                LocalClient.newInstance(null);
+        try (Fluxzero fluxzero =
+                     DefaultFluxzero.builder()
+                             .disableKeepalive()
+                             .disableShutdownHook()
+                             .build(localClient)) {
+            fluxzero.commandGateway().send(
+                    new CreateAccount(id, 5))
+                    .join();
+            assertEquals(
+                    new Account(id, 5),
+                    fluxzero.modelRepository()
+                            .load(id).get());
+
+            localClient.getEventStoreClient()
+                    .deleteModel(
+                            DeleteModel.builder()
+                                    .deletionId(
+                                            "external-erasure")
+                                    .modelId(
+                                            id.toString())
+                                    .cascade(
+                                            ModelDeletionCascade
+                                                    .NONE)
+                                    .maxDepth(0)
+                                    .maxModels(1)
+                                    .build())
+                    .join();
+
+            assertFalse(
+                    fluxzero.modelRepository()
+                            .load(id)
+                            .isPresent());
         }
     }
 
