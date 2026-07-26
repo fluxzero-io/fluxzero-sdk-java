@@ -75,7 +75,40 @@ actions/s, 10,124 memberships/s, and 499.187 ms p99.
 
 These are comparative local diagnostics, not production certification. Absolute figures are not compared with older
 Phase 3 runs because the surrounding code, database state, and container changed. Deep, wide, and highly shared DAG
-certification remains deliberately open.
+release certification remains a Phase 9 concern.
+
+### Deep, wide, and shared DAG decision run
+
+A disposable extension of the same benchmark driver generated three actual model graphs and was removed after the
+measurements. The retained implementation was not changed for the run. It used local arm64 OpenJDK 25 and PostgreSQL
+18.0 with 128 MiB shared buffers, 256 concurrent submissions, publication disabled, zero-byte event payloads, no
+documents or snapshots, and five repeated graph loads after the first call. The first-call column is not a cold-disk
+claim: the graph had just been written and PostgreSQL buffers were warm.
+
+| Shape | Persisted graph | Writes/s | Physical delta | WAL delta | Descendants first / warm p50 | Ancestors first / warm p50 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Deep chain | 1,024 nodes / 1,023 edges | 608 | 0.28 MiB | 2.14 MiB | 761 / 779 ms | 784 / 823 ms |
+| Wide root | 10,000 nodes / 9,999 edges | 4,242 | 13.45 MiB | 16.88 MiB | 164 / 116 ms | 6.3 / 3.9 ms |
+| Shared DAG, 32 levels, fan-in 4 | 8,193 nodes / 32,000 edges | 968 | 22.75 MiB | 31.72 MiB | 321 / 280 ms | 1,521 nodes / 5,798 edges: 128 / 144 ms |
+
+The wide result exercises one parent-hash partition for the root breadth. The shared result spreads successive
+breadths over the endpoint hash space and returns every shared edge while de-duplicating model streams. Together they
+support keeping one partition-pruned query per breadth as the normal plan: it has no per-node round trips and remains
+fast for both large fan-out and a relation-dense DAG.
+
+The 1,024-level chain exposes the deliberate weakness of breadth batching: one database round trip per level dominates
+even though only 1,023 edges are returned. A recursive PostgreSQL plan cannot preserve the current bounded partition
+lookups from the endpoint ID alone, because Fluxzero's stable segment uses the Java Murmur3 implementation. Making that
+plan safe and fast would require persisting the opposite endpoint's segment on both adjacency rows (increasing every
+edge write, index, WAL, and vacuum footprint) or installing an equivalent database hash function.
+
+That permanent write amplification is not justified by the wide/shared results. The retained decision is therefore:
+
+- keep bounded breadth batching as the default and treat 1,024 as a safety ceiling, not a latency promise;
+- do not add opposite-segment columns or database-specific hashing to every relationship yet;
+- re-evaluate an adaptive recursive path against representative production depth distributions in Phase 9, and only
+  retain it if its deep-graph gain pays for measured write, WAL, index, and vacuum cost without regressing the ordinary
+  model path.
 
 ## Deleted-parent lineage
 

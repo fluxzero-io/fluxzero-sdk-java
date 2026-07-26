@@ -651,7 +651,8 @@ covers model commit/load/search, ancestor injection, and exactly-once global EVE
 - [x] Batch breadth/depth graph fetches and enforce protocol safety limits with one partition-pruned query per breadth
   level, never one query per node; retain a recursive single-query variant as a benchmark-driven optimization because
   it requires preserving child-hash pruning across recursion.
-- [ ] Benchmark deep, wide, and highly shared DAGs.
+- [x] Benchmark deep, wide, and highly shared DAGs; retain partition-pruned breadth batching as the default and record
+  the measured extreme-depth round-trip cost plus the storage trade-off required by an adaptive recursive variant.
 
 Integrity, temporal-boundary, and hot-path details:
 [`dynamic-model-boundaries-phase-6-temporal-graph.md`](dynamic-model-boundaries-phase-6-temporal-graph.md).
