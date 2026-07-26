@@ -32,6 +32,8 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.Relationship;
@@ -157,6 +159,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     public ModelGraphProjectionStatus
             getModelGraphProjectionStatus(
                     GetModelGraphProjectionStatus request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public ModelDeletionPlan planModelDeletion(
+            PlanModelDeletion request) {
         return sendAndWait(request);
     }
 

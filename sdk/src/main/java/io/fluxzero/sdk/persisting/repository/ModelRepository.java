@@ -17,6 +17,8 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
@@ -79,6 +81,19 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage
      */
     <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);
+
+    /**
+     * Creates a bounded, non-mutating plan for an explicit model hard deletion.
+     * <p>
+     * A descendant cascade must be planned and confirmed before execution. The returned published-event count makes
+     * clear that globally published events are outside the model-stream erasure boundary.
+     */
+    default ModelDeletionPlan planDeletion(
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        throw new UnsupportedOperationException(
+                "Independent model deletion planning is not supported by this repository");
+    }
 
     /**
      * Registers the graph projection declared by the supplied model type.

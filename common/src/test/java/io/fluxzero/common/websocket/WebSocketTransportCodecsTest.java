@@ -57,9 +57,12 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
@@ -760,6 +763,59 @@ class WebSocketTransportCodecsTest {
             assertEquals(
                     3L,
                     decodedStatus.getPendingRoots());
+        }
+    }
+
+    @Test
+    void modelDeletionPlanUsesDistinctWireActions()
+            throws Exception {
+        PlanModelDeletion request =
+                new PlanModelDeletion(
+                        "order-1",
+                        ModelDeletionCascade.DESCENDANTS,
+                        12, 5_000, 25);
+        ModelDeletionPlan result =
+                new ModelDeletionPlan(
+                        request.getRequestId(),
+                        "order-1",
+                        ModelDeletionCascade.DESCENDANTS,
+                        42L,
+                        "aabbcc",
+                        73,
+                        2,
+                        101L,
+                        41L,
+                        List.of(
+                                "order-1",
+                                "line-1"));
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            PlanModelDeletion decodedRequest =
+                    assertInstanceOf(
+                            PlanModelDeletion.class,
+                            roundTrip(codec, request));
+            assertEquals(
+                    ModelDeletionCascade.DESCENDANTS,
+                    decodedRequest.getCascade());
+            assertEquals(
+                    5_000,
+                    decodedRequest.getMaxModels());
+
+            ModelDeletionPlan decodedResult =
+                    assertInstanceOf(
+                            ModelDeletionPlan.class,
+                            roundTrip(codec, result));
+            assertEquals(
+                    "aabbcc",
+                    decodedResult.getFingerprint());
+            assertEquals(
+                    2,
+                    decodedResult
+                            .getExternallySharedModelCount());
+            assertEquals(
+                    41L,
+                    decodedResult.getPublishedEventCount());
         }
     }
 

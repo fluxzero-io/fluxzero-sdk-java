@@ -32,6 +32,8 @@ import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
@@ -41,6 +43,7 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
@@ -50,12 +53,17 @@ import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -252,6 +260,140 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 request.getCollection());
     }
 
+    @Override
+    public synchronized ModelDeletionPlan planModelDeletion(
+            PlanModelDeletion request) {
+        validate(request);
+        long boundary = modelStateIndex;
+        LinkedHashSet<String> selected =
+                new LinkedHashSet<>();
+        selected.add(request.getModelId());
+        if (request.getCascade()
+            == ModelDeletionCascade.DESCENDANTS) {
+            List<String> frontier =
+                    List.of(request.getModelId());
+            for (int depth = 0;
+                 depth < request.getMaxDepth()
+                 && !frontier.isEmpty();
+                 depth++) {
+                Set<String> parentIds =
+                        Set.copyOf(frontier);
+                List<String> next =
+                        new ArrayList<>();
+                modelRelationshipHistory.stream()
+                        .filter(relation ->
+                                        parentIds.contains(
+                                                relation.relationship
+                                                        .getParentId()))
+                        .filter(relation ->
+                                        relation.isValidAt(boundary)
+                                        || relation.parentDeleted
+                                           && relation.validUntil != null
+                                           && relation.validUntil
+                                              <= boundary)
+                        .map(relation ->
+                                     relation.childId)
+                        .distinct()
+                        .sorted()
+                        .forEach(childId -> {
+                            if (selected.add(childId)) {
+                                if (selected.size()
+                                    > request.getMaxModels()) {
+                                    throw new IllegalArgumentException(
+                                            "Model deletion plan exceeds maxModels "
+                                            + request.getMaxModels());
+                                }
+                                next.add(childId);
+                            }
+                        });
+                frontier = List.copyOf(next);
+            }
+            if (!frontier.isEmpty()) {
+                Set<String> parentIds =
+                        Set.copyOf(frontier);
+                boolean truncated =
+                        modelRelationshipHistory.stream()
+                                .anyMatch(relation ->
+                                                  parentIds.contains(
+                                                          relation.relationship
+                                                                  .getParentId())
+                                                  && (relation.isValidAt(
+                                                          boundary)
+                                                      || relation.parentDeleted
+                                                         && relation.validUntil
+                                                            != null
+                                                         && relation.validUntil
+                                                            <= boundary));
+                if (truncated) {
+                    throw new IllegalArgumentException(
+                            "Model deletion plan exceeds maxDepth "
+                            + request.getMaxDepth());
+                }
+            }
+        }
+        List<String> ordered = selected.stream()
+                .sorted()
+                .toList();
+        int externallyShared = (int) ordered.stream()
+                .filter(modelId ->
+                                !modelId.equals(
+                                        request.getModelId()))
+                .filter(modelId ->
+                                modelRelationshipHistory.stream()
+                                        .anyMatch(relation ->
+                                                          relation.childId
+                                                                  .equals(
+                                                                          modelId)
+                                                          && relation.isValidAt(
+                                                                  boundary)
+                                                          && !selected.contains(
+                                                                  relation.relationship
+                                                                          .getParentId())))
+                .count();
+        long memberships = ordered.stream()
+                .map(modelStreams::get)
+                .filter(Objects::nonNull)
+                .mapToLong(List::size)
+                .sum();
+        long publishedEvents = ordered.stream()
+                .map(modelStreams::get)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .map(membership -> {
+                    CommitModelActionResult result =
+                            modelActions.get(
+                                    membership.actionId());
+                    return result == null
+                           || membership.substep()
+                              >= result.getSubsteps()
+                                      .size()
+                            ? null
+                            : result.getSubsteps()
+                                    .get(
+                                            membership.substep())
+                                    .getEventIndex();
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
+        return new ModelDeletionPlan(
+                request.getRequestId(),
+                request.getModelId(),
+                request.getCascade(),
+                boundary,
+                deletionFingerprint(
+                        request.getModelId(),
+                        request.getCascade(),
+                        ordered),
+                ordered.size(),
+                externallyShared,
+                memberships,
+                publishedEvents,
+                ordered.stream()
+                        .limit(request.getMaxSampleSize())
+                        .toList());
+    }
+
     private ModelGraphProjectionStatus
             modelGraphProjectionStatus(
                     long requestId,
@@ -380,6 +522,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 }
                 iterator.remove();
                 relationship.validUntil = stateIndex;
+                relationship.parentDeleted = true;
                 modelRelationStateIndices.put(childId, stateIndex);
                 modelRelationStateIndices.put(
                         relationship.relationship.getParentId(),
@@ -1058,6 +1201,68 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
     }
 
+    private static void validate(
+            PlanModelDeletion request) {
+        if (request == null) {
+            throw new IllegalArgumentException(
+                    "Model deletion plan request is required");
+        }
+        validateModelId(request.getModelId());
+        if (request.getCascade() == null) {
+            throw new IllegalArgumentException(
+                    "Model deletion cascade is required");
+        }
+        if (request.getMaxDepth() < 0
+            || request.getMaxDepth() > 1_024) {
+            throw new IllegalArgumentException(
+                    "Model deletion maxDepth must be between 0 and 1024");
+        }
+        if (request.getMaxModels() < 1
+            || request.getMaxModels() > 100_000) {
+            throw new IllegalArgumentException(
+                    "Model deletion maxModels must be between 1 and 100000");
+        }
+        if (request.getMaxSampleSize() < 0
+            || request.getMaxSampleSize() > 1_000) {
+            throw new IllegalArgumentException(
+                    "Model deletion maxSampleSize must be between 0 and 1000");
+        }
+    }
+
+    private static String deletionFingerprint(
+            String rootId,
+            ModelDeletionCascade cascade,
+            List<String> orderedIds) {
+        try {
+            MessageDigest digest =
+                    MessageDigest.getInstance(
+                            "SHA-256");
+            updateDigest(digest, rootId);
+            updateDigest(digest, cascade.name());
+            for (String modelId : orderedIds) {
+                updateDigest(digest, modelId);
+            }
+            return HexFormat.of()
+                    .formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(
+                    "SHA-256 is unavailable", e);
+        }
+    }
+
+    private static void updateDigest(
+            MessageDigest digest, String value) {
+        byte[] bytes =
+                value.getBytes(
+                        StandardCharsets.UTF_8);
+        digest.update(
+                ByteBuffer.allocate(
+                                Integer.BYTES)
+                        .putInt(bytes.length)
+                        .array());
+        digest.update(bytes);
+    }
+
     private static void validateModelId(String modelId) {
         if (modelId == null || modelId.isBlank()) {
             throw new IllegalArgumentException("Model ID must not be blank");
@@ -1161,6 +1366,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         private final ModelRelationship relationship;
         private final long validFrom;
         private Long validUntil;
+        private boolean parentDeleted;
 
         private MutableModelRelationship(
                 String childId, ModelRelationship relationship, long validFrom) {

@@ -22,6 +22,8 @@ import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
@@ -31,6 +33,7 @@ import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
@@ -160,6 +163,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
                 snapshotSerializer, cacheSource, eventReplayer);
+    }
+
+    @Override
+    public ModelDeletionPlan planDeletion(
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        return client.getEventStoreClient()
+                .planModelDeletion(
+                        new PlanModelDeletion(
+                                modelId.toString(),
+                                cascade));
     }
 
     @Override

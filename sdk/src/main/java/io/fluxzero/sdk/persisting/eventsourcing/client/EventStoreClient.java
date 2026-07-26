@@ -26,7 +26,9 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
@@ -118,6 +120,15 @@ public interface EventStoreClient extends AutoCloseable {
                     GetModelGraphProjectionStatus request) {
         throw new UnsupportedOperationException(
                 "Materialized model graph projection status is not supported by this event store");
+    }
+
+    /**
+     * Creates a bounded, non-mutating plan for an explicit independent-model hard deletion.
+     */
+    default ModelDeletionPlan planModelDeletion(
+            PlanModelDeletion request) {
+        throw new UnsupportedOperationException(
+                "Independent model deletion planning is not supported by this event store");
     }
 
     /**

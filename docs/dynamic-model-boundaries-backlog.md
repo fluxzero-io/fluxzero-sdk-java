@@ -735,10 +735,13 @@ Implementation, consistency, performance, and rollout details:
 
 ### Slice 8.1 — Delete API
 
-- [ ] Add `deleteModel(id, NONE)` and `deleteModel(id, DESCENDANTS)`.
-- [ ] Make cascade mode mandatory at the wire boundary.
-- [ ] Add a dry-run/plan result before destructive descendant cascades.
-- [ ] Define DAG shared-descendant behavior explicitly before enabling execution.
+- [ ] Add `deleteModel(id, NONE)` and planned `deleteModel(..., DESCENDANTS)`.
+- [ ] Make cascade mode mandatory at the wire boundary; `NONE` may execute directly, while `DESCENDANTS` requires a
+  matching dry-run fingerprint.
+- [ ] Add a bounded dry-run plan with counts, published-event disclosure, externally shared-descendant count, and a
+  deterministic sample.
+- [x] Define DAG shared-descendant behavior: an explicit descendant cascade is inclusive and deletes every reachable
+  model exactly once, including models with surviving parents outside the selected set.
 
 ### Slice 8.2 — Physical cleanup
 
@@ -747,6 +750,9 @@ Implementation, consistency, performance, and rollout details:
 - [ ] Coordinate relationship tombstone retention and final purge.
 - [ ] Define what historical reconstruction and graph projections report after intentional erasure.
 - [ ] Test retries/idempotency, partial cross-store failure, huge cascades, and resumable cleanup.
+
+Detailed erasure, safety, lineage-protection, and resumability contract:
+[`dynamic-model-boundaries-phase-8-erasure.md`](dynamic-model-boundaries-phase-8-erasure.md).
 
 ## Phase 9 — Scale certification, compatibility, and rollout
 

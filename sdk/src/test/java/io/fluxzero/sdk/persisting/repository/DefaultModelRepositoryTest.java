@@ -25,6 +25,8 @@ import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -79,6 +81,38 @@ class DefaultModelRepositoryTest {
     private final Client client = mock(Client.class);
     private final DocumentStore documentStore = mock(DocumentStore.class);
     private final DefaultModelRepository repository = new DefaultModelRepository(client, documentStore);
+
+    @Test
+    void delegatesDeletionPlanningUsingTheExactId() {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ModelDeletionPlan expected =
+                new ModelDeletionPlan(
+                        1L, "product-1",
+                        ModelDeletionCascade.DESCENDANTS,
+                        12L, "fingerprint",
+                        3, 1, 5L, 2L,
+                        List.of("product-1"));
+        when(client.getEventStoreClient())
+                .thenReturn(eventStore);
+        when(eventStore.planModelDeletion(any()))
+                .thenReturn(expected);
+
+        ModelDeletionPlan result =
+                repository.planDeletion(
+                        new ProductId("1"),
+                        ModelDeletionCascade.DESCENDANTS);
+
+        assertEquals(expected, result);
+        verify(eventStore)
+                .planModelDeletion(
+                        org.mockito.ArgumentMatchers.argThat(
+                                request ->
+                                        "product-1".equals(
+                                                request.getModelId())
+                                        && request.getCascade()
+                                           == ModelDeletionCascade.DESCENDANTS));
+    }
 
     @Test
     void loadsDocumentBasedModelFromItsDirectSearchCollection() {

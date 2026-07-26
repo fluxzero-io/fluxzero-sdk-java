@@ -27,8 +27,10 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -554,6 +556,119 @@ class InMemoryEventStoreModelActionTest {
                                 "parent-1", 3L,
                                 1, 10, 0, 0L, false))
                         .getEdges().isEmpty());
+    }
+
+    @Test
+    void deletionPlanIncludesDetachedAndExternallySharedDescendantsWithoutMutating() {
+        InMemoryEventStore store =
+                new InMemoryEventStore();
+        store.commitModelAction(action(
+                "create-parent", -1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("parent"))
+                        .publishEvent(true)
+                        .targets(List.of(
+                                storedTarget("parent-1")))
+                        .build())).join();
+        ModelActionTarget child =
+                storedTarget("child-1")
+                        .toBuilder()
+                        .updateRelationships(true)
+                        .relationships(List.of(
+                                ModelRelationship.builder()
+                                        .parentId("parent-1")
+                                        .path("children")
+                                        .build(),
+                                ModelRelationship.builder()
+                                        .parentId("other-parent")
+                                        .path("children")
+                                        .build()))
+                        .build();
+        store.commitModelAction(action(
+                "create-child", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("child"))
+                        .publishEvent(true)
+                        .targets(List.of(child))
+                        .build())).join();
+        store.commitModelAction(action(
+                "delete-parent", 1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("deleted"))
+                        .targets(List.of(
+                                storedTarget("parent-1")
+                                        .toBuilder()
+                                        .delete(true)
+                                        .updateRelationships(true)
+                                        .relationships(List.of())
+                                        .build()))
+                        .build())).join();
+
+        var plan = store.planModelDeletion(
+                new PlanModelDeletion(
+                        "parent-1",
+                        ModelDeletionCascade.DESCENDANTS,
+                        10, 100, 10));
+
+        assertEquals(
+                2, plan.getModelCount());
+        assertEquals(
+                1,
+                plan.getExternallySharedModelCount());
+        assertEquals(
+                3L,
+                plan.getStoredEventMembershipCount());
+        assertEquals(
+                2L,
+                plan.getPublishedEventCount());
+        assertEquals(
+                List.of("child-1", "parent-1"),
+                plan.getSampleModelIds());
+        assertEquals(
+                1,
+                store.getEvents("child-1").count());
+        assertEquals(
+                2,
+                store.getEvents("parent-1").count());
+    }
+
+    @Test
+    void deletionPlanFailsInsteadOfReturningATruncatedClosure() {
+        InMemoryEventStore store =
+                new InMemoryEventStore();
+        ModelActionTarget child =
+                storedTarget("child")
+                        .toBuilder()
+                        .updateRelationships(true)
+                        .relationships(List.of(
+                                ModelRelationship.builder()
+                                        .parentId("parent")
+                                        .build()))
+                        .build();
+        store.commitModelAction(action(
+                "create-child",
+                ModelActionSubstep.builder()
+                        .event(event("child"))
+                        .targets(List.of(child))
+                        .build())).join();
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> store.planModelDeletion(
+                        new PlanModelDeletion(
+                                "parent",
+                                ModelDeletionCascade.DESCENDANTS,
+                                0, 100, 10)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> store.planModelDeletion(
+                        new PlanModelDeletion(
+                                "parent",
+                                ModelDeletionCascade.DESCENDANTS,
+                                10, 1, 10)));
     }
 
     @Test
