@@ -174,7 +174,10 @@ public class LocalClient extends AbstractClient {
 
     @Override
     protected InMemorySearchStore createSearchClient() {
-        return new InMemorySearchStore(messageExpiration);
+        return new InMemorySearchStore(
+                messageExpiration,
+                eventStore.getMessageStore()
+                        ::resolveRelatedModels);
     }
 
     @Override

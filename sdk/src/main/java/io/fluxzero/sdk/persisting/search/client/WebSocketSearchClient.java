@@ -100,6 +100,104 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
         return searchAsync(request, maxSize, maxFetchSize, new ArrayList<>());
     }
 
+    @Override
+    public Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        SearchDocuments target = searchDocuments.getSearch();
+        AtomicInteger count = new AtomicInteger();
+        Integer maxSize = target.getMaxSize();
+        int maxFetchSize = maxSize == null
+                ? fetchSize : Math.min(maxSize, fetchSize);
+        SearchModelDocuments request = new SearchModelDocuments(
+                target.toBuilder().maxSize(maxFetchSize).build(),
+                searchDocuments.getRelations());
+        Stream<SerializedDocument> documentStream =
+                ObjectUtils.<SearchDocumentsResult>iterate(
+                                sendAndWait(request),
+                                result -> sendAndWait(
+                                        new SearchModelDocuments(
+                                                request.getSearch().toBuilder()
+                                                        .maxSize(maxSize == null
+                                                                         ? maxFetchSize
+                                                                         : Math.min(
+                                                                                 maxSize
+                                                                                 - count.get(),
+                                                                                 maxFetchSize))
+                                                        .lastHit(
+                                                                result.lastMatch())
+                                                        .build(),
+                                                request.getRelations())),
+                                result -> result.size() < maxFetchSize
+                                          || maxSize != null
+                                             && count.addAndGet(
+                                                     result.size())
+                                                >= maxSize)
+                        .flatMap(result -> result.getMatches().stream());
+        if (maxSize != null) {
+            documentStream = documentStream.limit(maxSize);
+        }
+        return documentStream.map(SearchHit::fromDocument);
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>>
+    searchModelsAsync(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        SearchDocuments target = searchDocuments.getSearch();
+        Integer maxSize = target.getMaxSize();
+        int maxFetchSize = maxSize == null
+                ? fetchSize : Math.min(maxSize, fetchSize);
+        SearchModelDocuments request = new SearchModelDocuments(
+                target.toBuilder().maxSize(maxFetchSize).build(),
+                searchDocuments.getRelations());
+        return searchModelsAsync(
+                request, maxSize, maxFetchSize,
+                new ArrayList<>());
+    }
+
+    private CompletableFuture<List<SearchHit<SerializedDocument>>>
+    searchModelsAsync(
+            SearchModelDocuments request,
+            Integer maxSize,
+            int maxFetchSize,
+            List<SearchHit<SerializedDocument>> hits) {
+        return this.<SearchDocumentsResult>send(request)
+                .thenCompose(result -> {
+                    result.getMatches().stream()
+                            .map(SearchHit::fromDocument)
+                            .forEach(hits::add);
+                    if (result.size() < maxFetchSize
+                        || maxSize != null
+                           && hits.size() >= maxSize) {
+                        return CompletableFuture.completedFuture(
+                                maxSize == null
+                                || hits.size() <= maxSize
+                                        ? hits
+                                        : hits.subList(0, maxSize));
+                    }
+                    int nextMaxSize = maxSize == null
+                            ? maxFetchSize
+                            : Math.min(
+                                    maxSize - hits.size(),
+                                    maxFetchSize);
+                    if (nextMaxSize <= 0) {
+                        return CompletableFuture.completedFuture(
+                                hits);
+                    }
+                    return searchModelsAsync(
+                            new SearchModelDocuments(
+                                    request.getSearch().toBuilder()
+                                            .maxSize(nextMaxSize)
+                                            .lastHit(
+                                                    result.lastMatch())
+                                            .build(),
+                                    request.getRelations()),
+                            maxSize, maxFetchSize, hits);
+                });
+    }
+
     private CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(SearchDocuments request,
                                                                                Integer maxSize,
                                                                                int maxFetchSize,

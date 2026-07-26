@@ -51,6 +51,9 @@ import static io.fluxzero.common.search.Document.Path.isLongPath;
  * <p><strong>Path filtering:</strong> The {@link #pathFilters} field lets you restrict which fields are included in
  * each search hit, using glob-like syntax (e.g., {@code details/name}, {@code -private/**} to exclude sensitive paths).
  * Filtering is applied using {@link #computePathFilter()}.
+ * <p><strong>ID filtering:</strong> A non-empty {@link #documentIds} list restricts results to those exact document
+ * IDs. A null or empty list leaves IDs unrestricted for wire compatibility. Graph-search handlers return an empty
+ * result directly when relationship traversal produces no candidates.
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
@@ -65,6 +68,7 @@ public class SearchDocuments extends Request {
     List<String> pathFilters = Collections.emptyList();
     int skip;
     SerializedDocument lastHit;
+    List<String> documentIds;
 
     /**
      * Computes a path-level filter based on the {@link #pathFilters} list.

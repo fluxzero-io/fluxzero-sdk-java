@@ -153,6 +153,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //search
         @JsonSubTypes.Type(value = IndexDocuments.class, name = "indexDocuments"),
         @JsonSubTypes.Type(value = SearchDocuments.class, name = "searchDocuments"),
+        @JsonSubTypes.Type(value = SearchModelDocuments.class, name = "searchModelDocuments"),
         @JsonSubTypes.Type(value = GetSearchHistogram.class, name = "getSearchHistogram"),
         @JsonSubTypes.Type(value = GetSearchHistogramResult.class, name = "getSearchHistogramResult"),
         @JsonSubTypes.Type(value = GetDocument.class, name = "getDocument"),

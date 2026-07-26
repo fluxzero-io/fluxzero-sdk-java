@@ -41,6 +41,7 @@ import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 
@@ -54,6 +55,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -488,6 +490,103 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 events.getStreams());
     }
 
+    /**
+     * Resolves target model IDs from related document matches at the current relationship boundary.
+     */
+    public synchronized Set<String> resolveRelatedModels(
+            Set<String> relatedModelIds,
+            ModelRelationConstraint constraint) {
+        Objects.requireNonNull(
+                relatedModelIds, "Related model IDs");
+        Objects.requireNonNull(
+                constraint, "Model relation constraint");
+        if (relatedModelIds.size()
+            > constraint.getMaxRelatedModels()) {
+            throw new IllegalArgumentException(
+                    "Related model IDs exceed maxRelatedModels "
+                    + constraint.getMaxRelatedModels());
+        }
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        LinkedHashSet<String> uniqueModels =
+                new LinkedHashSet<>(relatedModelIds);
+        Set<TraversalState> traversalStates = new HashSet<>();
+        List<String> frontier = List.copyOf(relatedModelIds);
+        for (int depth = 1;
+             depth <= constraint.getMaxDepth()
+             && !frontier.isEmpty();
+             depth++) {
+            Set<String> frontierIds = Set.copyOf(frontier);
+            List<MutableModelRelationship> relationshipBatch =
+                    modelRelationshipHistory.stream()
+                            .filter(relation ->
+                                            relation.isValidAt(
+                                                    modelStateIndex))
+                            .filter(relation ->
+                                            constraint.getPaths()
+                                                    .isEmpty()
+                                            || constraint.getPaths()
+                                                    .contains(
+                                                            relation.relationship
+                                                                    .getPath()))
+                            .filter(relation ->
+                                            switch (constraint
+                                                            .getDirection()) {
+                                                case ANCESTOR ->
+                                                        frontierIds.contains(
+                                                                relation.relationship
+                                                                        .getParentId());
+                                                case DESCENDANT ->
+                                                        frontierIds.contains(
+                                                                relation.childId);
+                                            })
+                            .sorted(Comparator
+                                    .comparing(
+                                            (MutableModelRelationship value) ->
+                                                    value.childId)
+                                    .thenComparing(value ->
+                                                           value.relationship
+                                                                   .getParentId())
+                                    .thenComparing(
+                                            value -> value.relationship
+                                                    .getPath(),
+                                            Comparator.nullsFirst(
+                                                    Comparator
+                                                            .naturalOrder())))
+                            .toList();
+            LinkedHashSet<String> next = new LinkedHashSet<>();
+            for (MutableModelRelationship relation :
+                    relationshipBatch) {
+                String modelId = switch (constraint
+                        .getDirection()) {
+                    case ANCESTOR -> relation.childId;
+                    case DESCENDANT ->
+                            relation.relationship.getParentId();
+                };
+                if (traversalStates.add(
+                        new TraversalState(modelId, depth))) {
+                    next.add(modelId);
+                    uniqueModels.add(modelId);
+                    if (traversalStates.size()
+                        > constraint
+                                .getMaxTraversedModels()
+                        || uniqueModels.size()
+                           > constraint
+                                   .getMaxTraversedModels()) {
+                        throw new IllegalArgumentException(
+                                "Model relation traversal exceeds maxTraversedModels "
+                                + constraint.getMaxTraversedModels()
+                                + "; narrow the query or use a materialized graph projection");
+                    }
+                }
+            }
+            if (depth >= constraint.getMinDepth()) {
+                result.addAll(next);
+            }
+            frontier = List.copyOf(next);
+        }
+        return Set.copyOf(result);
+    }
+
     private long modelBoundary(
             Long maxStateIndex,
             String boundaryActionId,
@@ -834,6 +933,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             String actionId,
             int substep,
             SerializedMessage event) {
+    }
+
+    private record TraversalState(
+            String modelId, int depth) {
     }
 
     private static final class MutableModelRelationship {

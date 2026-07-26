@@ -28,9 +28,11 @@ import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.Group;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
@@ -56,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -289,6 +292,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         private final SearchQuery.Builder queryBuilder;
         private final List<String> sorting = new ArrayList<>();
         private final List<String> pathFilters = new ArrayList<>();
+        private final List<ModelRelationConstraint> relationConstraints =
+                new ArrayList<>();
         private volatile int skip;
 
         protected DefaultSearch() {
@@ -324,6 +329,19 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 default:
                     queryBuilder.constraints(Arrays.asList(constraints));
                     break;
+            }
+            return this;
+        }
+
+        @Override
+        public Search relation(
+                ModelRelationConstraint... constraints) {
+            for (ModelRelationConstraint constraint :
+                    constraints) {
+                relationConstraints.add(
+                        Objects.requireNonNull(
+                                constraint,
+                                "Model relation constraint"));
             }
             return this;
         }
@@ -402,11 +420,22 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @Override
         public <T> CompletableFuture<List<T>> fetchAsync(int maxSize, Class<T> type) {
-            SearchQuery query = queryBuilder.build();
-            return getSearchClient().searchAsync(
-                    SearchDocuments.builder().query(query).maxSize(maxSize).sorting(sorting)
-                            .pathFilters(pathFilters).skip(skip).build(),
-                    Math.min(maxSize, defaultFetchSize)).thenApply(hits -> mapHits(hits, type));
+            SearchDocuments request = searchRequest(maxSize);
+            CompletableFuture<List<SearchHit<SerializedDocument>>> future =
+                    relationConstraints.isEmpty()
+                            ? getSearchClient().searchAsync(
+                                    request,
+                                    Math.min(
+                                            maxSize,
+                                            defaultFetchSize))
+                            : getSearchClient().searchModelsAsync(
+                                    new SearchModelDocuments(
+                                            request,
+                                            relationConstraints),
+                                    Math.min(
+                                            maxSize,
+                                            defaultFetchSize));
+            return future.thenApply(hits -> mapHits(hits, type));
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -426,10 +455,16 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         protected <T> Stream<SearchHit<T>> fetchHitStream(Integer maxSize, Class<T> type, int fetchSize) {
-            SearchQuery query = queryBuilder.build();
-            Stream<SearchHit<SerializedDocument>> hitStream = getSearchClient().search(
-                    SearchDocuments.builder().query(query).maxSize(maxSize).sorting(sorting)
-                            .pathFilters(pathFilters).skip(skip).build(), fetchSize);
+            SearchDocuments request = searchRequest(maxSize);
+            Stream<SearchHit<SerializedDocument>> hitStream =
+                    relationConstraints.isEmpty()
+                            ? getSearchClient().search(
+                                    request, fetchSize)
+                            : getSearchClient().searchModels(
+                                    new SearchModelDocuments(
+                                            request,
+                                            relationConstraints),
+                                    fetchSize);
             if (SerializedDocument.class.equals(type)) {
                 return (Stream) hitStream;
             }
@@ -440,35 +475,61 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @Override
         public SearchHistogram fetchHistogram(int resolution, int maxSize) {
+            requireOrdinarySearch("histograms");
             return getSearchClient().fetchHistogram(new GetSearchHistogram(queryBuilder.build(), resolution, maxSize));
         }
 
         @Override
         public GroupSearch groupBy(String... paths) {
+            requireOrdinarySearch("grouped statistics");
             return new DefaultGroupSearch(Arrays.asList(paths));
         }
 
         @Override
         public List<FacetStats> facetStats() {
+            requireOrdinarySearch("facet statistics");
             return getSearchClient().fetchFacetStats(queryBuilder.build())
                     .stream().filter(s -> !s.getName().startsWith("$metadata/")).toList();
         }
 
         @Override
         public CompletableFuture<List<FacetStats>> facetStatsAsync() {
+            requireOrdinarySearch("facet statistics");
             return getSearchClient().fetchFacetStatsAsync(queryBuilder.build())
                     .thenApply(stats -> stats.stream().filter(s -> !s.getName().startsWith("$metadata/")).toList());
         }
 
         @Override
         public CompletableFuture<Void> delete(int batchSize) {
+            requireOrdinarySearch("bulk delete");
             return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED, batchSize);
         }
 
         @Override
         public CompletableFuture<Void> move(Object targetCollection) {
+            requireOrdinarySearch("bulk move");
             return getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection),
                                           Guarantee.STORED);
+        }
+
+        private SearchDocuments searchRequest(
+                Integer maxSize) {
+            return SearchDocuments.builder()
+                    .query(queryBuilder.build())
+                    .maxSize(maxSize)
+                    .sorting(sorting)
+                    .pathFilters(pathFilters)
+                    .skip(skip)
+                    .build();
+        }
+
+        private void requireOrdinarySearch(
+                String operation) {
+            if (!relationConstraints.isEmpty()) {
+                throw new UnsupportedOperationException(
+                        "Model relationship constraints are not yet supported for "
+                        + operation);
+            }
         }
 
         @AllArgsConstructor

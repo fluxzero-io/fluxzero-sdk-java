@@ -28,16 +28,17 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.tracking.IndexUtils;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -45,6 +46,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,7 +80,6 @@ import static java.util.stream.Collectors.toMap;
  * Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use
  * in test scenarios where a real Fluxzero Runtime connection is not available or needed.
  */
-@AllArgsConstructor
 public class InMemorySearchStore implements SearchClient {
     protected static final Function<SerializedDocument, String> identifier =
             d -> asIdentifier(d.getCollection(), d.getId());
@@ -98,6 +99,19 @@ public class InMemorySearchStore implements SearchClient {
     @Getter
     @Setter
     private Duration retentionTime;
+
+    private final ModelRelationResolver modelRelationResolver;
+
+    public InMemorySearchStore(Duration retentionTime) {
+        this(retentionTime, null);
+    }
+
+    public InMemorySearchStore(
+            Duration retentionTime,
+            ModelRelationResolver modelRelationResolver) {
+        this.retentionTime = retentionTime;
+        this.modelRelationResolver = modelRelationResolver;
+    }
 
     @Override
     public List<SearchCollection> getSearchCollections() {
@@ -122,7 +136,16 @@ public class InMemorySearchStore implements SearchClient {
     @Override
     public Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize) {
         SearchQuery query = searchDocuments.getQuery();
-        Stream<SerializedDocument> documentStream = documents.values().stream().filter(query::matches);
+        Stream<SerializedDocument> documentStream = documents.values().stream();
+        if (searchDocuments.getDocumentIds() != null
+            && !searchDocuments.getDocumentIds()
+                    .isEmpty()) {
+            Set<String> ids = Set.copyOf(
+                    searchDocuments.getDocumentIds());
+            documentStream = documentStream.filter(
+                    document -> ids.contains(document.getId()));
+        }
+        documentStream = documentStream.filter(query::matches);
         documentStream = documentStream.sorted(
                 comparing(SerializedDocument::deserializeDocument, Document.createComparator(searchDocuments)));
         if (!searchDocuments.getPathFilters().isEmpty()) {
@@ -144,6 +167,62 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
+    public Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments request,
+            int fetchSize) {
+        if (modelRelationResolver == null) {
+            throw new UnsupportedOperationException(
+                    "Independent-model graph search has no relationship resolver");
+        }
+        LinkedHashSet<String> candidates = null;
+        for (ModelRelationConstraint relation :
+                request.getRelations()) {
+            List<String> related = search(
+                    SearchDocuments.builder()
+                            .query(relation.getQuery())
+                            .maxSize(
+                                    relation.getMaxRelatedModels()
+                                    + 1)
+                            .build(),
+                    relation.getMaxRelatedModels() + 1)
+                    .map(SearchHit::getId)
+                    .toList();
+            if (related.size()
+                > relation.getMaxRelatedModels()) {
+                throw new IllegalArgumentException(
+                        "Related model query exceeds maxRelatedModels "
+                        + relation.getMaxRelatedModels()
+                        + "; narrow the query or use a materialized graph projection");
+            }
+            Set<String> resolved =
+                    modelRelationResolver.resolve(
+                            new LinkedHashSet<>(related),
+                            relation);
+            if (candidates == null) {
+                candidates = new LinkedHashSet<>(
+                        resolved);
+            } else {
+                candidates.retainAll(resolved);
+            }
+            if (candidates.isEmpty()) {
+                return Stream.empty();
+            }
+        }
+        if (request.getSearch().getDocumentIds()
+            != null
+            && !request.getSearch()
+                    .getDocumentIds().isEmpty()) {
+            candidates.retainAll(
+                    request.getSearch().getDocumentIds());
+        }
+        return search(
+                request.getSearch().toBuilder()
+                        .documentIds(List.copyOf(candidates))
+                        .build(),
+                fetchSize);
+    }
+
+    @Override
     public boolean documentExists(HasDocument r) {
         return Optional.ofNullable(documents.get(asIdentifier(r.getCollection(), r.getId()))).isPresent();
     }
@@ -151,6 +230,16 @@ public class InMemorySearchStore implements SearchClient {
     @Override
     public Optional<SerializedDocument> fetch(GetDocument r) {
         return Optional.ofNullable(documents.get(asIdentifier(r.getCollection(), r.getId())));
+    }
+
+    /**
+     * Resolves target model IDs from related matches at the current relationship boundary.
+     */
+    @FunctionalInterface
+    public interface ModelRelationResolver {
+        Set<String> resolve(
+                Set<String> relatedModelIds,
+                ModelRelationConstraint constraint);
     }
 
     @Override

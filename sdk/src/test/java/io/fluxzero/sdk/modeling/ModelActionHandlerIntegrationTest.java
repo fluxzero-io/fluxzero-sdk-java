@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ModelActionHandlerIntegrationTest {
@@ -252,6 +253,74 @@ class ModelActionHandlerIntegrationTest {
                         "assert:primary/root|intercept:primary/root|apply:primary/root")
                         .equals(fluxzero.modelRepository()
                                         .load(grandchildId).get()));
+    }
+
+    @Test
+    void searchesModelsByCurrentGrandparentDocument() {
+        FamilyRootId wantedRoot =
+                new FamilyRootId("search-wanted");
+        FamilyRootId otherRoot =
+                new FamilyRootId("search-other");
+        FamilyChildId wantedChild =
+                new FamilyChildId("search-wanted");
+        FamilyChildId otherChild =
+                new FamilyChildId("search-other");
+        FamilyGrandchildId wantedGrandchild =
+                new FamilyGrandchildId("search-wanted");
+        FamilyGrandchildId otherGrandchild =
+                new FamilyGrandchildId("search-other");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(
+                                wantedRoot, "wanted"),
+                        new CreateFamilyRoot(
+                                otherRoot, "other"),
+                        new CreateFamilyChild(
+                                wantedChild, wantedRoot,
+                                "wanted-child"),
+                        new CreateFamilyChild(
+                                otherChild, otherRoot,
+                                "other-child"),
+                        new CreateFamilyGrandchild(
+                                wantedGrandchild,
+                                wantedChild, wantedChild),
+                        new CreateFamilyGrandchild(
+                                otherGrandchild,
+                                otherChild, otherChild))
+                .whenApplying(fluxzero ->
+                                      Fluxzero.search(
+                                                      FamilyGrandchild.class)
+                                              .whereAncestor(
+                                                      FamilyRoot.class,
+                                                      2, 2,
+                                                      match(
+                                                              "wanted",
+                                                              true,
+                                                              "name"))
+                                              .fetchAll(
+                                                      FamilyGrandchild.class))
+                .expectResult(List.of(
+                        new FamilyGrandchild(
+                                wantedGrandchild,
+                                wantedChild, wantedChild,
+                                null)))
+                .andThen()
+                .whenApplying(fluxzero ->
+                                      Fluxzero.search(
+                                                      FamilyRoot.class)
+                                              .whereDescendant(
+                                                      FamilyGrandchild.class,
+                                                      2, 2,
+                                                      match(
+                                                              "search-wanted",
+                                                              true,
+                                                              "familyGrandchildId"))
+                                              .fetchAll(
+                                                      FamilyRoot.class))
+                .expectResult(List.of(
+                        new FamilyRoot(
+                                wantedRoot, "wanted")));
     }
 
     @Test
@@ -752,7 +821,7 @@ class ModelActionHandlerIntegrationTest {
             SecondCounterId secondCounterId) {
     }
 
-    @Model
+    @Model(searchable = true)
     private record FamilyRoot(
             @EntityId FamilyRootId familyRootId,
             String name) {
@@ -773,7 +842,7 @@ class ModelActionHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = true)
     private record FamilyChild(
             @EntityId FamilyChildId familyChildId,
             @ParentId(path = "children")
@@ -799,7 +868,7 @@ class ModelActionHandlerIntegrationTest {
         }
     }
 
-    @Model(cached = false)
+    @Model(cached = false, searchable = true)
     private record FamilyGrandchild(
             @EntityId FamilyGrandchildId familyGrandchildId,
             @ParentId(path = "primaryGrandchildren")

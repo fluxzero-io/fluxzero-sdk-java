@@ -58,9 +58,14 @@ import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchCollectionType;
+import io.fluxzero.common.api.search.SearchDocuments;
+import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.search.constraints.MatchConstraint;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.api.tracking.ReadFromIndex;
@@ -560,6 +565,64 @@ class WebSocketTransportCodecsTest {
             assertEquals(1_000, decoded.getMaxModels());
             assertEquals(
                     2, decoded.toMetric().getRootCount());
+        }
+    }
+
+    @Test
+    void modelGraphSearchRoundTripsBoundedRelationAndIdFilter()
+            throws Exception {
+        SearchModelDocuments request =
+                new SearchModelDocuments(
+                        SearchDocuments.builder()
+                                .query(SearchQuery.builder()
+                                               .collection("lines")
+                                               .build())
+                                .documentIds(List.of(
+                                        "line-1", "line-2"))
+                                .maxSize(50)
+                                .build(),
+                        List.of(ModelRelationConstraint.builder()
+                                        .direction(
+                                                ModelRelationConstraint
+                                                        .Direction.ANCESTOR)
+                                        .query(SearchQuery.builder()
+                                                       .collection("orders")
+                                                       .constraint(
+                                                               MatchConstraint.match(
+                                                                       "open",
+                                                                       "status"))
+                                                       .build())
+                                        .minDepth(1)
+                                        .maxDepth(3)
+                                        .path("lines")
+                                        .path("orders")
+                                        .maxRelatedModels(500)
+                                        .maxTraversedModels(5_000)
+                                        .build()));
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            SearchModelDocuments decoded =
+                    assertInstanceOf(
+                            SearchModelDocuments.class,
+                            roundTrip(codec, request));
+
+            assertEquals(
+                    List.of("line-1", "line-2"),
+                    decoded.getSearch().getDocumentIds());
+            ModelRelationConstraint relation =
+                    decoded.getRelations().getFirst();
+            assertEquals(1, relation.getMinDepth());
+            assertEquals(3, relation.getMaxDepth());
+            assertEquals(
+                    List.of("lines", "orders"),
+                    relation.getPaths());
+            assertEquals(
+                    ModelRelationConstraint.Direction.ANCESTOR,
+                    relation.getDirection());
+            assertEquals(
+                    1,
+                    decoded.toMetric().getRelationCount());
         }
     }
 
