@@ -35,6 +35,11 @@ phase, not the central abstraction.
   document history or second `ModelStateStore` is introduced.
 - Storage identity is exactly `Id.toString()` (or the equivalent untyped ID string). `@Model` has no name that is
   concatenated into the key. Existing ID prefix/type conventions remain responsible for uniqueness.
+- Stored model type is optional reconstruction metadata, never part of model identity. A typed load uses its supplied
+  Java type. An untyped load may reconstruct as `Object` when the first stored payload exposes all required
+  `@Apply` factories; otherwise graph reconstruction may use the stored model type. Stored fully-qualified type names
+  are resolved through the serializer's existing chained type-caster/upcasting registry before class loading, exactly
+  as for aggregate relationship types.
 - Existing `@Member` semantics remain embedded: members share their root's stream, cache, search document, and
   lifecycle. Independently stored nodes use `@Model`.
 - A relationship is declared from a child model using one or more `@ParentId` properties. A typed `Id<T>` determines
@@ -56,6 +61,18 @@ phase, not the central abstraction.
 - `void` applies are rejected for `@Model`. Legacy mutable `@Aggregate` behavior is unchanged.
 - One original domain event is published at most once in the global event log, even when it is stored in multiple model
   streams.
+- One model-action request carries every precomputed consequence of the action: original events, target memberships,
+  desired relationships, optional direct-document mutations, and optional snapshots. The runtime owns their ordering
+  and completion; the SDK does not independently race direct document writes after an accepted commit.
+- `ACCEPT` means that a stale business event is not rejected. It never means that stale derived documents,
+  relationships, snapshots, or cache entries may be installed. On a stale read, the original event is retained while
+  its already-produced post-interception events are reapplied against one newly pinned merged model boundary.
+  Assertions, command handling, and `@InterceptApply` expansion are not rerun.
+- Direct model document upserts and deletes carry their target `stateIndex` as a monotone write fence. A late older
+  mutation is a no-op; deletes retain the minimum fence tombstone needed to prevent resurrection.
+- `@Model.cachingDepth` defaults to `1`, retaining the latest and one previous revision so event handlers can compare
+  changes through `Entity.previous()`. `0` remains an explicit latest-only choice and `-1` remains explicit unbounded
+  history.
 - No special websocket capability handshake is added. An old runtime rejects the new model-action request through the
   existing unsupported-request behavior.
 
@@ -116,15 +133,19 @@ foundational storage contract.
 The first implementation deliberately does not solve cross-database atomicity or horizontal runtime coordination.
 Future request/result-log based horizontal scaling is out of scope.
 
-- `CommitModelAction` is one new runtime request carrying `actionId`, `readStateIndex`, read IDs, original events,
-  target model IDs, and relationship transitions.
+- `CommitModelAction` is one runtime request carrying `actionId`, `readStateIndex`, read IDs, original events, target
+  model IDs, desired relationships, optional direct current-document mutations, and optional snapshot candidates.
 - The JDBC runtime fast path stores model-stream entries, model heads, state indices, event-log publications, and
   relationship intervals in one transaction where those facilities share the same database.
 - In-memory stores provide the same observable all-or-nothing contract.
-- The protocol and storage interfaces must not assume that search shares that transaction.
-- Direct model search indexing/deletion is awaited by SDK commit, exactly as it is for current aggregates. A search
-  failure fails commit completion but can occur after authoritative event/model storage has succeeded; this existing
-  cross-store limitation is documented rather than hidden.
+- The protocol and storage interfaces do not assume that search shares that transaction. The first JDBC implementation
+  writes the exact direct-document/snapshot materialization intent in the core action transaction and completes it
+  through a runtime-owned outbox. Direct current documents use monotone fences and immutable snapshots are idempotent;
+  this remains correct for co-located and split stores without claiming XA. Folding co-located search into the core
+  transaction remains a later optimization, not a different protocol.
+- Direct model search indexing/deletion is completed by the runtime before model-action success, exactly as it is for
+  current aggregates. A split-store failure may still occur after authoritative event/model storage has succeeded, but
+  a retry is resolved from the retained action package and must never use a fresh SDK reevaluation.
 - Current graph search may join current direct documents through current relationships without first materializing a
   composite document. Co-located JDBC stores should push filtering, traversal, sorting, and pagination into one
   relational query plan; split stores may use a bounded staged plan.
@@ -540,6 +561,55 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 - [x] Never use a timeless relationship cache for as-of model reconstruction.
 - [x] Benchmark cache hit, miss, catch-up, invalidation, and billion-key pressure assumptions.
 
+### Slice 5.5 — Coherent action materialization
+
+- [x] Extend the action package with pre-serialized optional direct-document mutations and snapshot candidates while
+  retaining one event payload regardless of target count.
+- [x] Move direct-document completion from the SDK committer into the runtime-owned model-action workflow.
+- [x] Keep the no-conflict fast path to one request and no reconstruction round trip.
+- [x] Make default `ACCEPT` return a rebase boundary instead of committing stale derived state; preserve the original
+  post-interception events and rerun only their `@Apply` handlers against all action-scoped models at that boundary.
+- [x] Commit the rebased event package only after a final boundary comparison succeeds; repeat within a configured
+  bound if another relevant write wins the race.
+- [x] Distinguish a newly committed result from an idempotent duplicate. A fresh-process duplicate must use the
+  retained package/completion state and never SDK-reevaluated documents, relationships, cache values, or snapshots.
+- [x] Fence every direct model document upsert/delete by the runtime-assigned target `stateIndex`, including a minimal
+  delete tombstone, so inverse completion order cannot regress current search state.
+- [x] Fence local cache and snapshot installation by `stateIndex`; never label an evaluation from an older receiver
+  state with a newer committed sequence number.
+- [x] Store the core commit and exact materialization intent in one physical JDBC transaction; complete direct
+  documents and snapshots through the same recoverable runtime outbox for both co-located and split search stores,
+  without introducing XA.
+- [x] Cover stale accepted counters, multi-model applies, inverse document completion, delete resurrection, snapshot
+  boundaries, same-process repair, fresh-process duplicate retry, restart, and concurrent runtimes.
+- [x] Re-run the integrated 1/2/10/100-target store/load benchmarks and account for document/snapshot bytes,
+  transient projection-intent bytes, WAL, and latency separately.
+
+### Slice 5.6 — Type evolution, cache defaults, and parity
+
+- [x] Resolve stored model FQNs through `Serializer.upcastType` before class loading, matching aggregate behavior.
+- [ ] Let untyped loads use `Object` and payload-side `@Apply` factories when no explicit model class is supplied;
+  require stored type metadata only when reconstruction actually needs model-side handlers.
+- [x] Change the new-model cache default to `cachingDepth = 1`; retain deterministic latest-only (`0`) and explicit
+  unbounded (`-1`) behavior.
+- [x] Measure the retained-heap impact of depth `0` versus `1` for one million hot model keys before closing Slice 5.6.
+  The retained diagnostic measured 329.03 MiB at depth `0` and 505.66 MiB at depth `1` for deliberately minimal
+  immutable models: +176.63 MiB, or about 185 bytes per actually hot key. This is a 54% increase for the deliberately
+  wrapper-heavy minimum, not an unbounded-history multiplier. The shared cache remains count- and
+  memory-pressure-bounded.
+- [ ] Parameterize applicable aggregate repository, playback, publication, search, snapshot, cache, fixture, and
+  runtime integration contracts so every semantically shared behavior runs for both `@Aggregate` and `@Model`.
+- [ ] Keep model-specific tests only for intentionally different identity, stream, relationship, action, and lifecycle
+  behavior; record every aggregate-only contract that is deliberately inapplicable.
+
+### Slice 5.7 — Assert-and-apply convenience
+
+- [ ] Add `Fluxzero.assertAndApply(update)` for model actions, preserving the same action-scoped loading, assertion,
+  interceptor, apply, commit, conflict, and result semantics as normal dispatch.
+- [ ] Reuse the same API for aggregates when it can delegate to the existing aggregate execution path without changing
+  legacy ordering, publication, or commit behavior.
+- [ ] Cover synchronous/asynchronous handling, nested dispatch, failure mapping, return values, and `TestFixture`.
+
 ## Phase 6 — Temporal DAG relationships and graph loading
 
 ### Slice 6.1 — `@ParentId`
@@ -559,6 +629,18 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 - [ ] Use half-open validity intervals and deterministic boundary tests.
 - [ ] Batch breadth/depth graph fetches and enforce configurable safety limits.
 - [ ] Benchmark deep, wide, and highly shared DAGs.
+
+### Slice 6.4 — Ancestor injection
+
+- [ ] Inject direct parents into `@AssertLegal`, `@InterceptApply`, and `@Apply` without requiring the command to carry
+  redundant parent IDs.
+- [ ] Resolve grandparents and arbitrary ancestors through one pinned relationship boundary and batch-load their
+  independent models.
+- [ ] Use the parameter type for an unambiguous ancestor and parameter-level `@Association` when multiple reachable
+  ancestors of that type exist.
+- [ ] Detect ambiguous paths, missing required ancestors, cycles, depth/fan-out limits, and typed/untyped IDs with
+  actionable errors.
+- [ ] Cache ancestor traversal and model loads inside the action context; do not introduce one query per generation.
 
 ### Slice 6.3 — Deleted-parent lineage
 
@@ -580,6 +662,9 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 
 - [ ] Add current-state graph search that can return child models constrained by parent/ancestor documents and roots
   constrained by child/descendant documents.
+- [ ] Add a bounded ancestor/descendant constraint that composes an ordinary document constraint with relationship
+  direction, optional type/path qualification, and explicit minimum/maximum depth; support parent, grandparent, and
+  arbitrary ancestor matching without exposing recursive SQL in the SDK API.
 - [ ] Compile co-located JDBC graph predicates, traversal, sorting, and pagination into relational query plans without
   materializing unbounded ID lists in the SDK.
 - [ ] Stitch requested current graph documents at read time using only explicitly configured paths and nodes with
@@ -747,3 +832,13 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   220,714 SDK replayed events/s. Full evidence and limitations are in the
   [Phase 5 report](dynamic-model-boundaries-phase-5-reconstruction.md). Production 100-GB/min certification,
   action-result retention/archival, and the explicit non-JDBC publish-first visibility race remain Phase 9 gates.
+- 2026-07-26 — Coherent action materialization (`SDK 0b9b74b0764`, runtime `39cb88e1`) sends original events, optional
+  direct documents, due snapshots, and relationships as one model-action package. The core JDBC commit durably retains
+  exact compressed recovery intent; direct search and snapshots complete synchronously through state-index fences and
+  survive restart without SDK reevaluation. Default `ACCEPT` now preserves the original post-interception events while
+  reapplying only `@Apply` against a fresh pinned boundary. The retained 1/2/10/100-target comparison found no
+  systematic store/load, physical-byte, or WAL regression. One million minimal hot keys measured 329.03 MiB at cache
+  depth `0` and 505.66 MiB at depth `1`, supporting the default of one predecessor while keeping the shared cache
+  bounded. Full SDK, site/Javadoc, downstream, and runtime reactors passed; runtime reported 538 tests. A separate
+  regression review retained public registry constructors, legacy snapshot readability, metric compatibility, and
+  document/snapshot-aware runtime backpressure.
