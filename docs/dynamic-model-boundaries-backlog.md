@@ -47,6 +47,9 @@ phase, not the central abstraction.
   composition. Multiple parents form a DAG; cycles are rejected.
 - Target IDs are resolved from command payload properties by matching the target model's `@EntityId`. If names are
   ambiguous or deliberately different, parameter-level `@Association("propertyName")` qualifies the ID source.
+- A model parameter without a matching direct ID is a read-only ancestor dependency. Parameter-level
+  `@Association("qualifier")` still selects a same-named payload property when present; otherwise it selects an
+  ancestor edge with the same explicit `@ParentId(path = "qualifier")`. No extra relationship role is persisted.
 - `@AssertLegal`, `@InterceptApply`, and `@Apply` may inject every action-scoped model as either its value or
   `Entity<T>`.
 - Assertions and applies may read multiple loaded models.
@@ -632,22 +635,12 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 
 - [ ] Query parents, children, roots, ancestors, and descendants at current state.
 - [ ] Query the same graph as-of a `stateIndex`.
-- [ ] Route parent-to-children and child-to-parents lookups to their respective bounded hash partitions.
+- [x] Route parent-to-children and child-to-parents lookups to their respective bounded hash partitions.
 - [ ] Use half-open validity intervals and deterministic boundary tests.
-- [ ] Batch breadth/depth graph fetches and enforce configurable safety limits.
+- [x] Batch breadth/depth graph fetches and enforce protocol safety limits with one partition-pruned query per breadth
+  level, never one query per node; retain a recursive single-query variant as a benchmark-driven optimization because
+  it requires preserving child-hash pruning across recursion.
 - [ ] Benchmark deep, wide, and highly shared DAGs.
-
-### Slice 6.4 — Ancestor injection
-
-- [ ] Inject direct parents into `@AssertLegal`, `@InterceptApply`, and `@Apply` without requiring the command to carry
-  redundant parent IDs.
-- [ ] Resolve grandparents and arbitrary ancestors through one pinned relationship boundary and batch-load their
-  independent models.
-- [ ] Use the parameter type for an unambiguous ancestor and parameter-level `@Association` when multiple reachable
-  ancestors of that type exist.
-- [ ] Detect ambiguous paths, missing required ancestors, cycles, depth/fan-out limits, and typed/untyped IDs with
-  actionable errors.
-- [ ] Cache ancestor traversal and model loads inside the action context; do not introduce one query per generation.
 
 ### Slice 6.3 — Deleted-parent lineage
 
@@ -656,6 +649,24 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 - [ ] Resolve detached descendants for later lifecycle/GDPR operations.
 - [ ] Prevent accidental edge resurrection from an unchanged stale `@ParentId`.
 - [ ] Decide protected-ID/retention and purge semantics with privacy tests.
+
+### Slice 6.4 — Ancestor injection
+
+- [x] Inject direct parents into `@AssertLegal`, `@InterceptApply`, and `@Apply` without requiring the command to carry
+  redundant parent IDs.
+- [x] Resolve grandparents and arbitrary ancestors through one pinned relationship boundary and batch-load their
+  independent models.
+- [x] Use the parameter type for an unambiguous ancestor and parameter-level `@Association` when multiple reachable
+  ancestors of that type exist.
+- [x] Detect ambiguous paths, missing required ancestors, cycles, depth/fan-out limits, and typed/untyped IDs with
+  actionable errors.
+- [x] Cache ancestor traversal and model loads inside the action context; use one runtime request and one batched
+  child-partition query per breadth level, not one SDK request or store query per ancestor.
+- [x] Overlay `@ParentId` values staged by earlier interceptor substeps, so a later substep observes a move made earlier
+  in the same atomic action; use the persisted pre-substep graph boundary during later model reconstruction.
+
+Implementation and measurement details:
+[`dynamic-model-boundaries-phase-6-ancestor-injection.md`](dynamic-model-boundaries-phase-6-ancestor-injection.md).
 
 ## Phase 7 — Search and CQRS graph projections
 
@@ -857,3 +868,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   SDK and site/Javadoc reactors passed, including test-server, proxy, annotation processing, and Java/Kotlin downstream
   projects. Aggregate inference remains deliberately open because a typed child ID or one of several IDs does not
   safely identify the aggregate root.
+- 2026-07-26 — Ancestor injection (`SDK f408c5d7e10`, runtime `1424343c`) resolves parents, grandparents, and arbitrary
+  read-only ancestors for `@AssertLegal`, `@InterceptApply`, and `@Apply` through one pinned temporal graph request.
+  `@Association` remains a direct payload-property qualifier when that property exists and otherwise qualifies an
+  explicit `@ParentId(path = ...)` edge. Same-action moves overlay staged child relations; cold reconstruction resolves
+  the pre-event graph and original action-prefix state. Stored FQNs use the serializer's existing upcasting/type-caster
+  chain and remain optional metadata rather than identity. The direct action path performs no graph lookup. Full SDK,
+  site/Javadoc, downstream, and runtime reactors passed; runtime reported 540 tests. The retained local JDBC diagnostic
+  measured 25,479 ancestor roots/s and 4.797 / 5.363 / 7.002 ms p50/p95/p99 latency for 128-root batches. Deep/wide DAG
+  certification and payload-only untyped `Object` reconstruction remain open.
