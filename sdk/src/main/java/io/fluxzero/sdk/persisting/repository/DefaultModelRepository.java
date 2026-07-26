@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
@@ -27,7 +28,10 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -45,6 +49,7 @@ import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelActionContext;
 import io.fluxzero.sdk.modeling.ModelEventReplayer;
 import io.fluxzero.sdk.modeling.ModelGraph;
+import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
@@ -155,6 +160,43 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
                 snapshotSerializer, cacheSource, eventReplayer);
+    }
+
+    @Override
+    public CompletableFuture<ModelGraphProjectionStatus>
+            registerGraphProjection(
+                    @NonNull Class<?> modelType,
+                    boolean rebuild) {
+        ModelGraphProjectionConfiguration configuration =
+                ModelGraphProjections.configuration(
+                                modelType)
+                        .orElseThrow(() ->
+                                             new IllegalArgumentException(
+                                                     modelType.getName()
+                                                     + " does not enable a graph projection"));
+        return client.getEventStoreClient()
+                .registerModelGraphProjection(
+                        new RegisterModelGraphProjection(
+                                configuration,
+                                rebuild));
+    }
+
+    @Override
+    public ModelGraphProjectionStatus
+            graphProjectionStatus(
+                    @NonNull Class<?> modelType) {
+        String collection =
+                ModelGraphProjections.configuration(
+                                modelType)
+                        .orElseThrow(() ->
+                                             new IllegalArgumentException(
+                                                     modelType.getName()
+                                                     + " does not enable a graph projection"))
+                        .getCollection();
+        return client.getEventStoreClient()
+                .getModelGraphProjectionStatus(
+                        new GetModelGraphProjectionStatus(
+                                collection));
     }
 
     @Override

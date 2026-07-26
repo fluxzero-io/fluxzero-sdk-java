@@ -33,12 +33,15 @@ import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
@@ -130,6 +133,9 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetModelGraph.class, name = "getModelGraph"),
         @JsonSubTypes.Type(value = GetModelGraphResult.class, name = "getModelGraphResult"),
         @JsonSubTypes.Type(value = GetModelAncestors.class, name = "getModelAncestors"),
+        @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),
+        @JsonSubTypes.Type(value = GetModelGraphProjectionStatus.class, name = "getModelGraphProjectionStatus"),
+        @JsonSubTypes.Type(value = ModelGraphProjectionStatus.class, name = "modelGraphProjectionStatus"),
         @JsonSubTypes.Type(value = UpdateRelationships.class, name = "updateRelationships"),
         @JsonSubTypes.Type(value = RepairRelationships.class, name = "repairRelationships"),
         @JsonSubTypes.Type(value = GetAggregateIds.class, name = "getAggregateIds"),

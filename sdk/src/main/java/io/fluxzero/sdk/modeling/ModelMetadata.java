@@ -94,6 +94,9 @@ public final class ModelMetadata {
         this.rootConfiguration = model == null
                 ? aggregate == null ? null : RootConfiguration.from(aggregate)
                 : RootConfiguration.from(model);
+        if (model != null) {
+            validateGraphProjection(model);
+        }
 
         List<? extends AccessibleObject> entityIds = typeMetadata.annotatedProperties(EntityId.class);
         if (model != null && entityIds.size() != 1) {
@@ -249,6 +252,78 @@ public final class ModelMetadata {
                                   .formatted(path, type.getName(), property.name()));
         }
         return path;
+    }
+
+    private void validateGraphProjection(Model annotation) {
+        GraphProjection projection =
+                annotation.graphProjection();
+        if (projection.collection().isEmpty()) {
+            return;
+        }
+        if (!annotation.searchable()) {
+            throw invalid("%s enables a graph projection but is not searchable"
+                                  .formatted(type.getName()));
+        }
+        if (projection.collection().isBlank()
+            || !projection.collection().equals(
+                projection.collection().trim())) {
+            throw invalid("Graph projection collection on %s must not be blank or have surrounding whitespace"
+                                  .formatted(type.getName()));
+        }
+        new io.fluxzero.common.api.search.ModelGraphComposition(
+                projection.maxDepth(),
+                projection.maxModels(),
+                projection.maxPlacements(),
+                projection.maxCollections(),
+                projection.maxBytes());
+        LinkedHashSet<String> paths =
+                new LinkedHashSet<>();
+        LinkedHashSet<String> projectionPaths =
+                new LinkedHashSet<>();
+        for (GraphPathOverride override :
+                projection.pathOverrides()) {
+            validateProjectionPath(
+                    override.path(),
+                    "canonical override path");
+            validateProjectionPath(
+                    override.projectionPath(),
+                    "projection override path");
+            if (!paths.add(override.path())) {
+                throw invalid("Duplicate graph projection path override '%s' on %s"
+                                      .formatted(override.path(), type.getName()));
+            }
+            if (!projectionPaths.add(
+                    override.projectionPath())) {
+                throw invalid("Multiple graph projection paths on %s project to '%s'"
+                                      .formatted(type.getName(), override.projectionPath()));
+            }
+        }
+    }
+
+    private void validateProjectionPath(
+            String path, String description) {
+        if (path.isEmpty() || path.isBlank()
+            || !path.equals(path.trim())
+            || path.startsWith("/")
+            || path.endsWith("/")
+            || path.contains("//")) {
+            throw invalid("Graph projection %s '%s' on %s must be a non-empty relative path"
+                                  .formatted(description, path, type.getName()));
+        }
+        for (String segment : path.split("/")) {
+            if (".".equals(segment)
+                || "..".equals(segment)
+                || io.fluxzero.common.SearchUtils
+                        .isInteger(segment)) {
+                throw invalid("Graph projection %s '%s' on %s contains a reserved path segment"
+                                      .formatted(description, path, type.getName()));
+            }
+        }
+        if (io.fluxzero.common.search.JacksonInverter
+                .isMetadataPath(path)) {
+            throw invalid("Graph projection %s '%s' on %s uses the reserved document metadata path"
+                                  .formatted(description, path, type.getName()));
+        }
     }
 
     private static List<AccessibleObject> parentCandidates(ReflectionUtils.TypeMetadata typeMetadata) {
@@ -592,6 +667,7 @@ public final class ModelMetadata {
             EventPublicationStrategy publicationStrategy,
             AggregateEventRouting eventRouting,
             boolean searchable,
+            GraphProjection graphProjection,
             String collection,
             String timestampPath,
             String endPath) {
@@ -602,7 +678,8 @@ public final class ModelMetadata {
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
-                    annotation.searchable(), annotation.collection(), annotation.timestampPath(), annotation.endPath());
+                    annotation.searchable(), annotation.graphProjection(), annotation.collection(),
+                    annotation.timestampPath(), annotation.endPath());
         }
 
         private static RootConfiguration from(Aggregate annotation) {
@@ -611,7 +688,8 @@ public final class ModelMetadata {
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
-                    annotation.searchable(), annotation.collection(), annotation.timestampPath(), annotation.endPath());
+                    annotation.searchable(), null, annotation.collection(), annotation.timestampPath(),
+                    annotation.endPath());
         }
     }
 

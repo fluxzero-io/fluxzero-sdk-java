@@ -92,6 +92,34 @@ class ModelMetadataTest {
     }
 
     @Test
+    void validatesAndExposesMaterializedGraphProjection() {
+        var configuration =
+                ModelGraphProjections.configuration(
+                                ProjectedModel.class)
+                        .orElseThrow();
+
+        assertEquals(
+                "projected-models",
+                configuration.getRootCollection());
+        assertEquals(
+                "projected-graphs",
+                configuration.getCollection());
+        assertEquals(
+                7,
+                configuration.getComposition()
+                        .getMaxDepth());
+        assertEquals(
+                "items",
+                configuration.getPathOverrides()
+                        .getFirst()
+                        .getProjectionPath());
+        assertThrows(
+                IllegalStateException.class,
+                () -> ModelMetadata.validate(
+                        UnsearchableProjectedModel.class));
+    }
+
+    @Test
     void legacyAggregateRootIsAlsoAModelRoot() {
         assertTrue(ModelRoot.class.isAssignableFrom(AggregateRoot.class));
         assertEquals(Set.of("parent", "lastEventId", "lastEventIndex", "withEventIndex", "sequenceNumber",
@@ -111,7 +139,13 @@ class ModelMetadataTest {
                 .filter(name -> !"kind".equals(name))
                 .collect(toSet());
 
-        assertEquals(modelSettings, aggregateSettings);
+        assertEquals(
+                aggregateSettings,
+                modelSettings.stream()
+                        .filter(name ->
+                                        !"graphProjection"
+                                                .equals(name))
+                        .collect(toSet()));
         assertEquals(modelSettings, configurationSettings);
     }
 
@@ -238,6 +272,26 @@ class ModelMetadataTest {
 
     @Model(eventSourced = false, searchable = true, collection = "models")
     private record ConfiguredModel(@EntityId String id) {
+    }
+
+    @Model(
+            searchable = true,
+            collection = "projected-models",
+            graphProjection = @GraphProjection(
+                    collection = "projected-graphs",
+                    maxDepth = 7,
+                    pathOverrides = @GraphPathOverride(
+                            path = "children",
+                            projectionPath = "items")))
+    private record ProjectedModel(
+            @EntityId String id) {
+    }
+
+    @Model(
+            graphProjection = @GraphProjection(
+                    collection = "invalid-graphs"))
+    private record UnsearchableProjectedModel(
+            @EntityId String id) {
     }
 
     @Aggregate(eventSourced = false, searchable = true, collection = "aggregates")

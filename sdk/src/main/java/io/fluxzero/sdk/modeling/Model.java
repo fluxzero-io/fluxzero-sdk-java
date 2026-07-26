@@ -155,6 +155,14 @@ public @interface Model {
     boolean searchable() default false;
 
     /**
+     * Optional asynchronous materialized whole-graph search document.
+     * <p>
+     * Enabling this requires {@link #searchable()} so the root keeps its synchronous direct document. Only the
+     * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
+     */
+    GraphProjection graphProjection() default @GraphProjection;
+
+    /**
      * Collection in which the model is indexed. Defaults to the model class name when blank.
      */
     String collection() default "";

@@ -20,10 +20,11 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
-import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
@@ -36,10 +37,13 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
@@ -85,6 +89,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, ModelStreamHead> modelHeads = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamHead>> modelHeadHistory = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamMembership>> modelStreams = new ConcurrentHashMap<>();
+    private final Map<String, ModelGraphProjectionConfiguration> modelGraphProjections =
+            new ConcurrentHashMap<>();
     private final List<MutableModelRelationship> modelRelationshipHistory = new ArrayList<>();
     private final Map<String, LinkedHashMap<ModelRelationship, MutableModelRelationship>> currentModelRelationships =
             new ConcurrentHashMap<>();
@@ -201,6 +207,69 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    @Override
+    public synchronized CompletableFuture<ModelGraphProjectionStatus>
+            registerModelGraphProjection(
+                    RegisterModelGraphProjection request) {
+        ModelGraphProjectionConfiguration configuration =
+                request.getConfiguration();
+        ModelGraphProjectionConfiguration previous =
+                modelGraphProjections.get(
+                        configuration.getCollection());
+        if (previous != null
+            && (!previous.getRootModelType()
+                    .equals(
+                            configuration
+                                    .getRootModelType())
+                || !previous.getRootCollection()
+                        .equals(
+                                configuration
+                                        .getRootCollection()))) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException(
+                            "Graph projection collection '%s' is already registered for a different root"
+                                    .formatted(
+                                            configuration
+                                                    .getCollection())));
+        }
+        modelGraphProjections.put(
+                configuration.getCollection(),
+                configuration);
+        return CompletableFuture.completedFuture(
+                modelGraphProjectionStatus(
+                        request.getRequestId(),
+                        configuration.getCollection()));
+    }
+
+    @Override
+    public synchronized ModelGraphProjectionStatus
+            getModelGraphProjectionStatus(
+                    GetModelGraphProjectionStatus request) {
+        return modelGraphProjectionStatus(
+                request.getRequestId(),
+                request.getCollection());
+    }
+
+    private ModelGraphProjectionStatus
+            modelGraphProjectionStatus(
+                    long requestId,
+                    String collection) {
+        if (!modelGraphProjections.containsKey(
+                collection)) {
+            throw new IllegalArgumentException(
+                    "Unknown graph projection collection '%s'"
+                            .formatted(collection));
+        }
+        /*
+         * The SDK-only store has no asynchronous search materializer. It accepts definitions so model actions remain
+         * fixture-compatible, but deliberately never reports a projection as caught up.
+         */
+        return new ModelGraphProjectionStatus(
+                requestId, collection,
+                modelStateIndex, -1L,
+                0L, 0L, true);
     }
 
     private CommitModelActionResult conflict(

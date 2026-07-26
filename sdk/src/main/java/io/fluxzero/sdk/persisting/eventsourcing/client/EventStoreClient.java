@@ -20,13 +20,16 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
-import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
@@ -94,6 +97,27 @@ public interface EventStoreClient extends AutoCloseable {
     default GetModelGraphResult getModelAncestors(GetModelAncestors request) {
         throw new UnsupportedOperationException(
                 "Independent model ancestor loading is not supported by this event store");
+    }
+
+    /**
+     * Idempotently registers an asynchronous materialized model-graph projection.
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            registerModelGraphProjection(
+                    RegisterModelGraphProjection request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized model graph projections are not supported by this event store"));
+    }
+
+    /**
+     * Returns the current high-watermark and backlog for one materialized graph projection.
+     */
+    default ModelGraphProjectionStatus
+            getModelGraphProjectionStatus(
+                    GetModelGraphProjectionStatus request) {
+        throw new UnsupportedOperationException(
+                "Materialized model graph projection status is not supported by this event store");
     }
 
     /**

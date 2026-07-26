@@ -37,6 +37,7 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
@@ -50,6 +51,10 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
@@ -683,6 +688,101 @@ class WebSocketTransportCodecsTest {
                     decoded.getComposition()
                             .getMaxCollections());
         }
+    }
+
+    @Test
+    void materializedModelGraphProjectionUsesDistinctWireActions()
+            throws Exception {
+        RegisterModelGraphProjection registration =
+                new RegisterModelGraphProjection(
+                        new ModelGraphProjectionConfiguration(
+                                "example.Order",
+                                "orders",
+                                "orderGraphs",
+                                ModelGraphComposition
+                                        .builder()
+                                        .maxDepth(4)
+                                        .build(),
+                                List.of(
+                                        new ModelGraphPathOverride(
+                                                "lines",
+                                                "items"))),
+                        true);
+        GetModelGraphProjectionStatus statusRequest =
+                new GetModelGraphProjectionStatus(
+                        "orderGraphs");
+        ModelGraphProjectionStatus status =
+                new ModelGraphProjectionStatus(
+                        statusRequest.getRequestId(),
+                        "orderGraphs",
+                        12L, 10L, 2L, 3L,
+                        true);
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            RegisterModelGraphProjection decoded =
+                    assertInstanceOf(
+                            RegisterModelGraphProjection.class,
+                            roundTrip(
+                                    codec,
+                                    registration));
+            assertTrue(decoded.isRebuild());
+            assertEquals(
+                    "items",
+                    decoded.getConfiguration()
+                            .getPathOverrides()
+                            .getFirst()
+                            .getProjectionPath());
+            assertEquals(
+                    4,
+                    decoded.getConfiguration()
+                            .getComposition()
+                            .getMaxDepth());
+
+            GetModelGraphProjectionStatus
+                    decodedRequest =
+                    assertInstanceOf(
+                            GetModelGraphProjectionStatus.class,
+                            roundTrip(
+                                    codec,
+                                    statusRequest));
+            assertEquals(
+                    "orderGraphs",
+                    decodedRequest.getCollection());
+
+            ModelGraphProjectionStatus decodedStatus =
+                    assertInstanceOf(
+                            ModelGraphProjectionStatus.class,
+                            roundTrip(codec, status));
+            assertEquals(
+                    2L,
+                    decodedStatus.getLag());
+            assertEquals(
+                    3L,
+                    decodedStatus.getPendingRoots());
+        }
+    }
+
+    @Test
+    void materializedModelGraphProjectionRejectsUnsafeOrAmbiguousPaths() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ModelGraphPathOverride(
+                        "children/0", "items"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ModelGraphProjectionConfiguration(
+                        "example.Order",
+                        "orders",
+                        "orderGraphs",
+                        ModelGraphComposition
+                                .builder()
+                                .build(),
+                        List.of(
+                                new ModelGraphPathOverride(
+                                        "lines", "items"),
+                                new ModelGraphPathOverride(
+                                        "discounts", "items"))));
     }
 
     private static JsonType roundTrip(WebSocketTransportCodec codec, JsonType value) throws Exception {

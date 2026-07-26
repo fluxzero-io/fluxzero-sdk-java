@@ -26,14 +26,17 @@ import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
-import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -140,6 +143,20 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
 
     @Override
     public GetModelGraphResult getModelAncestors(GetModelAncestors request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<ModelGraphProjectionStatus>
+            registerModelGraphProjection(
+                    RegisterModelGraphProjection request) {
+        return send(request);
+    }
+
+    @Override
+    public ModelGraphProjectionStatus
+            getModelGraphProjectionStatus(
+                    GetModelGraphProjectionStatus request) {
         return sendAndWait(request);
     }
 

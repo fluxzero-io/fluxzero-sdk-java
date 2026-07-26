@@ -19,6 +19,8 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -69,7 +72,11 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
     private final Serializer serializer;
+    private final EventStoreClient eventStoreClient;
     private final List<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
+    private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
+            graphProjectionRegistrations =
+            new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Class<?>, List<ModelMetadata.HandlerMethod>> handlerPlans =
             new ConcurrentHashMap<>();
 
@@ -149,6 +156,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             int maxConflictRetries) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
+        this.eventStoreClient =
+                Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.committer = new ModelActionCommitter(
                 eventStoreClient, documentStore, serializer, documentSerializer,
                 eventDispatchInterceptor, source, snapshotSerializer,
@@ -227,6 +236,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             return Registration.noOp();
         }
         registeredModelTypes.add(targetType);
+        registerGraphProjection(targetType);
         handlerPlans.clear();
         return () -> {
             registeredModelTypes.remove(targetType);
@@ -290,36 +300,135 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private CompletableFuture<Object> execute(DeserializingMessage message) {
-        ModelActionEngine.ActionEvaluation evaluation = evaluate(message);
-        CompletableFuture<?> result = conflictPolicy == ModelConflictPolicy.ACCEPT
-                ? committer.commitAcceptingRebase(
-                        message.getMessageId(), evaluation,
-                        (messages, stateIndex) -> {
-                            try {
-                                return CompletableFuture.completedFuture(
-                                        rebase(messages, stateIndex));
-                            } catch (Throwable failure) {
-                                return CompletableFuture.failedFuture(
-                                        failure);
-                            }
-                        })
-                : committer.commit(
-                        message.getMessageId(), evaluation, conflictPolicy,
-                        conflictResolver, maxConflictRetries,
-                        () -> reload(message, evaluation.readModelIds()));
-        return result.handle((ignored, failure) -> {
-            if (failure != null) {
-                if (conflictPolicy != ModelConflictPolicy.ACCEPT) {
-                    repository.invalidateModels(evaluation.readModelIds());
-                }
-                if (failure instanceof java.util.concurrent.CompletionException completion
-                    && completion.getCause() != null) {
-                    throw completion;
-                }
-                throw new java.util.concurrent.CompletionException(failure);
-            }
-            return null;
-        });
+        CompletableFuture<?> registrations =
+                CompletableFuture.allOf(
+                        graphProjectionRegistrations
+                                .values()
+                                .toArray(
+                                        CompletableFuture[]::new));
+        return registrations.thenCompose(
+                ignored -> executeRegistered(message));
+    }
+
+    private CompletableFuture<Object> executeRegistered(
+            DeserializingMessage message) {
+        ModelActionEngine.ActionEvaluation evaluation =
+                evaluate(message);
+        return ensureGraphProjections(evaluation)
+                .thenCompose(ignored -> {
+                    CompletableFuture<?> result =
+                            conflictPolicy
+                            == ModelConflictPolicy.ACCEPT
+                                    ? committer.commitAcceptingRebase(
+                                            message.getMessageId(),
+                                            evaluation,
+                                            (messages, stateIndex) -> {
+                                                try {
+                                                    return CompletableFuture
+                                                            .completedFuture(
+                                                                    rebase(
+                                                                            messages,
+                                                                            stateIndex));
+                                                } catch (Throwable failure) {
+                                                    return CompletableFuture
+                                                            .failedFuture(
+                                                                    failure);
+                                                }
+                                            })
+                                    : committer.commit(
+                                            message.getMessageId(),
+                                            evaluation, conflictPolicy,
+                                            conflictResolver,
+                                            maxConflictRetries,
+                                            () -> reload(
+                                                    message,
+                                                    evaluation
+                                                            .readModelIds()));
+                    return result.handle(
+                            (commitResult, failure) -> {
+                                if (failure != null) {
+                                    if (conflictPolicy
+                                        != ModelConflictPolicy.ACCEPT) {
+                                        repository.invalidateModels(
+                                                evaluation
+                                                        .readModelIds());
+                                    }
+                                    if (failure
+                                        instanceof java.util.concurrent.CompletionException completion
+                                        && completion.getCause()
+                                           != null) {
+                                        throw completion;
+                                    }
+                                    throw new java.util.concurrent.CompletionException(
+                                            failure);
+                                }
+                                return null;
+                            });
+                });
+    }
+
+    private CompletableFuture<Void> ensureGraphProjections(
+            ModelActionEngine.ActionEvaluation evaluation) {
+        LinkedHashSet<Class<?>> visited =
+                new LinkedHashSet<>();
+        evaluation.substeps().stream()
+                .flatMap(substep ->
+                                 substep.transitions()
+                                         .stream())
+                .map(ModelActionEngine.Transition::modelType)
+                .forEach(type ->
+                                 registerGraphProjections(
+                                         type, visited));
+        return CompletableFuture.allOf(
+                visited.stream()
+                        .map(graphProjectionRegistrations::get)
+                        .filter(Objects::nonNull)
+                        .toArray(
+                                CompletableFuture[]::new));
+    }
+
+    private void registerGraphProjections(
+            Class<?> modelType,
+            Set<Class<?>> visited) {
+        if (!visited.add(modelType)) {
+            return;
+        }
+        registerGraphProjection(modelType);
+        ModelMetadata.of(modelType)
+                .parentReferences().stream()
+                .map(ModelMetadata.ParentReference::parentModelType)
+                .filter(Objects::nonNull)
+                .forEach(parentType ->
+                                 registerGraphProjections(
+                                         parentType, visited));
+    }
+
+    private void registerGraphProjection(
+            Class<?> modelType) {
+        ModelGraphProjections.configuration(
+                        modelType)
+                .ifPresent(configuration -> {
+                    CompletableFuture<ModelGraphProjectionStatus>
+                            registration =
+                            graphProjectionRegistrations
+                                    .computeIfAbsent(
+                                            modelType,
+                                            ignored ->
+                                                    eventStoreClient
+                                                            .registerModelGraphProjection(
+                                                                    new RegisterModelGraphProjection(
+                                                                            configuration,
+                                                                            false)));
+                    registration.whenComplete(
+                            (result, failure) -> {
+                                if (failure != null) {
+                                    graphProjectionRegistrations
+                                            .remove(
+                                                    modelType,
+                                                    registration);
+                                }
+                            });
+                });
     }
 
     private CompletableFuture<ModelActionEngine.ActionEvaluation> reload(

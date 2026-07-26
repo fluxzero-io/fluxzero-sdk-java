@@ -381,6 +381,35 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
+    void payloadApplyRegistersGraphProjectionOfTypedAncestorBeforeCommit() {
+        ProjectionRootId rootId =
+                new ProjectionRootId("ancestor");
+        ProjectionChildId childId =
+                new ProjectionChildId("payload");
+
+        TestFixture.create()
+                .whenCommand(
+                        new CreateProjectionChild(
+                                childId, rootId))
+                .expectTrue(fluxzero -> {
+                    var status =
+                            fluxzero.modelRepository()
+                                    .graphProjectionStatus(
+                                            ProjectionRoot.class);
+                    return status.getCollection()
+                                   .equals(
+                                           "projectionRoots")
+                           && status
+                                      .getSourceStateIndex()
+                              == 0L
+                           && status.isRebuilding()
+                           && status
+                                      .getProcessedStateIndex()
+                              == -1L;
+                });
+    }
+
+    @Test
     void movingAChildChangesItsNextInjectedParentWithoutLoadingEitherParent() {
         TestFixture fixture = TestFixture.create();
         FamilyRootId rootId = new FamilyRootId("move");
@@ -1058,6 +1087,46 @@ class ModelActionHandlerIntegrationTest {
                     grandchild.secondaryId(),
                     observations + "|apply:" + parent.name()
                     + "/" + grandparent.name());
+        }
+    }
+
+    @Model(
+            searchable = true,
+            graphProjection = @GraphProjection(
+                    collection = "projectionRoots"))
+    private record ProjectionRoot(
+            @EntityId ProjectionRootId projectionRootId) {
+    }
+
+    private static final class ProjectionRootId
+            extends Id<ProjectionRoot> {
+        private ProjectionRootId(String id) {
+            super(id, "projection-root-");
+        }
+    }
+
+    @Model
+    private record ProjectionChild(
+            @EntityId ProjectionChildId projectionChildId,
+            @ParentId(path = "children")
+            ProjectionRootId projectionRootId) {
+    }
+
+    private static final class ProjectionChildId
+            extends Id<ProjectionChild> {
+        private ProjectionChildId(String id) {
+            super(id, "projection-child-");
+        }
+    }
+
+    private record CreateProjectionChild(
+            ProjectionChildId projectionChildId,
+            ProjectionRootId projectionRootId) {
+        @Apply
+        ProjectionChild apply() {
+            return new ProjectionChild(
+                    projectionChildId,
+                    projectionRootId);
         }
     }
 }

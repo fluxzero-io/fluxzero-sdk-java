@@ -81,13 +81,23 @@ class ModelTest {
     }
 
     @Test
-    void hasAggregateEquivalentSettingsWithoutAName() {
+    void addsOnlyIndependentGraphProjectionToAggregateEquivalentSettings() {
         Set<String> modelSettings = Arrays.stream(Model.class.getDeclaredMethods())
                 .map(method -> method.getName()).collect(Collectors.toSet());
         Set<String> aggregateSettings = Arrays.stream(Aggregate.class.getDeclaredMethods())
                 .map(method -> method.getName()).collect(Collectors.toSet());
 
-        assertEquals(aggregateSettings, modelSettings);
+        assertEquals(
+                Set.of("graphProjection"),
+                modelSettings.stream()
+                        .filter(setting ->
+                                        !aggregateSettings
+                                                .contains(setting))
+                        .collect(
+                                Collectors.toSet()));
+        assertTrue(
+                modelSettings.containsAll(
+                        aggregateSettings));
         assertFalse(modelSettings.contains("name"));
     }
 

@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
@@ -23,6 +24,8 @@ import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelGraph;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Repository for loading independently stored {@link Model models}.
@@ -76,6 +79,41 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage
      */
     <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);
+
+    /**
+     * Registers the graph projection declared by the supplied model type.
+     *
+     * @param modelType model carrying an enabled graph projection
+     * @param rebuild whether all current roots should be scanned even if the definition is unchanged
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            registerGraphProjection(
+                    @NonNull Class<?> modelType,
+                    boolean rebuild) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized model graph projections are not supported by this repository"));
+    }
+
+    /**
+     * Registers a changed graph definition and rebuilds all current roots.
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            registerGraphProjection(
+                    @NonNull Class<?> modelType) {
+        return registerGraphProjection(
+                modelType, true);
+    }
+
+    /**
+     * Returns current graph-projection freshness for the supplied model type.
+     */
+    default ModelGraphProjectionStatus
+            graphProjectionStatus(
+                    @NonNull Class<?> modelType) {
+        throw new UnsupportedOperationException(
+                "Materialized model graph projections are not supported by this repository");
+    }
 
     /**
      * Reconstructs a model and every descendant connected through an explicit graph path at one state boundary.
