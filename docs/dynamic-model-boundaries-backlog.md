@@ -692,7 +692,8 @@ Implementation and measurement details:
 
 - [x] Make every `searchable = true` model independently searchable without a custom event handler.
 - [x] Keep direct search read-after-commit consistency.
-- [ ] Support bulk model indexing/deletion and per-model lifecycle.
+- [x] Support mixed bulk model indexing/deletion through the action materialization package, with an independent
+  monotone fence and lifecycle for every `(collection, modelId)` rather than one aggregate-sized document operation.
 
 ### Slice 7.2 — Virtual graph search
 
