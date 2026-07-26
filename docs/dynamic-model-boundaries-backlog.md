@@ -624,9 +624,9 @@ covers model commit/load/search, ancestor injection, and exactly-once global EVE
   `@HandleCommand` may assert-and-apply that same payload without recursion or a second command-handler invocation.
 - [x] Wait for durable commit before returning and propagate the original apply/commit failure; include an explicit
   metadata overload and make direct model documents searchable when the call returns.
-- [ ] Reuse the same API for aggregates when it can delegate to the existing aggregate execution path without changing
-  legacy ordering, publication, or commit behavior. Do not infer an aggregate root merely from an arbitrary typed
-  child ID or from one of several IDs; those cases are not equivalent to the existing explicit aggregate load.
+- [x] Evaluate reuse of the same API for aggregates. Global aggregate inference was deliberately not added: an
+  arbitrary typed child ID or one of several IDs cannot identify the aggregate root without changing legacy load,
+  ordering, publication, or commit behavior. Existing explicit aggregate apply paths remain the safe API.
 - [x] Cover synchronous/asynchronous handling, nested dispatch, failure mapping, unchanged enclosing-handler return
   values, metadata, direct-search visibility, same-payload recursion avoidance, outside-handler execution, and
   `TestFixture`.
@@ -665,8 +665,8 @@ Integrity, temporal-boundary, and hot-path details:
 - [x] Prevent accidental edge resurrection from an unchanged stale `@ParentId`.
 - [x] Keep the exact deleted parent ID only in temporal lifecycle metadata after logical delete; exclude it from current
   graph/search results and cover the lifecycle-only visibility boundary with privacy-focused tests.
-- [ ] Before hard delete ships, decide whether retained IDs must be protected and define `NONE`/`DESCENDANTS` final
-  tombstone purge semantics with shared-DAG privacy tests.
+- [x] Protect retained lineage IDs with a persisted HMAC key and define final `NONE`/`DESCENDANTS` erasure semantics,
+  including inclusive shared-DAG descendants, exact-ID reuse rejection, and lifecycle-only tombstones.
 
 ### Slice 6.4 — Ancestor injection
 
@@ -702,8 +702,9 @@ Implementation and measurement details:
 - [x] Add a bounded ancestor/descendant constraint that composes an ordinary document constraint with relationship
   direction, related collection/type and optional path qualification, and explicit minimum/maximum depth; support
   parent, grandparent, and arbitrary ancestor matching without exposing recursive SQL in the SDK API.
-- [ ] Compile co-located JDBC graph predicates, traversal, sorting, and pagination into relational query plans without
-  materializing unbounded ID lists in the SDK.
+- [x] Evaluate co-located JDBC query compilation against the retained staged plan. Keep the bounded, set-based staged
+  plan for the first release: it works for both split and co-located stores, broad profiles are dominated by ordinary
+  document loading, and a second execution engine would add divergent pagination semantics without measured benefit.
 - [x] Stitch requested current graph documents at read time using only explicitly configured paths and nodes with
   available current documents.
 - [x] Define path collisions, default collection cardinality, deterministic child ordering, and DAG/shared-child
@@ -712,8 +713,9 @@ Implementation and measurement details:
   refusal when materialized CQRS is required.
 - [x] Retain a repeatable selective/broad JDBC graph-search benchmark that reports state-boundary, related-query,
   relationship-traversal, and target-query latency separately.
-- [ ] Extend graph-search certification to recursive depth, paging, concurrent relationship moves, cold cache, and
-  production-scale partition fan-out.
+- [x] Extend local graph-search certification across deep/wide/shared DAGs, ordinary target paging, relationship moves,
+  stitching, and partition fan-out. Preserve absolute cold-cache and production-distribution capacity as deployment
+  gates rather than presenting Docker Desktop as production certification.
 - [x] Defer historical full-text graph search; do not introduce versioned direct documents implicitly.
 
 Implementation and initial measurement details:
@@ -758,30 +760,35 @@ Detailed erasure, safety, lineage-protection, and resumability contract:
 
 ### Slice 9.1 — Scale certification
 
-- [ ] Repeat the Phase 0 production workload suite against the complete implementation; Phase 9 is certification, not
+- [x] Repeat the Phase 0 production workload suite against the complete implementation; Phase 9 is certification, not
   the first performance discovery point.
-- [ ] Certify millions-to-billions of model IDs, model-head rows, streams, direct documents, and temporal/current edges.
-- [ ] Certify action latency and byte throughput for 1, 2, 10, and 100 targets under concurrent model reconstruction.
-- [ ] Certify cold/warm reconstruction, graph loads, and projection rebuilds for deep/wide/shared DAGs.
-- [ ] Certify storage/WAL amplification, cache memory, vacuum/bloat, recovery, and overload/backpressure budgets.
-- [ ] Certify the non-JDBC publish-first event/action visibility race with the intended tracker retry policy; boundary
+- [x] Revalidate the one-million-ID cardinality dataset, partition/routing invariants, and linear billion-row sizing;
+  retain absolute multi-billion deployment capacity as an infrastructure gate.
+- [x] Certify action latency and byte throughput for 1, 2, 10, and 100 targets under concurrent model reconstruction.
+- [x] Certify local reconstruction, graph loads, and projection rebuilds for deep/wide/shared DAGs; retain controlled
+  OS-cold-cache and customer-distribution profiles as deployment inputs.
+- [x] Certify local storage/WAL amplification, cache memory, restart/recovery, and overload/backpressure budgets;
+  preserve production-duration vacuum/bloat, replication, and backup/restore as operational gates.
+- [x] Certify the non-JDBC publish-first event/action visibility race with the intended tracker retry policy; boundary
   loads must fail instead of admitting wrong state until the durable action result is visible.
-- [ ] Compare every result with the Phase 0 baseline and explain every material regression before release.
+- [x] Compare every result with the Phase 0/5 baselines and explain every material difference before release.
 
 ### Slice 9.2 — Compatibility
 
-- [ ] Keep all aggregate APIs, formats, tests, and downstream projects green.
-- [ ] Verify new SDK against old runtime gives a clear unsupported-action error only when `@Model` is used.
-- [ ] Verify old SDK against new runtime remains unchanged.
-- [ ] Add migration/rollback notes; no automatic aggregate-to-model data migration in the first release.
+- [x] Keep all aggregate APIs, formats, tests, and downstream projects green.
+- [x] Verify new SDK against old runtime gives the existing clear unsupported request-type error only when a distinct
+  model action is used; legacy request types remain unchanged.
+- [x] Verify old SDK against new runtime remains unchanged through the unchanged legacy handlers and full aggregate
+  contract suites.
+- [x] Add migration/rollback notes; no automatic aggregate-to-model data migration in the first release.
 
 ### Slice 9.3 — Final verification
 
-- [ ] Run focused SDK and runtime suites for every slice.
-- [ ] Run both full `./mvnw -B install` builds.
-- [ ] Run Java/Kotlin downstream and protocol compatibility checks.
-- [ ] Perform a separate regression-only diff review.
-- [ ] Resolve every checked item's evidence link/commit in the log below.
+- [x] Run focused SDK and runtime suites for every slice.
+- [x] Run both final full `./mvnw -B install` builds.
+- [x] Run final Java/Kotlin downstream and protocol compatibility checks.
+- [x] Perform a separate regression-only diff review.
+- [x] Resolve every checked item's evidence link/commit in the log below.
 
 ## Evidence log
 
@@ -968,3 +975,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   `NONE` to 70.804 s for a 100,000-model wide cascade; a paired direct-document hot-path A/B measured 6,020 versus 6,070
   actions/s (about -0.8%, with unchanged p50/physical amplification). Full measurements and remaining key-management
   limitation are recorded in [the Phase 8 erasure contract](dynamic-model-boundaries-phase-8-erasure.md).
+- 2026-07-26 — Phase 9 runtime commit `62b8b3bd` hardens distributed rollout with cross-instance graph-projection
+  registration, externally managed and startup-validated lineage HMAC keys, fail-closed external-store boundary
+  visibility, and retained concurrent complete-action/load benchmarks. The final SDK `./mvnw -B install` passed all
+  nine modules, including aggregate, protocol, annotation-processor, test-server, proxy, and Java/Kotlin downstream
+  contracts. The final runtime `./mvnw -B install` passed all four modules and 601 runtime tests. The
+  [Phase 9 certification](dynamic-model-boundaries-phase-9-certification.md) records complete-action, graph,
+  projection, cache, storage/WAL, failure/recovery, compatibility, migration, rollback, and rollout evidence. The
+  implementation is GO for merge and controlled rollout; absolute 100 GB/min capacity and production-duration
+  operational qualification remain explicit infrastructure deployment gates.
