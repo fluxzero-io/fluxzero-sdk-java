@@ -704,9 +704,9 @@ Implementation and measurement details:
   parent, grandparent, and arbitrary ancestor matching without exposing recursive SQL in the SDK API.
 - [ ] Compile co-located JDBC graph predicates, traversal, sorting, and pagination into relational query plans without
   materializing unbounded ID lists in the SDK.
-- [ ] Stitch requested current graph documents at read time using only explicitly configured paths and nodes with
+- [x] Stitch requested current graph documents at read time using only explicitly configured paths and nodes with
   available current documents.
-- [ ] Define path collisions, default collection cardinality, deterministic child ordering, and DAG/shared-child
+- [x] Define path collisions, default collection cardinality, deterministic child ordering, and DAG/shared-child
   placement before exposing stitched documents as a stable contract.
 - [x] Add bounded staged execution for split relation/search stores, with fan-out/depth/result limits and an actionable
   refusal when materialized CQRS is required.
@@ -910,6 +910,16 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   diagnostic measured 1.462 / 1.785 / 1.895 ms selective and 66.260 / 72.755 / 74.959 ms broad p50/p95/p99, with target
   document retrieval dominating the broad result. Co-located recursive query compilation, stitched current documents,
   recursive/paging/move certification, and historical full-text graph search remain open.
+- 2026-07-26 — Current graph composition (`SDK e4de8597314`, runtime `f95cb5c4`) adds
+  `Search.includeModelGraph()` as a distinct bounded wire action. Explicit `@ParentId(path)` edges become deterministic
+  list placements; missing child documents are omitted, shared DAG nodes are placed at every path, collisions and
+  cycles fail, and root path filters run after stitching. Current document collections are stored once in a small
+  registry while partitioned model heads retain only nullable integer locators. Exact `(segment, modelId)` joins and one
+  multi-collection document query keep the broad read path set-based: fixing an accidental segment/id cross-product
+  reduced the 5,000-node locator from about 799 ms p50 to 3.943 ms p50. The retained 1,024-root/5,000-child benchmark
+  measured 49.274 / 65.461 / 66.057 ms p50/p95/p99 end to end. Full SDK/downstream and runtime reactors passed; runtime
+  reported 571 tests. Co-located query compilation, deeper concurrency/scale certification, asynchronous materialized
+  roots, and historical full-text graph search remain open.
 - 2026-07-26 — Model/aggregate parity and untyped loading (`SDK fd6709f1f7c`, runtime `dbaefbea`) add one executable
   lifecycle fixture for the semantically shared event-sourced, document-loaded, direct-search, previous-revision,
   logical-delete/recreate, and publication-free contracts. The separate real-runtime fixture verifies model

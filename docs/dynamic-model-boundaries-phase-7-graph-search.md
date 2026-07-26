@@ -1,9 +1,9 @@
-# Phase 7 checkpoint — bounded current graph search
+# Phase 7 checkpoint — bounded current graph search and composition
 
 Date: 2026-07-26
 
-- SDK implementation: `7c83d714573`
-- Runtime implementation: `619ceeee`
+- Graph-search implementation: SDK `7c83d714573`, runtime `619ceeee`
+- Graph-composition implementation: SDK `e4de8597314`, runtime `f95cb5c4`
 
 ## Outcome
 
@@ -21,10 +21,18 @@ The SDK exposes target-relative constraints:
 No class-derived path, duplicate relationship role, recursive SQL, or relation-store implementation detail appears in
 the public search API.
 
+`includeModelGraph()` additionally returns each matching current root document with its explicitly placed current child
+graph stitched into it. This remains a read-time operation over independent direct documents; it does not create or
+silently enable a materialized whole-tree projection.
+
 ## Execution contract
 
 `SearchModelDocuments` is a distinct wire request. This is intentional: an older runtime must reject graph search
 instead of deserializing an ordinary `SearchDocuments` request and silently ignoring its new relationship semantics.
+
+`SearchModelGraphDocuments` is a second distinct wire request for the same reason. It carries explicit depth, model,
+placement, collection, and output-byte bounds. Search pagination still applies to roots; graph bounds apply separately
+to each returned root page.
 
 The first runtime implementation is a bounded staged plan that also works when search and model relationships live in
 different databases:
@@ -48,6 +56,23 @@ Historical full-text graph search remains deliberately deferred. Relationship tr
 half-open intervals, but this route combines it only with current direct documents and does not invent versioned
 document history.
 
+## Stable composition contract
+
+- Only a relationship with an explicit `@ParentId(path = "...")` participates.
+- Every configured path is list-valued. Numeric path segments and `$metadata` are reserved and rejected while model
+  metadata is constructed.
+- Children sharing one parent/path are ordered by their globally unique model ID. Their list ordinal is appended to the
+  path.
+- A child without an available current direct document is omitted without removing its relationship.
+- A shared DAG child is placed at every reachable parent/path. Distinct model and placement bounds separately limit
+  traversal and output expansion.
+- Cycles fail explicitly. A composition path that overlaps another path or a direct parent-document path also fails
+  explicitly instead of overwriting data.
+- Root metadata remains root metadata. Child metadata is not copied; child entries, facets, sortables, and summaries are
+  placed below their graph path.
+- Path filters run after stitching, so callers can select composed branches. Root filtering, sorting, skip, and
+  pagination still run against the ordinary root document.
+
 ## Consistency boundary
 
 The directly changed model document remains synchronously searchable when model commit succeeds. Graph search pins
@@ -62,6 +87,11 @@ Monotone direct-document fences still prevent older materialization from overwri
 No new relationship index or event duplication was introduced. Traversal uses the already selected child-keyed and
 parent-keyed 128-segment adjacency projections. Batch queries join requested `(segment, id)` pairs so both directions
 retain partition pruning.
+
+The current direct-document collection is retained as compact coordination metadata: each model head stores one
+nullable integer referencing a namespace-local collection registry. Collection names are therefore not duplicated
+across potentially billions of model heads. Graph reads resolve exact `(segment, modelId)` pairs and then issue one
+multi-collection document query. Root documents already returned by search are not loaded again.
 
 The retained local PostgreSQL diagnostic used 5,000 independently searchable models, 1,024 parent documents, 5,000
 current edges, 128 concurrent model writes, and 50 measured graph searches after one warm-up:
@@ -78,6 +108,19 @@ materialized graph projection remain valuable optimizations rather than prerequi
 This is diagnostic evidence, not the Phase 9 production-scale certification. Recursive depth, paging, concurrent moves,
 cold-cache behavior, larger fan-out, allocation/GC/IOPS, and the 100-GB/min customer envelope remain explicit gates.
 
+The retained benchmark now also measures current graph composition with 1,024 root documents, 5,000 independently
+stored child models, 5,000 explicit edges, 256-byte configured child payloads, and 20 measured queries after warm-up:
+
+| Scenario | End-to-end p50 / p95 / p99 | Root query p95 | Traversal p95 | Collection locator p95 | Child load p95 | Stitch p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| selective: 1 root → 5 children | 2.371 / 2.655 / 3.422 ms | 0.392 ms | 1.044 ms | 0.915 ms | 0.270 ms | 0.136 ms |
+| broad: 1,024 roots → 5,000 children | 49.274 / 65.461 / 66.057 ms | 6.230 ms | 13.220 ms | 4.362 ms | 19.689 ms | 20.754 ms |
+
+The first locator query used independent segment and model-ID arrays. At broad fan-out PostgreSQL effectively paid for
+their cross-product and locator p50 was about 799 ms. Joining aligned `(segment, modelId)` arrays reduced it to 3.943 ms
+p50 without adding an index or denormalizing collection names. This failure and correction are retained because the
+same query shape matters much more at the intended scale than the happy-path API timings.
+
 ## Verification
 
 Coverage includes:
@@ -91,12 +134,19 @@ Coverage includes:
 - exact candidate-ID predicates in both JDBC search implementations, plus wire-compatible ordinary empty-list
   behavior and graph-level empty-candidate short-circuiting;
 - JSON and CBOR wire round trips for the distinct graph-search request;
+- JSON and CBOR wire round trips for the distinct composition request and all bounds;
+- deterministic child/grandchild placement, shared-DAG placement limits, missing documents, metadata omission, and
+  direct/nested path collisions in the shared stitcher;
+- direct `TestFixture` model creation and search through a composed multi-path grandchild graph;
+- one multi-collection JDBC child-document lookup in both regular and RUM stores;
+- compact collection-registry persistence, preservation across state-only writes, clearing on delete, and duplicate-ID
+  input handling;
+- final path filtering after runtime stitching;
 - explicit failure when graph search is not configured.
 
 ## Deliberately open
 
 - Compile a co-located search/relation store into one relational query plan.
-- Runtime-side stitching of complete current graph documents using explicit composition paths.
-- Stable path collision, DAG placement, and child ordering semantics for stitched documents.
 - Recursive-depth, paging, concurrent-move, cold-cache, and production-scale performance certification.
+- The opt-in asynchronous materialized root projection in Slice 7.3.
 - Historical full-text graph search.
