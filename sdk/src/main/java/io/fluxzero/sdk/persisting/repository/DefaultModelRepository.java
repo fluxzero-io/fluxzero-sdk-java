@@ -198,11 +198,44 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelMetadata.validate(rootType);
         ModelEventStateBoundary handlerBoundary =
                 handlerBoundary();
+        return loadGraph(
+                rootId, rootType, options,
+                stateIndex(handlerBoundary),
+                actionId(handlerBoundary),
+                actionSubstep(handlerBoundary),
+                handlerBoundary);
+    }
+
+    @Override
+    public <T> ModelGraph<T> loadGraphAt(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long stateIndex,
+            @NonNull ModelGraph.Options options) {
+        if (stateIndex < -1L) {
+            throw new IllegalArgumentException(
+                    "Model graph stateIndex must be at least -1");
+        }
+        requireEventReconstruction();
+        ModelMetadata.validate(rootType);
+        return loadGraph(
+                rootId, rootType, options,
+                stateIndex, null, null, null);
+    }
+
+    private <T> ModelGraph<T> loadGraph(
+            String rootId,
+            Class<T> rootType,
+            ModelGraph.Options options,
+            Long maxStateIndex,
+            String boundaryActionId,
+            Integer boundarySubstep,
+            ModelEventStateBoundary handlerBoundary) {
         GetModelGraphResult graph = client.getEventStoreClient().getModelGraph(
                 new GetModelGraph(
-                        rootId, stateIndex(handlerBoundary),
-                        actionId(handlerBoundary),
-                        actionSubstep(handlerBoundary),
+                        rootId, maxStateIndex,
+                        boundaryActionId,
+                        boundarySubstep,
                         options.maxDepth(), options.maxModels(),
                         0, 0L, true));
         pin(handlerBoundary, graph.getStateIndex());

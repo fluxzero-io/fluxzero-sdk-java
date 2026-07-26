@@ -85,6 +85,29 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
+     * Reconstructs a model graph at an inclusive historical model-state boundary.
+     */
+    default <T> ModelGraph<T> loadGraphAt(
+            @NonNull Id<T> rootId,
+            long stateIndex) {
+        return loadGraphAt(
+                rootId, stateIndex,
+                ModelGraph.Options.DEFAULT);
+    }
+
+    /**
+     * Reconstructs a bounded model graph at an inclusive historical model-state boundary.
+     */
+    default <T> ModelGraph<T> loadGraphAt(
+            @NonNull Id<T> rootId,
+            long stateIndex,
+            @NonNull ModelGraph.Options options) {
+        return loadGraphAt(
+                rootId.toString(), rootId.getType(),
+                stateIndex, options);
+    }
+
+    /**
      * Reconstructs a bounded model graph using exact persisted identity and root type.
      */
     default <T> ModelGraph<T> loadGraph(
@@ -93,5 +116,17 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             @NonNull ModelGraph.Options options) {
         throw new UnsupportedOperationException(
                 "Independent model graph reconstruction is not supported by this repository");
+    }
+
+    /**
+     * Reconstructs a bounded model graph using exact persisted identity, root type, and inclusive historical boundary.
+     */
+    default <T> ModelGraph<T> loadGraphAt(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long stateIndex,
+            @NonNull ModelGraph.Options options) {
+        throw new UnsupportedOperationException(
+                "Historical independent model graph reconstruction is not supported by this repository");
     }
 }

@@ -763,10 +763,29 @@ class DefaultModelRepositoryTest {
             fluxzero.commandGateway().send(
                     new MoveGraphChild(childId, secondRootId)).join();
 
+            ModelGraph<GraphRoot> historical =
+                    fluxzero.modelRepository().loadGraphAt(
+                            firstRootId,
+                            first.stateIndex());
             ModelGraph<GraphRoot> oldRoot =
                     fluxzero.modelRepository().loadGraph(firstRootId);
             ModelGraph<GraphRoot> newRoot =
                     fluxzero.modelRepository().loadGraph(secondRootId);
+            assertEquals(
+                    new GraphChild(
+                            childId, firstRootId, "child"),
+                    historical.root()
+                            .children("children")
+                            .getFirst().model().get());
+            assertEquals(
+                    new GraphGrandchild(
+                            grandchildId, childId,
+                            "grandchild"),
+                    historical.root()
+                            .children("children")
+                            .getFirst()
+                            .children("grandchildren")
+                            .getFirst().model().get());
             assertEquals(List.of(), oldRoot.root().children("children"));
             assertEquals(
                     new GraphChild(childId, secondRootId, "child"),
