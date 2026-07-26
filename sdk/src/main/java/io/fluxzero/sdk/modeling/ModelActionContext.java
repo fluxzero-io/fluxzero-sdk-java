@@ -25,12 +25,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable begin-state of the direct models loaded for one action.
+ * Immutable begin-state of the direct and resolved ancestor models loaded for one action.
  * <p>
- * The context contains exactly the identities produced by a {@link ModelTargetResolver.TargetPlan}. It neither follows
- * parent relations nor discovers additional models. All entries share one {@link #readStateIndex()} supplied by the
- * action load. The model-action repository will create this context from one batch response when its wire protocol is
- * introduced.
+ * Direct identities come from a {@link ModelTargetResolver.TargetPlan}. Read-only ancestor dependencies are resolved
+ * through one bounded temporal graph request before the context is created. All entries share one
+ * {@link #readStateIndex()}.
  */
 public final class ModelActionContext {
     private final long readStateIndex;
@@ -53,7 +52,7 @@ public final class ModelActionContext {
      * Creates an action context from one resolved target set and its loaded begin-state.
      *
      * @param readStateIndex one global state boundary shared by every supplied model
-     * @param resolution     deduplicated direct targets used for the load
+     * @param resolution     deduplicated direct and already-resolved ancestor targets used for the load
      * @param loadedModels   loaded entities keyed by their exact persisted ID string
      * @throws IllegalArgumentException if a target is missing, has an incompatible type, or extra state was loaded
      */
@@ -81,7 +80,7 @@ public final class ModelActionContext {
         }
         if (!remaining.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Action load returned unrelated model IDs %s; only direct resolved targets may enter the context"
+                    "Action load returned unrelated model IDs %s; only resolved action targets may enter the context"
                             .formatted(remaining.keySet()));
         }
         return new ModelActionContext(

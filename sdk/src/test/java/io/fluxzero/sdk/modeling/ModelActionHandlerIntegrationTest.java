@@ -228,6 +228,114 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
+    void injectsQualifiedParentsAndGrandparentsAcrossTheCompleteApplyLifecycle() {
+        TestFixture fixture = TestFixture.create();
+        FamilyRootId rootId = new FamilyRootId("one");
+        FamilyChildId primaryId = new FamilyChildId("primary");
+        FamilyChildId secondaryId =
+                new FamilyChildId("secondary");
+        FamilyGrandchildId grandchildId =
+                new FamilyGrandchildId("grandchild");
+
+        fixture.givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateFamilyChild(
+                                primaryId, rootId, "primary"),
+                        new CreateFamilyChild(
+                                secondaryId, rootId, "secondary"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, primaryId,
+                                secondaryId))
+                .whenCommand(new ObserveFamily(grandchildId))
+                .expectTrue(fluxzero -> new FamilyGrandchild(
+                        grandchildId, primaryId, secondaryId,
+                        "assert:primary/root|intercept:primary/root|apply:primary/root")
+                        .equals(fluxzero.modelRepository()
+                                        .load(grandchildId).get()));
+    }
+
+    @Test
+    void movingAChildChangesItsNextInjectedParentWithoutLoadingEitherParent() {
+        TestFixture fixture = TestFixture.create();
+        FamilyRootId rootId = new FamilyRootId("move");
+        FamilyChildId firstId = new FamilyChildId("first");
+        FamilyChildId secondId = new FamilyChildId("second");
+        FamilyGrandchildId grandchildId =
+                new FamilyGrandchildId("move");
+
+        fixture.givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateFamilyChild(
+                                firstId, rootId, "first"),
+                        new CreateFamilyChild(
+                                secondId, rootId, "second"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, firstId, secondId),
+                        new MoveFamilyGrandchild(
+                                grandchildId, secondId))
+                .whenCommand(new ObserveFamily(grandchildId))
+                .expectTrue(fluxzero -> new FamilyGrandchild(
+                        grandchildId, secondId, secondId,
+                        "assert:second/root|intercept:second/root|apply:second/root")
+                        .equals(fluxzero.modelRepository()
+                                        .load(grandchildId).get()));
+    }
+
+    @Test
+    void laterInterceptorSubstepSeesAParentMovedEarlierInTheSameAction() {
+        TestFixture fixture = TestFixture.create();
+        FamilyRootId rootId = new FamilyRootId("staged");
+        FamilyChildId firstId = new FamilyChildId("staged-first");
+        FamilyChildId secondId =
+                new FamilyChildId("staged-second");
+        FamilyGrandchildId grandchildId =
+                new FamilyGrandchildId("staged");
+
+        fixture.givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateFamilyChild(
+                                firstId, rootId, "first"),
+                        new CreateFamilyChild(
+                                secondId, rootId, "second"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, firstId, secondId))
+                .whenCommand(new MoveAndObserveFamily(List.of(
+                        new FamilyStep(
+                                grandchildId, secondId, false),
+                        new FamilyStep(
+                                grandchildId, secondId, true))))
+                .expectTrue(fluxzero -> new FamilyGrandchild(
+                        grandchildId, secondId, secondId,
+                        "same-action:second/root")
+                        .equals(fluxzero.modelRepository()
+                                        .load(grandchildId).get()));
+    }
+
+    @Test
+    void rejectsAnUnqualifiedAmbiguousAncestor() {
+        TestFixture fixture = TestFixture.create();
+        FamilyRootId rootId = new FamilyRootId("ambiguous");
+        FamilyChildId firstId = new FamilyChildId("first-a");
+        FamilyChildId secondId = new FamilyChildId("second-a");
+        FamilyGrandchildId grandchildId =
+                new FamilyGrandchildId("ambiguous");
+
+        fixture.givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateFamilyChild(
+                                firstId, rootId, "first"),
+                        new CreateFamilyChild(
+                                secondId, rootId, "second"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, firstId, secondId))
+                .whenCommand(
+                        new ObserveAmbiguousFamily(grandchildId))
+                .expectExceptionalResult(
+                        IllegalStateException.class)
+                .expectNoEvents();
+    }
+
+    @Test
     void historicalDependencyLoadRejectsExplicitNonStoredGap() {
         TestFixture fixture = TestFixture.create();
         PrivateInventoryId inventoryId = new PrivateInventoryId("1");
@@ -642,5 +750,188 @@ class ModelActionHandlerIntegrationTest {
     private record IncrementBoth(
             FirstCounterId firstCounterId,
             SecondCounterId secondCounterId) {
+    }
+
+    @Model
+    private record FamilyRoot(
+            @EntityId FamilyRootId familyRootId,
+            String name) {
+    }
+
+    private static final class FamilyRootId
+            extends Id<FamilyRoot> {
+        private FamilyRootId(String id) {
+            super(id, "family-root-");
+        }
+    }
+
+    private record CreateFamilyRoot(
+            FamilyRootId familyRootId, String name) {
+        @Apply
+        FamilyRoot apply() {
+            return new FamilyRoot(familyRootId, name);
+        }
+    }
+
+    @Model
+    private record FamilyChild(
+            @EntityId FamilyChildId familyChildId,
+            @ParentId(path = "children")
+            FamilyRootId familyRootId,
+            String name) {
+    }
+
+    private static final class FamilyChildId
+            extends Id<FamilyChild> {
+        private FamilyChildId(String id) {
+            super(id, "family-child-");
+        }
+    }
+
+    private record CreateFamilyChild(
+            FamilyChildId familyChildId,
+            FamilyRootId familyRootId,
+            String name) {
+        @Apply
+        FamilyChild apply() {
+            return new FamilyChild(
+                    familyChildId, familyRootId, name);
+        }
+    }
+
+    @Model(cached = false)
+    private record FamilyGrandchild(
+            @EntityId FamilyGrandchildId familyGrandchildId,
+            @ParentId(path = "primaryGrandchildren")
+            FamilyChildId primaryId,
+            @ParentId(path = "secondaryGrandchildren")
+            FamilyChildId secondaryId,
+            String observations) {
+    }
+
+    private static final class FamilyGrandchildId
+            extends Id<FamilyGrandchild> {
+        private FamilyGrandchildId(String id) {
+            super(id, "family-grandchild-");
+        }
+    }
+
+    private record CreateFamilyGrandchild(
+            FamilyGrandchildId familyGrandchildId,
+            FamilyChildId primaryId,
+            FamilyChildId secondaryId) {
+        @Apply
+        FamilyGrandchild apply() {
+            return new FamilyGrandchild(
+                    familyGrandchildId, primaryId,
+                    secondaryId, "");
+        }
+    }
+
+    private record MoveFamilyGrandchild(
+            FamilyGrandchildId familyGrandchildId,
+            FamilyChildId newPrimaryId) {
+        @Apply
+        FamilyGrandchild apply(
+                FamilyGrandchild grandchild) {
+            return new FamilyGrandchild(
+                    grandchild.familyGrandchildId(),
+                    newPrimaryId,
+                    grandchild.secondaryId(),
+                    grandchild.observations());
+        }
+    }
+
+    private record ObserveAmbiguousFamily(
+            FamilyGrandchildId familyGrandchildId) {
+        @Apply
+        FamilyGrandchild apply(
+                FamilyGrandchild grandchild,
+                FamilyChild ambiguousParent) {
+            return grandchild;
+        }
+    }
+
+    private record MoveAndObserveFamily(
+            List<FamilyStep> steps) {
+        @InterceptApply
+        List<FamilyStep> intercept() {
+            return steps;
+        }
+    }
+
+    private record FamilyStep(
+            FamilyGrandchildId familyGrandchildId,
+            FamilyChildId newPrimaryId,
+            boolean observe) {
+        @Apply
+        FamilyGrandchild apply(
+                FamilyGrandchild grandchild,
+                @io.fluxzero.sdk.tracking.handling.Association(
+                        "primaryGrandchildren")
+                FamilyChild parent,
+                FamilyRoot grandparent) {
+            return new FamilyGrandchild(
+                    grandchild.familyGrandchildId(),
+                    observe
+                            ? grandchild.primaryId()
+                            : newPrimaryId,
+                    grandchild.secondaryId(),
+                    observe
+                            ? "same-action:" + parent.name()
+                              + "/" + grandparent.name()
+                            : grandchild.observations());
+        }
+    }
+
+    private record ObserveFamily(
+            FamilyGrandchildId familyGrandchildId) {
+        @AssertLegal
+        void assertFamily(
+                FamilyGrandchild grandchild,
+                @io.fluxzero.sdk.tracking.handling.Association(
+                        "primaryGrandchildren")
+                FamilyChild parent,
+                FamilyRoot grandparent) {
+            if (!"primary".equals(parent.name())
+                || !"root".equals(grandparent.name())) {
+                throw new IllegalStateException(
+                        "Unexpected family ancestor");
+            }
+        }
+
+        @InterceptApply
+        ObservedFamily intercept(
+                FamilyGrandchild grandchild,
+                @io.fluxzero.sdk.tracking.handling.Association(
+                        "primaryGrandchildren")
+                FamilyChild parent,
+                Entity<FamilyRoot> grandparent) {
+            return new ObservedFamily(
+                    familyGrandchildId,
+                    "assert:" + parent.name()
+                    + "/" + grandparent.get().name()
+                    + "|intercept:" + parent.name()
+                    + "/" + grandparent.get().name());
+        }
+    }
+
+    private record ObservedFamily(
+            FamilyGrandchildId familyGrandchildId,
+            String observations) {
+        @Apply
+        FamilyGrandchild apply(
+                FamilyGrandchild grandchild,
+                @io.fluxzero.sdk.tracking.handling.Association(
+                        "primaryGrandchildren")
+                FamilyChild parent,
+                FamilyRoot grandparent) {
+            return new FamilyGrandchild(
+                    grandchild.familyGrandchildId(),
+                    grandchild.primaryId(),
+                    grandchild.secondaryId(),
+                    observations + "|apply:" + parent.name()
+                    + "/" + grandparent.name());
+        }
     }
 }

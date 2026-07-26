@@ -131,6 +131,43 @@ class ModelTargetResolverTest {
     }
 
     @Test
+    void classifiesMissingDirectModelParameterAsAncestorDependency() {
+        ModelTargetResolver.Resolution resolution =
+                ModelTargetResolver.resolve(
+                        new CheckChild(new ChildId("1")),
+                        ModelMetadata.of(
+                                CheckChild.class).handlerMethods());
+
+        assertEquals(
+                List.of("child-1"),
+                resolution.models().stream()
+                        .map(ModelTargetResolver.ResolvedModel::modelId)
+                        .toList());
+        assertEquals(
+                List.of(new ModelTargetResolver.AncestorDependency(
+                        Parent.class, null,
+                        ModelMetadata.of(CheckChild.class)
+                                .handlerMethods().getFirst()
+                                .executable().toGenericString())),
+                resolution.ancestorDependencies());
+    }
+
+    @Test
+    void missingAssociationPropertyQualifiesAncestorPath() {
+        ModelTargetResolver.Resolution resolution =
+                ModelTargetResolver.resolve(
+                        new CheckQualifiedChild(new ChildId("1")),
+                        ModelMetadata.of(
+                                CheckQualifiedChild.class)
+                                .handlerMethods());
+
+        assertEquals(
+                "parents",
+                resolution.ancestorDependencies()
+                        .getFirst().association());
+    }
+
+    @Test
     void defersWriteSelectionWhenReturnTypeHasMultipleQualifiedCandidates() {
         Transfer command = new Transfer(new AccountId("source"), new AccountId("destination"));
 
@@ -173,7 +210,6 @@ class ModelTargetResolverTest {
     @Test
     void rejectsMissingIdsAndInvalidExplicitPropertiesDuringPlanning() {
         assertMessage(MissingProductId.class, Product.class, "no property named 'productId'");
-        assertMessage(BrokenCheckOrder.class, BrokenCheckOrder.class, "has no property 'missing'");
         assertMessage(CollectionCheckOrder.class, CollectionCheckOrder.class, "must contain one direct model ID");
     }
 
@@ -373,5 +409,19 @@ class ModelTargetResolverTest {
     }
 
     private record RenameChild(ChildId childId) {
+    }
+
+    private record CheckChild(ChildId childId) {
+        @AssertLegal
+        void check(Child child, Parent parent) {
+        }
+    }
+
+    private record CheckQualifiedChild(ChildId childId) {
+        @AssertLegal
+        void check(
+                Child child,
+                @Association("parents") Parent parent) {
+        }
     }
 }

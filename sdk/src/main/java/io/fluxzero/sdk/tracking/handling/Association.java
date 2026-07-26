@@ -41,6 +41,10 @@ import java.lang.annotation.Target;
  *     <li>A <strong>handler parameter</strong> — this declares which property of the handled message should be used
  *     for matching while keeping the handler signature explicit.</li>
  * </ul>
+ * For a model value or {@link io.fluxzero.sdk.modeling.Entity Entity&lt;T&gt;} parameter of a model-aware
+ * {@code @AssertLegal}, {@code @InterceptApply}, or {@code @Apply} method, one association value first selects a
+ * same-named payload ID property. If that property is absent, the value qualifies a reachable ancestor by its explicit
+ * {@link io.fluxzero.sdk.modeling.ParentId#path() @ParentId path}.
  *
  * <h2>Matching Semantics</h2>
  * A message is associated with a handler instance if:

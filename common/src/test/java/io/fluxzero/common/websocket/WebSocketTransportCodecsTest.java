@@ -35,6 +35,7 @@ import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -531,6 +532,34 @@ class WebSocketTransportCodecsTest {
             assertSerializedMessage(
                     result.getPayloads().getFirst().getEvent(),
                     decodedResult.getPayloads().getFirst().getEvent());
+        }
+    }
+
+    @Test
+    void modelAncestorsRoundTripMultipleRootsAndActionBoundary()
+            throws Exception {
+        GetModelAncestors request = new GetModelAncestors(
+                List.of("line-1", "line-2"),
+                null, "action-991", 3,
+                12, 1_000, 0, 0L);
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            GetModelAncestors decoded = assertInstanceOf(
+                    GetModelAncestors.class,
+                    roundTrip(codec, request));
+
+            assertEquals(
+                    List.of("line-1", "line-2"),
+                    decoded.getModelIds());
+            assertEquals(
+                    "action-991",
+                    decoded.getBoundaryActionId());
+            assertEquals(3, decoded.getBoundarySubstep());
+            assertEquals(12, decoded.getMaxDepth());
+            assertEquals(1_000, decoded.getMaxModels());
+            assertEquals(
+                    2, decoded.toMetric().getRootCount());
         }
     }
 

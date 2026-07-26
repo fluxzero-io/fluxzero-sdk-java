@@ -404,37 +404,72 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         class ActionLoader implements ModelActionEngine.SubstepResolver {
             private final Map<String, Entity<?>> actionEntities =
                     new LinkedHashMap<>();
+            private final Map<AncestorPlanKey,
+                    List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
+                    new LinkedHashMap<>();
 
             @Override
             public ModelActionEngine.ResolvedSubstep resolve(
-                    DeserializingMessage substep, Long requestedStateIndex) {
+                    DeserializingMessage substep,
+                    Long requestedStateIndex,
+                    Map<String, Object> stagedValues) {
                 Object payload = substep.getPayload();
                 List<ModelMetadata.HandlerMethod> handlers =
                         handlersFor(payload.getClass());
                 ModelTargetResolver.Resolution resolution =
                         ModelTargetResolver.resolve(payload, handlers);
+                AncestorPlanKey ancestorPlanKey =
+                        resolution.hasAncestorDependencies()
+                                ? ancestorPlanKey(
+                                        resolution, stagedValues)
+                                : null;
+                List<ModelTargetResolver.ResolvedModel> effectiveTargets =
+                        ancestorPlanKey == null
+                                ? resolution.models()
+                                : ancestorPlans.get(ancestorPlanKey);
                 List<ModelTargetResolver.ResolvedModel> missing =
-                        resolution.models().stream()
+                        effectiveTargets == null
+                                ? List.of()
+                                : effectiveTargets.stream()
                                 .filter(target -> !actionEntities.containsKey(
                                         target.modelId()))
                                 .toList();
                 long stateIndex = requestedStateIndex == null
                         ? -1L : requestedStateIndex;
-                if (requestedStateIndex == null || !missing.isEmpty()) {
+                if (effectiveTargets == null) {
+                    ModelActionContext loaded = repository.loadContext(
+                            resolution, requestedStateIndex,
+                            stagedValues);
+                    stateIndex = loaded.readStateIndex();
+                    effectiveTargets = targets(loaded);
+                    ancestorPlans.put(
+                            ancestorPlanKey, effectiveTargets);
+                    retain(loaded);
+                } else if (requestedStateIndex == null
+                           || !missing.isEmpty()) {
                     ModelTargetResolver.Resolution loadResolution =
                             requestedStateIndex == null
-                                    ? resolution
+                                    ? ancestorPlanKey == null
+                                            ? resolution
+                                            : resolution.withResolvedModels(
+                                                    effectiveTargets)
                                     : new ModelTargetResolver.Resolution(
                                             missing, List.of());
                     ModelActionContext loaded = repository.loadContext(
-                            loadResolution, requestedStateIndex);
+                            loadResolution, requestedStateIndex,
+                            stagedValues);
                     stateIndex = loaded.readStateIndex();
                     retain(loaded);
                 }
+                ModelTargetResolver.Resolution effectiveResolution =
+                        ancestorPlanKey == null
+                                ? resolution
+                                : resolution.withResolvedModels(
+                                        effectiveTargets);
                 LinkedHashMap<String, Entity<?>> selected =
                         new LinkedHashMap<>();
                 for (ModelTargetResolver.ResolvedModel target :
-                        resolution.models()) {
+                        effectiveTargets) {
                     selected.put(
                             target.modelId(),
                             Objects.requireNonNull(
@@ -444,22 +479,48 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 }
                 return new ModelActionEngine.ResolvedSubstep(
                         ModelActionContext.create(
-                                stateIndex, resolution, selected),
+                                stateIndex, effectiveResolution,
+                                selected),
                         handlers);
             }
 
             @Override
             public void prefetch(
                     List<DeserializingMessage> messages,
-                    long readStateIndex) {
+                    long readStateIndex,
+                    Map<String, Object> stagedValues) {
                 LinkedHashMap<String, ModelTargetResolver.ResolvedModel>
                         missing = new LinkedHashMap<>();
                 for (DeserializingMessage message : messages) {
                     Object payload = message.getPayload();
                     List<ModelMetadata.HandlerMethod> handlers =
                             handlersFor(payload.getClass());
-                    ModelTargetResolver.resolve(payload, handlers)
-                            .models().stream()
+                    ModelTargetResolver.Resolution resolution =
+                            ModelTargetResolver.resolve(
+                                    payload, handlers);
+                    if (resolution.hasAncestorDependencies()) {
+                        AncestorPlanKey key = ancestorPlanKey(
+                                resolution, stagedValues);
+                        if (!ancestorPlans.containsKey(key)) {
+                            ModelActionContext loaded =
+                                    repository.loadContext(
+                                            resolution,
+                                            readStateIndex,
+                                            stagedValues);
+                            if (loaded.readStateIndex()
+                                != readStateIndex) {
+                                throw new IllegalStateException(
+                                        "Ancestor prefetch requested state index %d but loaded %d"
+                                                .formatted(
+                                                        readStateIndex,
+                                                        loaded.readStateIndex()));
+                            }
+                            ancestorPlans.put(key, targets(loaded));
+                            retain(loaded);
+                        }
+                        continue;
+                    }
+                    resolution.models().stream()
                             .filter(target -> !actionEntities.containsKey(
                                     target.modelId()))
                             .forEach(target -> missing.putIfAbsent(
@@ -477,6 +538,13 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 loaded.entries().forEach(entry -> actionEntities.put(
                         entry.target().modelId(), entry.entity()));
             }
+
+            private List<ModelTargetResolver.ResolvedModel> targets(
+                    ModelActionContext context) {
+                return context.entries().stream()
+                        .map(ModelActionContext.Entry::target)
+                        .toList();
+            }
         }
         return engine.evaluate(initialMessage, new ActionLoader());
     }
@@ -488,11 +556,15 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 implements ModelActionEngine.SubstepResolver {
             private final Map<String, Entity<?>> actionEntities =
                     new LinkedHashMap<>();
+            private final Map<AncestorPlanKey,
+                    List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
+                    new LinkedHashMap<>();
 
             @Override
             public ModelActionEngine.ResolvedSubstep resolve(
                     DeserializingMessage substep,
-                    Long requestedStateIndex) {
+                    Long requestedStateIndex,
+                    Map<String, Object> stagedValues) {
                 long boundary = requestedStateIndex == null
                         ? stateIndex : requestedStateIndex;
                 if (boundary != stateIndex) {
@@ -511,19 +583,53 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                         ModelTargetResolver.resolve(
                                 substep.getPayload(),
                                 handlers);
+                AncestorPlanKey ancestorPlanKey =
+                        resolution.hasAncestorDependencies()
+                                ? ancestorPlanKey(
+                                        resolution, stagedValues)
+                                : null;
+                List<ModelTargetResolver.ResolvedModel> effectiveTargets =
+                        ancestorPlanKey == null
+                                ? resolution.models()
+                                : ancestorPlans.get(ancestorPlanKey);
                 List<ModelTargetResolver.ResolvedModel> missing =
-                        resolution.models().stream()
+                        effectiveTargets == null
+                                ? List.of()
+                                : effectiveTargets.stream()
                                 .filter(target ->
                                                 !actionEntities
                                                         .containsKey(
                                                                 target.modelId()))
                                 .toList();
-                if (!missing.isEmpty()) {
+                if (effectiveTargets == null) {
+                    ModelActionContext loaded =
+                            repository.loadContext(
+                                    resolution, stateIndex,
+                                    stagedValues);
+                    if (loaded.readStateIndex()
+                        != stateIndex) {
+                        throw new IllegalStateException(
+                                "Apply-only rebase requested state index %d but loaded %d"
+                                        .formatted(
+                                                stateIndex,
+                                                loaded.readStateIndex()));
+                    }
+                    effectiveTargets = loaded.entries().stream()
+                            .map(ModelActionContext.Entry::target)
+                            .toList();
+                    ancestorPlans.put(
+                            ancestorPlanKey, effectiveTargets);
+                    loaded.entries().forEach(entry ->
+                                                     actionEntities.put(
+                                                             entry.target()
+                                                                     .modelId(),
+                                                             entry.entity()));
+                } else if (!missing.isEmpty()) {
                     ModelActionContext loaded =
                             repository.loadContext(
                                     new ModelTargetResolver.Resolution(
                                             missing, List.of()),
-                                    stateIndex);
+                                    stateIndex, stagedValues);
                     if (loaded.readStateIndex()
                         != stateIndex) {
                         throw new IllegalStateException(
@@ -538,10 +644,15 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                                                      .modelId(),
                                                              entry.entity()));
                 }
+                ModelTargetResolver.Resolution effectiveResolution =
+                        ancestorPlanKey == null
+                                ? resolution
+                                : resolution.withResolvedModels(
+                                        effectiveTargets);
                 LinkedHashMap<String, Entity<?>> selected =
                         new LinkedHashMap<>();
                 for (ModelTargetResolver.ResolvedModel target :
-                        resolution.models()) {
+                        effectiveTargets) {
                     selected.put(
                             target.modelId(),
                             Objects.requireNonNull(
@@ -552,7 +663,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 }
                 return new ModelActionEngine.ResolvedSubstep(
                         ModelActionContext.create(
-                                stateIndex, resolution,
+                                stateIndex, effectiveResolution,
                                 selected),
                         handlers);
             }
@@ -563,6 +674,35 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     private List<ModelMetadata.HandlerMethod> handlersFor(Class<?> payloadType) {
         return handlerPlans.computeIfAbsent(payloadType, this::inspectHandlers);
+    }
+
+    private static AncestorPlanKey ancestorPlanKey(
+            ModelTargetResolver.Resolution resolution,
+            Map<String, Object> stagedValues) {
+        List<StagedRelationships> relationships =
+                new ArrayList<>(stagedValues.size());
+        stagedValues.forEach((modelId, value) -> {
+            List<ParentRelationship> parents = new ArrayList<>();
+            if (value != null) {
+                for (ModelMetadata.ParentReference parent :
+                        ModelMetadata.validate(
+                                value.getClass()).parentReferences()) {
+                    Object parentId = parent.read(value);
+                    if (parentId != null) {
+                        parents.add(new ParentRelationship(
+                                Objects.requireNonNull(
+                                        parentId.toString(),
+                                        "Parent ID string"),
+                                parent.parentModelType(),
+                                parent.path()));
+                    }
+                }
+            }
+            relationships.add(new StagedRelationships(
+                    modelId, List.copyOf(parents)));
+        });
+        return new AncestorPlanKey(
+                resolution, List.copyOf(relationships));
     }
 
     private List<ModelMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
@@ -665,6 +805,22 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 .min(java.util.Comparator.comparing(Class::getName))
                 .map(receiverType::equals)
                 .orElse(false);
+    }
+
+    private record AncestorPlanKey(
+            ModelTargetResolver.Resolution resolution,
+            List<StagedRelationships> stagedRelationships) {
+    }
+
+    private record StagedRelationships(
+            String modelId,
+            List<ParentRelationship> parents) {
+    }
+
+    private record ParentRelationship(
+            String parentId,
+            Class<?> parentType,
+            String path) {
     }
 
     private final class ActionHandler

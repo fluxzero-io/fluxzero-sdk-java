@@ -225,7 +225,7 @@ class ModelActionEngineTest {
 
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(command),
-                (substep, requestedStateIndex) -> {
+                (substep, requestedStateIndex, stagedValues) -> {
                     requestedStateIndices.add(requestedStateIndex);
                     return resolveSubstep(substep, 77, stored);
                 });
@@ -259,7 +259,8 @@ class ModelActionEngineTest {
 
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(command),
-                (substep, requestedStateIndex) -> resolveSubstep(substep, 79, stored));
+                (substep, requestedStateIndex, stagedValues) ->
+                        resolveSubstep(substep, 79, stored));
 
         assertEquals(1, result.substeps().size());
         assertSame(command, result.substeps().getFirst().message().getPayload());
@@ -281,7 +282,8 @@ class ModelActionEngineTest {
 
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(command),
-                (substep, requestedStateIndex) -> resolveSubstep(substep, 88, stored));
+                (substep, requestedStateIndex, stagedValues) ->
+                        resolveSubstep(substep, 88, stored));
 
         assertEquals(2, result.substeps().size());
         assertEquals(5, ((Inventory) result.transitions().get(0).before()).available());
@@ -304,7 +306,7 @@ class ModelActionEngineTest {
                 MockFailure.class,
                 () -> engine.evaluate(
                         message,
-                        (substep, requestedStateIndex) ->
+                        (substep, requestedStateIndex, stagedValues) ->
                                 resolveSubstep(substep, 89, stored)));
 
         assertEquals(new Inventory(id, 5), storedInventory.get());
@@ -322,7 +324,7 @@ class ModelActionEngineTest {
 
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(command),
-                (substep, requestedStateIndex) -> {
+                (substep, requestedStateIndex, stagedValues) -> {
                     resolutions[0]++;
                     return resolveSubstep(substep, 91, stored);
                 });
@@ -338,7 +340,8 @@ class ModelActionEngineTest {
     void interceptorMaySuppressAnActionWithoutCreatingASubstep() {
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(new SuppressInventoryUpdate()),
-                (substep, requestedStateIndex) -> resolveSubstep(substep, 12, Map.of()));
+                (substep, requestedStateIndex, stagedValues) ->
+                        resolveSubstep(substep, 12, Map.of()));
 
         assertEquals(12, result.readStateIndex());
         assertTrue(result.substeps().isEmpty());
@@ -357,7 +360,7 @@ class ModelActionEngineTest {
                 IllegalStateException.class,
                 () -> engine.evaluate(
                         message(command),
-                        (substep, requestedStateIndex) -> resolveSubstep(
+                        (substep, requestedStateIndex, stagedValues) -> resolveSubstep(
                                 substep, requestedStateIndex == null ? 70 : 71, stored)));
 
         assertTrue(exception.getMessage().contains(
@@ -373,7 +376,8 @@ class ModelActionEngineTest {
 
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(command),
-                (substep, requestedStateIndex) -> resolveSubstep(substep, -1, stored));
+                (substep, requestedStateIndex, stagedValues) ->
+                        resolveSubstep(substep, -1, stored));
 
         assertEquals(-1, result.readStateIndex());
         assertSame(command, result.substeps().getFirst().message().getPayload());
@@ -395,7 +399,7 @@ class ModelActionEngineTest {
 
         ModelActionEngine.ActionEvaluation result = engine.evaluate(
                 message(command),
-                (substep, requestedStateIndex) ->
+                (substep, requestedStateIndex, stagedValues) ->
                         new ModelActionEngine.ResolvedSubstep(begin, handlers));
 
         assertEquals(

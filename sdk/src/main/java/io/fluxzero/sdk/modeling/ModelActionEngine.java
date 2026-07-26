@@ -119,7 +119,10 @@ final class ModelActionEngine {
                 }
                 PendingSubstep current = pending.removeFirst();
                 ResolvedSubstep resolved = Objects.requireNonNull(
-                        resolver.resolve(current.message(), stateIndexPinned ? readStateIndex : null),
+                        resolver.resolve(
+                                current.message(),
+                                stateIndexPinned ? readStateIndex : null,
+                                stagedValues),
                         "Substep resolver returned null");
                 if (!stateIndexPinned) {
                     readStateIndex = resolved.context().readStateIndex();
@@ -165,7 +168,8 @@ final class ModelActionEngine {
                                     pending.stream().limit(added)
                                             .map(PendingSubstep::message)
                                             .toList(),
-                                    readStateIndex);
+                                    readStateIndex,
+                                    stagedValues);
                         }
                         continue;
                     }
@@ -215,7 +219,8 @@ final class ModelActionEngine {
             ResolvedSubstep resolved = Objects.requireNonNull(
                     resolver.resolve(
                             message,
-                            stateIndexPinned ? readStateIndex : null),
+                            stateIndexPinned ? readStateIndex : null,
+                            stagedValues),
                     "Rebase substep resolver returned null");
             if (!stateIndexPinned) {
                 readStateIndex = resolved.context().readStateIndex();
@@ -527,10 +532,15 @@ final class ModelActionEngine {
 
     @FunctionalInterface
     interface SubstepResolver {
-        ResolvedSubstep resolve(DeserializingMessage message, Long readStateIndex);
+        ResolvedSubstep resolve(
+                DeserializingMessage message,
+                Long readStateIndex,
+                Map<String, Object> stagedValues);
 
         default void prefetch(
-                List<DeserializingMessage> messages, long readStateIndex) {
+                List<DeserializingMessage> messages,
+                long readStateIndex,
+                Map<String, Object> stagedValues) {
             // Optional batch optimization.
         }
     }

@@ -19,6 +19,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -46,6 +47,7 @@ import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -397,6 +399,95 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 events.getPayloads(), events.getStreams());
     }
 
+    @Override
+    public synchronized GetModelGraphResult getModelAncestors(
+            GetModelAncestors request) {
+        validate(request);
+        long boundary = modelBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryActionId(),
+                request.getBoundarySubstep());
+        if (boundary < -1L || boundary > modelStateIndex) {
+            throw new IllegalArgumentException(
+                    "Model maxStateIndex %d is outside visible range -1..%d"
+                            .formatted(boundary, modelStateIndex));
+        }
+        LinkedHashSet<String> modelIds =
+                new LinkedHashSet<>(request.getModelIds());
+        List<String> frontier = List.copyOf(modelIds);
+        List<ModelGraphEdge> edges = new ArrayList<>();
+        for (int depth = 0;
+             depth < request.getMaxDepth() && !frontier.isEmpty();
+             depth++) {
+            Set<String> children = Set.copyOf(frontier);
+            List<String> next = new ArrayList<>();
+            List<MutableModelRelationship> relationships =
+                    modelRelationshipHistory.stream()
+                            .filter(relation ->
+                                            children.contains(
+                                                    relation.childId)
+                                            && relation.isValidAt(
+                                                    boundary))
+                            .sorted(Comparator
+                                    .comparing(
+                                            (MutableModelRelationship value) ->
+                                                    value.childId)
+                                    .thenComparing(value ->
+                                                           value.relationship
+                                                                   .getParentId())
+                                    .thenComparing(
+                                            value -> value.relationship
+                                                    .getPath(),
+                                            Comparator.nullsFirst(
+                                                    Comparator
+                                                            .naturalOrder())))
+                            .toList();
+            for (MutableModelRelationship relation :
+                    relationships) {
+                edges.add(new ModelGraphEdge(
+                        relation.childId,
+                        relation.relationship.getParentId(),
+                        relation.relationship.getParentType(),
+                        relation.relationship.getPath(),
+                        relation.validFrom, relation.validUntil));
+                if (modelIds.add(
+                        relation.relationship.getParentId())) {
+                    if (modelIds.size() > request.getMaxModels()) {
+                        throw new IllegalArgumentException(
+                                "Model ancestor graph exceeds maxModels "
+                                + request.getMaxModels());
+                    }
+                    next.add(relation.relationship.getParentId());
+                }
+            }
+            frontier = next;
+        }
+        if (!frontier.isEmpty()) {
+            Set<String> truncatedChildren = Set.copyOf(frontier);
+            boolean truncated = modelRelationshipHistory.stream()
+                    .anyMatch(relation ->
+                                      truncatedChildren.contains(
+                                              relation.childId)
+                                      && relation.isValidAt(boundary));
+            if (truncated) {
+                throw new IllegalArgumentException(
+                        "Model ancestor graph exceeds maxDepth "
+                        + request.getMaxDepth());
+            }
+        }
+        GetModelEventsResult events = getModelEvents(new GetModelEvents(
+                modelIds.stream()
+                        .map(id -> new ModelEventStreamRequest(
+                                id, -1L,
+                                request.getMaxEventsPerModel()))
+                        .toList(),
+                boundary, request.getMaxBytes()));
+        return new GetModelGraphResult(
+                request.getRequestId(), boundary,
+                List.copyOf(edges), events.getPayloads(),
+                events.getStreams());
+    }
+
     private long modelBoundary(
             Long maxStateIndex,
             String boundaryActionId,
@@ -600,6 +691,54 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
         if (request.getMaxBytes() < 0L) {
             throw new IllegalArgumentException("Model graph maxBytes must not be negative");
+        }
+    }
+
+    private static void validate(GetModelAncestors request) {
+        if (request == null) {
+            throw new IllegalArgumentException(
+                    "Model ancestor request is required");
+        }
+        if (request.getModelIds() == null
+            || request.getModelIds().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Model ancestor roots are required");
+        }
+        Set<String> roots = new HashSet<>();
+        for (String modelId : request.getModelIds()) {
+            validateModelId(modelId);
+            if (!roots.add(modelId)) {
+                throw new IllegalArgumentException(
+                        "Duplicate model ancestor root " + modelId);
+            }
+        }
+        if (request.getMaxStateIndex() != null
+            && request.getMaxStateIndex() < -1L) {
+            throw new IllegalArgumentException(
+                    "Model state index must be at least -1");
+        }
+        validateEventBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryActionId(),
+                request.getBoundarySubstep());
+        if (request.getMaxDepth() < 1
+            || request.getMaxDepth() > 1_024) {
+            throw new IllegalArgumentException(
+                    "Model ancestor maxDepth must be between 1 and 1024");
+        }
+        if (request.getMaxModels() < roots.size()
+            || request.getMaxModels() > 100_000) {
+            throw new IllegalArgumentException(
+                    "Model ancestor maxModels must be between root count and 100000");
+        }
+        if (request.getMaxEventsPerModel() < 0
+            || request.getMaxEventsPerModel() > 8_192) {
+            throw new IllegalArgumentException(
+                    "Model ancestor maxEventsPerModel must be between 0 and 8192");
+        }
+        if (request.getMaxBytes() < 0L) {
+            throw new IllegalArgumentException(
+                    "Model ancestor maxBytes must not be negative");
         }
     }
 
