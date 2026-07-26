@@ -849,3 +849,11 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   bounded. Full SDK, site/Javadoc, downstream, and runtime reactors passed; runtime reported 538 tests. A separate
   regression review retained public registry constructors, legacy snapshot readability, metric compatibility, and
   document/snapshot-aware runtime backpressure.
+- 2026-07-26 — Direct assert-and-apply (`SDK 51dc3fd3b84`) adds synchronous
+  `Fluxzero.assertAndApply(update[, metadata])`. It enters the independent-model action engine without command
+  redispatch, so an explicit handler can apply its own payload exactly once; it returns only after durable commit and
+  direct-search visibility, while preserving the enclosing handler result and original failures. Synchronous,
+  asynchronous-result, nested-dispatch, metadata, failure, and outside-handler fixture paths are covered. The complete
+  SDK and site/Javadoc reactors passed, including test-server, proxy, annotation processing, and Java/Kotlin downstream
+  projects. Aggregate inference remains deliberately open because a typed child ID or one of several IDs does not
+  safely identify the aggregate root.
