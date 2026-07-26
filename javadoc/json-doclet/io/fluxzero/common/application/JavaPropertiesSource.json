@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
   "fields" : [ {
+    "name" : "environmentVariableAliases",
+    "qualifiedName" : "io.fluxzero.common.application.JavaPropertiesSource.environmentVariableAliases",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "properties",
     "qualifiedName" : "io.fluxzero.common.application.JavaPropertiesSource.properties",
     "type" : "java.util.Properties",
@@ -22,10 +30,7 @@
     "name" : "JavaPropertiesSource",
     "qualifiedName" : "io.fluxzero.common.application.JavaPropertiesSource#JavaPropertiesSource",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "properties",
@@ -36,6 +41,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a new property source backed by the given {@link Properties} instance.\n\n @param properties the {@code Properties} instance to use for lookups\n"
+  }, {
+    "name" : "JavaPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.JavaPropertiesSource#JavaPropertiesSource",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "properties",
+      "type" : "java.util.Properties",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "environmentVariableAliases",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "get",
@@ -55,7 +80,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Retrieves the value for the given property name.\n\n @param name the property key\n @return the property value, or {@code null} if not present\n"
+    "documentation" : " Retrieves the value for the given property name. Built-in property-file sources also fall back to conventional\n environment-variable aliases, while exact property names retain priority.\n\n @param name the property key\n @return the property value, or {@code null} if not present\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

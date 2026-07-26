@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " A {@link PropertySource} that loads extra configuration from locations declared through\n {@value #CONFIG_LOCATIONS_PROPERTY}.\n <p>\n The property can be set as an environment variable or JVM system property. Multiple locations can be separated with\n commas. Supported locations are {@code file:/path/to/config.properties}, plain file paths, and\n {@code classpath:config.properties}. Prefix a location with {@code optional:} to ignore it when it does not exist.\n Later locations override earlier locations.\n",
+  "documentation" : " A {@link PropertySource} that loads extra configuration from locations declared through\n {@value #CONFIG_LOCATIONS_PROPERTY}.\n <p>\n The property can be set as an environment variable or JVM system property. Multiple locations can be separated with\n commas. Supported locations are {@code file:/path/to/config.properties}, plain file paths, and\n {@code classpath:config.properties}. Prefix a location with {@code optional:} to ignore it when it does not exist.\n Later locations override earlier locations. Property-style names can also be supplied using conventional environment\n variable names; for example, {@code FLUXZERO_API_TOKEN} can be read as {@code fluxzero.api.token}. An exact property\n name takes priority when both forms exist.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.common.application.JavaPropertiesSource",
   "interfaces" : [ ],
