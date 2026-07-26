@@ -25,7 +25,9 @@ import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelRelationship;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -212,7 +214,7 @@ class InMemoryEventStoreModelActionTest {
                                 .event(event("event-2"))
                                 .targets(List.of(storedTarget("order-1")))
                                 .build()),
-                Guarantee.STORED)).join();
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED)).join();
 
         var historical = store.getModelEvents(new GetModelEvents(
                 List.of(new ModelEventStreamRequest("order-1", -1L, 0)), 0L, 0L));
@@ -262,6 +264,165 @@ class InMemoryEventStoreModelActionTest {
     }
 
     @Test
+    void acceptPolicyCommitsAgainstAStaleReadBoundary() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        store.commitModelAction(action(
+                "action-1",
+                ModelActionSubstep.builder()
+                        .event(event("event-1"))
+                        .targets(List.of(storedTarget("order-1")))
+                        .build())).join();
+
+        CommitModelActionResult result = store.commitModelAction(action(
+                "action-2", -1L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder()
+                        .event(event("event-2"))
+                        .targets(List.of(storedTarget("order-1")))
+                        .build())).join();
+
+        assertTrue(result.isAccepted());
+        assertEquals(1L, result.getSubsteps().getFirst().getStateIndex());
+    }
+
+    @Test
+    void failPolicyRejectsBeforePublicationAndDoesNotRetainTheActionId() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        store.commitModelAction(action(
+                "action-1",
+                ModelActionSubstep.builder()
+                        .event(event("event-1"))
+                        .targets(List.of(storedTarget("order-1")))
+                        .build())).join();
+        ModelActionSubstep staleSubstep = ModelActionSubstep.builder()
+                .event(event("event-2"))
+                .publishEvent(true)
+                .targets(List.of(storedTarget("order-1")))
+                .build();
+
+        CommitModelActionResult rejected = store.commitModelAction(action(
+                "retryable-action", -1L, ModelConflictPolicy.FAIL, staleSubstep)).join();
+
+        assertFalse(rejected.isAccepted());
+        assertFalse(rejected.isRetryAllowed());
+        assertEquals("order-1", rejected.getConflicts().getFirst().getModelId());
+        assertEquals(0L, rejected.getConflicts().getFirst().getCurrentStateIndex());
+        assertEquals(-1L, rejected.getConflicts().getFirst().getCurrentRelationStateIndex());
+        assertEquals(0, store.getBatch(null, 10, true).size());
+        assertEquals(0L, store.getModelEvents(
+                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+
+        CommitModelActionResult accepted = store.commitModelAction(action(
+                "retryable-action", -1L, ModelConflictPolicy.ACCEPT, staleSubstep)).join();
+        assertTrue(accepted.isAccepted());
+    }
+
+    @Test
+    void relationAwarePolicyAllowsRetryWhenOnlyModelStateChanged() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        ModelActionTarget target = storedTarget("order-1").toBuilder()
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId("customer-1")
+                                               .parentType("Customer")
+                                               .path("orders")
+                                               .build()))
+                .build();
+        store.commitModelAction(action(
+                "action-1", -1L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-1"))
+                        .targets(List.of(target)).build())).join();
+        store.commitModelAction(action(
+                "action-2", 0L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-2"))
+                        .targets(List.of(target)).build())).join();
+
+        CommitModelActionResult result = store.commitModelAction(action(
+                "action-3", 0L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelActionSubstep.builder().event(event("event-3"))
+                        .targets(List.of(target)).build())).join();
+
+        assertFalse(result.isAccepted());
+        assertTrue(result.isRetryAllowed());
+        assertEquals(1L, result.getConflicts().getFirst().getCurrentStateIndex());
+        assertEquals(0L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
+    }
+
+    @Test
+    void relationAwarePolicyForbidsRetryWhenARelevantRelationshipChanged() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        ModelActionTarget initial = storedTarget("order-1").toBuilder()
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId("customer-1")
+                                               .parentType("Customer")
+                                               .path("orders")
+                                               .build()))
+                .build();
+        ModelActionTarget moved = initial.toBuilder()
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId("customer-2")
+                                               .parentType("Customer")
+                                               .path("orders")
+                                               .build()))
+                .build();
+        store.commitModelAction(action(
+                "action-1", -1L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-1"))
+                        .targets(List.of(initial)).build())).join();
+        store.commitModelAction(action(
+                "action-2", 0L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-2"))
+                        .targets(List.of(moved)).build())).join();
+
+        CommitModelActionResult result = store.commitModelAction(action(
+                "action-3", 0L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelActionSubstep.builder().event(event("event-3"))
+                        .targets(List.of(initial)).build())).join();
+
+        assertFalse(result.isAccepted());
+        assertFalse(result.isRetryAllowed());
+        assertEquals(1L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
+    }
+
+    @Test
+    void staleUnchangedRelationshipDoesNotOverwriteTheCurrentEdge() {
+        InMemoryEventStore store = new InMemoryEventStore();
+        ModelActionTarget attached = storedTarget("order-1").toBuilder()
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId("customer-1")
+                                               .parentType("Customer")
+                                               .path("orders")
+                                               .build()))
+                .build();
+        ModelActionTarget moved = attached.toBuilder()
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId("customer-2")
+                                               .parentType("Customer")
+                                               .path("orders")
+                                               .build()))
+                .build();
+        store.commitModelAction(action(
+                "attach", -1L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-1"))
+                        .targets(List.of(attached)).build())).join();
+        store.commitModelAction(action(
+                "move", 0L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-2"))
+                        .targets(List.of(moved)).build())).join();
+        store.commitModelAction(action(
+                "stale-rename", 0L, ModelConflictPolicy.ACCEPT,
+                ModelActionSubstep.builder().event(event("event-3"))
+                        .targets(List.of(attached)).build())).join();
+
+        CommitModelActionResult result = store.commitModelAction(action(
+                "probe", 1L, ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelActionSubstep.builder().event(event("event-4"))
+                        .targets(List.of(moved)).build())).join();
+
+        assertFalse(result.isAccepted());
+        assertTrue(result.isRetryAllowed());
+        assertEquals(1L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
+    }
+
+    @Test
     void validatesWholeActionBeforePublishingAnything() {
         InMemoryEventStore store = new InMemoryEventStore();
         CommitModelAction action = new CommitModelAction(
@@ -277,7 +438,7 @@ class InMemoryEventStoreModelActionTest {
                                 .publishEvent(true)
                                 .targets(List.of(storedTarget("missing-read-model")))
                                 .build()),
-                Guarantee.STORED);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
 
         assertThrows(CompletionException.class, () -> store.commitModelAction(action).join());
         assertEquals(0, store.getBatch(null, 10, true).size());
@@ -303,12 +464,22 @@ class InMemoryEventStoreModelActionTest {
     }
 
     private static CommitModelAction action(String actionId, ModelActionSubstep... substeps) {
+        return action(actionId, -1L, ModelConflictPolicy.ACCEPT, substeps);
+    }
+
+    private static CommitModelAction action(
+            String actionId,
+            long readStateIndex,
+            ModelConflictPolicy conflictPolicy,
+            ModelActionSubstep... substeps) {
         List<String> readModelIds = List.of(substeps).stream()
                 .flatMap(substep -> substep.getTargets().stream())
                 .map(ModelActionTarget::getModelId)
                 .distinct()
                 .toList();
-        return new CommitModelAction(actionId, -1L, readModelIds, List.of(substeps), Guarantee.STORED);
+        return new CommitModelAction(
+                actionId, readStateIndex, readModelIds, List.of(substeps),
+                conflictPolicy, Guarantee.STORED);
     }
 
     private static ModelActionTarget storedTarget(String modelId) {

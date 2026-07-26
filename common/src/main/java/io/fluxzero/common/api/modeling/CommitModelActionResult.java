@@ -19,12 +19,15 @@ package io.fluxzero.common.api.modeling;
 import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
+import java.beans.Transient;
 import java.util.List;
 
 /**
- * Durable result of an accepted {@link CommitModelAction}.
+ * Result of an accepted or conflict-rejected {@link CommitModelAction}.
  * <p>
- * A duplicate {@code actionId} returns the same logical result with the new request ID used for response correlation.
+ * Accepted results are durable. A duplicate accepted {@code actionId} returns the same logical result with the new
+ * request ID used for response correlation. Conflict results are not retained under the idempotency key.
  */
 @Value
 public class CommitModelActionResult extends AbstractRequestResult {
@@ -45,9 +48,71 @@ public class CommitModelActionResult extends AbstractRequestResult {
     List<ModelActionSubstepResult> substeps;
 
     /**
+     * Current positions for model identities involved in a rejected action. Empty for an accepted action.
+     */
+    List<ModelActionConflict> conflicts;
+
+    /**
+     * Whether the runtime verified that the rejected action's scoped relationships are unchanged and an SDK retry is
+     * therefore permitted by the requested policy.
+     */
+    boolean retryAllowed;
+
+    /**
      * Timestamp at which this result object was created.
      */
     long timestamp = System.currentTimeMillis();
+
+    /**
+     * Creates a model action result, normalizing omitted compatibility fields to empty collections.
+     */
+    @ConstructorProperties({"requestId", "actionId", "substeps", "conflicts", "retryAllowed"})
+    public CommitModelActionResult(
+            long requestId,
+            String actionId,
+            List<ModelActionSubstepResult> substeps,
+            List<ModelActionConflict> conflicts,
+            boolean retryAllowed) {
+        this.requestId = requestId;
+        this.actionId = actionId;
+        this.substeps = substeps == null ? List.of() : List.copyOf(substeps);
+        this.conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
+        this.retryAllowed = retryAllowed;
+    }
+
+    /**
+     * Creates an accepted action result.
+     */
+    public static CommitModelActionResult accepted(
+            long requestId, String actionId, List<ModelActionSubstepResult> substeps) {
+        return new CommitModelActionResult(requestId, actionId, substeps, List.of(), false);
+    }
+
+    /**
+     * Creates a rejected conflict result. Rejected results are not retained under the action idempotency key.
+     */
+    public static CommitModelActionResult conflict(
+            long requestId,
+            String actionId,
+            List<ModelActionConflict> conflicts,
+            boolean retryAllowed) {
+        return new CommitModelActionResult(requestId, actionId, List.of(), conflicts, retryAllowed);
+    }
+
+    /**
+     * Returns whether the runtime committed the action.
+     */
+    @Transient
+    public boolean isAccepted() {
+        return conflicts.isEmpty();
+    }
+
+    /**
+     * Copies this logical result with another transport request ID.
+     */
+    public CommitModelActionResult forRequest(long requestId) {
+        return new CommitModelActionResult(requestId, actionId, substeps, conflicts, retryAllowed);
+    }
 
     /**
      * Returns a target-ID-free metric representation.
@@ -58,7 +123,8 @@ public class CommitModelActionResult extends AbstractRequestResult {
         for (ModelActionSubstepResult substep : substeps) {
             targetCount += substep.getTargets().size();
         }
-        return new Metric(substeps.size(), targetCount, timestamp);
+        return new Metric(
+                substeps.size(), targetCount, conflicts.size(), retryAllowed, timestamp);
     }
 
     /**
@@ -68,6 +134,8 @@ public class CommitModelActionResult extends AbstractRequestResult {
     public static class Metric {
         int substepCount;
         int targetCount;
+        int conflictCount;
+        boolean retryAllowed;
         long timestamp;
     }
 }

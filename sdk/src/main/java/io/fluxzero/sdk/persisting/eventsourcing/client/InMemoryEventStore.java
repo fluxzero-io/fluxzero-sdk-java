@@ -22,14 +22,17 @@ import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
-import io.fluxzero.common.api.modeling.ModelEventMembership;
-import io.fluxzero.common.api.modeling.ModelEventPayload;
-import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelEventMembership;
+import io.fluxzero.common.api.modeling.ModelEventPayload;
+import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
@@ -39,6 +42,7 @@ import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +53,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static java.util.Collections.synchronizedMap;
@@ -70,6 +75,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, ModelStreamHead> modelHeads = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamHead>> modelHeadHistory = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamMembership>> modelStreams = new ConcurrentHashMap<>();
+    private final List<MutableModelRelationship> modelRelationshipHistory = new ArrayList<>();
+    private final Map<String, LinkedHashMap<ModelRelationship, MutableModelRelationship>> currentModelRelationships =
+            new ConcurrentHashMap<>();
+    private final Map<String, Long> modelRelationStateIndices = new ConcurrentHashMap<>();
     private long modelStateIndex = -1L;
 
     public InMemoryEventStore() {
@@ -96,13 +105,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             validate(action);
             CommitModelActionResult previous = modelActions.get(action.getActionId());
             if (previous != null) {
-                return CompletableFuture.completedFuture(new CommitModelActionResult(
-                        action.getRequestId(), previous.getActionId(), previous.getSubsteps()));
+                return CompletableFuture.completedFuture(previous.forRequest(action.getRequestId()));
             }
             if (action.getReadStateIndex() > modelStateIndex) {
                 throw new IllegalArgumentException(
                         "Model readStateIndex %d is newer than visible stateIndex %d"
                                 .formatted(action.getReadStateIndex(), modelStateIndex));
+            }
+            ModelConflictPolicy conflictPolicy = ModelConflictPolicy.resolve(action.getConflictPolicy());
+            if (conflictPolicy != ModelConflictPolicy.ACCEPT) {
+                CommitModelActionResult conflict = conflict(action, conflictPolicy);
+                if (conflict != null) {
+                    return CompletableFuture.completedFuture(conflict);
+                }
             }
 
             List<SerializedMessage> publishedEvents = action.getSubsteps().stream()
@@ -114,6 +129,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
 
             List<ModelActionSubstepResult> substepResults = new ArrayList<>(action.getSubsteps().size());
+            Map<String, Set<ModelRelationship>> actionRelationshipView = new HashMap<>();
             for (int substepNumber = 0; substepNumber < action.getSubsteps().size(); substepNumber++) {
                 ModelActionSubstep substep = action.getSubsteps().get(substepNumber);
                 long stateIndex = ++modelStateIndex;
@@ -129,6 +145,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelHeads.put(target.getModelId(), head);
                     modelHeadHistory.computeIfAbsent(
                             target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(head);
+                    updateModelRelationships(
+                            action, target, stateIndex, actionRelationshipView);
                     if (target.isStoreEvent()) {
                         appliedEvents.computeIfAbsent(
                                 target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(substep.getEvent());
@@ -147,12 +165,90 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         substep.isPublishEvent() ? substep.getEvent().getIndex() : null,
                         List.copyOf(targetResults)));
             }
-            CommitModelActionResult result = new CommitModelActionResult(
+            CommitModelActionResult result = CommitModelActionResult.accepted(
                     action.getRequestId(), action.getActionId(), List.copyOf(substepResults));
             modelActions.put(action.getActionId(), result);
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    private CommitModelActionResult conflict(
+            CommitModelAction action, ModelConflictPolicy conflictPolicy) {
+        LinkedHashMap<String, ModelActionConflict> conflicts = new LinkedHashMap<>();
+        for (String modelId : action.getReadModelIds()) {
+            ModelStreamHead head = modelHeads.get(modelId);
+            long currentStateIndex = head == null ? -1L : head.stateIndex();
+            if (currentStateIndex > action.getReadStateIndex()) {
+                conflicts.put(modelId, new ModelActionConflict(
+                        modelId, currentStateIndex,
+                        modelRelationStateIndices.getOrDefault(modelId, -1L)));
+            }
+        }
+        if (conflicts.isEmpty()) {
+            return null;
+        }
+        boolean relationsUnchanged = true;
+        if (conflictPolicy == ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED) {
+            for (String modelId : action.getReadModelIds()) {
+                long relationStateIndex = modelRelationStateIndices.getOrDefault(modelId, -1L);
+                if (relationStateIndex > action.getReadStateIndex()) {
+                    relationsUnchanged = false;
+                    conflicts.computeIfAbsent(modelId, ignored -> {
+                        ModelStreamHead head = modelHeads.get(modelId);
+                        return new ModelActionConflict(
+                                modelId, head == null ? -1L : head.stateIndex(), relationStateIndex);
+                    });
+                }
+            }
+        }
+        return CommitModelActionResult.conflict(
+                action.getRequestId(), action.getActionId(), List.copyOf(conflicts.values()),
+                conflictPolicy == ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED && relationsUnchanged);
+    }
+
+    private void updateModelRelationships(
+            CommitModelAction action,
+            ModelActionTarget target,
+            long stateIndex,
+            Map<String, Set<ModelRelationship>> actionRelationshipView) {
+        Set<ModelRelationship> desired = Set.copyOf(target.getRelationships());
+        Set<ModelRelationship> expected = actionRelationshipView.computeIfAbsent(
+                target.getModelId(),
+                childId -> modelRelationshipHistory.stream()
+                        .filter(relationship ->
+                                        relationship.childId.equals(childId)
+                                        && relationship.isValidAt(action.getReadStateIndex()))
+                        .map(relationship -> relationship.relationship)
+                        .collect(Collectors.toUnmodifiableSet()));
+        actionRelationshipView.put(target.getModelId(), desired);
+        if (expected.equals(desired)) {
+            return;
+        }
+
+        LinkedHashMap<ModelRelationship, MutableModelRelationship> actual =
+                currentModelRelationships.computeIfAbsent(
+                        target.getModelId(), ignored -> new LinkedHashMap<>());
+        List<ModelRelationship> removed = actual.keySet().stream()
+                .filter(relationship -> !desired.contains(relationship))
+                .toList();
+        modelRelationStateIndices.put(target.getModelId(), stateIndex);
+        for (ModelRelationship relationship : removed) {
+            actual.remove(relationship).validUntil = stateIndex;
+            modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
+        }
+        for (ModelRelationship relationship : desired) {
+            if (!actual.containsKey(relationship)) {
+                MutableModelRelationship opened = new MutableModelRelationship(
+                        target.getModelId(), relationship, stateIndex);
+                actual.put(relationship, opened);
+                modelRelationshipHistory.add(opened);
+                modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
+            }
+        }
+        if (actual.isEmpty()) {
+            currentModelRelationships.remove(target.getModelId());
         }
     }
 
@@ -308,6 +404,37 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             "Deleted target model %s must not retain parent relationships"
                                     .formatted(target.getModelId()));
                 }
+                Set<ModelRelationship> relationships = new HashSet<>();
+                for (ModelRelationship relationship : target.getRelationships()) {
+                    if (relationship == null
+                        || relationship.getParentId() == null
+                        || relationship.getParentId().isBlank()) {
+                        throw new IllegalArgumentException(
+                                "Target model %s has a blank parent relationship"
+                                        .formatted(target.getModelId()));
+                    }
+                    if (!relationships.add(relationship)) {
+                        throw new IllegalArgumentException(
+                                "Target model %s contains a duplicate parent relationship"
+                                        .formatted(target.getModelId()));
+                    }
+                    if (target.getModelId().equals(relationship.getParentId())) {
+                        throw new IllegalArgumentException(
+                                "Target model %s cannot be its own parent"
+                                        .formatted(target.getModelId()));
+                    }
+                    if (relationship.getParentType() != null
+                        && relationship.getParentType().isBlank()) {
+                        throw new IllegalArgumentException(
+                                "Target model %s has a blank parent type"
+                                        .formatted(target.getModelId()));
+                    }
+                    if (relationship.getPath() != null && relationship.getPath().isBlank()) {
+                        throw new IllegalArgumentException(
+                                "Target model %s has a blank relationship path"
+                                        .formatted(target.getModelId()));
+                    }
+                }
             }
         }
     }
@@ -415,5 +542,24 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             String actionId,
             int substep,
             SerializedMessage event) {
+    }
+
+    private static final class MutableModelRelationship {
+        private final String childId;
+        private final ModelRelationship relationship;
+        private final long validFrom;
+        private Long validUntil;
+
+        private MutableModelRelationship(
+                String childId, ModelRelationship relationship, long validFrom) {
+            this.childId = childId;
+            this.relationship = relationship;
+            this.validFrom = validFrom;
+        }
+
+        private boolean isValidAt(long stateIndex) {
+            return validFrom <= stateIndex
+                   && (validUntil == null || stateIndex < validUntil);
+        }
     }
 }

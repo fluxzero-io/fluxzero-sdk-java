@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -84,21 +86,93 @@ final class ModelActionCommitter {
 
     CompletableFuture<Optional<CommitModelActionResult>> commit(
             String actionId, ModelActionEngine.ActionEvaluation evaluation) {
-        PreparedCommit prepared = prepare(actionId, evaluation);
+        return commit(actionId, evaluation, ModelConflictPolicy.ACCEPT);
+    }
+
+    CompletableFuture<Optional<CommitModelActionResult>> commit(
+            String actionId,
+            ModelActionEngine.ActionEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy) {
+        PreparedCommit prepared = prepare(actionId, evaluation, conflictPolicy);
         if (prepared.action() == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return eventStoreClient.commitModelAction(prepared.action())
-                .thenCompose(result -> updateDirectDocuments(prepared.documents())
-                        .thenApply(ignored -> Optional.of(result)));
+                .thenCompose(result -> result.isAccepted()
+                        ? updateDirectDocuments(prepared.documents())
+                                .thenApply(ignored -> Optional.of(result))
+                        : CompletableFuture.completedFuture(Optional.of(result)));
+    }
+
+    CompletableFuture<Optional<CommitModelActionResult>> commit(
+            String actionId,
+            ModelActionEngine.ActionEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy,
+            ModelConflictResolver conflictResolver,
+            int maxRetries,
+            Supplier<CompletableFuture<ModelActionEngine.ActionEvaluation>> reload) {
+        Objects.requireNonNull(conflictResolver, "conflictResolver");
+        Objects.requireNonNull(reload, "reload");
+        if (maxRetries < 0) {
+            throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
+        }
+        return commit(
+                actionId, evaluation, conflictPolicy, conflictResolver, maxRetries, reload, 0);
+    }
+
+    private CompletableFuture<Optional<CommitModelActionResult>> commit(
+            String actionId,
+            ModelActionEngine.ActionEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy,
+            ModelConflictResolver conflictResolver,
+            int maxRetries,
+            Supplier<CompletableFuture<ModelActionEngine.ActionEvaluation>> reload,
+            int retries) {
+        return commit(actionId, evaluation, conflictPolicy).thenCompose(optional -> {
+            if (optional.isEmpty() || optional.get().isAccepted()) {
+                return CompletableFuture.completedFuture(optional);
+            }
+            CommitModelActionResult conflict = optional.get();
+            ModelConflictResolver.Resolution resolution;
+            try {
+                resolution = Objects.requireNonNull(
+                        conflictResolver.resolve(
+                                new ModelConflictResolver.Context(conflict, retries, maxRetries)),
+                        "Model conflict resolver returned null");
+            } catch (Throwable failure) {
+                return CompletableFuture.failedFuture(failure);
+            }
+            if (resolution != ModelConflictResolver.Resolution.RETRY
+                || !conflict.isRetryAllowed() || retries >= maxRetries) {
+                return CompletableFuture.failedFuture(new ModelActionConflictException(conflict));
+            }
+            CompletableFuture<ModelActionEngine.ActionEvaluation> reloaded;
+            try {
+                reloaded = Objects.requireNonNull(
+                        reload.get(), "Model conflict reload returned null");
+            } catch (Throwable failure) {
+                return CompletableFuture.failedFuture(failure);
+            }
+            return reloaded.thenCompose(next -> commit(
+                    actionId, next, conflictPolicy, conflictResolver,
+                    maxRetries, reload, retries + 1));
+        });
     }
 
     PreparedCommit prepare(String actionId, ModelActionEngine.ActionEvaluation evaluation) {
+        return prepare(actionId, evaluation, ModelConflictPolicy.ACCEPT);
+    }
+
+    PreparedCommit prepare(
+            String actionId,
+            ModelActionEngine.ActionEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy) {
         Objects.requireNonNull(actionId, "actionId");
         if (actionId.isBlank()) {
             throw new IllegalArgumentException("Model action ID must not be blank");
         }
         Objects.requireNonNull(evaluation, "evaluation");
+        Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
         List<ModelActionSubstep> substeps = new ArrayList<>();
         LinkedHashMap<String, DirectDocumentCandidate> documents = new LinkedHashMap<>();
@@ -145,7 +219,7 @@ final class ModelActionCommitter {
         }
         CommitModelAction action = new CommitModelAction(
                 actionId, evaluation.readStateIndex(), evaluation.readModelIds(),
-                List.copyOf(substeps), STORED);
+                List.copyOf(substeps), conflictPolicy, STORED);
         return new PreparedCommit(
                 action, documents.values().stream().map(this::serializeDocument).toList());
     }

@@ -476,18 +476,23 @@ header, adding no column or hot-path write amplification.
 
 ### Slice 4.1 — Policies
 
-- [ ] Add `ACCEPT` as the default policy: do not reject a stale `readStateIndex`.
-- [ ] Add `FAIL`: runtime rejects and rolls back the complete action if a read/written model head advanced.
-- [ ] Add `RETRY_IF_RELATIONS_UNCHANGED`: retry only if relevant relationship state still matches the read boundary.
-- [ ] Return conflicting IDs and current state/relation indices without requiring a client-supplied version per model.
+- [x] Add `ACCEPT` as the default policy: do not reject a stale `readStateIndex`.
+- [x] Add `FAIL`: runtime rejects and rolls back the complete action if a read/written model head advanced.
+- [x] Add `RETRY_IF_RELATIONS_UNCHANGED`: retry only if relevant relationship state still matches the read boundary.
+- [x] Return conflicting IDs and current state/relation indices without requiring a client-supplied version per model.
 
 ### Slice 4.2 — SDK resolution
 
-- [ ] Add a client-side conflict resolver SPI that runs only after runtime rollback.
-- [ ] Support bounded silent retry after reloading all action-scoped models.
-- [ ] Support mapping the conflict to an application error.
-- [ ] Evict/refresh speculative cache entries after accepted stale writes or rejected actions.
-- [ ] Test single-writer default behavior remains low-overhead.
+- [x] Add a client-side conflict resolver SPI that runs only after runtime rollback.
+- [x] Support bounded silent retry through a fresh pinned-evaluation supplier; Slice 5.1 supplies the real model reload.
+- [x] Support mapping the conflict to an application error.
+- [x] Prevent rejected actions from mutating direct documents and expose the reload seam without introducing a
+  provisional second cache abstraction.
+- [x] Test single-writer default behavior remains low-overhead.
+
+The retained protocol, atomicity boundary, temporal relation check, SDK retry rules, and measurements are recorded in
+[`dynamic-model-boundaries-phase-4-conflicts.md`](dynamic-model-boundaries-phase-4-conflicts.md). Actual model cache
+invalidation/refresh belongs to the pinned loader and cache owner introduced by Slice 5.1.
 
 ## Phase 5 — Reconstruction, cache, and snapshots
 
@@ -495,6 +500,8 @@ header, adding no column or hot-path write amplification.
 
 - [ ] Wire `ModelActionEngine` and `ModelActionCommitter` into normal command handling through the pinned model loader;
   await direct search mutation before reporting successful completion.
+- [ ] Connect the Phase 4 conflict reload seam to that loader and evict/refresh its action-scoped cache entries after
+  rejected actions and accepted stale evaluations.
 - [ ] Reconstruct only the requested model's hash-pruned stream using batched/sequential payload resolution from the
   selected Phase 0 layout.
 - [ ] Resolve cross-model dependencies as-of the stored action `readStateIndex`.

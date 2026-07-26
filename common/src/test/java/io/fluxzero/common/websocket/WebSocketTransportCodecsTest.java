@@ -37,6 +37,7 @@ import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
@@ -46,6 +47,7 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
@@ -73,6 +75,7 @@ import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -258,8 +261,8 @@ class WebSocketTransportCodecsTest {
                         ModelActionSubstep.builder()
                                 .targets(List.of(nonStoredDelete))
                                 .build()),
-                Guarantee.STORED);
-        CommitModelActionResult result = new CommitModelActionResult(
+                ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED, Guarantee.STORED);
+        CommitModelActionResult result = CommitModelActionResult.accepted(
                 request.getRequestId(), request.getActionId(),
                 List.of(
                         new ModelActionSubstepResult(
@@ -278,6 +281,9 @@ class WebSocketTransportCodecsTest {
             assertEquals(request.getRequestId(), decodedRequest.getRequestId());
             assertEquals("action-1", decodedRequest.getActionId());
             assertEquals(91L, decodedRequest.getReadStateIndex());
+            assertEquals(
+                    ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                    decodedRequest.getConflictPolicy());
             assertEquals(
                     List.of("order-1", "inventory-1"),
                     decodedRequest.getReadModelIds());
@@ -313,15 +319,40 @@ class WebSocketTransportCodecsTest {
                             .getSequenceNumber());
             assertTrue(decodedResult.getSubsteps().getFirst().getTargets().getFirst()
                                .isHistoryComplete());
+            assertTrue(decodedResult.isAccepted());
+            assertTrue(decodedResult.getConflicts().isEmpty());
+            assertFalse(decodedResult.isRetryAllowed());
+        }
+    }
+
+    @Test
+    void jsonAndCborRoundTripModelActionConflict() throws Exception {
+        CommitModelActionResult result = CommitModelActionResult.conflict(
+                42L, "action-1",
+                List.of(
+                        new ModelActionConflict("order-1", 101L, 90L),
+                        new ModelActionConflict("inventory-1", 102L, 103L)),
+                true);
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+            CommitModelActionResult decoded = assertInstanceOf(
+                    CommitModelActionResult.class, roundTrip(codec, result));
+
+            assertFalse(decoded.isAccepted());
+            assertTrue(decoded.isRetryAllowed());
+            assertTrue(decoded.getSubsteps().isEmpty());
+            assertEquals(result.getConflicts(), decoded.getConflicts());
+            assertEquals(2, decoded.toMetric().getConflictCount());
         }
     }
 
     @Test
     void modelActionProtocolIgnoresFutureFields() throws Exception {
         CommitModelAction request = new CommitModelAction(
-                "action-1", -1L, List.of(), List.of(), Guarantee.STORED);
+                "action-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
         var json = (com.fasterxml.jackson.databind.node.ObjectNode)
                 objectMapper.readTree(objectMapper.writeValueAsBytes(request));
+        json.remove("conflictPolicy");
         json.put("futurePolicy", "future");
 
         CommitModelAction decoded = assertInstanceOf(
@@ -331,6 +362,21 @@ class WebSocketTransportCodecsTest {
         assertEquals(request.getRequestId(), decoded.getRequestId());
         assertEquals("action-1", decoded.getActionId());
         assertEquals(-1L, decoded.getReadStateIndex());
+        assertNull(decoded.getConflictPolicy());
+        assertEquals(ModelConflictPolicy.ACCEPT, decoded.toMetric().getConflictPolicy());
+
+        CommitModelActionResult result = CommitModelActionResult.accepted(
+                request.getRequestId(), request.getActionId(), List.of());
+        var resultJson = (com.fasterxml.jackson.databind.node.ObjectNode)
+                objectMapper.readTree(objectMapper.writeValueAsBytes(result));
+        resultJson.remove("conflicts");
+        resultJson.remove("retryAllowed");
+        CommitModelActionResult decodedResult = assertInstanceOf(
+                CommitModelActionResult.class,
+                objectMapper.readValue(
+                        objectMapper.writeValueAsBytes(resultJson), JsonType.class));
+        assertTrue(decodedResult.isAccepted());
+        assertTrue(decodedResult.getConflicts().isEmpty());
     }
 
     @Test
@@ -347,7 +393,7 @@ class WebSocketTransportCodecsTest {
                                                          .relationships(List.of())
                                                          .build()))
                                 .build()),
-                Guarantee.STORED);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
 
         assertTrue(containsBinaryValue(
                 cborCodec.encode(request), serializedMessage().getData().getValue()));

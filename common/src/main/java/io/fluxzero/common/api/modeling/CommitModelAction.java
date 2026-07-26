@@ -56,6 +56,12 @@ public class CommitModelAction extends Command {
     List<ModelActionSubstep> substeps;
 
     /**
+     * Behavior when one of the action-scoped model heads advanced after {@link #readStateIndex}.
+     * A missing value is interpreted as {@link ModelConflictPolicy#ACCEPT}.
+     */
+    ModelConflictPolicy conflictPolicy;
+
+    /**
      * Completion guarantee requested by the SDK.
      */
     Guarantee guarantee;
@@ -100,7 +106,7 @@ public class CommitModelAction extends Command {
         }
         return new Metric(
                 readModelIds.size(), substeps.size(), targetCount, storedTargetCount,
-                relationCount, publishedEventCount, bytes);
+                relationCount, publishedEventCount, bytes, ModelConflictPolicy.resolve(conflictPolicy));
     }
 
     /**
@@ -115,5 +121,6 @@ public class CommitModelAction extends Command {
         int relationCount;
         int publishedEventCount;
         long bytes;
+        ModelConflictPolicy conflictPolicy;
     }
 }

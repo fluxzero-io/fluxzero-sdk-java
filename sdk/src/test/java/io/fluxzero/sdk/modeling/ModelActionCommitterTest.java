@@ -20,8 +20,10 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -118,6 +121,122 @@ class ModelActionCommitterTest {
         assertEquals(after.changedAt(), update.getEnd());
         assertEquals(7, document.getDocument().getRevision());
         assertEquals("north", document.getMetadata().get("tenant"));
+    }
+
+    @Test
+    void rejectedActionDoesNotWriteDirectSearchDocuments() throws Exception {
+        OrderId orderId = new OrderId("1");
+        Order before = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
+        Order after = new Order(orderId, null, "confirmed", Instant.parse("2026-01-02T00:00:00Z"));
+        var evaluation = evaluation(
+                List.of(orderId.toString()),
+                substep(
+                        new UpdateOrder(orderId),
+                        transition(orderId, Order.class, before, after, UpdateOrder.class, "apply", Order.class)),
+                Map.of(orderId.toString(), after));
+        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation -> {
+            CommitModelAction request = invocation.getArgument(0);
+            return CompletableFuture.completedFuture(conflict(request, false));
+        });
+
+        var result = committer.commit(
+                "action-1", evaluation, ModelConflictPolicy.FAIL).join();
+
+        assertFalse(result.orElseThrow().isAccepted());
+        ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
+        verify(eventStoreClient).commitModelAction(captor.capture());
+        assertEquals(ModelConflictPolicy.FAIL, captor.getValue().getConflictPolicy());
+        verify(documentStore, never()).bulkUpdate(anyCollection());
+    }
+
+    @Test
+    void relationSafeConflictCanReloadAndRetryWithinTheConfiguredBound() throws Exception {
+        OrderId orderId = new OrderId("1");
+        Order before = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
+        Order first = new Order(orderId, null, "confirmed", Instant.parse("2026-01-02T00:00:00Z"));
+        Order reloaded = new Order(orderId, null, "confirmed", Instant.parse("2026-01-03T00:00:00Z"));
+        var firstEvaluation = evaluation(
+                List.of(orderId.toString()),
+                substep(
+                        new UpdateOrder(orderId),
+                        transition(orderId, Order.class, before, first, UpdateOrder.class, "apply", Order.class)),
+                Map.of(orderId.toString(), first));
+        var reloadedEvaluation = new ModelActionEngine.ActionEvaluation(
+                42L, firstEvaluation.readModelIds(),
+                List.of(substep(
+                        new UpdateOrder(orderId),
+                        transition(
+                                orderId, Order.class, before, reloaded,
+                                UpdateOrder.class, "apply", Order.class))),
+                Map.of(orderId.toString(), reloaded));
+        AtomicInteger commits = new AtomicInteger();
+        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation -> {
+            CommitModelAction request = invocation.getArgument(0);
+            return CompletableFuture.completedFuture(
+                    commits.getAndIncrement() == 0 ? conflict(request, true) : result(request));
+        });
+        when(documentStore.bulkUpdate(anyCollection()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        AtomicInteger reloads = new AtomicInteger();
+
+        var result = committer.commit(
+                "action-1", firstEvaluation,
+                ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelConflictResolver.retryIfAllowed(), 1,
+                () -> {
+                    reloads.incrementAndGet();
+                    return CompletableFuture.completedFuture(reloadedEvaluation);
+                }).join();
+
+        assertTrue(result.orElseThrow().isAccepted());
+        assertEquals(2, commits.get());
+        assertEquals(1, reloads.get());
+        @SuppressWarnings("rawtypes")
+        ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(documentStore, times(1)).bulkUpdate(updates.capture());
+        IndexDocument update = (IndexDocument) updates.getValue().iterator().next();
+        assertEquals(reloaded, serializer.fromDocument(
+                (SerializedDocument) update.getObject(), Order.class));
+    }
+
+    @Test
+    void silentRetryIsBoundedAndCanBeMappedToAnApplicationError() throws Exception {
+        OrderId orderId = new OrderId("1");
+        Order order = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
+        var evaluation = evaluation(
+                List.of(orderId.toString()),
+                substep(
+                        new UpdateOrder(orderId),
+                        transition(orderId, Order.class, order, order, UpdateOrder.class, "apply", Order.class)),
+                Map.of(orderId.toString(), order));
+        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation -> {
+            CommitModelAction request = invocation.getArgument(0);
+            return CompletableFuture.completedFuture(conflict(request, true));
+        });
+        AtomicInteger reloads = new AtomicInteger();
+
+        CompletionException bounded = assertThrows(CompletionException.class, () -> committer.commit(
+                "action-1", evaluation,
+                ModelConflictPolicy.RETRY_IF_RELATIONS_UNCHANGED,
+                ModelConflictResolver.retryIfAllowed(), 1,
+                () -> {
+                    reloads.incrementAndGet();
+                    return CompletableFuture.completedFuture(evaluation);
+                }).join());
+
+        assertInstanceOf(ModelActionConflictException.class, bounded.getCause());
+        assertEquals(1, reloads.get());
+        verify(eventStoreClient, times(2)).commitModelAction(any());
+        verify(documentStore, never()).bulkUpdate(anyCollection());
+
+        IllegalStateException applicationError = new IllegalStateException("try again later");
+        CompletionException mapped = assertThrows(CompletionException.class, () -> committer.commit(
+                "action-2", evaluation, ModelConflictPolicy.FAIL,
+                ignored -> {
+                    throw applicationError;
+                },
+                0, () -> CompletableFuture.completedFuture(evaluation)).join());
+        assertEquals(applicationError, mapped.getCause());
     }
 
     @Test
@@ -346,8 +465,19 @@ class ModelActionCommitterTest {
                                         target.getModelId(), target.isStoreEvent() ? 0L : -1L,
                                         target.isStoreEvent())).toList()))
                 .toList();
-        return new CommitModelActionResult(
+        return CommitModelActionResult.accepted(
                 request.getRequestId(), request.getActionId(), substeps);
+    }
+
+    private static CommitModelActionResult conflict(
+            CommitModelAction request, boolean retryAllowed) {
+        return CommitModelActionResult.conflict(
+                request.getRequestId(), request.getActionId(),
+                List.of(new ModelActionConflict(
+                        request.getReadModelIds().getFirst(),
+                        request.getReadStateIndex() + 1L,
+                        request.getReadStateIndex())),
+                retryAllowed);
     }
 
     @Revision(7)
