@@ -77,6 +77,34 @@ These are comparative local diagnostics, not production certification. Absolute 
 Phase 3 runs because the surrounding code, database state, and container changed. Deep, wide, and highly shared DAG
 certification remains deliberately open.
 
+## Deleted-parent lineage
+
+`ModelActionTarget.updateRelationships` separates an intentional complete `@ParentId` replacement from an ordinary
+model transition. The SDK compares the returned target's parent references with its own begin-state. It sends the
+complete resulting edge set only for attach, detach, move, or delete; unchanged targets carry neither relationship
+intent nor relationship payload. This both removes unnecessary relationship reconciliation from the ordinary write
+path and prevents an unchanged parent ID retained inside a child document from reopening an edge closed by the runtime.
+
+A logical parent delete closes all current incoming edges at that delete substep's `stateIndex`. Both hash-routed
+adjacencies receive the same half-open interval end, `PARENT_DELETED` reason, and exact `deletedParentId`. The operation
+does not update child heads, streams, snapshots, documents, caches, or event memberships. Historical graph reads before
+the delete still see the edge; current graph and search traversal do not.
+
+Lifecycle traversal pins one current state boundary and combines:
+
+- current parent-to-child edges;
+- lifecycle-only `PARENT_DELETED` tombstones indexed by the deleted parent ID.
+
+It follows these in bounded breadth-first batches, deduplicates shared descendants, includes the requested roots, and
+fails instead of returning a partial deletion set when `maxDepth` or `maxModels` is exceeded. The JDBC tombstone lookup
+uses the parent-keyed hash projection and its `(segment, parent_id, ...)` primary-key prefix.
+
+For logical delete, the exact deleted parent ID is retained as lifecycle metadata because deterministic later removal
+is otherwise impossible and the unchanged child state may still contain the same ID. Closed lineage is not returned by
+ordinary current graph/search APIs. Whether explicit hard delete rewrites this lookup to a protected token or purges it
+depends on `NONE` versus `DESCENDANTS`, shared-DAG ownership, and resumable cleanup; that final privacy contract remains
+an explicit Phase 8 gate rather than being guessed here.
+
 ## Verification
 
 - SDK repository tests cover a move followed by current loads of both roots and an as-of reconstruction of the old
@@ -86,12 +114,17 @@ certification remains deliberately open.
 - In-memory tests cover pre-publication rejection and complete state/event rollback.
 - JDBC tests cover durable rollback, half-open SQL intervals, current/historical graph traversal, edge reversal, and
   isolation of one cyclic action from valid neighbours in the coordinator queue.
+- SDK packaging tests distinguish unchanged parent references from explicit moves; the in-memory SDK store proves that
+  a normal child write after parent deletion cannot reactivate the edge.
+- Runtime in-memory and JDBC tests prove that parent deletion leaves the child head and stream untouched, keeps the
+  edge visible only before its half-open delete boundary, exposes exact lineage only through the lifecycle lookup, and
+  resolves a tombstoned child plus its still-current grandchild under bounded traversal.
 - The focused SDK repository suite and runtime model-store suite passed.
 - The complete SDK reactor, site/Javadoc reactor, and complete runtime reactor passed.
 
 ## Deliberately open
 
 - production-scale deep, wide, and highly shared DAG measurements;
-- incoming-edge tombstones and deleted-parent lineage for lifecycle/GDPR removal;
+- protected-ID and final tombstone purge semantics for explicit hard delete;
 - historical full-text graph search;
 - cross-database atomicity and horizontal runtime coordination.

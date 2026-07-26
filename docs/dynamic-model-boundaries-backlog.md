@@ -658,11 +658,14 @@ Integrity, temporal-boundary, and hot-path details:
 
 ### Slice 6.3 — Deleted-parent lineage
 
-- [ ] Relation-cascade incoming edges to detached tombstones when a parent is logically deleted.
-- [ ] Keep child model state and stream unchanged.
-- [ ] Resolve detached descendants for later lifecycle/GDPR operations.
-- [ ] Prevent accidental edge resurrection from an unchanged stale `@ParentId`.
-- [ ] Decide protected-ID/retention and purge semantics with privacy tests.
+- [x] Relation-cascade incoming edges to detached tombstones when a parent is logically deleted.
+- [x] Keep child model state and stream unchanged.
+- [x] Resolve detached descendants for later lifecycle/GDPR operations.
+- [x] Prevent accidental edge resurrection from an unchanged stale `@ParentId`.
+- [x] Keep the exact deleted parent ID only in temporal lifecycle metadata after logical delete; exclude it from current
+  graph/search results and cover the lifecycle-only visibility boundary with privacy-focused tests.
+- [ ] Before hard delete ships, decide whether retained IDs must be protected and define `NONE`/`DESCENDANTS` final
+  tombstone purge semantics with shared-DAG privacy tests.
 
 ### Slice 6.4 — Ancestor injection
 
