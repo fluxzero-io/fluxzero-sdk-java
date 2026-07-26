@@ -34,6 +34,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.Memoization;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -144,6 +145,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -210,6 +212,8 @@ public class DefaultFluxzero implements Fluxzero {
     private final ThrowingRunnable shutdownHandler;
 
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicReference<ModelActionHandlerRegistry> modelActionExecutor =
+            new AtomicReference<>();
     private final Collection<Runnable> cleanupTasks = new CopyOnWriteArrayList<>();
     @Getter(lazy = true)
     private final ModelRepository modelRepository = new DefaultModelRepository(
@@ -242,6 +246,15 @@ public class DefaultFluxzero implements Fluxzero {
 
     public Clock clock() {
         return clock;
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelAction(Message update) {
+        ModelActionHandlerRegistry executor = modelActionExecutor.get();
+        if (executor == null) {
+            return Fluxzero.super.executeModelAction(update);
+        }
+        return executor.assertAndApply(update);
     }
 
     @Override
@@ -1115,6 +1128,10 @@ public class DefaultFluxzero implements Fluxzero {
                             propertySource instanceof DecryptingPropertySource dps
                                     ? dps : new DecryptingPropertySource(propertySource),
                             clock, taskScheduler, client, shutdownHandler);
+
+            if (fluxzero instanceof DefaultFluxzero defaultFluxzero) {
+                defaultFluxzero.modelActionExecutor.set(modelActionHandlerRegistry);
+            }
 
             if (makeApplicationInstance) {
                 Fluxzero.applicationInstance.set(fluxzero);

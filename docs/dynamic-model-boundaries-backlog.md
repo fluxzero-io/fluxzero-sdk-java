@@ -604,11 +604,18 @@ invalidation/refresh belongs to the pinned loader and cache owner introduced by 
 
 ### Slice 5.7 — Assert-and-apply convenience
 
-- [ ] Add `Fluxzero.assertAndApply(update)` for model actions, preserving the same action-scoped loading, assertion,
+- [x] Add `Fluxzero.assertAndApply(update)` for model actions, preserving the same action-scoped loading, assertion,
   interceptor, apply, commit, conflict, and result semantics as normal dispatch.
+- [x] Enter the model-action engine directly instead of redispatching the update as a command, so an explicit
+  `@HandleCommand` may assert-and-apply that same payload without recursion or a second command-handler invocation.
+- [x] Wait for durable commit before returning and propagate the original apply/commit failure; include an explicit
+  metadata overload and make direct model documents searchable when the call returns.
 - [ ] Reuse the same API for aggregates when it can delegate to the existing aggregate execution path without changing
-  legacy ordering, publication, or commit behavior.
-- [ ] Cover synchronous/asynchronous handling, nested dispatch, failure mapping, return values, and `TestFixture`.
+  legacy ordering, publication, or commit behavior. Do not infer an aggregate root merely from an arbitrary typed
+  child ID or from one of several IDs; those cases are not equivalent to the existing explicit aggregate load.
+- [x] Cover synchronous/asynchronous handling, nested dispatch, failure mapping, unchanged enclosing-handler return
+  values, metadata, direct-search visibility, same-payload recursion avoidance, outside-handler execution, and
+  `TestFixture`.
 
 ## Phase 6 — Temporal DAG relationships and graph loading
 

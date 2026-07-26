@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.Guarantee.STORED;
@@ -67,6 +69,89 @@ class ModelActionHandlerIntegrationTest {
                 .expectNoEvents()
                 .expectTrue(fluxzero -> fluxzero.modelRepository()
                         .load(accountId).get() == null);
+    }
+
+    @Test
+    void explicitCommandHandlerMayAssertAndApplyTheSamePayloadDirectly() {
+        ExplicitDelegatingHandler.invocations.set(0);
+        TestFixture fixture =
+                TestFixture.create(new ExplicitDelegatingHandler());
+        AccountId accountId = new AccountId("direct");
+        ExplicitlyDelegatedCreate command =
+                new ExplicitlyDelegatedCreate(accountId, 63);
+
+        fixture.whenCommand(command)
+                .expectResult("delegated")
+                .expectThat(fluxzero -> {
+                    assertEquals(1,
+                                 ExplicitDelegatingHandler.invocations.get());
+                    var event = fluxzero.eventStore()
+                            .getEvents(accountId.toString())
+                            .findFirst().orElseThrow();
+                    assertEquals(command, event.getPayload());
+                    assertEquals("direct",
+                                 event.getMetadata().get("model-action"));
+                    assertEquals(new Account(accountId, 63),
+                                 fluxzero.modelRepository()
+                                         .load(accountId).get());
+                    assertEquals(List.of(new Account(accountId, 63)),
+                                 fluxzero.documentStore()
+                                         .search(Account.class)
+                                         .fetchAll(Account.class));
+                });
+    }
+
+    @Test
+    void directAssertAndApplyOutsideHandlerReturnsAfterCommit() {
+        AccountId accountId = new AccountId("outside-handler");
+        TestFixture.create()
+                .whenApplying(fluxzero -> {
+                    Fluxzero.assertAndApply(
+                            new CreateAccount(accountId, 29));
+                    return fluxzero.modelRepository()
+                            .load(accountId).get();
+                })
+                .expectResult(new Account(accountId, 29));
+    }
+
+    @Test
+    void directAssertAndApplyPropagatesApplyFailureWithoutCommit() {
+        TestFixture fixture =
+                TestFixture.create(new ExplicitFailingDelegatingHandler());
+        AccountId accountId = new AccountId("direct-failure");
+
+        fixture.whenCommand(new ExplicitlyDelegatedFailure(accountId))
+                .expectExceptionalResult(IllegalStateException.class)
+                .expectNoEvents()
+                .expectTrue(fluxzero -> fluxzero.modelRepository()
+                        .load(accountId).isEmpty());
+    }
+
+    @Test
+    void asyncHandlerResultRemainsUnchangedAfterDirectAssertAndApply() {
+        TestFixture fixture =
+                TestFixture.create(new AsyncDelegatingHandler());
+        AccountId accountId = new AccountId("direct-async");
+
+        fixture.whenCommand(new AsyncDelegatedCreate(accountId))
+                .expectResult("async")
+                .expectTrue(fluxzero -> new Account(accountId, 71)
+                        .equals(fluxzero.modelRepository()
+                                        .load(accountId).get()));
+    }
+
+    @Test
+    void nestedCommandMayUseDirectAssertAndApply() {
+        TestFixture fixture = TestFixture.create(
+                new NestedDelegatingHandler(),
+                new ExplicitDelegatingHandler());
+        AccountId accountId = new AccountId("direct-nested");
+
+        fixture.whenCommand(new NestedDelegatedCreate(accountId))
+                .expectResult("delegated")
+                .expectTrue(fluxzero -> new Account(accountId, 83)
+                        .equals(fluxzero.modelRepository()
+                                        .load(accountId).get()));
     }
 
     @Test
@@ -306,6 +391,68 @@ class ModelActionHandlerIntegrationTest {
         }
     }
 
+    private record ExplicitlyDelegatedCreate(
+            AccountId accountId, int balance) {
+        @Apply
+        Account apply() {
+            return new Account(accountId, balance);
+        }
+    }
+
+    private static final class ExplicitDelegatingHandler {
+        private static final AtomicInteger invocations =
+                new AtomicInteger();
+
+        @HandleCommand
+        String handle(ExplicitlyDelegatedCreate command) {
+            invocations.incrementAndGet();
+            Fluxzero.assertAndApply(
+                    command, Metadata.of("model-action", "direct"));
+            return "delegated";
+        }
+    }
+
+    private record ExplicitlyDelegatedFailure(AccountId accountId) {
+        @Apply
+        Account apply() {
+            throw new IllegalStateException("direct failure");
+        }
+    }
+
+    private static final class ExplicitFailingDelegatingHandler {
+        @HandleCommand
+        void handle(ExplicitlyDelegatedFailure command) {
+            Fluxzero.assertAndApply(command);
+        }
+    }
+
+    private record AsyncDelegatedCreate(AccountId accountId) {
+        @Apply
+        Account apply() {
+            return new Account(accountId, 71);
+        }
+    }
+
+    private static final class AsyncDelegatingHandler {
+        @HandleCommand
+        CompletableFuture<String> handle(AsyncDelegatedCreate command) {
+            Fluxzero.assertAndApply(command);
+            return CompletableFuture.completedFuture("async");
+        }
+    }
+
+    private record NestedDelegatedCreate(AccountId accountId) {
+    }
+
+    private static final class NestedDelegatingHandler {
+        @HandleCommand
+        String handle(NestedDelegatedCreate command) {
+            return Fluxzero.sendCommandAndWait(
+                    new ExplicitlyDelegatedCreate(
+                            command.accountId(), 83));
+        }
+    }
+
     @Model
     private record ReceiverAccount(
             @EntityId ReceiverAccountId receiverAccountId, String name) {
@@ -446,7 +593,9 @@ class ModelActionHandlerIntegrationTest {
             @EntityId FirstCounterId firstCounterId, int value) {
         @Apply
         FirstCounter increment(IncrementBoth command) {
-            receiverInvocations.incrementAndGet();
+            if (!Entity.isLoading()) {
+                receiverInvocations.incrementAndGet();
+            }
             return new FirstCounter(firstCounterId, value + 1);
         }
     }
@@ -469,7 +618,9 @@ class ModelActionHandlerIntegrationTest {
             @EntityId SecondCounterId secondCounterId, int value) {
         @Apply
         SecondCounter increment(IncrementBoth command) {
-            receiverInvocations.incrementAndGet();
+            if (!Entity.isLoading()) {
+                receiverInvocations.incrementAndGet();
+            }
             return new SecondCounter(secondCounterId, value + 1);
         }
     }

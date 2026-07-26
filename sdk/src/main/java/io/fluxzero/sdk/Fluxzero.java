@@ -91,15 +91,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
+import static io.fluxzero.common.ObjectUtils.rethrow;
+import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static java.util.Arrays.stream;
 
 /**
@@ -518,6 +520,37 @@ public interface Fluxzero extends AutoCloseable {
      */
     static <R> R sendCommandAndWait(Request<R> payload, Metadata metadata) {
         return get().commandGateway().sendAndWait(payload, metadata);
+    }
+
+    /**
+     * Runs the model assertions, apply interceptors, and applies declared for the given update and waits until the
+     * resulting model action has been committed.
+     * <p>
+     * This enters the model-action pipeline directly. It does not dispatch the update as a command and therefore can
+     * safely be called from an explicit {@link HandleCommand} handler for the same payload type.
+     *
+     * @param update the update payload or message to assert and apply
+     */
+    static void assertAndApply(Object update) {
+        awaitModelAction(get().executeModelAction(Message.asMessage(update)));
+    }
+
+    /**
+     * Runs and commits a model action with the supplied metadata.
+     *
+     * @param update   the update payload to assert and apply
+     * @param metadata metadata to attach to the model event
+     */
+    static void assertAndApply(Object update, Metadata metadata) {
+        awaitModelAction(get().executeModelAction(new Message(update, metadata)));
+    }
+
+    private static void awaitModelAction(CompletableFuture<Void> completion) {
+        try {
+            completion.join();
+        } catch (CompletionException e) {
+            throw rethrow(e);
+        }
     }
 
     /**
@@ -1418,6 +1451,20 @@ public interface Fluxzero extends AutoCloseable {
      * Returns the {@link FluxzeroConfiguration} of this Fluxzero instance.
      */
     FluxzeroConfiguration configuration();
+
+    /**
+     * Executes one model action without routing it through command handlers.
+     * <p>
+     * This is an infrastructure extension point used by {@link #assertAndApply(Object)}. Custom Fluxzero
+     * implementations that support independent models should override it.
+     *
+     * @param update message containing the model update
+     * @return completion of the durable model commit
+     */
+    default CompletableFuture<Void> executeModelAction(Message update) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support direct model actions"));
+    }
 
     /**
      * Returns the low level client used by this Fluxzero instance to interface with the Fluxzero Runtime. Of course the

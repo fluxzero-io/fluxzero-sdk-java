@@ -68,6 +68,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
+    private final Serializer serializer;
     private final List<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<Class<?>, List<ModelMetadata.HandlerMethod>> handlerPlans =
             new ConcurrentHashMap<>();
@@ -147,6 +148,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             ModelConflictResolver conflictResolver,
             int maxConflictRetries) {
         this.repository = Objects.requireNonNull(repository, "repository");
+        this.serializer = Objects.requireNonNull(serializer, "serializer");
         this.committer = new ModelActionCommitter(
                 eventStoreClient, documentStore, serializer, documentSerializer,
                 eventDispatchInterceptor, source, snapshotSerializer,
@@ -163,6 +165,29 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         this.handlerDecorator = Objects.requireNonNull(
                 handlerDecorator, "handlerDecorator");
         this.decoratedHandler = handlerDecorator.wrap(new ActionHandler(null));
+    }
+
+    /**
+     * Executes an update directly through model assertions, apply interceptors, applies, and commit handling.
+     * Regular command handlers and command handler decorators are deliberately bypassed.
+     *
+     * @param update model update message
+     * @return completion of the durable model commit
+     */
+    public CompletableFuture<Void> assertAndApply(Message update) {
+        try {
+            Objects.requireNonNull(update, "update");
+            DeserializingMessage message =
+                    new DeserializingMessage(update, MessageType.COMMAND, serializer);
+            if (!canHandle(message)) {
+                return CompletableFuture.failedFuture(new IllegalArgumentException(
+                        "No model @Apply handler found for "
+                        + message.getPayloadClass().getName()));
+            }
+            return execute(message).thenApply(ignored -> null);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
     }
 
     @Override
