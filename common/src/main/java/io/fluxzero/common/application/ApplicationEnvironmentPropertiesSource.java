@@ -74,7 +74,7 @@ public class ApplicationEnvironmentPropertiesSource extends JavaPropertiesSource
      * @param environment the environment name (e.g., {@code dev}, {@code prod}); may be {@code null}.
      */
     public ApplicationEnvironmentPropertiesSource(String environment) {
-        super(loadProperties(environment));
+        super(loadProperties(environment), true);
     }
 
     /**

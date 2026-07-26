@@ -48,7 +48,7 @@ public class FluxzeroPropertiesSource extends JavaPropertiesSource {
      * Creates a source backed by {@code fluxzero.json} and {@code fluxzero.properties} classpath resources.
      */
     public FluxzeroPropertiesSource() {
-        super(loadFluxzeroProperties());
+        super(loadFluxzeroProperties(), true);
     }
 
     private static Properties loadFluxzeroProperties() {

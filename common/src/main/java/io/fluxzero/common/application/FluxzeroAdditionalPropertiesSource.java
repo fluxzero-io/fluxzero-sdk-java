@@ -35,7 +35,9 @@ import java.util.Properties;
  * The property can be set as an environment variable or JVM system property. Multiple locations can be separated with
  * commas. Supported locations are {@code file:/path/to/config.properties}, plain file paths, and
  * {@code classpath:config.properties}. Prefix a location with {@code optional:} to ignore it when it does not exist.
- * Later locations override earlier locations.
+ * Later locations override earlier locations. Property-style names can also be supplied using conventional environment
+ * variable names; for example, {@code FLUXZERO_API_TOKEN} can be read as {@code fluxzero.api.token}. An exact property
+ * name takes priority when both forms exist.
  */
 @Slf4j
 public class FluxzeroAdditionalPropertiesSource extends JavaPropertiesSource {
@@ -53,7 +55,7 @@ public class FluxzeroAdditionalPropertiesSource extends JavaPropertiesSource {
      * Creates a source backed by the configured additional locations.
      */
     public FluxzeroAdditionalPropertiesSource() {
-        super(loadAdditionalProperties());
+        super(loadAdditionalProperties(), true);
     }
 
     private static Properties loadAdditionalProperties() {
