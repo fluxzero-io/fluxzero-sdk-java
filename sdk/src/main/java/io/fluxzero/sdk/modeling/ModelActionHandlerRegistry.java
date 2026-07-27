@@ -521,59 +521,78 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                         evaluation);
         return ensureGraphProjections(evaluation)
                 .thenCompose(ignored -> {
-                    CompletableFuture<Optional<CommitModelActionResult>> result =
-                            effectiveConflictPolicy
-                            == ModelConflictPolicy.ACCEPT
-                                    ? committer.commitAcceptingRebase(
-                                            message.getMessageId(),
-                                            evaluation,
-                                            (messages, stateIndex) -> {
-                                                try {
-                                                    return CompletableFuture
-                                                            .completedFuture(
-                                                                    rebase(
-                                                                            messages,
-                                                                            stateIndex));
-                                                } catch (Throwable failure) {
-                                                    return CompletableFuture
-                                                            .failedFuture(
-                                                                    failure);
-                                                }
-                                            })
-                                    : committer.commit(
-                                            message.getMessageId(),
-                                            evaluation,
-                                            effectiveConflictPolicy,
-                                            conflictResolver,
-                                            maxConflictRetries,
-                                            () -> reload(
-                                                    message,
+                    Runnable localCommitComplete =
+                            repository.beginLocalCommit(
+                                    evaluation.transitions()
+                                            .stream()
+                                            .map(
+                                                    ModelActionEngine
+                                                            .Transition
+                                                            ::modelId)
+                                            .distinct()
+                                            .toList());
+                    try {
+                        CompletableFuture<Optional<CommitModelActionResult>> result =
+                                effectiveConflictPolicy
+                                == ModelConflictPolicy.ACCEPT
+                                        ? committer.commitAcceptingRebase(
+                                                message.getMessageId(),
+                                                evaluation,
+                                                (messages, stateIndex) -> {
+                                                    try {
+                                                        return CompletableFuture
+                                                                .completedFuture(
+                                                                        rebase(
+                                                                                messages,
+                                                                                stateIndex));
+                                                    } catch (Throwable failure) {
+                                                        return CompletableFuture
+                                                                .failedFuture(
+                                                                        failure);
+                                                    }
+                                                })
+                                        : committer.commit(
+                                                message.getMessageId(),
+                                                evaluation,
+                                                effectiveConflictPolicy,
+                                                conflictResolver,
+                                                maxConflictRetries,
+                                                () -> reload(
+                                                        message,
+                                                        evaluation
+                                                                .readModelIds()));
+                        return result.whenComplete(
+                                        (commitResult, failure) ->
+                                                localCommitComplete
+                                                        .run())
+                                .thenCompose(commitResult ->
+                                        awaitGraphProjections(
+                                                commitResult,
+                                                awaitedGraphProjections))
+                                .handle(
+                                (commitResult, failure) -> {
+                                    if (failure != null) {
+                                        if (effectiveConflictPolicy
+                                            != ModelConflictPolicy.ACCEPT) {
+                                            repository.invalidateModels(
                                                     evaluation
-                                                            .readModelIds()));
-                    return result.thenCompose(commitResult ->
-                                    awaitGraphProjections(
-                                            commitResult,
-                                            awaitedGraphProjections))
-                            .handle(
-                            (commitResult, failure) -> {
-                                if (failure != null) {
-                                    if (effectiveConflictPolicy
-                                        != ModelConflictPolicy.ACCEPT) {
-                                        repository.invalidateModels(
-                                                evaluation
-                                                        .readModelIds());
+                                                            .readModelIds());
+                                        }
+                                        if (failure
+                                            instanceof java.util.concurrent.CompletionException completion
+                                            && completion.getCause()
+                                               != null) {
+                                            throw completion;
+                                        }
+                                        throw new java.util.concurrent.CompletionException(
+                                                failure);
                                     }
-                                    if (failure
-                                        instanceof java.util.concurrent.CompletionException completion
-                                        && completion.getCause()
-                                           != null) {
-                                        throw completion;
-                                    }
-                                    throw new java.util.concurrent.CompletionException(
-                                            failure);
-                                }
-                                return null;
-                            });
+                                    return null;
+                                });
+                    } catch (Throwable failure) {
+                        localCommitComplete.run();
+                        throw failure;
+                    }
                 });
     }
 

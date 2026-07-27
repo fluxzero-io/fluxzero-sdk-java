@@ -66,6 +66,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1415,6 +1416,21 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 ? CompletableFuture.completedFuture(null)
                 : CompletableFuture.allOf(
                         snapshots.toArray(CompletableFuture[]::new));
+    }
+
+    /**
+     * Marks model targets as belonging to an in-flight action from this SDK so a concurrently observed tracker update
+     * does not race the authoritative accepted result into an unnecessary cache refresh.
+     *
+     * @return an idempotent completion callback
+     */
+    public Runnable beginLocalCommit(
+            Collection<String> modelIds) {
+        return modelCacheTracker == null
+                ? () -> {
+                }
+                : modelCacheTracker
+                        .beginLocalCommit(modelIds);
     }
 
     /**

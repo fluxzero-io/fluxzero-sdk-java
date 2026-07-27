@@ -358,6 +358,131 @@ class ModelCacheTrackerTest {
     }
 
     @Test
+    void inFlightLocalCommitDoesNotRaceItsTrackedUpdateIntoARefresh()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> committed =
+                entity(SampleModel.class);
+        cache.put("sample-1", committed);
+        AtomicInteger refreshCount =
+                new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshCount
+                                         .incrementAndGet();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            Runnable localCommitComplete =
+                    tracker.beginLocalCommit(
+                            List.of(
+                                    "sample-1"));
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "local-action", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            awaitNext(polls);
+
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    11L);
+            localCommitComplete.run();
+
+            assertSame(
+                    committed,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertEquals(
+                    0, refreshCount.get());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void failedLocalCommitReleasesItsDeferredRemoteRefresh()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        cache.put(
+                "sample-1",
+                entity(SampleModel.class));
+        CountDownLatch refreshed =
+                new CountDownLatch(1);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshed.countDown();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            Runnable localCommitComplete =
+                    tracker.beginLocalCommit(
+                            List.of(
+                                    "sample-1"));
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "remote-action", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            awaitNext(polls);
+            assertEquals(
+                    1L,
+                    refreshed.getCount());
+
+            localCommitComplete.run();
+
+            assertTrue(
+                    refreshed.await(
+                            5L,
+                            TimeUnit.SECONDS));
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
     void preparedHardDeleteClearsCacheWithoutRetainingDeletedIds()
             throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);

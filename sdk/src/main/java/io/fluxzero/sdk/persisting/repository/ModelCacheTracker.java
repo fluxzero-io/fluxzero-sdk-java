@@ -28,6 +28,7 @@ import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,9 @@ final class ModelCacheTracker implements AutoCloseable {
     private final Cache cache;
     private final Refresher refresher;
     private final ConcurrentHashMap<String, Entry> entries =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer>
+            pendingLocalCommits =
             new ConcurrentHashMap<>();
     private final ExecutorService refreshExecutor =
             Executors.newSingleThreadExecutor(
@@ -217,6 +221,43 @@ final class ModelCacheTracker implements AutoCloseable {
         publish(
                 modelId, modelType,
                 stateIndex, false);
+    }
+
+    /**
+     * Prevents a tracker update for an in-flight local action from starting a redundant suffix refresh before the
+     * accepted result can seed the same cache entry.
+     */
+    Runnable beginLocalCommit(
+            Collection<String> modelIds) {
+        List<String> targets =
+                modelIds.stream()
+                        .distinct()
+                        .toList();
+        targets.forEach(
+                modelId ->
+                        pendingLocalCommits.merge(
+                                modelId, 1,
+                                Integer::sum));
+        AtomicBoolean completed =
+                new AtomicBoolean();
+        return () -> {
+            if (!completed.compareAndSet(
+                    false, true)) {
+                return;
+            }
+            targets.forEach(
+                    modelId ->
+                            pendingLocalCommits.computeIfPresent(
+                                    modelId,
+                                    (ignored, count) ->
+                                            count == 1
+                                                    ? null
+                                                    : count
+                                                      - 1));
+            if (hasRefreshableEntries()) {
+                scheduleRefresh();
+            }
+        };
     }
 
     void forget(String modelId) {
@@ -467,6 +508,9 @@ final class ModelCacheTracker implements AutoCloseable {
                 if (entry.stale
                     && entry.latestUpdate
                        <= refreshBoundary
+                    && !pendingLocalCommits
+                            .containsKey(
+                                    candidate.getKey())
                     && entry.modelType != null
                     && cache.containsKey(
                             candidate.getKey())) {
@@ -547,6 +591,9 @@ final class ModelCacheTracker implements AutoCloseable {
                 .anyMatch(candidate -> {
                     Entry entry = candidate.getValue();
                     return entry.stale
+                           && !pendingLocalCommits
+                                   .containsKey(
+                                           candidate.getKey())
                            && entry.modelType != null
                            && entry.latestUpdate
                               <= safeBoundary
@@ -579,6 +626,7 @@ final class ModelCacheTracker implements AutoCloseable {
                             closedFailure);
                 }
             });
+            pendingLocalCommits.clear();
             evictionRegistration.cancel();
             refreshExecutor.shutdownNow();
         }
