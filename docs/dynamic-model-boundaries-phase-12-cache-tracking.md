@@ -40,10 +40,11 @@ membership table.
 - Tracker failure disables the cache fast path until the durable cursor recovers. Timeout heartbeats do not invalidate
   anything. Shutdown cancels the open long poll and releases loads waiting on a refresh.
 
-The runtime wakes local waiters after commit. A single lazy observer per active model namespace reads the durable
-`update_generation` every 100 ms by default and wakes all waiters in another runtime process. This is deliberately not
-one database poll per SDK or waiter. Missing an in-memory wake can delay a response, but reconnect always resumes from
-the caller's durable cursor and cannot lose an update.
+The runtime wakes namespace-local waiters immediately after commit or materialization completion. `AvailabilityCheck`
+permits only one active runtime, and the event-sourcing endpoint/model store is memoized per namespace, so no periodic
+database observer is needed. A newly active runtime reads the durable cursor when its namespace endpoint is recreated;
+reconnect therefore cannot lose an update. Multi-active runtime coordination is intentionally deferred to the planned
+request/result-log architecture instead of being approximated with polling.
 
 Direct document/snapshot materialization and explicit erasure form a readiness barrier distinct from the processed
 update cursor. An action or privacy-safe hard-delete fence can already be durable while an external document store is
@@ -75,7 +76,8 @@ Focused verification covers:
 
 - ordered published and `STORE_ONLY` substeps with nullable event indices;
 - count and byte response bounds with guaranteed cursor progress;
-- local long-poll wake-up and wake-up after a commit and hard deletion from a second runtime process;
+- local long-poll wake-up after commits, materialization completion and hard deletion, plus durable cursor recovery
+  after runtime restart;
 - runtime-owned and SDK-owned direct-document materialization, acknowledgement and pending-erasure races, including
   initial tracker bootstrap;
 - privacy-safe hard-delete fencing;
@@ -152,7 +154,8 @@ The SDK cache harness uses a 10,000-event model, 100,000 loads per hot sample an
 | invalidated full reconstruction | 24.574 ms | 43.640 ms |
 
 The previous Phase 11 model “warm leaf” result included a model-head validation round trip and was therefore not a
-true cache-hit number. This phase removes that round trip while retaining durable cross-runtime invalidation.
+true cache-hit number. This phase removes that round trip while retaining durable invalidation and restart recovery
+for the single-active-runtime topology.
 
 ## Operational visibility and remaining limits
 
@@ -162,16 +165,15 @@ from which tracker and external-store lag are observable. Cache eviction metrics
 and recovery failures. No event/document payload bytes are consumed by the tracker itself; refresh I/O remains visible
 in the existing model-load/document-store metrics.
 
-The normal command/query path intentionally observes the latest state known to its local tracker. A remote commit can
-exist during the sub-100-ms observer window. Event handlers do not use that latest-known contract: they reconstruct on
-the persisted action boundary as described above.
+The normal command/query path intentionally observes the latest state known to its namespace tracker. Local runtime
+commits wake that tracker immediately; reconnect resumes from its durable cursor. Event handlers do not use the
+latest-known contract: they reconstruct on the persisted action boundary as described above.
 
 The split-store acknowledgement narrows but does not claim to remove the pre-existing cross-database crash window. If
 an SDK process dies after its external document write but before acknowledgement, the durable action remains fenced
 and visible as materialization lag until the exact action is safely repaired or administratively resolved. This is
 fail-closed for cache correctness; horizontal request/result-log coordination remains explicitly outside this phase.
 
-The default cross-runtime observer costs one singleton-row query per 100 ms per active model namespace and runtime,
-not per SDK. `fluxzero.modelUpdateRemotePollMillis` and `fluxzero.maxModelUpdateWaiters` are operational overrides.
-Production deployments should tune the interval against database round-trip cost and desired cache propagation
-latency.
+There is no idle database poll per model namespace. `fluxzero.maxModelUpdateWaiters` remains the overload bound for
+concurrent long polls. Supporting multiple simultaneously active runtimes will require an explicit distributed
+notification/log contract and is outside this phase.

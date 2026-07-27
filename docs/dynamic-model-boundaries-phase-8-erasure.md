@@ -54,9 +54,9 @@ runtime key. The key is generated once and stored separately from the lineage ro
 not reveal raw deleted IDs. A later `DESCENDANTS` request can derive the same token from the user-supplied root ID and
 continue traversal. Erasing the complete descendant closure purges the corresponding protected lineage rows.
 
-This is pseudonymization for lifecycle discovery, not encryption of low-entropy IDs. Deployments with a stronger threat
-model must provide an externally managed namespace erasure key; supporting externally managed keys remains an
-operational configuration item in Phase 9.
+This is pseudonymization for lifecycle discovery, not encryption of low-entropy IDs. The owning runtime database
+generates and durably retains a random key by default. Deployments that require secret-manager ownership or recovery
+independent of the database backup can configure an externally managed namespace key.
 
 ## Resumability and write fencing
 
@@ -137,5 +137,6 @@ Phase 8 is implemented by SDK commit `49000dd69f1` and runtime commit `d3a74b60`
   with the same p50 latency and physical amplification. The 20,000-action event-only run was slightly faster in the
   new build (5,705 versus 5,541 actions/s); this is treated as run variance, not an improvement claim.
 
-The lifecycle tables currently generate and retain their HMAC keys inside their owning database. Supplying externally
-managed keys and production hardware/steady-state operational certification remain Phase 9 rollout gates.
+The lifecycle tables generate and retain their HMAC keys inside their owning database by default. Phase 9 additionally
+supports optional externally managed keys; production hardware and steady-state operational certification remain
+rollout gates.

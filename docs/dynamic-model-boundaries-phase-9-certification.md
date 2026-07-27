@@ -129,11 +129,13 @@ Split databases intentionally do not claim XA. The core action durably retains c
 document/snapshot/search application is idempotent and fenced, so failure resumes without re-running user assertions
 or duplicating the original event.
 
-For split model and search databases, configure the same Base64-encoded 256-bit key through
-`fluxzero.modelErasureKey`, or use the exact namespace-specific
-`fluxzero.modelErasureKey.<schema>` property. Configure it before the first model/search use. Existing databases retain
-their generated key; a configured mismatch fails startup explicitly. Key replacement/rotation requires a deliberate
-data migration and is not silently supported.
+Erasure-key configuration is optional, including when one runtime owns separate model and search databases. Each
+owning database generates and durably retains its own random 256-bit key by default; protected tokens do not cross the
+database boundary. Deployments that want secret-manager ownership or database-independent recovery can configure a
+Base64-encoded key through `fluxzero.modelErasureKey`, or the exact namespace-specific
+`fluxzero.modelErasureKey.<schema>` property, before first model/search use. A configured mismatch with an existing
+database fails startup explicitly. Key replacement/rotation requires a deliberate data migration and is not silently
+supported.
 
 ## Compatibility and rollout
 
@@ -163,8 +165,8 @@ These are operational qualifications, not unfinished model semantics:
   demonstrate the required 100 GB/min read/write envelope with headroom;
 - run a production-duration mixed-traffic soak including checkpoints, autovacuum, bloat, replica lag, failover, and
   overload recovery;
-- qualify backup/restore time and correctness for model streams, graph relations, action results, projection queues,
-  erasure state, and externally managed key recovery;
+- qualify backup/restore time and correctness for model streams, graph relations, action results, projection queues
+  and erasure state; include configured key secrets when key ownership is external;
 - validate customer-specific payload, hot-key, Zipf, graph-degree, retention, and search distributions.
 
 Those results determine deployment sizing and rollout rate. They do not require changing the API or storage design

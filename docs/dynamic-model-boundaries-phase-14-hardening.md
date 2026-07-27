@@ -43,16 +43,18 @@ future cache entry from leaking into historical replay.
 ## Split-store materialization
 
 `CommitModelAction` already carries the original events, optional direct documents, optional snapshots and relation
-changes as one logical package. When search is not co-located, the core JDBC transaction retains the exact serialized
-document/snapshot projection. The SDK applies it to the external store, waits for completion, then acknowledges the
-action boundary.
+changes as one logical package. When one runtime owns separate model and search databases, the core JDBC transaction
+retains the exact serialized document/snapshot projection and that same runtime applies it to the search database
+before returning success. On store activation after restart, a bounded background worker resumes pending projections
+with exponential backoff. An SDK-owned custom document store instead applies the retained projection and acknowledges
+the action boundary through the existing protocol.
 
-If either process fails in between:
+If either runtime-owned database operation or the SDK-owned route fails in between:
 
 - a duplicate commit returns the original durable action result;
-- the SDK retrieves the original projection by `actionId`;
-- the external store applies it through monotone per-model fences;
-- the SDK acknowledges only after all writes succeed;
+- the runtime-owned worker, or the SDK for a custom store, retrieves the original projection by `actionId`;
+- the target store applies it through monotone per-model fences;
+- the materialization boundary closes only after all writes succeed;
 - later duplicate or operator-triggered delivery is idempotent.
 
 The action's compact result is not a bulky retry artifact. It contains the permanent action/substep `stateIndex`,
@@ -76,7 +78,8 @@ The distinction remains intentional:
 
 ## Operational recovery
 
-For a pending split-store action:
+Runtime-owned search materialization is repaired automatically after temporary failure and store activation following a
+restart. For a pending SDK-owned custom-store action:
 
 1. redeliver the original command/action with the same durable `actionId`, or retrieve
    `GetModelActionMaterialization(actionId)` through the low-level event-store client;
@@ -87,6 +90,20 @@ For a pending split-store action:
 Never rebuild a committed projection by rerunning assertions, interceptors or applies. A missing action ID is an
 operator/configuration error; a retained action with no recoverable projection must fail explicitly rather than
 silently close its readiness fence.
+
+## Retention state
+
+There is no implicit time-based model retention policy in this release:
+
+- the compact action result is retained indefinitely because exact handler boundaries, update tracking and durable
+  idempotency still depend on it;
+- a pending document/snapshot projection is retained until successful materialization, then cleared immediately;
+- processed deletion-target worksets are deleted when their deletion completes;
+- completed deletion records and erasure fences remain durable for retry identity and model-ID reuse rejection;
+- protected lineage remains until the corresponding detached descendants are erased.
+
+Purging or archiving compact actions, completed deletion metadata or fences requires a separately proven replacement
+for those correctness contracts; ordinary message-log retention does not apply to these model tables.
 
 ## Verification
 
@@ -196,8 +213,9 @@ storage and network topology.
   permanent; only unfinished document/snapshot bytes remain in the existing action projection column.
 - Concurrency: event indices remain unique and ordered under mixed traffic; equal/older direct-document writes cannot
   cross a newer write or delete tombstone; cache and snapshot updates cannot move backwards.
-- Recovery: a crash after runtime commit cannot invoke application code again. Duplicate delivery retrieves the exact
-  retained bytes, applies them idempotently, and only then closes the materialization fence.
+- Recovery: a crash after runtime commit cannot invoke application code again. Runtime-owned materialization resumes
+  automatically; duplicate or SDK-owned delivery retrieves the exact retained bytes, applies them idempotently, and
+  only then closes the materialization fence.
 - Deletion/GDPR: query stores cannot own erasure; direct/graph documents finish before completion; shared event
   payloads survive while any membership remains; detached lineage stays discoverable through protected tokens.
 - Resources and shutdown: graph source bytes, placements, path expansion and output share a fail-fast budget; JDBC
@@ -207,10 +225,13 @@ storage and network topology.
 
 ## Rollout, observability and rollback
 
-Alert on pending materialization boundaries, `ModelMaterializationRepairMetric`, graph-projection backlog/age, rejected
-model-action backlog permits, write latency, WAL rate and the model update tracker cursor. A repair metric intentionally
-contains counts/bytes and completion state but no action or model ID, so it remains safe as a bounded metric dimension;
-the action ID remains available in request/audit logs for diagnosis.
+Existing signals cover the durable/materialized cursor gap in `TrackModelUpdatesResult.Metric`, successful exact-package
+repair in `ModelMaterializationRepairMetric`, graph-projection batches/status, generic request latency/failures, cache
+evictions and bounded-backlog rejection logs. Runtime-owned recovery and deletion failures also log while their durable
+pending boundaries remain visible. Deployment dashboards and alert thresholds are operational configuration, not
+automatically installed by the runtime. A repair metric intentionally contains counts/bytes and completion state but no
+action or model ID, so it remains safe as a bounded metric dimension; the action ID remains available in request/audit
+logs for diagnosis.
 
 Before a runtime or SDK downgrade, drain and acknowledge all pending split-store materializations and graph deletion
 work. Existing aggregate streams are untouched and remain the immediate application-level rollback path. New

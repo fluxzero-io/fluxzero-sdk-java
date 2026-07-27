@@ -1198,6 +1198,46 @@ throughput and same-model contention are separate contracts and must remain sepa
 - [x] Repair the retained PostgreSQL 18 benchmark compose mount without deleting or rewriting an existing benchmark
   data directory.
 
+## Phase 16 — Single-active-runtime recovery and operational truth
+
+This final rollout correction aligns direct-materialization recovery and cache tracking with Fluxzero's actual
+`AvailabilityCheck` topology: one active runtime owns the namespace, even when model and search persistence use
+separate databases.
+
+### Slice 16.1 — Runtime-owned restart recovery
+
+- [x] Scan the existing partial pending-materialization index in count- and byte-bounded batches when an existing
+  model namespace is activated after restart.
+- [x] Apply the exact retained document/snapshot bytes through existing state-index fences, clear retry payloads only
+  after success, and unblock graph projection/cache materialization boundaries.
+- [x] Retry temporary search failures with bounded exponential backoff without polling an idle namespace.
+- [x] Preserve lazy zero-schema initialization for aggregate-only namespaces.
+
+### Slice 16.2 — True long polling
+
+- [x] Remove the 100-ms cross-runtime generation observer and its configuration property.
+- [x] Keep direct in-memory wake-up for commits, materialization completion and deletion on the single memoized
+  namespace store.
+- [x] Retain durable cursor bootstrap across runtime restart; defer multi-active notification to the future
+  request/result-log architecture.
+
+### Slice 16.3 — Key, retention and observability contract
+
+- [x] Document that erasure-key configuration is optional: each runtime-owned database generates and persists its own
+  key, while external configuration is an operational ownership/recovery choice.
+- [x] Record current retention precisely: compact action results, completed deletion identity and erasure fences have
+  no TTL; pending projection bytes and completed deletion-target worksets are the eagerly removed data.
+- [x] Distinguish built-in metrics/logs from deployment-owned dashboards and alert thresholds.
+
+### Slice 16.4 — Verification and review
+
+- [x] Cover automatic restart recovery, exact original bytes and repeated temporary search failure.
+- [x] Retain local long-poll wake-up, materialization fencing, duplicate idempotency, graph projection and hard-delete
+  recovery contracts.
+- [x] Run both complete Maven reactors, `git diff --check`, and a final adversarial review.
+- [x] Publish the [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) with final test counts and remaining
+  operational gates.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1452,3 +1492,14 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   aggregates at 1,089.0 actions/s (1.372×), with 59% less WAL and 50% less allocation. The deliberately skewed profile
   improved from 0.265× to 0.773× aggregate throughput; its remaining same-model serialization boundary is explicit in
   the [Phase 15 report](dynamic-model-boundaries-phase-15-contention-performance.md).
+- 2026-07-27 — Phase 16 (SDK: this commit; runtime `426793ec`) makes runtime-owned split-database
+  document/snapshot materialization self-healing after namespace activation following restart. Exact retained
+  projection bytes are drained in 128-action/8-MiB batches with fenced idempotent writes and bounded retry, while the
+  unsupported multi-active 100-ms observer is removed in favor of true single-active long polling. Erasure-key,
+  retention and observability documentation now describes implemented behavior rather than deployment assumptions.
+  Focused JDBC verification passed 78 tests. The complete runtime reactor passed all four modules and 643 tests; the
+  complete SDK reactor passed all nine modules, including 1,941 SDK tests and Java/Kotlin downstream compatibility.
+  The final adversarial review additionally made recovery waits interruptible during shutdown. The
+  [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) retains action-result archival, multi-active
+  notification, customer alert thresholds, production-duration soak and absolute 100-GB/min qualification as explicit
+  future or deployment gates.
