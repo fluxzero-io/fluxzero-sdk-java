@@ -42,14 +42,15 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.HandlerRepository;
-import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.ModelActionHandlerRegistry;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
+import io.fluxzero.sdk.modeling.ModelEntityParameterResolver;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SelectiveCache;
@@ -967,6 +968,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                       !disablePayloadValidation, userProvider != null),
                                               new PayloadParameterResolver(),
                                               new JsonPayloadParameterResolver(),
+                                              new ModelEntityParameterResolver(),
                                               new EntityParameterResolver()));
             final List<ParameterResolver<? super DeserializingMessage>> runtimeParameterResolvers =
                     this.parameterResolvers = List.copyOf(parameterResolvers);

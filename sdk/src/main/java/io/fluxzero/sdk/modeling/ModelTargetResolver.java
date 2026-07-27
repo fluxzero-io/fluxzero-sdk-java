@@ -33,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getGenericPropertyType;
@@ -118,6 +119,36 @@ public final class ModelTargetResolver {
                         .filter(type -> ModelMetadata.of(type).isModel())
                         .ifPresent(result::add));
         return List.copyOf(result);
+    }
+
+    /**
+     * Resolves one direct model ID from an arbitrary payload using the same rules as model-aware apply handlers.
+     * <p>
+     * This method deliberately does not traverse parent relations. An empty result means that the payload has no
+     * matching direct ID property for the requested model type.
+     */
+    static Optional<String> resolveDirectModelId(
+            Object payload, Class<?> modelType, String associationProperty) {
+        Object value = payloadValue(payload);
+        if (value == null) {
+            return Optional.empty();
+        }
+        PayloadProperty property = PayloadMetadata.of(value.getClass())
+                .resolveIfDirect(modelType, associationProperty);
+        if (property == null) {
+            return Optional.empty();
+        }
+        Object idValue = property.read(value);
+        if (idValue == null) {
+            return Optional.empty();
+        }
+        String modelId = idValue.toString();
+        if (modelId == null) {
+            throw new IllegalArgumentException(
+                    "Payload property '%s' returned a null ID string for %s model"
+                            .formatted(property.name, modelType.getName()));
+        }
+        return Optional.of(modelId);
     }
 
     private static void compileHandler(

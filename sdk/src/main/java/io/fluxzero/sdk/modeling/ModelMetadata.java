@@ -163,6 +163,34 @@ public final class ModelMetadata {
         return Optional.ofNullable(modelParameters.get(parameter));
     }
 
+    /**
+     * Inspects one arbitrary handler parameter for a model value or {@code Entity<Model>} dependency.
+     * <p>
+     * Unlike {@link #modelParameter(Parameter)}, this method is not limited to model-aware apply methods and can be
+     * used by regular message-handler parameter resolvers.
+     */
+    static Optional<ModelParameter> inspectModelParameter(Parameter parameter) {
+        ParameterType parameterType = modelParameterType(parameter).orElse(null);
+        if (parameterType == null) {
+            return Optional.empty();
+        }
+        Association association = ReflectionUtils.getAnnotation(parameter, Association.class).orElse(null);
+        String associationProperty = null;
+        if (association != null && association.value().length > 1) {
+            throw invalid("Model parameter %s in %s may declare at most one @Association property"
+                                  .formatted(parameter, parameter.getDeclaringExecutable().toGenericString()));
+        }
+        if (association != null && association.value().length == 1) {
+            associationProperty = association.value()[0];
+            if (associationProperty.isBlank() || !associationProperty.equals(associationProperty.trim())) {
+                throw invalid("Model parameter %s in %s has an invalid blank or padded @Association property"
+                                      .formatted(parameter, parameter.getDeclaringExecutable().toGenericString()));
+            }
+        }
+        return Optional.of(new ModelParameter(
+                parameter, parameterType.modelType(), parameterType.entityWrapped(), associationProperty));
+    }
+
     public List<HandlerMethod> applyMethods() {
         return handlerMethods.stream().filter(method -> method.kind() == HandlerKind.APPLY).toList();
     }
@@ -433,25 +461,7 @@ public final class ModelMetadata {
     private static List<ModelParameter> inspectModelParameters(Executable executable) {
         List<ModelParameter> result = new ArrayList<>();
         for (Parameter parameter : executable.getParameters()) {
-            ParameterType parameterType = modelParameterType(parameter).orElse(null);
-            if (parameterType == null) {
-                continue;
-            }
-            Association association = ReflectionUtils.getAnnotation(parameter, Association.class).orElse(null);
-            String associationProperty = null;
-            if (association != null && association.value().length > 1) {
-                throw invalid("Model parameter %s in %s may declare at most one @Association property"
-                                      .formatted(parameter, executable.toGenericString()));
-            }
-            if (association != null && association.value().length == 1) {
-                associationProperty = association.value()[0];
-                if (associationProperty.isBlank() || !associationProperty.equals(associationProperty.trim())) {
-                    throw invalid("Model parameter %s in %s has an invalid blank or padded @Association property"
-                                          .formatted(parameter, executable.toGenericString()));
-                }
-            }
-            result.add(new ModelParameter(
-                    parameter, parameterType.modelType(), parameterType.entityWrapped(), associationProperty));
+            inspectModelParameter(parameter).ifPresent(result::add);
         }
         return List.copyOf(result);
     }

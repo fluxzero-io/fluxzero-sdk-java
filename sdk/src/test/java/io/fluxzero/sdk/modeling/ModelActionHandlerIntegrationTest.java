@@ -28,6 +28,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.root.RootConsumerModelCommand;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.COMMAND;
@@ -60,6 +62,61 @@ class ModelActionHandlerIntegrationTest {
                 .expectTrue(fluxzero -> fluxzero.documentStore()
                         .search(Account.class).fetchAll(Account.class)
                         .equals(java.util.List.of(new Account(accountId, 42))));
+    }
+
+    @Test
+    void trackedEventHandlerInjectsAffectedModelValueAndEntity() {
+        AtomicReference<List<Object>> handled =
+                new AtomicReference<>();
+        AccountId accountId =
+                new AccountId("event-parameter");
+
+        TestFixture.createAsync(
+                        new AffectedModelEventHandler(handled))
+                .whenCommand(
+                        new CreateAccount(accountId, 42))
+                .expectTrue(fluxzero -> {
+                    List<Object> expected = List.of(
+                            new Account(accountId, 42),
+                            new Account(accountId, 42));
+                    long deadline = System.nanoTime()
+                                    + Duration.ofSeconds(5)
+                                            .toNanos();
+                    while (!expected.equals(handled.get())
+                           && System.nanoTime() < deadline) {
+                        Thread.sleep(10L);
+                    }
+                    return expected.equals(handled.get());
+                });
+    }
+
+    @Test
+    void assertLegalInjectsUnrelatedModelFromPayloadProperty() {
+        TestFixture fixture = TestFixture.create();
+        InventoryId inventoryId =
+                new InventoryId("assert-dependency");
+        OrderId orderId =
+                new OrderId("assert-dependency");
+
+        fixture.givenCommands(
+                        new CreateInventory(inventoryId, 5))
+                .whenCommand(
+                        new CreateCheckedOrder(
+                                orderId, inventoryId, 5))
+                .expectTrue(fluxzero ->
+                                    new Order(orderId, 5)
+                                            .equals(
+                                                    fluxzero.modelRepository()
+                                                            .load(orderId)
+                                                            .get()))
+                .andThen()
+                .whenCommand(
+                        new CreateCheckedOrder(
+                                new OrderId("rejected"),
+                                inventoryId, 99))
+                .expectExceptionalResult(
+                        IllegalStateException.class)
+                .expectNoEvents();
     }
 
     @Test
@@ -721,6 +778,17 @@ class ModelActionHandlerIntegrationTest {
         }
     }
 
+    private record AffectedModelEventHandler(
+            AtomicReference<List<Object>> handled) {
+        @HandleEvent
+        void on(
+                CreateAccount event,
+                Account account,
+                Entity<Account> entity) {
+            handled.set(List.of(account, entity.get()));
+        }
+    }
+
     private record ExplicitlyDelegatedCreate(
             AccountId accountId, int balance) {
         @Apply
@@ -887,6 +955,26 @@ class ModelActionHandlerIntegrationTest {
         @Apply
         Order apply(Inventory inventory) {
             return new Order(orderId, inventory.available());
+        }
+    }
+
+    private record CreateCheckedOrder(
+            OrderId orderId,
+            InventoryId inventoryId,
+            int expectedInventory) {
+        @AssertLegal
+        void assertInventory(Inventory inventory) {
+            if (inventory.available()
+                != expectedInventory) {
+                throw new IllegalStateException(
+                        "Unexpected inventory");
+            }
+        }
+
+        @Apply
+        Order apply(Inventory inventory) {
+            return new Order(
+                    orderId, inventory.available());
         }
     }
 

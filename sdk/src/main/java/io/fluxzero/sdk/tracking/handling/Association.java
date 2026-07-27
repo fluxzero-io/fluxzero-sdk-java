@@ -44,7 +44,9 @@ import java.lang.annotation.Target;
  * For a model value or {@link io.fluxzero.sdk.modeling.Entity Entity&lt;T&gt;} parameter of a model-aware
  * {@code @AssertLegal}, {@code @InterceptApply}, or {@code @Apply} method, one association value first selects a
  * same-named payload ID property. If that property is absent, the value qualifies a reachable ancestor by its explicit
- * {@link io.fluxzero.sdk.modeling.ParentId#path() @ParentId path}.
+ * {@link io.fluxzero.sdk.modeling.ParentId#path() @ParentId path}. On {@code @HandleEvent} and
+ * {@code @HandleNotification} parameters, the association value selects the direct model ID property from the handled
+ * model event.
  *
  * <h2>Matching Semantics</h2>
  * A message is associated with a handler instance if:
