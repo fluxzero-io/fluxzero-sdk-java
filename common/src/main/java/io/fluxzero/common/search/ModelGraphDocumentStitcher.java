@@ -22,8 +22,8 @@ import io.fluxzero.common.api.search.SortableEntry;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -98,7 +98,8 @@ public final class ModelGraphDocumentStitcher {
                     new LinkedHashSet<>());
             SerializedDocument serialized =
                     new SerializedDocument(composed);
-            bounds.addBytes(serialized.bytes());
+            bounds.verifyOutputBytes(
+                    serialized.bytes());
             result.add(serialized);
         }
         return List.copyOf(result);
@@ -118,6 +119,8 @@ public final class ModelGraphDocumentStitcher {
                     + modelId);
         }
         try {
+            bounds.reserveSourceBytes(
+                    serialized.bytes());
             Document direct =
                     serialized.deserializeDocument();
             if (depth >= bounds.composition
@@ -183,7 +186,7 @@ public final class ModelGraphDocumentStitcher {
                     append(
                             childDocument, prefix,
                             entries, facets, sortables,
-                            summaries);
+                            summaries, bounds);
                 }
             });
             String summary = summaries.isEmpty()
@@ -210,7 +213,8 @@ public final class ModelGraphDocumentStitcher {
                     entries,
             Set<FacetEntry> facets,
             Set<SortableEntry> sortables,
-            List<String> summaries) {
+            List<String> summaries,
+            Bounds bounds) {
         child.getEntries().forEach(
                 (entry, paths) -> {
                     List<Document.Path> prefixed =
@@ -218,11 +222,15 @@ public final class ModelGraphDocumentStitcher {
                                     .filter(path ->
                                                     !isMetadataPath(
                                                             path.getValue()))
-                                    .map(path ->
-                                                 new Document.Path(
-                                                         append(
-                                                                 prefix,
-                                                                 path.getValue())))
+                                    .map(path -> {
+                                        bounds.reservePrefix(
+                                                prefix,
+                                                path.getValue());
+                                        return new Document.Path(
+                                                append(
+                                                        prefix,
+                                                        path.getValue()));
+                                    })
                                     .toList();
                     if (!prefixed.isEmpty()) {
                         entries.computeIfAbsent(
@@ -233,17 +241,27 @@ public final class ModelGraphDocumentStitcher {
                     }
                 });
         child.getFacets().stream()
-                .map(facet -> facet.toBuilder()
-                        .name(append(
-                                prefix,
-                                facet.getName()))
-                        .build())
+                .map(facet -> {
+                    bounds.reservePrefix(
+                            prefix,
+                            facet.getName());
+                    return facet.toBuilder()
+                            .name(append(
+                                    prefix,
+                                    facet.getName()))
+                            .build();
+                })
                 .forEach(facets::add);
         child.getSortables().stream()
-                .map(sortable -> sortable.withName(
-                        append(
-                                prefix,
-                                sortable.getName())))
+                .map(sortable -> {
+                    bounds.reservePrefix(
+                            prefix,
+                            sortable.getName());
+                    return sortable.withName(
+                            append(
+                                    prefix,
+                                    sortable.getName()));
+                })
                 .forEach(sortables::add);
         if (child.getSummary() != null
             && !child.getSummary().isBlank()) {
@@ -333,7 +351,8 @@ public final class ModelGraphDocumentStitcher {
         private final ModelGraphComposition
                 composition;
         private int placements;
-        private long bytes;
+        private long reservedBytes;
+        private long outputBytes;
 
         private Bounds(
                 ModelGraphComposition composition) {
@@ -351,14 +370,81 @@ public final class ModelGraphDocumentStitcher {
             }
         }
 
-        private void addBytes(long additional) {
-            bytes = Math.addExact(bytes, additional);
-            if (bytes > composition.getMaxBytes()) {
-                throw new IllegalArgumentException(
-                        "Model graph composition exceeds maxBytes "
-                        + composition.getMaxBytes()
-                        + "; narrow the result or use a materialized graph projection");
+        private void reserveSourceBytes(
+                long additional) {
+            reservedBytes = add(
+                    reservedBytes, additional);
+            verifyTotalBytes();
+        }
+
+        private void reservePrefix(
+                String prefix, String path) {
+            long additional =
+                    utf8Length(prefix)
+                    + (path == null || path.isEmpty()
+                            ? 0L : 1L);
+            reservedBytes = add(
+                    reservedBytes, additional);
+            verifyTotalBytes();
+        }
+
+        private static long utf8Length(
+                String value) {
+            long result = 0L;
+            for (int index = 0;
+                 index < value.length();
+                 index++) {
+                char current =
+                        value.charAt(index);
+                if (current <= 0x7f) {
+                    result++;
+                } else if (current <= 0x7ff) {
+                    result += 2L;
+                } else if (Character.isHighSurrogate(
+                        current)
+                           && index + 1
+                              < value.length()
+                           && Character.isLowSurrogate(
+                        value.charAt(index + 1))) {
+                    result += 4L;
+                    index++;
+                } else {
+                    result += 3L;
+                }
             }
+            return result;
+        }
+
+        private void verifyOutputBytes(
+                long additional) {
+            outputBytes = add(
+                    outputBytes, additional);
+            verifyTotalBytes();
+        }
+
+        private long add(
+                long current, long additional) {
+            try {
+                return Math.addExact(
+                        current, additional);
+            } catch (ArithmeticException overflow) {
+                throw maxBytesExceeded();
+            }
+        }
+
+        private void verifyTotalBytes() {
+            if (add(reservedBytes, outputBytes)
+                > composition.getMaxBytes()) {
+                throw maxBytesExceeded();
+            }
+        }
+
+        private IllegalArgumentException
+                maxBytesExceeded() {
+            return new IllegalArgumentException(
+                    "Model graph composition exceeds maxBytes "
+                    + composition.getMaxBytes()
+                    + "; narrow the result or use a materialized graph projection");
         }
     }
 }

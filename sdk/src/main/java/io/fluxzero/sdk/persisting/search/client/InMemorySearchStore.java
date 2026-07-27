@@ -19,7 +19,9 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -93,6 +95,8 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     private final Map<String, SerializedDocument> documents = new ConcurrentHashMap<>();
+    private final Map<String, Long> modelDocumentStateIndices =
+            new ConcurrentHashMap<>();
 
     private final AtomicLong nextIndex = new AtomicLong();
     private final Map<String, ConcurrentSkipListMap<Long, SerializedMessage>> messageLogs = new ConcurrentHashMap<>();
@@ -473,6 +477,113 @@ public class InMemorySearchStore implements SearchClient {
             }
         });
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public synchronized CompletableFuture<Void>
+            materializeModelAction(
+                    MaterializeModelAction action) {
+        Map<String, SerializedDocument> indexed =
+                new LinkedHashMap<>();
+        action.getDocuments().forEach(update -> {
+            long current =
+                    modelDocumentStateIndices
+                            .getOrDefault(
+                                    update.getModelId(),
+                                    -1L);
+            if (current >= update.getStateIndex()) {
+                return;
+            }
+            modelDocumentStateIndices.put(
+                    update.getModelId(),
+                    update.getStateIndex());
+            var mutation =
+                    update.getMutation();
+            SerializedDocument document =
+                    mutation.getDocument();
+            if (document == null) {
+                documents.remove(
+                        asIdentifier(
+                                mutation.getCollection(),
+                                update.getModelId()));
+            } else {
+                documents.put(
+                        identifier.apply(document),
+                        document);
+                indexed.put(
+                        identifier.apply(document),
+                        document);
+                collections.add(
+                        document.getCollection());
+            }
+        });
+        storeMessages(indexed);
+        action.getSnapshots().forEach(update -> {
+            SerializedDocument document =
+                    update.getMutation().toDocument(
+                            update.getModelId(),
+                            update.getSequenceNumber(),
+                            update.getStateIndex());
+            documents.putIfAbsent(
+                    identifier.apply(document),
+                    document);
+            collections.add(
+                    document.getCollection());
+            trimModelSnapshots(
+                    update.getModelId(),
+                    update.getMutation()
+                            .getMaxSnapshotCount());
+        });
+        return CompletableFuture.completedFuture(
+                null);
+    }
+
+    private void trimModelSnapshots(
+            String modelId,
+            int configuredMaximum) {
+        int maximum =
+                Math.max(1, configuredMaximum);
+        List<SerializedDocument> snapshots =
+                documents.values().stream()
+                        .filter(document ->
+                                        ModelSnapshotMutation.COLLECTION
+                                                .equals(
+                                                        document.getCollection()))
+                        .filter(document ->
+                                        document.getFacets()
+                                                .stream()
+                                                .anyMatch(
+                                                        facet ->
+                                                                ModelSnapshotMutation.MODEL_ID_FACET
+                                                                        .equals(
+                                                                                facet.getName())
+                                                                && modelId.equals(
+                                                                        facet.getValue())))
+                        .sorted(
+                                comparing(
+                                        InMemorySearchStore
+                                                ::snapshotSequence)
+                                        .reversed())
+                        .toList();
+        snapshots.stream()
+                .skip(maximum)
+                .forEach(snapshot ->
+                                 documents.remove(
+                                         identifier.apply(
+                                                 snapshot)));
+    }
+
+    private static long snapshotSequence(
+            SerializedDocument document) {
+        return document.getFacets().stream()
+                .filter(facet ->
+                                ModelSnapshotMutation.SEQUENCE_NUMBER
+                                        .equals(
+                                                facet.getName()))
+                .map(FacetEntry::getValue)
+                .mapToLong(Long::parseLong)
+                .findFirst()
+                .orElseThrow();
     }
 
     public Stream<SerializedMessage> openStream(String collection, Long lastIndex, int maxSize) {

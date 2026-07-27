@@ -3126,8 +3126,18 @@ Use `@Member` inside a model only for values that intentionally share the model'
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
 stored and published. Direct searchable documents are synchronous with model-action completion.
 
-Load current state with `Fluxzero.loadModel(id)`. Directly affected models may also be injected into event and
-notification handlers as `T` or `Entity<T>`; they represent the exact model state at that event's action boundary.
+Load current state with `Fluxzero.loadModel(id)`. Any selected message handler can inject directly addressed models and
+their parents, grandparents or further ancestors as `T` or `Entity<T>`. Event and notification handlers receive the
+exact state and relations at that event's model-action boundary; command, query, schedule, result, error, metrics,
+document, custom and web handlers use one current handler load context. Event-sourced targets share its pinned
+repository boundary; document-loaded targets remain current-only direct-document reads. Use
+`@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
+`@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
+
+For split event/search stores, Fluxzero retains the exact serialized direct-document and snapshot package with the
+authoritative model action. A retry after SDK or runtime process loss replays that package through monotone
+`stateIndex` fences and never re-evaluates application code. Direct model search therefore remains synchronous with a
+successful command result without claiming a distributed transaction.
 
 See the model-first [developer guides](docs/developer/guides/Modeling%20&%20persistence/170-entity-loading.mdx) for
 multi-model actions, temporal relationships, graph projections, conflict policies and hard deletion.

@@ -48,20 +48,30 @@ The real runtime suite now covers direct commit/load/search, event-sourced and d
 parameter injection, logical deletion/recreation, hard deletion, ancestor injection, graph projection and moves.
 The JDBC search contract also verifies erasure before any model snapshot partition has previously existed.
 
-## Event and notification model parameters
+## Universal message-handler model parameters
 
-`ModelEntityParameterResolver` supports `T` and `Entity<T>` parameters in `@HandleEvent` and `@HandleNotification`
-methods when the message contains a persisted model-action boundary.
+`ModelEntityParameterResolver` supports `T` and `Entity<T>` parameters in every selected message handler kind.
+Commands, queries, web requests and responses, schedules, results, errors, metrics, documents and custom messages use
+one current handler load context when their payload or metadata identifies a model. Event-sourced targets share its
+pinned repository boundary; current-only document targets retain direct-document semantics. Events and notifications
+use the persisted model-action boundary instead.
 
 - IDs follow the model apply rules: canonical `@EntityId`, one unique typed `Id<T>`, or
   `@Association("payloadProperty")`.
-- Loads use the handler consumer namespace and the exact action/substep boundary of the event.
-- Repeated parameters for the same model share one message-scoped load.
+- `@Association` first selects a payload or metadata ID property and can disambiguate multiple IDs of the same model
+  type. `excludeMetadata = true` restricts it to payload/graph lookup.
+- A directly addressed child can supply parents, grandparents and further ancestors without repeating their IDs in
+  the message. `@Association("parentPath")` selects an ancestor edge when the type alone is ambiguous.
+- Loads use the handler consumer namespace. Events and notifications use the exact action/substep boundary; other
+  messages use the current repository context.
+- Direct targets and ancestors share one handler-scoped load context. Repeated parameters therefore do not perform
+  repeated repository loads.
 - `Entity<T>` may be empty after logical deletion. A non-null bare `T` does not match an absent model.
 - Ordinary events without model-action metadata never trigger an implicit current-state load.
 
 The resolver is placed before the legacy aggregate entity resolver. Its reflection work is prepared with the handler
-plan; its only repository I/O is for parameters that are both model-shaped and attached to a model-action event.
+plan. Candidate selection remains side-effect-free: repository I/O starts only after a handler containing resolvable
+model parameters has actually been selected.
 
 ## Package-scoped default consumers
 

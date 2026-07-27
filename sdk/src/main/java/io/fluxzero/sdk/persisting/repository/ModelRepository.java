@@ -24,7 +24,9 @@ import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelActionContext;
 import io.fluxzero.sdk.modeling.ModelGraph;
+import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 
@@ -82,6 +84,20 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage
      */
     <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);
+
+    /**
+     * Loads all model parameters for one selected message handler at one repository boundary.
+     * <p>
+     * Event and notification handlers carrying model-action metadata must be reconstructed at that exact action
+     * boundary. Other handlers use one current load context. Implementations should batch direct targets and ancestor
+     * traversal rather than loading each parameter independently.
+     */
+    default ModelActionContext loadContext(
+            @NonNull ModelTargetResolver.Resolution
+                    resolution) {
+        throw new UnsupportedOperationException(
+                "Coherent model handler parameter loading is not supported by this repository");
+    }
 
     /**
      * Creates a bounded, non-mutating plan for an explicit model hard deletion.

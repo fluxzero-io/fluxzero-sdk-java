@@ -37,9 +37,11 @@ An experimental event-index-to-state table and separate websocket request were m
 one row per published event and made the first handler load pay another network round trip. The retained design adds no
 mapping table and no extra request.
 
-This makes action-result retention a correctness invariant: a `model_action` result may not be purged while a
-corresponding published/model event can still be replayed into handlers that require exact historical model state.
-Retention and archival certification remains a Phase 9 operational gate.
+This makes the compact action result a permanent correctness record: it may not be purged while a corresponding
+published/model event can still be replayed into handlers that require exact historical model state. The result is the
+single compact representation of action/substep boundaries and target stream positions; it is not duplicated into
+per-substep and per-target tables. The potentially large document/snapshot repair projection is separate and is cleared
+as soon as materialization is acknowledged.
 
 When the global event log and model store share the JDBC transaction, publication cannot outrun the action row. The
 explicitly retained non-JDBC publish-first fallback has the existing cross-store race: a consumer may briefly observe
@@ -103,16 +105,20 @@ claimed.
   `Entity.previous()` comparisons. `0` is explicit latest-only; a negative value is explicit unbounded history.
 - The shared Fluxzero cache remains count- and memory-pressure-bounded (one million entries by default), so billions of
   durable model IDs do not imply billions of heap entries.
-- Warm loads still perform a hash-pruned head/suffix read. This catches both published and non-published external
-  changes without adding target-ID metadata to every global event or running another full global-log tracker.
+- One namespace-level long poll tracks compact durable model updates, including published, `STORE_ONLY` and
+  document-loaded transitions. It fences or refreshes only affected cache entries, so a current hot hit needs no
+  validation round trip.
 - The first unresolved event-handler load bypasses current cache and snapshots, then pins the action boundary. This
   prevents future current state from leaking into handler replay.
+- Event handlers wait until the cache tracker has observed their event/action boundary before using a current cached
+  entry; exact historical injection still reconstructs at the persisted action boundary.
 - Temporal graph reconstruction never consults the existing timeless relationship cache.
 
 Inspection of `CachingAggregateRepository` informed the event-boundary wait and revision-chain behavior, but its
-always-on global-event tracker was not copied. Independent model actions can be non-published and one original event can
-target several streams. A head/suffix probe is the one uniform correctness path; avoiding it later requires a compact
-model-state invalidation feed, not extra metadata and deserialization on the production global event path.
+global-event feed could not be copied directly: independent model actions can be non-published and one original event
+can target several streams. The retained tracker therefore long-polls the model-action update feed, whose entries carry
+both event indices and model `stateIndex`/sequence positions without adding deserialization to the production global
+event path.
 
 ## Graph bundle
 

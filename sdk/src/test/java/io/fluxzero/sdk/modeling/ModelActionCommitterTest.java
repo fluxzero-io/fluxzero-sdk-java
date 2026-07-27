@@ -21,14 +21,13 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
+import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
-import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
-import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -63,7 +62,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -87,6 +85,11 @@ class ModelActionCommitterTest {
                 .thenReturn(
                         CompletableFuture.completedFuture(
                                 null));
+        when(documentStore
+                     .materializeModelAction(any()))
+                .thenReturn(
+                        CompletableFuture.completedFuture(
+                                null));
     }
 
     @Test
@@ -105,9 +108,6 @@ class ModelActionCommitterTest {
                 Map.of(orderId.toString(), after));
         when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        when(documentStore.bulkUpdate(anyCollection()))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
         var result = committer.commit("action-1", evaluation).join();
 
         assertTrue(result.isPresent());
@@ -131,16 +131,24 @@ class ModelActionCommitterTest {
                         Order.class));
         assertFalse(target.isUpdateRelationships());
         assertTrue(target.getRelationships().isEmpty());
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
-        verify(documentStore).bulkUpdate(updates.capture());
-        IndexDocument update = (IndexDocument) updates.getValue().iterator().next();
-        SerializedDocument document = (SerializedDocument) update.getObject();
+        ArgumentCaptor<MaterializeModelAction> materialization =
+                ArgumentCaptor.forClass(
+                        MaterializeModelAction.class);
+        verify(documentStore)
+                .materializeModelAction(
+                        materialization.capture());
+        var update =
+                materialization.getValue()
+                        .getDocuments().getFirst();
+        SerializedDocument document =
+                update.getMutation().getDocument();
         assertEquals(after, serializer.fromDocument(document, Order.class));
-        assertEquals(orderId.toString(), update.getId());
-        assertEquals("orders", update.getCollection());
-        assertEquals(after.changedAt(), update.getTimestamp());
-        assertEquals(after.changedAt(), update.getEnd());
+        assertEquals(orderId.toString(), update.getModelId());
+        assertEquals(
+                "orders",
+                update.getMutation().getCollection());
+        assertEquals(after.changedAt().toEpochMilli(), document.getTimestamp());
+        assertEquals(after.changedAt().toEpochMilli(), document.getEnd());
         assertEquals(7, document.getDocument().getRevision());
         assertEquals("north", document.getMetadata().get("tenant"));
     }
@@ -171,9 +179,6 @@ class ModelActionCommitterTest {
                 .thenAnswer(invocation ->
                                     CompletableFuture.completedFuture(
                                             result(invocation.getArgument(0))));
-        when(documentStore.bulkUpdate(anyCollection()))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
         committer.commit("move-order", evaluation).join();
 
         ArgumentCaptor<CommitModelAction> captor =
@@ -217,7 +222,8 @@ class ModelActionCommitterTest {
         ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
         verify(eventStoreClient).commitModelAction(captor.capture());
         assertEquals(ModelConflictPolicy.FAIL, captor.getValue().getConflictPolicy());
-        verify(documentStore, never()).bulkUpdate(anyCollection());
+        verify(documentStore, never())
+                .materializeModelAction(any());
     }
 
     @Test
@@ -247,8 +253,6 @@ class ModelActionCommitterTest {
             return CompletableFuture.completedFuture(
                     commits.getAndIncrement() == 0 ? conflict(request, true) : result(request));
         });
-        when(documentStore.bulkUpdate(anyCollection()))
-                .thenReturn(CompletableFuture.completedFuture(null));
         AtomicInteger reloads = new AtomicInteger();
 
         var result = committer.commit(
@@ -263,12 +267,18 @@ class ModelActionCommitterTest {
         assertTrue(result.orElseThrow().isAccepted());
         assertEquals(2, commits.get());
         assertEquals(1, reloads.get());
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
-        verify(documentStore, times(1)).bulkUpdate(updates.capture());
-        IndexDocument update = (IndexDocument) updates.getValue().iterator().next();
+        ArgumentCaptor<MaterializeModelAction> updates =
+                ArgumentCaptor.forClass(
+                        MaterializeModelAction.class);
+        verify(documentStore, times(1))
+                .materializeModelAction(
+                        updates.capture());
+        var update =
+                updates.getValue()
+                        .getDocuments().getFirst()
+                        .getMutation().getDocument();
         assertEquals(reloaded, serializer.fromDocument(
-                (SerializedDocument) update.getObject(), Order.class));
+                update, Order.class));
     }
 
     @Test
@@ -299,7 +309,8 @@ class ModelActionCommitterTest {
         assertInstanceOf(ModelActionConflictException.class, bounded.getCause());
         assertEquals(1, reloads.get());
         verify(eventStoreClient, times(2)).commitModelAction(any());
-        verify(documentStore, never()).bulkUpdate(anyCollection());
+        verify(documentStore, never())
+                .materializeModelAction(any());
 
         IllegalStateException applicationError = new IllegalStateException("try again later");
         CompletionException mapped = assertThrows(CompletionException.class, () -> committer.commit(
@@ -341,7 +352,64 @@ class ModelActionCommitterTest {
         assertEquals(2, substep.getTargets().size());
         assertTrue(substep.getTargets().getFirst().isStoreEvent());
         assertFalse(substep.getTargets().getLast().isStoreEvent());
-        verify(documentStore, never()).bulkUpdate(anyCollection());
+        assertFalse(
+                substep.getTargets().getLast()
+                        .isUpdateState());
+        verify(documentStore, never())
+                .materializeModelAction(any());
+    }
+
+    @Test
+    void rejectsCreateUpdateAndDeleteForPublishOnlyEventSourcedModelsBeforeCommit()
+            throws Exception {
+        UnsafePublishedId id =
+                new UnsafePublishedId("1");
+        UnsafePublished before =
+                new UnsafePublished(id, "before");
+        UnsafePublished after =
+                new UnsafePublished(id, "after");
+        Object[][] stateChanges = {
+                {null, after},
+                {before, after},
+                {before, null}
+        };
+        for (int i = 0; i < stateChanges.length; i++) {
+            String actionId =
+                    "unsafe-publish-only-" + i;
+            Object next = stateChanges[i][1];
+            var evaluation =
+                    evaluation(
+                            List.of(id.toString()),
+                            substep(
+                                    new UpdateUnsafePublished(
+                                            id),
+                                    transition(
+                                            id,
+                                            UnsafePublished.class,
+                                            stateChanges[i][0],
+                                            next,
+                                            UpdateUnsafePublished.class,
+                                            "apply",
+                                            UnsafePublished.class)),
+                            java.util.Collections.singletonMap(
+                                    id.toString(), next));
+
+            IllegalStateException failure =
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> committer.commit(
+                                    actionId,
+                                    evaluation));
+
+            assertTrue(
+                    failure.getMessage()
+                            .contains(
+                                    "without storing its reconstructing event"));
+        }
+        verify(eventStoreClient, never())
+                .commitModelAction(any());
+        verify(documentStore, never())
+                .materializeModelAction(any());
     }
 
     @Test
@@ -357,7 +425,9 @@ class ModelActionCommitterTest {
         when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
         CompletableFuture<Void> indexing = new CompletableFuture<>();
-        when(documentStore.bulkUpdate(anyCollection())).thenReturn(indexing);
+        when(documentStore
+                     .materializeModelAction(any()))
+                .thenReturn(indexing);
         CompletableFuture<Void> acknowledged =
                 new CompletableFuture<>();
         when(eventStoreClient
@@ -413,7 +483,7 @@ class ModelActionCommitterTest {
                 evaluation).join().isPresent());
 
         verify(documentStore, never())
-                .bulkUpdate(anyCollection());
+                .materializeModelAction(any());
     }
 
     @Test
@@ -495,7 +565,7 @@ class ModelActionCommitterTest {
                                 .getDocument().getDocument(),
                         Order.class));
         verify(documentStore, never())
-                .bulkUpdate(anyCollection());
+                .materializeModelAction(any());
     }
 
     @Test
@@ -608,9 +678,6 @@ class ModelActionCommitterTest {
                 java.util.Collections.singletonMap(id.toString(), null));
         when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        when(documentStore.bulkUpdate(anyCollection()))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
         committer.commit("action-1", evaluation).join();
 
         ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
@@ -623,12 +690,21 @@ class ModelActionCommitterTest {
         assertNotNull(substep.getTargets().getFirst().getDocument());
         assertNull(substep.getTargets().getFirst().getDocument().getDocument());
         assertTrue(substep.getTargets().getFirst().getRelationships().isEmpty());
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
-        verify(documentStore).bulkUpdate(updates.capture());
-        DeleteDocument update = (DeleteDocument) updates.getValue().iterator().next();
-        assertEquals(id.toString(), update.getId());
-        assertEquals("orders", update.getCollection());
+        ArgumentCaptor<MaterializeModelAction> updates =
+                ArgumentCaptor.forClass(
+                        MaterializeModelAction.class);
+        verify(documentStore)
+                .materializeModelAction(
+                        updates.capture());
+        var update =
+                updates.getValue()
+                        .getDocuments().getFirst();
+        assertEquals(id.toString(), update.getModelId());
+        assertEquals(
+                "orders",
+                update.getMutation().getCollection());
+        assertNull(
+                update.getMutation().getDocument());
     }
 
     @Test
@@ -643,9 +719,6 @@ class ModelActionCommitterTest {
                 Map.of(id.toString(), after));
         when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        when(documentStore.bulkUpdate(anyCollection()))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
         committer.commit("action-1", evaluation).join();
 
         ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
@@ -655,14 +728,22 @@ class ModelActionCommitterTest {
         assertFalse(substep.isPublishEvent());
         assertFalse(substep.getTargets().getFirst().isStoreEvent());
         assertTrue(substep.getTargets().getFirst().isUpdateState());
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<java.util.Collection> updates = ArgumentCaptor.forClass(java.util.Collection.class);
-        verify(documentStore).bulkUpdate(updates.capture());
-        IndexDocument update = (IndexDocument) updates.getValue().iterator().next();
+        ArgumentCaptor<MaterializeModelAction> updates =
+                ArgumentCaptor.forClass(
+                        MaterializeModelAction.class);
+        verify(documentStore)
+                .materializeModelAction(
+                        updates.capture());
+        var update =
+                updates.getValue()
+                        .getDocuments().getFirst();
         assertEquals(after, serializer.fromDocument(
-                (SerializedDocument) update.getObject(), PrivateDocument.class));
-        assertEquals(id.toString(), update.getId());
-        assertEquals("privateDocuments", update.getCollection());
+                update.getMutation().getDocument(),
+                PrivateDocument.class));
+        assertEquals(id.toString(), update.getModelId());
+        assertEquals(
+                "privateDocuments",
+                update.getMutation().getCollection());
     }
 
     @Test
@@ -680,7 +761,8 @@ class ModelActionCommitterTest {
 
         assertTrue(result.isEmpty());
         verify(eventStoreClient, never()).commitModelAction(any());
-        verify(documentStore, never()).bulkUpdate(anyCollection());
+        verify(documentStore, never())
+                .materializeModelAction(any());
     }
 
     @Test
@@ -694,7 +776,8 @@ class ModelActionCommitterTest {
                 Map.of(id.toString(), after));
         when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        when(documentStore.bulkUpdate(anyCollection()))
+        when(documentStore
+                     .materializeModelAction(any()))
                 .thenReturn(CompletableFuture.failedFuture(new MockSearchFailure()))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
@@ -721,15 +804,163 @@ class ModelActionCommitterTest {
         assertSame(
                 actions.getAllValues().getFirst(),
                 actions.getAllValues().getLast());
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<java.util.Collection> updates =
+        ArgumentCaptor<MaterializeModelAction> updates =
                 ArgumentCaptor.forClass(
-                        java.util.Collection.class);
+                        MaterializeModelAction.class);
         verify(documentStore, times(2))
-                .bulkUpdate(updates.capture());
-        assertEquals(
+                .materializeModelAction(
+                        updates.capture());
+        assertSameMaterialization(
                 updates.getAllValues().getFirst(),
                 updates.getAllValues().getLast());
+    }
+
+    @Test
+    void duplicateAfterProcessLossRepairsTheOriginallyCommittedMaterialization()
+            throws Exception {
+        OrderId id =
+                new OrderId("restart-repair");
+        Order original =
+                new Order(
+                        id, null, "original",
+                        Instant.EPOCH);
+        var originalEvaluation =
+                evaluation(
+                        List.of(id.toString()),
+                        substep(
+                                new UpdateOrder(id),
+                                transition(
+                                        id, Order.class,
+                                        null, original,
+                                        UpdateOrder.class,
+                                        "apply", Order.class)),
+                        Map.of(
+                                id.toString(),
+                                original));
+        AtomicReference<CommitModelAction> committed =
+                new AtomicReference<>();
+        AtomicReference<CommitModelActionResult>
+                committedResult =
+                new AtomicReference<>();
+        when(eventStoreClient.commitModelAction(any()))
+                .thenAnswer(invocation -> {
+                    CommitModelAction request =
+                            invocation.getArgument(0);
+                    if (committed.compareAndSet(
+                            null, request)) {
+                        CommitModelActionResult result =
+                                result(request);
+                        committedResult.set(result);
+                        return CompletableFuture
+                                .completedFuture(result);
+                    }
+                    return CompletableFuture
+                            .completedFuture(
+                                    committedResult.get()
+                                            .asDuplicateForRequest(
+                                                    request.getRequestId()));
+                });
+        when(documentStore
+                     .materializeModelAction(any()))
+                .thenReturn(
+                        CompletableFuture.failedFuture(
+                                new MockSearchFailure()))
+                .thenReturn(
+                        CompletableFuture.completedFuture(
+                                null));
+
+        assertThrows(
+                CompletionException.class,
+                () -> committer.commit(
+                                "restart-repair",
+                                originalEvaluation)
+                        .join());
+        ArgumentCaptor<MaterializeModelAction> writes =
+                ArgumentCaptor.forClass(
+                        MaterializeModelAction.class);
+        verify(documentStore)
+                .materializeModelAction(
+                        writes.capture());
+        MaterializeModelAction retained =
+                writes.getValue();
+        when(eventStoreClient
+                     .getModelActionMaterialization(
+                             any()))
+                .thenAnswer(invocation ->
+                                    new GetModelActionMaterializationResult(
+                                            invocation
+                                                    .<io.fluxzero.common.api.modeling.GetModelActionMaterialization>
+                                                            getArgument(
+                                                                    0)
+                                                    .getRequestId(),
+                                            retained.getActionId(),
+                                            retained.getLastStateIndex(),
+                                            false,
+                                            retained.getDocuments(),
+                                            retained.getSnapshots()));
+
+        Order divergent =
+                new Order(
+                        id, null, "divergent",
+                        Instant.EPOCH.plusSeconds(
+                                1));
+        var divergentEvaluation =
+                evaluation(
+                        List.of(id.toString()),
+                        substep(
+                                new UpdateOrder(id),
+                                transition(
+                                        id, Order.class,
+                                        original, divergent,
+                                        UpdateOrder.class,
+                                        "apply", Order.class)),
+                        Map.of(
+                                id.toString(),
+                                divergent));
+        ModelActionCommitter restarted =
+                new ModelActionCommitter(
+                        eventStoreClient, documentStore,
+                        serializer, serializer,
+                        DispatchInterceptor.noOp,
+                        "client-2");
+
+        assertTrue(
+                restarted.commit(
+                                "restart-repair",
+                                divergentEvaluation)
+                        .join().orElseThrow()
+                        .isDuplicate());
+
+        verify(documentStore, times(2))
+                .materializeModelAction(
+                        writes.capture());
+        MaterializeModelAction repaired =
+                writes.getAllValues().getLast();
+        assertEquals(
+                original,
+                serializer.fromDocument(
+                        repaired.getDocuments()
+                                .getFirst()
+                                .getMutation()
+                                .getDocument(),
+                        Order.class));
+        assertSameMaterialization(
+                retained, repaired);
+        ArgumentCaptor<CompleteModelActionMaterialization>
+                acknowledgement =
+                ArgumentCaptor.forClass(
+                        CompleteModelActionMaterialization.class);
+        verify(eventStoreClient)
+                .completeModelActionMaterialization(
+                        acknowledgement.capture());
+        assertEquals(
+                "restart-repair",
+                acknowledgement.getValue()
+                        .getActionId());
+        assertEquals(
+                retained.getLastStateIndex(),
+                acknowledgement.getValue()
+                        .getLastStateIndex());
     }
 
     @Test
@@ -751,7 +982,8 @@ class ModelActionCommitterTest {
         assertThrows(MockSearchFailure.class, () -> failingCommitter.commit("action-1", evaluation));
 
         verify(eventStoreClient, never()).commitModelAction(any());
-        verify(documentStore, never()).bulkUpdate(anyCollection());
+        verify(documentStore, never())
+                .materializeModelAction(any());
     }
 
     @Test
@@ -817,6 +1049,23 @@ class ModelActionCommitterTest {
                                 entry -> entry.getValue()
                                         .getClass())),
                 List.of(substep), finalValues);
+    }
+
+    private static void assertSameMaterialization(
+            MaterializeModelAction expected,
+            MaterializeModelAction actual) {
+        assertEquals(
+                expected.getActionId(),
+                actual.getActionId());
+        assertEquals(
+                expected.getLastStateIndex(),
+                actual.getLastStateIndex());
+        assertEquals(
+                expected.getDocuments(),
+                actual.getDocuments());
+        assertEquals(
+                expected.getSnapshots(),
+                actual.getSnapshots());
     }
 
     private static ModelActionEngine.AppliedSubstep substep(
@@ -986,6 +1235,28 @@ class ModelActionCommitterTest {
 
     @Model(publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
     private record PublishedOnly(@EntityId PublishedOnlyId id) {
+    }
+
+    @Model(publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
+    private record UnsafePublished(
+            @EntityId UnsafePublishedId id,
+            String value) {
+    }
+
+    private static class UnsafePublishedId
+            extends Id<UnsafePublished> {
+        UnsafePublishedId(String id) {
+            super(id, "unsafe-published-");
+        }
+    }
+
+    private record UpdateUnsafePublished(
+            UnsafePublishedId id) {
+        @Apply
+        UnsafePublished apply(
+                UnsafePublished current) {
+            return current;
+        }
     }
 
     private static class PublishedOnlyId extends Id<PublishedOnly> {

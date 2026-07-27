@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.CreateAuditTrail;
@@ -92,6 +93,19 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             return getSearchClient().getSearchCollections();
         } catch (Exception e) {
             throw new DocumentStoreException("Could not retrieve search collections", e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> materializeModelAction(
+            MaterializeModelAction action) {
+        try {
+            return getSearchClient()
+                    .materializeModelAction(action);
+        } catch (Exception e) {
+            throw new DocumentStoreException(
+                    "Could not apply fenced model materialization for action "
+                    + action.getActionId(), e);
         }
     }
 

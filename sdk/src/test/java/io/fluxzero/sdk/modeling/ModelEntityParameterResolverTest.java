@@ -31,19 +31,31 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.Association;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleCustom;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
+import io.fluxzero.sdk.tracking.handling.HandleError;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleMetrics;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
+import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.HandleResult;
+import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.HandleWebResponse;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelEntityParameterResolverTest {
 
@@ -151,16 +163,394 @@ class ModelEntityParameterResolverTest {
                                                         .getAnnotation(
                                                                 HandleEvent.class),
                                                 message);
+                        IllegalStateException failure =
+                                assertThrows(
+                                        IllegalStateException.class,
+                                        () -> valueResolver
+                                                .apply(message));
                         return new DeletedResolution(
-                                entity, valueResolver);
+                                entity, failure);
                     });
                 })
                 .expectResult(
                         (Predicate<DeletedResolution>) result -> {
                     assertFalse(result.entity().isPresent());
-                    assertNull(result.valueResolver());
+                    assertTrue(result.failure()
+                                       .getMessage()
+                                       .contains(
+                                               "missing or deleted"));
                     return true;
                 });
+    }
+
+    @Test
+    void injectsCurrentModelIntoCommandHandler()
+            throws Exception {
+        AccountId accountId =
+                new AccountId("command");
+        Method handler = Handler.class.getDeclaredMethod(
+                "onCommand", InspectAccount.class,
+                Account.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(accountId, 10),
+                        new ChangeAccount(accountId, 20))
+                .whenApplying(fluxzero ->
+                                      new DeserializingMessage(
+                                              new Message(
+                                                      new InspectAccount(
+                                                              accountId)),
+                                              MessageType.COMMAND,
+                                              fluxzero.serializer())
+                                              .apply(message ->
+                                                             resolve(
+                                                                     message,
+                                                                     handler,
+                                                                     handler.getParameters()[1])))
+                .expectResult(
+                        new Account(accountId, 20));
+    }
+
+    @Test
+    void injectsCurrentModelsIntoEveryNonEventHandlerKind()
+            throws Exception {
+        AccountId accountId =
+                new AccountId("all-message-types");
+        List<HandlerInvocation> handlers =
+                List.of(
+                        new HandlerInvocation(
+                                "onQuery",
+                                MessageType.QUERY),
+                        new HandlerInvocation(
+                                "onSchedule",
+                                MessageType.SCHEDULE),
+                        new HandlerInvocation(
+                                "onResult",
+                                MessageType.RESULT),
+                        new HandlerInvocation(
+                                "onError",
+                                MessageType.ERROR),
+                        new HandlerInvocation(
+                                "onMetrics",
+                                MessageType.METRICS),
+                        new HandlerInvocation(
+                                "onDocument",
+                                MessageType.DOCUMENT),
+                        new HandlerInvocation(
+                                "onCustom",
+                                MessageType.CUSTOM),
+                        new HandlerInvocation(
+                                "onWebRequest",
+                                MessageType.WEBREQUEST),
+                        new HandlerInvocation(
+                                "onWebResponse",
+                                MessageType.WEBRESPONSE));
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(
+                                accountId, 10),
+                        new ChangeAccount(
+                                accountId, 20))
+                .whenApplying(fluxzero ->
+                                      handlers.stream()
+                                              .map(invocation -> {
+                                                  try {
+                                                      Method method =
+                                                              Handler.class
+                                                                      .getDeclaredMethod(
+                                                                              invocation
+                                                                                      .method(),
+                                                                              InspectAccount.class,
+                                                                              Account.class);
+                                                      DeserializingMessage message =
+                                                              new DeserializingMessage(
+                                                                      new Message(
+                                                                              new InspectAccount(
+                                                                                      accountId)),
+                                                                      invocation
+                                                                              .type(),
+                                                                      fluxzero
+                                                                              .serializer());
+                                                      return message.apply(
+                                                              ignored ->
+                                                                      resolve(
+                                                                              message,
+                                                                              method,
+                                                                              method.getParameters()[1]));
+                                                  } catch (ReflectiveOperationException e) {
+                                                      throw new IllegalStateException(
+                                                              e);
+                                                  }
+                                              })
+                                              .toList())
+                .expectResult(
+                        handlers.stream()
+                                .map(ignored ->
+                                             new Account(
+                                                     accountId,
+                                                     20))
+                                .toList());
+    }
+
+    @Test
+    void selectedAsyncHandlerReceivesTheModelThroughThePublicPipeline() {
+        AccountId accountId =
+                new AccountId("async-query");
+
+        TestFixture.create()
+                .registerHandlers(
+                        new AsyncQueryHandler())
+                .givenCommands(
+                        new CreateAccount(
+                                accountId, 42))
+                .whenQuery(
+                        new InspectAccount(accountId))
+                .expectResult(
+                        new Account(accountId, 42));
+    }
+
+    @Test
+    void injectsTwoUnrelatedDirectModelsInOneHandler()
+            throws Exception {
+        AccountId accountId =
+                new AccountId("unrelated");
+        InventoryId inventoryId =
+                new InventoryId("unrelated");
+        Method handler =
+                Handler.class.getDeclaredMethod(
+                        "onUnrelated",
+                        InspectUnrelated.class,
+                        Account.class,
+                        Inventory.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(accountId, 7),
+                        new CreateInventory(
+                                inventoryId, 11))
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage message =
+                            new DeserializingMessage(
+                                    new Message(
+                                            new InspectUnrelated(
+                                                    accountId,
+                                                    inventoryId)),
+                                    MessageType.QUERY,
+                                    fluxzero.serializer());
+                    return message.apply(
+                            ignored ->
+                                    List.of(
+                                            resolve(
+                                                    message,
+                                                    handler,
+                                                    handler.getParameters()[1]),
+                                            resolve(
+                                                    message,
+                                                    handler,
+                                                    handler.getParameters()[2])));
+                })
+                .expectResult(
+                        List.of(
+                                new Account(accountId, 7),
+                                new Inventory(
+                                        inventoryId, 11)));
+    }
+
+    @Test
+    void associationCanResolveModelIdFromMetadata()
+            throws Exception {
+        AccountId accountId =
+                new AccountId("metadata");
+        Method handler = Handler.class.getDeclaredMethod(
+                "onSelected", InspectSelected.class,
+                Account.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(accountId, 10))
+                .whenApplying(fluxzero ->
+                                      new DeserializingMessage(
+                                              new Message(
+                                                      new InspectSelected(),
+                                                      Metadata.of(
+                                                              "selectedId",
+                                                              accountId
+                                                                      .toString())),
+                                              MessageType.COMMAND,
+                                              fluxzero.serializer())
+                                              .apply(message ->
+                                                             resolve(
+                                                                     message,
+                                                                     handler,
+                                                                     handler.getParameters()[1])))
+                .expectResult(
+                        new Account(accountId, 10));
+    }
+
+    @Test
+    void associationCanExplicitlyIgnoreAConflictingMetadataId()
+            throws Exception {
+        AccountId payloadId =
+                new AccountId("payload");
+        AccountId metadataId =
+                new AccountId("metadata-conflict");
+        Method handler =
+                Handler.class.getDeclaredMethod(
+                        "onPayloadSelected",
+                        InspectPayloadSelected.class,
+                        Account.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(
+                                payloadId, 10),
+                        new CreateAccount(
+                                metadataId, 20))
+                .whenApplying(fluxzero ->
+                                      new DeserializingMessage(
+                                              new Message(
+                                                      new InspectPayloadSelected(
+                                                              payloadId),
+                                                      Metadata.of(
+                                                              "selectedId",
+                                                              metadataId.toString())),
+                                              MessageType.COMMAND,
+                                              fluxzero.serializer())
+                                              .apply(message ->
+                                                             resolve(
+                                                                     message,
+                                                                     handler,
+                                                                     handler.getParameters()[1])))
+                .expectResult(
+                        new Account(payloadId, 10));
+    }
+
+    @Test
+    void injectsParentAndGrandparentFromAddressedChild()
+            throws Exception {
+        CompanyId companyId =
+                new CompanyId("company");
+        DepartmentId departmentId =
+                new DepartmentId("department");
+        WorkerId workerId =
+                new WorkerId("worker");
+        Method handler = Handler.class.getDeclaredMethod(
+                "onWorker", InspectWorker.class,
+                Worker.class, Department.class,
+                Company.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateCompany(companyId),
+                        new CreateDepartment(
+                                departmentId, companyId),
+                        new CreateWorker(
+                                workerId, departmentId))
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage message =
+                            new DeserializingMessage(
+                                    new Message(
+                                            new InspectWorker(
+                                                    workerId)),
+                                    MessageType.COMMAND,
+                                    fluxzero.serializer());
+                    return message.apply(ignored ->
+                                                 List.of(
+                                                         resolve(
+                                                                 message,
+                                                                 handler,
+                                                                 handler.getParameters()[1]),
+                                                         resolve(
+                                                                 message,
+                                                                 handler,
+                                                                 handler.getParameters()[2]),
+                                                         resolve(
+                                                                 message,
+                                                                 handler,
+                                                                 handler.getParameters()[3])));
+                })
+                .expectResult(
+                        List.of(
+                                new Worker(
+                                        workerId,
+                                        departmentId),
+                                new Department(
+                                        departmentId,
+                                        companyId),
+                                new Company(companyId)));
+    }
+
+    @Test
+    void historicalEventInjectsTheAncestorsBeforeALaterMove()
+            throws Exception {
+        CompanyId oldCompanyId =
+                new CompanyId("historical-old");
+        CompanyId newCompanyId =
+                new CompanyId("historical-new");
+        DepartmentId oldDepartmentId =
+                new DepartmentId("historical-old");
+        DepartmentId newDepartmentId =
+                new DepartmentId("historical-new");
+        WorkerId workerId =
+                new WorkerId("historical-move");
+        Method handler =
+                Handler.class.getDeclaredMethod(
+                        "onWorkerCreated",
+                        CreateWorker.class,
+                        Worker.class,
+                        Department.class,
+                        Company.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateCompany(oldCompanyId),
+                        new CreateCompany(newCompanyId),
+                        new CreateDepartment(
+                                oldDepartmentId,
+                                oldCompanyId),
+                        new CreateDepartment(
+                                newDepartmentId,
+                                newCompanyId),
+                        new CreateWorker(
+                                workerId,
+                                oldDepartmentId),
+                        new MoveWorker(
+                                workerId,
+                                newDepartmentId))
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage created =
+                            fluxzero.eventStore()
+                                    .getEvents(workerId)
+                                    .findFirst()
+                                    .orElseThrow();
+                    return created.apply(
+                            message ->
+                                    List.of(
+                                            resolve(
+                                                    message,
+                                                    handler,
+                                                    handler.getParameters()[1]),
+                                            resolve(
+                                                    message,
+                                                    handler,
+                                                    handler.getParameters()[2]),
+                                            resolve(
+                                                    message,
+                                                    handler,
+                                                    handler.getParameters()[3])));
+                })
+                .expectResult(
+                        List.of(
+                                new Worker(
+                                        workerId,
+                                        oldDepartmentId),
+                                new Department(
+                                        oldDepartmentId,
+                                        oldCompanyId),
+                                new Company(
+                                        oldCompanyId)));
     }
 
     @Test
@@ -230,6 +620,44 @@ class ModelEntityParameterResolverTest {
                             message, handler, parameter));
                 })
                 .expectResult(new Account(accountId, 10));
+    }
+
+    @Test
+    void injectsAncestorWhenOnlyTheDescendantIdAndAncestorParameterAreDeclared()
+            throws Exception {
+        CompanyId companyId =
+                new CompanyId("ancestor-only");
+        DepartmentId departmentId =
+                new DepartmentId("ancestor-only");
+        WorkerId workerId =
+                new WorkerId("ancestor-only");
+        Method handler = Handler.class.getDeclaredMethod(
+                "onWorkerAncestor",
+                InspectWorker.class,
+                Company.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateCompany(companyId),
+                        new CreateDepartment(
+                                departmentId, companyId),
+                        new CreateWorker(
+                                workerId, departmentId))
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage query =
+                            new DeserializingMessage(
+                                    new Message(
+                                            new InspectWorker(
+                                                    workerId)),
+                                    MessageType.QUERY,
+                                    fluxzero.serializer());
+                    return query.apply(message ->
+                                               resolve(
+                                                       message,
+                                                       handler,
+                                                       handler.getParameters()[1]));
+                })
+                .expectResult(new Company(companyId));
     }
 
     @Test
@@ -328,30 +756,22 @@ class ModelEntityParameterResolverTest {
             DeserializingMessage message,
             Method handler,
             Parameter parameter) {
-        AnnotationType annotationType =
-                handler.getAnnotation(HandleEvent.class) != null
-                        ? AnnotationType.EVENT
-                        : AnnotationType.NOTIFICATION;
         Function<DeserializingMessage, Object> resolver =
                 new ModelEntityParameterResolver()
                         .resolveIfPossible(
                                 parameter,
-                                annotationType == AnnotationType.EVENT
-                                        ? handler.getAnnotation(
-                                                HandleEvent.class)
-                                        : handler.getAnnotation(
-                                                HandleNotification.class),
+                                handler.getDeclaredAnnotations()[0],
                                 message);
         return resolver == null ? null : resolver.apply(message);
     }
 
-    private enum AnnotationType {
-        EVENT,
-        NOTIFICATION
+    private record DeletedResolution(
+            Entity<?> entity,
+            IllegalStateException failure) {
     }
 
-    private record DeletedResolution(
-            Entity<?> entity, Object valueResolver) {
+    private record HandlerInvocation(
+            String method, MessageType type) {
     }
 
     @Model
@@ -396,6 +816,21 @@ class ModelEntityParameterResolverTest {
         Account apply(Account account) {
             return null;
         }
+    }
+
+    private record InspectAccount(AccountId accountId) {
+    }
+
+    private record InspectUnrelated(
+            AccountId accountId,
+            InventoryId inventoryId) {
+    }
+
+    private record InspectSelected() {
+    }
+
+    private record InspectPayloadSelected(
+            AccountId selectedId) {
     }
 
     private record Transfer(
@@ -447,6 +882,98 @@ class ModelEntityParameterResolverTest {
         }
     }
 
+    @Model
+    private record Company(
+            @EntityId CompanyId companyId) {
+    }
+
+    private static final class CompanyId
+            extends Id<Company> {
+        private CompanyId(String id) {
+            super(id, "parameter-company-");
+        }
+    }
+
+    @Model
+    private record Department(
+            @EntityId DepartmentId departmentId,
+            @ParentId(path = "departments")
+            CompanyId companyId) {
+    }
+
+    private static final class DepartmentId
+            extends Id<Department> {
+        private DepartmentId(String id) {
+            super(id, "parameter-department-");
+        }
+    }
+
+    @Model
+    private record Worker(
+            @EntityId WorkerId workerId,
+            @ParentId(path = "workers")
+            DepartmentId departmentId) {
+    }
+
+    private static final class WorkerId
+            extends Id<Worker> {
+        private WorkerId(String id) {
+            super(id, "parameter-worker-");
+        }
+    }
+
+    private record CreateCompany(
+            CompanyId companyId) {
+        @Apply
+        Company apply() {
+            return new Company(companyId);
+        }
+    }
+
+    private record CreateDepartment(
+            DepartmentId departmentId,
+            CompanyId companyId) {
+        @Apply
+        Department apply() {
+            return new Department(
+                    departmentId, companyId);
+        }
+    }
+
+    private record CreateWorker(
+            WorkerId workerId,
+            DepartmentId departmentId) {
+        @Apply
+        Worker apply() {
+            return new Worker(
+                    workerId, departmentId);
+        }
+    }
+
+    private record MoveWorker(
+            WorkerId workerId,
+            DepartmentId departmentId) {
+        @Apply
+        Worker apply(Worker worker) {
+            return new Worker(
+                    worker.workerId(),
+                    departmentId);
+        }
+    }
+
+    private record InspectWorker(WorkerId workerId) {
+    }
+
+    private static class AsyncQueryHandler {
+        @HandleQuery
+        CompletableFuture<Account> on(
+                InspectAccount query,
+                Account account) {
+            return CompletableFuture.completedFuture(
+                    account);
+        }
+    }
+
     private static class Handler {
         @HandleEvent
         void onChanged(
@@ -484,6 +1011,111 @@ class ModelEntityParameterResolverTest {
         @HandleNotification
         void onNotification(
                 CreateAccount event, Account account) {
+        }
+
+        @HandleCommand
+        void onCommand(
+                InspectAccount command,
+                Account account) {
+        }
+
+        @HandleQuery
+        void onQuery(
+                InspectAccount query,
+                Account account) {
+        }
+
+        @HandleSchedule
+        void onSchedule(
+                InspectAccount schedule,
+                Account account) {
+        }
+
+        @HandleResult
+        void onResult(
+                InspectAccount result,
+                Account account) {
+        }
+
+        @HandleError
+        void onError(
+                InspectAccount error,
+                Account account) {
+        }
+
+        @HandleMetrics
+        void onMetrics(
+                InspectAccount metric,
+                Account account) {
+        }
+
+        @HandleDocument
+        void onDocument(
+                InspectAccount document,
+                Account account) {
+        }
+
+        @HandleCustom("models")
+        void onCustom(
+                InspectAccount custom,
+                Account account) {
+        }
+
+        @HandleGet
+        void onWebRequest(
+                InspectAccount request,
+                Account account) {
+        }
+
+        @HandleWebResponse
+        void onWebResponse(
+                InspectAccount response,
+                Account account) {
+        }
+
+        @HandleQuery
+        void onUnrelated(
+                InspectUnrelated query,
+                Account account,
+                Inventory inventory) {
+        }
+
+        @HandleCommand
+        void onSelected(
+                InspectSelected command,
+                @Association("selectedId")
+                Account account) {
+        }
+
+        @HandleCommand
+        void onPayloadSelected(
+                InspectPayloadSelected command,
+                @Association(
+                        value = "selectedId",
+                        excludeMetadata = true)
+                Account account) {
+        }
+
+        @HandleCommand
+        void onWorker(
+                InspectWorker command,
+                Worker worker,
+                Department department,
+                Company company) {
+        }
+
+        @HandleQuery
+        void onWorkerAncestor(
+                InspectWorker query,
+                Company company) {
+        }
+
+        @HandleEvent
+        void onWorkerCreated(
+                CreateWorker event,
+                Worker worker,
+                Department department,
+                Company company) {
         }
     }
 }

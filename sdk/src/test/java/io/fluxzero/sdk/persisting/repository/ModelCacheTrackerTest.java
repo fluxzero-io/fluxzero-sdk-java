@@ -300,6 +300,64 @@ class ModelCacheTrackerTest {
     }
 
     @Test
+    void unrelatedNewerUpdateDoesNotInvalidateAuthoritativeLocalCommit()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> committed =
+                entity(SampleModel.class);
+        cache.put("sample-1", committed);
+        AtomicInteger refreshCount =
+                new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshCount.incrementAndGet();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "unrelated-action", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "another-model",
+                                                            0L,
+                                                            true))))));
+            awaitNext(polls);
+
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+
+            assertSame(
+                    committed,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertEquals(0, refreshCount.get());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
     void preparedHardDeleteClearsCacheWithoutRetainingDeletedIds()
             throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);

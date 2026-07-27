@@ -778,6 +778,9 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 ModelActionCommitter.EffectiveTransition effective =
                         transitions.get(targetIndex);
                 ModelActionEngine.Transition transition = effective.transition();
+                if (!effective.updateState()) {
+                    continue;
+                }
                 var targetResult = substepResult.getTargets().get(targetIndex);
                 Model model = ModelMetadata.of(
                         transition.modelType()).model().orElseThrow();

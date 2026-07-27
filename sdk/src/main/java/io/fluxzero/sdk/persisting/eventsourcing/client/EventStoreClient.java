@@ -23,6 +23,8 @@ import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
+import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -93,6 +95,16 @@ public interface EventStoreClient extends AutoCloseable {
         return CompletableFuture.failedFuture(
                 new UnsupportedOperationException(
                         "Independent model materialization completion is not supported by this event store"));
+    }
+
+    /**
+     * Loads the exact retained direct-document and snapshot mutations for restart-safe materialization repair.
+     */
+    default GetModelActionMaterializationResult
+            getModelActionMaterialization(
+                    GetModelActionMaterialization request) {
+        throw new UnsupportedOperationException(
+                "Independent model materialization repair is not supported by this event store");
     }
 
     /**

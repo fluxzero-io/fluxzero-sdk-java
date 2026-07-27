@@ -81,8 +81,13 @@ configuration that cannot persist the model's current state.
 
 - `STORE_AND_PUBLISH` links it to the model stream and publishes it once globally;
 - `STORE_ONLY` links it to model streams without global publication;
-- `PUBLISH_ONLY` publishes it but leaves reconstruction history intentionally incomplete;
+- `PUBLISH_ONLY` publishes it without adding a model-stream membership;
 - `DEFAULT` inherits configuration.
+
+An event-sourced model may only change through `STORE_AND_PUBLISH` or `STORE_ONLY`, because its next load must be able
+to reconstruct that state. Fluxzero rejects create, update and logical-delete transitions configured as
+`PUBLISH_ONLY` or `eventPublication = NEVER` before commit. A publication-only no-op remains valid, and a
+document-based model can still change without storing the event because its current document is the load source.
 
 For an event targeting several models, each stream receives a lightweight membership. The full payload remains inline
 for ordinary small target sets; large multi-target payloads may be stored once and shared. Hard deletion removes only
@@ -104,8 +109,11 @@ The SDK evaluates one complete model action and submits:
 The runtime assigns monotone, time-derived `stateIndex` values and commits the co-located event store, model streams,
 heads, relations, action result and projection signals atomically in its JDBC transaction.
 
-Direct SDK-owned document stores are completed before the SDK releases the model action result. Materialized whole-root
-graph projections may continue asynchronously unless `AWAIT` was selected.
+Direct SDK-owned document stores are completed before the SDK releases the model action result. The core action retains
+the exact serialized document/snapshot materialization while that external work is pending. A retry after process loss
+retrieves and reapplies this original package through monotone `stateIndex` fences; application code is never
+re-evaluated to repair an already committed action. Materialized whole-root graph projections may continue
+asynchronously unless `AWAIT` was selected.
 
 ## Searchable models
 

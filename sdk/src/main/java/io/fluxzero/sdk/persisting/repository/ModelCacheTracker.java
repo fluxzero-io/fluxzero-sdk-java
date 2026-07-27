@@ -165,8 +165,12 @@ final class ModelCacheTracker implements AutoCloseable {
         if (!start()) {
             return;
         }
+        AtomicBoolean created = new AtomicBoolean();
         Entry entry = entries.computeIfAbsent(
-                modelId, ignored -> new Entry());
+                modelId, ignored -> {
+                    created.set(true);
+                    return new Entry();
+                });
         synchronized (entry) {
             entry.modelType = modelType;
             entry.loaded = true;
@@ -177,7 +181,8 @@ final class ModelCacheTracker implements AutoCloseable {
             entry.stale =
                     entry.latestUpdate
                     > entry.validThrough
-                    || requireGlobalBoundary
+                    || (requireGlobalBoundary
+                        || created.get())
                        && started.get()
                        && readStateIndex
                           < cursor;
@@ -203,7 +208,15 @@ final class ModelCacheTracker implements AutoCloseable {
             String modelId,
             Class<?> modelType,
             long stateIndex) {
-        loaded(modelId, modelType, stateIndex);
+        /*
+         * An entry that participated in the action already recorded every relevant tracked update. A newer global
+         * cursor may therefore consist entirely of unrelated model actions and must not force an event-store suffix
+         * load after this authoritative local commit. A newly created entry keeps the global-boundary fence because
+         * it may have missed an update for this model before it was registered.
+         */
+        publish(
+                modelId, modelType,
+                stateIndex, false);
     }
 
     void forget(String modelId) {

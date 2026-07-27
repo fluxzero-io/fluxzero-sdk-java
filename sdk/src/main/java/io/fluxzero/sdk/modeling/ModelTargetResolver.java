@@ -151,6 +151,72 @@ public final class ModelTargetResolver {
         return Optional.of(modelId);
     }
 
+    /**
+     * Resolves every statically typed independent-model ID carried by a payload.
+     * <p>
+     * Message-handler parameter injection uses these values only as graph anchors when a selected handler requests an
+     * ancestor without also declaring the addressed descendant as a parameter.
+     */
+    static List<ResolvedModel> resolveReferencedModels(
+            Object payload) {
+        Object value = payloadValue(payload);
+        if (value == null) {
+            return List.of();
+        }
+        PayloadMetadata metadata =
+                PayloadMetadata.of(value.getClass());
+        List<MutableResolvedModel> resolved =
+                new ArrayList<>();
+        for (PayloadProperty property :
+                metadata.properties.values()) {
+            Optional<Class<?>> modelType =
+                    ModelMetadata.inferIdTarget(
+                                    property.type,
+                                    property.genericType)
+                            .filter(type ->
+                                            ModelMetadata.of(type)
+                                                    .isModel());
+            if (modelType.isEmpty()) {
+                continue;
+            }
+            PayloadProperty readable =
+                    property.withReader(
+                            metadata.typeMetadata.getter(
+                                    property.name));
+            Object idValue = readable.read(value);
+            if (idValue == null) {
+                continue;
+            }
+            String modelId = idValue.toString();
+            if (modelId == null) {
+                throw new IllegalArgumentException(
+                        "Payload property '%s' returned a null ID string for %s model"
+                                .formatted(
+                                        property.name,
+                                        modelType.get()
+                                                .getName()));
+            }
+            MutableResolvedModel existing =
+                    TargetPlan.find(
+                            resolved, modelId);
+            if (existing == null) {
+                resolved.add(
+                        new MutableResolvedModel(
+                                modelId,
+                                modelType.get(),
+                                READ,
+                                property.name));
+            } else {
+                existing.merge(
+                        modelType.get(), READ,
+                        property.name);
+            }
+        }
+        return resolved.stream()
+                .map(MutableResolvedModel::freeze)
+                .toList();
+    }
+
     private static void compileHandler(
             PayloadMetadata payload,
             ModelMetadata.HandlerMethod handler,

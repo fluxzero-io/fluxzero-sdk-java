@@ -14,6 +14,7 @@
 
 package io.fluxzero.common.search;
 
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.ModelGraphComposition;
@@ -255,7 +256,76 @@ class ModelGraphDocumentStitcherTest {
                                 ModelGraphComposition
                                         .builder()
                                         .maxPlacements(1)
-                                        .build()));
+                                .build()));
+    }
+
+    @Test
+    void rejectsOversizedSourceBeforeDeserialization() {
+        SerializedDocument oversized =
+                new SerializedDocument(
+                        "root", 1L, null, "roots",
+                        new Data<>(
+                                new byte[1_024],
+                                "invalid", 0,
+                                "application/octet-stream"),
+                        null, Set.of(), Set.of());
+
+        IllegalArgumentException failure =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> ModelGraphDocumentStitcher
+                                .stitch(
+                                        List.of(
+                                                oversized),
+                                        List.of(),
+                                        Map.of(
+                                                "root",
+                                                oversized),
+                                        ModelGraphComposition
+                                                .builder()
+                                                .maxBytes(100L)
+                                                .build()));
+
+        assertTrue(failure.getMessage()
+                           .contains("maxBytes 100"));
+    }
+
+    @Test
+    void boundsSourceAndComposedOutputAsOneAllocationBudget() {
+        SerializedDocument root =
+                document(
+                        "root", "roots",
+                        "name", "root");
+        long outputBytes =
+                ModelGraphDocumentStitcher.stitch(
+                                List.of(root),
+                                List.of(),
+                                Map.of("root", root),
+                                ModelGraphComposition.builder()
+                                        .build())
+                        .getFirst().bytes();
+        long combined =
+                root.bytes() + outputBytes;
+
+        IllegalArgumentException failure =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> ModelGraphDocumentStitcher
+                                .stitch(
+                                        List.of(root),
+                                        List.of(),
+                                        Map.of(
+                                                "root", root),
+                                        ModelGraphComposition
+                                                .builder()
+                                                .maxBytes(
+                                                        combined
+                                                        - 1L)
+                                                .build()));
+
+        assertTrue(failure.getMessage()
+                           .contains("maxBytes "
+                                     + (combined - 1L)));
     }
 
     private static SerializedDocument document(

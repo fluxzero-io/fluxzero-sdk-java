@@ -846,6 +846,27 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
      * A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
+    @Override
+    public ModelActionContext loadContext(
+            ModelTargetResolver.Resolution resolution) {
+        ModelEventStateBoundary handlerBoundary =
+                handlerBoundary();
+        ModelActionContext context = loadContext(
+                resolution,
+                stateIndex(handlerBoundary),
+                actionId(handlerBoundary),
+                actionSubstep(handlerBoundary),
+                Map.of());
+        pin(handlerBoundary, context.readStateIndex());
+        return context;
+    }
+
+    /**
+     * Loads all direct action targets at one explicit state boundary.
+     * <p>
+     * A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are
+     * reconstructed from stored model events; current document-model targets retain their direct-document load path.
+     */
     public ModelActionContext loadContext(
             ModelTargetResolver.Resolution resolution, Long maxStateIndex) {
         return loadContext(

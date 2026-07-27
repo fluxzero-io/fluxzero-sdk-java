@@ -188,7 +188,9 @@ public final class ModelMetadata {
             }
         }
         return Optional.of(new ModelParameter(
-                parameter, parameterType.modelType(), parameterType.entityWrapped(), associationProperty));
+                parameter, parameterType.modelType(), parameterType.entityWrapped(), associationProperty,
+                association != null
+                && association.excludeMetadata()));
     }
 
     public List<HandlerMethod> applyMethods() {
@@ -649,10 +651,12 @@ public final class ModelMetadata {
     /**
      * A model value or {@code Entity<Model>} parameter needed by a handler.
      *
-     * @param associationProperty explicit payload property qualifier, or {@code null} for automatic matching
+     * @param associationProperty explicit payload/metadata property qualifier, or {@code null} for automatic matching
+     * @param associationExcludeMetadata whether the explicit qualifier must ignore message metadata
      */
     public record ModelParameter(
-            Parameter parameter, Class<?> modelType, boolean entityWrapped, String associationProperty) {
+            Parameter parameter, Class<?> modelType, boolean entityWrapped, String associationProperty,
+            boolean associationExcludeMetadata) {
     }
 
     public enum HandlerKind {

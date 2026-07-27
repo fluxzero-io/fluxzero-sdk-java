@@ -182,7 +182,9 @@ public @interface Apply {
     /**
      * Controls how the applied update is stored and/or published, and whether publish-only updates advance aggregate
      * state for the owning aggregate type. This strategy takes precedence over {@link #eventPublication()} if explicitly
-     * set.
+     * set. A publish-only apply cannot change an event-sourced {@link Model}; Fluxzero rejects such a transition before
+     * commit because its stored stream could not reconstruct the new state. Publish-only no-ops and changes to
+     * document-loaded models remain supported.
      *
      * @return strategy for persisting and/or publishing the applied update
      */

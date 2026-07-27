@@ -1072,6 +1072,91 @@ through 1.x, documented only as a legacy migration source, and scheduled for Jav
 - [x] Build the documentation site, Javadoc and all downstream examples and reject remaining prescriptive `@Aggregate`
   references outside explicit legacy/compatibility material.
 
+## Phase 14 — Production hardening and universal model injection
+
+This phase closes the remaining review findings before the branch is considered merge-ready again. It deliberately
+combines handler completeness with storage/recovery hardening: both change which model state application code can
+observe, so they need one adversarial correctness and performance review.
+
+### Slice 14.1 — Single-owner erasure recovery
+
+- [x] Prevent query-only/search endpoint stores from independently resuming and completing prepared hard-deletion
+  batches.
+- [x] Make deletion recovery ownership explicit while preserving standalone deployments without a search store.
+- [x] Prove that a pending deletion cannot be marked complete before direct and graph search documents have actually
+  been erased, including a restart in which the search endpoint initializes first.
+- [x] Retain the shared-payload lifecycle proof: deleting A removes only A's membership; B remains reconstructable; the
+  shared payload is reclaimed only after its final surviving membership is erased.
+
+### Slice 14.2 — Universal model and ancestor parameter injection
+
+- [x] Support model parameters for every selected message handler kind, not only event and notification handlers,
+  whenever a payload or metadata identifier resolves the model.
+- [x] Keep event/notification injection pinned to the exact model-action boundary; use one current handler load context
+  for command, query, web, schedule, result, error, metrics, and other non-event messages. Event-sourced targets share
+  its pinned repository boundary; document-loaded targets remain current-only direct-document reads.
+- [x] Support both `T` and `Entity<T>` and resolve a directly addressed non-family model from typed `Id<T>` values.
+- [x] Let `@Association` select an alternative payload or metadata property, including ambiguous same-model IDs.
+- [x] Resolve and inject parents, grandparents, and arbitrary ancestors after matching the addressed descendant,
+  without requiring the payload to repeat ancestor IDs.
+- [x] Compile one handler-level resolution plan and batch/collapse loads only after that handler has been selected; do
+  not introduce speculative I/O while candidate handlers are being matched.
+- [x] Cover sync/async handlers, interceptors, absent/deleted models, ambiguous IDs, metadata associations, non-family
+  models, moves, exact historical ancestors, and mixed direct/ancestor parameters.
+
+### Slice 14.3 — Search and graph-composition hot paths
+
+- [x] Keep ordinary direct search/get summaries byte-for-byte compatible; decode vectorized summaries only inside graph
+  composition/projection.
+- [x] Enforce graph byte/node/depth limits before large intermediate maps and composed documents can exceed the
+  configured allocation budget.
+- [x] Make per-namespace JDBC search update executors release idle platform threads without reducing bounded write
+  concurrency or shutdown guarantees.
+- [x] Add focused compatibility, adversarial-bound, and executor-lifecycle tests plus a retained direct-search and
+  graph-composition benchmark.
+
+### Slice 14.4 — Non-blocking model commit/event-log path
+
+- [x] Avoid conditional event-log work entirely for model actions that publish no global events.
+- [x] Measure mixed aggregate/model traffic and concurrent conditional model commits against the legacy append path.
+- [x] Remove the global monitor-plus-`join` bottleneck from published model commits while preserving event ordering,
+  idempotency, rollback, and one-copy global publication; explicitly prove the accepted event-index gap contract if
+  rejected reservations can leave gaps.
+- [x] Retain throughput, p50/p95/p99 latency, physical amplification, allocation, and JDBC/WAL evidence for store-only,
+  published, single-target, and multi-target actions.
+
+### Slice 14.5 — Split-store repair and action-metadata retention
+
+- [x] Add a durable repair path for process loss between an atomic runtime commit and SDK-owned
+  document/cache/snapshot materialization, using the originally committed materialization rather than re-evaluating
+  user code.
+- [x] Make duplicate delivery and operator-triggered repair converge idempotently and close the materialization fence
+  only after all external writes succeed.
+- [x] Keep the existing compact action result as the single permanent exact-boundary/update-tracking/idempotency
+  record. Do not duplicate it into per-substep/per-target rows; at the 100-GB/min envelope that normalization costs
+  more WAL and storage than the MessagePack value it would replace.
+- [x] Treat only the potentially bulky document/snapshot projection as retry-window state: clear it on acknowledged
+  success, never expire unfinished work by time, and add repair metrics plus an operational runbook without weakening
+  exact event-handler loads, cache tracking, deletion recovery, or durable idempotency.
+
+### Slice 14.6 — Complete event-sourced history
+
+- [x] Reject or safely transform publication policies that would mutate an event-sourced model without storing the
+  reconstructing event; never commit a head that can only fail on its next load.
+- [x] Preserve publication-only events that do not mutate model state and document the distinction between event
+  publication and event-sourced loading.
+- [x] Cover create, update, logical delete, no-op, retry, duplicate, and mixed event/document-loaded targets.
+
+### Slice 14.7 — Re-certification
+
+- [x] Run focused SDK/common/runtime tests while each slice lands, then both complete Maven reactors,
+  site/Javadoc, annotation processing, proxy/test-server, and Java/Kotlin downstream compatibility.
+- [x] Re-run paired aggregate/model and 1/2/10/100-target storage/load benchmarks plus the new mixed event-log,
+  direct-search, graph-bound, and recovery profiles.
+- [x] Perform a separate adversarial review across public APIs, persisted/wire formats, concurrency, failure recovery,
+  deletion/GDPR, shutdown, allocations, and 100-GB/min operational assumptions.
+- [x] Publish a Phase 14 report with corrected rollout status, remaining deployment gates, and rollback/runbook updates.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1304,3 +1389,16 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   single-stream option, and confine `@Aggregate` to 1.x migration compatibility. Java deprecation remains reserved for
   Fluxzero 2.0. The [Phase 13 report](dynamic-model-boundaries-phase-13-rollout.md) records the final coverage and
   compatibility contract.
+- 2026-07-27 — Phase 14 (SDK: this commit; runtime `0f7615916615`) closes the production-hardening review.
+  All message-handler kinds can inject direct independent models and arbitrary ancestors from typed payload IDs or
+  `@Association`-selected payload/metadata values, while event and notification loads remain pinned to their exact
+  model-action boundary. Runtime erasure recovery now has one operational owner; shared event payloads survive until
+  their final stream membership is erased; store-only actions bypass the global event log; and published actions
+  reserve ordered indices without waiting for JDBC under the global head monitor. Split search stores repair from the
+  exact committed document/snapshot bytes and close a monotone materialization fence only after success. Complete
+  event-sourced history is enforced before commit. Focused verification passed 74 SDK/common and 162 runtime tests;
+  the complete SDK reactor passed with 1,939 SDK tests plus protocol, test-server, proxy, annotation-processor and
+  Java/Kotlin downstream coverage; site/Javadoc passed; and the complete runtime reactor passed all four modules and
+  641 runtime tests. The retained paired-tree, mixed event-log, and 1/2/10/100-target measurements—plus the explicit
+  100-GB/min deployment gate and rollback/runbook—are recorded in the
+  [Phase 14 report](dynamic-model-boundaries-phase-14-hardening.md).

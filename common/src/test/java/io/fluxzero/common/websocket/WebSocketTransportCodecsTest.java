@@ -39,11 +39,14 @@ import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
+import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
@@ -63,8 +66,10 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelSnapshotMaterialization;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
@@ -476,6 +481,100 @@ class WebSocketTransportCodecsTest {
             assertEquals(
                     Guarantee.STORED,
                     completion.getGuarantee());
+        }
+    }
+
+    @Test
+    void modelMaterializationRepairRoundTripsExactMutations()
+            throws Exception {
+        ModelDocumentMaterialization document =
+                new ModelDocumentMaterialization(
+                        "order-1", 101L,
+                        new ModelDocumentMutation(
+                                "orders",
+                                new SerializedDocument(
+                                        "order-1", 123L,
+                                        null, "orders",
+                                        new Data<>(
+                                                new byte[]{
+                                                        4, 5, 6},
+                                                "com.example.Order",
+                                                2,
+                                                "application/json"),
+                                        "Order one",
+                                        Set.of(),
+                                        Set.of())));
+        ModelSnapshotMaterialization snapshot =
+                new ModelSnapshotMaterialization(
+                        "order-1", 7L, 101L,
+                        new ModelSnapshotMutation(
+                                new Data<>(
+                                        new byte[]{7, 8},
+                                        "com.example.Order",
+                                        2,
+                                        "application/json"),
+                                123L, 100, 2));
+        GetModelActionMaterialization request =
+                new GetModelActionMaterialization(
+                        "action-1");
+        GetModelActionMaterializationResult response =
+                new GetModelActionMaterializationResult(
+                        request.getRequestId(),
+                        "action-1", 101L, false,
+                        List.of(document),
+                        List.of(snapshot));
+        MaterializeModelAction materialize =
+                new MaterializeModelAction(
+                        "action-1", 101L,
+                        List.of(document),
+                        List.of(snapshot));
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            GetModelActionMaterialization decodedRequest =
+                    assertInstanceOf(
+                            GetModelActionMaterialization.class,
+                            roundTrip(codec, request));
+            GetModelActionMaterializationResult decodedResponse =
+                    assertInstanceOf(
+                            GetModelActionMaterializationResult.class,
+                            roundTrip(codec, response));
+            MaterializeModelAction decodedMaterialize =
+                    assertInstanceOf(
+                            MaterializeModelAction.class,
+                            roundTrip(codec, materialize));
+
+            assertEquals(
+                    "action-1",
+                    decodedRequest.getActionId());
+            assertEquals(
+                    101L,
+                    decodedResponse
+                            .getLastStateIndex());
+            assertFalse(
+                    decodedResponse.isComplete());
+            assertEquals(
+                    document,
+                    decodedResponse.getDocuments()
+                            .getFirst());
+            assertEquals(
+                    snapshot,
+                    decodedResponse.getSnapshots()
+                            .getFirst());
+            assertEquals(
+                    document,
+                    decodedMaterialize
+                            .getDocuments()
+                            .getFirst());
+            assertEquals(
+                    snapshot,
+                    decodedMaterialize
+                            .getSnapshots()
+                            .getFirst());
+            assertEquals(
+                    Guarantee.STORED,
+                    decodedMaterialize
+                            .getGuarantee());
         }
     }
 

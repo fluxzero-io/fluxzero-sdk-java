@@ -93,9 +93,10 @@ the model commit completes.
 Document-based models participate in the same durable model-update tracking as event-sourced models, so caches in other
 SDK instances are invalidated or refreshed after remote commits.
 
-## Exact loading in event handlers
+## Model parameters in message handlers
 
-When an event was produced by a model action, Fluxzero pins model loads to that action's persisted state boundary:
+Every selected message handler can inject directly addressed models and their ancestors. When an event or notification
+was produced by a model action, Fluxzero pins those loads to that action's persisted state boundary:
 
 ```java
 @HandleEvent
@@ -111,10 +112,28 @@ Parameter injection uses the ID properties in the event:
 - `@Association("sourceId")` when two IDs refer to the same model type.
 
 Both `T` and `Entity<T>` are supported. A deleted target can be injected as an empty `Entity<T>`; a non-null bare `T`
-matches only when the model exists. The same semantics apply to `@HandleNotification`.
+matches only when the model exists. `@Association` first checks metadata unless `excludeMetadata = true`.
+
+Parents, grandparents and further ancestors can be injected without repeating their IDs:
+
+```java
+@HandleQuery
+OrderView inspect(InspectLine query, LineItem line, Order order, Customer customer) {
+    // query only needs the typed LineItemId; relations resolve Order and Customer
+}
+```
+
+The child parameter may be omitted. A typed child ID in the payload is enough to anchor graph traversal when the
+selected handler only requests an ancestor. Use `@Association("billingLines")` to select the relation path if several
+ancestors of the requested type are reachable.
 
 Later cache entries never leak into historical event handling. Earlier `STORE_ONLY` model transitions are included
 because exactness is based on the committed model action, not only on the globally published event stream.
+
+Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
+parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,
+while document-loaded targets remain current-only direct-document reads. Handler selection itself performs no
+repository I/O.
 
 ## Loading a complete model graph
 

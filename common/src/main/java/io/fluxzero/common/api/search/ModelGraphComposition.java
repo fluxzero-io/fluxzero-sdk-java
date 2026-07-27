@@ -56,7 +56,11 @@ public class ModelGraphComposition {
     int maxCollections = 128;
 
     /**
-     * Maximum combined serialized size of the composed documents returned for one result page.
+     * Maximum combined serialized allocation budget for one result page.
+     * <p>
+     * Both the direct source documents (including repeated DAG placements and path expansion) and the final composed
+     * documents must fit this limit. The source check is intentionally conservative so composition can fail before
+     * allocating a result larger than the configured budget.
      */
     @Builder.Default
     long maxBytes = 64L * 1024L * 1024L;

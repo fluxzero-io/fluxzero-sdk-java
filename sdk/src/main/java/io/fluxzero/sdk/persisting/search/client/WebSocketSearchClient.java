@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.api.BooleanResult;
 import io.fluxzero.common.api.search.*;
@@ -69,6 +70,12 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     @Override
     public CompletableFuture<Void> bulkUpdate(Collection<DocumentUpdate> batch, Guarantee guarantee) {
         return sendCommand(new BulkUpdateDocuments(batch, guarantee));
+    }
+
+    @Override
+    public CompletableFuture<Void> materializeModelAction(
+            MaterializeModelAction action) {
+        return sendCommand(action);
     }
 
     @Override
