@@ -86,6 +86,13 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final ConcurrentHashMap<Class<?>, List<ModelMetadata.HandlerMethod>> handlerPlans =
             new ConcurrentHashMap<>();
 
+    /**
+     * Returns the repository shared by automatic command handling and public model loads.
+     */
+    public DefaultModelRepository repository() {
+        return repository;
+    }
+
     public ModelActionHandlerRegistry(
             DefaultModelRepository repository,
             EventStoreClient eventStoreClient,

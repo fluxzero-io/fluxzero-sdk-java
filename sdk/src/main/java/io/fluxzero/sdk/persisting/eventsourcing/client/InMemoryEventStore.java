@@ -18,6 +18,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -46,10 +47,14 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
@@ -78,6 +83,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -99,6 +105,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
     private final Map<String, CommitModelActionResult> modelActions = new ConcurrentHashMap<>();
+    private final List<ModelUpdate> modelUpdates = new ArrayList<>();
+    private final Object modelUpdateMonitor = new Object();
+    private final AtomicLong modelUpdateGeneration =
+            new AtomicLong();
     private final Map<String, ModelStreamHead> modelHeads = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamHead>> modelHeadHistory = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamMembership>> modelStreams = new ConcurrentHashMap<>();
@@ -253,10 +263,146 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             CommitModelActionResult result = CommitModelActionResult.accepted(
                     action.getRequestId(), action.getActionId(), List.copyOf(substepResults));
             modelActions.put(action.getActionId(), result);
+            for (int substep = 0; substep < substepResults.size(); substep++) {
+                ModelActionSubstepResult substepResult = substepResults.get(substep);
+                modelUpdates.add(new ModelUpdate(
+                        ModelUpdateKind.ACTION,
+                        action.getActionId(), substep,
+                        substepResult.getStateIndex(),
+                        substepResult.getEventIndex(),
+                        substepResult.getTargets()));
+            }
+            modelUpdateGeneration.incrementAndGet();
+            synchronized (modelUpdateMonitor) {
+                modelUpdateMonitor.notifyAll();
+            }
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    @Override
+    public CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(
+            TrackModelUpdates request) {
+        CompletableFuture<TrackModelUpdatesResult> result =
+                new CompletableFuture<>();
+        Thread worker = Thread.ofVirtual()
+                .name("fluxzero-in-memory-model-updates")
+                .unstarted(() -> {
+                    long deadline = System.nanoTime()
+                                    + Duration.ofMillis(
+                                            request.getMaxWaitMillis())
+                                            .toNanos();
+                    try {
+                        while (!result.isDone()) {
+                            long generation =
+                                    modelUpdateGeneration
+                                            .get();
+                            TrackModelUpdatesResult page =
+                                    modelUpdates(request);
+                            if (!page.getUpdates().isEmpty()
+                                || request.getMaxWaitMillis() == 0L) {
+                                result.complete(page);
+                                return;
+                            }
+                            long remaining =
+                                    deadline - System.nanoTime();
+                            if (remaining <= 0L) {
+                                result.complete(page);
+                                return;
+                            }
+                            synchronized (modelUpdateMonitor) {
+                                if (generation
+                                    != modelUpdateGeneration
+                                            .get()) {
+                                    continue;
+                                }
+                                modelUpdateMonitor.wait(
+                                        Math.max(
+                                                1L,
+                                                Duration.ofNanos(
+                                                        remaining)
+                                                        .toMillis()));
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread()
+                                .interrupt();
+                        result.completeExceptionally(e);
+                    } catch (Throwable e) {
+                        result.completeExceptionally(e);
+                    }
+                });
+        result.whenComplete(
+                (ignored, failure) -> {
+                    if (result.isCancelled()) {
+                        worker.interrupt();
+                    }
+                });
+        worker.start();
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> completeModelActionMaterialization(
+            CompleteModelActionMaterialization request) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    private synchronized TrackModelUpdatesResult modelUpdates(
+            TrackModelUpdates request) {
+        List<ModelUpdate> updates =
+                modelUpdates.stream()
+                        .filter(update ->
+                                        update.getStateIndex()
+                                        > request.getLastStateIndex())
+                        .limit(request.getMaxSize())
+                        .toList();
+        if (request.getMaxBytes() > 0L
+            && !updates.isEmpty()) {
+            long bytes = 0L;
+            int size = 0;
+            for (ModelUpdate update : updates) {
+                long updateBytes =
+                        48L
+                        + update.getActionId()
+                                .getBytes(
+                                        StandardCharsets.UTF_8)
+                                .length;
+                for (ModelActionTargetResult target :
+                        update.getTargets()) {
+                    updateBytes +=
+                            32L
+                            + target.getModelId()
+                                    .getBytes(
+                                            StandardCharsets.UTF_8)
+                                    .length;
+                }
+                if (size > 0
+                    && bytes + updateBytes
+                       > request.getMaxBytes()) {
+                    break;
+                }
+                bytes += updateBytes;
+                size++;
+            }
+            updates =
+                    List.copyOf(
+                            updates.subList(
+                                    0, size));
+        }
+        long lastStateIndex =
+                updates.isEmpty()
+                        ? request.getLastStateIndex()
+                        : updates.getLast()
+                                .getStateIndex();
+        return new TrackModelUpdatesResult(
+                request.getRequestId(),
+                lastStateIndex,
+                modelStateIndex,
+                modelStateIndex,
+                updates);
     }
 
     @Override
@@ -557,6 +703,18 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             modelDeletions.put(
                     request.getDeletionId(),
                     result);
+            modelUpdates.add(
+                    new ModelUpdate(
+                            ModelUpdateKind.HARD_DELETE,
+                            request.getDeletionId(),
+                            0,
+                            deletionStateIndex,
+                            null,
+                            List.of()));
+            modelUpdateGeneration.incrementAndGet();
+            synchronized (modelUpdateMonitor) {
+                modelUpdateMonitor.notifyAll();
+            }
             return CompletableFuture
                     .completedFuture(result);
         } catch (Throwable failure) {

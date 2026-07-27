@@ -29,6 +29,7 @@ import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -47,6 +48,8 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
@@ -133,8 +136,12 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //modeling
         @JsonSubTypes.Type(value = CommitModelAction.class, name = "commitModelAction"),
         @JsonSubTypes.Type(value = CommitModelActionResult.class, name = "commitModelActionResult"),
+        @JsonSubTypes.Type(value = CompleteModelActionMaterialization.class,
+                name = "completeModelActionMaterialization"),
         @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
         @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),
+        @JsonSubTypes.Type(value = TrackModelUpdates.class, name = "trackModelUpdates"),
+        @JsonSubTypes.Type(value = TrackModelUpdatesResult.class, name = "trackModelUpdatesResult"),
         @JsonSubTypes.Type(value = GetModelGraph.class, name = "getModelGraph"),
         @JsonSubTypes.Type(value = GetModelGraphResult.class, name = "getModelGraphResult"),
         @JsonSubTypes.Type(value = GetModelAncestors.class, name = "getModelAncestors"),

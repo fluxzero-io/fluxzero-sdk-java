@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -570,7 +571,7 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void acceptedLocalCommitSeedsCacheAndLoadsOnlyTheStreamSuffix() {
+    void acceptedLocalCommitSeedsCacheWithoutPerLoadHeadChecks() {
         AccountId id = new AccountId("cached");
         LocalClient localClient = LocalClient.newInstance(null);
         EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
@@ -586,14 +587,8 @@ class DefaultModelRepositoryTest {
             assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
             assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
 
-            var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
-            verify(eventStoreClient, times(2)).getModelEvents(captor.capture());
-            assertEquals(
-                    List.of(0L, 0L),
-                    captor.getAllValues().stream()
-                            .map(request -> request.getRequests().getFirst()
-                                    .getLastSequenceNumber())
-                            .toList());
+            verify(eventStoreClient, times(0))
+                    .getModelEvents(any());
         }
     }
 
@@ -638,9 +633,9 @@ class DefaultModelRepositoryTest {
                    currentStateIndex(fluxzero),
                    new ChangeAccount(id, 2), id.toString());
 
-            assertEquals(
-                    new Account(id, 7),
-                    fluxzero.modelRepository().load(id).get());
+            awaitModelValue(
+                    fluxzero, id,
+                    new Account(id, 7));
         }
     }
 
@@ -679,6 +674,17 @@ class DefaultModelRepositoryTest {
                                     .build())
                     .join();
 
+            long deadline =
+                    System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (fluxzero.modelRepository()
+                           .load(id)
+                           .isPresent()
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
             assertFalse(
                     fluxzero.modelRepository()
                             .load(id)
@@ -1113,6 +1119,29 @@ class DefaultModelRepositoryTest {
                 .disableKeepalive()
                 .disableShutdownHook()
                 .build(LocalClient.newInstance(null));
+    }
+
+    private static <T> void awaitModelValue(
+            Fluxzero fluxzero,
+            Id<T> id,
+            T expected) {
+        long deadline =
+                System.nanoTime()
+                + java.util.concurrent.TimeUnit.SECONDS
+                        .toNanos(5L);
+        T actual;
+        do {
+            actual =
+                    fluxzero.modelRepository()
+                            .load(id).get();
+            if (Objects.equals(
+                    expected, actual)) {
+                return;
+            }
+            Thread.onSpinWait();
+        } while (System.nanoTime()
+                 < deadline);
+        assertEquals(expected, actual);
     }
 
     private static long commit(

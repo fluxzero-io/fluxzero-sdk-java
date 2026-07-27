@@ -36,6 +36,7 @@ import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -65,7 +66,11 @@ import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.search.GetSearchCollections;
 import io.fluxzero.common.api.search.GetSearchCollectionsResult;
@@ -385,6 +390,92 @@ class WebSocketTransportCodecsTest {
             assertFalse(decodedResult.isRetryAllowed());
             assertTrue(decodedResult.isDocumentsApplied());
             assertTrue(decodedResult.isSnapshotsApplied());
+        }
+    }
+
+    @Test
+    void modelUpdateTrackingRoundTripsActionsAndPrivacySafeDeletions()
+            throws Exception {
+        TrackModelUpdates request =
+                new TrackModelUpdates(
+                        100L, 512, 30_000L);
+        TrackModelUpdatesResult result =
+                new TrackModelUpdatesResult(
+                        request.getRequestId(),
+                        102L, 105L, 104L,
+                        List.of(
+                                new ModelUpdate(
+                                        ModelUpdateKind.ACTION,
+                                        "action-1", 0,
+                                        101L, null,
+                                        List.of(
+                                                new ModelActionTargetResult(
+                                                        "order-1",
+                                                        4L,
+                                                        true))),
+                                new ModelUpdate(
+                                        ModelUpdateKind.HARD_DELETE,
+                                        "deletion-1", 0,
+                                        102L, null,
+                                        List.of())));
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            TrackModelUpdates decodedRequest =
+                    assertInstanceOf(
+                            TrackModelUpdates.class,
+                            roundTrip(codec, request));
+            TrackModelUpdatesResult decodedResult =
+                    assertInstanceOf(
+                            TrackModelUpdatesResult.class,
+                            roundTrip(codec, result));
+
+            assertEquals(
+                    100L,
+                    decodedRequest.getLastStateIndex());
+            assertEquals(
+                    30_000L,
+                    decodedRequest.getMaxWaitMillis());
+            assertEquals(
+                    8L * 1_024L * 1_024L,
+                    decodedRequest.getMaxBytes());
+            assertEquals(
+                    ModelUpdateKind.ACTION,
+                    decodedResult.getUpdates()
+                            .getFirst().getKind());
+            assertEquals(
+                    ModelUpdateKind.HARD_DELETE,
+                    decodedResult.getUpdates()
+                            .getLast().getKind());
+            assertTrue(
+                    decodedResult.getUpdates()
+                            .getLast().getTargets()
+                            .isEmpty());
+            assertEquals(
+                    102L,
+                    decodedResult.getLastStateIndex());
+            assertEquals(
+                    104L,
+                    decodedResult
+                            .getMaterializedStateIndex());
+
+            CompleteModelActionMaterialization completion =
+                    assertInstanceOf(
+                            CompleteModelActionMaterialization.class,
+                            roundTrip(
+                                    codec,
+                                    new CompleteModelActionMaterialization(
+                                            "action-1",
+                                            102L)));
+            assertEquals(
+                    "action-1",
+                    completion.getActionId());
+            assertEquals(
+                    102L,
+                    completion.getLastStateIndex());
+            assertEquals(
+                    Guarantee.STORED,
+                    completion.getGuarantee());
         }
     }
 

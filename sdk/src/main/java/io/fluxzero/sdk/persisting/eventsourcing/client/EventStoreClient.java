@@ -18,6 +18,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -35,6 +36,8 @@ import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
@@ -83,10 +86,30 @@ public interface EventStoreClient extends AutoCloseable {
     }
 
     /**
+     * Closes the runtime readiness fence after SDK-owned model documents and snapshots have been materialized.
+     */
+    default CompletableFuture<Void> completeModelActionMaterialization(
+            CompleteModelActionMaterialization request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model materialization completion is not supported by this event store"));
+    }
+
+    /**
      * Batch-loads independent model heads and event memberships at one pinned state boundary.
      */
     default GetModelEventsResult getModelEvents(GetModelEvents request) {
         throw new UnsupportedOperationException("Independent model event loading is not supported by this event store");
+    }
+
+    /**
+     * Long-polls committed independent-model action substeps after a client-controlled state cursor.
+     */
+    default CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(
+            TrackModelUpdates request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model update tracking is not supported by this event store"));
     }
 
     /**

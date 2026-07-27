@@ -109,6 +109,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private final Cache modelCache;
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
+    private final ModelCacheTracker modelCacheTracker;
 
     /**
      * Compatibility constructor for document-only repository use.
@@ -161,6 +162,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 ? cache : new RepositoryCache(cache, "$Model", client.namespace());
         this.snapshotStore = snapshotSerializer == null
                 ? null : new ModelSnapshotStore(documentStore, snapshotSerializer);
+        this.modelCacheTracker =
+                eventLoader == null
+                || cache == NoOpCache.INSTANCE
+                        ? null
+                        : new ModelCacheTracker(
+                                client.getEventStoreClient(),
+                                modelCache,
+                                this::refreshCurrentModels);
+        if (modelCacheTracker != null) {
+            client.beforeShutdown(
+                    modelCacheTracker::close);
+        }
     }
 
     @Override
@@ -254,9 +267,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     if (result.getCascade()
                         == ModelDeletionCascade.DESCENDANTS) {
                         modelCache.clear();
+                        if (modelCacheTracker != null) {
+                            modelCacheTracker.forgetAll();
+                        }
                     } else {
                         modelCache.remove(
                                 request.getModelId());
+                        if (modelCacheTracker != null) {
+                            modelCacheTracker.forget(
+                                    request.getModelId());
+                        }
                     }
                     return result;
                 });
@@ -312,9 +332,38 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelMetadata metadata = ModelMetadata.validate(modelType);
         Model annotation = metadata.model().orElseThrow(() -> new IllegalArgumentException(
                 modelType.getName() + " is not annotated with @Model"));
+        if (handlerBoundary == null
+            && annotation.cached()
+            && modelCacheTracker != null) {
+            Entity<?> cached =
+                    modelCacheTracker.current(
+                            modelId, modelType);
+            if (cached != null) {
+                return cast(cached);
+            }
+        }
         if (!annotation.eventSourced()
             && handlerBoundary == null) {
-            return loadDocument(modelId, modelType, metadata, annotation);
+            if (!annotation.cached()
+                || modelCacheTracker == null) {
+                return loadDocument(
+                        modelId, modelType,
+                        metadata, annotation);
+            }
+            Long readStateIndex =
+                    modelCacheTracker
+                            .safeDocumentBoundary();
+            Entity<?> entity =
+                    loadDocumentUnchecked(
+                            modelId, modelType,
+                            metadata, annotation);
+            if (readStateIndex != null) {
+                modelCache.put(modelId, entity);
+                modelCacheTracker.loaded(
+                        modelId, modelType,
+                        readStateIndex);
+            }
+            return cast(entity);
         }
         requireEventReconstruction();
         ModelTargetResolver.ResolvedModel target = new ModelTargetResolver.ResolvedModel(
@@ -328,6 +377,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 actionSubstep(handlerBoundary),
                 Map.of());
         pin(handlerBoundary, context.readStateIndex());
+        if (handlerBoundary == null
+            && annotation.cached()
+            && modelCacheTracker != null) {
+            modelCacheTracker.loaded(
+                    modelId, modelType,
+                    context.readStateIndex());
+        }
         return cast(context.entries().getFirst().entity());
     }
 
@@ -879,11 +935,55 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     documentDependencies,
                     stateIndex, null, null);
         }
+        Long documentCacheBoundary =
+                !historicalBoundary
+                && modelCacheTracker != null
+                && documentTargets.stream()
+                        .anyMatch(target ->
+                                          ModelMetadata.validate(
+                                                          target.modelType())
+                                                  .model().orElseThrow()
+                                                  .cached())
+                        ? modelCacheTracker
+                                .safeDocumentBoundary()
+                        : null;
         for (ModelTargetResolver.ResolvedModel target : documentTargets) {
             ModelMetadata metadata = ModelMetadata.validate(target.modelType());
             Model model = metadata.model().orElseThrow();
-            loaded.put(target.modelId(), loadDocumentUnchecked(
-                    target.modelId(), target.modelType(), metadata, model));
+            Entity<?> entity = loadDocumentUnchecked(
+                    target.modelId(), target.modelType(), metadata, model);
+            loaded.put(target.modelId(), entity);
+            if (!historicalBoundary
+                && model.cached()
+                && documentCacheBoundary != null) {
+                modelCache.put(
+                        target.modelId(), entity);
+            }
+        }
+        if (!historicalBoundary
+            && modelCacheTracker != null) {
+            for (ModelTargetResolver.ResolvedModel target :
+                    resolution.models()) {
+                Model model =
+                        ModelMetadata.validate(
+                                        target.modelType())
+                                .model().orElseThrow();
+                if (!model.cached()) {
+                    continue;
+                }
+                if (model.eventSourced()) {
+                    modelCacheTracker.loaded(
+                            target.modelId(),
+                            target.modelType(),
+                            stateIndex);
+                } else if (documentCacheBoundary
+                           != null) {
+                    modelCacheTracker.loaded(
+                            target.modelId(),
+                            target.modelType(),
+                            documentCacheBoundary);
+                }
+            }
         }
         return ModelActionContext.create(stateIndex, resolution, loaded);
     }
@@ -1239,6 +1339,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                 && stateIndex(current)
                                    > committed.stateIndex()
                                         ? current : null);
+                if (modelCacheTracker != null) {
+                    modelCacheTracker.forget(
+                            committed.modelId());
+                }
                 continue;
             }
             AtomicReference<Entity<?>> accepted =
@@ -1278,6 +1382,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         committed.sequenceNumber(), committed.stateIndex(),
                         entity.timestamp(), model.maxSnapshotCount()));
             }
+            if (model.cached()
+                && modelCacheTracker != null) {
+                modelCacheTracker.committed(
+                        committed.modelId(),
+                        committed.modelType(),
+                        committed.stateIndex());
+            }
         }
         return snapshots.isEmpty()
                 ? CompletableFuture.completedFuture(null)
@@ -1289,7 +1400,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
      * Removes action-scoped entries before a strict-policy retry reload.
      */
     public void invalidateModels(Iterable<String> modelIds) {
-        modelIds.forEach(modelCache::remove);
+        modelIds.forEach(modelId -> {
+            modelCache.remove(modelId);
+            if (modelCacheTracker != null) {
+                modelCacheTracker.forget(modelId);
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -1386,6 +1502,71 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 .entityHelper(entityHelper)
                 .serializer(serializer)
                 .build();
+    }
+
+    /**
+     * Advances stale cached models in one bounded store round trip for event-sourced targets and direct document
+     * reads for document-based targets.
+     */
+    private ModelCacheTracker.RefreshedBatch
+            refreshCurrentModels(
+                    Map<String, Class<?>> targets,
+                    long safeStateIndex) {
+        List<ModelTargetResolver.ResolvedModel>
+                eventTargets = new ArrayList<>();
+        List<ModelTargetResolver.ResolvedModel>
+                documentTargets = new ArrayList<>();
+        targets.forEach((modelId, modelType) -> {
+            ModelMetadata metadata =
+                    ModelMetadata.validate(modelType);
+            Model model =
+                    metadata.model().orElseThrow();
+            ModelTargetResolver.ResolvedModel target =
+                    new ModelTargetResolver.ResolvedModel(
+                            modelId, modelType,
+                            ModelTargetResolver.Access.READ_ONLY,
+                            List.of(
+                                    metadata.entityId()
+                                            .orElseThrow()
+                                            .name()));
+            if (model.eventSourced()) {
+                eventTargets.add(target);
+            } else {
+                documentTargets.add(target);
+            }
+        });
+        if (!eventTargets.isEmpty()) {
+            long reconstructedStateIndex =
+                    new ReconstructionSession()
+                            .reconstruct(
+                                    eventTargets,
+                                    null)
+                            .stateIndex();
+            if (reconstructedStateIndex
+                < safeStateIndex) {
+                throw new EventSourcingException(
+                        "Model reconstruction stopped at state index %d before safe cache boundary %d"
+                                .formatted(
+                                        reconstructedStateIndex,
+                                        safeStateIndex));
+            }
+        }
+        for (ModelTargetResolver.ResolvedModel target :
+                documentTargets) {
+            ModelMetadata metadata =
+                    ModelMetadata.validate(
+                            target.modelType());
+            Model model =
+                    metadata.model().orElseThrow();
+            modelCache.put(
+                    target.modelId(),
+                    loadDocumentUnchecked(
+                            target.modelId(),
+                            target.modelType(),
+                            metadata, model));
+        }
+        return new ModelCacheTracker.RefreshedBatch(
+                safeStateIndex);
     }
 
     private static void validateValueId(

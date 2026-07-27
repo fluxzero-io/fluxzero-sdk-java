@@ -46,6 +46,8 @@ public class ModelCacheBenchmark {
             Integer.getInteger("eventCount", 10_000);
     private static final int WARM_LOADS =
             Integer.getInteger("warmLoads", 10_000);
+    private static final int RUNS =
+            Integer.getInteger("runs", 5);
     private static final int MEMORY_KEY_COUNT =
             Integer.getInteger("keyCount", 250_000);
     private static final int MEMORY_CACHING_DEPTH =
@@ -56,6 +58,11 @@ public class ModelCacheBenchmark {
                 System.getProperty("mode", "load"))) {
             measureRetainedModelRevisions();
             return;
+        }
+        if (RUNS <= 0
+            || WARM_LOADS <= 0) {
+            throw new IllegalArgumentException(
+                    "runs and warmLoads must be positive");
         }
         CounterId id = new CounterId("cache-benchmark");
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
@@ -72,45 +79,116 @@ public class ModelCacheBenchmark {
             repository.invalidateModels(
                     List.of(id.toString()));
 
-            long cold = timed(() ->
+            long[] cold = new long[RUNS];
+            long[] warm = new long[RUNS];
+            long[] propagation =
+                    new long[RUNS];
+            long[] refreshedHit =
+                    new long[RUNS];
+            long[] invalidated =
+                    new long[RUNS];
+            int expected = EVENT_COUNT;
+            for (int run = 0; run < RUNS; run++) {
+                int current = expected;
+                cold[run] = timed(() ->
+                                          load(
+                                                  fluxzero, id,
+                                                  current));
+                warm[run] = timed(() -> {
+                    for (int i = 0;
+                         i < WARM_LOADS; i++) {
+                        load(
+                                fluxzero, id,
+                                current);
+                    }
+                });
+                long readStateIndex =
+                        ((ModelRoot<?>) fluxzero
+                                .modelRepository()
+                                .load(id))
+                                .stateIndex();
+                long propagationStarted =
+                        System.nanoTime();
+                append(
+                        fluxzero, id,
+                        readStateIndex);
+                expected++;
+                awaitValue(
+                        fluxzero, id,
+                        expected);
+                propagation[run] =
+                        System.nanoTime()
+                        - propagationStarted;
+                int refreshed = expected;
+                refreshedHit[run] =
+                        timed(() ->
                                       load(
                                               fluxzero, id,
-                                              EVENT_COUNT));
-            long warm = timed(() -> {
-                for (int i = 0; i < WARM_LOADS; i++) {
-                    load(
-                            fluxzero, id,
-                            EVENT_COUNT);
-                }
-            });
-            long readStateIndex =
-                    ((ModelRoot<?>) fluxzero
-                            .modelRepository()
-                            .load(id)).stateIndex();
-            append(
-                    fluxzero, id,
-                    readStateIndex);
-            long catchUp = timed(() ->
-                                         load(
-                                                 fluxzero, id,
-                                                 EVENT_COUNT + 1));
-            repository.invalidateModels(
-                    List.of(id.toString()));
-            long invalidated = timed(() ->
-                                             load(
-                                                     fluxzero, id,
-                                                     EVENT_COUNT + 1));
+                                              refreshed));
+                repository.invalidateModels(
+                        List.of(id.toString()));
+                invalidated[run] =
+                        timed(() ->
+                                      load(
+                                              fluxzero, id,
+                                              refreshed));
+                repository.invalidateModels(
+                        List.of(id.toString()));
+            }
 
-            System.out.printf(
-                    "model cache: %,d-event cold %.3f ms; %,d warm head-check loads %.3f us/load; "
-                    + "one-event suffix %.3f ms; invalidated full reload %.3f ms%n",
-                    EVENT_COUNT,
-                    millis(cold),
-                    WARM_LOADS,
-                    micros(warm) / WARM_LOADS,
-                    millis(catchUp),
-                    millis(invalidated));
+            print(
+                    "cold reconstruction",
+                    cold, 1_000_000d,
+                    "ms");
+            print(
+                    "local cache hit",
+                    java.util.Arrays.stream(
+                                    warm)
+                            .map(value ->
+                                         value
+                                         / WARM_LOADS)
+                            .toArray(),
+                    1_000d, "us");
+            print(
+                    "remote update-to-visible",
+                    propagation,
+                    1_000_000d, "ms");
+            print(
+                    "refreshed cache hit",
+                    refreshedHit,
+                    1_000d, "us");
+            print(
+                    "invalidated full reconstruction",
+                    invalidated,
+                    1_000_000d, "ms");
         }
+    }
+
+    private static void print(
+            String label,
+            long[] samples,
+            double divisor,
+            String unit) {
+        long[] sorted =
+                samples.clone();
+        java.util.Arrays.sort(
+                sorted);
+        System.out.printf(
+                "model cache %s: %,d-event history; %,d runs; p50/p95/max %.3f / %.3f / %.3f %s%n",
+                label, EVENT_COUNT,
+                sorted.length,
+                sorted[sorted.length / 2]
+                / divisor,
+                sorted[Math.min(
+                        sorted.length - 1,
+                        (int) Math.ceil(
+                                sorted.length
+                                * 0.95)
+                        - 1)]
+                / divisor,
+                sorted[sorted.length - 1]
+                / divisor,
+                unit);
     }
 
     private static void measureRetainedModelRevisions() {
@@ -190,14 +268,6 @@ public class ModelCacheBenchmark {
         return System.nanoTime() - started;
     }
 
-    private static double millis(long nanos) {
-        return nanos / 1_000_000d;
-    }
-
-    private static double micros(long nanos) {
-        return nanos / 1_000d;
-    }
-
     private static void load(
             Fluxzero fluxzero,
             CounterId id,
@@ -211,6 +281,29 @@ public class ModelCacheBenchmark {
                     "Expected " + expected
                     + " but got " + value);
         }
+    }
+
+    private static void awaitValue(
+            Fluxzero fluxzero,
+            CounterId id,
+            int expected) {
+        long deadline =
+                System.nanoTime()
+                + java.util.concurrent.TimeUnit.SECONDS
+                        .toNanos(10L);
+        while (System.nanoTime()
+               < deadline) {
+            Counter value =
+                    fluxzero.modelRepository()
+                            .load(id).get();
+            if (value != null
+                && value.value()
+                   == expected) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+        load(fluxzero, id, expected);
     }
 
     private static void prepare(
@@ -243,7 +336,8 @@ public class ModelCacheBenchmark {
         fluxzero.client().getEventStoreClient()
                 .commitModelAction(
                         new CommitModelAction(
-                                "cache-benchmark-append",
+                                "cache-benchmark-append-"
+                                + readStateIndex,
                                 readStateIndex,
                                 List.of(id.toString()),
                                 List.of(substep(

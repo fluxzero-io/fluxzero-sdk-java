@@ -23,6 +23,7 @@ import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -42,6 +43,8 @@ import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -137,8 +140,20 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     }
 
     @Override
+    public CompletableFuture<Void> completeModelActionMaterialization(
+            CompleteModelActionMaterialization request) {
+        return sendCommand(request);
+    }
+
+    @Override
     public GetModelEventsResult getModelEvents(GetModelEvents request) {
         return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(
+            TrackModelUpdates request) {
+        return send(request);
     }
 
     @Override

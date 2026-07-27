@@ -218,11 +218,11 @@ public class DefaultFluxzero implements Fluxzero {
             new AtomicReference<>();
     private final Collection<Runnable> cleanupTasks = new CopyOnWriteArrayList<>();
     @Getter(lazy = true)
-    private final ModelRepository modelRepository = new DefaultModelRepository(
-            client, documentStore, serializer,
-            DefaultEntityHelper.forModels(configuration.parameterResolvers(), false),
-            serializer, cache,
-            configuration.parameterResolvers());
+    private final ModelRepository modelRepository =
+            Objects.requireNonNull(
+                            modelActionExecutor.get(),
+                            "Model action repository is not initialized")
+                    .repository();
     @Getter(lazy = true)
     private final Memoization memoization = new DefaultMemoization(clock());
 

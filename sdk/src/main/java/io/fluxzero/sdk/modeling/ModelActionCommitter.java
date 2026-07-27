@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -291,12 +292,30 @@ final class ModelActionCommitter {
                                     ? CompletableFuture.completedFuture(null)
                                     : updateDirectDocuments(
                                             prepared.documents());
+                    boolean sdkOwnsMaterialization =
+                            !result.isDocumentsApplied()
+                            && !prepared.documents()
+                                    .isEmpty()
+                            || !result.isSnapshotsApplied()
+                               && prepared.hasSnapshots();
                     return documents.thenCompose(ignored ->
                                                           afterCommit.apply(
                                                                   new CommittedAction(
                                                                           retained.evaluation(),
                                                                           prepared,
                                                                           result)))
+                            .thenCompose(ignored ->
+                                                 sdkOwnsMaterialization
+                                                         ? eventStoreClient
+                                                                 .completeModelActionMaterialization(
+                                                                         new CompleteModelActionMaterialization(
+                                                                                 actionId,
+                                                                                 result.getSubsteps()
+                                                                                         .getLast()
+                                                                                         .getStateIndex()))
+                                                         : CompletableFuture
+                                                                 .completedFuture(
+                                                                         null))
                             .thenApply(ignored -> {
                                 clearPending(
                                         actionId, retained);

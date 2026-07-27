@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
@@ -38,6 +39,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -76,6 +78,16 @@ class ModelActionCommitterTest {
     private final ModelActionCommitter committer = new ModelActionCommitter(
             eventStoreClient, documentStore, serializer, serializer,
             DispatchInterceptor.noOp, "client-1");
+
+    @BeforeEach
+    void completeSdkMaterialization() {
+        when(eventStoreClient
+                     .completeModelActionMaterialization(
+                             any()))
+                .thenReturn(
+                        CompletableFuture.completedFuture(
+                                null));
+    }
 
     @Test
     void commitsOriginalEventOnceWithoutResendingAnUnchangedChildOwnedRelationship() throws Exception {
@@ -346,11 +358,34 @@ class ModelActionCommitterTest {
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
         CompletableFuture<Void> indexing = new CompletableFuture<>();
         when(documentStore.bulkUpdate(anyCollection())).thenReturn(indexing);
+        CompletableFuture<Void> acknowledged =
+                new CompletableFuture<>();
+        when(eventStoreClient
+                     .completeModelActionMaterialization(
+                             any()))
+                .thenReturn(acknowledged);
 
         var completion = committer.commit("action-1", evaluation);
 
         assertFalse(completion.isDone());
         indexing.complete(null);
+        assertFalse(completion.isDone());
+        ArgumentCaptor<CompleteModelActionMaterialization>
+                acknowledgement =
+                ArgumentCaptor.forClass(
+                        CompleteModelActionMaterialization.class);
+        verify(eventStoreClient)
+                .completeModelActionMaterialization(
+                        acknowledgement.capture());
+        assertEquals(
+                "action-1",
+                acknowledgement.getValue()
+                        .getActionId());
+        assertEquals(
+                42L,
+                acknowledgement.getValue()
+                        .getLastStateIndex());
+        acknowledged.complete(null);
         assertTrue(completion.join().isPresent());
     }
 

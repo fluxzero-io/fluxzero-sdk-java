@@ -31,7 +31,9 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +42,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,6 +52,146 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryEventStoreModelActionTest {
+
+    @Test
+    void emptyModelUpdateHeartbeatKeepsTheClientCursor() {
+        InMemoryEventStore store =
+                denseStore();
+
+        var heartbeat =
+                store.trackModelUpdates(
+                                new TrackModelUpdates(
+                                        -1L, 10, 1L))
+                        .join();
+
+        assertTrue(
+                heartbeat.getUpdates()
+                        .isEmpty());
+        assertEquals(
+                -1L,
+                heartbeat.getLastStateIndex());
+        assertEquals(
+                -1L,
+                heartbeat.getCurrentStateIndex());
+    }
+
+    @Test
+    void emptyLongPollWakesAfterACommit()
+            throws Exception {
+        InMemoryEventStore store =
+                denseStore();
+        var waiting =
+                store.trackModelUpdates(
+                        new TrackModelUpdates(
+                                -1L, 10,
+                                5_000L));
+        assertFalse(waiting.isDone());
+
+        store.commitModelAction(
+                        action(
+                                "wake-in-memory-tracker",
+                                ModelActionSubstep.builder()
+                                        .event(
+                                                event("wake"))
+                                        .publishEvent(false)
+                                        .targets(
+                                                List.of(
+                                                        storedTarget(
+                                                                "wake-model")))
+                                        .build()))
+                .join();
+
+        assertEquals(
+                "wake-in-memory-tracker",
+                waiting.get(
+                                5L,
+                                TimeUnit.SECONDS)
+                        .getUpdates()
+                        .getFirst()
+                        .getActionId());
+    }
+
+    @Test
+    void longPollTracksStoreOnlyActionsAndCompletedHardDeletes() {
+        InMemoryEventStore store = denseStore();
+        CommitModelActionResult committed =
+                store.commitModelAction(
+                                action(
+                                        "tracked-action",
+                                        ModelActionSubstep.builder()
+                                                .event(
+                                                        event(
+                                                                "stored"))
+                                                .publishEvent(
+                                                        false)
+                                                .targets(
+                                                        List.of(
+                                                                storedTarget(
+                                                                        "tracked-1")))
+                                                .build()))
+                        .join();
+        var actionPage =
+                store.trackModelUpdates(
+                                new TrackModelUpdates(
+                                        -1L, 10, 0L))
+                        .join();
+
+        assertEquals(
+                ModelUpdateKind.ACTION,
+                actionPage.getUpdates()
+                        .getFirst().getKind());
+        assertEquals(
+                committed.getSubsteps()
+                        .getFirst().getStateIndex(),
+                actionPage.getLastStateIndex());
+        assertEquals(
+                null,
+                actionPage.getUpdates()
+                        .getFirst().getEventIndex());
+        assertEquals(
+                1,
+                store.trackModelUpdates(
+                                new TrackModelUpdates(
+                                        -1L, 10,
+                                        0L, 1L))
+                        .join()
+                        .getUpdates()
+                        .size());
+
+        var deleted =
+                store.deleteModel(
+                                DeleteModel.builder()
+                                        .deletionId(
+                                                "tracked-deletion")
+                                        .modelId(
+                                                "tracked-1")
+                                        .cascade(
+                                                ModelDeletionCascade.NONE)
+                                        .maxDepth(0)
+                                        .maxModels(1)
+                                        .build())
+                        .join();
+        var deletionPage =
+                store.trackModelUpdates(
+                                new TrackModelUpdates(
+                                        actionPage
+                                                .getLastStateIndex(),
+                                        10, 0L))
+                        .join();
+
+        assertEquals(
+                ModelUpdateKind.HARD_DELETE,
+                deletionPage.getUpdates()
+                        .getFirst().getKind());
+        assertTrue(
+                deletionPage.getUpdates()
+                        .getFirst().getTargets()
+                        .isEmpty());
+        assertEquals(
+                deleted.getStateIndex(),
+                deletionPage
+                        .getLastStateIndex());
+    }
 
     @Test
     void allocatesTimeDerivedContiguousStateIndices() {
