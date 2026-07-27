@@ -2,6 +2,11 @@
 
 Date: 2026-07-27
 
+> **Storage update (Phase 17):** the update cursor no longer scans permanently retained action results. Full
+> target-bearing receipts now have bounded time-partitioned retention; the compact durable action core keeps exact
+> historical boundaries and duplicate idempotency. A lagged tracker receives a backwards-compatible namespace-cache
+> reset. The coherence and event-handler exactness contracts below are unchanged.
+
 ## Decision
 
 Independent-model caches follow a dedicated durable model-update cursor. They do not infer model freshness from the

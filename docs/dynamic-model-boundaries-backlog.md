@@ -1238,6 +1238,47 @@ separate databases.
 - [x] Publish the [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) with final test counts and remaining
   operational gates.
 
+## Phase 17 — Bounded model-action receipts
+
+The durable action boundary and the short-lived cache/update receipt are different data. This phase separates them
+without allowing the runtime to inspect or mutate event metadata.
+
+### Slice 17.1 — Durable core versus transient receipt
+
+- [x] Keep a compact hash-partitioned action core containing the action-id fence, substep state/event boundaries and
+  target positions, but no persisted raw target IDs for new actions.
+- [x] Store the full target-bearing receipt once in an append-only, state-time-partitioned update table in the same
+  JDBC transaction as the action.
+- [x] Reconstruct an exact duplicate response by combining the durable target positions with the target IDs already
+  present in the retried action, including after the transient receipt was purged.
+- [x] Preserve old full action rows as a readable rolling-upgrade format and initialize the update-retention floor at
+  the existing durable head instead of replaying absent historical receipts.
+
+### Slice 17.2 — Bounded tracking and partition retention
+
+- [x] Default transient receipt/update retention to one hour, configurable through an ISO-8601 duration property.
+- [x] Drop complete expired time partitions and atomically advance a durable update-retention floor; never issue
+  per-row expiry deletes or rewrites.
+- [x] Return a backwards-compatible cache-reset update when a tracker cursor predates that floor, then resume at the
+  current durable/materialized cursors.
+- [x] Keep idle tracking as a true long poll and run no periodic database retention poll; purge at namespace activation
+  and partition rollover.
+
+### Slice 17.3 — Privacy, failure and performance hardening
+
+- [x] Sanitize any retained pre-Phase-17 action rows and recent receipts during hard deletion while keeping the compact
+  new action core free of raw model IDs.
+- [x] Cover restart, rollback, duplicate-after-expiry, cursor reset, materialization, historical boundary and
+  deletion-versus-retention races.
+- [x] Measure action throughput, WAL, physical amplification, tracking latency and partition-drop behavior against the
+  Phase 15 baseline.
+
+### Slice 17.4 — Certification
+
+- [x] Run focused SDK/common/runtime suites and both complete Maven reactors.
+- [x] Perform an adversarial compatibility, concurrency, shutdown and capacity review.
+- [x] Publish the Phase 17 report with retained measurements and any remaining deployment gate.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1503,3 +1544,14 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) retains action-result archival, multi-active
   notification, customer alert thresholds, production-duration soak and absolute 100-GB/min qualification as explicit
   future or deployment gates.
+- 2026-07-27 — Phase 17 (SDK: `7207e9ed`; runtime: `2a500a42`) separates the permanent, ID-free model-action boundary
+  from target-bearing cache receipts. Receipts and the sparse reverse lookup for publication-suppressed targets are
+  hourly range-partitioned, atomically written and dropped as whole partitions after a configurable one-hour minimum;
+  old trackers receive a backwards-compatible cache reset. Duplicate idempotency, exact historical boundaries, hard
+  erasure and opaque event metadata remain intact after expiry and restart. The adversarial review additionally closed
+  an SDK race in which a tracked local action could start an unnecessary suffix refresh before its accepted result
+  seeded the cache. The final SDK reactor passed all nine modules and 1,943 SDK tests; the runtime reactor passed all
+  four modules and 645 tests. Paired one- and ten-target results show commit throughput within 1.3% of the baseline,
+  +4.2%/+1.6% WAL while receipts are retained, and 1.94–4.6x faster update tracking. Absolute 100 GB/min qualification
+  and production-duration partition-rollover soak remain deployment gates; full evidence is retained in the
+  [Phase 17 report](dynamic-model-boundaries-phase-17-action-receipts.md).

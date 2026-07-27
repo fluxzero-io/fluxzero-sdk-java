@@ -207,6 +207,9 @@ storage and network topology.
 
 ## Adversarial review
 
+> **Storage update (Phase 17):** the target-bearing action receipt described below is no longer permanent. A compact
+> ID-free action boundary remains durable, while cache-tracking receipts expire by time partition.
+
 - Public and wire compatibility: all protocol additions have JSON and CBOR round-trip tests; legacy aggregate and
   ordinary search requests keep their existing path and shape.
 - Persistence: no normalized per-target action-result table was added. The compact MessagePack result remains
