@@ -946,6 +946,72 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 - [x] Update the Phase 9 rollout decision using the paired evidence and resolve every new checkbox to a report and
   implementation commit before merge.
 
+## Phase 12 — Long-polled model-cache coherence
+
+### Slice 12.1 — Durable update cursor and protocol
+
+- [x] Add a bounded `TrackModelUpdates` long-poll contract ordered by namespace-wide `stateIndex`. One returned update
+  represents one committed model-action substep and carries its action ID, substep, nullable global `eventIndex`, and
+  resulting target heads without duplicating event or document payloads.
+- [x] Make action results efficiently trackable in state order without tailing `model_stream`: stored memberships alone
+  omit non-stored state transitions and duplicate one shared event across targets. Include explicit hard deletions in
+  the same logical update cursor.
+- [x] Keep the request open while no newer update exists, bound waiters, response item/byte sizes, and wait duration,
+  and resume from a client-controlled cursor. A timeout is a heartbeat, not a cache invalidation.
+- [x] Wake local waiters only after the model transaction commits. Cross-runtime and reconnect catch-up must query the
+  durable cursor so a missed in-memory wake-up can delay but never lose an update.
+- [x] Record and benchmark the selected physical layout, ordered lookup, index/WAL amplification, retention/erasure
+  interaction, and 1/2/10/100-target response density before accepting it for the write hot path.
+
+### Slice 12.2 — Model cache state machine
+
+- [x] Add one lazily started model-update tracker per namespace/cache lifecycle. Do not duplicate the global domain-event
+  tracker or depend on `eventPublication`.
+- [x] Fence cached current models as valid, stale or refreshing. A remote newer head marks an entry
+  stale immediately but retains the old entity as a replay base; logical deletes retain their empty state and hard
+  deletion clears the namespace cache without retaining erased IDs.
+- [x] Coalesce repeated updates per model and batch refreshes by hash segment. Event-sourced complete histories load
+  only their missing suffix; document-loaded models use their authoritative direct document and its state-index write
+  fence. Incomplete event histories evict the replay base and retain the existing explicit fail-fast contract.
+- [x] Update own accepted commits directly, ignore duplicate/older completions, and prevent every cache, snapshot, or
+  document refresh from overwriting a higher `stateIndex`.
+- [x] Let a load of a stale entry join one in-flight refresh by default. Before a remote update is observed, ordinary
+  command/query loads intentionally retain the latest-known contract; event handlers use their persisted boundary.
+- [x] Advance the tracking cursor after affected entries are synchronously fenced and refreshes are safely scheduled;
+  one slow document store must not block observation of unrelated model updates.
+- [x] Keep runtime-owned and SDK-owned document stores honest: expose a separate safe materialization boundary and let
+  the SDK close a retained action intent only after its direct documents and snapshots have completed. A split-store
+  crash before acknowledgement fails closed as visible materialization lag rather than blessing an old document.
+
+### Slice 12.3 — Exact event-handler boundary
+
+- [x] Keep event-handler correctness independent from current-cache tracker lag: correlate the persisted
+  `actionId`/substep directly to its atomically committed model-state boundary instead of waiting for a cache refresh.
+- [x] Continue to reconstruct every injected target, parent, grandparent, and relation at the event action's exact
+  `stateIndex`. A current cache entry newer than that boundary must never leak into historical handling or replay.
+- [x] Prove that preceding `STORE_ONLY` transitions are included, later transitions are excluded, and a tracker already
+  ahead of the handler remains exact. Co-located JDBC publication/model visibility remains one transaction; the
+  existing split-store partial-failure boundary is unchanged.
+- [x] Preserve exact replay for `@Model(eventSourced = false)` because storage/publication remains independent from its
+  normal document-based load strategy. Explicitly incomplete history must fail or use an authoritative persisted
+  document/checkpoint; it may never silently fabricate history.
+
+### Slice 12.4 — Failure, lifecycle, and scale proof
+
+- [x] Cover reconnect, duplicate batches, timeout heartbeats, runtime restart, tracker shutdown, cache eviction,
+  namespace isolation, old-runtime unsupported responses, hard delete/recreate, cascaded delete, privacy-safe
+  action-result sanitization, and the explicitly retained action-result retention gate.
+- [x] Add transport metrics for tracker lag, observed `stateIndex`, update/target/publication counts and cursor
+  progression; retain cache-eviction metrics and explicit failure/revalidation warnings without adding per-load
+  metric allocation to the hot path.
+- [x] Replace the misleading single-sample warm-load number with local-cache-hit and validated/refresh load
+  distributions. Compare aggregate and model leaf loads with identical functional histories and cache states.
+- [x] Benchmark update tracking and cache maintenance at representative target counts, cache hit ratios, read/write
+  ratios, concurrent handlers, and retained 100,000/1,000,000-action histories. Reject any design that adds material
+  unbounded write amplification or makes every SDK consume document/event payloads for uncached models.
+- [x] Re-run focused SDK/runtime suites, both full reactors, site/Javadoc and downstream compatibility, then perform a
+  separate regression-only review of storage ordering, event replay, cache lifecycle, and hot-path allocation.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1155,3 +1221,14 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   The [Phase 9 decision](dynamic-model-boundaries-phase-9-certification.md) is renewed as GO for merge and controlled
   rollout, with absolute 100 GB/min qualification, production-duration operations, action-result retention, and
   workload-specific physical sizing retained as deployment gates.
+- 2026-07-27 — Phase 12 (`SDK 90665b4b1658`, runtime `6affc207b205`) replaces per-load model-head validation with one
+  durable long-polled update cursor per active namespace. The retained hybrid cache fences remote changes immediately,
+  refreshes only cached targets in bounded batches, keeps event-sourced replay bases, and reconstructs event-handler
+  state at its exact action boundary. A separate materialization head prevents direct documents or deletes from being
+  fenced current before their external writes complete; SDK-owned stores close that fence with an idempotent
+  acknowledgement. The regression-only review additionally separated update and document readiness to prevent
+  head-of-line blocking, made tracker bootstrap safe during pending writes, and closed the old-document recache race
+  during hard deletion. Focused suites passed 101 SDK/common and 73 JDBC runtime tests. Both full reactors passed
+  (625 runtime tests), as did SDK site/Javadoc, test-server, proxy, annotation processing, and Java/Kotlin downstream
+  compatibility. Measurements and the explicit split-database crash limitation are retained in the
+  [Phase 12 report](dynamic-model-boundaries-phase-12-cache-tracking.md).
