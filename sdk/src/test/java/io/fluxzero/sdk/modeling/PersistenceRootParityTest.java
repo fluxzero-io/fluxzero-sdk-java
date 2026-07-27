@@ -16,8 +16,12 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -142,6 +146,173 @@ class PersistenceRootParityTest {
                 });
     }
 
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void failedAssertionDoesNotMutateOrStoreEvent(
+            PersistenceRoot root) {
+        TestFixture.create()
+                .given(fluxzero -> root.create(
+                        "assertion", "before"))
+                .whenExecuting(
+                        fluxzero -> root.guardedUpdate(
+                                "assertion", "after", false,
+                                Metadata.empty()))
+                .expectExceptionalResult(
+                        IllegalStateException.class)
+                .expectNoEvents()
+                .expectThat(fluxzero -> {
+                    assertEquals(
+                            "before",
+                            root.load("assertion"));
+                    assertEquals(
+                            1L,
+                            root.eventCount(
+                                    fluxzero, "assertion"));
+                });
+    }
+
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void failedInterceptorDoesNotMutateOrStoreEvent(
+            PersistenceRoot root) {
+        TestFixture.create()
+                .given(fluxzero -> root.create(
+                        "interceptor", "before"))
+                .whenExecuting(
+                        fluxzero -> root.interceptedUpdate(
+                                "interceptor", "after", false))
+                .expectExceptionalResult(
+                        IllegalStateException.class)
+                .expectNoEvents()
+                .expectThat(fluxzero -> {
+                    assertEquals(
+                            "before",
+                            root.load("interceptor"));
+                    assertEquals(
+                            1L,
+                            root.eventCount(
+                                    fluxzero, "interceptor"));
+                });
+    }
+
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void periodicSnapshotSupportsColdReconstruction(
+            PersistenceRoot root) {
+        TestFixture.create()
+                .given(fluxzero -> {
+                    root.create("snapshot", "before");
+                    root.update("snapshot", "after");
+                })
+                .whenApplying(fluxzero -> {
+                    assertEquals(
+                            1L, root.snapshotCount(fluxzero));
+                    fluxzero.cache().clear();
+                    return root.load("snapshot");
+                })
+                .expectResult("after");
+    }
+
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void suppliedMetadataIsStoredWithAppliedEvent(
+            PersistenceRoot root) {
+        TestFixture.create()
+                .given(fluxzero -> root.create(
+                        "metadata", "before"))
+                .whenExecuting(
+                        fluxzero -> root.guardedUpdate(
+                                "metadata", "after", true,
+                                Metadata.of(
+                                        "parity", "preserved")))
+                .expectThat(fluxzero -> {
+                    DeserializingMessage event =
+                            fluxzero.eventStore()
+                                    .getEvents(root.storageId(
+                                            "metadata"))
+                                    .reduce((first, second) ->
+                                                    second)
+                                    .orElseThrow();
+                    assertEquals(
+                            "preserved",
+                            event.getMetadata().get(
+                                    "parity"));
+                    assertEquals(
+                            "after",
+                            root.load("metadata"));
+                });
+    }
+
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void asynchronousFixtureCompletesAfterDirectStateAndSearch(
+            PersistenceRoot root) {
+        TestFixture.createAsync()
+                .whenExecuting(
+                        fluxzero -> root.create(
+                                "async", "visible"))
+                .expectThat(fluxzero -> {
+                    assertEquals(
+                            "visible", root.load("async"));
+                    assertEquals(
+                            List.of("visible"),
+                            root.searchValues());
+                });
+    }
+
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void storeOnlyUpdateIsLoadableButNotGloballyPublished(
+            PersistenceRoot root) {
+        TestFixture.create()
+                .whenExecuting(
+                        fluxzero -> root.createStoreOnly(
+                                "store-only", "stored"))
+                .expectNoEvents()
+                .expectThat(fluxzero -> {
+                    assertEquals(
+                            "stored",
+                            root.loadStoreOnly(
+                                    "store-only"));
+                    assertEquals(
+                            1L,
+                            fluxzero.eventStore()
+                                    .getEvents(
+                                            root.storeOnlyStorageId(
+                                                    "store-only"))
+                                    .count());
+                });
+    }
+
+    @ParameterizedTest
+    @EnumSource(PersistenceRoot.class)
+    void embeddedMembersShareOneRootStreamAndDocument(
+            PersistenceRoot root) {
+        TestFixture.create()
+                .whenExecuting(
+                        fluxzero -> root.createEmbedded(
+                                "embedded"))
+                .andThen()
+                .whenExecuting(
+                        fluxzero -> root.addEmbeddedMember(
+                                "embedded",
+                                "member", "value"))
+                .expectThat(fluxzero -> {
+                    assertEquals(
+                            List.of(new EmbeddedValue(
+                                    "member", "value")),
+                            root.embeddedMembers(
+                                    "embedded"));
+                    assertEquals(
+                            2L,
+                            fluxzero.eventStore()
+                                    .getEvents(
+                                            root.embeddedStorageId(
+                                                    "embedded"))
+                                    .count());
+                });
+    }
+
     private enum PersistenceRoot {
         AGGREGATE {
             @Override
@@ -246,6 +417,99 @@ class PersistenceRootParityTest {
             @Override
             String storageId(String functionalId) {
                 return functionalId;
+            }
+
+            @Override
+            void guardedUpdate(
+                    String id,
+                    String value,
+                    boolean legal,
+                    Metadata metadata) {
+                Fluxzero.loadAggregate(
+                                id, ParityAggregate.class)
+                        .assertAndApply(
+                                new GuardedAggregateUpdate(
+                                        value, legal),
+                                metadata);
+            }
+
+            @Override
+            void interceptedUpdate(
+                    String id,
+                    String value,
+                    boolean legal) {
+                Fluxzero.loadAggregate(
+                                id, ParityAggregate.class)
+                        .apply(
+                                new InterceptedAggregateUpdate(
+                                        value, legal));
+            }
+
+            @Override
+            long snapshotCount(Fluxzero fluxzero) {
+                return fluxzero.documentStore()
+                        .search("$snapshots").count();
+            }
+
+            @Override
+            void createStoreOnly(
+                    String id, String value) {
+                Fluxzero.loadAggregate(
+                                id, StoreOnlyAggregate.class)
+                        .apply(new CreateStoreOnlyAggregate(
+                                id, value));
+            }
+
+            @Override
+            String loadStoreOnly(String id) {
+                StoreOnlyAggregate value =
+                        Fluxzero.loadAggregate(
+                                id,
+                                StoreOnlyAggregate.class)
+                                .get();
+                return value == null ? null : value.value();
+            }
+
+            @Override
+            String storeOnlyStorageId(
+                    String functionalId) {
+                return functionalId;
+            }
+
+            @Override
+            void createEmbedded(String id) {
+                Fluxzero.loadAggregate(
+                                id,
+                                EmbeddedAggregate.class)
+                        .apply(new CreateEmbeddedAggregate(
+                                id));
+            }
+
+            @Override
+            void addEmbeddedMember(
+                    String id,
+                    String memberId,
+                    String value) {
+                Fluxzero.loadAggregate(
+                                id,
+                                EmbeddedAggregate.class)
+                        .apply(
+                                new AddEmbeddedAggregateMember(
+                                        memberId, value));
+            }
+
+            @Override
+            List<EmbeddedValue> embeddedMembers(
+                    String id) {
+                return Fluxzero.loadAggregate(
+                                id,
+                                EmbeddedAggregate.class)
+                        .get().members();
+            }
+
+            @Override
+            String embeddedStorageId(String id) {
+                return id;
             }
         },
         MODEL {
@@ -353,6 +617,94 @@ class PersistenceRootParityTest {
                 return new ParityModelId(
                         functionalId).toString();
             }
+
+            @Override
+            void guardedUpdate(
+                    String id,
+                    String value,
+                    boolean legal,
+                    Metadata metadata) {
+                Fluxzero.assertAndApply(
+                        new GuardedModelUpdate(
+                                new ParityModelId(id),
+                                value, legal),
+                        metadata);
+            }
+
+            @Override
+            void interceptedUpdate(
+                    String id,
+                    String value,
+                    boolean legal) {
+                Fluxzero.assertAndApply(
+                        new InterceptedModelUpdate(
+                                new ParityModelId(id),
+                                value, legal));
+            }
+
+            @Override
+            long snapshotCount(Fluxzero fluxzero) {
+                return fluxzero.documentStore()
+                        .search(ModelSnapshotMutation.COLLECTION)
+                        .count();
+            }
+
+            @Override
+            void createStoreOnly(
+                    String id, String value) {
+                Fluxzero.assertAndApply(
+                        new CreateStoreOnlyModel(
+                                new StoreOnlyModelId(id),
+                                value));
+            }
+
+            @Override
+            String loadStoreOnly(String id) {
+                StoreOnlyModel value =
+                        Fluxzero.loadModel(
+                                new StoreOnlyModelId(id))
+                                .get();
+                return value == null ? null : value.value();
+            }
+
+            @Override
+            String storeOnlyStorageId(
+                    String functionalId) {
+                return new StoreOnlyModelId(
+                        functionalId).toString();
+            }
+
+            @Override
+            void createEmbedded(String id) {
+                Fluxzero.assertAndApply(
+                        new CreateEmbeddedModel(
+                                new EmbeddedModelId(id)));
+            }
+
+            @Override
+            void addEmbeddedMember(
+                    String id,
+                    String memberId,
+                    String value) {
+                Fluxzero.assertAndApply(
+                        new AddEmbeddedModelMember(
+                                new EmbeddedModelId(id),
+                                memberId, value));
+            }
+
+            @Override
+            List<EmbeddedValue> embeddedMembers(
+                    String id) {
+                return Fluxzero.loadModel(
+                                new EmbeddedModelId(id))
+                        .get().members();
+            }
+
+            @Override
+            String embeddedStorageId(String id) {
+                return new EmbeddedModelId(id)
+                        .toString();
+            }
         };
 
         abstract void create(String id, String value);
@@ -388,6 +740,39 @@ class PersistenceRootParityTest {
 
         abstract String storageId(String functionalId);
 
+        abstract void guardedUpdate(
+                String id,
+                String value,
+                boolean legal,
+                Metadata metadata);
+
+        abstract void interceptedUpdate(
+                String id,
+                String value,
+                boolean legal);
+
+        abstract long snapshotCount(Fluxzero fluxzero);
+
+        abstract void createStoreOnly(
+                String id, String value);
+
+        abstract String loadStoreOnly(String id);
+
+        abstract String storeOnlyStorageId(
+                String functionalId);
+
+        abstract void createEmbedded(String id);
+
+        abstract void addEmbeddedMember(
+                String id,
+                String memberId,
+                String value);
+
+        abstract List<EmbeddedValue> embeddedMembers(
+                String id);
+
+        abstract String embeddedStorageId(String id);
+
         String load(String id) {
             return value(loadEntity(id));
         }
@@ -418,6 +803,44 @@ class PersistenceRootParityTest {
         @Apply
         ParityAggregate apply(ParityAggregate current) {
             return new ParityAggregate(current.id(), value);
+        }
+    }
+
+    private record GuardedAggregateUpdate(
+            String value, boolean legal) {
+        @AssertLegal
+        void assertLegal() {
+            if (!legal) {
+                throw new IllegalStateException(
+                        "Rejected aggregate update");
+            }
+        }
+
+        @Apply
+        ParityAggregate apply(
+                ParityAggregate current) {
+            return new ParityAggregate(
+                    current.id(), value);
+        }
+    }
+
+    private record InterceptedAggregateUpdate(
+            String value, boolean legal) {
+        @InterceptApply
+        InterceptedAggregateUpdate intercept(
+                ParityAggregate current) {
+            if (!legal) {
+                throw new IllegalStateException(
+                        "Rejected aggregate interceptor");
+            }
+            return this;
+        }
+
+        @Apply
+        ParityAggregate apply(
+                ParityAggregate current) {
+            return new ParityAggregate(
+                    current.id(), value);
         }
     }
 
@@ -452,6 +875,44 @@ class PersistenceRootParityTest {
 
     private record UpdateParityModel(
             ParityModelId id, String value) {
+        @Apply
+        ParityModel apply(ParityModel current) {
+            return new ParityModel(id, value);
+        }
+    }
+
+    private record GuardedModelUpdate(
+            ParityModelId id,
+            String value,
+            boolean legal) {
+        @AssertLegal
+        void assertLegal(ParityModel current) {
+            if (!legal) {
+                throw new IllegalStateException(
+                        "Rejected model update");
+            }
+        }
+
+        @Apply
+        ParityModel apply(ParityModel current) {
+            return new ParityModel(id, value);
+        }
+    }
+
+    private record InterceptedModelUpdate(
+            ParityModelId id,
+            String value,
+            boolean legal) {
+        @InterceptApply
+        InterceptedModelUpdate intercept(
+                ParityModel current) {
+            if (!legal) {
+                throw new IllegalStateException(
+                        "Rejected model interceptor");
+            }
+            return this;
+        }
+
         @Apply
         ParityModel apply(ParityModel current) {
             return new ParityModel(id, value);
@@ -549,5 +1010,123 @@ class PersistenceRootParityTest {
         SilentModel apply() {
             return new SilentModel(id, value);
         }
+    }
+
+    @Aggregate(
+            searchable = true,
+            publicationStrategy =
+                    EventPublicationStrategy.STORE_ONLY)
+    private record StoreOnlyAggregate(
+            @EntityId String id, String value) {
+    }
+
+    private record CreateStoreOnlyAggregate(
+            String id, String value) {
+        @Apply
+        StoreOnlyAggregate apply() {
+            return new StoreOnlyAggregate(id, value);
+        }
+    }
+
+    @Model(
+            searchable = true,
+            publicationStrategy =
+                    EventPublicationStrategy.STORE_ONLY)
+    private record StoreOnlyModel(
+            @EntityId StoreOnlyModelId id,
+            String value) {
+    }
+
+    private static final class StoreOnlyModelId
+            extends Id<StoreOnlyModel> {
+        private StoreOnlyModelId(String id) {
+            super(id, "store-only-model-");
+        }
+    }
+
+    private record CreateStoreOnlyModel(
+            StoreOnlyModelId id, String value) {
+        @Apply
+        StoreOnlyModel apply() {
+            return new StoreOnlyModel(id, value);
+        }
+    }
+
+    private record EmbeddedValue(
+            @EntityId String memberId,
+            String value) {
+    }
+
+    @Aggregate(searchable = true)
+    private record EmbeddedAggregate(
+            @EntityId String id,
+            @Member List<EmbeddedValue> members) {
+    }
+
+    private record CreateEmbeddedAggregate(String id) {
+        @Apply
+        EmbeddedAggregate apply() {
+            return new EmbeddedAggregate(
+                    id, List.of());
+        }
+    }
+
+    private record AddEmbeddedAggregateMember(
+            String memberId, String value) {
+        @Apply
+        EmbeddedAggregate apply(
+                EmbeddedAggregate current) {
+            return new EmbeddedAggregate(
+                    current.id(),
+                    append(
+                            current.members(),
+                            new EmbeddedValue(
+                                    memberId, value)));
+        }
+    }
+
+    @Model(searchable = true)
+    private record EmbeddedModel(
+            @EntityId EmbeddedModelId id,
+            @Member List<EmbeddedValue> members) {
+    }
+
+    private static final class EmbeddedModelId
+            extends Id<EmbeddedModel> {
+        private EmbeddedModelId(String id) {
+            super(id, "embedded-model-");
+        }
+    }
+
+    private record CreateEmbeddedModel(
+            EmbeddedModelId id) {
+        @Apply
+        EmbeddedModel apply() {
+            return new EmbeddedModel(id, List.of());
+        }
+    }
+
+    private record AddEmbeddedModelMember(
+            EmbeddedModelId id,
+            String memberId,
+            String value) {
+        @Apply
+        EmbeddedModel apply(EmbeddedModel current) {
+            return new EmbeddedModel(
+                    id,
+                    append(
+                            current.members(),
+                            new EmbeddedValue(
+                                    memberId, value)));
+        }
+    }
+
+    private static List<EmbeddedValue> append(
+            List<EmbeddedValue> current,
+            EmbeddedValue value) {
+        java.util.ArrayList<EmbeddedValue> result =
+                new java.util.ArrayList<>(current);
+        result.add(value);
+        return List.copyOf(result);
     }
 }
