@@ -9,7 +9,7 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-While aggregates represent domain entities, Fluxzero also supports long-lived **stateful handlers** for modeling workflows,
+While models represent domain entities, Fluxzero also supports long-lived **stateful handlers** for modeling workflows,
 external interactions, or background processes that span multiple messages.
 
 To declare a stateful handler, annotate a class with `@Stateful`:
@@ -269,7 +269,7 @@ Stateful handlers are ideal for:
 - External **API orchestrations**
 - **Process managers** (e.g., order fulfillment, payment retry, etc.)
 
-They complement aggregates without competing with them — and allow modeling temporal behavior in a clean, event-driven way.
+They complement models without competing with them — and allow modeling temporal behavior in a clean, event-driven way.
 
 ## Invocation flow
 

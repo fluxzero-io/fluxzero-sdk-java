@@ -26,10 +26,15 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a class as the root of an aggregate in the domain model.
+ * Marks a class as the root of a legacy aggregate in the domain model.
  * <p>
- * Aggregates are the primary consistency boundaries in Fluxzero. They may consist of a root entity (the annotated class)
- * and any number of nested child entities, which are registered using the {@link Member @Member} annotation.
+ * New applications should use {@link Model @Model}. A model can own embedded {@link Member @Member} entities when one
+ * stream, document, cache and lifecycle are desired, while independently stored models can be connected through
+ * {@link ParentId @ParentId}. This aggregate annotation remains supported throughout Fluxzero 1.x so existing streams
+ * and applications do not require a forced persistence migration; it is scheduled for deprecation in Fluxzero 2.0.
+ * <p>
+ * Legacy aggregates consist of a root entity (the annotated class) and any number of nested child entities registered
+ * using {@link Member @Member}.
  * <p>
  * This annotation also allows fine-grained configuration of event sourcing, caching, snapshotting, and automatic
  * indexing in Fluxzero's document store.

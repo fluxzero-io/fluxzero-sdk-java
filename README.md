@@ -479,23 +479,25 @@ Handlers without an explicit `@Consumer` or matching custom `ConsumerConfigurati
 configured unconfigured-handler consumer mode. If no mode is configured explicitly, `fluxzero.defaults.version`
 selects the default behavior.
 
-For defaults versions `2026.05.20` and newer, the default behavior is `perHandler`:
+For defaults versions `2026.07.27` and newer, the default behavior is `perPackage`:
 
 ```properties
-fluxzero.defaults.version=2026.05.20
+fluxzero.defaults.version=2026.07.27
 # equivalent explicit setting:
-fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perPackage
 ```
 
-With this defaults version, Fluxzero creates an isolated default consumer per handler class. The generated consumer uses
-the default consumer configuration for the message type as its template and is named after the application and handler
-class, for example `my-app_MyHandler`.
+With this defaults version, Fluxzero creates one default consumer per exact handler package and message type. Loose
+commands in the same package can therefore share a consumer without a marker interface. The generated consumer uses the
+default configuration for the message type as its template and is named after the application and package.
 
-Existing applications without `fluxzero.defaults.version`, or with an older defaults version, keep the compatibility
-default: unconfigured handlers join the shared application default consumer for the message type. You can choose either
-behavior explicitly:
+Defaults versions from `2026.05.20` through `2026.07.26` retain the `perHandler` default. Applications without
+`fluxzero.defaults.version`, or with an older defaults version, retain the original shared application consumer. All
+three behaviors can be selected explicitly:
 
 ```properties
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perPackage
+# or
 fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
 # or
 fluxzero.tracking.unconfiguredHandlerConsumerMode=defaultAppConsumer
@@ -512,13 +514,13 @@ class MyHandler {
 }
 ```
 
-With `perHandler`, this handler gets its own generated command consumer. With `defaultAppConsumer`, it joins the shared
-default command consumer. A matching custom `ConsumerConfiguration` or explicit `@Consumer` remains more specific and
-takes precedence.
+With `perPackage`, handlers in the same exact package share a generated consumer. With `perHandler`, this handler gets
+its own generated consumer. With `defaultAppConsumer`, it joins the shared default consumer. A matching custom
+`ConsumerConfiguration` or explicit `@Consumer` remains more specific and takes precedence.
 
-The practical difference is that `perHandler` gives each unconfigured handler its own tracking position and error
-isolation. With `defaultAppConsumer`, unconfigured handlers for the same message type move together through one shared
-consumer, which preserves the original compatibility behavior for existing applications.
+The practical difference is the isolation boundary: package, handler class, or application. Automatic model command
+handling follows the same selection rules as an explicit command handler and therefore also uses a consumer configured
+for the command payload package, including a root-package `@Consumer`.
 
 ### Custom Consumers with @Consumer
 
@@ -1644,8 +1646,9 @@ By default:
 - ⚠️ **Exception:** If a **local handler** exists the event will not be forwarded or stored, unless
   `@LocalHandler(logMessage = true)`.
 
-> For aggregate-related domain events, use `Entity#apply(...)` instead. This ensures the event is applied to the entity
-> and conditionally published and logged, depending on the aggregate configuration.
+> For domain events that also change persisted state, prefer a model action such as
+> `Fluxzero.assertAndApply(update)`. It applies the update, stores each affected model, and publishes the event once
+> according to the model's publication configuration.
 
 ---
 
@@ -3063,13 +3066,80 @@ Metrics messages provide lightweight hooks into system behavior — use them for
 
 ---
 
-## Domain Modeling
+## Domain Modeling with Models
 
-Fluxzero allows you to model the state of your domain using entities that evolve over time by applying updates.
-These entities — such as users, orders, etc. — maintain state and enforce invariants through controlled updates,
-typically driven by commands.
+Use `@Model` for all new persisted domain state:
 
-### Defining the Aggregate Entity
+```java
+@Model(searchable = true)
+public record UserAccount(
+        @EntityId UserId userId,
+        UserProfile profile,
+        boolean accountClosed) {
+}
+```
+
+Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
+event stream, cache entry, snapshots and direct search document. Commands can own their assertions and transitions
+directly:
+
+```java
+public record UpdateProfile(
+        UserId userId,
+        UserProfile profile) {
+    @AssertLegal
+    void assertOpen(UserAccount account) {
+        if (account.accountClosed()) {
+            throw new IllegalStateException("Account is closed");
+        }
+    }
+
+    @Apply
+    UserAccount apply(UserAccount account) {
+        return new UserAccount(
+                userId, profile,
+                account.accountClosed());
+    }
+}
+```
+
+Sending `UpdateProfile` is sufficient; Fluxzero resolves `UserId`, runs assertions and applies, and commits the model
+action without a boilerplate command handler. One payload may read or update multiple models.
+
+Related models remain independently stored:
+
+```java
+@Model(searchable = true)
+public record Address(
+        @EntityId AddressId addressId,
+        @ParentId(path = "addresses") UserId userId,
+        AddressDetails details) {
+}
+```
+
+Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
+injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`; `includeModelGraph()` can stitch current direct
+documents into a tree.
+
+Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
+lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
+stored and published. Direct searchable documents are synchronous with model-action completion.
+
+Load current state with `Fluxzero.loadModel(id)`. Directly affected models may also be injected into event and
+notification handlers as `T` or `Entity<T>`; they represent the exact model state at that event's action boundary.
+
+See the model-first [developer guides](docs/developer/guides/Modeling%20&%20persistence/170-entity-loading.mdx) for
+multi-model actions, temporal relationships, graph projections, conflict policies and hard deletion.
+
+## Legacy aggregate API (existing Fluxzero 1.x applications only)
+
+The following section documents the shared-root API for applications that already persist aggregate streams. Do not
+introduce it in new code. `@Model` plus `@Member` covers the intentional single-stream case; the aggregate API is
+scheduled for Java deprecation in Fluxzero 2.0. Migrating an existing aggregate requires a deliberate persistence
+migration and is not an annotation-only refactor.
+
+### Defining a legacy aggregate
 
 To define a stateful domain object, annotate it with `@Aggregate`:
 
@@ -3342,7 +3412,7 @@ Just keep in mind: logic that lives in updates is **easier to test, extend, and 
 
 ---
 
-## Applying Updates to Entities
+### Applying updates through the legacy aggregate API
 
 To change the state of an entity, use `Fluxzero.loadAggregate(...)` to retrieve the aggregate and apply updates to
 it.
@@ -3380,7 +3450,7 @@ This style is recommended if you want to ensure validations happen before the en
 
 ---
 
-## Nested Entities
+### Nested entities in a legacy aggregate
 
 Fluxzero allows aggregates to contain nested entities — for example, users with authorizations or orders with line
 items. These nested entities can be added, updated, or removed using the same `@Apply` pattern used for root aggregates.
@@ -3407,7 +3477,7 @@ public record Authorization(@EntityId AuthorizationId authorizationId,
 }
 ```
 
-### Adding a Child Entity
+#### Adding a Child Entity
 
 To add a nested entity like `Authorization`, simply return a new instance from the `@Apply` method:
 
@@ -3425,7 +3495,7 @@ public record AuthorizeUser(AuthorizationId authorizationId,
 
 The `UserAccount` aggregate is automatically updated to include this new child entity.
 
-### Removing a Child Entity
+#### Removing a Child Entity
 
 To remove a nested entity, return `null` from the `@Apply` method:
 
@@ -3460,7 +3530,7 @@ Flux will automatically prune the child entity with the given `authorizationId`.
 
 ---
 
-### Loading Entities and Aggregates
+#### Loading Entities and Aggregates
 
 Fluxzero supports a flexible and powerful approach to loading aggregates and their internal entities using
 `Fluxzero.loadAggregateFor(...)` and `Fluxzero.loadEntity(...)`.
@@ -3552,7 +3622,7 @@ Behavior:
 
 > Use `loadAggregateFor(entityId, Class<T>)` when you need type safety or to avoid relying on inference.
 
-### Alternative Entity Identifiers
+#### Alternative Entity Identifiers
 
 Fluxzero supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
 when:
@@ -3622,7 +3692,7 @@ Entity<UserAccount> entity = Fluxzero
 
 ---
 
-### 💡 Tip: Use `@Alias` on Strongly-Typed `Id<T>` Identifiers
+#### 💡 Tip: Use `@Alias` on Strongly-Typed `Id<T>` Identifiers
 
 While `@Alias` can be applied to any field or property, it's often more convenient and robust to use it on a
 strongly-typed identifier that extends `Id<T>`:
@@ -3651,7 +3721,7 @@ Entity<UserAccount> account = Fluxzero
 
 This makes aliasing more explicit and reusable—particularly useful in larger applications.
 
-### Routing Behavior
+#### Routing Behavior
 
 Flux automatically routes child-targeted updates like `AuthorizeUser` and `RevokeAuthorization` to the correct nested
 entity using the `@EntityId`. You don’t need to write custom matching logic — the routing works transparently as long
@@ -3660,7 +3730,7 @@ as:
 - The root aggregate is loaded (e.g. using `loadAggregate(userId)`), and
 - The update contains enough identifying information to locate the nested entity
 
-### Summary
+#### Summary
 
 This model leads to extremely clean domain logic:
 
@@ -3670,7 +3740,7 @@ This model leads to extremely clean domain logic:
 
 ---
 
-## Model Persistence
+### Persistence through the legacy aggregate API
 
 Fluxzero supports multiple strategies for storing and reloading aggregates:
 
@@ -3683,7 +3753,7 @@ each aggregate individually.
 
 ---
 
-### Event Sourcing
+#### Event Sourcing
 
 Event-sourced aggregates are reconstructed from their event history. When you load an aggregate
 (e.g. via `loadAggregate(...)`, `loadEntity(...)`, or `loadAggregateFor(...)`), Flux uses the following strategy to
@@ -3691,7 +3761,7 @@ restore its current state:
 
 ---
 
-### 1️⃣ Loading an Aggregate
+#### 1️⃣ Loading an Aggregate
 
 Fluxzero will attempt to resolve the **current state** of the aggregate or entity as follows:
 
@@ -3710,7 +3780,7 @@ graph.
 
 ---
 
-### 2️⃣ Applying Updates and Committing Changes
+#### 2️⃣ Applying Updates and Committing Changes
 
 Once an aggregate has been loaded, you can apply updates, e.g.: using `Entity#apply(...)`. Each update follows this
 lifecycle:
@@ -3753,7 +3823,7 @@ public record UserAccount(@EntityId UserId userId,
 }
 ```
 
-### Document Storage
+#### Document Storage
 
 Fluxzero also supports storing aggregates as documents in a searchable document store. This is useful for:
 
@@ -3791,7 +3861,7 @@ with **inconsistent state** between application instances.
 
 ---
 
-### Dual Persistence
+#### Dual Persistence
 
 You can combine both strategies by enabling both `eventSourced = true` and `searchable = true`.
 
@@ -3812,7 +3882,7 @@ This hybrid approach is ideal when you need both traceability and query speed.
 
 ---
 
-### Caching and Checkpoints
+#### Caching and Checkpoints
 
 Fluxzero automatically caches aggregates after loading or applying updates (unless `cached = false`). This allows:
 
@@ -3873,7 +3943,7 @@ In this example:
 
 ## Stateful Handlers
 
-While aggregates represent domain entities, Flux also supports long-lived **stateful handlers** for modeling workflows,
+While models represent domain entities, Flux also supports long-lived **stateful handlers** for modeling workflows,
 external interactions, or background processes that span multiple messages.
 
 To declare a stateful handler, annotate a class with `@Stateful`:
@@ -4020,7 +4090,7 @@ Stateful handlers are ideal for:
 - External **API orchestrations**
 - **Process managers** (e.g., order fulfillment, payment retry, etc.)
 
-They complement aggregates without competing with them — and allow modeling temporal behavior in a clean, event-driven
+They complement models without competing with them — and allow modeling temporal behavior in a clean, event-driven
 way.
 
 ---
@@ -4089,9 +4159,9 @@ documentStore.bulkUpdate("customCollection")
 
 ### Searchable Domain Models
 
-Many models in Flux (e.g. aggregates or stateful handlers) are automatically indexable:
+Many domain objects in Flux (e.g. models or stateful handlers) are automatically indexable:
 
-- `@Aggregate(searchable = true)`
+- `@Model(searchable = true)`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
@@ -4100,7 +4170,7 @@ manually.
 
 ```java
 
-@Aggregate(searchable = true)
+@Model(searchable = true)
 public record UserAccount(@EntityId UserId userId,
                           UserProfile profile,
                           boolean accountClosed) {
@@ -4108,11 +4178,11 @@ public record UserAccount(@EntityId UserId userId,
 ```
 
 By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden via an annotation like `@Aggregate`, `@Stateful` or `@Searchable` or in the search/index
+unless explicitly overridden via an annotation like `@Model`, `@Stateful` or `@Searchable` or in the search/index
 call:
 
 ```java
-@Aggregate(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+@Model(searchable = true, collection = "users", timestampPath = "profile/createdAt")
 ```
 
 ---
@@ -4465,7 +4535,7 @@ Fluxzero.search("expiredTokens")
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Aggregate(searchable = true)` or `@Stateful` for automatic indexing.
+- Use `@Model(searchable = true)` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 
 ---
@@ -5020,17 +5090,17 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+| `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.05.21
+fluxzero.defaults.version=2026.07.27
 ```
 
-This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
-explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
-`fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+This enables the package-scoped consumer default and all earlier versioned defaults. To choose one behavior explicitly
+without changing the defaults version, set the dedicated property directly. Existing applications that omit
+`fluxzero.defaults.version` retain the original shared application consumer and immediate implicit periodic start.
 
 ### Encrypted Values
 
@@ -5371,7 +5441,7 @@ public class MyCustomizer implements FluxzeroCustomizer {
 #### Consumer and Tracking Configuration
 
 - `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer template
-  per message type. In `perHandler` mode this template is copied for generated handler consumers; in
+  per message type. In `perPackage` and `perHandler` modes this template is copied for generated consumers; in
   `defaultAppConsumer` mode it is the shared fallback consumer.
 - `addConsumerConfiguration(...)` to register additional consumers for selected message types.
 - `forwardWebRequestsToLocalServer(...)` to redirect incoming `@HandleWeb` calls to an existing local HTTP
@@ -5395,7 +5465,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
 
 #### Caching and Snapshotting
 
-- `replaceCache(...)` and `withAggregateCache(...)` to plug in custom caching backends.
+- `replaceCache(...)` to plug in a custom cache backend. `withAggregateCache(...)` configures only the legacy 1.x
+  aggregate cache.
 - `replaceRelationshipsCache(...)` for customizing the cache used in association-based message routing.
 - `replaceSnapshotSerializer(...)` if you want to store snapshots differently from events.
 
@@ -5435,7 +5506,7 @@ These methods disable internal features as needed:
 | `disableMessageCorrelation()`        | Skips automatic correlation ID injection                           |
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
-| `disableAutomaticAggregateCaching()` | Skips aggregate cache setup                                        |
+| `disableAutomaticAggregateCaching()` | Legacy 1.x: skips aggregate cache setup                            |
 | `disableScheduledCommandHandler()`   | Removes default handler for scheduled commands                     |
 | `disableTrackingMetrics()`           | Prevents emitting metrics during message tracking                  |
 | `disableCacheEvictionMetrics()`      | Disables cache eviction telemetry                                  |
@@ -5501,7 +5572,7 @@ Fluxzero exposes several core components as Spring beans, making them easy to in
 | `ErrorGateway`         | Report errors manually                                        |
 | `ResultGateway`        | Manually publish results from asynchronous flows              |
 | `MessageScheduler`     | Schedule commands or other messages in the future             |
-| `AggregateRepository`  | Load and store aggregates                                     |
+| `AggregateRepository`  | Legacy 1.x aggregate persistence compatibility                |
 | `DocumentStore`        | Search, filter, and persist document models                   |
 | `KeyValueStore`        | Access key-value persisted state                              |
 

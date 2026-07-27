@@ -43,77 +43,58 @@ eliminates infrastructure boilerplate and ensures your logic is consistent, test
 
 Used for messages that intend to change state.
 
-**Example: Self-Handling Command (Interface Pattern)**
+**Automatic model commands**
 
-Recommended for updates to aggregates. Combined with `@TrackSelf` to ensure asynchronous tracking. The `@Consumer`
-annotation creates an isolated named consumer, allowing this command type to be tracked and processed independently.
+Commands that define model `@Apply` methods need no `@HandleCommand`. Fluxzero resolves typed IDs and performs the
+model action automatically. Use `@Consumer` only when this command needs an explicit consumer override; otherwise the
+configured package consumer handles it.
 
-[//]: # (@formatter:off)
-```java
-@TrackSelf
-@Consumer(name = "user-update")
-public interface UserUpdate {
-    @NotNull
-    @RoutingKey
-    UserId userId();
-
-    @HandleCommand
-    default UserProfile handle() {
-        return Fluxzero.loadAggregate(userId())
-                .assertAndApply(this)
-                .get();
-    }
-}
-```
-[//]: # (@formatter:on)
-
-**Example: Creating, Updating, and Deleting Aggregates**
+**Example: Creating, Updating, and Deleting Models**
 
 [//]: # (@formatter:off)
 ```java
-// 1. Create Aggregate
-public record CreateProject(ProjectId projectId, @NotNull @Valid ProjectDetails details) implements ProjectUpdate {
+// 1. Create model
+public record CreateProject(ProjectId projectId, @NotNull @Valid ProjectDetails details) {
     @Apply
     Project apply() {
         return Project.builder().projectId(projectId).details(details).build();
     }
 }
 
-// 2. Update Aggregate
-public record UpdateProjectDetails(ProjectId projectId, @NotNull @Valid ProjectDetails details) implements ProjectUpdate {
+// 2. Update model
+public record UpdateProjectDetails(ProjectId projectId, @NotNull @Valid ProjectDetails details) {
     @Apply
     Project apply(Project project) {
         return project.toBuilder().details(details).build();
     }
 }
 
-// 3. Delete Aggregate
-public record DeleteProject(ProjectId projectId) implements ProjectUpdate {
+// 3. Logically delete model
+public record DeleteProject(ProjectId projectId) {
     @Apply
     Project apply(Project project) {
-        return null; // Clears the aggregate value (but leaves the stored events)
+        return null; // Clears current state but preserves model events
     }
 }
 ```
 [//]: # (@formatter:on)
 
-**Example: Creating, Updating, and Deleting Sub-Entities**
+**Example: Independently stored child model**
 
-Sub-Entities can be added without modifying the parent aggregate directly. Fluxzero will take of updating the parent
-aggregate's state automatically.
+Use `@ParentId` on the child model. Creating or updating it does not rewrite the parent.
 
 [//]: # (@formatter:off)
 ```java
-// 1. Create Sub-Entity (Task within Project)
-public record CreateTask(ProjectId projectId, @NotNull TaskId taskId, @NotNull @Valid TaskDetails details) implements ProjectUpdate {
+// Task is @Model and has @ParentId(path = "tasks") ProjectId projectId.
+public record CreateTask(ProjectId projectId, @NotNull TaskId taskId, @NotNull @Valid TaskDetails details) {
     @Apply
     Task apply() {
-        return Task.builder().taskId(taskId).details(details).build();
+        return Task.builder().taskId(taskId).projectId(projectId).details(details).build();
     }
 }
 
 // 2. Update Sub-Entity
-public record UpdateTaskStatus(ProjectId projectId, @NotNull TaskId taskId, boolean completed) implements ProjectUpdate {
+public record UpdateTaskStatus(@NotNull TaskId taskId, boolean completed) {
     @Apply
     Task apply(Task task) {
         return task.toBuilder().completed(completed).build();
@@ -121,7 +102,7 @@ public record UpdateTaskStatus(ProjectId projectId, @NotNull TaskId taskId, bool
 }
 
 // 3. Delete Sub-Entity
-public record RemoveTask(ProjectId projectId, @NotNull TaskId taskId) implements ProjectUpdate {
+public record RemoveTask(@NotNull TaskId taskId) {
     @Apply
     Task apply(Task task) {
         return null; // Deletes the entity
@@ -132,7 +113,8 @@ public record RemoveTask(ProjectId projectId, @NotNull TaskId taskId) implements
 
 **Example: Standalone Command Handler**
 
-Used for actions that don't directly target an aggregate's state (e.g., sending an external notification).
+Used for orchestration or actions that do not define a model transition. An explicit handler that does update models
+should call `Fluxzero.assertAndApply(update)` once.
 
 [//]: # (@formatter:off)
 ```java
@@ -161,7 +143,7 @@ Prefer creating a dedicated query payload (with `@HandleQuery`) for data retriev
 public record GetUserProfile(@NotNull UserId userId) implements Request<UserProfile> {
     @HandleQuery
     UserProfile handleQuery() {
-        return Fluxzero.loadAggregate(userId).get();
+        return Fluxzero.loadModel(userId).get();
     }
 }
 ```
@@ -184,7 +166,7 @@ in the publication thread. Without `@LocalHandler`, a standalone handler default
 class UserQueryHandler {
     @HandleQuery
     UserProfile handle(GetUserProfile query) {
-        return Fluxzero.loadAggregate(query.userId()).get();
+        return Fluxzero.loadModel(query.userId()).get();
     }
 }
 ```
@@ -220,12 +202,18 @@ Used for side effects like sending emails or updating secondary projections with
 @Consumer(name = "analytics")
 class AnalyticsHandler {
     @HandleEvent
-    void handle(CreateOrder event) {
-        // Asynchronous logic
+    void handle(CreateOrder event,
+                Order order,
+                Entity<Order> entity) {
+        // order/entity are exact state after this model event.
     }
 }
 ```
 [//]: # (@formatter:on)
+
+Directly affected models can be injected as `T` or `Entity<T>` when the event carries a model-action boundary. Use
+`@Association("payloadProperty")` for same-type ambiguity. `Entity<T>` can be empty after logical deletion; bare
+non-null `T` only matches a present model. Ordinary events do not receive an arbitrary current model.
 
 #### @HandleNotification
 
@@ -811,4 +799,5 @@ public class ProjectId extends Id<Project> {
 ## Common Pitfalls
 
 - **Infrastructure in Handlers**: Don't build 'services' or use SQL. Use queries or load entities directly.
-- **Aggregates Handling Messages**: Aggregates should be kept as "dumb" immutable state holders.
+- **Models Handling Messages**: Models should be kept as "dumb" immutable state holders; put transitions on update
+  payloads.

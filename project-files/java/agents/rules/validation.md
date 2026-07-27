@@ -226,7 +226,7 @@ public class UserQueryHandler {
     @HandleQuery
     @FilterContent // Enables recursive filtering for the result
     public UserProfile handle(GetUserProfile query) {
-        return Fluxzero.loadAggregate(query.userId()).get();
+        return Fluxzero.loadModel(query.userId()).get();
     }
 }
 ```

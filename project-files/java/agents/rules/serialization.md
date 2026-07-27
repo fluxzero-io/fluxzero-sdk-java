@@ -156,7 +156,7 @@ public class LegacyProjectEndpoint {
     
     @HandleGet("/{id}")
     public Object getLegacyProject(@PathParam ProjectId id) {
-        Project modernProject = Fluxzero.loadAggregate(id).get();
+        Project modernProject = Fluxzero.loadModel(id).get();
         
         // Manually downcasting to Revision 1 for legacy V1 clients
         return Fluxzero.downcast(modernProject, 1);

@@ -43,77 +43,57 @@ eliminates infrastructure boilerplate and ensures your logic is consistent, test
 
 Used for messages that intend to change state.
 
-**Example: Self-Handling Command (Interface Pattern)**
+**Automatic model commands**
 
-Recommended for updates to aggregates. Combined with `@TrackSelf` to ensure asynchronous tracking. The `@Consumer`
-annotation creates an isolated named consumer, allowing this command type to be tracked and processed independently.
+Commands that define model `@Apply` methods need no `@HandleCommand`. Fluxzero resolves typed IDs and performs the
+model action automatically. Use `@Consumer` only for an explicit consumer override.
 
-[//]: # (@formatter:off)
-```kotlin
-@TrackSelf
-@Consumer(name = "user-update")
-interface UserUpdate {
-    @NotNull
-    @RoutingKey
-    fun userId(): UserId
-
-    @HandleCommand
-    fun handle(): UserProfile {
-        return Fluxzero.loadAggregate(userId())
-            .assertAndApply(this)
-            .get()
-    }
-}
-```
-[//]: # (@formatter:on)
-
-**Example: Creating, Updating, and Deleting Aggregates**
+**Example: Creating, Updating, and Deleting Models**
 
 [//]: # (@formatter:off)
 ```kotlin
-// 1. Create Aggregate
-data class CreateProject(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) : ProjectUpdate {
+// 1. Create model
+data class CreateProject(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) {
     @Apply
     fun apply(): Project {
         return Project(projectId = projectId, details = details)
     }
 }
 
-// 2. Update Aggregate
-data class UpdateProjectDetails(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) : ProjectUpdate {
+// 2. Update model
+data class UpdateProjectDetails(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) {
     @Apply
     fun apply(project: Project): Project {
         return project.copy(details = details)
     }
 }
 
-// 3. Delete Aggregate
-data class DeleteProject(val projectId: ProjectId) : ProjectUpdate {
+// 3. Logically delete model
+data class DeleteProject(val projectId: ProjectId) {
     @Apply
     fun apply(project: Project): Project? {
-        return null // Clears the aggregate value (but leaves the stored events)
+        return null // Clears current state but preserves model events
     }
 }
 ```
 [//]: # (@formatter:on)
 
-**Example: Creating, Updating, and Deleting Sub-Entities**
+**Example: Independently stored child model**
 
-Sub-Entities can be added without modifying the parent aggregate directly. Fluxzero will take of updating the parent
-aggregate's state automatically.
+Use `@ParentId` on the child model. Creating or updating it does not rewrite the parent.
 
 [//]: # (@formatter:off)
 ```kotlin
-// 1. Create Sub-Entity (Task within Project)
-data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) : ProjectUpdate {
+// Task is @Model and has @ParentId(path = "tasks") ProjectId projectId.
+data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) {
     @Apply
     fun apply(): Task {
-        return Task(taskId = taskId, details = details)
+        return Task(taskId = taskId, projectId = projectId, details = details)
     }
 }
 
 // 2. Update Sub-Entity
-data class UpdateTaskStatus(val projectId: ProjectId, @field:NotNull val taskId: TaskId, val completed: Boolean) : ProjectUpdate {
+data class UpdateTaskStatus(@field:NotNull val taskId: TaskId, val completed: Boolean) {
     @Apply
     fun apply(task: Task): Task {
         return task.copy(completed = completed)
@@ -121,7 +101,7 @@ data class UpdateTaskStatus(val projectId: ProjectId, @field:NotNull val taskId:
 }
 
 // 3. Delete Sub-Entity
-data class RemoveTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId) : ProjectUpdate {
+data class RemoveTask(@field:NotNull val taskId: TaskId) {
     @Apply
     fun apply(task: Task): Task? {
         return null // Deletes the entity
@@ -132,7 +112,8 @@ data class RemoveTask(val projectId: ProjectId, @field:NotNull val taskId: TaskI
 
 **Example: Standalone Command Handler**
 
-Used for actions that don't directly target an aggregate's state (e.g., sending an external notification).
+Used for orchestration or actions that do not define a model transition. An explicit handler that does update models
+should call `Fluxzero.assertAndApply(update)` once.
 
 [//]: # (@formatter:off)
 ```kotlin
@@ -161,7 +142,7 @@ Prefer creating a dedicated query payload (with `@HandleQuery`) for data retriev
 data class GetProjectDetails(@field:NotNull val projectId: ProjectId) : Request<Project> {
     @HandleQuery
     fun handleQuery(): Project {
-        return Fluxzero.loadAggregate(projectId).get()
+        return Fluxzero.loadModel(projectId).get()
     }
 }
 
@@ -177,7 +158,7 @@ val project = Fluxzero.query(GetProjectDetails(myId))
 data class GetUserProfile(@field:NotNull val userId: UserId) : Request<UserProfile> {
     @HandleQuery
     fun handleQuery(): UserProfile {
-        return Fluxzero.loadAggregate(userId).get()
+        return Fluxzero.loadModel(userId).get()
     }
 }
 ```
@@ -200,7 +181,7 @@ in the publication thread. Without `@LocalHandler`, a standalone handler default
 class UserQueryHandler {
     @HandleQuery
     fun handle(query: GetUserProfile): UserProfile {
-        return Fluxzero.loadAggregate(query.userId).get()
+        return Fluxzero.loadModel(query.userId).get()
     }
 }
 ```
@@ -231,12 +212,20 @@ Used for side effects like sending emails or updating secondary projections with
 @Component
 class AnalyticsHandler {
     @HandleEvent
-    fun handle(event: CreateOrder) {
-        // Asynchronous logic
+    fun handle(
+        event: CreateOrder,
+        order: Order,
+        entity: Entity<Order>
+    ) {
+        // Exact state after this model event.
     }
 }
 ```
 [//]: # (@formatter:on)
+
+Directly affected models can be injected as `T` or `Entity<T>` when the event carries a model-action boundary. Use
+`@Association("payloadProperty")` for same-type ambiguity. `Entity<T>` can be empty after logical deletion; bare
+non-null `T` only matches a present model. Ordinary events do not receive an arbitrary current model.
 
 #### @HandleNotification
 
@@ -820,4 +809,5 @@ class ProjectId(id: String) : Id<Project>(id)
 ## Common Pitfalls
 
 - **Infrastructure in Handlers**: Don't build 'services' or use SQL. Use queries or load entities directly.
-- **Aggregates Handling Messages**: Aggregates should be kept as "dumb" immutable state holders.
+- **Models Handling Messages**: Models should be kept as "dumb" immutable state holders; put transitions on update
+  payloads.

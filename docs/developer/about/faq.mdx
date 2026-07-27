@@ -59,7 +59,7 @@ Traditional frameworks require you to manage HTTP routing, database connections,
 <details>
 <summary>**Do I need to learn event sourcing to use Fluxzero?**</summary>
 
-No. While Fluxzero supports event sourcing as the default persistence strategy for aggregates, you don't need to understand event sourcing to get started. You can begin by writing simple message handlers and gradually learn more advanced patterns as needed.
+No. Event sourcing is the default model load strategy, but you can start with model actions without understanding its internals and learn advanced persistence patterns later.
 
 Event sourcing is just one of many patterns available in Fluxzero. You can also use document-based storage for simpler use cases.
 
@@ -93,7 +93,7 @@ The productivity gains are often most noticeable in small to medium projects whe
 
 Fluxzero abstracts away database complexity completely. You don't write SQL queries, manage connections, or handle transactions manually.
 
-For aggregates, Fluxzero uses event sourcing by default, storing events in an optimized format. For other data, you can use document-based storage with automatic indexing and search capabilities.
+Models use event sourcing by default and may instead load current state from a synchronously maintained direct document. Both modes can store and publish model events.
 
 All persistence is handled transparently by the platform.
 
@@ -190,7 +190,7 @@ Fluxzero provides comprehensive observability out of the box:
 
 Since Fluxzero manages your database schema automatically, you don't need to write database migrations. The platform handles schema evolution transparently.
 
-When you change your message or aggregate structures, we provide best practises for versioning your messages to ensure backward compatibility.
+When you change message or model structures, follow the versioning and upcasting guidance to preserve persisted-data compatibility.
 
 </details>
 

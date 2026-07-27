@@ -1012,6 +1012,66 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 - [x] Re-run focused SDK/runtime suites, both full reactors, site/Javadoc and downstream compatibility, then perform a
   separate regression-only review of storage ordering, event replay, cache lifecycle, and hot-path allocation.
 
+## Phase 13 — Model-first completion and public rollout
+
+Phase 13 removes the remaining reasons for application developers to choose the legacy aggregate API. A `@Model` may
+still own embedded `@Member` values when one stream, document, cache and lifecycle are genuinely desired; independent
+models and `@ParentId` remain the default for movable or independently searchable children. Human and agent-facing
+documentation therefore teaches only the model vocabulary. `@Aggregate` is retained for binary/source compatibility
+through 1.x, documented only as a legacy migration source, and scheduled for Java deprecation in Fluxzero 2.0.
+
+### Slice 13.1 — Executable aggregate/model contract parity
+
+- [x] Turn the parity inventory into shared executable contracts for every externally identical persistence behavior;
+  do not infer parity from separate green test classes.
+- [x] Cover creation, update, logical delete, recreation, event storage/publication variants, direct search visibility,
+  event-sourced and document-based loading, snapshots, `Entity.previous()`, namespace isolation, synchronous and
+  asynchronous fixture completion, assertion/interceptor failures, metadata propagation and unknown-event behavior.
+- [x] Extend real websocket/runtime integration coverage for document-loaded models, conflicts, moves/detaches,
+  hard/cascading deletion, remote cache tracking and exact event-handler model injection.
+- [x] Keep embedded-member traversal and old aggregate routing explicitly legacy-only. Add equivalent model-plus-member
+  coverage where the observable contract is intentionally retained.
+
+### Slice 13.2 — Model parameters in event and notification handlers
+
+- [x] Add a dedicated parameter resolver for `@Model` values and `Entity<Model>` wrappers in `@HandleEvent` and
+  `@HandleNotification` methods. Keep it separate from the legacy aggregate resolver.
+- [x] Resolve direct targets using the same canonical `@EntityId`, unique typed `Id<Model>` and parameter-level
+  `@Association("payloadProperty")` rules as model applies.
+- [x] Load from the handler consumer namespace at the exact persisted action/substep boundary. Never leak a newer
+  current-cache value into event handling or replay.
+- [x] Deduplicate loads within one handled message; inject an empty `Entity<T>` for a missing/deleted target and match a
+  bare `T` only when a value is present.
+- [x] Add direct tests for unrelated models in `@AssertLegal`, multiple same-type event targets, document-loaded models,
+  logical deletion, namespace isolation, notifications, and tracker-ahead/cache-ahead histories.
+
+### Slice 13.3 — Package-scoped unconfigured consumers
+
+- [x] Add `perPackage` beside `perHandler` and `defaultAppConsumer`. Generate one stable consumer per exact handler
+  package and message type while preserving explicit class/package `@Consumer` and custom configurations as more
+  specific.
+- [x] Select `perPackage` only behind a new `fluxzero.defaults.version`; existing applications retain their configured
+  or historical mode.
+- [x] Apply the command payload package to automatic model handlers so loose command classes need neither a marker
+  interface nor individual consumers.
+- [x] Keep generated-name behavior, package-renaming consequences, ordering, failure isolation, `TestFixture` parity and
+  Java/Kotlin downstream compatibility explicit and tested.
+
+### Slice 13.4 — Model-only human and agent manuals
+
+- [x] Rewrite the modeling, loading, updating, nesting, persistence and search guides around `@Model`,
+  `Fluxzero.loadModel`, automatic handling, `Fluxzero.assertAndApply`, independent `@ParentId` relations and optional
+  embedded `@Member` values.
+- [x] Document event-sourced versus document-based load semantics, direct synchronous search, stitched graph search and
+  projections, conflict policies, exact event-handler injection, model cache tracking and logical/hard/cascading
+  deletion.
+- [x] Rewrite Java and Kotlin agent rules to recommend `@Model` exclusively. Mention `@Aggregate` only in a concise
+  legacy migration section and never generate it for new code.
+- [x] Mark `@Aggregate`, aggregate loading APIs and aggregate-specific examples as legacy throughout 1.x documentation;
+  add the actual Java `@Deprecated` marker and migration link when the repository starts the 2.0 line.
+- [x] Build the documentation site, Javadoc and all downstream examples and reject remaining prescriptive `@Aggregate`
+  references outside explicit legacy/compatibility material.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1232,3 +1292,15 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   (625 runtime tests), as did SDK site/Javadoc, test-server, proxy, annotation processing, and Java/Kotlin downstream
   compatibility. Measurements and the explicit split-database crash limitation are retained in the
   [Phase 12 report](dynamic-model-boundaries-phase-12-cache-tracking.md).
+- 2026-07-27 — Phase 13 (`SDK 2737dd80ab8`, `b13a59dc546`, `b1265fe2d7f`; runtime `f47a62fa`) makes the
+  public rollout model-first. Tracked event/notification handlers inject `T` and `Entity<T>` at the exact model-action
+  boundary; unconfigured handlers can share a version-gated consumer per exact package; and one executable parity suite
+  runs lifecycle, publication, search, rollback, snapshot and embedded-member contracts against aggregates and models.
+  The runtime integration suite now covers direct and document-loaded models, exact event injection, logical/hard
+  deletion, ancestors, projections and moves, and hard erasure works even before the first snapshot partition exists.
+  Focused SDK verification passed 88 tests and focused runtime/JDBC verification passed 99 tests. Both full reactors
+  passed, including Java/Kotlin downstream projects, 1,925 SDK tests and 632 runtime tests; site/Javadoc also passed.
+  Human and Java/Kotlin agent manuals now prescribe `@Model`, treat `@Model` plus `@Member` as the intentional
+  single-stream option, and confine `@Aggregate` to 1.x migration compatibility. Java deprecation remains reserved for
+  Fluxzero 2.0. The [Phase 13 report](dynamic-model-boundaries-phase-13-rollout.md) records the final coverage and
+  compatibility contract.
