@@ -29,6 +29,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
@@ -77,6 +78,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final int maxConflictRetries;
     private final AutomaticModelHandling automaticHandling;
     private final GraphProjectionCompletion graphProjectionCompletion;
+    private final ModelActionCoordinator actionCoordinator =
+            new ModelActionCoordinator();
     private final Serializer serializer;
     private final EventStoreClient eventStoreClient;
     private final List<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
@@ -466,8 +469,49 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Object> executeRegistered(
             DeserializingMessage message) {
-        ModelActionEngine.ActionEvaluation evaluation =
+        ModelActionEngine.ActionEvaluation initialEvaluation =
                 evaluate(message);
+        if (ModelConflictPolicies.resolve(
+                initialEvaluation,
+                conflictPolicy)
+            != ModelConflictPolicy.ACCEPT) {
+            return executeEvaluation(
+                    message,
+                    initialEvaluation);
+        }
+        ThreadLocalContext.Snapshot context =
+                ThreadLocalContext.capture();
+        return actionCoordinator.coordinate(
+                initialEvaluation.readModelIds(),
+                contended -> {
+                    if (!contended) {
+                        return context.supply(
+                                () -> executeEvaluation(
+                                        message,
+                                        initialEvaluation));
+                    }
+                    /*
+                     * The predecessor commonly completes on the websocket result callback. A fresh evaluation may
+                     * synchronously load a model, so it must not make that callback wait for a response that the same
+                     * callback has to dispatch.
+                     */
+                    return CompletableFuture
+                            .supplyAsync(
+                                    context.wrap(
+                                            () -> evaluate(
+                                                    message)))
+                            .thenCompose(
+                                    context.wrap(
+                                            evaluation ->
+                                                    executeEvaluation(
+                                                            message,
+                                                            evaluation)));
+                });
+    }
+
+    private CompletableFuture<Object> executeEvaluation(
+            DeserializingMessage message,
+            ModelActionEngine.ActionEvaluation evaluation) {
         ModelConflictPolicy effectiveConflictPolicy =
                 ModelConflictPolicies.resolve(
                         evaluation,

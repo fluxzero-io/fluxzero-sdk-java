@@ -1157,6 +1157,47 @@ observe, so they need one adversarial correctness and performance review.
   deletion/GDPR, shutdown, allocations, and 100-GB/min operational assumptions.
 - [x] Publish a Phase 14 report with corrected rollout status, remaining deployment gates, and rollback/runbook updates.
 
+## Phase 15 — Contention-aware model-action performance
+
+This corrective phase rejects the Phase 14 short `ZIPF` result as a generic model-mutation baseline. Conflict-free
+throughput and same-model contention are separate contracts and must remain separately measurable.
+
+### Slice 15.1 — Honest paired workload taxonomy
+
+- [x] Make the retained benchmark print distinct targets, hottest leaf/root shares, repeated same-leaf batches,
+  duplicate target slots and maximum same-leaf fan-in.
+- [x] Retain `UNIFORM` as the conflict-free aggregate/model baseline and label `ZIPF`/`HOT` explicitly as contention
+  profiles.
+- [x] Compare event-only and searchable mutations separately so synchronous direct-document visibility is not hidden
+  inside a generic write number.
+
+### Slice 15.2 — Preserve independent runtime batching around hot keys
+
+- [x] Replace the all-or-nothing optimistic model-action batch decision with ordered conflict-free `ACCEPT` waves.
+- [x] Keep independent actions batched when another model repeats, while preserving per-target write order and strict
+  `FAIL`/`RETRY` barriers.
+- [x] Cover independent actions around a hot model and write-only target ordering with deterministic planner tests.
+
+### Slice 15.3 — Local single-writer fast path
+
+- [x] Coordinate overlapping default-`ACCEPT` model read sets within one SDK without serializing disjoint models or
+  changing strict `FAIL`/`RETRY` conflict behavior.
+- [x] Re-evaluate a waiter against the predecessor's committed cache state before sending it to the runtime.
+- [x] Acquire a complete multi-model read set atomically, release it after failures, and retain authoritative runtime
+  conflict checks for remote writers.
+- [x] Offload only contended re-evaluation from websocket result callbacks while restoring the complete request
+  context.
+
+### Slice 15.4 — Re-certification and correction
+
+- [x] Run focused coordinator, registry, committer, JDBC store and benchmark-compilation suites.
+- [x] Run both complete Maven reactors and `git diff --check`.
+- [x] Retain 10,000-action conflict-free and skewed event-only measurements plus searchable comparison.
+- [x] Correct the Phase 14 report and publish the
+  [Phase 15 report](dynamic-model-boundaries-phase-15-contention-performance.md).
+- [x] Repair the retained PostgreSQL 18 benchmark compose mount without deleting or rewriting an existing benchmark
+  data directory.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1402,3 +1443,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   641 runtime tests. The retained paired-tree, mixed event-log, and 1/2/10/100-target measurements—plus the explicit
   100-GB/min deployment gate and rollback/runbook—are recorded in the
   [Phase 14 report](dynamic-model-boundaries-phase-14-hardening.md).
+- 2026-07-27 — Phase 15 (SDK: this commit; runtime `a0fce8ef`) corrects the misleading Phase 14 hot-key conclusion.
+  Default-`ACCEPT` actions now coordinate overlapping local read sets before commit, while the runtime retains
+  independent optimistic batches as ordered conflict-free waves. Strict conflict policies and cross-process runtime
+  authority are unchanged. Focused verification passed 28 SDK and 78 JDBC tests; both full reactors passed, including
+  1,941 SDK and 643 runtime tests plus protocol, test-server, proxy, annotation-processing, Java/Kotlin downstream and
+  benchmark compilation. The retained conflict-free 10,000-action comparison measured models at 1,493.9 versus
+  aggregates at 1,089.0 actions/s (1.372×), with 59% less WAL and 50% less allocation. The deliberately skewed profile
+  improved from 0.265× to 0.773× aggregate throughput; its remaining same-model serialization boundary is explicit in
+  the [Phase 15 report](dynamic-model-boundaries-phase-15-contention-performance.md).

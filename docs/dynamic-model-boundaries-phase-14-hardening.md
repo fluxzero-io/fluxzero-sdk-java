@@ -127,6 +127,11 @@ audit event remains independent.
 
 These local PostgreSQL numbers are comparisons, not a production capacity claim.
 
+> **Correction (2026-07-27):** the paired table below used a deterministic `ZIPF` workload in which every concurrency
+> batch contained repeated writes to the same model. It is a contention diagnostic, not the conflict-free mutation
+> baseline. The claim that model mutations were intrinsically about 2.5 times slower is superseded by the
+> [Phase 15 contention report](dynamic-model-boundaries-phase-15-contention-performance.md).
+
 ### Equivalent aggregate/model tree
 
 The paired shape has four roots; three primary children per root; four leaves and two detail children per primary; and
@@ -147,9 +152,10 @@ three secondary plus three tertiary children per root. Both implementations muta
 | materialized root-search p50 | n/a | 0.513 ms | async CQRS restores the fast root path |
 | searchable WAL / allocation | 5.13 MB / 260.5 MB | 6.61 MB / 458.0 MB | explicit sizing gate |
 
-Small hot aggregate mutations remain roughly 2.5× faster in this shape. Independent models pay that write cost to
-avoid loading and rewriting a permanent aggregate tree; their direct leaf read is materially faster. Searchable tree
-materialization is therefore an opt-in workload decision, not a free default.
+This original table exposed an avoidable all-or-nothing runtime batch fallback and repeated SDK rebase round trips for
+same-model writes. It must not be generalized to independent model mutations. Phase 15 removes those multipliers and
+reports conflict-free and skewed workloads separately. Searchable tree materialization remains an opt-in workload
+decision, not a free default.
 
 ### Mixed global event log
 
