@@ -132,6 +132,7 @@ import static java.util.stream.Collectors.toSet;
 @Slf4j
 public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
+    private static final LocalDate PER_PACKAGE_DEFAULTS_VERSION = LocalDate.of(2026, 7, 27);
     private static final CompletionStage<Void> completedReport = CompletableFuture.completedFuture(null);
 
     private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
@@ -312,14 +313,15 @@ public class DefaultTracking implements Tracking {
      */
     private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(Fluxzero fluxzero, List<?> handlers) {
         List<ConsumerConfiguration> explicitConfigurations = explicitConfigurations(handlers).toList();
-        if (useSharedDefaultAppConsumerForUnconfiguredHandlers(fluxzero)) {
+        UnconfiguredHandlerConsumerMode mode = unconfiguredHandlerConsumerMode(fluxzero.propertySource());
+        if (mode == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER) {
             return assignHandlersToConsumers(
                     handlers, Stream.concat(explicitConfigurations.stream(), defaultConfigurations.stream()));
         }
         List<Object> fallbackHandlers = fallbackHandlers(handlers, explicitConfigurations);
         return assignHandlersToConsumers(
                 handlers, Stream.concat(explicitConfigurations.stream(),
-                                        defaultConsumerConfigurations(fluxzero, fallbackHandlers)));
+                                        defaultConsumerConfigurations(fluxzero, fallbackHandlers, mode)));
     }
 
     private Stream<ConsumerConfiguration> explicitConfigurations(List<?> handlers) {
@@ -363,16 +365,14 @@ public class DefaultTracking implements Tracking {
         return result;
     }
 
-    private static boolean useSharedDefaultAppConsumerForUnconfiguredHandlers(Fluxzero fluxzero) {
-        return unconfiguredHandlerConsumerMode(fluxzero.propertySource())
-               == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
-    }
-
     private static UnconfiguredHandlerConsumerMode unconfiguredHandlerConsumerMode(PropertySource propertySource) {
         String configuredMode = propertySource.get(
                 ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY);
         if (configuredMode != null) {
             return parseUnconfiguredHandlerConsumerMode(configuredMode);
+        }
+        if (defaultsVersionAtLeast(propertySource, PER_PACKAGE_DEFAULTS_VERSION)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
         }
         return defaultsVersionUsesPerHandlerConsumers(propertySource)
                 ? UnconfiguredHandlerConsumerMode.PER_HANDLER
@@ -384,13 +384,17 @@ public class DefaultTracking implements Tracking {
         if (ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.PER_HANDLER;
         }
+        if (ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
+        }
         if (ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
         }
         throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                 "Invalid unconfigured handler consumer mode",
-                "Property `%s` must be `%s` or `%s`, but found `%s`.".formatted(
+                "Property `%s` must be `%s`, `%s` or `%s`, but found `%s`.".formatted(
                         ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                        ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE,
                         ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE,
                         ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE, mode),
                 "Set a supported mode, or remove the property to derive the default from `%s`.".formatted(
@@ -399,8 +403,13 @@ public class DefaultTracking implements Tracking {
     }
 
     private static boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
+        return defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+    }
+
+    private static boolean defaultsVersionAtLeast(
+            PropertySource propertySource, LocalDate version) {
         try {
-            return ApplicationProperties.defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+            return ApplicationProperties.defaultsVersionAtLeast(propertySource, version);
         } catch (IllegalArgumentException e) {
             throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                     "Invalid Fluxzero defaults version",
@@ -412,6 +421,7 @@ public class DefaultTracking implements Tracking {
 
     private enum UnconfiguredHandlerConsumerMode {
         DEFAULT_APP_CONSUMER,
+        PER_PACKAGE,
         PER_HANDLER
     }
 
@@ -449,11 +459,18 @@ public class DefaultTracking implements Tracking {
                 null, a.getName()));
     }
 
-    private Stream<ConsumerConfiguration> defaultConsumerConfigurations(Fluxzero fluxzero, List<Object> handlers) {
+    private Stream<ConsumerConfiguration> defaultConsumerConfigurations(
+            Fluxzero fluxzero,
+            List<Object> handlers,
+            UnconfiguredHandlerConsumerMode mode) {
         if (handlers.isEmpty() || defaultConfigurations.isEmpty()) {
             return Stream.empty();
         }
         ConsumerConfiguration template = defaultConfigurations.getFirst();
+        if (mode == UnconfiguredHandlerConsumerMode.PER_PACKAGE) {
+            return defaultPackageConsumerConfigurations(
+                    fluxzero.client().name(), template, handlers);
+        }
         List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().toList();
         Map<String, Integer> simpleNameCounts = new HashMap<>();
         handlerTypes.stream().map(DefaultTracking::consumerSimpleName)
@@ -461,6 +478,31 @@ public class DefaultTracking implements Tracking {
         return handlerTypes.stream().map(handlerType -> defaultConsumerConfiguration(
                 fluxzero.client().name(), template, handlerType,
                 simpleNameCounts.get(consumerSimpleName(handlerType)) > 1));
+    }
+
+    private static Stream<ConsumerConfiguration> defaultPackageConsumerConfigurations(
+            String applicationName,
+            ConsumerConfiguration template,
+            List<Object> handlers) {
+        return handlers.stream()
+                .map(ReflectionUtils::asClass)
+                .filter(Objects::nonNull)
+                .map(Class::getPackageName)
+                .distinct()
+                .map(packageName -> {
+                    Predicate<Object> handlerFilter = handler -> {
+                        Class<?> handlerType = ReflectionUtils.asClass(handler);
+                        return handlerType != null
+                               && handlerType.getPackageName().equals(packageName);
+                    };
+                    String packageKey = packageName.isBlank()
+                            ? "default" : packageName.replace('.', '_');
+                    return template.toBuilder()
+                            .name(defaultApplicationConsumerName(
+                                    applicationName, "package_" + packageKey))
+                            .handlerFilter(template.getHandlerFilter().and(handlerFilter))
+                            .build();
+                });
     }
 
     private static ConsumerConfiguration defaultConsumerConfiguration(
@@ -476,8 +518,14 @@ public class DefaultTracking implements Tracking {
                                               boolean includePackageName) {
         String handlerName = includePackageName ? handlerType.getName() : consumerSimpleName(handlerType);
         String sanitizedHandlerName = handlerName.replace('.', '_').replace('$', '_');
-        return applicationName == null || applicationName.isBlank() ? sanitizedHandlerName
-                : "%s_%s".formatted(applicationName, sanitizedHandlerName);
+        return defaultApplicationConsumerName(applicationName, sanitizedHandlerName);
+    }
+
+    private static String defaultApplicationConsumerName(
+            String applicationName, String consumerName) {
+        return applicationName == null || applicationName.isBlank()
+                ? consumerName
+                : "%s_%s".formatted(applicationName, consumerName);
     }
 
     private static String consumerSimpleName(Class<?> handlerType) {

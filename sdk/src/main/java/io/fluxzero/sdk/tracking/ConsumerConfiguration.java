@@ -69,8 +69,9 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
      * <p>
-     * Supported values are {@link #PER_HANDLER_CONSUMER_MODE} and {@link #DEFAULT_APP_CONSUMER_MODE}. When absent,
-     * Fluxzero derives the default from {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.
+     * Supported values are {@link #PER_PACKAGE_CONSUMER_MODE}, {@link #PER_HANDLER_CONSUMER_MODE} and
+     * {@link #DEFAULT_APP_CONSUMER_MODE}. When absent, Fluxzero derives the default from
+     * {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.
      */
     public static final String UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY =
             "fluxzero.tracking.unconfiguredHandlerConsumerMode";
@@ -79,6 +80,11 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      * Creates an isolated default consumer per unconfigured handler class.
      */
     public static final String PER_HANDLER_CONSUMER_MODE = "perHandler";
+
+    /**
+     * Creates one isolated default consumer per exact package containing unconfigured handler classes.
+     */
+    public static final String PER_PACKAGE_CONSUMER_MODE = "perPackage";
 
     /**
      * Assigns unconfigured handlers to the shared default application consumer for their message type.

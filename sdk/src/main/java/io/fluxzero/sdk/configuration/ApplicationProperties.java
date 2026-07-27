@@ -120,6 +120,12 @@ public class ApplicationProperties {
      *         {@code fluxzero.tracking.defaultHandlingMode.webrequest = sync} or by configuring the web request default
      *         consumer with {@code handlingMode = SYNC}.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.07.27}</td>
+     *         <td>{@code fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage}</td>
+     *         <td>Handlers without an explicit consumer share one generated consumer per exact handler package and
+     *         message type. Explicit class/package consumers and custom configurations remain more specific.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with
