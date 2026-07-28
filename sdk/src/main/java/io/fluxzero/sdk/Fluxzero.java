@@ -52,6 +52,7 @@ import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.BulkUpdateBuilder;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.GraphSearch;
 import io.fluxzero.sdk.persisting.search.IndexOperation;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -1138,6 +1139,30 @@ public interface Fluxzero extends AutoCloseable {
      */
     static Search search(SearchQuery.Builder queryBuilder) {
         return get().documentStore().search(queryBuilder);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root. A configured materialized view is preferred;
+     * otherwise the graph is composed live.
+     */
+    static GraphSearch searchGraph(
+            Class<?> rootModelType) {
+        return get().documentStore()
+                .searchGraph(rootModelType);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root.
+     *
+     * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
+     */
+    static GraphSearch searchGraph(
+            Class<?> rootModelType,
+            boolean forceAdHoc) {
+        return get().documentStore()
+                .searchGraph(
+                        rootModelType,
+                        forceAdHoc);
     }
 
     /**

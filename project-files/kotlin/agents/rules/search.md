@@ -125,8 +125,9 @@ val results = Fluxzero.search(Task::class.java)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
-and further traversal. `includeModelGraph()` stitches current direct documents by explicit
-`@ParentId(path = "...")` paths.
+and further traversal. `searchGraph(Root::class.java)` returns complete graph-shaped JSON through explicit
+`@ParentId(path = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches live;
+pass `true` as the second argument to force live composition. Full-graph constraints mean the same on both routes.
 
 <a name="temporal-filters"></a>
 

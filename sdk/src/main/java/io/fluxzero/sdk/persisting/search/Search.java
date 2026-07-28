@@ -23,7 +23,6 @@ import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.DocumentStats.FieldStats;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.Group;
-import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -386,26 +385,6 @@ public interface Search {
             ModelRelationConstraint... constraints) {
         throw new UnsupportedOperationException(
                 "Independent-model graph search is not supported");
-    }
-
-    /**
-     * Composes the current child model graph into every returned root document.
-     * <p>
-     * Only relationships with an explicit {@code @ParentId(path = ...)} participate. Every path is a collection;
-     * children are returned in stable model-ID order. Missing child documents are omitted.
-     */
-    default Search includeModelGraph() {
-        return includeModelGraph(
-                ModelGraphComposition.builder().build());
-    }
-
-    /**
-     * Composes the current child model graph using explicit traversal and response bounds.
-     */
-    default Search includeModelGraph(
-            ModelGraphComposition composition) {
-        throw new UnsupportedOperationException(
-                "Independent-model graph composition is not supported");
     }
 
     /*

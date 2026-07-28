@@ -165,6 +165,16 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache);
 
     /**
+     * Configures the cache used by independently stored models.
+     * <p>
+     * This overrides the shared cache for model state only; aggregate and relationship caches are unaffected.
+     */
+    default FluxzeroBuilder withModelCache(Cache cache) {
+        throw new UnsupportedOperationException(
+                "Independent model caching is not supported by this builder");
+    }
+
+    /**
      * Replaces the internal relationships cache with a new implementation.
      */
     FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction);
@@ -369,6 +379,14 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder disableAutomaticAggregateCaching();
 
     /**
+     * Disables shared caching and cache tracking for independently stored models.
+     */
+    default FluxzeroBuilder disableAutomaticModelCaching() {
+        throw new UnsupportedOperationException(
+                "Independent model caching is not supported by this builder");
+    }
+
+    /**
      * Prevents installation of the default scheduled command handler.
      */
     FluxzeroBuilder disableScheduledCommandHandler();
@@ -380,7 +398,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * E.g., this disables the scheduled command handler and automatic entity caching.
      */
     default FluxzeroBuilder disableAutomaticTracking() {
-        return disableAutomaticAggregateCaching().disableScheduledCommandHandler();
+        return disableAutomaticAggregateCaching()
+                .disableScheduledCommandHandler();
     }
 
     /**

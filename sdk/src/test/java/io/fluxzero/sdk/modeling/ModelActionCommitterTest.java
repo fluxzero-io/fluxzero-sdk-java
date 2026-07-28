@@ -27,6 +27,7 @@ import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
@@ -151,6 +152,111 @@ class ModelActionCommitterTest {
         assertEquals(after.changedAt().toEpochMilli(), document.getEnd());
         assertEquals(7, document.getDocument().getRevision());
         assertEquals("north", document.getMetadata().get("tenant"));
+    }
+
+    @Test
+    void nonSearchableChildWithExplicitPathSuppliesPrivateGraphDocument()
+            throws Exception {
+        GraphOnlyChildId id =
+                new GraphOnlyChildId("1");
+        GraphOnlyChild after =
+                new GraphOnlyChild(
+                        id,
+                        new CustomerId("1"),
+                        "child");
+        var evaluation =
+                evaluation(
+                        List.of(id.toString()),
+                        substep(
+                                new UpdateGraphOnlyChild(
+                                        id),
+                                transition(
+                                        id,
+                                        GraphOnlyChild.class,
+                                        null, after,
+                                        UpdateGraphOnlyChild.class,
+                                        "apply",
+                                        GraphOnlyChild.class)),
+                        Map.of(id.toString(), after));
+        when(eventStoreClient.commitModelAction(
+                any())).thenAnswer(invocation ->
+                                           CompletableFuture.completedFuture(
+                                                   result(
+                                                           invocation.getArgument(
+                                                                   0))));
+
+        committer.commit(
+                        "graph-component",
+                        evaluation)
+                .join();
+
+        ArgumentCaptor<CommitModelAction> action =
+                ArgumentCaptor.forClass(
+                        CommitModelAction.class);
+        verify(eventStoreClient)
+                .commitModelAction(
+                        action.capture());
+        var document =
+                action.getValue()
+                        .getSubsteps().getFirst()
+                        .getTargets().getFirst()
+                        .getDocument();
+        assertNotNull(document);
+        assertEquals(
+                ModelDocumentMutation
+                        .GRAPH_COMPONENT_COLLECTION,
+                document.getCollection());
+        assertEquals(
+                after,
+                serializer.fromDocument(
+                        document.getDocument(),
+                        GraphOnlyChild.class));
+    }
+
+    @Test
+    void nonSearchableModelWithoutExplicitPathKeepsDocumentFreeFastPath()
+            throws Exception {
+        CustomerId id =
+                new CustomerId("document-free");
+        Customer after =
+                new Customer(id);
+        var evaluation =
+                evaluation(
+                        List.of(id.toString()),
+                        substep(
+                                new UpdateCustomer(id),
+                                transition(
+                                        id, Customer.class,
+                                        null, after,
+                                        UpdateCustomer.class,
+                                        "apply",
+                                        Customer.class)),
+                        Map.of(id.toString(), after));
+        when(eventStoreClient.commitModelAction(
+                any())).thenAnswer(invocation ->
+                                           CompletableFuture.completedFuture(
+                                                   result(
+                                                           invocation.getArgument(
+                                                                   0))));
+
+        committer.commit(
+                        "document-free",
+                        evaluation)
+                .join();
+
+        ArgumentCaptor<CommitModelAction> action =
+                ArgumentCaptor.forClass(
+                        CommitModelAction.class);
+        verify(eventStoreClient)
+                .commitModelAction(
+                        action.capture());
+        assertNull(
+                action.getValue()
+                        .getSubsteps().getFirst()
+                        .getTargets().getFirst()
+                        .getDocument());
+        verify(documentStore, never())
+                .materializeModelAction(any());
     }
 
     @Test
@@ -1145,6 +1251,38 @@ class ModelActionCommitterTest {
     private static class CustomerId extends Id<Customer> {
         CustomerId(String id) {
             super(id, "customer-");
+        }
+    }
+
+    private record UpdateCustomer(
+            CustomerId customerId) {
+        @Apply
+        Customer apply(Customer current) {
+            return current;
+        }
+    }
+
+    @Model
+    private record GraphOnlyChild(
+            @EntityId GraphOnlyChildId childId,
+            @ParentId(path = "children")
+            CustomerId customerId,
+            String value) {
+    }
+
+    private static class GraphOnlyChildId
+            extends Id<GraphOnlyChild> {
+        GraphOnlyChildId(String id) {
+            super(id, "graph-child-");
+        }
+    }
+
+    private record UpdateGraphOnlyChild(
+            GraphOnlyChildId childId) {
+        @Apply
+        GraphOnlyChild apply(
+                GraphOnlyChild current) {
+            return current;
         }
     }
 

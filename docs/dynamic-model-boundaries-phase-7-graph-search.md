@@ -22,9 +22,10 @@ The SDK exposes target-relative constraints:
 No class-derived path, duplicate relationship role, recursive SQL, or relation-store implementation detail appears in
 the public search API.
 
-`includeModelGraph()` additionally returns each matching current root document with its explicitly placed current child
-graph stitched into it. This remains a read-time operation over independent direct documents; it does not create or
-silently enable a materialized whole-tree projection.
+The provisional `includeModelGraph()` modifier was replaced in Phase 19 by `searchGraph(Root.class)`. A graph result is
+explicitly graph-shaped JSON rather than the root Java model. The default route reads a configured materialized graph
+projection and otherwise stitches the current direct documents live; `searchGraph(Root.class, true)` forces the live
+route.
 
 An independent root can now also opt into an asynchronously maintained graph collection with
 `@Model(graphProjection = @GraphProjection(collection = "..."))`. This never replaces or weakens the direct model
@@ -37,8 +38,9 @@ explicit observable lag.
 instead of deserializing an ordinary `SearchDocuments` request and silently ignoring its new relationship semantics.
 
 `SearchModelGraphDocuments` is a second distinct wire request for the same reason. It carries explicit depth, model,
-placement, collection, and output-byte bounds. Search pagination still applies to roots; graph bounds apply separately
-to each returned root page.
+placement, collection, and output-byte bounds. Live candidate-root discovery is bounded before composition. Graph
+constraints, sorting, pagination and path filtering are applied after stitching, matching an ordinary query against
+the materialized graph collection.
 
 The first runtime implementation is a bounded staged plan that also works when search and model relationships live in
 different databases:
@@ -76,8 +78,8 @@ document history.
   explicitly instead of overwriting data.
 - Root metadata remains root metadata. Child metadata is not copied; child entries, facets, sortables, and summaries are
   placed below their graph path.
-- Path filters run after stitching, so callers can select composed branches. Root filtering, sorting, skip, and
-  pagination still run against the ordinary root document.
+- Constraints, sorting, path filters, skip and pagination run after stitching, so live and materialized graph searches
+  have the same complete-document semantics.
 
 ## Consistency boundary
 
@@ -131,8 +133,10 @@ same query shape matters much more at the intended scale than the happy-path API
 
 The durable definition contains the root's stored type descriptor, synchronous direct-document collection, distinct
 graph collection, explicit composition bounds, and optional canonical-path replacements. A root must be searchable.
-Every stitched child must likewise have an available direct document; non-searchable nodes retain their relationships
-but are deliberately omitted from the search document.
+Every stitched child must likewise have an available current document. Phase 18 separated graph participation from
+independent searchability: a non-searchable child with an explicit parent path uses the internal
+`$modelGraphComponents` collection for composition without gaining its own searchable collection. A non-searchable
+child without an explicit path remains omitted and retains the zero-document-write fast path.
 
 The SDK registers configured roots before an action that can affect them commits. It discovers roots from direct
 transition types and recursively from statically typed `Id<Parent>` references, including payload-side applies.
@@ -235,7 +239,6 @@ Coverage includes:
   in-process fast-path flag intentionally avoids a configuration query on every model commit; one websocket/runtime
   instance is coherent, and restart discovers durable definitions, but horizontal rollout needs the request/result-log
   coordination planned for the runtime architecture before this can be certified.
-- The SDK-only `TestFixture` has no asynchronous search worker. It accepts and validates projection definitions so
-  model actions remain fixture-compatible, but reports the projection as rebuilding instead of falsely claiming
-  catch-up. Use virtual `includeModelGraph()` assertions for pure SDK fixtures and the runtime integration fixture for
-  materializer behavior.
+- `LocalClient`, the test server and synchronous `TestFixture` executions now run an in-memory projection worker using
+  the same graph stitcher. `AWAIT` therefore materializes affected roots before command completion and reports a real
+  caught-up boundary; live `searchGraph(..., true)` and durable projection assertions are both available locally.

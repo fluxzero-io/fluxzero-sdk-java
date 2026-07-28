@@ -15,6 +15,7 @@
 package io.fluxzero.common.api.search;
 
 import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import lombok.Value;
 
 import java.beans.ConstructorProperties;
@@ -31,7 +32,8 @@ import java.util.Objects;
 public class SearchModelGraphDocuments extends Request {
 
     /**
-     * Ordinary root-document search, including sorting, pagination, and path filtering.
+     * Search applied to the complete graph view after live composition, including constraints, sorting, pagination,
+     * and path filtering. Only its root collections and explicit document IDs participate in bounded root discovery.
      */
     SearchDocuments search;
 
@@ -45,13 +47,26 @@ public class SearchModelGraphDocuments extends Request {
      */
     ModelGraphComposition composition;
 
-    @ConstructorProperties({"search", "relations", "composition"})
+    /**
+     * Canonical path replacements used by the configured materialized projection.
+     */
+    List<ModelGraphPathOverride> pathOverrides;
+
     public SearchModelGraphDocuments(
             SearchDocuments search,
             List<ModelRelationConstraint> relations,
             ModelGraphComposition composition) {
+        this(search, relations, composition, List.of());
+    }
+
+    @ConstructorProperties({"search", "relations", "composition", "pathOverrides"})
+    public SearchModelGraphDocuments(
+            SearchDocuments search,
+            List<ModelRelationConstraint> relations,
+            ModelGraphComposition composition,
+            List<ModelGraphPathOverride> pathOverrides) {
         this.search = Objects.requireNonNull(
-                search, "Root document search");
+                search, "Graph document search");
         if (relations != null
             && relations.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException(
@@ -65,6 +80,15 @@ public class SearchModelGraphDocuments extends Request {
         }
         this.composition = Objects.requireNonNull(
                 composition, "Model graph composition");
+        if (pathOverrides != null
+            && pathOverrides.stream()
+                    .anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException(
+                    "Model graph path overrides must not contain null");
+        }
+        this.pathOverrides = pathOverrides == null
+                ? List.of() : List.copyOf(
+                        pathOverrides);
     }
 
     @Override
@@ -79,6 +103,7 @@ public class SearchModelGraphDocuments extends Request {
                 composition.getMaxPlacements(),
                 composition.getMaxCollections(),
                 composition.getMaxBytes(),
+                pathOverrides.size(),
                 search.getMaxSize());
     }
 
@@ -91,6 +116,7 @@ public class SearchModelGraphDocuments extends Request {
         int maxPlacements;
         int maxCollections;
         long maxBytes;
+        int pathOverrideCount;
         Integer maxSize;
     }
 }

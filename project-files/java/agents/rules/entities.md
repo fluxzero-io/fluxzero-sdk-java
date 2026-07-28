@@ -34,7 +34,8 @@ public final class ProjectId extends Id<Project> {
 Important settings:
 
 - `eventSourced`: controls the current-state load route. Events are still stored when `false`.
-- `searchable`: maintains a synchronous direct current-state document.
+- `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
+  model's own collection; an explicit `@ParentId(path = "...")` still retains a private graph-component document.
 - `collection`: stable direct search collection name.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
@@ -277,8 +278,9 @@ List<Task> tasks = Fluxzero.search(Task.class)
         .fetchAll(Task.class);
 ```
 
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use `includeModelGraph()` to stitch current
-direct documents at query time. Use `@GraphProjection` for a durable asynchronous root read model.
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use `searchGraph(Root.class)` for a complete
+graph-shaped JSON result. It reads a configured `@GraphProjection` by default and otherwise stitches current direct
+documents live; `searchGraph(Root.class, true)` forces live composition.
 
 ## Conflict policy
 

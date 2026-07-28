@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.MaterializeModelAction;
@@ -31,6 +32,7 @@ import io.fluxzero.common.api.search.Group;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.ModelGraphComposition;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
@@ -43,6 +45,8 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.ModelGraphProjections;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -199,6 +203,65 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     }
 
     @Override
+    public GraphSearch searchGraph(
+            Class<?> rootModelType,
+            boolean forceAdHoc) {
+        ModelMetadata.RootConfiguration root =
+                ModelMetadata.validate(rootModelType)
+                        .rootConfiguration()
+                        .orElseThrow(() ->
+                                             new IllegalArgumentException(
+                                                     rootModelType.getName()
+                                                     + " is not an independent model"));
+        if (root.kind()
+            != ModelMetadata.RootKind.MODEL) {
+            throw new IllegalArgumentException(
+                    rootModelType.getName()
+                    + " is not an independent model");
+        }
+        if (!root.searchable()) {
+            throw new IllegalArgumentException(
+                    "Graph search root %s must be searchable"
+                            .formatted(
+                                    rootModelType.getName()));
+        }
+        Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>
+                projection =
+                ModelGraphProjections.configuration(
+                        rootModelType);
+        boolean live =
+                forceAdHoc
+                || projection.isEmpty();
+        String collection =
+                live
+                        ? determineCollection(
+                                rootModelType)
+                        : projection.orElseThrow()
+                                .getCollection();
+        ModelGraphComposition composition =
+                live
+                        ? projection.map(
+                                        io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration
+                                                ::getComposition)
+                                .orElseGet(() ->
+                                                   ModelGraphComposition
+                                                           .builder()
+                                                           .build())
+                        : null;
+        List<ModelGraphPathOverride> pathOverrides =
+                live
+                        ? projection.map(
+                                        io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration
+                                                ::getPathOverrides)
+                                .orElseGet(List::of)
+                        : List.of();
+        return new DefaultGraphSearch(
+                SearchQuery.builder()
+                        .collection(collection),
+                composition, pathOverrides);
+    }
+
+    @Override
     public boolean hasDocument(Object id, Object collection) {
         return getSearchClient().documentExists(new HasDocument(id.toString(), determineCollection(collection)));
     }
@@ -310,7 +373,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         private final List<String> pathFilters = new ArrayList<>();
         private final List<ModelRelationConstraint> relationConstraints =
                 new ArrayList<>();
-        private ModelGraphComposition graphComposition;
+        protected ModelGraphComposition graphComposition;
+        protected List<ModelGraphPathOverride>
+                graphPathOverrides = List.of();
         private volatile int skip;
 
         protected DefaultSearch() {
@@ -360,14 +425,6 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                 constraint,
                                 "Model relation constraint"));
             }
-            return this;
-        }
-
-        @Override
-        public Search includeModelGraph(
-                ModelGraphComposition composition) {
-            this.graphComposition = Objects.requireNonNull(
-                    composition, "Model graph composition");
             return this;
         }
 
@@ -454,7 +511,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                     new SearchModelGraphDocuments(
                                             request,
                                             relationConstraints,
-                                            graphComposition),
+                                            graphComposition,
+                                            graphPathOverrides),
                                     fetchSize)
                             : relationConstraints.isEmpty()
                                     ? getSearchClient().searchAsync(
@@ -472,8 +530,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             if (SerializedDocument.class.equals(type)) {
                 return (List) hits.stream().map(SearchHit::getValue).toList();
             }
-            Function<SerializedDocument, T> convertFunction = type == null
-                    ? serializer::fromDocument : document -> serializer.fromDocument(document, type);
+            Function<SerializedDocument, T> convertFunction =
+                    converter(type);
             return hits.stream().map(hit -> hit.map(convertFunction).getValue()).toList();
         }
 
@@ -491,7 +549,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                     new SearchModelGraphDocuments(
                                             request,
                                             relationConstraints,
-                                            graphComposition),
+                                            graphComposition,
+                                            graphPathOverrides),
                                     fetchSize)
                             : relationConstraints.isEmpty()
                                     ? getSearchClient().search(
@@ -504,9 +563,28 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             if (SerializedDocument.class.equals(type)) {
                 return (Stream) hitStream;
             }
-            Function<SerializedDocument, T> convertFunction = type == null
-                    ? serializer::fromDocument : document -> serializer.fromDocument(document, type);
+            Function<SerializedDocument, T> convertFunction =
+                    converter(type);
             return hitStream.map(hit -> hit.map(convertFunction));
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> Function<SerializedDocument, T>
+                converter(Class<T> type) {
+            Class<?> effectiveType =
+                    type == null
+                            ? defaultResultType()
+                            : type;
+            return effectiveType == null
+                    ? serializer::fromDocument
+                    : document ->
+                            (T) serializer.fromDocument(
+                                    document,
+                                    effectiveType);
+        }
+
+        protected Class<?> defaultResultType() {
+            return null;
         }
 
         @Override
@@ -586,6 +664,27 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                         .thenApply(stats -> stats.stream()
                                 .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
             }
+        }
+    }
+
+    protected class DefaultGraphSearch
+            extends DefaultSearch
+            implements GraphSearch {
+
+        protected DefaultGraphSearch(
+                SearchQuery.Builder queryBuilder,
+                ModelGraphComposition composition,
+                List<ModelGraphPathOverride>
+                        pathOverrides) {
+            super(queryBuilder);
+            this.graphComposition = composition;
+            this.graphPathOverrides =
+                    List.copyOf(pathOverrides);
+        }
+
+        @Override
+        protected Class<?> defaultResultType() {
+            return ObjectNode.class;
         }
     }
 }

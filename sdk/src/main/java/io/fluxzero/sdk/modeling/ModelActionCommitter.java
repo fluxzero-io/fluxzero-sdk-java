@@ -1046,15 +1046,25 @@ final class ModelActionCommitter {
 
     private static Optional<DirectDocumentCandidate> directDocument(
             ModelActionEngine.Transition transition, Instant eventTimestamp, Metadata metadata) {
-        ModelMetadata.RootConfiguration model = ModelMetadata.of(transition.modelType())
-                .rootConfiguration().orElseThrow();
-        if (!model.searchable()) {
+        ModelMetadata modelMetadata =
+                ModelMetadata.of(
+                        transition.modelType());
+        ModelMetadata.RootConfiguration model =
+                modelMetadata.rootConfiguration()
+                        .orElseThrow();
+        if (!model.searchable()
+            && !modelMetadata
+                    .participatesInGraphComposition()) {
             return Optional.empty();
         }
-        String collection = Optional.of(model.collection())
-                .filter(value -> !value.isEmpty())
-                .map(ApplicationProperties::substituteProperties)
-                .orElse(transition.modelType().getSimpleName());
+        String collection = model.searchable()
+                ? Optional.of(model.collection())
+                        .filter(value -> !value.isEmpty())
+                        .map(ApplicationProperties::substituteProperties)
+                        .orElse(transition.modelType()
+                                        .getSimpleName())
+                : ModelDocumentMutation
+                        .GRAPH_COMPONENT_COLLECTION;
         Object value = transition.after();
         if (value == null) {
             return Optional.of(new DirectDocumentCandidate(

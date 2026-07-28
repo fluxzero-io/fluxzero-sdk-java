@@ -16,6 +16,7 @@
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.api.BooleanResult;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.*;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -62,6 +63,13 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    CompletableFuture<Void> handle(
+            MaterializeModelAction request) {
+        return store.materializeModelAction(
+                request);
+    }
+
+    @Handle
     CompletableFuture<Void> handle(BulkUpdateDocuments request) {
         Map<BulkUpdate.Type, List<DocumentUpdate>> updatesByType =
                 request.getUpdates().stream().filter(Objects::nonNull)
@@ -90,6 +98,46 @@ public class SearchEndpoint extends WebsocketEndpoint {
         } catch (Exception e) {
             log.error("Failed to handle {}", request, e);
             return new SearchDocumentsResult(request.getRequestId(), emptyList());
+        }
+    }
+
+    @Handle
+    public SearchDocumentsResult handle(
+            SearchModelDocuments request) {
+        try {
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    store.searchModels(
+                                    request, -1)
+                            .map(SearchHit::getValue)
+                            .toList());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to handle {}",
+                    request, e);
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    emptyList());
+        }
+    }
+
+    @Handle
+    public SearchDocumentsResult handle(
+            SearchModelGraphDocuments request) {
+        try {
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    store.searchModelGraph(
+                                    request, -1)
+                            .map(SearchHit::getValue)
+                            .toList());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to handle {}",
+                    request, e);
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    emptyList());
         }
     }
 

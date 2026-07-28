@@ -16,7 +16,8 @@ commits its two returned targets automatically.
 
 The sustained workload mutates leaves. Cold readers use new SDK clients. Event counts are read from the physical
 aggregate stream or model membership tables, not estimated. Search profiles compare the synchronous aggregate root
-document, synchronous direct model document, relation-backed `includeModelGraph`, and the materialized graph document.
+document, synchronous direct model document, relation-backed live graph composition (now exposed as
+`searchGraph(..., true)`), and the materialized graph document.
 
 ### Environment
 

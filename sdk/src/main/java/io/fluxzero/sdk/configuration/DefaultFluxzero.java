@@ -27,6 +27,7 @@ import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.DefaultMemoization;
@@ -330,6 +331,8 @@ public class DefaultFluxzero implements Fluxzero {
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache;
         private boolean cacheConfigured;
+        private Cache modelCache;
+        private boolean modelCacheConfigured;
         private Cache relationshipsCache;
         private DocumentStore runtimeDocumentStore;
         private ModelActionHandlerRegistry modelActionHandlerRegistry;
@@ -359,6 +362,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableDataProtection;
         private MissingProtectedDataPolicy onMissingProtectedData = MissingProtectedDataPolicy.DEFAULT;
         private boolean disableAutomaticAggregateCaching;
+        private boolean disableAutomaticModelCaching;
         private boolean disableScheduledCommandHandler;
         private boolean disableShutdownHook;
         private boolean disableTrackingMetrics;
@@ -602,6 +606,14 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public FluxzeroBuilder withModelCache(@NonNull Cache cache) {
+            this.modelCache = cache;
+            this.modelCacheConfigured = true;
+            this.disableAutomaticModelCaching = false;
+            return this;
+        }
+
+        @Override
         public FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction) {
             relationshipsCache = replaceFunction.apply(initialRelationshipsCache());
             return this;
@@ -708,6 +720,19 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public FluxzeroBuilder disableAutomaticModelCaching() {
+            disableAutomaticModelCaching = true;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder disableAutomaticTracking() {
+            return disableAutomaticAggregateCaching()
+                    .disableAutomaticModelCaching()
+                    .disableScheduledCommandHandler();
+        }
+
+        @Override
         public FluxzeroBuilder disableScheduledCommandHandler() {
             disableScheduledCommandHandler = true;
             return this;
@@ -782,6 +807,19 @@ public class DefaultFluxzero implements Fluxzero {
             }
             Cache configuredCache = resolveCache();
             Cache cache = configuredCache.isEmpty() ? configuredCache : configuredCache.rebuild();
+            Cache configuredModelCache =
+                    disableAutomaticModelCaching
+                            ? NoOpCache.INSTANCE
+                            : modelCacheConfigured
+                                    ? modelCache
+                                    : configuredCache;
+            Cache modelCache =
+                    configuredModelCache.isEmpty()
+                            ? configuredModelCache
+                            : configuredModelCache
+                                    == configuredCache
+                                    ? cache
+                                    : configuredModelCache.rebuild();
             Cache configuredRelationshipsCache = initialRelationshipsCache();
             Cache relationshipsCache = configuredRelationshipsCache.isEmpty()
                     ? configuredRelationshipsCache : configuredRelationshipsCache.rebuild();
@@ -1013,7 +1051,7 @@ public class DefaultFluxzero implements Fluxzero {
                             DefaultEntityHelper.forModels(
                                     runtimeParameterResolvers,
                                     disablePayloadValidation),
-                            snapshotSerializer, cache,
+                            snapshotSerializer, modelCache,
                             runtimeParameterResolvers);
             modelActionHandlerRegistry = new ModelActionHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),
@@ -1128,6 +1166,9 @@ public class DefaultFluxzero implements Fluxzero {
 
             if (!disableCacheEvictionMetrics) {
                 new CacheEvictionsLogger(metricsGateway).register(cache);
+                if (modelCache != cache && modelCache != NoOpCache.INSTANCE) {
+                    new CacheEvictionsLogger(metricsGateway).register(modelCache);
+                }
             }
 
             ThrowingRunnable shutdownHandler = () -> {
@@ -1148,6 +1189,9 @@ public class DefaultFluxzero implements Fluxzero {
                 defaultRequestHandler.close();
                 webRequestHandler.close();
                 cache.close();
+                if (modelCache != cache) {
+                    modelCache.close();
+                }
                 relationshipsCache.close();
                 client.shutDown();
                 shutdownPool.close();

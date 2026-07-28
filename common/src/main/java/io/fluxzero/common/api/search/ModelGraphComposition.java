@@ -36,7 +36,8 @@ public class ModelGraphComposition {
     int maxDepth = 16;
 
     /**
-     * Maximum number of distinct model IDs traversed for one result page, including the roots.
+     * Maximum number of distinct model IDs traversed for one live search, including candidate roots before graph-view
+     * constraints are applied.
      */
     @Builder.Default
     int maxModels = 10_000;

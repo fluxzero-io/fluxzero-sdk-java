@@ -399,12 +399,12 @@ List<ModelGraph.Node<?>> tasks =
         graph.root().children("tasks");
 ```
 
-Search can also stitch direct documents at query time:
+Search returns the complete graph as JSON. It uses a configured materialized projection and otherwise stitches direct
+documents at query time:
 
 ```java
-List<Project> projects = Fluxzero.search(Project.class)
-        .includeModelGraph()
-        .fetchAll(Project.class);
+List<ObjectNode> projects = Fluxzero.searchGraph(Project.class)
+        .fetchAll();
 ```
 
 For repeatedly queried large trees, enable a graph projection on the root:
@@ -419,7 +419,9 @@ public record Project(/* ... */) {
 ```
 
 The projection is durable and asynchronous by default. Use `GraphProjectionCompletion.AWAIT` for an operation whose
-command result should wait until affected root projections include that action.
+command result should wait until affected root projections include that action. Use
+`Fluxzero.searchGraph(Project.class, true)` only when a query must explicitly bypass the materialized projection and
+stitch live.
 
 ## React to the exact event state
 

@@ -18,6 +18,8 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -43,6 +45,10 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 class ModelActionHandlerIntegrationTest {
 
@@ -61,7 +67,43 @@ class ModelActionHandlerIntegrationTest {
                         .load(accountId).get() != null)
                 .expectTrue(fluxzero -> fluxzero.documentStore()
                         .search(Account.class).fetchAll(Account.class)
-                        .equals(java.util.List.of(new Account(accountId, 42))));
+                                .equals(java.util.List.of(new Account(accountId, 42))));
+    }
+
+    @Test
+    void dedicatedModelCacheCanBeConfiguredOrDisabled() {
+        InspectableCache configured =
+                new InspectableCache();
+        AccountId cached =
+                new AccountId(
+                        "dedicated-cache");
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .withModelCache(
+                                        configured))
+                .whenCommand(
+                        new CreateAccount(
+                                cached, 42))
+                .expectTrue(fluxzero ->
+                                    configured.size()
+                                    > 0);
+
+        InspectableCache disabled =
+                new InspectableCache();
+        AccountId uncached =
+                new AccountId(
+                        "disabled-cache");
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .withModelCache(
+                                        disabled)
+                                .disableAutomaticModelCaching())
+                .whenCommand(
+                        new CreateAccount(
+                                uncached, 42))
+                .expectTrue(fluxzero ->
+                                    disabled.size()
+                                    == 0);
     }
 
     @Test
@@ -459,35 +501,29 @@ class ModelActionHandlerIntegrationTest {
                                 grandchildId, childId,
                                 childId))
                 .whenApplying(fluxzero -> {
-                    var document = Fluxzero.search(
+                    List<com.fasterxml.jackson.databind.node.ObjectNode>
+                            graphs =
+                            Fluxzero.searchGraph(
                                             FamilyRoot.class)
                             .constraint(match(
-                                    "root", true,
-                                    "name"))
-                            .includeModelGraph()
+                                    "composed", true,
+                                    "children/primaryGrandchildren/familyGrandchildId"))
                             .includeOnly("children")
-                            .fetch(
-                                    1,
-                                    io.fluxzero.common.api.search
-                                            .SerializedDocument.class)
-                            .getFirst()
-                            .deserializeDocument();
+                            .fetch(1);
+                    var document =
+                            graphs.getFirst();
                     return List.of(
-                            document.getEntryAtPath(
-                                            "children/0/name")
-                                    .orElseThrow()
-                                    .getValue(),
-                            document.getEntryAtPath(
-                                            "children/0/primaryGrandchildren/0/familyGrandchildId")
-                                    .orElseThrow()
-                                    .getValue(),
-                            document.getEntryAtPath(
-                                            "children/0/secondaryGrandchildren/0/familyGrandchildId")
-                                    .orElseThrow()
-                                    .getValue(),
-                            document.getEntryAtPath(
-                                            "name")
-                                    .isEmpty());
+                            document.at(
+                                            "/children/0/name")
+                                    .asText(),
+                            document.at(
+                                            "/children/0/primaryGrandchildren/0/familyGrandchildId")
+                                    .asText(),
+                            document.at(
+                                            "/children/0/secondaryGrandchildren/0/familyGrandchildId")
+                                    .asText(),
+                            document.get("name")
+                                    == null);
                 })
                 .expectResult(List.of(
                         "child",
@@ -497,13 +533,19 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
-    void payloadApplyRegistersGraphProjectionOfTypedAncestorBeforeCommit() {
+    void localClientAwaitsAndMaterializesGraphProjectionWithNonSearchableChild() {
         ProjectionRootId rootId =
                 new ProjectionRootId("ancestor");
         ProjectionChildId childId =
                 new ProjectionChildId("payload");
 
-        TestFixture.create()
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .givenCommands(
+                        new CreateProjectionRoot(
+                                rootId))
                 .whenCommand(
                         new CreateProjectionChild(
                                 childId, rootId))
@@ -518,10 +560,236 @@ class ModelActionHandlerIntegrationTest {
                            && status
                                       .getSourceStateIndex()
                               > 0L
-                           && status.isRebuilding()
+                           && !status.isRebuilding()
                            && status
                                       .getProcessedStateIndex()
-                              == -1L;
+                              >= status
+                                      .getSourceStateIndex();
+                })
+                .expectTrue(fluxzero -> {
+                    var projected =
+                            fluxzero.documentStore()
+                                    .search(
+                                            "projectionRoots")
+                                    .fetchAll(
+                                            io.fluxzero.common.api.search
+                                                    .SerializedDocument.class);
+                    assertEquals(
+                            1, projected.size());
+                    assertEquals(
+                            "payload",
+                            projected.getFirst()
+                                    .deserializeDocument()
+                                    .getEntryAtPath(
+                                            "projectedChildren/0/projectionChildId")
+                                    .orElseThrow()
+                                    .getValue());
+                    return true;
+                })
+                .expectTrue(fluxzero ->
+                                    fluxzero.documentStore()
+                                            .search(
+                                                    ProjectionChild.class)
+                                            .fetchAll()
+                                            .isEmpty())
+                .expectTrue(fluxzero ->
+                                    {
+                                        List<com.fasterxml.jackson.databind.node.ObjectNode>
+                                                stored =
+                                                Fluxzero.searchGraph(
+                                                                ProjectionRoot.class)
+                                                        .fetch(1);
+                                        List<com.fasterxml.jackson.databind.node.ObjectNode>
+                                                live =
+                                                Fluxzero.searchGraph(
+                                                                ProjectionRoot.class,
+                                                                true)
+                                                        .fetch(1);
+                                        return "payload"
+                                                       .equals(
+                                                               stored.getFirst()
+                                                                       .at("/projectedChildren/0/projectionChildId")
+                                                                       .asText())
+                                               && stored.equals(
+                                                       live);
+                                    });
+    }
+
+    @Test
+    void asyncFixtureDoesNotAwaitGraphProjectionByDefault() {
+        ProjectionRootId rootId =
+                new ProjectionRootId(
+                        "async-default");
+        ProjectionChildId childId =
+                new ProjectionChildId(
+                        "async-default");
+
+        TestFixture.createAsync()
+                .spy()
+                .givenCommands(
+                        new CreateProjectionRoot(
+                                rootId))
+                .whenCommand(
+                        new CreateProjectionChild(
+                                childId, rootId))
+                .expectThat(fluxzero ->
+                                    verify(
+                                            fluxzero.client()
+                                                    .getEventStoreClient(),
+                                            never())
+                                            .awaitModelGraphProjection(
+                                                    any()));
+    }
+
+    @Test
+    void asyncFixtureCanExplicitlyAwaitGraphProjectionCompletion() {
+        ProjectionRootId rootId =
+                new ProjectionRootId(
+                        "async-await");
+        ProjectionChildId childId =
+                new ProjectionChildId(
+                        "async-await");
+
+        TestFixture.createAsync(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .spy()
+                .givenCommands(
+                        new CreateProjectionRoot(
+                                rootId))
+                .whenCommand(
+                        new CreateProjectionChild(
+                                childId, rootId))
+                .expectThat(fluxzero ->
+                                    verify(
+                                            fluxzero.client()
+                                                    .getEventStoreClient(),
+                                            times(1))
+                                            .awaitModelGraphProjection(
+                                                    any()))
+                .expectTrue(fluxzero ->
+                                    projectionContainsChild(
+                                            fluxzero,
+                                            childId));
+    }
+
+    private static boolean projectionContainsChild(
+            Fluxzero fluxzero,
+            ProjectionChildId childId) {
+        return childId.getId()
+                .equals(
+                        fluxzero.documentStore()
+                                .search(
+                                        "projectionRoots")
+                                .fetch(
+                                        1,
+                                        io.fluxzero.common.api.search
+                                                .SerializedDocument.class)
+                                .getFirst()
+                                .deserializeDocument()
+                                .getEntryAtPath(
+                                        "projectedChildren/0/projectionChildId")
+                                .orElseThrow()
+                                .getValue());
+    }
+
+    @Test
+    void localGraphProjectionUpdatesBothSidesOfAChildMove() {
+        ProjectionRootId firstRoot =
+                new ProjectionRootId("first");
+        ProjectionRootId secondRoot =
+                new ProjectionRootId("second");
+        ProjectionChildId childId =
+                new ProjectionChildId("moving");
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .givenCommands(
+                        new CreateProjectionRoot(
+                                firstRoot),
+                        new CreateProjectionRoot(
+                                secondRoot),
+                        new CreateProjectionChild(
+                                childId,
+                                firstRoot))
+                .whenCommand(
+                        new MoveProjectionChild(
+                                childId,
+                                secondRoot))
+                .expectTrue(fluxzero -> {
+                    var projections =
+                            fluxzero.documentStore()
+                                    .search(
+                                            "projectionRoots")
+                                    .fetchAll(
+                                            io.fluxzero.common.api.search
+                                                    .SerializedDocument.class)
+                                    .stream()
+                                    .collect(
+                                            java.util.stream.Collectors
+                                                    .toMap(
+                                                            io.fluxzero.common.api.search.SerializedDocument
+                                                                    ::getId,
+                                                            document ->
+                                                                    document.deserializeDocument()));
+                    return projections
+                                   .get(
+                                           firstRoot.toString())
+                                   .getEntryAtPath(
+                                           "projectedChildren/0/projectionChildId")
+                                   .isEmpty()
+                           && "moving".equals(
+                                   projections
+                                           .get(
+                                                   secondRoot.toString())
+                                           .getEntryAtPath(
+                                                   "projectedChildren/0/projectionChildId")
+                                           .orElseThrow()
+                                           .getValue());
+                });
+    }
+
+    @Test
+    void localGraphProjectionRemovesLogicallyDeletedGraphChild() {
+        ProjectionRootId rootId =
+                new ProjectionRootId("delete");
+        ProjectionChildId childId =
+                new ProjectionChildId("deleted");
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .givenCommands(
+                        new CreateProjectionRoot(
+                                rootId),
+                        new CreateProjectionChild(
+                                childId, rootId))
+                .whenCommand(
+                        new DeleteProjectionChild(
+                                childId))
+                .expectTrue(fluxzero -> {
+                    var projection =
+                            fluxzero.documentStore()
+                                    .search(
+                                            "projectionRoots")
+                                    .fetchAll(
+                                            io.fluxzero.common.api.search
+                                                    .SerializedDocument.class)
+                                    .getFirst()
+                                    .deserializeDocument();
+                    return projection.getEntryAtPath(
+                                    "projectedChildren/0/projectionChildId")
+                                   .isEmpty()
+                           && fluxzero.documentStore()
+                                   .search(
+                                           io.fluxzero.common.api.modeling.ModelDocumentMutation
+                                                   .GRAPH_COMPONENT_COLLECTION)
+                                   .fetchAll()
+                                   .isEmpty();
                 });
     }
 
@@ -1289,7 +1557,10 @@ class ModelActionHandlerIntegrationTest {
     @Model(
             searchable = true,
             graphProjection = @GraphProjection(
-                    collection = "projectionRoots"))
+                    collection = "projectionRoots",
+                    pathOverrides = @GraphPathOverride(
+                            path = "children",
+                            projectionPath = "projectedChildren")))
     private record ProjectionRoot(
             @EntityId ProjectionRootId projectionRootId) {
     }
@@ -1298,6 +1569,15 @@ class ModelActionHandlerIntegrationTest {
             extends Id<ProjectionRoot> {
         private ProjectionRootId(String id) {
             super(id, "projection-root-");
+        }
+    }
+
+    private record CreateProjectionRoot(
+            ProjectionRootId projectionRootId) {
+        @Apply
+        ProjectionRoot apply() {
+            return new ProjectionRoot(
+                    projectionRootId);
         }
     }
 
@@ -1323,6 +1603,39 @@ class ModelActionHandlerIntegrationTest {
             return new ProjectionChild(
                     projectionChildId,
                     projectionRootId);
+        }
+    }
+
+    private record MoveProjectionChild(
+            ProjectionChildId projectionChildId,
+            ProjectionRootId projectionRootId) {
+        @Apply
+        ProjectionChild apply(
+                ProjectionChild current) {
+            return new ProjectionChild(
+                    current.projectionChildId(),
+                    projectionRootId);
+        }
+    }
+
+    private record DeleteProjectionChild(
+            ProjectionChildId projectionChildId) {
+        @Apply
+        ProjectionChild apply(
+                ProjectionChild current) {
+            return null;
+        }
+    }
+
+    private static final class InspectableCache
+            extends AdaptiveObjectCache {
+        private InspectableCache() {
+            super(100);
+        }
+
+        @Override
+        public Cache rebuild() {
+            return this;
         }
     }
 }

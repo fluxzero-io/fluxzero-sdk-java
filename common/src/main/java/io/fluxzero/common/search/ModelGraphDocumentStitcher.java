@@ -15,6 +15,7 @@
 package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -103,6 +104,66 @@ public final class ModelGraphDocumentStitcher {
             result.add(serialized);
         }
         return List.copyOf(result);
+    }
+
+    /**
+     * Applies projection-local canonical path replacements to graph edges before composition.
+     */
+    public static List<ModelGraphEdge> applyPathOverrides(
+            Collection<ModelGraphEdge> edges,
+            Collection<ModelGraphPathOverride> overrides) {
+        Objects.requireNonNull(edges, "Model graph edges");
+        Objects.requireNonNull(
+                overrides, "Model graph path overrides");
+        if (overrides.isEmpty()) {
+            return List.copyOf(edges);
+        }
+        Map<String, String> replacements =
+                new LinkedHashMap<>();
+        Map<String, String> canonicalByProjection =
+                new LinkedHashMap<>();
+        overrides.forEach(override -> {
+            String previous =
+                    replacements.put(
+                            override.getPath(),
+                            override.getProjectionPath());
+            if (previous != null
+                && !previous.equals(
+                        override.getProjectionPath())) {
+                throw new IllegalArgumentException(
+                        "Multiple graph path overrides target canonical path "
+                        + override.getPath());
+            }
+            String previousCanonical =
+                    canonicalByProjection.put(
+                            override.getProjectionPath(),
+                            override.getPath());
+            if (previousCanonical != null
+                && !previousCanonical.equals(
+                        override.getPath())) {
+                throw new IllegalArgumentException(
+                        "Multiple graph paths project to "
+                        + override.getProjectionPath());
+            }
+        });
+        return edges.stream()
+                .map(edge -> {
+                    String path =
+                            replacements.getOrDefault(
+                                    edge.getPath(),
+                                    edge.getPath());
+                    return Objects.equals(
+                            path, edge.getPath())
+                            ? edge
+                            : new ModelGraphEdge(
+                                    edge.getChildId(),
+                                    edge.getParentId(),
+                                    edge.getParentType(),
+                                    path,
+                                    edge.getValidFrom(),
+                                    edge.getValidUntil());
+                })
+                .toList();
     }
 
     private static Document compose(

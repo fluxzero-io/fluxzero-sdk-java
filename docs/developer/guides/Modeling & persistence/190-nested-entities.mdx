@@ -32,6 +32,10 @@ record LineItem(
 and direct search document. Updating it does not load or
 rewrite the order.
 
+The child does not have to be independently searchable. With `@Model(searchable = false)`, the explicit
+`@ParentId(path = "lines")` still retains a private current document for graph composition; only the child’s own public
+search collection is suppressed.
+
 ## Attach, detach and move
 
 The relation is ordinary model state:
@@ -93,11 +97,15 @@ into a search document. This keeps package and class renames from silently chang
 Current graph documents can be assembled on demand:
 
 ```java
-SerializedDocument order = Fluxzero.search(Order.class)
-        .includeModelGraph()
-        .fetch(1, SerializedDocument.class)
+ObjectNode order = Fluxzero.searchGraph(Order.class)
+        .fetch(1)
         .getFirst();
 ```
+
+If `Order` configures a graph projection, the default search reads that materialized view. Without one, it stitches
+the graph live. Pass `true` as the second argument to force live stitching. Constraints, sorting, field selection and
+pagination apply to the complete graph view in either route. Request `SerializedDocument.class`, `Document.class` or
+stream typed `SearchHit<ObjectNode>` values when transport or index details are needed.
 
 Or reconstructed as typed models:
 
@@ -203,6 +211,8 @@ Projection completion is configurable:
 - `DEFAULT` inherits consumer, apply, model and application configuration and ultimately uses `ASYNC`.
 
 Prefer an operation-level `AWAIT` override when only some commands query the complete root immediately afterwards.
+`LocalClient`, the test server and synchronous `TestFixture` executions honor the same contract and materialize the
+root before releasing an awaited command result.
 
 ## Embedded members
 

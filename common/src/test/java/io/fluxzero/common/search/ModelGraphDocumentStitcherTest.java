@@ -16,6 +16,7 @@ package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -107,6 +108,74 @@ class ModelGraphDocumentStitcherTest {
         assertEquals(
                 "root A detail B",
                 result.getSummary());
+    }
+
+    @Test
+    void appliesProjectionPathOverridesWithoutChangingChildListSemantics() {
+        List<ModelGraphEdge> edges =
+                ModelGraphDocumentStitcher
+                        .applyPathOverrides(
+                                List.of(
+                                        edge(
+                                                "child-b",
+                                                "root",
+                                                "children"),
+                                        edge(
+                                                "child-a",
+                                                "root",
+                                                "children")),
+                                List.of(
+                                        new ModelGraphPathOverride(
+                                                "children",
+                                                "projected/items")));
+
+        Document result =
+                ModelGraphDocumentStitcher.stitch(
+                                List.of(document(
+                                        "root", "roots",
+                                        "name", "root")),
+                                edges,
+                                Map.of(
+                                        "root", document(
+                                                "root", "roots",
+                                                "name", "root"),
+                                        "child-a", document(
+                                                "child-a", "firstType",
+                                                "name", "A"),
+                                        "child-b", document(
+                                                "child-b", "secondType",
+                                                "name", "B")),
+                                ModelGraphComposition.builder()
+                                        .build())
+                        .getFirst()
+                        .deserializeDocument();
+
+        assertEquals(
+                "A",
+                result.getEntryAtPath(
+                                "projected/items/0/name")
+                        .orElseThrow().getValue());
+        assertEquals(
+                "B",
+                result.getEntryAtPath(
+                                "projected/items/1/name")
+                        .orElseThrow().getValue());
+    }
+
+    @Test
+    void rejectsDifferentCanonicalPathsProjectedToOnePath() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelGraphDocumentStitcher
+                        .applyPathOverrides(
+                                List.of(),
+                                List.of(
+                                        new ModelGraphPathOverride(
+                                                "children",
+                                                "items"),
+                                        new ModelGraphPathOverride(
+                                                "details",
+                                                "items"))));
     }
 
     @Test

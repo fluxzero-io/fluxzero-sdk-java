@@ -145,7 +145,9 @@ model's direct collection observes the committed state.
 
 This does not automatically wait for a materialized whole-root graph projection. Select
 `GraphProjectionCompletion.AWAIT` for the operation or consumer when an immediate root query must include all affected
-children. Documents indexed by unrelated event handlers remain eventually consistent.
+children. Application-level `configureGraphProjectionCompletion(AWAIT)` is inherited by roots whose annotation keeps
+`DEFAULT`. `LocalClient`, the test server and synchronous fixtures materialize the same projection before releasing
+the result. Documents indexed by unrelated event handlers remain eventually consistent.
 
 You can also query by class:
 

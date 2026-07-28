@@ -155,6 +155,17 @@ public final class ModelMetadata {
         return parentReferences;
     }
 
+    /**
+     * Whether this model is placed in an automatically composed graph through at least one explicit parent path.
+     * <p>
+     * Graph participation is independent from {@link Model#searchable()}: a model can supply a current document for
+     * composition without exposing that document through its own searchable collection.
+     */
+    public boolean participatesInGraphComposition() {
+        return parentReferences.stream()
+                .anyMatch(ParentReference::automaticallyComposed);
+    }
+
     public List<HandlerMethod> handlerMethods() {
         return handlerMethods;
     }

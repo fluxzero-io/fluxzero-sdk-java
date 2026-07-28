@@ -37,6 +37,8 @@ import java.lang.annotation.Target;
  * virtual-document stitching and CQRS graph placement. Omitting it leaves relationship navigation and graph bundles
  * available without silently deriving a durable document path from a Java class name. The path names a list-valued
  * collection: the runtime appends deterministic numeric child positions, so numeric path segments are not allowed.
+ * Graph placement is independent from {@link Model#searchable()}: a non-searchable child with an explicit path is
+ * retained in a private current-document collection for composition, but is not exposed through its own collection.
  * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
  *

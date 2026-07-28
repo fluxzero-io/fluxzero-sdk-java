@@ -926,8 +926,8 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 
 - [x] Repeat the mutation/load matrix with `searchable = false` and `true`.
 - [x] Compare synchronous aggregate root-document mutation/search with synchronous direct-model document mutation/search.
-- [x] Compare current whole-root read/search using aggregate document loading, model `loadGraph`, relation-backed
-  `includeModelGraph`, and materialized graph documents.
+- [x] Compare current whole-root read/search using aggregate document loading, model `loadGraph`, relation-backed live
+  graph composition (now `searchGraph(..., true)`), and materialized graph documents.
 - [x] For asynchronous model graph projection report action commit latency and time-to-root-search-visible separately.
   For `AWAIT`, report command-result latency and prove that an immediate root query after receiving the result observes
   the committed tree.
@@ -1279,6 +1279,80 @@ without allowing the runtime to inspect or mutate event metadata.
 - [x] Perform an adversarial compatibility, concurrency, shutdown and capacity review.
 - [x] Publish the Phase 17 report with retained measurements and any remaining deployment gate.
 
+## Phase 18 — Local graph parity and model-cache controls
+
+This corrective phase closes the remaining difference between a runtime-backed application and the SDK-only
+`LocalClient`/test server while separating independent searchability from graph composition.
+
+### Slice 18.1 — Graph-component documents
+
+- [x] Treat `@Model(searchable = false)` as suppression of only the model's independent search collection.
+- [x] Store an internal current document when an explicit `@ParentId(path = "...")` opts the model into graph
+  composition, including document-loaded models and deletes.
+- [x] Keep non-searchable models without an explicit graph path on the zero-document-write fast path.
+
+### Slice 18.2 — Local projection worker
+
+- [x] Materialize registered graph projections in `LocalClient`, the test server and synchronous fixtures using the
+  shared bounded graph stitcher and exact current-document collection locators.
+- [x] Honor `DEFAULT` to application-level `AWAIT`, report honest projection positions, and delay waiters until direct
+  documents are visible.
+- [x] Update both old and new roots on a move and preserve projection path overrides, rebuild fences and duplicate-ID
+  collection safety.
+
+### Slice 18.3 — Dedicated model-cache configuration
+
+- [x] Add `FluxzeroBuilder.withModelCache(Cache)` without changing aggregate or relationship cache selection.
+- [x] Add `disableAutomaticModelCaching()` and include it in `DefaultFluxzero.Builder.disableAutomaticTracking()`.
+- [x] Close and instrument a distinct model cache exactly once while retaining compatibility for custom
+  `FluxzeroBuilder` implementations.
+
+### Slice 18.4 — Verification and documentation
+
+- [x] Cover the local materialized-root, move, non-searchable graph child, zero-document fast path and cache-selection
+  contracts.
+- [x] Update public Javadocs, developer/agent manuals, the Phase 7 limitation and this evidence log.
+- [x] Run focused suites, both complete Maven reactors, Javadocs/site checks, `git diff --check`, and an adversarial
+  regression/performance review.
+
+## Phase 19 — Explicit graph-search contract and write-impact remeasurement
+
+The graph view is not the root Java model and its query semantics must not depend on whether a materialized projection
+is configured. This corrective phase replaces the provisional ordinary-search modifier with one explicit JSON graph
+search.
+
+### Slice 19.1 — Public graph-result API
+
+- [x] Replace `Search.includeModelGraph()` with `Fluxzero.searchGraph(Root.class)`.
+- [x] Return graph-shaped `ObjectNode` values by default while retaining explicit `SerializedDocument`, `Document` and
+  typed `SearchHit` terminals.
+- [x] Use the configured materialized graph collection in default mode, stitch live when no projection exists, and
+  support `searchGraph(Root.class, true)` to force live composition.
+
+### Slice 19.2 — Equal live and materialized query semantics
+
+- [x] Apply graph constraints, sorting, field selection and pagination to the complete stitched view rather than the
+  uncomposed root.
+- [x] Bound live candidate-root discovery before composition and fail with guidance to narrow the query or use a
+  materialized projection.
+- [x] Apply projection-local path overrides to forced-live results so their public shape matches the materialized view.
+
+### Slice 19.3 — Deterministic placement and compatibility
+
+- [x] Preserve one deterministic ID-ordered list when different model types write to the same parent path.
+- [x] Preserve the distinct graph-search wire action and old-runtime unsupported-action behavior.
+- [x] Cover no-projection live fallback, materialized default, forced live, child-path constraints, path overrides,
+  path filtering and candidate bounds across common, SDK/local and runtime tests.
+
+### Slice 19.4 — Performance and release evidence
+
+- [x] Re-run the existing paired aggregate/model end-to-end benchmark so explicit-path non-searchable graph-component
+  writes are included in the before/after evidence.
+- [x] Record live multi-root stitching and materialized-query results, including the retained 1-root/5-child and
+  1,024-root/5,000-child profiles.
+- [x] Run focused suites, both complete Maven reactors, site/Javadocs, downstream compatibility, `git diff --check`
+  and a final adversarial regression/performance review.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
@@ -1454,8 +1528,8 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   2,000-root diagnostic, conservative default bounds materialized about 1,110 roots/s in 1.802 s; the leaf-model
   profile materialized about 7,491 roots/s in 0.267 s. Storage/WAL grew from 4.45/7.66 MiB without projection to
   7.41/13.15 MiB at the default projection profile. Cross-instance configuration propagation remains a Phase 9 rollout
-  gate; the SDK-only `TestFixture` acknowledges definitions but deliberately does not claim its absent async worker is
-  caught up.
+  gate. Phase 18 subsequently added equivalent in-memory projection materialization to `LocalClient`, synchronous
+  fixtures and the test server.
 - 2026-07-26 — Phase 8 SDK commit `49000dd69f1` and runtime commit `d3a74b60` add bounded deletion planning and
   explicitly confirmed `NONE`/`DESCENDANTS` hard deletion. JDBC execution is a fenced, hash-partitioned, resumable
   1,024-target saga across streams, relationships, action materializations, snapshots, direct search, and materialized
@@ -1555,3 +1629,25 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   +4.2%/+1.6% WAL while receipts are retained, and 1.94–4.6x faster update tracking. Absolute 100 GB/min qualification
   and production-duration partition-rollover soak remain deployment gates; full evidence is retained in the
   [Phase 17 report](dynamic-model-boundaries-phase-17-action-receipts.md).
+- 2026-07-28 — Phase 18 (SDK: this change; runtime unchanged) gives `LocalClient`, synchronous fixtures and the
+  websocket test server real in-memory graph projection materialization. Explicitly placed non-searchable children now
+  use the internal `$modelGraphComponents` collection without gaining an independent search collection; models without
+  a path retain the zero-document-write fast path. Dedicated and disabled model-cache selection are public builder
+  controls. Focused graph/commit/cache verification passed 55 tests, including explicit default-`ASYNC` and opt-in
+  `AWAIT` asynchronous fixtures, and the complete websocket contract passed 12
+  tests. The complete nine-module SDK reactor, site/Javadoc reactor and four-module runtime reactor passed; the latter
+  retained all 645 tests. The regression review found no production-runtime hot-path change: the only new production
+  storage is the intentional current document for a non-searchable model that explicitly opts into graph placement.
+  Aggregate migration remains deliberately deferred. Full contracts are recorded in the
+  [Phase 18 report](dynamic-model-boundaries-phase-18-local-parity.md).
+- 2026-07-28 — Phase 19 (SDK/runtime: this change) replaces provisional `includeModelGraph()` with the explicit
+  `searchGraph` JSON-view contract. AUTO uses a configured materialized projection and otherwise stitches live;
+  callers can force live composition. Constraints, sorting, field selection, paging and projection path overrides now
+  have the same full-view semantics, while bounded candidate-root discovery prevents unbounded accidental fan-out.
+  Same-path children form one deterministic ID-ordered list. The benchmark review found and fixed an immutable JDBC
+  root-summary split that could otherwise make live full-text graph constraints false-negative. The complete SDK
+  reactor passed all nine modules, including 1,970 SDK tests and Java/Kotlin downstream compatibility; site/Javadoc
+  passed. The complete runtime reactor passed all four modules and 646 tests before the final JDBC summary correction;
+  the affected 102 JDBC/RUM/endpoint tests and subsequent complete runtime reactor passed afterward. Paired
+  aggregate/model and 1,024-root/5,120-child measurements, including non-searchable graph-component writes and 1-KiB
+  documents, are retained in the [Phase 19 report](dynamic-model-boundaries-phase-19-graph-search.md).

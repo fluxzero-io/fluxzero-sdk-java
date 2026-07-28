@@ -21,11 +21,31 @@ import io.fluxzero.common.api.eventsourcing.DeleteEvents;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
+import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
@@ -85,5 +105,99 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     @Handle
     GetRelationshipsResult handle(GetRelationships request) {
         return new GetRelationshipsResult(request.getRequestId(), eventStore.getRelationships(request));
+    }
+
+    @Handle
+    CompletableFuture<CommitModelActionResult> handle(
+            CommitModelAction request) {
+        return eventStore.commitModelAction(
+                request);
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(
+            CompleteModelActionMaterialization
+                    request) {
+        return eventStore
+                .completeModelActionMaterialization(
+                        request);
+    }
+
+    @Handle
+    GetModelActionMaterializationResult handle(
+            GetModelActionMaterialization request) {
+        return eventStore
+                .getModelActionMaterialization(
+                        request);
+    }
+
+    @Handle
+    GetModelEventsResult handle(
+            GetModelEvents request) {
+        return eventStore.getModelEvents(
+                request);
+    }
+
+    @Handle
+    CompletableFuture<TrackModelUpdatesResult>
+            handle(TrackModelUpdates request) {
+        return eventStore.trackModelUpdates(
+                request);
+    }
+
+    @Handle
+    GetModelGraphResult handle(
+            GetModelGraph request) {
+        return eventStore.getModelGraph(
+                request);
+    }
+
+    @Handle
+    GetModelGraphResult handle(
+            GetModelAncestors request) {
+        return eventStore.getModelAncestors(
+                request);
+    }
+
+    @Handle
+    CompletableFuture<ModelGraphProjectionStatus>
+            handle(
+                    RegisterModelGraphProjection
+                            request) {
+        return eventStore
+                .registerModelGraphProjection(
+                        request);
+    }
+
+    @Handle
+    ModelGraphProjectionStatus handle(
+            GetModelGraphProjectionStatus
+                    request) {
+        return eventStore
+                .getModelGraphProjectionStatus(
+                        request);
+    }
+
+    @Handle
+    CompletableFuture<ModelGraphProjectionStatus>
+            handle(
+                    AwaitModelGraphProjection request) {
+        return eventStore
+                .awaitModelGraphProjection(
+                        request);
+    }
+
+    @Handle
+    ModelDeletionPlan handle(
+            PlanModelDeletion request) {
+        return eventStore.planModelDeletion(
+                request);
+    }
+
+    @Handle
+    CompletableFuture<ModelDeletionResult> handle(
+            DeleteModel request) {
+        return eventStore.deleteModel(
+                request);
     }
 }

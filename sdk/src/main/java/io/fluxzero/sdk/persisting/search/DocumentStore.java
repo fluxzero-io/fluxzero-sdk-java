@@ -388,6 +388,31 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
     Search search(SearchQuery.Builder queryBuilder);
 
     /**
+     * Searches complete graph views for an independent model root.
+     * <p>
+     * A configured materialized graph collection is used by default. If the root has no materialized projection, the
+     * current graph is composed live from direct documents and explicit parent paths.
+     */
+    default GraphSearch searchGraph(
+            @NonNull Class<?> rootModelType) {
+        return searchGraph(
+                rootModelType, false);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root.
+     *
+     * @param rootModelType root model class
+     * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
+     */
+    default GraphSearch searchGraph(
+            @NonNull Class<?> rootModelType,
+            boolean forceAdHoc) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph search is not supported by this document store");
+    }
+
+    /**
      * Checks whether a document exists for the given identifier and its associated type. The type is used to determine
      * the document collection.
      */

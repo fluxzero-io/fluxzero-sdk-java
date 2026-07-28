@@ -3119,8 +3119,11 @@ public record Address(
 
 Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
-`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`; `includeModelGraph()` can stitch current direct
-documents into a tree.
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` searches a complete
+JSON graph view: it uses a configured materialized projection and otherwise stitches current direct documents live;
+`searchGraph(User.class, true)` forces live stitching. Graph constraints have the same full-document meaning on both
+routes. `searchable = false` suppresses only the address's own search collection: an explicit
+`@ParentId(path = "...")` still gives graph composition an internal current document.
 
 Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
@@ -5517,11 +5520,15 @@ These methods disable internal features as needed:
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
 | `disableAutomaticAggregateCaching()` | Legacy 1.x: skips aggregate cache setup                            |
+| `disableAutomaticModelCaching()`     | Disables independent-model cache storage and update tracking       |
 | `disableScheduledCommandHandler()`   | Removes default handler for scheduled commands                     |
 | `disableTrackingMetrics()`           | Prevents emitting metrics during message tracking                  |
 | `disableCacheEvictionMetrics()`      | Disables cache eviction telemetry                                  |
 | `disableWebResponseCompression()`    | Prevents gzip compression for web responses                        |
 | `disableAdhocDispatchInterceptor()`  | Disallows use of `AdhocDispatchInterceptor.runWith...()` utilities |
+
+Use `withModelCache(cache)` to configure an independent cache for model state without changing aggregate or
+relationship caching.
 
 ---
 

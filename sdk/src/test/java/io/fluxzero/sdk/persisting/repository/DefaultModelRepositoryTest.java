@@ -873,6 +873,7 @@ class DefaultModelRepositoryTest {
         doReturn(eventStoreClient).when(client).getEventStoreClient();
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableKeepalive()
+                .disableAutomaticModelCaching()
                 .disableShutdownHook()
                 .build(client)) {
             fluxzero.commandGateway().send(new CreateAccounts(List.of(

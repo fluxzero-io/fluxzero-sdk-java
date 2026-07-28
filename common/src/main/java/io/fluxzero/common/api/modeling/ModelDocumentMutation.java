@@ -29,7 +29,15 @@ import lombok.Value;
 public class ModelDocumentMutation {
 
     /**
-     * Search collection containing the independently searchable model.
+     * Internal collection containing current documents for models that opt into graph placement through an explicit
+     * parent path without being independently searchable.
+     */
+    public static final String GRAPH_COMPONENT_COLLECTION =
+            "$modelGraphComponents";
+
+    /**
+     * Current-document collection. This is either the independently searchable model collection or the internal graph
+     * component collection.
      */
     String collection;
 

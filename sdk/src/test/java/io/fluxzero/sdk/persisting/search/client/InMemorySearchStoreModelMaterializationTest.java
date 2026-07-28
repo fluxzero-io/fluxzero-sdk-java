@@ -19,7 +19,11 @@ package io.fluxzero.sdk.persisting.search.client;
 import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
 import org.junit.jupiter.api.Test;
@@ -27,8 +31,11 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -81,6 +88,124 @@ class InMemorySearchStoreModelMaterializationTest {
         assertEquals(2, notifications.get());
     }
 
+    @Test
+    void localGraphProjectionHonorsPathOverridesAndStateFence() {
+        String rootId = "root-1";
+        String childId = "child-1";
+        Map<String, String> collections =
+                Map.of(
+                        rootId, "roots",
+                        childId,
+                        ModelDocumentMutation
+                                .GRAPH_COMPONENT_COLLECTION);
+        InMemorySearchStore graphStore =
+                new InMemorySearchStore(
+                        Duration.ofDays(1), null,
+                        (ignored, composition) ->
+                                List.of(
+                                        new ModelGraphEdge(
+                                                childId, rootId,
+                                                "Root", "children",
+                                                1L, null)),
+                        modelIds -> collections.entrySet()
+                                .stream()
+                                .filter(entry ->
+                                                modelIds.contains(
+                                                        entry.getKey()))
+                                .collect(
+                                        java.util.stream.Collectors
+                                                .toUnmodifiableMap(
+                                                        Map.Entry::getKey,
+                                                        Map.Entry::getValue)));
+        graphStore.index(
+                        List.of(
+                                structuredDocument(
+                                        rootId, "roots",
+                                        "root"),
+                                structuredDocument(
+                                        childId,
+                                        ModelDocumentMutation
+                                                .GRAPH_COMPONENT_COLLECTION,
+                                        "first")),
+                        STORED, false)
+                .join();
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "Root", "roots",
+                        "rootGraphs",
+                        ModelGraphComposition.builder()
+                                .build(),
+                        List.of(
+                                new ModelGraphPathOverride(
+                                        "children",
+                                        "components")));
+
+        graphStore.materializeModelGraphProjection(
+                configuration,
+                Set.of(rootId), 10L, false);
+        assertEquals(
+                "first",
+                graphStore.fetch(
+                                new GetDocument(
+                                        rootId,
+                                        "rootGraphs"))
+                        .orElseThrow()
+                        .deserializeDocument()
+                        .getEntryAtPath(
+                                "components/0/name")
+                        .orElseThrow()
+                        .getValue());
+
+        graphStore.materializeModelAction(
+                        new MaterializeModelAction(
+                                "update-child",
+                                11L,
+                                List.of(
+                                        new ModelDocumentMaterialization(
+                                                childId, 11L,
+                                                new ModelDocumentMutation(
+                                                        ModelDocumentMutation
+                                                                .GRAPH_COMPONENT_COLLECTION,
+                                                        structuredDocument(
+                                                                childId,
+                                                                ModelDocumentMutation
+                                                                        .GRAPH_COMPONENT_COLLECTION,
+                                                                "second")))),
+                                List.of()))
+                .join();
+        graphStore.materializeModelGraphProjection(
+                configuration,
+                Set.of(rootId), 10L, false);
+        assertEquals(
+                "first",
+                graphStore.fetch(
+                                new GetDocument(
+                                        rootId,
+                                        "rootGraphs"))
+                        .orElseThrow()
+                        .deserializeDocument()
+                        .getEntryAtPath(
+                                "components/0/name")
+                        .orElseThrow()
+                        .getValue());
+
+        graphStore.materializeModelGraphProjection(
+                configuration,
+                Set.of(rootId), 11L, false);
+        assertEquals(
+                "second",
+                graphStore.fetch(
+                                new GetDocument(
+                                        rootId,
+                                        "rootGraphs"))
+                        .orElseThrow()
+                        .deserializeDocument()
+                        .getEntryAtPath(
+                                "components/0/name")
+                        .orElseThrow()
+                        .getValue());
+    }
+
     private void materialize(
             long stateIndex, SerializedDocument document) {
         subject.materializeModelAction(
@@ -107,6 +232,26 @@ class InMemorySearchStoreModelMaterializationTest {
                         .collection("models")
                         .entries(Map.of())
                         .summary(() -> summary)
+                        .build());
+    }
+
+    private static SerializedDocument structuredDocument(
+            String id, String collection,
+            String value) {
+        return new SerializedDocument(
+                Document.builder()
+                        .id(id)
+                        .type("TestModel")
+                        .revision(0)
+                        .collection(collection)
+                        .entries(
+                                Map.of(
+                                        new Document.Entry(
+                                                TEXT, value),
+                                        List.of(
+                                                new Document.Path(
+                                                        "name"))))
+                        .summary(() -> value)
                         .build());
     }
 }

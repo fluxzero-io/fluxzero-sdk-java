@@ -328,7 +328,8 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
             SearchDocuments search) {
         return new SearchModelGraphDocuments(
                 search, template.getRelations(),
-                template.getComposition());
+                template.getComposition(),
+                template.getPathOverrides());
     }
 
     private CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(SearchDocuments request,

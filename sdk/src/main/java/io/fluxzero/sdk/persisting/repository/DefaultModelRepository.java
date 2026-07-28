@@ -26,6 +26,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
@@ -1524,10 +1525,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     @SuppressWarnings("unchecked")
     private Entity<?> loadDocumentUnchecked(
             String modelId, Class<?> modelType, ModelMetadata metadata, Model annotation) {
-        String collection = Optional.of(annotation.collection())
-                .filter(value -> !value.isEmpty())
-                .map(ApplicationProperties::substituteProperties)
-                .orElse(modelType.getSimpleName());
+        String collection = annotation.searchable()
+                ? Optional.of(annotation.collection())
+                        .filter(value -> !value.isEmpty())
+                        .map(ApplicationProperties::substituteProperties)
+                        .orElse(modelType.getSimpleName())
+                : metadata.participatesInGraphComposition()
+                        ? ModelDocumentMutation
+                                .GRAPH_COMPONENT_COLLECTION
+                        : Optional.of(annotation.collection())
+                                .filter(value -> !value.isEmpty())
+                                .map(ApplicationProperties::substituteProperties)
+                                .orElse(modelType.getSimpleName());
         Object value = documentStore.fetchDocument(modelId, collection, modelType).orElse(null);
         String idProperty = metadata.entityId().orElseThrow().name();
         validateValueId(modelId, metadata, value);

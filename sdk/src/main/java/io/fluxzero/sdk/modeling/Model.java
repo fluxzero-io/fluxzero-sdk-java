@@ -166,8 +166,10 @@ public @interface Model {
     /**
      * Whether the model should be synchronously indexed in Fluxzero's document store.
      * <p>
-     * Successful commit completion makes the directly changed model searchable. Composed documents containing related
-     * models are separate asynchronous projections.
+     * Successful commit completion makes the directly changed model searchable in its own collection. This setting
+     * does not control graph participation: a model connected through an explicit {@link ParentId#path()} still
+     * supplies an internal current document for virtual and materialized graph composition. Composed root documents
+     * are separate projections.
      */
     boolean searchable() default false;
 

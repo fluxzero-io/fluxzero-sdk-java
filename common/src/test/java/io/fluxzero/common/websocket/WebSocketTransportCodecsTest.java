@@ -58,6 +58,7 @@ import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
@@ -857,7 +858,11 @@ class WebSocketTransportCodecsTest {
                                 .maxPlacements(5_000)
                                 .maxCollections(50)
                                 .maxBytes(8_000_000L)
-                                .build());
+                                .build(),
+                        List.of(
+                                new ModelGraphPathOverride(
+                                        "children",
+                                        "projected/items")));
 
         for (WebSocketTransportCodec codec :
                 List.of(jsonCodec, cborCodec)) {
@@ -883,6 +888,16 @@ class WebSocketTransportCodecsTest {
                     50,
                     decoded.getComposition()
                             .getMaxCollections());
+            assertEquals(
+                    List.of(
+                            new ModelGraphPathOverride(
+                                    "children",
+                                    "projected/items")),
+                    decoded.getPathOverrides());
+            assertEquals(
+                    1,
+                    decoded.toMetric()
+                            .getPathOverrideCount());
         }
     }
 

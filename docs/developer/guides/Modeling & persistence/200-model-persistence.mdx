@@ -64,8 +64,8 @@ The direct searchable document is synchronously maintained with the model commit
 an immediate direct search can observe the changed model.
 
 <Aside type="caution">
-A document-based model must be searchable so it has an authoritative current document. Fluxzero will reject a
-configuration that cannot persist the model's current state.
+A document-based model needs a current document. Normally that means `searchable = true`; a non-searchable child with
+an explicit `@ParentId(path = "...")` can instead load from its private graph-component document.
 </Aside>
 
 ## Event storage and publication
@@ -131,10 +131,15 @@ record LineItem(
 This document is authoritative for direct search and for document-based loading. It is not the asynchronously stitched
 root graph.
 
+`searchable = false` controls only this independent collection. A child with an explicit `@ParentId(path = "...")`
+still supplies a private current document to virtual and materialized graph composition. Without an explicit path,
+Fluxzero stores no graph-component document and performs no extra document write.
+
 You can additionally:
 
 - join current direct documents through `whereAncestor(...)` and `whereDescendant(...)`;
-- stitch the current graph per query with `includeModelGraph()`;
+- search a complete JSON graph with `searchGraph(Root.class)`, using a materialized projection when configured and
+  otherwise stitching live;
 - configure `graphProjection = @GraphProjection(...)` for a durable, materialized root document.
 
 ## Caching
@@ -147,6 +152,9 @@ Models use a shared current-state cache and an action-local cache:
 - document-based models are refreshed from their direct document;
 - event-sourced models reuse a cached replay base and load only the missing suffix;
 - hard deletion evicts the ID without retaining private tombstone state in the SDK cache.
+
+Use `FluxzeroBuilder.withModelCache(cache)` for a dedicated model cache, or
+`FluxzeroBuilder.disableAutomaticModelCaching()` to disable both shared model caching and its update tracker.
 
 The default `cachingDepth` retains the previous revision needed by common event-handler comparison logic. Configure a
 larger depth only when the application actively uses deeper `Entity.previous()` chains.
