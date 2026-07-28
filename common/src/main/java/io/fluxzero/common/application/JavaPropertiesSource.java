@@ -14,8 +14,6 @@
 
 package io.fluxzero.common.application;
 
-import lombok.SneakyThrows;
-
 import java.util.Properties;
 
 /**
@@ -32,25 +30,45 @@ import java.util.Properties;
 public abstract class JavaPropertiesSource implements PropertySource {
 
     private final Properties properties;
+    private final boolean environmentVariableAliases;
 
     /**
      * Creates a new property source backed by the given {@link Properties} instance.
      *
      * @param properties the {@code Properties} instance to use for lookups
      */
-    @SneakyThrows
     public JavaPropertiesSource(Properties properties) {
+        this(properties, false);
+    }
+
+    JavaPropertiesSource(Properties properties, boolean environmentVariableAliases) {
         this.properties = properties;
+        this.environmentVariableAliases = environmentVariableAliases;
     }
 
     /**
-     * Retrieves the value for the given property name.
+     * Retrieves the value for the given property name. Built-in property-file sources also fall back to conventional
+     * environment-variable aliases, while exact property names retain priority.
      *
      * @param name the property key
      * @return the property value, or {@code null} if not present
      */
     @Override
     public String get(String name) {
-        return properties.getProperty(name);
+        String result = properties.getProperty(name);
+        if (result != null || !environmentVariableAliases) {
+            return result;
+        }
+        String environmentVariableName = EnvironmentVariablesSource.toEnvironmentVariableName(name);
+        result = environmentVariableName.equals(name) ? null : properties.getProperty(environmentVariableName);
+        if (result != null) {
+            return result;
+        }
+        String compactEnvironmentVariableName = EnvironmentVariablesSource.toCompactEnvironmentVariableName(name);
+        if (compactEnvironmentVariableName.equals(name)
+            || compactEnvironmentVariableName.equals(environmentVariableName)) {
+            return null;
+        }
+        return properties.getProperty(compactEnvironmentVariableName);
     }
 }

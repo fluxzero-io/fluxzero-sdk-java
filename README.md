@@ -5085,6 +5085,11 @@ export ENVIRONMENT=dev
 
 This allows `application-dev.properties` to override base properties.
 
+SDK-loaded property files accept both regular property names and their conventional environment-variable aliases. For
+example, `FLUXZERO_AUTH_OIDC_LOGIN_STATE_SECRET` can be resolved with
+`ApplicationProperties.getProperty("fluxzero.auth.oidc.login-state-secret")`. When both forms occur in the same source,
+the exact property name takes priority.
+
 ### Example Usage
 
 ```java

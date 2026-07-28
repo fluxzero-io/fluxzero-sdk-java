@@ -47,6 +47,6 @@ public class ApplicationPropertiesSource extends JavaPropertiesSource {
      * classpath.
      */
     public ApplicationPropertiesSource() {
-        super(loadProperties("application.properties"));
+        super(loadProperties("application.properties"), true);
     }
 }

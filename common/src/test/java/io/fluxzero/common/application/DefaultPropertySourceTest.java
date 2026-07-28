@@ -100,6 +100,47 @@ class DefaultPropertySourceTest {
     }
 
     @Test
+    void systemPropertiesOverrideAdditionalEnvironmentVariableAliases() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, "ADDITIONAL_SECRET=fromAdditionalLocation");
+
+        runWithSystemProperties(
+                () -> assertEquals("fromSystemProperty", new DefaultPropertySource().get("additional.secret")),
+                FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString(),
+                "additional.secret", "fromSystemProperty");
+    }
+
+    @Test
+    void additionalPropertyLocationsSupportEnvironmentVariableNames() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, """
+                FLUXZERO_AUTH_OIDC_LOGIN_STATE_SECRET=secret
+                FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA=compact
+                """);
+
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("secret", source.get("fluxzero.auth.oidc.login-state-secret"));
+            assertEquals("compact", source.get("fluxzero.dataProtection.onMissingProtectedData"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString());
+    }
+
+    @Test
+    void exactAdditionalPropertyNameOverridesEnvironmentVariableAlias() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, """
+                fluxzero.auth.oidc.login-state-secret=exact
+                FLUXZERO_AUTH_OIDC_LOGIN_STATE_SECRET=alias
+                """);
+
+        runWithSystemProperties(
+                () -> assertEquals("exact",
+                                   new DefaultPropertySource().get("fluxzero.auth.oidc.login-state-secret")),
+                FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString());
+    }
+
+    @Test
     void fromMultipleFluxzeroAdditionalLocations() throws Exception {
         Path first = tempDir.resolve("first.properties");
         Path second = tempDir.resolve("second.properties");
