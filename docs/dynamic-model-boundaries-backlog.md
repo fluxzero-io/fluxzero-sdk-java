@@ -1353,6 +1353,100 @@ search.
 - [x] Run focused suites, both complete Maven reactors, site/Javadocs, downstream compatibility, `git diff --check`
   and a final adversarial regression/performance review.
 
+## Phase 20 — Production-code reduction without performance loss
+
+The completed design is deliberately broad, but breadth must not leave accidental duplication, parallel state
+machines, or implementation scaffolding in the permanent hot path. This phase simplifies the SDK and runtime after the
+contracts have stabilized. Fewer lines are desirable only when the result remains easier to prove correct; hiding
+state transitions behind generic abstractions does not count as simplification.
+
+The strict `origin/main...HEAD` source-root baseline at entry is:
+
+- SDK repository: 20,071 added / 86 deleted `src/main` lines and 15,311 added / 11 deleted `src/test` lines;
+- runtime repository: 16,249 added / 12 deleted `src/main` lines and 14,452 added / 11 deleted `src/test` lines;
+- runtime benchmark tests add another 5,513 / delete 11 lines, while the SDK repository adds 7,227 / deletes 6,041
+  documentation lines.
+
+`test-server/src/main` and public `TestFixture` support remain production source roots in the strict count even though
+their purpose is testing. The phase report must therefore provide both Maven-layout and functional classifications.
+
+### Slice 20.1 — Complexity and duplication map
+
+- [ ] Record per-module and per-source-root added/deleted/net lines, plus the largest production additions.
+- [ ] Identify repeated state transitions, validation, paging, graph stitching, materialization, cache fencing and
+  protocol conversion across SDK local/in-memory and runtime JDBC/in-memory implementations.
+- [ ] Measure structural complexity and allocations on the principal hot methods before editing; distinguish genuinely
+  necessary domain complexity from temporary implementation scaffolding.
+- [ ] Mark public API, persisted schema, wire format, failure, ordering, lifecycle and performance invariants that each
+  candidate simplification must preserve.
+
+### Slice 20.2 — SDK and common simplification
+
+- [ ] Reduce duplication and unnecessary intermediate representations around `DefaultModelRepository`,
+  `InMemoryEventStore`, automatic model actions, target/ancestor resolution, cache tracking and graph composition.
+- [ ] Prefer compiled immutable plans and central `ReflectionUtils.TypeMetadata` ownership over repeated reflection or
+  runtime branching.
+- [ ] Keep legacy aggregate traffic, direct single-model loads and actions on their current fast paths.
+- [ ] Retain fixture/local/test-server parity without copying a second implementation of graph or action semantics.
+
+### Slice 20.3 — Runtime simplification
+
+- [ ] Decompose `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` by cohesive storage responsibility where that
+  reduces reasoning surface, while retaining set-based SQL, prepared-statement reuse, batching and transaction scope.
+- [ ] Share pure validation, relationship, payload-membership and projection semantics between JDBC and in-memory
+  stores where doing so removes duplication without introducing polymorphic dispatch or allocation on measured hot
+  paths.
+- [ ] Remove superseded compatibility scaffolding, dead alternatives and redundant action/result transformations.
+- [ ] Keep lazy schema creation, hash pruning, backpressure, restart recovery and zero-overhead aggregate-only behavior
+  intact.
+
+### Slice 20.4 — Performance and regression gate
+
+- [ ] Compare before/after production lines, files and structural complexity; document important code that remained
+  large because reducing it would obscure transactional or temporal invariants.
+- [ ] Re-run the representative aggregate/model action, hot-leaf load, multi-target store/load, graph-search/stitch,
+  split-store materialization and contention benchmarks.
+- [ ] Accept no statistically meaningful throughput, p95/p99 latency, allocation, WAL, physical amplification or
+  legacy aggregate regression. Revert simplifications that fail this gate.
+- [ ] Run focused suites, both complete Maven reactors, site/Javadocs, downstream compatibility, `git diff --check`
+  and a separate adversarial final-diff review.
+
+## Phase 21 — Existing-application `@Aggregate` to `@Model` migration
+
+This phase uses a real existing Fluxzero application as an external acceptance test rather than adding another
+synthetic SDK fixture. The user will provide the repository coordinates when Phase 20 is complete.
+
+### Slice 21.1 — Baseline and migration map
+
+- [ ] Obtain the repository coordinates and inspect its own agent/build instructions before making changes.
+- [ ] Run and record the untouched application test suite and any representative integration/performance checks.
+- [ ] Map aggregate roots, embedded members, command/event flows, searches, snapshots, caches, relationships and
+  lifecycle expectations to independent models versus intentional same-stream `@Member` values.
+- [ ] Identify persisted-data compatibility requirements separately from source migration; do not silently claim that
+  changing stream identities migrates existing production history.
+
+### Slice 21.2 — Model-first conversion
+
+- [ ] Replace application aggregate boundaries with `@Model`, typed direct IDs and explicit `@ParentId(path = ...)`
+  composition where tree search is required.
+- [ ] Use automatic model handling, model/ancestor injection and `Fluxzero.assertAndApply` where they remove real
+  application boilerplate without changing command or event meaning.
+- [ ] Preserve external payloads, handler results, publication strategies, search visibility and application-level
+  consumer configuration unless a deliberate migration change is documented.
+- [ ] Avoid application-local workarounds for SDK/runtime shortcomings; first reproduce and fix any general gap in the
+  owning Fluxzero repository with a focused regression test.
+
+### Slice 21.3 — External acceptance and evidence
+
+- [ ] Run the complete migrated application suite against local/test-fixture and real runtime-backed paths applicable
+  to the project.
+- [ ] Compare aggregate and model behavior for commands, event replay, direct and graph search, moves, deletes,
+  ancestors, caching and restart/retry.
+- [ ] Record the source delta, removed boilerplate, migration friction, discovered framework gaps and any intentional
+  semantic differences.
+- [ ] Feed proven migration guidance back into the human and agent manuals, then rerun the affected SDK/runtime full
+  reactors before renewing release readiness.
+
 ## Evidence log
 
 Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, and any remaining limitation.
