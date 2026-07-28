@@ -55,9 +55,13 @@ line count.
   initially reduced more code, but a same-machine A/B exposed a roughly 4% short-run write regression. The abstraction
   was removed before commit. CPD therefore still reports 23 duplicated planning lines; this is an intentional hot-path
   optimization.
-- `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` remain large. Splitting their transaction-local SQL,
-  prepared-statement state and batching into cosmetic collaborators would move rather than remove complexity and
-  obscure the atomicity and allocation boundaries.
+- `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` remained large because splitting their transaction-local
+  SQL into cosmetic collaborators would only move code. A subsequent whole-runtime architecture review found a deeper
+  issue that this local simplification phase did not address: receipts, materialization recovery, cache tracking,
+  projection signals/tasks and model-specific search lifecycle form parallel infrastructure instead of composing the
+  runtime's existing durable logs and tracked consumers. Phase 21 therefore supersedes the earlier conclusion that no
+  further structural reduction was warranted; it requires shared ownership and deleted state machines, not cosmetic
+  class splitting.
 - Existing compiled reflection plans and `ReflectionUtils.TypeMetadata` ownership were retained. No parallel
   class-keyed reflection cache was introduced.
 

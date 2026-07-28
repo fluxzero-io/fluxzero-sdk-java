@@ -1412,12 +1412,154 @@ their purpose is testing. The phase report must therefore provide both Maven-lay
 - [x] Run focused suites, both complete Maven reactors, site/Javadocs, downstream compatibility, `git diff --check`
   and a separate adversarial final-diff review.
 
-## Phase 21 — Existing-application `@Aggregate` to `@Model` migration
+## Phase 21 — Log-centric runtime redesign and schema containment
+
+The post-Phase 20 architecture review found that the runtime implementation preserves the intended model contracts but
+implements them as a parallel coordination platform instead of composing Fluxzero's existing durable logs, tracked
+consumers, positions, JDBC schema primitives, and thin endpoint/store boundaries. This phase is a release blocker. It
+must remove accidental infrastructure rather than merely split large classes or move lines between files.
+
+The entry baseline against `origin/main` is a net increase of 15,832 physical Java production lines in the runtime
+(`22,847` to `38,679`, +69.3%). The new `modeling` package accounts for 13,158 lines. The six largest model additions
+account for 13,693 lines, including the 6,998-line `JdbcModelActionStore`. At first model use, the current core can
+create roughly 309 parent/partition relations in one namespace; enabling every graph/search capability can raise the
+combined model/search total to roughly 444 before ordinary collection partitions and indexes. In addition,
+`JdbcSearchStore` currently initializes model-erasure state and 32 erasure partitions even for aggregate-only
+namespaces.
+
+### Non-negotiable Phase 21 contracts
+
+- [x] Preserve the public SDK API, wire actions, model identity, action ordering, `stateIndex` ordering, one-time global
+  event publication, publication strategies, exact historical loads, temporal relationships, conflict semantics,
+  direct search visibility, graph search shape, snapshot behavior, cache coherence, retry/idempotency, hard erasure,
+  detached lineage, split-store recovery, and `ASYNC`/`AWAIT` completion behavior.
+- [x] Preserve all legacy aggregate, search, scheduling, tracking, key-value and consumer behavior. An
+  aggregate/search-only namespace must create **zero model-specific tables, partitions, workers, executors, polling
+  loops, HMAC state, or hot-path branches**.
+- [x] Base model coordination on Fluxzero's existing durable-log and tracked-consumer primitives. A compact internal
+  model-update log should be the first design evaluated as the owner of the time-based `stateIndex`, cache change feed,
+  durable materialization outbox, and graph-projection input. A new parallel receipt, signal, task, cursor, waiter, or
+  retention subsystem is forbidden unless a recorded spike proves that the existing primitives cannot meet a named
+  correctness or performance contract.
+- [x] Keep the commit package atomic in the model/event database: model memberships, heads, temporal relation deltas,
+  the internal model update, and the original globally published event must either all become visible or none do.
+  Split search storage remains recoverable and idempotent without XA.
+- [x] Keep synchronous direct-model document visibility. Graph projections remain durably asynchronous by default and
+  may be awaited per configured result boundary. Neither path may lose, duplicate, reorder, or resurrect mutations
+  across restart, retry, stale completion, move, logical delete, or hard erasure.
+- [x] Retain the inline/shared payload policy and delete ownership guarantees without duplicating ordinary event
+  payloads per target.
+- [x] Do not preserve an unreleased internal table layout, serialized action-result blob, or implementation class when
+  doing so obstructs the simpler architecture. Any required branch-local schema transition must nevertheless be
+  deterministic, explicitly tested, and fail clearly rather than silently misreading old data.
+- [x] Do not accept cosmetic decomposition as completion. Production lines must be removed through shared ownership,
+  deleted state machines, reused infrastructure, simpler persistence, or eliminated transformations.
+
+### Hard schema and code budgets
+
+- [x] Inventory every logical table, index, physical partition, worker and durable cursor before editing; record its
+  owner, cardinality, retention, read/write path, and proof that it cannot reuse an existing runtime primitive.
+- [x] Control/configuration/idempotency tables are not hash-partitioned by default. Only measured high-cardinality data
+  may be partitioned, and one logical dataset may not be duplicated solely to support the opposite traversal when an
+  indexed or measured alternative meets the load budget.
+- [x] Create partitions lazily or from an explicitly justified small default. Never precreate the same fixed
+  32-partition fan-out across every model table.
+- [x] The default first-use budget is at most **64 new physical model relations** for core commit/load plus synchronous
+  direct documents, and at most **96** with graph projection and hard-erasure capabilities enabled. These counts include
+  parent tables and child partitions across model and search databases, but exclude ordinary user search collections
+  that would exist independently. Exceeding either ceiling requires explicit user acceptance backed by production-scale
+  measurements and an explanation of why fewer relations fail.
+- [x] No generic `JdbcSearchStore` construction may create model state. Model document fencing and erasure must be a
+  lazy model capability or a separate narrow store.
+- [x] Finish with a runtime production-source delta of at most **+10,000 net physical Java lines** against
+  `origin/main`. A higher result is a failed phase unless the user explicitly accepts a documented exception after the
+  behavior, table and performance gates pass.
+
+### Slice 21.1 — Executable baseline and replacement ADR
+
+- [x] Freeze the current branch as the behavioral and performance oracle. Record exact production/test LOC, physical
+  schema objects, startup work, background workers, transaction statements, round trips, allocations, WAL and latency
+  for aggregate-only and every representative model path.
+- [x] Map `model_state`, actions, receipts, targets, heads, streams, payloads, temporal relations, materialization,
+  projection signals/tasks, fences, deletion state and protected lineage onto existing `MessageStore`,
+  `PositionStore`, `Table`, partition-retention and endpoint/service primitives.
+- [x] Spike the compact internal model-update log and atomic `JdbcMessageStore` callback path. Prove time-based monotone
+  state indices, STORE_ONLY tracking, exact event-action boundaries, restart replay, bounded retention, and one global
+  event publication. Record decisions and discard the spike before production implementation.
+- [x] Publish a replacement ADR with the exact target tables, indexes, partition counts, transaction boundary, retained
+  state, workers and failure recovery. Do not start the rewrite until it satisfies the budgets above.
+
+### Slice 21.2 — Shared action log and narrow core stores
+
+- [x] Implement the internal model-update log using existing message-log indexing, long polling, retention and consumer
+  positions; use its assigned index as `stateIndex` unless the Phase 21.1 spike disproves that design.
+- [x] Reduce permanent action state to the minimum required for durable idempotency and exact action boundaries. Do not
+  retain complete document/snapshot materialization blobs indefinitely.
+- [x] Decompose persistence into narrow model-stream/head, temporal-relation and action-idempotency stores, coordinated
+  by one action service. Keep set-based SQL, batching, transaction-local work and hash pruning on measured
+  high-cardinality tables.
+- [x] Share action transition semantics between JDBC, local/test and test-server paths. Replace the independent
+  handwritten in-memory action engine with a thin storage adapter or the shared coordinator.
+- [x] Keep endpoints as protocol adapters and share one namespace-scoped model query/service graph rather than
+  constructing a second full query-only model store.
+
+### Slice 21.3 — Materialization, tracking and projection consumers
+
+- [x] Drive cache coherence, direct document/snapshot materialization and graph projection from the same committed model
+  update log. Remove superseded receipt/target and projection-signal infrastructure.
+- [x] Reuse ordinary durable consumer positions and long polling. Local commits wake waiters immediately; single-active
+  failover resumes from the durable position without permanent database polling.
+- [x] Preserve runtime-owned autonomous recovery after restart and temporary split-search-store failure. A committed
+  action may not depend on client redelivery for repair.
+- [x] Preserve coalescing and bounded graph composition without a second generic scheduling platform. If a minimal
+  durable root-task table remains necessary, prove why replay plus an existing consumer position is insufficient and
+  keep it inside the schema budget.
+- [x] Preserve the direct-model zero-extra-round-trip cache hot path and exact event-handler action-boundary loads.
+
+### Slice 21.4 — Lazy search lifecycle and erasure
+
+- [x] Move model document fences, snapshots and erasure out of generic search-store construction into a lazy,
+  model-specific capability.
+- [x] Express hard deletion as a bounded lifecycle action using the same update/outbox/recovery mechanism. Retain
+  protected detached lineage and irreversible search fences without contaminating ordinary model commits or
+  aggregate-only startup.
+- [x] Test `NONE` and cascading erasure, shared payload membership, detached descendants, split stores, restart during
+  every phase, stale late document/projection writes, deletion retries and key loss/rotation behavior.
+- [x] Verify that graph search and ad-hoc stitching use a narrow graph query service and never initialize commit,
+  receipt, recovery or deletion ownership merely to read.
+
+### Slice 21.5 — Performance, scale and release gate
+
+- [x] Run paired before/after measurements from separately installed worktrees with identical JVM, PostgreSQL, schema,
+  data, warm-up and concurrency. Require no statistically meaningful regression in single-target and 2/10/100-target
+  writes, current/historical loads, hot leaf loads, STORE_ONLY tracking, relation moves, direct searchable commits,
+  graph search/stitching, projection throughput or erasure.
+- [x] Require unchanged or better p50/p95/p99 latency, throughput, allocation, physical amplification and WAL on every
+  changed hot path. A simplification that loses speed is reverted or redesigned; fewer lines never compensate for a
+  regression.
+- [x] Verify that legacy aggregate/search-only startup, schema, throughput, latency, allocation and WAL are byte-for-byte
+  or statistically unchanged, apart from test instrumentation.
+- [x] Repeat the highest-throughput store/load matrix and demonstrate that no singleton lock, control table, per-model
+  round trip, N+1 traversal or consumer backlog prevents the established 100-GB/min reference architecture. Do not
+  claim production hardware certification from a local diagnostic.
+- [x] Record final production/test LOC, absolute lines touched, class/interface sizes, logical/physical table counts,
+  partitions, indexes, workers and cursors. Explain every retained model-specific mechanism.
+- [x] Run both complete Maven reactors, site/Javadocs, Java/Kotlin downstream compatibility, binary API checks,
+  `git diff --check`, schema upgrade/restart tests and an adversarial final review before renewing release readiness.
+
+Completion evidence and the accepted replacement architecture are recorded in
+[Phase 21 runtime redesign](dynamic-model-boundaries-phase-21-runtime-redesign.md). The final implementation replaces
+the parallel receipt/signal/task machinery with one compact update log, remains within the +10,000 production
+line ceiling, creates 48 core relations (52 with graph and search lifecycle enabled), and passed the paired performance,
+restart/upgrade and complete-reactor gates.
+
+## Phase 22 — Existing-application `@Aggregate` to `@Model` migration
 
 This phase uses a real existing Fluxzero application as an external acceptance test rather than adding another
-synthetic SDK fixture. The user will provide the repository coordinates when Phase 20 is complete.
+synthetic SDK fixture. The user will provide the repository coordinates after the Phase 21 runtime release blocker is
+closed.
 
-### Slice 21.1 — Baseline and migration map
+### Slice 22.1 — Baseline and migration map
 
 - [ ] Obtain the repository coordinates and inspect its own agent/build instructions before making changes.
 - [ ] Run and record the untouched application test suite and any representative integration/performance checks.
@@ -1426,7 +1568,7 @@ synthetic SDK fixture. The user will provide the repository coordinates when Pha
 - [ ] Identify persisted-data compatibility requirements separately from source migration; do not silently claim that
   changing stream identities migrates existing production history.
 
-### Slice 21.2 — Model-first conversion
+### Slice 22.2 — Model-first conversion
 
 - [ ] Replace application aggregate boundaries with `@Model`, typed direct IDs and explicit `@ParentId(path = ...)`
   composition where tree search is required.
@@ -1437,7 +1579,7 @@ synthetic SDK fixture. The user will provide the repository coordinates when Pha
 - [ ] Avoid application-local workarounds for SDK/runtime shortcomings; first reproduce and fix any general gap in the
   owning Fluxzero repository with a focused regression test.
 
-### Slice 21.3 — External acceptance and evidence
+### Slice 22.3 — External acceptance and evidence
 
 - [ ] Run the complete migrated application suite against local/test-fixture and real runtime-backed paths applicable
   to the project.
