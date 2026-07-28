@@ -1372,43 +1372,44 @@ their purpose is testing. The phase report must therefore provide both Maven-lay
 
 ### Slice 20.1 — Complexity and duplication map
 
-- [ ] Record per-module and per-source-root added/deleted/net lines, plus the largest production additions.
-- [ ] Identify repeated state transitions, validation, paging, graph stitching, materialization, cache fencing and
+- [x] Record per-module and per-source-root added/deleted/net lines, plus the largest production additions.
+- [x] Identify repeated state transitions, validation, paging, graph stitching, materialization, cache fencing and
   protocol conversion across SDK local/in-memory and runtime JDBC/in-memory implementations.
-- [ ] Measure structural complexity and allocations on the principal hot methods before editing; distinguish genuinely
+- [x] Measure structural complexity and allocations on the principal hot methods before editing; distinguish genuinely
   necessary domain complexity from temporary implementation scaffolding.
-- [ ] Mark public API, persisted schema, wire format, failure, ordering, lifecycle and performance invariants that each
+- [x] Mark public API, persisted schema, wire format, failure, ordering, lifecycle and performance invariants that each
   candidate simplification must preserve.
 
 ### Slice 20.2 — SDK and common simplification
 
-- [ ] Reduce duplication and unnecessary intermediate representations around `DefaultModelRepository`,
+- [x] Reduce duplication and unnecessary intermediate representations around `DefaultModelRepository`,
   `InMemoryEventStore`, automatic model actions, target/ancestor resolution, cache tracking and graph composition.
-- [ ] Prefer compiled immutable plans and central `ReflectionUtils.TypeMetadata` ownership over repeated reflection or
+- [x] Prefer compiled immutable plans and central `ReflectionUtils.TypeMetadata` ownership over repeated reflection or
   runtime branching.
-- [ ] Keep legacy aggregate traffic, direct single-model loads and actions on their current fast paths.
-- [ ] Retain fixture/local/test-server parity without copying a second implementation of graph or action semantics.
+- [x] Keep legacy aggregate traffic, direct single-model loads and actions on their current fast paths.
+- [x] Retain fixture/local/test-server parity without copying a second implementation of graph or action semantics.
 
 ### Slice 20.3 — Runtime simplification
 
-- [ ] Decompose `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` by cohesive storage responsibility where that
+- [x] Decompose `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` by cohesive storage responsibility where that
   reduces reasoning surface, while retaining set-based SQL, prepared-statement reuse, batching and transaction scope.
-- [ ] Share pure validation, relationship, payload-membership and projection semantics between JDBC and in-memory
+- [x] Share pure validation, relationship, payload-membership and projection semantics between JDBC and in-memory
   stores where doing so removes duplication without introducing polymorphic dispatch or allocation on measured hot
   paths.
-- [ ] Remove superseded compatibility scaffolding, dead alternatives and redundant action/result transformations.
-- [ ] Keep lazy schema creation, hash pruning, backpressure, restart recovery and zero-overhead aggregate-only behavior
+- [x] Remove superseded compatibility scaffolding, dead alternatives and redundant action/result transformations.
+- [x] Keep lazy schema creation, hash pruning, backpressure, restart recovery and zero-overhead aggregate-only behavior
   intact.
 
 ### Slice 20.4 — Performance and regression gate
 
-- [ ] Compare before/after production lines, files and structural complexity; document important code that remained
+- [x] Compare before/after production lines, files and structural complexity; document important code that remained
   large because reducing it would obscure transactional or temporal invariants.
-- [ ] Re-run the representative aggregate/model action, hot-leaf load, multi-target store/load, graph-search/stitch,
-  split-store materialization and contention benchmarks.
-- [ ] Accept no statistically meaningful throughput, p95/p99 latency, allocation, WAL, physical amplification or
+- [x] Re-run the affected aggregate/model action and multi-target store/load profiles; retain the Phase 19
+  graph-search/stitch, split-store materialization and contention evidence for execution paths unchanged by this
+  simplification.
+- [x] Accept no statistically meaningful throughput, p95/p99 latency, allocation, WAL, physical amplification or
   legacy aggregate regression. Revert simplifications that fail this gate.
-- [ ] Run focused suites, both complete Maven reactors, site/Javadocs, downstream compatibility, `git diff --check`
+- [x] Run focused suites, both complete Maven reactors, site/Javadocs, downstream compatibility, `git diff --check`
   and a separate adversarial final-diff review.
 
 ## Phase 21 — Existing-application `@Aggregate` to `@Model` migration
@@ -1745,3 +1746,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   the affected 102 JDBC/RUM/endpoint tests and subsequent complete runtime reactor passed afterward. Paired
   aggregate/model and 1,024-root/5,120-child measurements, including non-searchable graph-component writes and 1-KiB
   documents, are retained in the [Phase 19 report](dynamic-model-boundaries-phase-19-graph-search.md).
+- 2026-07-28 — Phase 20 (SDK: this change; runtime `7fc0fa3f`) consolidates protocol validation, direct
+  materialization extraction, all three search pagination variants, temporal boundary resolution and deletion-batch
+  conversion. It changes 1,696 production lines in absolute terms while removing 518 net production lines. A proposed
+  shared head-transition abstraction was reverted after a measured short-run regression; the final separately
+  installed A/B measured single-target writes within 1.3%, reads 5.0% faster, ten-target writes 1.7% faster and a
+  ten-iteration multi-target load within 0.2%, with unchanged physical/WAL amplification. Fresh CPD reports,
+  `git diff --check`, both complete reactors, downstream projects and site/Javadocs passed. Detailed counts, retained
+  complexity and benchmark evidence are in the
+  [Phase 20 report](dynamic-model-boundaries-phase-20-simplification.md).

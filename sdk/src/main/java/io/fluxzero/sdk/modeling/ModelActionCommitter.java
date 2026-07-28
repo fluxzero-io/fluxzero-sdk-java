@@ -30,12 +30,10 @@ import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
-import io.fluxzero.common.api.modeling.ModelSnapshotMaterialization;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -290,9 +288,9 @@ final class ModelActionCommitter {
                                     result);
                     MaterializeModelAction materialization =
                             sdkOwnsMaterialization
-                                    ? materialization(
+                                    ? MaterializeModelAction.from(
                                             prepared.action(),
-                                            result)
+                                            result.getSubsteps())
                                     : null;
                     CompletableFuture<Void> external =
                             materialization == null
@@ -424,57 +422,6 @@ final class ModelActionCommitter {
                                     retained.getLastStateIndex(),
                                     expected));
         }
-    }
-
-    private static MaterializeModelAction materialization(
-            CommitModelAction action,
-            CommitModelActionResult result) {
-        List<ModelDocumentMaterialization> documents =
-                new ArrayList<>();
-        List<ModelSnapshotMaterialization> snapshots =
-                new ArrayList<>();
-        for (int substep = 0;
-             substep < action.getSubsteps().size();
-             substep++) {
-            ModelActionSubstep source =
-                    action.getSubsteps().get(
-                            substep);
-            ModelActionSubstepResult assigned =
-                    result.getSubsteps().get(
-                            substep);
-            for (int target = 0;
-                 target < source.getTargets().size();
-                 target++) {
-                ModelActionTarget mutation =
-                        source.getTargets().get(
-                                target);
-                ModelActionTargetResult position =
-                        assigned.getTargets().get(
-                                target);
-                if (mutation.getDocument() != null) {
-                    documents.add(
-                            new ModelDocumentMaterialization(
-                                    mutation.getModelId(),
-                                    assigned.getStateIndex(),
-                                    mutation.getDocument()));
-                }
-                if (mutation.getSnapshot() != null
-                    && position.isHistoryComplete()) {
-                    snapshots.add(
-                            new ModelSnapshotMaterialization(
-                                    mutation.getModelId(),
-                                    position.getSequenceNumber(),
-                                    assigned.getStateIndex(),
-                                    mutation.getSnapshot()));
-                }
-            }
-        }
-        return new MaterializeModelAction(
-                action.getActionId(),
-                result.getSubsteps().getLast()
-                        .getStateIndex(),
-                List.copyOf(documents),
-                List.copyOf(snapshots));
     }
 
     private void clearPending(

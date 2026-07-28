@@ -31,7 +31,9 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
+import io.fluxzero.common.api.modeling.ModelActionValidator;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
@@ -40,7 +42,6 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
-import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
@@ -50,7 +51,6 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
-import io.fluxzero.common.api.modeling.ModelSnapshotMaterialization;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
@@ -194,7 +194,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
         try {
-            validate(action);
+            ModelActionValidator.validate(action);
             CommitModelActionResult previous = modelActions.get(action.getActionId());
             if (previous != null) {
                 return CompletableFuture.completedFuture(
@@ -476,55 +476,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             CommitModelAction action,
             List<ModelActionSubstepResult>
                     substepResults) {
-        List<ModelDocumentMaterialization> documents =
-                new ArrayList<>();
-        List<ModelSnapshotMaterialization> snapshots =
-                new ArrayList<>();
-        for (int substep = 0;
-             substep < action.getSubsteps().size();
-             substep++) {
-            ModelActionSubstep source =
-                    action.getSubsteps().get(
-                            substep);
-            ModelActionSubstepResult assigned =
-                    substepResults.get(substep);
-            for (int target = 0;
-                 target < source.getTargets().size();
-                 target++) {
-                ModelActionTarget mutation =
-                        source.getTargets().get(
-                                target);
-                ModelActionTargetResult position =
-                        assigned.getTargets().get(
-                                target);
-                if (mutation.getDocument() != null) {
-                    documents.add(
-                            new ModelDocumentMaterialization(
-                                    mutation.getModelId(),
-                                    assigned.getStateIndex(),
-                                    mutation.getDocument()));
-                }
-                if (mutation.getSnapshot() != null
-                    && position.isHistoryComplete()) {
-                    snapshots.add(
-                            new ModelSnapshotMaterialization(
-                                    mutation.getModelId(),
-                                    position.getSequenceNumber(),
-                                    assigned.getStateIndex(),
-                                    mutation.getSnapshot()));
-                }
-            }
-        }
-        if (!documents.isEmpty()
-            || !snapshots.isEmpty()) {
+        MaterializeModelAction materialization =
+                MaterializeModelAction.from(
+                        action, substepResults);
+        if (!materialization.getDocuments().isEmpty()
+            || !materialization.getSnapshots().isEmpty()) {
             modelActionMaterializations.put(
                     action.getActionId(),
                     new GetModelActionMaterializationResult(
                             -1L, action.getActionId(),
-                            substepResults.getLast()
-                                    .getStateIndex(),
-                            false, List.copyOf(documents),
-                            List.copyOf(snapshots)));
+                            materialization.getLastStateIndex(),
+                            false,
+                            materialization.getDocuments(),
+                            materialization.getSnapshots()));
         }
     }
 
@@ -684,7 +648,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized ModelDeletionPlan planModelDeletion(
             PlanModelDeletion request) {
-        validate(request);
+        ModelActionValidator.validate(request);
         long boundary = modelStateIndex;
         Set<String> selected =
                 request.getCascade()
@@ -765,7 +729,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public synchronized CompletableFuture<ModelDeletionResult>
             deleteModel(DeleteModel request) {
         try {
-            validate(request);
+            ModelActionValidator.validate(request);
             ModelDeletionResult duplicate =
                     modelDeletions.get(
                             request.getDeletionId());
@@ -1450,7 +1414,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     @Override
     public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
-        validate(request);
+        ModelActionValidator.validate(request);
         long stateIndex = modelBoundary(
                 request.getMaxStateIndex(),
                 request.getBoundaryActionId(),
@@ -1518,7 +1482,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     @Override
     public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
-        validate(request);
+        ModelActionValidator.validate(request);
         long boundary = modelBoundary(
                 request.getMaxStateIndex(),
                 request.getBoundaryActionId(),
@@ -1570,7 +1534,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelGraphResult getModelAncestors(
             GetModelAncestors request) {
-        validate(request);
+        ModelActionValidator.validate(request);
         long boundary = modelBoundary(
                 request.getMaxStateIndex(),
                 request.getBoundaryActionId(),
@@ -1909,303 +1873,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return result;
     }
 
-    private static void validate(CommitModelAction action) {
-        if (action == null) {
-            throw new IllegalArgumentException("Model action is required");
-        }
-        if (action.getActionId() == null || action.getActionId().isBlank()) {
-            throw new IllegalArgumentException("Model actionId must not be blank");
-        }
-        if (action.getReadStateIndex() < -1L) {
-            throw new IllegalArgumentException("Model readStateIndex must be at least -1");
-        }
-        if (action.getGuarantee() == null) {
-            throw new IllegalArgumentException("Model action guarantee is required");
-        }
-        if (action.getReadModelIds() == null) {
-            throw new IllegalArgumentException("Model action read model IDs are required");
-        }
-        Set<String> readModelIds = new HashSet<>();
-        for (String modelId : action.getReadModelIds()) {
-            validateModelId(modelId);
-            if (!readModelIds.add(modelId)) {
-                throw new IllegalArgumentException("Duplicate read model ID " + modelId);
-            }
-        }
-        if (action.getSubsteps() == null || action.getSubsteps().isEmpty()) {
-            throw new IllegalArgumentException("Model action must contain at least one substep");
-        }
-        for (int substepNumber = 0; substepNumber < action.getSubsteps().size(); substepNumber++) {
-            ModelActionSubstep substep = action.getSubsteps().get(substepNumber);
-            if (substep == null || substep.getTargets() == null || substep.getTargets().isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Model action substep %d has no targets".formatted(substepNumber));
-            }
-            boolean requiresEvent = substep.isPublishEvent()
-                                    || substep.getTargets().stream().anyMatch(ModelActionTarget::isStoreEvent);
-            if (requiresEvent && substep.getEvent() == null) {
-                throw new IllegalArgumentException(
-                        "Model action substep %d requires an event".formatted(substepNumber));
-            }
-            if (substep.getEvent() != null && substep.getEvent().getIndex() != null) {
-                throw new IllegalArgumentException(
-                        "Model action substep %d event already has an event index".formatted(substepNumber));
-            }
-            Set<String> targetIds = new HashSet<>();
-            for (ModelActionTarget target : substep.getTargets()) {
-                if (target == null) {
-                    throw new IllegalArgumentException(
-                            "Model action substep %d has a null target".formatted(substepNumber));
-                }
-                validateModelId(target.getModelId());
-                if (!targetIds.add(target.getModelId())) {
-                    throw new IllegalArgumentException(
-                            "Model action substep %d targets model %s more than once"
-                                    .formatted(substepNumber, target.getModelId()));
-                }
-                if (!readModelIds.contains(target.getModelId())) {
-                    throw new IllegalArgumentException(
-                            "Target model %s is absent from readModelIds".formatted(target.getModelId()));
-                }
-                if (!target.isUpdateState()) {
-                    throw new IllegalArgumentException(
-                            "Target model %s does not update state".formatted(target.getModelId()));
-                }
-                if (target.getRelationships() == null) {
-                    throw new IllegalArgumentException(
-                            "Target model %s relationships are required".formatted(target.getModelId()));
-                }
-                if (target.isDelete() && !target.getRelationships().isEmpty()) {
-                    throw new IllegalArgumentException(
-                            "Deleted target model %s must not retain parent relationships"
-                                    .formatted(target.getModelId()));
-                }
-                if (target.isDelete() && !target.isUpdateRelationships()) {
-                    throw new IllegalArgumentException(
-                            "Deleted target model %s must update relationships"
-                                    .formatted(target.getModelId()));
-                }
-                if (!target.isUpdateRelationships()
-                    && !target.getRelationships().isEmpty()) {
-                    throw new IllegalArgumentException(
-                            "Target model %s supplies relationships without update intent"
-                                    .formatted(target.getModelId()));
-                }
-                Set<ModelRelationship> relationships = new HashSet<>();
-                for (ModelRelationship relationship : target.getRelationships()) {
-                    if (relationship == null
-                        || relationship.getParentId() == null
-                        || relationship.getParentId().isBlank()) {
-                        throw new IllegalArgumentException(
-                                "Target model %s has a blank parent relationship"
-                                        .formatted(target.getModelId()));
-                    }
-                    if (!relationships.add(relationship)) {
-                        throw new IllegalArgumentException(
-                                "Target model %s contains a duplicate parent relationship"
-                                        .formatted(target.getModelId()));
-                    }
-                    if (target.getModelId().equals(relationship.getParentId())) {
-                        throw new IllegalArgumentException(
-                                "Target model %s cannot be its own parent"
-                                        .formatted(target.getModelId()));
-                    }
-                    if (relationship.getParentType() != null
-                        && relationship.getParentType().isBlank()) {
-                        throw new IllegalArgumentException(
-                                "Target model %s has a blank parent type"
-                                        .formatted(target.getModelId()));
-                    }
-                    if (relationship.getPath() != null && relationship.getPath().isBlank()) {
-                        throw new IllegalArgumentException(
-                                "Target model %s has a blank relationship path"
-                                        .formatted(target.getModelId()));
-                    }
-                }
-            }
-        }
-    }
-
-    private static void validate(GetModelEvents request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Model event request is required");
-        }
-        if (request.getMaxStateIndex() != null && request.getMaxStateIndex() < -1L) {
-            throw new IllegalArgumentException("Model state index must be at least -1");
-        }
-        validateEventBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryActionId(),
-                request.getBoundarySubstep());
-        if (request.getRequests() == null) {
-            throw new IllegalArgumentException("Model stream requests are required");
-        }
-        if (request.getMaxBytes() < 0L) {
-            throw new IllegalArgumentException("Model event request maxBytes must not be negative");
-        }
-        Set<String> modelIds = new HashSet<>();
-        for (var stream : request.getRequests()) {
-            if (stream == null) {
-                throw new IllegalArgumentException("Model stream request must not be null");
-            }
-            validateModelId(stream.getModelId());
-            if (!modelIds.add(stream.getModelId())) {
-                throw new IllegalArgumentException("Duplicate model stream request for " + stream.getModelId());
-            }
-            if (stream.getLastSequenceNumber() < -1L) {
-                throw new IllegalArgumentException("Last model sequence number must be at least -1");
-            }
-            if (stream.getMaxSize() < 0) {
-                throw new IllegalArgumentException("Model stream request maxSize must not be negative");
-            }
-        }
-    }
-
-    private static void validate(GetModelGraph request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Model graph request is required");
-        }
-        validateModelId(request.getRootId());
-        if (request.getMaxStateIndex() != null && request.getMaxStateIndex() < -1L) {
-            throw new IllegalArgumentException("Model state index must be at least -1");
-        }
-        validateEventBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryActionId(),
-                request.getBoundarySubstep());
-        if (request.getMaxDepth() < 0 || request.getMaxDepth() > 1_024) {
-            throw new IllegalArgumentException("Model graph maxDepth must be between 0 and 1024");
-        }
-        if (request.getMaxModels() < 1 || request.getMaxModels() > 100_000) {
-            throw new IllegalArgumentException("Model graph maxModels must be between 1 and 100000");
-        }
-        if (request.getMaxEventsPerModel() < 0 || request.getMaxEventsPerModel() > 8_192) {
-            throw new IllegalArgumentException(
-                    "Model graph maxEventsPerModel must be between 0 and 8192");
-        }
-        if (request.getMaxBytes() < 0L) {
-            throw new IllegalArgumentException("Model graph maxBytes must not be negative");
-        }
-    }
-
-    private static void validate(GetModelAncestors request) {
-        if (request == null) {
-            throw new IllegalArgumentException(
-                    "Model ancestor request is required");
-        }
-        if (request.getModelIds() == null
-            || request.getModelIds().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Model ancestor roots are required");
-        }
-        Set<String> roots = new HashSet<>();
-        for (String modelId : request.getModelIds()) {
-            validateModelId(modelId);
-            if (!roots.add(modelId)) {
-                throw new IllegalArgumentException(
-                        "Duplicate model ancestor root " + modelId);
-            }
-        }
-        if (request.getMaxStateIndex() != null
-            && request.getMaxStateIndex() < -1L) {
-            throw new IllegalArgumentException(
-                    "Model state index must be at least -1");
-        }
-        validateEventBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryActionId(),
-                request.getBoundarySubstep());
-        if (request.getMaxDepth() < 1
-            || request.getMaxDepth() > 1_024) {
-            throw new IllegalArgumentException(
-                    "Model ancestor maxDepth must be between 1 and 1024");
-        }
-        if (request.getMaxModels() < roots.size()
-            || request.getMaxModels() > 100_000) {
-            throw new IllegalArgumentException(
-                    "Model ancestor maxModels must be between root count and 100000");
-        }
-        if (request.getMaxEventsPerModel() < 0
-            || request.getMaxEventsPerModel() > 8_192) {
-            throw new IllegalArgumentException(
-                    "Model ancestor maxEventsPerModel must be between 0 and 8192");
-        }
-        if (request.getMaxBytes() < 0L) {
-            throw new IllegalArgumentException(
-                    "Model ancestor maxBytes must not be negative");
-        }
-    }
-
-    private static void validate(
-            PlanModelDeletion request) {
-        if (request == null) {
-            throw new IllegalArgumentException(
-                    "Model deletion plan request is required");
-        }
-        validateModelId(request.getModelId());
-        if (request.getCascade() == null) {
-            throw new IllegalArgumentException(
-                    "Model deletion cascade is required");
-        }
-        if (request.getMaxDepth() < 0
-            || request.getMaxDepth() > 1_024) {
-            throw new IllegalArgumentException(
-                    "Model deletion maxDepth must be between 0 and 1024");
-        }
-        if (request.getMaxModels() < 1
-            || request.getMaxModels() > 100_000) {
-            throw new IllegalArgumentException(
-                    "Model deletion maxModels must be between 1 and 100000");
-        }
-        if (request.getMaxSampleSize() < 0
-            || request.getMaxSampleSize() > 1_000) {
-            throw new IllegalArgumentException(
-                    "Model deletion maxSampleSize must be between 0 and 1000");
-        }
-    }
-
-    private static void validate(
-            DeleteModel request) {
-        if (request == null) {
-            throw new IllegalArgumentException(
-                    "Model deletion request is required");
-        }
-        validateModelId(
-                request.getDeletionId());
-        validateModelId(
-                request.getModelId());
-        if (request.getCascade() == null) {
-            throw new IllegalArgumentException(
-                    "Model deletion cascade is required");
-        }
-        if (request.getGuarantee() == null) {
-            throw new IllegalArgumentException(
-                    "Model deletion guarantee is required");
-        }
-        if (request.getCascade()
-            == ModelDeletionCascade.DESCENDANTS
-            && (request.getPlanFingerprint() == null
-                || request.getPlanFingerprint()
-                        .isBlank())) {
-            throw new IllegalArgumentException(
-                    "Descendant model deletion requires a plan fingerprint");
-        }
-        if (request.getCascade()
-            == ModelDeletionCascade.NONE
-            && request.getPlanFingerprint()
-               != null) {
-            throw new IllegalArgumentException(
-                    "Non-cascading model deletion must not include a plan fingerprint");
-        }
-        if (request.getMaxDepth() < 0
-            || request.getMaxDepth() > 1_024
-            || request.getMaxModels() < 1
-            || request.getMaxModels() > 100_000) {
-            throw new IllegalArgumentException(
-                    "Invalid model deletion bounds");
-        }
-    }
-
     private static String deletionFingerprint(
             String rootId,
             ModelDeletionCascade cascade,
@@ -2246,31 +1913,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         .putInt(bytes.length)
                         .array());
         digest.update(bytes);
-    }
-
-    private static void validateModelId(String modelId) {
-        if (modelId == null || modelId.isBlank()) {
-            throw new IllegalArgumentException("Model ID must not be blank");
-        }
-    }
-
-    private static void validateEventBoundary(
-            Long stateIndex,
-            String actionId,
-            Integer substep) {
-        if (stateIndex != null && actionId != null) {
-            throw new IllegalArgumentException(
-                    "Specify either maxStateIndex or an action boundary, not both");
-        }
-        if ((actionId == null) != (substep == null)) {
-            throw new IllegalArgumentException(
-                    "Model action boundary requires both actionId and substep");
-        }
-        if (actionId != null
-            && (actionId.isBlank() || substep < 0)) {
-            throw new IllegalArgumentException(
-                    "Model action boundary must be non-blank with a non-negative substep");
-        }
     }
 
     @Override

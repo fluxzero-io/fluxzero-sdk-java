@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Command;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -38,6 +39,36 @@ public class MaterializeModelAction extends Command {
     List<ModelDocumentMaterialization> documents;
     List<ModelSnapshotMaterialization> snapshots;
     Guarantee guarantee = Guarantee.STORED;
+
+    /**
+     * Extracts the exact direct-document and snapshot package from an assigned model action.
+     */
+    public static MaterializeModelAction from(
+            CommitModelAction action,
+            List<ModelActionSubstepResult> assignedSubsteps) {
+        List<ModelDocumentMaterialization> documents = new ArrayList<>();
+        List<ModelSnapshotMaterialization> snapshots = new ArrayList<>();
+        for (int substep = 0; substep < action.getSubsteps().size(); substep++) {
+            ModelActionSubstep source = action.getSubsteps().get(substep);
+            ModelActionSubstepResult assigned = assignedSubsteps.get(substep);
+            for (int target = 0; target < source.getTargets().size(); target++) {
+                ModelActionTarget mutation = source.getTargets().get(target);
+                ModelActionTargetResult position = assigned.getTargets().get(target);
+                if (mutation.getDocument() != null) {
+                    documents.add(new ModelDocumentMaterialization(
+                            mutation.getModelId(), assigned.getStateIndex(), mutation.getDocument()));
+                }
+                if (mutation.getSnapshot() != null && position.isHistoryComplete()) {
+                    snapshots.add(new ModelSnapshotMaterialization(
+                            mutation.getModelId(), position.getSequenceNumber(),
+                            assigned.getStateIndex(), mutation.getSnapshot()));
+                }
+            }
+        }
+        return new MaterializeModelAction(
+                action.getActionId(), assignedSubsteps.getLast().getStateIndex(),
+                List.copyOf(documents), List.copyOf(snapshots));
+    }
 
     @Override
     public String routingKey() {
