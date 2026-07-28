@@ -1055,6 +1055,7 @@ class DefaultModelRepositoryTest {
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
+                .disableAutomaticModelCaching()
                 .build(client)) {
             fluxzero.commandGateway().send(
                     new CreateInventory(inventoryId, 5)).join();
