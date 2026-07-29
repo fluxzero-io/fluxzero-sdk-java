@@ -77,14 +77,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "LOGGED_CORS_POLICY_CONFLICT",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.LOGGED_CORS_POLICY_CONFLICT",
-    "type" : "java.util.concurrent.atomic.AtomicBoolean",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "REQUEST_CHUNKING_ENABLED_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY",
     "type" : "java.lang.String",
@@ -966,32 +958,6 @@
     }, {
       "name" : "statusCode",
       "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "putCorsPolicyHeader",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#putCorsPolicyHeader",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "name",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "value",
-      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
