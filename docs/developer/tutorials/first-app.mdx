@@ -274,7 +274,7 @@ data class CompleteTask(val taskId: TaskId) {
 </Tabs>
 
 If the assertion fails, Fluxzero commits nothing. If it succeeds, the task event, task stream membership, direct task
-document and cache update belong to one model action.
+document and cache update belong to one model commit.
 
 ## Move a task
 
@@ -444,7 +444,7 @@ For a logical delete event, `Entity<Task>` may be empty. A bare non-null `Task` 
 
 ## Test the application
 
-The fixture executes the same model action pipeline:
+The fixture executes the same model commit pipeline:
 
 <Tabs>
   <TabItem label="Java">

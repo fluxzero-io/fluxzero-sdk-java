@@ -18,24 +18,30 @@ package io.fluxzero.common.api.modeling;
 
 import lombok.Value;
 
+import java.util.List;
+
 /**
- * Resulting stream/head metadata for one committed target model.
+ * Runtime-assigned positions for one committed model-commit substep.
  */
 @Value
-public class ModelActionTargetResult {
+public class ModelCommitStepResult {
 
     /**
-     * Exact persisted model ID.
+     * Namespace-wide, time-derived state transition position.
+     * <p>
+     * This is an opaque monotone boundary, independent from {@link #eventIndex}. Its millisecond timestamp can be
+     * decoded with the SDK's {@code IndexUtils.timestampFromIndex}; callers must not infer adjacent transitions using
+     * arithmetic.
      */
-    String modelId;
+    long stateIndex;
 
     /**
-     * Resulting sequence number of the model stream.
+     * Existing global event-log index, or {@code null} when the event was not published.
      */
-    long sequenceNumber;
+    Long eventIndex;
 
     /**
-     * Whether every current-state transition through this result remains reconstructible from stored model events.
+     * Resulting per-model stream/head positions.
      */
-    boolean historyComplete;
+    List<ModelCommitTargetResult> targets;
 }

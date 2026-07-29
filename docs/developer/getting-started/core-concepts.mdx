@@ -137,7 +137,7 @@ public record Product(@EntityId ProductId productId,
 }
 ```
 
-Direct documents are updated as part of model-action completion. A successful command is therefore immediately
+Direct documents are updated as part of model-commit completion. A successful command is therefore immediately
 visible through direct model loading and search.
 
 ## Create, update and delete
@@ -166,7 +166,7 @@ public record DeleteProject(ProjectId projectId) {
 - Returning `null` logically deletes it and still stores the update event.
 - `void` model applies are rejected; model transitions are immutable and explicit.
 
-`@AssertLegal` and `@InterceptApply` run before `@Apply`. All applicable methods participate in one action. If an
+`@AssertLegal` and `@InterceptApply` run before `@Apply`. All applicable methods participate in one commit. If an
 assertion fails, no model event, document or relationship update is committed.
 
 Keep `@Apply` deterministic. It is also used when Fluxzero event-sources the model later. Do I/O and external side
@@ -200,7 +200,7 @@ public record ReserveItem(OrderId orderId,
 ```
 
 Fluxzero resolves direct targets from typed IDs and commits the resulting events, current documents, snapshots and
-relationship deltas as one model action. If the payload contains two IDs of the same model type, qualify the parameter:
+relationship deltas as one model commit. If the payload contains two IDs of the same model type, qualify the parameter:
 
 ```java
 @Apply
@@ -276,12 +276,12 @@ In an event or notification handler, a directly affected model can be injected:
 void on(RenameProject event,
         Project project,
         Entity<Project> entity) {
-    // Both represent the project exactly after this event's model-action substep.
+    // Both represent the project exactly after this event's model-commit substep.
 }
 ```
 
 This is historical event-boundary injection, not an arbitrary current-state lookup. It only applies to events carrying
-a model-action boundary. `Entity<T>` is useful for logical delete events because it can represent an absent value; a
+a model-commit boundary. `Entity<T>` is useful for logical delete events because it can represent an absent value; a
 bare non-null `T` only matches while the model exists.
 
 ## Queries and search

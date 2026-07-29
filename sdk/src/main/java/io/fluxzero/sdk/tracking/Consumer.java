@@ -117,7 +117,7 @@ public @interface Consumer {
     long maxWaitDuration() default 60;
 
     /**
-     * Overrides graph-projection result completion for model actions handled by this consumer.
+     * Overrides graph-projection result completion for model commits handled by this consumer.
      */
     GraphProjectionCompletion graphProjectionCompletion()
             default GraphProjectionCompletion.DEFAULT;

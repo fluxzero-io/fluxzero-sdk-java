@@ -30,6 +30,7 @@ import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -73,6 +74,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -262,7 +264,7 @@ class AbstractWebsocketClientTest {
         WebsocketSession session = mock(WebsocketSession.class);
         when(session.isOpen()).thenReturn(true);
         doThrow(new ClosedChannelException()).when(session).sendBinary(any());
-        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.<String, Object>of(
                 AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
                 AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456",
                 AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE)));
@@ -492,6 +494,45 @@ class AbstractWebsocketClientTest {
         }
     }
 
+    @Test
+    void pongCancelsTimeoutAndSchedulesNextPing() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .pingDelay(Duration.ofMillis(10))
+                .pingTimeout(Duration.ofMillis(40))
+                .build();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mock(WebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456")));
+        when(session.getRequestURI()).thenReturn(URI.create("ws://localhost"));
+        when(session.isOpen()).thenReturn(true);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            client.onPong(ByteBuffer.allocate(0), session);
+            return null;
+        }).when(session).sendPing(any());
+
+        try {
+            client.onOpen(session);
+
+            assertTimeout(Duration.ofSeconds(1), () -> {
+                while (org.mockito.Mockito.mockingDetails(session)
+                               .getInvocations().stream()
+                               .filter(i -> i.getMethod().getName().equals("sendPing"))
+                               .count() < 3L) {
+                    Thread.sleep(5L);
+                }
+            });
+            Thread.sleep(60L);
+
+            verify(session, never()).abort(any());
+        } finally {
+            client.close();
+        }
+    }
+
     void connectionRetryConfigurationLogsInitialAndPeriodicFailures() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -673,6 +714,36 @@ class AbstractWebsocketClientTest {
         }
     }
 
+    @Test
+    void singleResultIsHandledOutsideTheWebsocketCallback() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ResultCallbackObservingClient client =
+                new ResultCallbackObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mock(WebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.<String, Object>of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456",
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE,
+                AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON)));
+        AtomicReference<String> callerThread = new AtomicReference<>();
+
+        try {
+            callerThread.set(Thread.currentThread().getName());
+            client.onMessage(
+                    WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
+                            .encode(new VoidResult(42L)),
+                    session);
+
+            assertTrue(client.resultHandled.await(1, TimeUnit.SECONDS));
+            assertNotEquals(callerThread.get(), client.resultThread.get());
+        } finally {
+            client.close();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Backlog<Request>> sessionBacklogs(AbstractWebsocketClient client) throws Exception {
         Field field = AbstractWebsocketClient.class.getDeclaredField("sessionBacklogs");
@@ -807,6 +878,22 @@ class AbstractWebsocketClientTest {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    private static class ResultCallbackObservingClient extends TestClient {
+        private final CountDownLatch resultHandled = new CountDownLatch(1);
+        private final AtomicReference<String> resultThread = new AtomicReference<>();
+
+        ResultCallbackObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        @Override
+        protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                    WebsocketResultDiagnostics.ResultTiming clientResultTiming) {
+            resultThread.set(Thread.currentThread().getName());
+            resultHandled.countDown();
         }
     }
 

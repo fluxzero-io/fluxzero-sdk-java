@@ -282,12 +282,12 @@ public interface Entity<T> {
     }
 
     /**
-     * Applies the specified action to this entity if it is present, returning the result of the action. If this entity
+     * Applies the specified action to this entity if it is present, returning the result of the commit. If this entity
      * is not present (i.e., its value is null), the entity itself is returned unchanged.
      *
-     * @param action the action to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts
+     * @param action the commit to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts
      *               and returns an {@code Entity<T>}
-     * @return the result of applying the action to this entity if it is present, or this entity itself if it is not
+     * @return the result of applying the commit to this entity if it is present, or this entity itself if it is not
      * present
      */
     default Entity<T> ifPresent(UnaryOperator<Entity<T>> action) {

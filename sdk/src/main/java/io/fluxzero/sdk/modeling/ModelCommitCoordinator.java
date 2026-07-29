@@ -26,26 +26,26 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
- * Orders local default-ACCEPT model actions only when their read sets overlap. Acquisition is atomic for the complete
- * read set, so multi-model actions cannot deadlock. The authoritative runtime conflict check remains necessary for
+ * Orders local default-ACCEPT model commits only when their read sets overlap. Acquisition is atomic for the complete
+ * read set, so multi-model commits cannot deadlock. The authoritative runtime conflict check remains necessary for
  * remote writers.
  */
-final class ModelActionCoordinator {
+final class ModelCommitCoordinator {
     private final Map<String, CompletableFuture<Void>>
             tails = new HashMap<>();
 
     <T> CompletableFuture<T> coordinate(
             Collection<String> modelIds,
-            Function<Boolean, CompletableFuture<T>> action) {
+            Function<Boolean, CompletableFuture<T>> operation) {
         Objects.requireNonNull(
                 modelIds, "modelIds");
-        Objects.requireNonNull(action, "action");
+        Objects.requireNonNull(operation, "operation");
         List<String> keys =
                 List.copyOf(
                         new LinkedHashSet<>(
                                 modelIds));
         if (keys.isEmpty()) {
-            return invoke(action, false);
+            return invoke(operation, false);
         }
 
         CompletableFuture<Void> release =
@@ -76,7 +76,7 @@ final class ModelActionCoordinator {
                                         null)
                         .thenCompose(ignored ->
                                              invoke(
-                                                     action,
+                                                     operation,
                                                      reevaluate));
         return result.whenComplete(
                 (ignored, failure) -> {
@@ -91,12 +91,12 @@ final class ModelActionCoordinator {
     }
 
     private static <T> CompletableFuture<T> invoke(
-            Function<Boolean, CompletableFuture<T>> action,
+            Function<Boolean, CompletableFuture<T>> operation,
             boolean contended) {
         try {
             return Objects.requireNonNull(
-                    action.apply(contended),
-                    "Coordinated model action returned null");
+                    operation.apply(contended),
+                    "Coordinated model commit returned null");
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(
                     failure);

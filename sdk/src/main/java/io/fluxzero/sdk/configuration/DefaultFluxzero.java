@@ -49,7 +49,7 @@ import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.HandlerRepository;
-import io.fluxzero.sdk.modeling.ModelActionHandlerRegistry;
+import io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.modeling.ModelEntityParameterResolver;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
@@ -216,14 +216,14 @@ public class DefaultFluxzero implements Fluxzero {
     private final ThrowingRunnable shutdownHandler;
 
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final AtomicReference<ModelActionHandlerRegistry> modelActionExecutor =
+    private final AtomicReference<ModelCommitHandlerRegistry> modelCommitExecutor =
             new AtomicReference<>();
     private final Collection<Runnable> cleanupTasks = new CopyOnWriteArrayList<>();
     @Getter(lazy = true)
     private final ModelRepository modelRepository =
             Objects.requireNonNull(
-                            modelActionExecutor.get(),
-                            "Model action repository is not initialized")
+                            modelCommitExecutor.get(),
+                            "Model commit repository is not initialized")
                     .repository();
     @Getter(lazy = true)
     private final Memoization memoization = new DefaultMemoization(clock());
@@ -253,10 +253,10 @@ public class DefaultFluxzero implements Fluxzero {
     }
 
     @Override
-    public CompletableFuture<Void> executeModelAction(Message update) {
-        ModelActionHandlerRegistry executor = modelActionExecutor.get();
+    public CompletableFuture<Void> executeModelCommit(Message update) {
+        ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
         if (executor == null) {
-            return Fluxzero.super.executeModelAction(update);
+            return Fluxzero.super.executeModelCommit(update);
         }
         return executor.assertAndApply(update);
     }
@@ -335,7 +335,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean modelCacheConfigured;
         private Cache relationshipsCache;
         private DocumentStore runtimeDocumentStore;
-        private ModelActionHandlerRegistry modelActionHandlerRegistry;
+        private ModelCommitHandlerRegistry modelCommitHandlerRegistry;
         private static final String MODEL_CONFLICT_POLICY_PROPERTY =
                 "fluxzero.model.conflictPolicy";
         private static final String MODEL_CONFLICT_MAX_RETRIES_PROPERTY =
@@ -1053,7 +1053,7 @@ public class DefaultFluxzero implements Fluxzero {
                                     disablePayloadValidation),
                             snapshotSerializer, modelCache,
                             runtimeParameterResolvers);
-            modelActionHandlerRegistry = new ModelActionHandlerRegistry(
+            modelCommitHandlerRegistry = new ModelCommitHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),
                     serializer, snapshotSerializer,
                     documentSerializer,
@@ -1131,7 +1131,7 @@ public class DefaultFluxzero implements Fluxzero {
                                         this.serializer);
                         if (m == COMMAND) {
                             handlerFactory.withFallback(
-                                    modelActionHandlerRegistry);
+                                    modelCommitHandlerRegistry);
                         }
                         return new DefaultTracking(
                                 m,
@@ -1209,7 +1209,7 @@ public class DefaultFluxzero implements Fluxzero {
                             clock, taskScheduler, client, shutdownHandler);
 
             if (fluxzero instanceof DefaultFluxzero defaultFluxzero) {
-                defaultFluxzero.modelActionExecutor.set(modelActionHandlerRegistry);
+                defaultFluxzero.modelCommitExecutor.set(modelCommitHandlerRegistry);
             }
 
             if (makeApplicationInstance) {
@@ -1473,7 +1473,7 @@ public class DefaultFluxzero implements Fluxzero {
                     handlerRepositorySupplier, repositoryProvider);
             if (messageType == COMMAND && topic == null) {
                 localHandlers = localHandlers.orThen(
-                        Objects.requireNonNull(modelActionHandlerRegistry));
+                        Objects.requireNonNull(modelCommitHandlerRegistry));
             }
             return new DefaultGenericGateway(client, client.getGatewayClient(messageType, topic), requestHandler,
                                              this.serializer, dispatchInterceptors.get(messageType), messageType,

@@ -24,17 +24,17 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Reuses the model action evaluator for one stored event during model reconstruction.
+ * Reuses the model commit evaluator for one stored event during model reconstruction.
  * <p>
  * Assertions and interceptors are deliberately not supplied by the repository during replay. Only the exact
  * {@code @Apply} transition that originally targeted the reconstructed model is selected.
  */
 public final class ModelEventReplayer {
-    private final ModelActionEngine engine;
+    private final ModelCommitEngine engine;
 
     public ModelEventReplayer(
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
-        engine = new ModelActionEngine(parameterResolvers);
+        engine = new ModelCommitEngine(parameterResolvers);
     }
 
     /**
@@ -42,14 +42,14 @@ public final class ModelEventReplayer {
      */
     public ReplayResult replay(
             DeserializingMessage event,
-            ModelActionContext context,
+            ModelCommitContext context,
             Collection<ModelMetadata.HandlerMethod> handlers,
             String targetModelId) {
         Objects.requireNonNull(targetModelId, "targetModelId");
-        ModelActionEngine.Evaluation evaluation =
+        ModelCommitEngine.Evaluation evaluation =
                 engine.evaluate(event, context, handlers);
-        ModelActionEngine.Transition selected = null;
-        for (ModelActionEngine.Transition transition : evaluation.transitions()) {
+        ModelCommitEngine.Transition selected = null;
+        for (ModelCommitEngine.Transition transition : evaluation.transitions()) {
             if (!targetModelId.equals(transition.modelId())) {
                 continue;
             }

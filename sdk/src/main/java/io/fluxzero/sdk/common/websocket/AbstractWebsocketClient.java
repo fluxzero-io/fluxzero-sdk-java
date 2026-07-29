@@ -522,16 +522,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                 resultDiagnostics.timestamp())));
             });
         } else {
-            WebSocketRequest webSocketRequest = requests.get(((RequestResult) value).getRequestId());
-            if (webSocketRequest == null) {
-                log().warn("Could not find outstanding read request for id {} (session {})",
-                           ((RequestResult) value).getRequestId(), sessionId);
-            }
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-            handleResult((RequestResult) value, null, sessionId,
-                         resultDiagnostics.resultTiming(
-                                 frameTiming, decodedTimestamp, callbackQueuedTimestamp,
-                                 resultDiagnostics.timestamp()));
+            executeResultCallback("result", () -> handleResult(
+                    (RequestResult) value, null, sessionId,
+                    resultDiagnostics.resultTiming(
+                            frameTiming, decodedTimestamp, callbackQueuedTimestamp,
+                            resultDiagnostics.timestamp())));
         }
     }
 

@@ -19,10 +19,10 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
@@ -559,25 +559,25 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     public synchronized void
-            materializeModelAction(
-                    CommitModelAction action,
-                    List<ModelActionSubstepResult>
+            materializeModelCommit(
+                    CommitModels commit,
+                    List<ModelCommitStepResult>
                             assignedSubsteps,
                     Set<String> excludedModelIds) {
         Map<String, SerializedDocument> indexed =
                 new LinkedHashMap<>();
         for (int substep = 0;
-             substep < action.getSubsteps().size();
+             substep < commit.getSubsteps().size();
              substep++) {
-            List<ModelActionTarget> targets =
-                    action.getSubsteps().get(substep)
+            List<ModelCommitTarget> targets =
+                    commit.getSubsteps().get(substep)
                             .getTargets();
-            ModelActionSubstepResult assigned =
+            ModelCommitStepResult assigned =
                     assignedSubsteps.get(substep);
             for (int targetIndex = 0;
                  targetIndex < targets.size();
                  targetIndex++) {
-                ModelActionTarget target =
+                ModelCommitTarget target =
                         targets.get(targetIndex);
                 if (excludedModelIds.contains(
                         target.getModelId())) {
@@ -616,7 +616,7 @@ public class InMemorySearchStore implements SearchClient {
                         }
                     }
                 }
-                ModelActionTargetResult position =
+                ModelCommitTargetResult position =
                         assigned.getTargets()
                                 .get(targetIndex);
                 if (target.getSnapshot() != null

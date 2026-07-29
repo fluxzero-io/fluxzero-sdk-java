@@ -140,7 +140,7 @@ Use the fluent `search(...)` API:
 ### Consistency after commands
 
 Search is optimized for current state, but indexing still follows the commit path. The direct document of a searchable
-model is synchronously maintained with its model action. Calling `sendCommandAndWait(...)` and then querying that
+model is synchronously maintained with its model commit. Calling `sendCommandAndWait(...)` and then querying that
 model's direct collection observes the committed state.
 
 This does not automatically wait for a materialized whole-root graph projection. Select

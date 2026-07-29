@@ -27,7 +27,7 @@ import java.util.List;
  */
 @Value
 @Builder(toBuilder = true)
-public class ModelActionTarget {
+public class ModelCommitTarget {
 
     /**
      * Exact persisted identity, equal to the model ID's {@code toString()} value.

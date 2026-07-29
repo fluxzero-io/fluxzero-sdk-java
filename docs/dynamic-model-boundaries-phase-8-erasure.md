@@ -33,9 +33,9 @@ For every selected model, execution removes:
 - materialized graph documents whose root is erased, and schedules surviving affected roots for reconstruction;
 - local SDK cache entries returned to the caller.
 
-Action result records may describe multiple models and are therefore not rewritten destructively. Once their pending
+Commit result records may describe multiple models and are therefore not rewritten destructively. Once their pending
 direct-document and snapshot materialization is complete, their compact idempotency result may remain with erased
-target IDs protected or redacted. An action record must never be allowed to recreate erased search state.
+target IDs protected or redacted. A commit record must never be allowed to recreate erased search state.
 
 The original globally published event is not owned by a model stream. It may already have been consumed or copied to
 other stores, and one event can target both erased and retained models. Hard model delete therefore does not claim to
@@ -74,7 +74,7 @@ The relational store owns the durable job and stream/relationship cleanup. Searc
 operation is a resumable saga rather than a fictitious cross-database transaction:
 
 1. persist job targets and erasure fences;
-2. remove or neutralize pending action materializations for those targets;
+2. remove or neutralize pending commit materializations for those targets;
 3. delete direct documents, snapshots, graph documents, and their fences idempotently;
 4. delete relational stream, head, relationship, and unreferenced payload rows in bounded transactions;
 5. mark the job complete and retain only the protected erasure fence/status required for idempotency.
@@ -99,7 +99,7 @@ not merely that the relational delete was accepted.
 - Counts of memberships and distinct global event indexes are set-based.
 - Execution deletes by the stable 128 model segments and keeps shared-payload reference checks set-based.
 - The ordinary commit and model-load paths perform no erasure-table query until hard deletion has been used in the
-  namespace. After opt-in, target fence checks are batched once per action.
+  namespace. After opt-in, target fence checks are batched once per commit.
 - Direct-document and graph-document writes fold the lifecycle lock and HMAC fence lookup into their existing fence
   statement. A concurrent erasure causes a transient retry with a fresh database snapshot; it cannot recreate a
   document after the tombstone commits.
@@ -115,7 +115,7 @@ Phase 8 is implemented by SDK commit `49000dd69f1` and runtime commit `d3a74b60`
   invalidates the complete local model cache because the bounded result intentionally does not return an unbounded raw
   ID list.
 - JDBC stores durable deletion jobs, targets, HMAC fences, and protected detached lineage in hash/range-partitioned
-  lifecycle tables. Stream memberships, heads, relationships, action materializations, snapshots, direct documents,
+  lifecycle tables. Stream memberships, heads, relationships, commit materializations, snapshots, direct documents,
   graph documents, and unused shared payloads are cleaned in resumable batches. Global published events remain.
 - Functional verification passed 51 focused SDK tests and 173 focused runtime tests. These include duplicate requests,
   changed-plan rejection, shared descendants, logical-parent-detached lineage, restart with and without search,
@@ -132,10 +132,10 @@ Phase 8 is implemented by SDK commit `49000dd69f1` and runtime commit `d3a74b60`
   | 100,000 | wide | 2.558 s | 70.804 s | 39,089 planned and 1,412 erased models/s |
 
   The 100,000-model run removed 100,000 stream memberships while retaining its single published global event.
-- An A/B run against the pre-erasure runtime found no material ordinary-write regression. The paired 5,000-action
-  direct-document run measured 6,020 actions/s with erasure support versus 6,070 actions/s before it (about -0.8%),
-  with the same p50 latency and physical amplification. The 20,000-action event-only run was slightly faster in the
-  new build (5,705 versus 5,541 actions/s); this is treated as run variance, not an improvement claim.
+- An A/B run against the pre-erasure runtime found no material ordinary-write regression. The paired 5,000-commit
+  direct-document run measured 6,020 commits/s with erasure support versus 6,070 commits/s before it (about -0.8%),
+  with the same p50 latency and physical amplification. The 20,000-commit event-only run was slightly faster in the
+  new build (5,705 versus 5,541 commits/s); this is treated as run variance, not an improvement claim.
 
 The lifecycle tables generate and retain their HMAC keys inside their owning database by default. Phase 9 additionally
 supports optional externally managed keys; production hardware and steady-state operational certification remain

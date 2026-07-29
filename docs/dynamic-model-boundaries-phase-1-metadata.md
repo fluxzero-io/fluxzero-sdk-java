@@ -22,7 +22,7 @@ worktrees are deliberately not production code.
   - `path` is optional and is the explicit opt-in to automatic graph-document composition;
   - a path on an untyped relationship requires an explicit parent model type;
   - statically typed parent cycles fail validation; fully untyped cycles remain a commit-time graph check.
-- `@Apply`, `@AssertLegal`, and `@InterceptApply` descriptors record action-scoped model value/`Entity<T>`
+- `@Apply`, `@AssertLegal`, and `@InterceptApply` descriptors record commit-scoped model value/`Entity<T>`
   dependencies. Multiple dependencies of the same model type require unique parameter-level
   `@Association("payloadProperty")` qualifiers.
 - A model-targeting `void @Apply` is invalid. Model registration will enforce this without changing legacy mutable
@@ -32,7 +32,7 @@ worktrees are deliberately not production code.
 - `ModelMetadata.RootConfiguration` exposes common `@Model`/`@Aggregate` persistence settings without making model
   code consume an aggregate annotation. It remains lazily owned by the central type metadata cache.
 - `ModelRepository`, `Fluxzero.loadModel(...)`, and model-specific `TestFixture` event-sourcing methods establish the
-  public boundary. The default `Fluxzero.modelRepository()` fails clearly until the model-action transport is wired in
+  public boundary. The default `Fluxzero.modelRepository()` fails clearly until the model-commit transport is wired in
   Phase 3; it never falls back to `AggregateRepository`, which would make an old runtime appear to support only part of
   the model contract.
 - Every repository overload reduces an ID to exactly `ID.toString()`. No model name or Java type is added to the

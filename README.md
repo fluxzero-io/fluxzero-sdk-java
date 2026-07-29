@@ -1646,7 +1646,7 @@ By default:
 - ⚠️ **Exception:** If a **local handler** exists the event will not be forwarded or stored, unless
   `@LocalHandler(logMessage = true)`.
 
-> For domain events that also change persisted state, prefer a model action such as
+> For domain events that also change persisted state, prefer a model commit such as
 > `Fluxzero.assertAndApply(update)`. It applies the update, stores each affected model, and publishes the event once
 > according to the model's publication configuration.
 
@@ -3127,23 +3127,23 @@ routes. `searchable = false` suppresses only the address's own search collection
 
 Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
-stored and published. Direct searchable documents are synchronous with model-action completion.
+stored and published. Direct searchable documents are synchronous with model-commit completion.
 
 Load current state with `Fluxzero.loadModel(id)`. Any selected message handler can inject directly addressed models and
 their parents, grandparents or further ancestors as `T` or `Entity<T>`. Event and notification handlers receive the
-exact state and relations at that event's model-action boundary; command, query, schedule, result, error, metrics,
+exact state and relations at that event's model-commit boundary; command, query, schedule, result, error, metrics,
 document, custom and web handlers use one current handler load context. Event-sourced targets share its pinned
 repository boundary; document-loaded targets remain current-only direct-document reads. Use
 `@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
 `@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
 
 For split event/search stores, Fluxzero retains the exact serialized direct-document and snapshot package with the
-authoritative model action. A retry after SDK or runtime process loss replays that package through monotone
+authoritative model commit. A retry after SDK or runtime process loss replays that package through monotone
 `stateIndex` fences and never re-evaluates application code. Direct model search therefore remains synchronous with a
 successful command result without claiming a distributed transaction.
 
 See the model-first [developer guides](docs/developer/guides/Modeling%20&%20persistence/170-entity-loading.mdx) for
-multi-model actions, temporal relationships, graph projections, conflict policies and hard deletion.
+multi-model commits, temporal relationships, graph projections, conflict policies and hard deletion.
 
 ## Legacy aggregate API (existing Fluxzero 1.x applications only)
 

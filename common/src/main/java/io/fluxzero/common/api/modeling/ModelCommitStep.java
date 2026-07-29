@@ -31,7 +31,7 @@ import java.util.List;
  */
 @Value
 @Builder(toBuilder = true)
-public class ModelActionSubstep {
+public class ModelCommitStep {
 
     /**
      * Serialized original event, stored only once in this request even when several models are targeted.
@@ -46,7 +46,7 @@ public class ModelActionSubstep {
     /**
      * Model stream/state targets of this original event.
      */
-    List<ModelActionTarget> targets;
+    List<ModelCommitTarget> targets;
 
     /**
      * Serialized payload bytes carried by this substep.
@@ -62,7 +62,7 @@ public class ModelActionSubstep {
     @Transient
     public int getStoredTargetCount() {
         int result = 0;
-        for (ModelActionTarget target : targets) {
+        for (ModelCommitTarget target : targets) {
             if (target.isStoreEvent()) {
                 result++;
             }
@@ -76,7 +76,7 @@ public class ModelActionSubstep {
     @Transient
     public int getRelationCount() {
         int result = 0;
-        for (ModelActionTarget target : targets) {
+        for (ModelCommitTarget target : targets) {
             result += target.getRelationships().size();
         }
         return result;

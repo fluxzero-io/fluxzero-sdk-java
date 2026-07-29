@@ -19,12 +19,12 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
@@ -57,14 +57,14 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 
 /**
- * Converts a side-effect-free {@link ModelActionEngine} evaluation into one authoritative runtime action package.
+ * Converts a side-effect-free {@link ModelCommitEngine} evaluation into one authoritative runtime commit package.
  * <p>
  * The original event payload is serialized once per substep. Per-target stream membership remains separate, while
  * global publication is the union of all targeted model publication policies. Optional direct documents and snapshots
  * travel with the same package. The runtime durably retains incomplete materialization work and reports completion
- * before a successful model action returns, preserving immediate direct-search visibility across retries and restarts.
+ * before a successful model commit returns, preserving immediate direct-search visibility across retries and restarts.
  */
-final class ModelActionCommitter {
+final class ModelCommitter {
     private static final int MAX_ACCEPT_REBASE_ATTEMPTS = 10;
 
     private final EventStoreClient eventStoreClient;
@@ -73,9 +73,9 @@ final class ModelActionCommitter {
     private final DocumentSerializer documentSerializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final String source;
-    private final Consumer<CommittedAction> afterCommit;
+    private final Consumer<CommittedCommit> afterCommit;
 
-    ModelActionCommitter(
+    ModelCommitter(
             EventStoreClient eventStoreClient,
             Serializer serializer,
             DocumentSerializer documentSerializer,
@@ -87,14 +87,14 @@ final class ModelActionCommitter {
              });
     }
 
-    ModelActionCommitter(
+    ModelCommitter(
             EventStoreClient eventStoreClient,
             Serializer serializer,
             DocumentSerializer documentSerializer,
             DispatchInterceptor dispatchInterceptor,
             String source,
             Serializer snapshotSerializer,
-            Consumer<CommittedAction> afterCommit) {
+            Consumer<CommittedCommit> afterCommit) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient);
         this.serializer = Objects.requireNonNull(serializer);
         this.snapshotSerializer = snapshotSerializer;
@@ -104,40 +104,40 @@ final class ModelActionCommitter {
         this.afterCommit = Objects.requireNonNull(afterCommit);
     }
 
-    CompletableFuture<Optional<CommitModelActionResult>> commit(
-            String actionId, ModelActionEngine.ActionEvaluation evaluation) {
-        return commit(actionId, evaluation, ModelConflictPolicy.ACCEPT);
+    CompletableFuture<Optional<CommitModelsResult>> commit(
+            String commitId, ModelCommitEngine.CommitEvaluation evaluation) {
+        return commit(commitId, evaluation, ModelConflictPolicy.ACCEPT);
     }
 
-    CompletableFuture<Optional<CommitModelActionResult>> commit(
-            String actionId,
-            ModelActionEngine.ActionEvaluation evaluation,
+    CompletableFuture<Optional<CommitModelsResult>> commit(
+            String commitId,
+            ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
         return commitPrepared(
                 evaluation,
-                prepare(actionId, evaluation, conflictPolicy));
+                prepare(commitId, evaluation, conflictPolicy));
     }
 
-    CompletableFuture<Optional<CommitModelActionResult>> commitAcceptingRebase(
-            String actionId,
-            ModelActionEngine.ActionEvaluation evaluation,
+    CompletableFuture<Optional<CommitModelsResult>> commitAcceptingRebase(
+            String commitId,
+            ModelCommitEngine.CommitEvaluation evaluation,
             RebaseEvaluator rebaseEvaluator) {
         Objects.requireNonNull(
                 rebaseEvaluator, "rebaseEvaluator");
         PreparedCommit original = prepare(
-                actionId, evaluation,
+                commitId, evaluation,
                 ModelConflictPolicy.ACCEPT);
         ThreadLocalContext.Snapshot context =
                 ThreadLocalContext.capture();
         return commitAcceptingRebase(
-                actionId, evaluation, original, original,
+                commitId, evaluation, original, original,
                 rebaseEvaluator, context, 0);
     }
 
-    private CompletableFuture<Optional<CommitModelActionResult>>
+    private CompletableFuture<Optional<CommitModelsResult>>
             commitAcceptingRebase(
-                    String actionId,
-                    ModelActionEngine.ActionEvaluation evaluation,
+                    String commitId,
+                    ModelCommitEngine.CommitEvaluation evaluation,
                     PreparedCommit original,
                     PreparedCommit prepared,
                     RebaseEvaluator rebaseEvaluator,
@@ -155,9 +155,9 @@ final class ModelActionCommitter {
                         >= MAX_ACCEPT_REBASE_ATTEMPTS) {
                         return CompletableFuture.failedFuture(
                                 new IllegalStateException(
-                                        "Model action '%s' remained stale after %d apply-only rebases"
+                                        "Model commit '%s' remained stale after %d apply-only rebases"
                                                 .formatted(
-                                                        actionId,
+                                                        commitId,
                                                         MAX_ACCEPT_REBASE_ATTEMPTS)));
                     }
                     long boundary = optional.get()
@@ -173,23 +173,23 @@ final class ModelActionCommitter {
                             () -> rebaseEvaluator.rebase(
                                     original.messages(),
                                     boundary),
-                            "Model action rebase returned null")
+                            "Model commit rebase returned null")
                             .thenCompose(next -> {
                         if (next.readStateIndex()
                             != boundary) {
                             return CompletableFuture.failedFuture(
                                     new IllegalStateException(
-                                            "Model action '%s' rebase loaded state index %d instead of requested %d"
+                                            "Model commit '%s' rebase loaded state index %d instead of requested %d"
                                                     .formatted(
-                                                            actionId,
+                                                            commitId,
                                                             next.readStateIndex(),
                                                             boundary)));
                         }
                         PreparedCommit nextPrepared =
                                 prepareRebased(
-                                        actionId, original, next);
+                                        commitId, original, next);
                         return commitAcceptingRebase(
-                                actionId, next, original,
+                                commitId, next, original,
                                 nextPrepared, rebaseEvaluator,
                                 context,
                                 attempts + 1);
@@ -197,32 +197,32 @@ final class ModelActionCommitter {
                 });
     }
 
-    private CompletableFuture<Optional<CommitModelActionResult>>
+    private CompletableFuture<Optional<CommitModelsResult>>
             commitPrepared(
-                    ModelActionEngine.ActionEvaluation evaluation,
+                    ModelCommitEngine.CommitEvaluation evaluation,
                     PreparedCommit prepared) {
-        if (prepared.action() == null) {
+        if (prepared.commit() == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return eventStoreClient.commitModelAction(prepared.action())
+        return eventStoreClient.commitModels(prepared.commit())
                 .thenApply(result -> {
                     if (!result.isAccepted()) {
                         return Optional.of(result);
                     }
                     afterCommit.accept(
-                            new CommittedAction(
+                            new CommittedCommit(
                                     evaluation, prepared, result));
                     return Optional.of(result);
                 });
     }
 
-    CompletableFuture<Optional<CommitModelActionResult>> commit(
-            String actionId,
-            ModelActionEngine.ActionEvaluation evaluation,
+    CompletableFuture<Optional<CommitModelsResult>> commit(
+            String commitId,
+            ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxRetries,
-            Supplier<CompletableFuture<ModelActionEngine.ActionEvaluation>> reload) {
+            Supplier<CompletableFuture<ModelCommitEngine.CommitEvaluation>> reload) {
         Objects.requireNonNull(conflictResolver, "conflictResolver");
         Objects.requireNonNull(reload, "reload");
         if (maxRetries < 0) {
@@ -231,24 +231,24 @@ final class ModelActionCommitter {
         ThreadLocalContext.Snapshot context =
                 ThreadLocalContext.capture();
         return commit(
-                actionId, evaluation, conflictPolicy, conflictResolver,
+                commitId, evaluation, conflictPolicy, conflictResolver,
                 maxRetries, reload, context, 0);
     }
 
-    private CompletableFuture<Optional<CommitModelActionResult>> commit(
-            String actionId,
-            ModelActionEngine.ActionEvaluation evaluation,
+    private CompletableFuture<Optional<CommitModelsResult>> commit(
+            String commitId,
+            ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxRetries,
-            Supplier<CompletableFuture<ModelActionEngine.ActionEvaluation>> reload,
+            Supplier<CompletableFuture<ModelCommitEngine.CommitEvaluation>> reload,
             ThreadLocalContext.Snapshot context,
             int retries) {
-        return commit(actionId, evaluation, conflictPolicy).thenCompose(optional -> {
+        return commit(commitId, evaluation, conflictPolicy).thenCompose(optional -> {
             if (optional.isEmpty() || optional.get().isAccepted()) {
                 return CompletableFuture.completedFuture(optional);
             }
-            CommitModelActionResult conflict = optional.get();
+            CommitModelsResult conflict = optional.get();
             return CompletableFuture.supplyAsync(
                             context.wrap(
                                     () -> Objects.requireNonNull(
@@ -264,7 +264,7 @@ final class ModelActionCommitter {
                             || !conflict.isRetryAllowed()
                             || retries >= maxRetries) {
                             return CompletableFuture.failedFuture(
-                                    new ModelActionConflictException(
+                                    new ModelCommitConflictException(
                                             conflict));
                         }
                         return invokeAsync(
@@ -272,7 +272,7 @@ final class ModelActionCommitter {
                                 reload,
                                 "Model conflict reload returned null")
                                 .thenCompose(next -> commit(
-                                        actionId, next,
+                                        commitId, next,
                                         conflictPolicy,
                                         conflictResolver,
                                         maxRetries,
@@ -285,31 +285,31 @@ final class ModelActionCommitter {
 
     private static <T> CompletableFuture<T> invokeAsync(
             ThreadLocalContext.Snapshot context,
-            Supplier<CompletableFuture<T>> action,
+            Supplier<CompletableFuture<T>> operation,
             String nullMessage) {
         return CompletableFuture.supplyAsync(
                         context.wrap(
                                 () -> Objects.requireNonNull(
-                                        action.get(), nullMessage)))
+                                        operation.get(), nullMessage)))
                 .thenCompose(Function.identity());
     }
 
-    PreparedCommit prepare(String actionId, ModelActionEngine.ActionEvaluation evaluation) {
-        return prepare(actionId, evaluation, ModelConflictPolicy.ACCEPT);
+    PreparedCommit prepare(String commitId, ModelCommitEngine.CommitEvaluation evaluation) {
+        return prepare(commitId, evaluation, ModelConflictPolicy.ACCEPT);
     }
 
     PreparedCommit prepare(
-            String actionId,
-            ModelActionEngine.ActionEvaluation evaluation,
+            String commitId,
+            ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
-        Objects.requireNonNull(actionId, "actionId");
-        if (actionId.isBlank()) {
-            throw new IllegalArgumentException("Model action ID must not be blank");
+        Objects.requireNonNull(commitId, "commitId");
+        if (commitId.isBlank()) {
+            throw new IllegalArgumentException("Model commit ID must not be blank");
         }
         Objects.requireNonNull(evaluation, "evaluation");
         Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
-        List<ModelActionSubstep> substeps = new ArrayList<>();
+        List<ModelCommitStep> substeps = new ArrayList<>();
         List<List<EffectiveTransition>> transitionGroups = new ArrayList<>();
         List<DeserializingMessage> messages = new ArrayList<>();
         Map<String, Long> nextSequences =
@@ -317,7 +317,7 @@ final class ModelActionCommitter {
         for (int evaluatedSubstep = 0;
              evaluatedSubstep < evaluation.substeps().size();
              evaluatedSubstep++) {
-            ModelActionEngine.AppliedSubstep appliedSubstep =
+            ModelCommitEngine.AppliedSubstep appliedSubstep =
                     evaluation.substeps().get(evaluatedSubstep);
             List<EffectiveTransition> transitions = appliedSubstep.transitions().stream()
                     .map(this::effectiveTransition)
@@ -333,18 +333,18 @@ final class ModelActionCommitter {
             if (event != null) {
                 event.setSource(source);
                 event.setMetadata(event.getMetadata().with(
-                        ModelEventMetadata.ACTION_ID, actionId,
+                        ModelEventMetadata.COMMIT_ID, commitId,
                         ModelEventMetadata.SUBSTEP, substeps.size()));
                 applyEventRouting(event, transitions);
             }
 
-            List<ModelActionTarget> targets = new ArrayList<>(transitions.size());
+            List<ModelCommitTarget> targets = new ArrayList<>(transitions.size());
             for (EffectiveTransition transition : transitions) {
                 targets.add(target(
                         transition, appliedSubstep.message(),
                         nextSequences, null));
             }
-            substeps.add(ModelActionSubstep.builder()
+            substeps.add(ModelCommitStep.builder()
                                  .event(event)
                                  .publishEvent(publishEvent)
                                  .targets(List.copyOf(targets))
@@ -356,28 +356,28 @@ final class ModelActionCommitter {
             return new PreparedCommit(
                     null, List.of(), List.of());
         }
-        CommitModelAction action = new CommitModelAction(
-                actionId, evaluation.readStateIndex(), evaluation.readModelIds(),
+        CommitModels commit = new CommitModels(
+                commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                 List.copyOf(substeps), conflictPolicy, STORED);
         return new PreparedCommit(
-                action, List.copyOf(transitionGroups),
+                commit, List.copyOf(transitionGroups),
                 List.copyOf(messages));
     }
 
     private PreparedCommit prepareRebased(
-            String actionId,
+            String commitId,
             PreparedCommit original,
-            ModelActionEngine.ActionEvaluation evaluation) {
-        if (original.action() == null) {
+            ModelCommitEngine.CommitEvaluation evaluation) {
+        if (original.commit() == null) {
             throw new IllegalArgumentException(
-                    "Cannot rebase an empty model action");
+                    "Cannot rebase an empty model commit");
         }
         if (evaluation.substeps().size()
-            != original.action().getSubsteps().size()) {
+            != original.commit().getSubsteps().size()) {
             throw new IllegalStateException(
-                    "Apply-only rebase changed the number of model action substeps");
+                    "Apply-only rebase changed the number of model commit substeps");
         }
-        List<ModelActionSubstep> substeps =
+        List<ModelCommitStep> substeps =
                 new ArrayList<>(evaluation.substeps().size());
         List<List<EffectiveTransition>> transitionGroups =
                 new ArrayList<>(evaluation.substeps().size());
@@ -386,16 +386,16 @@ final class ModelActionCommitter {
         for (int substepIndex = 0;
              substepIndex < evaluation.substeps().size();
              substepIndex++) {
-            ModelActionEngine.AppliedSubstep rebased =
+            ModelCommitEngine.AppliedSubstep rebased =
                     evaluation.substeps().get(substepIndex);
-            ModelActionSubstep source =
-                    original.action().getSubsteps().get(
+            ModelCommitStep source =
+                    original.commit().getSubsteps().get(
                             substepIndex);
-            LinkedHashMap<String, ModelActionEngine.Transition>
+            LinkedHashMap<String, ModelCommitEngine.Transition>
                     transitionsById = new LinkedHashMap<>();
-            for (ModelActionEngine.Transition transition :
+            for (ModelCommitEngine.Transition transition :
                     rebased.transitions()) {
-                ModelActionEngine.Transition previous =
+                ModelCommitEngine.Transition previous =
                         transitionsById.putIfAbsent(
                                 transition.modelId(),
                                 transition);
@@ -406,13 +406,13 @@ final class ModelActionCommitter {
                                             transition.modelId()));
                 }
             }
-            List<ModelActionTarget> targets =
+            List<ModelCommitTarget> targets =
                     new ArrayList<>(source.getTargets().size());
             List<EffectiveTransition> effective =
                     new ArrayList<>(source.getTargets().size());
-            for (ModelActionTarget originalTarget :
+            for (ModelCommitTarget originalTarget :
                     source.getTargets()) {
-                ModelActionEngine.Transition transition =
+                ModelCommitEngine.Transition transition =
                         transitionsById.remove(
                                 originalTarget.getModelId());
                 if (transition == null) {
@@ -459,24 +459,24 @@ final class ModelActionCommitter {
             transitionGroups.add(
                     List.copyOf(effective));
         }
-        CommitModelAction action = new CommitModelAction(
-                actionId, evaluation.readStateIndex(),
+        CommitModels commit = new CommitModels(
+                commitId, evaluation.readStateIndex(),
                 evaluation.readModelIds(),
                 List.copyOf(substeps),
                 ModelConflictPolicy.ACCEPT,
-                original.action().getGuarantee());
+                original.commit().getGuarantee());
         return new PreparedCommit(
-                action,
+                commit,
                 List.copyOf(transitionGroups),
                 original.messages());
     }
 
-    private ModelActionTarget target(
+    private ModelCommitTarget target(
             EffectiveTransition effective,
             DeserializingMessage message,
             Map<String, Long> nextSequences,
-            ModelActionTarget original) {
-        ModelActionEngine.Transition transition = effective.transition();
+            ModelCommitTarget original) {
+        ModelCommitEngine.Transition transition = effective.transition();
         DirectDocument document = effective.updateState()
                 ? directDocument(
                         transition, message.getTimestamp(), message.getMetadata())
@@ -485,8 +485,8 @@ final class ModelActionCommitter {
         RelationshipUpdate relationships = effective.updateState()
                 ? relationshipUpdate(transition)
                 : new RelationshipUpdate(false, List.of());
-        ModelActionTarget.ModelActionTargetBuilder builder = original == null
-                ? ModelActionTarget.builder()
+        ModelCommitTarget.ModelCommitTargetBuilder builder = original == null
+                ? ModelCommitTarget.builder()
                         .modelId(transition.modelId())
                         .modelType(transition.modelType().getName())
                         .storeEvent(effective.storeEvent())
@@ -516,7 +516,7 @@ final class ModelActionCommitter {
         return serialized;
     }
 
-    private Optional<EffectiveTransition> effectiveTransition(ModelActionEngine.Transition transition) {
+    private Optional<EffectiveTransition> effectiveTransition(ModelCommitEngine.Transition transition) {
         Publication publication = publication(transition);
         boolean modified =
                 !Objects.equals(
@@ -586,7 +586,7 @@ final class ModelActionCommitter {
         }
     }
 
-    private Publication publication(ModelActionEngine.Transition transition) {
+    private Publication publication(ModelCommitEngine.Transition transition) {
         ModelMetadata.RootConfiguration model = ModelMetadata.of(transition.modelType())
                 .rootConfiguration().orElseThrow(() -> new IllegalStateException(
                         transition.modelType().getName() + " is not an independent model"));
@@ -631,7 +631,7 @@ final class ModelActionCommitter {
     }
 
     private static RelationshipUpdate relationshipUpdate(
-            ModelActionEngine.Transition transition) {
+            ModelCommitEngine.Transition transition) {
         List<ModelRelationship> before =
                 relationships(transition.modelId(), transition.before());
         List<ModelRelationship> after =
@@ -671,7 +671,7 @@ final class ModelActionCommitter {
     }
 
     private static long nextSequence(
-            ModelActionEngine.Transition transition,
+            ModelCommitEngine.Transition transition,
             EffectiveTransition effective,
             Map<String, Long> nextSequences) {
         long previous = nextSequences.getOrDefault(
@@ -686,7 +686,7 @@ final class ModelActionCommitter {
     }
 
     private ModelSnapshotMutation snapshot(
-            ModelActionEngine.Transition transition,
+            ModelCommitEngine.Transition transition,
             EffectiveTransition effective,
             long nextSequence,
             Instant timestamp) {
@@ -715,7 +715,7 @@ final class ModelActionCommitter {
     }
 
     private static Optional<DirectDocumentCandidate> directDocument(
-            ModelActionEngine.Transition transition, Instant eventTimestamp, Metadata metadata) {
+            ModelCommitEngine.Transition transition, Instant eventTimestamp, Metadata metadata) {
         ModelMetadata modelMetadata =
                 ModelMetadata.of(
                         transition.modelType());
@@ -760,22 +760,22 @@ final class ModelActionCommitter {
     }
 
     record PreparedCommit(
-            CommitModelAction action,
+            CommitModels commit,
             List<List<EffectiveTransition>> transitionGroups,
             List<DeserializingMessage> messages) {
     }
 
     @FunctionalInterface
     interface RebaseEvaluator {
-        CompletableFuture<ModelActionEngine.ActionEvaluation> rebase(
+        CompletableFuture<ModelCommitEngine.CommitEvaluation> rebase(
                 List<DeserializingMessage> messages,
                 long stateIndex);
     }
 
-    record CommittedAction(
-            ModelActionEngine.ActionEvaluation evaluation,
+    record CommittedCommit(
+            ModelCommitEngine.CommitEvaluation evaluation,
             PreparedCommit prepared,
-            CommitModelActionResult result) {
+            CommitModelsResult result) {
     }
 
     record DirectDocument(
@@ -792,7 +792,7 @@ final class ModelActionCommitter {
     }
 
     record EffectiveTransition(
-            ModelActionEngine.Transition transition,
+            ModelCommitEngine.Transition transition,
             boolean storeEvent,
             boolean publishEvent,
             boolean updateState,

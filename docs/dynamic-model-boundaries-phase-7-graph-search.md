@@ -138,7 +138,7 @@ independent searchability: a non-searchable child with an explicit parent path u
 `$modelGraphComponents` collection for composition without gaining its own searchable collection. A non-searchable
 child without an explicit path remains omitted and retains the zero-document-write fast path.
 
-The SDK registers configured roots before an action that can affect them commits. It discovers roots from direct
+The SDK registers configured roots before an commit that can affect them commits. It discovers roots from direct
 transition types and recursively from statically typed `Id<Parent>` references, including payload-side applies.
 Ambiguous or untyped parent links require explicit application registration because their Java root type cannot be
 derived without loading application state. A transient registration failure is not cached permanently.
@@ -150,13 +150,13 @@ and rebuilds. The target collection cannot later be rebound to another root type
 ### Durable execution and fences
 
 With at least one projection registered, every accepted model substep writes one compact projection signal in the same
-JDBC transaction as its events, stream memberships, heads, temporal relationships, action result, and global event
-publication when that log is co-located. The signal refers to the already idempotent action/substep and target IDs; it
+JDBC transaction as its events, stream memberships, heads, temporal relationships, commit result, and global event
+publication when that log is co-located. The signal refers to the already idempotent commit/substep and target IDs; it
 does not duplicate event payloads or graph documents.
 
 The asynchronous worker:
 
-1. waits until that action's direct document/snapshot materialization package is durably complete;
+1. waits until that commit's direct document/snapshot materialization package is durably complete;
 2. coalesces consecutive signals;
 3. resolves affected roots at both the pre-batch and post-batch temporal boundaries, so moves update the old and new
    roots;
@@ -185,14 +185,14 @@ recoverable durable projection, not part of direct model commit success.
 ### Retained materialization diagnostic
 
 The retained local PostgreSQL comparison writes 2,000 independent roots with one 256-byte event and one 256-byte
-direct document per action at concurrency 128. Publication, relationships, and model loading are disabled so the
-measurement isolates direct action storage plus optional graph materialization.
+direct document per commit at concurrency 128. Publication, relationships, and model loading are disabled so the
+measurement isolates direct commit storage plus optional graph materialization.
 
-| Profile | Action write throughput | Projection catch-up | Physical storage | WAL |
+| Profile | Commit write throughput | Projection catch-up | Physical storage | WAL |
 | --- | ---: | ---: | ---: | ---: |
-| projection disabled | 2,097 actions/s | n/a | 4.45 MiB | 7.66 MiB |
-| default bounds (`maxModels=10,000`) | 4,957 actions/s | 1.802 s / ~1,110 roots/s | 7.41 MiB | 13.15 MiB |
-| leaf profile (`maxModels=1`) | 5,201 actions/s | 0.267 s / ~7,491 roots/s | 6.98 MiB | 13.18 MiB |
+| projection disabled | 2,097 commits/s | n/a | 4.45 MiB | 7.66 MiB |
+| default bounds (`maxModels=10,000`) | 4,957 commits/s | 1.802 s / ~1,110 roots/s | 7.41 MiB | 13.15 MiB |
+| leaf profile (`maxModels=1`) | 5,201 commits/s | 0.267 s / ~7,491 roots/s | 6.98 MiB | 13.18 MiB |
 
 These are noisy single local runs; the apparently higher write throughput with projection enabled is not treated as an
 improvement. The retained conclusions are the measured storage/WAL amplification, the zero-storage disabled route,

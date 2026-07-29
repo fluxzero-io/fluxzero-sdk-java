@@ -21,9 +21,9 @@ package io.fluxzero.common.api.modeling;
  */
 public enum ModelUpdateKind {
     /**
-     * One committed model-action substep.
+     * One persisted model-commit step.
      */
-    ACTION,
+    COMMIT,
 
     /**
      * A prepared physical model erasure fence.

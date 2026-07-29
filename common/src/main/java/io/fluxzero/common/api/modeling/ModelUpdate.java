@@ -21,7 +21,7 @@ import lombok.Value;
 import java.util.List;
 
 /**
- * Resulting target heads of one committed model-action substep.
+ * Resulting target heads of one committed model-commit substep.
  * <p>
  * {@link #eventIndex} links a published domain event to this exact model-state boundary. It is {@code null} for
  * store-only, publication-free, document-only, and relationship-only transitions.
@@ -35,12 +35,12 @@ public class ModelUpdate {
     ModelUpdateKind kind;
 
     /**
-     * Durable model action identity.
+     * Durable model commit identity.
      */
-    String actionId;
+    String commitId;
 
     /**
-     * Ordered substep within the action.
+     * Ordered substep within the commit.
      */
     int substep;
 
@@ -57,5 +57,5 @@ public class ModelUpdate {
     /**
      * Resulting positions of every model targeted by the substep. Empty for {@link ModelUpdateKind#HARD_DELETE}.
      */
-    List<ModelActionTargetResult> targets;
+    List<ModelCommitTargetResult> targets;
 }

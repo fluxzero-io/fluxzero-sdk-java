@@ -180,7 +180,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction);
 
     /**
-     * Configures the optional policy used when an independent-model action was evaluated against an older model state.
+     * Configures the optional policy used when an independent-model commit was evaluated against an older model state.
      * <p>
      * {@link ModelConflictPolicy#ACCEPT} is the final default and never rejects the original event; stale derived
      * state is internally rebased without rerunning assertions or interceptors. Scoped
@@ -190,7 +190,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * {@code maxRetries}. If this method is not called, properties {@code fluxzero.model.conflictPolicy} and
      * {@code fluxzero.model.maxConflictRetries} are consulted before falling back to {@code ACCEPT} and three retries.
      *
-     * @param policy conflict policy sent with model actions
+     * @param policy conflict policy sent with model commits
      * @param resolver client-side decision after a rolled-back conflict
      * @param maxRetries maximum number of complete action reevaluations
      * @return this builder

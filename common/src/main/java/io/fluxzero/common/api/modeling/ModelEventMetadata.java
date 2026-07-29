@@ -17,19 +17,19 @@
 package io.fluxzero.common.api.modeling;
 
 /**
- * Reserved metadata keys identifying events emitted by an independent-model action.
+ * Reserved metadata keys identifying events emitted by an independent-model commit.
  */
 public final class ModelEventMetadata {
 
     /**
-     * Durable idempotency identity of the model action that emitted an event.
+     * Durable idempotency identity of the model commit that emitted an event.
      */
-    public static final String ACTION_ID = "$modelActionId";
+    public static final String COMMIT_ID = "$modelCommitId";
 
     /**
-     * Ordered substep within the model action.
+     * Ordered substep within the model commit.
      */
-    public static final String SUBSTEP = "$modelActionSubstep";
+    public static final String SUBSTEP = "$modelCommitSubstep";
 
     private ModelEventMetadata() {
     }

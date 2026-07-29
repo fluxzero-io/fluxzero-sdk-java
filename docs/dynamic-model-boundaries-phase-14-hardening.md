@@ -1,7 +1,7 @@
 # Phase 14 — Production hardening and universal model injection
 
 > Historical design record. Phase 21b removed the SDK materialization-fetch/acknowledgement protocol; a successful
-> model-action result now means runtime-owned direct materialization has completed.
+> model-commit result now means runtime-owned direct materialization has completed.
 
 Date: 2026-07-27
 
@@ -15,13 +15,13 @@ The retained design is:
 
 - exactly one operational model store owns hard-deletion recovery; query-only stores cannot complete erasures;
 - all selected message-handler kinds can inject direct models and arbitrary ancestors;
-- event/notification parameters use their exact model-action boundary, while other messages use one current handler
+- event/notification parameters use their exact model-commit boundary, while other messages use one current handler
   load context;
 - ordinary direct search keeps its existing wire/document shape; graph composition alone obtains decoded summaries;
 - graph composition bounds source bytes, path expansion, placements and output before unbounded materialization;
-- store-only model actions bypass the global event log completely; published actions reserve indices without holding a
+- store-only model commits bypass the global event log completely; published commits reserve indices without holding a
   JVM-wide monitor while JDBC work completes;
-- a split search store repairs from the exact serialized materialization committed with the action, never by
+- a split search store repairs from the exact serialized materialization committed with the commit, never by
   re-evaluating application code;
 - direct-document fences reject both older and equal `stateIndex` writes, including writes racing a delete tombstone;
 - an event-sourced model cannot create, update or logically delete without storing its reconstructing event;
@@ -40,30 +40,30 @@ Resolution remains side-effect-free during candidate selection. Once a handler i
 4. follows temporal relations for parents, grandparents and further ancestors;
 5. reuses one message-scoped context for repeated `T` and `Entity<T>` parameters.
 
-Events and notifications without model-action metadata do not receive an arbitrary current model. This prevents a
+Events and notifications without model-commit metadata do not receive an arbitrary current model. This prevents a
 future cache entry from leaking into historical replay.
 
 ## Split-store materialization
 
-`CommitModelAction` already carries the original events, optional direct documents, optional snapshots and relation
+`CommitModels` already carries the original events, optional direct documents, optional snapshots and relation
 changes as one logical package. When one runtime owns separate model and search databases, the core JDBC transaction
 retains the exact serialized document/snapshot projection and that same runtime applies it to the search database
 before returning success. On store activation after restart, a bounded background worker resumes pending projections
 with exponential backoff. An SDK-owned custom document store instead applies the retained projection and acknowledges
-the action boundary through the existing protocol.
+the commit boundary through the existing protocol.
 
 If either runtime-owned database operation or the SDK-owned route fails in between:
 
-- a duplicate commit returns the original durable action result;
-- the runtime-owned worker, or the SDK for a custom store, retrieves the original projection by `actionId`;
+- a duplicate commit returns the original durable commit result;
+- the runtime-owned worker, or the SDK for a custom store, retrieves the original projection by `commitId`;
 - the target store applies it through monotone per-model fences;
 - the materialization boundary closes only after all writes succeed;
 - later duplicate or operator-triggered delivery is idempotent.
 
-The action's compact result is not a bulky retry artifact. It contains the permanent action/substep `stateIndex`,
+The commit's compact result is not a bulky retry artifact. It contains the permanent commit/substep `stateIndex`,
 published event index and target stream positions required by exact handler loads, cache-update tracking and durable
 idempotency. Duplicating those values into normalized per-substep and per-target tables would add rows and indexes to
-every action and materially increase WAL at the production reference envelope. The compact result therefore remains
+every commit and materially increase WAL at the production reference envelope. The compact result therefore remains
 the permanent representation. Only the potentially large document/snapshot projection is retry-window state; it is
 cleared immediately after a successful acknowledgement and is never discarded merely because a timer expired.
 
@@ -82,36 +82,36 @@ The distinction remains intentional:
 ## Operational recovery
 
 Runtime-owned search materialization is repaired automatically after temporary failure and store activation following a
-restart. For a pending SDK-owned custom-store action:
+restart. For a pending SDK-owned custom-store commit:
 
-1. redeliver the original command/action with the same durable `actionId`, or retrieve
-   `GetModelActionMaterialization(actionId)` through the low-level event-store client;
-2. apply the returned `MaterializeModelAction` to the intended document store;
-3. acknowledge `CompleteModelActionMaterialization(actionId, lastStateIndex)`;
+1. redeliver the original command/commit with the same durable `commitId`, or retrieve
+   `GetModelCommitMaterialization(commitId)` through the low-level event-store client;
+2. apply the returned `MaterializeModelCommit` to the intended document store;
+3. acknowledge `CompleteModelCommitMaterialization(commitId, lastStateIndex)`;
 4. repeat safely if the result is uncertain.
 
-Never rebuild a committed projection by rerunning assertions, interceptors or applies. A missing action ID is an
-operator/configuration error; a retained action with no recoverable projection must fail explicitly rather than
+Never rebuild a committed projection by rerunning assertions, interceptors or applies. A missing commit ID is an
+operator/configuration error; a retained commit with no recoverable projection must fail explicitly rather than
 silently close its readiness fence.
 
 ## Retention state
 
 There is no implicit time-based model retention policy in this release:
 
-- the compact action result is retained indefinitely because exact handler boundaries, update tracking and durable
+- the compact commit result is retained indefinitely because exact handler boundaries, update tracking and durable
   idempotency still depend on it;
 - a pending document/snapshot projection is retained until successful materialization, then cleared immediately;
 - processed deletion-target worksets are deleted when their deletion completes;
 - completed deletion records and erasure fences remain durable for retry identity and model-ID reuse rejection;
 - protected lineage remains until the corresponding detached descendants are erased.
 
-Purging or archiving compact actions, completed deletion metadata or fences requires a separately proven replacement
+Purging or archiving compact commits, completed deletion metadata or fences requires a separately proven replacement
 for those correctness contracts; ordinary message-log retention does not apply to these model tables.
 
 ## Verification
 
 - SDK/common focused:
-  `./mvnw -pl sdk -Dtest='ModelActionCommitterTest,ModelEntityParameterResolverTest,InMemorySearchStoreModelMaterializationTest,ModelCacheTrackerTest' test`
+  `./mvnw -pl sdk -Dtest='ModelCommitterTest,ModelEntityParameterResolverTest,InMemorySearchStoreModelMaterializationTest,ModelCacheTrackerTest' test`
   and
   `./mvnw -pl common -Dtest='ModelGraphDocumentStitcherTest,WebSocketTransportCodecsTest' test`
   — 74 tests passed.
@@ -121,13 +121,13 @@ for those correctness contracts; ordinary message-log retention does not apply t
   and downstream Maven Doxia compatibility warning remain warnings.
 - The first complete SDK rerun exposed an ordering race in the local-commit cache fast path: a newer unrelated global
   tracker cursor could trigger an unnecessary suffix load after an authoritative local commit. The tracker now trusts
-  an existing action-participant entry while retaining the conservative global fence for a newly created entry; the
+  an existing commit-participant entry while retaining the conservative global fence for a newly created entry; the
   deterministic regression test and the repeated complete reactor pass.
 
 Runtime verification:
 
 - focused JDBC/websocket hardening suite:
-  `./mvnw -pl runtime -Dtest='JdbcSearchStoreTest,JdbcMessageStoreTest,JdbcModelActionStoreTest,SearchEndpointTest' test`
+  `./mvnw -pl runtime -Dtest='JdbcSearchStoreTest,JdbcMessageStoreTest,JdbcModelCommitStoreTest,SearchEndpointTest' test`
   — 162 tests passed;
 - complete runtime reactor: `./mvnw -B install` — all four modules and 641 runtime tests passed;
 - the adversarial review found and corrected one compatibility regression before the final run: the generic
@@ -136,7 +136,7 @@ Runtime verification:
 - `git diff --check` passed in both repositories.
 
 After the full reactor, the final repair-read simplification was compiled and exercised by all 76
-`JdbcModelActionStoreTest` contracts.
+`JdbcModelCommitStoreTest` contracts.
 
 The hard-deletion suite starts a query-only/search store before the operational store and proves that only the latter
 can resume a prepared deletion. The shared-payload lifecycle test commits one event for A and B, erases A, restarts and
@@ -159,12 +159,12 @@ three secondary plus three tertiary children per root. Both implementations muta
 
 | profile | aggregate | independent models | model/aggregate observation |
 | --- | ---: | ---: | --- |
-| event-only mutations | 1,436.1 actions/s | 583.6 actions/s | 0.406× |
+| event-only mutations | 1,436.1 commits/s | 583.6 commits/s | 0.406× |
 | cold leaf load | 17.035 ms | 10.069 ms | model 41% lower latency |
 | hot leaf load | 0.064 ms | 0.013 ms | model cache is faster |
 | whole-root load | 15.080 ms | 22.807 ms | model stitching is 1.51× slower |
 | WAL / allocation | 4.46 MB / 236.6 MB | 3.59 MB / 183.7 MB | model uses 0.81× WAL and 0.78× allocation |
-| searchable mutations | 1,173.1 actions/s | 459.3 actions/s | 0.392× |
+| searchable mutations | 1,173.1 commits/s | 459.3 commits/s | 0.392× |
 | searchable cold leaf | 16.346 ms | 9.310 ms | model 43% lower latency |
 | searchable whole root | 16.038 ms | 26.470 ms | model stitching is 1.65× slower |
 | direct-search p50 | 0.756 ms | 0.543 ms | model direct search is faster |
@@ -179,9 +179,9 @@ decision, not a free default.
 
 ### Mixed global event log
 
-With 2,000 measured single-target 1-KiB model actions at concurrency 128 and 2,000 ordinary aggregate appends at
+With 2,000 measured single-target 1-KiB model commits at concurrency 128 and 2,000 ordinary aggregate appends at
 concurrency 64, the ordinary append path sustained 4,082 events/s (p50/p95/p99
-15.359/36.111/37.318 ms) while published model actions sustained 3,636 actions/s
+15.359/36.111/37.318 ms) while published model commits sustained 3,636 commits/s
 (37.330/53.780/77.785 ms). The combined log contained exactly 4,500 warmup-plus-measured events in strictly increasing,
 unique index order. Total physical data was 3.91 MiB and measured WAL 11.10 MiB.
 
@@ -193,7 +193,7 @@ adding a reservation ledger to every aggregate append was rejected as the worse 
 
 ### Target-count matrix
 
-| publication | targets | actions/s | memberships/s | p50 / p95 | current loads | physical / WAL amplification |
+| publication | targets | commits/s | memberships/s | p50 / p95 | current loads | physical / WAL amplification |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | store only | 1 | 4,165 | 4,165 | 12.636 / 23.895 ms | 26,695 models/s | 3.65× / 6.53× |
 | store only | 2 | 3,638 | 7,275 | 14.130 / 32.377 ms | 34,962 models/s | 1.86× / 6.18× |
@@ -204,19 +204,19 @@ adding a reservation ledger to every aggregate append was rejected as the worse 
 | published | 10 | 538 | 5,381 | 98.432 / 236.641 ms | 35,484 models/s | 8.28× / 17.83× |
 | published | 100 | 63 | 6,264 | 795 ms / — | 37,076 models/s | 61.44× / 103.65× |
 
-The 100-target action is deliberately pathological and remains an operational warning. The short local published
+The 100-target commit is deliberately pathological and remains an operational warning. The short local published
 profile also shows noisy p95 spikes; production-duration qualification must use the retained benchmark with the actual
 storage and network topology.
 
 ## Adversarial review
 
-> **Storage update (Phase 17):** the target-bearing action receipt described below is no longer permanent. A compact
-> ID-free action boundary remains durable, while cache-tracking receipts expire by time partition.
+> **Storage update (Phase 17):** the target-bearing commit receipt described below is no longer permanent. A compact
+> ID-free commit boundary remains durable, while cache-tracking receipts expire by time partition.
 
 - Public and wire compatibility: all protocol additions have JSON and CBOR round-trip tests; legacy aggregate and
   ordinary search requests keep their existing path and shape.
-- Persistence: no normalized per-target action-result table was added. The compact MessagePack result remains
-  permanent; only unfinished document/snapshot bytes remain in the existing action projection column.
+- Persistence: no normalized per-target commit-result table was added. The compact MessagePack result remains
+  permanent; only unfinished document/snapshot bytes remain in the existing commit projection column.
 - Concurrency: event indices remain unique and ordered under mixed traffic; equal/older direct-document writes cannot
   cross a newer write or delete tombstone; cache and snapshot updates cannot move backwards.
 - Recovery: a crash after runtime commit cannot invoke application code again. Runtime-owned materialization resumes
@@ -236,7 +236,7 @@ repair in `ModelMaterializationRepairMetric`, graph-projection batches/status, g
 evictions and bounded-backlog rejection logs. Runtime-owned recovery and deletion failures also log while their durable
 pending boundaries remain visible. Deployment dashboards and alert thresholds are operational configuration, not
 automatically installed by the runtime. A repair metric intentionally contains counts/bytes and completion state but no
-action or model ID, so it remains safe as a bounded metric dimension; the action ID remains available in request/audit
+commit or model ID, so it remains safe as a bounded metric dimension; the commit ID remains available in request/audit
 logs for diagnosis.
 
 Before a runtime or SDK downgrade, drain and acknowledge all pending split-store materializations and graph deletion

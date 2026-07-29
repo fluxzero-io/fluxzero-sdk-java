@@ -35,9 +35,9 @@ remain externally identical:
 
 Model-only behavior has dedicated tests instead of being forced into an aggregate-shaped contract:
 
-- multi-model actions, independent lifecycle and unrelated-model assertion/apply dependencies;
+- multi-model commits, independent lifecycle and unrelated-model assertion/apply dependencies;
 - parent and ancestor injection, moves, detaches and current/historical graph loading;
-- conflicts, apply-only rebasing, action idempotency and one global publication;
+- conflicts, apply-only rebasing, commit idempotency and one global publication;
 - hash-partitioned stream/relationship persistence and shared-payload ownership;
 - synchronous direct documents, graph stitching and durable graph projections;
 - snapshots, unknown-event policy, namespace isolation and document-loaded historical reconstruction;
@@ -54,7 +54,7 @@ The JDBC search contract also verifies erasure before any model snapshot partiti
 Commands, queries, web requests and responses, schedules, results, errors, metrics, documents and custom messages use
 one current handler load context when their payload or metadata identifies a model. Event-sourced targets share its
 pinned repository boundary; current-only document targets retain direct-document semantics. Events and notifications
-use the persisted model-action boundary instead.
+use the persisted model-commit boundary instead.
 
 - IDs follow the model apply rules: canonical `@EntityId`, one unique typed `Id<T>`, or
   `@Association("payloadProperty")`.
@@ -62,12 +62,12 @@ use the persisted model-action boundary instead.
   type. `excludeMetadata = true` restricts it to payload/graph lookup.
 - A directly addressed child can supply parents, grandparents and further ancestors without repeating their IDs in
   the message. `@Association("parentPath")` selects an ancestor edge when the type alone is ambiguous.
-- Loads use the handler consumer namespace. Events and notifications use the exact action/substep boundary; other
+- Loads use the handler consumer namespace. Events and notifications use the exact commit/substep boundary; other
   messages use the current repository context.
 - Direct targets and ancestors share one handler-scoped load context. Repeated parameters therefore do not perform
   repeated repository loads.
 - `Entity<T>` may be empty after logical deletion. A non-null bare `T` does not match an absent model.
-- Ordinary events without model-action metadata never trigger an implicit current-state load.
+- Ordinary events without model-commit metadata never trigger an implicit current-state load.
 
 The resolver is placed before the legacy aggregate entity resolver. Its reflection work is prepared with the handler
 plan. Candidate selection remains side-effect-free: repository I/O starts only after a handler containing resolvable
@@ -92,12 +92,12 @@ interface.
 ## Documentation
 
 The getting-started material, first application tutorial, modeling/search guides, README model chapter and Java/Kotlin
-agent manuals now teach `@Model`, `Fluxzero.loadModel`, automatic model actions, independent relations and model graph
+agent manuals now teach `@Model`, `Fluxzero.loadModel`, automatic model commits, independent relations and model graph
 search. Aggregate material is confined to an explicitly marked 1.x legacy section or migration warning.
 
 ## Verification
 
-- `./mvnw -pl sdk -am -Dtest='PersistenceRootParityTest,ModelEntityParameterResolverTest,ModelActionHandlerIntegrationTest,ConsumerConfigurationTest' -Dsurefire.failIfNoSpecifiedTests=false test`
+- `./mvnw -pl sdk -am -Dtest='PersistenceRootParityTest,ModelEntityParameterResolverTest,ModelCommitHandlerIntegrationTest,ConsumerConfigurationTest' -Dsurefire.failIfNoSpecifiedTests=false test`
   — 88 tests passed.
 - SDK `./mvnw -B install` — full reactor passed, including 1,925 SDK tests and Java/Kotlin downstream projects.
 - Runtime

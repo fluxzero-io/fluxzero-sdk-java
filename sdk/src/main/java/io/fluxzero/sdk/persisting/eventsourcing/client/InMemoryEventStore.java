@@ -16,8 +16,8 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -28,12 +28,12 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
-import io.fluxzero.common.api.modeling.ModelActionConflict;
-import io.fluxzero.common.api.modeling.ModelActionValidator;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
+import io.fluxzero.common.api.modeling.ModelCommitValidator;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
@@ -105,9 +105,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
-    private final Map<String, CommitModelActionResult> modelActions = new ConcurrentHashMap<>();
+    private final Map<String, CommitModelsResult> modelCommits = new ConcurrentHashMap<>();
     private final Map<String, PendingModelMaterialization>
-            modelActionMaterializations =
+            modelCommitMaterializations =
             new ConcurrentHashMap<>();
     private final List<ModelUpdate> modelUpdates = new ArrayList<>();
     private final Object modelUpdateMonitor = new Object();
@@ -134,7 +134,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             new ArrayList<>();
     private ModelGraphProjectionMaterializer
             modelGraphProjectionMaterializer;
-    private ModelActionMaterializer modelActionMaterializer;
+    private ModelCommitMaterializer modelCommitMaterializer;
     private final Map<String, ModelDeletionResult>
             modelDeletions =
             new ConcurrentHashMap<>();
@@ -182,14 +182,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     /**
      * Links the SDK-only event store to the direct in-memory model materializer.
      */
-    public synchronized void setModelActionMaterializer(
-            ModelActionMaterializer materializer) {
-        this.modelActionMaterializer =
+    public synchronized void setModelCommitMaterializer(
+            ModelCommitMaterializer materializer) {
+        this.modelCommitMaterializer =
                 Objects.requireNonNull(materializer);
-        List.copyOf(modelActionMaterializations.keySet())
-                .forEach(actionId -> {
+        List.copyOf(modelCommitMaterializations.keySet())
+                .forEach(commitId -> {
                     try {
-                        completeModelActionMaterialization(actionId);
+                        completeModelCommitMaterialization(commitId);
                     } catch (RuntimeException ignored) {
                         // A later duplicate commit retries the retained package.
                     }
@@ -207,23 +207,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
+    public synchronized CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {
-            ModelActionValidator.validate(action);
-            CommitModelActionResult previous = modelActions.get(action.getActionId());
+            ModelCommitValidator.validate(commit);
+            CommitModelsResult previous = modelCommits.get(commit.getCommitId());
             if (previous != null) {
-                completeModelActionMaterialization(
-                        action.getActionId());
+                completeModelCommitMaterialization(
+                        commit.getCommitId());
                 return CompletableFuture.completedFuture(
-                        modelActions.get(action.getActionId())
+                        modelCommits.get(commit.getCommitId())
                                 .asDuplicateForRequest(
-                                action.getRequestId()));
+                                commit.getRequestId()));
             }
-            action.getSubsteps().stream()
+            commit.getSubsteps().stream()
                     .flatMap(substep ->
                                      substep.getTargets()
                                              .stream())
-                    .map(ModelActionTarget::getModelId)
+                    .map(ModelCommitTarget::getModelId)
                     .filter(modelId ->
                                     erasedModelTokens.contains(
                                             protectedToken(
@@ -234,39 +234,39 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 "Model '%s' was hard-deleted and cannot be recreated"
                                         .formatted(modelId));
                     });
-            if (action.getReadStateIndex() > modelStateIndex) {
+            if (commit.getReadStateIndex() > modelStateIndex) {
                 throw new IllegalArgumentException(
                         "Model readStateIndex %d is newer than visible stateIndex %d"
-                                .formatted(action.getReadStateIndex(), modelStateIndex));
+                                .formatted(commit.getReadStateIndex(), modelStateIndex));
             }
-            ModelConflictPolicy conflictPolicy = ModelConflictPolicy.resolve(action.getConflictPolicy());
-            CommitModelActionResult conflict = conflict(
-                    action, conflictPolicy);
+            ModelConflictPolicy conflictPolicy = ModelConflictPolicy.resolve(commit.getConflictPolicy());
+            CommitModelsResult conflict = conflict(
+                    commit, conflictPolicy);
             if (conflict != null) {
                 return CompletableFuture.completedFuture(
                         conflict);
             }
-            validateActionState(action);
+            validateCommitState(commit);
 
-            List<SerializedMessage> publishedEvents = action.getSubsteps().stream()
-                    .filter(ModelActionSubstep::isPublishEvent)
-                    .map(ModelActionSubstep::getEvent)
+            List<SerializedMessage> publishedEvents = commit.getSubsteps().stream()
+                    .filter(ModelCommitStep::isPublishEvent)
+                    .map(ModelCommitStep::getEvent)
                     .toList();
             if (!publishedEvents.isEmpty()) {
                 append(publishedEvents).join();
             }
 
-            List<ModelActionSubstepResult> substepResults = new ArrayList<>(action.getSubsteps().size());
-            Map<String, Set<ModelRelationship>> actionRelationshipView = new HashMap<>();
+            List<ModelCommitStepResult> substepResults = new ArrayList<>(commit.getSubsteps().size());
+            Map<String, Set<ModelRelationship>> commitRelationshipView = new HashMap<>();
             long nextStateIndex =
                     nextModelStateIndex();
-            for (int substepNumber = 0; substepNumber < action.getSubsteps().size(); substepNumber++) {
-                ModelActionSubstep substep = action.getSubsteps().get(substepNumber);
+            for (int substepNumber = 0; substepNumber < commit.getSubsteps().size(); substepNumber++) {
+                ModelCommitStep substep = commit.getSubsteps().get(substepNumber);
                 long stateIndex =
                         modelStateIndex =
                                 nextStateIndex++;
-                List<ModelActionTargetResult> targetResults = new ArrayList<>(substep.getTargets().size());
-                for (ModelActionTarget target : substep.getTargets()) {
+                List<ModelCommitTargetResult> targetResults = new ArrayList<>(substep.getTargets().size());
+                for (ModelCommitTarget target : substep.getTargets()) {
                     ModelStreamHead previousHead = modelHeads.getOrDefault(
                             target.getModelId(), new ModelStreamHead(-1L, true));
                     long sequenceNumber = previousHead.sequenceNumber() + (target.isStoreEvent() ? 1L : 0L);
@@ -291,61 +291,61 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelHeadHistory.computeIfAbsent(
                             target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(head);
                     updateModelRelationships(
-                            action, target, stateIndex, actionRelationshipView);
+                            commit, target, stateIndex, commitRelationshipView);
                     if (target.isStoreEvent()) {
                         appliedEvents.computeIfAbsent(
                                 target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(substep.getEvent());
                         modelStreams.computeIfAbsent(
                                 target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(
                                 new ModelStreamMembership(
-                                        sequenceNumber, stateIndex, action.getReadStateIndex(),
-                                        action.getActionId(), substepNumber,
+                                        sequenceNumber, stateIndex, commit.getReadStateIndex(),
+                                        commit.getCommitId(), substepNumber,
                                         substep.getEvent()));
                     }
-                    targetResults.add(new ModelActionTargetResult(
+                    targetResults.add(new ModelCommitTargetResult(
                             target.getModelId(), sequenceNumber, historyComplete));
                 }
                 cascadeDeletedModelRelationships(
                         substep.getTargets().stream()
-                                .filter(ModelActionTarget::isDelete)
-                                .map(ModelActionTarget::getModelId)
+                                .filter(ModelCommitTarget::isDelete)
+                                .map(ModelCommitTarget::getModelId)
                                 .collect(Collectors.toUnmodifiableSet()),
                         stateIndex);
-                substepResults.add(new ModelActionSubstepResult(
+                substepResults.add(new ModelCommitStepResult(
                         stateIndex,
                         substep.isPublishEvent() ? substep.getEvent().getIndex() : null,
                         List.copyOf(targetResults)));
             }
-            CommitModelActionResult result = CommitModelActionResult.accepted(
-                    action.getRequestId(), action.getActionId(), List.copyOf(substepResults));
-            if (hasMaterialization(action, substepResults)) {
-                modelActionMaterializations.put(
-                        action.getActionId(),
+            CommitModelsResult result = CommitModelsResult.accepted(
+                    commit.getRequestId(), commit.getCommitId(), List.copyOf(substepResults));
+            if (hasMaterialization(commit, substepResults)) {
+                modelCommitMaterializations.put(
+                        commit.getCommitId(),
                         new PendingModelMaterialization(
-                                action, List.copyOf(substepResults),
+                                commit, List.copyOf(substepResults),
                                 Set.of()));
             }
-            modelActions.put(action.getActionId(), result);
+            modelCommits.put(commit.getCommitId(), result);
             modelGraphProjectionSignals.add(
                     new ModelGraphProjectionSignal(
                             substepResults.getFirst()
                                     .getStateIndex(),
                             substepResults.getLast()
                                     .getStateIndex(),
-                            action.getSubsteps().stream()
+                            commit.getSubsteps().stream()
                                     .flatMap(substep ->
                                                      substep.getTargets()
                                                              .stream())
-                                    .map(ModelActionTarget
+                                    .map(ModelCommitTarget
                                                  ::getModelId)
                                     .distinct()
                                     .toList()));
             drainModelGraphProjections();
             for (int substep = 0; substep < substepResults.size(); substep++) {
-                ModelActionSubstepResult substepResult = substepResults.get(substep);
+                ModelCommitStepResult substepResult = substepResults.get(substep);
                 modelUpdates.add(new ModelUpdate(
-                        ModelUpdateKind.ACTION,
-                        action.getActionId(), substep,
+                        ModelUpdateKind.COMMIT,
+                        commit.getCommitId(), substep,
                         substepResult.getStateIndex(),
                         substepResult.getEventIndex(),
                         substepResult.getTargets()));
@@ -354,10 +354,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             synchronized (modelUpdateMonitor) {
                 modelUpdateMonitor.notifyAll();
             }
-            completeModelActionMaterialization(
-                    action.getActionId());
+            completeModelCommitMaterialization(
+                    commit.getCommitId());
             return CompletableFuture.completedFuture(
-                    modelActions.get(action.getActionId()));
+                    modelCommits.get(commit.getCommitId()));
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -426,22 +426,22 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private static boolean hasMaterialization(
-            CommitModelAction action,
-            List<ModelActionSubstepResult>
+            CommitModels commit,
+            List<ModelCommitStepResult>
                     substepResults) {
         for (int substep = 0;
-             substep < action.getSubsteps().size();
+             substep < commit.getSubsteps().size();
              substep++) {
-            List<ModelActionTarget> targets =
-                    action.getSubsteps().get(substep)
+            List<ModelCommitTarget> targets =
+                    commit.getSubsteps().get(substep)
                             .getTargets();
-            List<ModelActionTargetResult> assigned =
+            List<ModelCommitTargetResult> assigned =
                     substepResults.get(substep)
                             .getTargets();
             for (int target = 0;
                  target < targets.size();
                  target++) {
-                ModelActionTarget mutation =
+                ModelCommitTarget mutation =
                         targets.get(target);
                 if (mutation.getDocument() != null
                     || mutation.getSnapshot() != null
@@ -454,21 +454,21 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return false;
     }
 
-    private void completeModelActionMaterialization(
-            String actionId) {
+    private void completeModelCommitMaterialization(
+            String commitId) {
         PendingModelMaterialization pending =
-                modelActionMaterializations.get(actionId);
+                modelCommitMaterializations.get(commitId);
         if (pending == null) {
             return;
         }
-        if (modelActionMaterializer == null) {
+        if (modelCommitMaterializer == null) {
             throw new IllegalStateException(
                     "No direct model materializer is connected to the in-memory event store");
         }
-        modelActionMaterializer.materialize(
-                pending.action(), pending.assignedSubsteps(),
+        modelCommitMaterializer.materialize(
+                pending.commit(), pending.assignedSubsteps(),
                 pending.excludedModelIds());
-        modelActionMaterializations.remove(actionId);
+        modelCommitMaterializations.remove(commitId);
         drainModelGraphProjections();
     }
 
@@ -488,11 +488,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             for (ModelUpdate update : updates) {
                 long updateBytes =
                         48L
-                        + update.getActionId()
+                        + update.getCommitId()
                                 .getBytes(
                                         StandardCharsets.UTF_8)
                                 .length;
-                for (ModelActionTargetResult target :
+                for (ModelCommitTargetResult target :
                         update.getTargets()) {
                     updateBytes +=
                             32L
@@ -628,7 +628,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized ModelDeletionPlan planModelDeletion(
             PlanModelDeletion request) {
-        ModelActionValidator.validate(request);
+        ModelCommitValidator.validate(request);
         long boundary = modelStateIndex;
         Set<String> selected =
                 request.getCascade()
@@ -669,9 +669,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .filter(Objects::nonNull)
                 .flatMap(List::stream)
                 .map(membership -> {
-                    CommitModelActionResult result =
-                            modelActions.get(
-                                    membership.actionId());
+                    CommitModelsResult result =
+                            modelCommits.get(
+                                    membership.commitId());
                     return result == null
                            || membership.substep()
                               >= result.getSubsteps()
@@ -709,7 +709,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public synchronized CompletableFuture<ModelDeletionResult>
             deleteModel(DeleteModel request) {
         try {
-            ModelActionValidator.validate(request);
+            ModelCommitValidator.validate(request);
             ModelDeletionResult duplicate =
                     modelDeletions.get(
                             request.getDeletionId());
@@ -840,7 +840,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             selected.forEach(modelStreams::remove);
             selected.forEach(modelRelationStateIndices::remove);
             selected.forEach(appliedEvents::remove);
-            sanitizeModelActionResults(
+            sanitizeModelCommitResults(
                     selected);
             long deletionStateIndex =
                     modelStateIndex =
@@ -982,17 +982,17 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return Set.copyOf(selected);
     }
 
-    private void sanitizeModelActionResults(
+    private void sanitizeModelCommitResults(
             Set<String> selected) {
-        modelActions.replaceAll(
-                (actionId, result) ->
-                        new CommitModelActionResult(
+        modelCommits.replaceAll(
+                (commitId, result) ->
+                        new CommitModelsResult(
                                 result.getRequestId(),
-                                result.getActionId(),
+                                result.getCommitId(),
                                 result.getSubsteps()
                                         .stream()
                                         .map(substep ->
-                                                     new ModelActionSubstepResult(
+                                                     new ModelCommitStepResult(
                                                              substep.getStateIndex(),
                                                              substep.getEventIndex(),
                                                              substep.getTargets()
@@ -1000,7 +1000,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                                                      .map(target ->
                                                                                   selected.contains(
                                                                                           target.getModelId())
-                                                                                          ? new ModelActionTargetResult(
+                                                                                          ? new ModelCommitTargetResult(
                                                                                                   "erased:"
                                                                                                   + protectedToken(
                                                                                                           target.getModelId()),
@@ -1013,8 +1013,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 result.isRetryAllowed(),
                                 result.isDuplicate(),
                                 result.getRebaseStateIndex()));
-        modelActionMaterializations.replaceAll(
-                (actionId, materialization) ->
+        modelCommitMaterializations.replaceAll(
+                (commitId, materialization) ->
                         materialization.excluding(selected));
     }
 
@@ -1046,7 +1046,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private void drainModelGraphProjections() {
         if (modelGraphProjectionMaterializer
             == null
-            || !modelActionMaterializations
+            || !modelCommitMaterializations
                     .isEmpty()) {
             return;
         }
@@ -1267,14 +1267,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         });
     }
 
-    private CommitModelActionResult conflict(
-            CommitModelAction action, ModelConflictPolicy conflictPolicy) {
-        LinkedHashMap<String, ModelActionConflict> conflicts = new LinkedHashMap<>();
-        for (String modelId : action.getReadModelIds()) {
+    private CommitModelsResult conflict(
+            CommitModels commit, ModelConflictPolicy conflictPolicy) {
+        LinkedHashMap<String, ModelCommitConflict> conflicts = new LinkedHashMap<>();
+        for (String modelId : commit.getReadModelIds()) {
             ModelStreamHead head = modelHeads.get(modelId);
             long currentStateIndex = head == null ? -1L : head.stateIndex();
-            if (currentStateIndex > action.getReadStateIndex()) {
-                conflicts.put(modelId, new ModelActionConflict(
+            if (currentStateIndex > commit.getReadStateIndex()) {
+                conflicts.put(modelId, new ModelCommitConflict(
                         modelId, currentStateIndex,
                         modelRelationStateIndices.getOrDefault(modelId, -1L)));
             }
@@ -1284,32 +1284,32 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
         if (conflictPolicy
             == ModelConflictPolicy.ACCEPT) {
-            return CommitModelActionResult.rebase(
-                    action.getRequestId(),
-                    action.getActionId(),
+            return CommitModelsResult.rebase(
+                    commit.getRequestId(),
+                    commit.getCommitId(),
                     List.copyOf(conflicts.values()),
                     modelStateIndex);
         }
-        return CommitModelActionResult.conflict(
-                action.getRequestId(), action.getActionId(), List.copyOf(conflicts.values()),
+        return CommitModelsResult.conflict(
+                commit.getRequestId(), commit.getCommitId(), List.copyOf(conflicts.values()),
                 conflictPolicy == ModelConflictPolicy.RETRY);
     }
 
-    private void validateActionState(CommitModelAction action) {
+    private void validateCommitState(CommitModels commit) {
         if (modelStateIndex > Long.MAX_VALUE
-                              - action.getSubsteps().size()) {
+                              - commit.getSubsteps().size()) {
             throw new IllegalStateException(
                     "Model state index space is exhausted");
         }
         Map<String, String> types =
-                action.getSubsteps().size() > 1
+                commit.getSubsteps().size() > 1
                         ? new HashMap<>()
                         : null;
         List<ModelRelationshipCycleValidator.Step> steps = null;
         Map<String, Set<String>> relationshipOverrides = null;
-        for (ModelActionSubstep substep : action.getSubsteps()) {
+        for (ModelCommitStep substep : commit.getSubsteps()) {
             LinkedHashMap<String, Boolean> changed = null;
-            for (ModelActionTarget target : substep.getTargets()) {
+            for (ModelCommitTarget target : substep.getTargets()) {
                 ModelStreamHead current =
                         modelHeads.get(
                                 target.getModelId());
@@ -1368,8 +1368,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     changed == null
                             ? Set.of()
                             : substep.getTargets().stream()
-                            .filter(ModelActionTarget::isDelete)
-                            .map(ModelActionTarget::getModelId)
+                            .filter(ModelCommitTarget::isDelete)
+                            .map(ModelCommitTarget::getModelId)
                             .collect(
                                     Collectors.toUnmodifiableSet());
             if (!deletedParents.isEmpty()) {
@@ -1439,24 +1439,24 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private void updateModelRelationships(
-            CommitModelAction action,
-            ModelActionTarget target,
+            CommitModels commit,
+            ModelCommitTarget target,
             long stateIndex,
-            Map<String, Set<ModelRelationship>> actionRelationshipView) {
+            Map<String, Set<ModelRelationship>> commitRelationshipView) {
         if (!target.isDelete()
             && !target.isUpdateRelationships()) {
             return;
         }
         Set<ModelRelationship> desired = Set.copyOf(target.getRelationships());
-        Set<ModelRelationship> expected = actionRelationshipView.computeIfAbsent(
+        Set<ModelRelationship> expected = commitRelationshipView.computeIfAbsent(
                 target.getModelId(),
                 childId -> modelRelationshipHistory.stream()
                         .filter(relationship ->
                                         relationship.childId.equals(childId)
-                                        && relationship.isValidAt(action.getReadStateIndex()))
+                                        && relationship.isValidAt(commit.getReadStateIndex()))
                         .map(relationship -> relationship.relationship)
                         .collect(Collectors.toUnmodifiableSet()));
-        actionRelationshipView.put(target.getModelId(), desired);
+        commitRelationshipView.put(target.getModelId(), desired);
         if (expected.equals(desired)) {
             return;
         }
@@ -1519,10 +1519,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     @Override
     public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
-        ModelActionValidator.validate(request);
+        ModelCommitValidator.validate(request);
         long stateIndex = modelBoundary(
                 request.getMaxStateIndex(),
-                request.getBoundaryActionId(),
+                request.getBoundaryCommitId(),
                 request.getBoundarySubstep());
         if (stateIndex < -1L || stateIndex > modelStateIndex) {
             throw new IllegalArgumentException(
@@ -1557,7 +1557,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         .peek(entry -> candidatePayloads.putIfAbsent(entry.stateIndex(), entry.event()))
                         .map(entry -> new ModelEventMembership(
                                 entry.sequenceNumber(), entry.stateIndex(), entry.readStateIndex(),
-                                entry.actionId(), entry.substep()))
+                                entry.commitId(), entry.substep()))
                         .toList()));
         LinkedHashMap<Long, SerializedMessage> payloads =
                 selectPayloads(candidatePayloads, request.getMaxBytes());
@@ -1587,10 +1587,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     @Override
     public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
-        ModelActionValidator.validate(request);
+        ModelCommitValidator.validate(request);
         long boundary = modelBoundary(
                 request.getMaxStateIndex(),
-                request.getBoundaryActionId(),
+                request.getBoundaryCommitId(),
                 request.getBoundarySubstep());
         if (boundary < -1L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
@@ -1639,10 +1639,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelGraphResult getModelAncestors(
             GetModelAncestors request) {
-        ModelActionValidator.validate(request);
+        ModelCommitValidator.validate(request);
         long boundary = modelBoundary(
                 request.getMaxStateIndex(),
-                request.getBoundaryActionId(),
+                request.getBoundaryCommitId(),
                 request.getBoundarySubstep());
         if (boundary < -1L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
@@ -1942,17 +1942,17 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private long modelBoundary(
             Long maxStateIndex,
-            String boundaryActionId,
+            String boundaryCommitId,
             Integer boundarySubstep) {
-        if (boundaryActionId != null) {
-            CommitModelActionResult result =
-                    modelActions.get(boundaryActionId);
+        if (boundaryCommitId != null) {
+            CommitModelsResult result =
+                    modelCommits.get(boundaryCommitId);
             if (result == null
                 || boundarySubstep >= result.getSubsteps().size()) {
                 throw new IllegalArgumentException(
-                        "Model action boundary %s[%d] is not visible"
+                        "Model commit boundary %s[%d] is not visible"
                                 .formatted(
-                                        boundaryActionId,
+                                        boundaryCommitId,
                                         boundarySubstep));
             }
             return result.getSubsteps().get(
@@ -2085,7 +2085,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             long sequenceNumber,
             long stateIndex,
             long readStateIndex,
-            String actionId,
+            String commitId,
             int substep,
             SerializedMessage event) {
     }
@@ -2103,8 +2103,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private record PendingModelMaterialization(
-            CommitModelAction action,
-            List<ModelActionSubstepResult> assignedSubsteps,
+            CommitModels commit,
+            List<ModelCommitStepResult> assignedSubsteps,
             Set<String> excludedModelIds) {
         private PendingModelMaterialization excluding(
                 Set<String> modelIds) {
@@ -2116,7 +2116,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             excludedModelIds);
             excluded.addAll(modelIds);
             return new PendingModelMaterialization(
-                    action, assignedSubsteps,
+                    commit, assignedSubsteps,
                     Set.copyOf(excluded));
         }
     }
@@ -2125,10 +2125,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
      * Applies direct model documents and due snapshots before a local model commit reports success.
      */
     @FunctionalInterface
-    public interface ModelActionMaterializer {
+    public interface ModelCommitMaterializer {
         void materialize(
-                CommitModelAction action,
-                List<ModelActionSubstepResult>
+                CommitModels commit,
+                List<ModelCommitStepResult>
                         assignedSubsteps,
                 Set<String> excludedModelIds);
     }

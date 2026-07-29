@@ -261,7 +261,7 @@ the same tracker.
 2. **Routing Key Selection**:
     - **@RoutingKey**: You can annotate a field in your payload with `@RoutingKey`. The value of this field will be used
       to calculate the segment.
-    - **Model action routing**: Model events use the message routing key by default. A single-target apply may explicitly
+    - **Model commit routing**: Model events use the message routing key by default. A single-target apply may explicitly
       choose model-ID routing.
     - **Default**: If no key is found, a random segment is assigned (no ordering guarantees).
 

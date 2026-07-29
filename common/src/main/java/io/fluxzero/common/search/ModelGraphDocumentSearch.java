@@ -47,7 +47,9 @@ public final class ModelGraphDocumentSearch {
 
         Stream<SerializedDocument> result =
                 documents.stream()
-                        .filter(search.getQuery()::matches)
+                        .filter(document -> matches(
+                                document,
+                                search.getQuery()))
                         .sorted(java.util.Comparator.comparing(
                                 SerializedDocument::deserializeDocument,
                                 Document.createComparator(search)));
@@ -78,6 +80,25 @@ public final class ModelGraphDocumentSearch {
                     search.getMaxSize());
         }
         return result.toList();
+    }
+
+    private static boolean matches(
+            SerializedDocument document,
+            io.fluxzero.common.api.search.SearchQuery query) {
+        /*
+         * A JDBC search result exposes its PostgreSQL tsvector as a summary. That representation is deliberately
+         * lossy: for example, "root-00000" may be returned as the lexemes "root -00000". Summary checks are a safe
+         * prefilter while PostgreSQL owns the complete query, but can cause false negatives when constraints are
+         * evaluated in Java after graph composition. The composed document contains every entry, so evaluate those
+         * entries without the summary shortcut and return the original document unchanged.
+         */
+        Document searchable =
+                document.deserializeDocument()
+                        .toBuilder()
+                        .summary(() -> null)
+                        .build();
+        return query.matches(
+                new SerializedDocument(searchable));
     }
 
     private static boolean sameDocument(

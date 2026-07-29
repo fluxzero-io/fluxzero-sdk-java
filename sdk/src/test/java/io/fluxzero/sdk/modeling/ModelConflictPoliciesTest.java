@@ -41,7 +41,7 @@ class ModelConflictPoliciesTest {
     }
 
     @Test
-    void strictestParticipantPolicyControlsTheAtomicAction() throws Exception {
+    void strictestParticipantPolicyControlsTheAtomicCommit() throws Exception {
         assertEquals(
                 ModelConflictPolicy.FAIL,
                 ModelConflictPolicies.resolve(
@@ -57,7 +57,7 @@ class ModelConflictPoliciesTest {
 
     @Test
     void readOnlyDependencyUsesItsModelPolicy() throws Exception {
-        ModelActionEngine.ActionEvaluation evaluation =
+        ModelCommitEngine.CommitEvaluation evaluation =
                 evaluation(
                         Map.of(
                                 "written", DefaultModel.class,
@@ -86,35 +86,35 @@ class ModelConflictPoliciesTest {
                         ModelConflictPolicy.RETRY));
     }
 
-    private static ModelActionEngine.ActionEvaluation evaluation(
-            ModelActionEngine.Transition... transitions) {
+    private static ModelCommitEngine.CommitEvaluation evaluation(
+            ModelCommitEngine.Transition... transitions) {
         return evaluation(
                 java.util.Arrays.stream(transitions)
                         .collect(
                                 java.util.stream.Collectors.toMap(
-                                        ModelActionEngine.Transition::modelId,
-                                        ModelActionEngine.Transition::modelType)),
+                                        ModelCommitEngine.Transition::modelId,
+                                        ModelCommitEngine.Transition::modelType)),
                 transitions);
     }
 
-    private static ModelActionEngine.ActionEvaluation evaluation(
+    private static ModelCommitEngine.CommitEvaluation evaluation(
             Map<String, Class<?>> readTypes,
-            ModelActionEngine.Transition... transitions) {
-        return new ModelActionEngine.ActionEvaluation(
+            ModelCommitEngine.Transition... transitions) {
+        return new ModelCommitEngine.CommitEvaluation(
                 1L, List.copyOf(readTypes.keySet()),
                 readTypes,
                 List.of(
-                        new ModelActionEngine.AppliedSubstep(
+                        new ModelCommitEngine.AppliedSubstep(
                                 null,
                                 List.of(transitions))),
                 Map.of());
     }
 
-    private static ModelActionEngine.Transition transition(
+    private static ModelCommitEngine.Transition transition(
             String id,
             Class<?> type,
             Executable handler) {
-        return new ModelActionEngine.Transition(
+        return new ModelCommitEngine.Transition(
                 id, type, 0L, null,
                 new Object(), handler);
     }

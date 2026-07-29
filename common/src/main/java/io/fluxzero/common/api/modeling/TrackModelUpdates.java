@@ -25,7 +25,7 @@ import java.beans.ConstructorProperties;
 /**
  * Long-polls committed independent-model updates after a client-controlled state cursor.
  * <p>
- * The runtime may retain the request for {@link #maxWaitMillis} while no newer action substep is visible. Empty
+ * The runtime may retain the request for {@link #maxWaitMillis} while no newer commit substep is visible. Empty
  * responses are heartbeats and leave the supplied cursor unchanged.
  */
 @Value
@@ -38,7 +38,7 @@ public class TrackModelUpdates extends Request {
     long lastStateIndex;
 
     /**
-     * Maximum number of action-substep updates returned in one response.
+     * Maximum number of commit-substep updates returned in one response.
      */
     int maxSize;
 

@@ -22,7 +22,7 @@ import lombok.Value;
 /**
  * Desired outgoing relationship from a changed child model to one parent.
  * <p>
- * The child ID is supplied by the enclosing {@link ModelActionTarget}. A typed ID normally supplies
+ * The child ID is supplied by the enclosing {@link ModelCommitTarget}. A typed ID normally supplies
  * {@link #parentType}; an untyped relationship may declare it explicitly. {@link #path} is optional and only enables
  * automatic graph composition when explicitly configured.
  */

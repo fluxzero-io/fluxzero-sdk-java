@@ -31,7 +31,7 @@ benchmark for the real legacy aggregate path remains as a regression control.
 - `stateIndex` is a separate namespace-wide visibility order for every committed model state transition.
 - One model-affecting original event/substep receives one `stateIndex`, one logical model-payload identity, and zero or
   one `eventIndex`.
-- All target stream entries for that event share its `stateIndex`, `readStateIndex`, `actionId`, and logical payload
+- All target stream entries for that event share its `stateIndex`, `readStateIndex`, `commitId`, and logical payload
   identity.
 - Each target stream assigns its own `sequenceNumber`.
 - The global event log receives a publishable original event once, regardless of target count.
@@ -40,16 +40,16 @@ benchmark for the real legacy aggregate path remains as a regression control.
   global event log; target count must never cause unbounded full-payload amplification.
 
 `stateIndex` ordering is owned by one namespace commit coordinator in the first implementation. It assigns contiguous
-ranges to accepted action substeps and advances the durable visible state head in the same JDBC transaction as model
+ranges to accepted commit substeps and advances the durable visible state head in the same JDBC transaction as model
 streams, heads, idempotency, relationships, and event-log publication when co-located. Serialization/compression may
 happen in parallel, but visibility and commit order do not race.
 
-The coordinator batches by action count **and bytes**. The initial diagnostic batch size was 128 actions, but this is
-not a wire or storage constant. One-action transactions are rejected as the normal path: in the local spike, batching
-128 actions improved throughput from 1,895 to 43,783 actions/s.
+The coordinator batches by commit count **and bytes**. The initial diagnostic batch size was 128 commits, but this is
+not a wire or storage constant. One-commit transactions are rejected as the normal path: in the local spike, batching
+128 commits improved throughput from 1,895 to 43,783 commits/s.
 
-Batch failure rolls the physical transaction back. The runtime then isolates invalid/conflicting actions before
-retrying an accepted batch; independent actions must not acquire partial state or be reported committed merely because
+Batch failure rolls the physical transaction back. The runtime then isolates invalid/conflicting commits before
+retrying an accepted batch; independent commits must not acquire partial state or be reported committed merely because
 they shared a storage batch.
 
 ### Model heads and sequence allocation
@@ -72,19 +72,19 @@ revisions. Model-head metadata is still used for coordination and historical-dep
 
 ### Historical dependencies
 
-Every stream entry stores the action's persisted begin `readStateIndex`, its `actionId`, and its ordered substep
+Every stream entry stores the commit's persisted begin `readStateIndex`, its `commitId`, and its ordered substep
 identity. Reconstructing model `A` loads an injected model `B` from the same logical view as the original substep:
 
-`persisted model state <= readStateIndex` plus earlier substeps of the same `actionId`
+`persisted model state <= readStateIndex` plus earlier substeps of the same `commitId`
 
-The action-prefix overlay is required because interceptor substeps execute atomically in order and can observe earlier
+The commit-prefix overlay is required because interceptor substeps execute atomically in order and can observe earlier
 substep results. A later substep must not simply load through `stateIndex - 1`: when stale reads are accepted, that
-boundary may also include unrelated model changes committed after the action's original read which its apply never
-observed. Existing ordered action payloads/memberships provide the prefix; no dependency version vector or stored
+boundary may also include unrelated model changes committed after the commit's original read which its apply never
+observed. Existing ordered commit payloads/memberships provide the prefix; no dependency version vector or stored
 target-state outcome is introduced.
 
 Loads for multiple dependencies are grouped by segment and fetched in batches. Reconstruction snapshots record their
-own `stateIndex`, so the latest snapshot not newer than the action read boundary can be used. Action-prefix overlays
+own `stateIndex`, so the latest snapshot not newer than the commit read boundary can be used. Commit-prefix overlays
 are cached within the reconstruction context.
 
 Any state transition without a stored target event marks that model's event history incomplete. This includes a
@@ -99,7 +99,7 @@ The spike verified:
 
 - ordered range allocation;
 - rollback invisibility of a reserved range;
-- an explicit observed read boundary for every diagnostic action (the original discarded spike used
+- an explicit observed read boundary for every diagnostic commit (the original discarded spike used
   `readStateIndex = stateIndex - 1` only because its synthetic state indices were contiguous);
 - batched as-of reconstruction;
 - explicit incomplete-history detection.
@@ -118,7 +118,7 @@ The initial selection rule uses the **stored** payload length, not the Java obje
 - the initial measured crossover budget is approximately 512 bytes and must be recalibrated on production hardware.
 
 This means a small event with two targets may remain inline, while a large event with two targets is shared. The choice
-is internal storage metadata and may evolve without changing the public action protocol.
+is internal storage metadata and may evolve without changing the public commit protocol.
 
 Reconstruction first reads ordered stream entries. Inline-only streams complete with that query. Shared references are
 resolved with a batched payload lookup or measured join; no query is issued per referenced event.
@@ -144,8 +144,8 @@ one physical partition. A batched multi-ID load touches only the distinct segmen
 
 The separately stored shared-payload table is ordered/range-partitioned by the time-derived `stateIndex`; it is not
 hash-partitioned by an arbitrary target. The integrated store uses one UTC-day-sized index range and only creates a
-day partition when an action actually contains a shared payload. A dense row-count range would rotate partitions many
-times per second after adopting time-derived indices. Action-idempotency lookup receives its own appropriate
+day partition when an commit actually contains a shared payload. A dense row-count range would rotate partitions many
+times per second after adopting time-derived indices. Commit-idempotency lookup receives its own appropriate
 index/partition strategy.
 
 PostgreSQL-native hash partitioning is not selected even though it was slightly cheaper locally. Its internal hash is
@@ -167,8 +167,8 @@ deleted parent ID needed for later lineage/GDPR operations. Intervals are half-o
 
 `validFrom <= requestedStateIndex < validUntil`
 
-Attach, detach, move, parent delete, and tombstone changes update both projections in the model-action transaction.
-Relation action/history records make them verifiable and rebuildable. A rollback leaves neither direction partially
+Attach, detach, move, parent delete, and tombstone changes update both projections in the model-commit transaction.
+Relation commit/history records make them verifiable and rebuildable. A rollback leaves neither direction partially
 updated.
 
 The spike verified exact move behavior at the boundary, absence after `validUntil`, rollback of a partial write, and
@@ -215,7 +215,7 @@ benchmark now uses LSN differences for subsequent regression runs.
 
 All rows below used 32 physical partitions over 128 stable Fluxzero segments.
 
-| Workload | Layout | Actions/s | Relation/logical | WAL/logical | Load requests/s |
+| Workload | Layout | Commits/s | Relation/logical | WAL/logical | Load requests/s |
 |---|---:|---:|---:|---:|---:|
 | 1 target, 1 KiB mixed | inline | 46,013 | 0.63× | 1.21× | 6,308 |
 | 1 target, 1 KiB mixed | shared row | 34,612 | 0.75× | 1.73× | 5,272 |
@@ -226,9 +226,9 @@ All rows below used 32 physical partitions over 128 stable Fluxzero segments.
 
 With 10 targets and 16 KiB mixed payloads:
 
-- inline: 1,441 actions/s, 22.5 MiB/s logical writes, 3.60× relation/logical;
-- shared row: 4,778 actions/s, 74.7 MiB/s logical writes, 0.58× relation/logical;
-- shared block: 4,432 actions/s and 0.49× relation/logical, but only 426 single-event reconstructions/s versus
+- inline: 1,441 commits/s, 22.5 MiB/s logical writes, 3.60× relation/logical;
+- shared row: 4,778 commits/s, 74.7 MiB/s logical writes, 0.58× relation/logical;
+- shared block: 4,432 commits/s and 0.49× relation/logical, but only 426 single-event reconstructions/s versus
   4,915/s for shared rows.
 
 The block result is the reason shared block compression was rejected despite its smaller footprint.
@@ -236,13 +236,13 @@ The block result is the reason shared block compression was rejected despite its
 ### Compression
 
 For one-target 1 KiB mixed payloads, individual LZ4 reduced relation/logical from 1.38× to 0.63× while write throughput
-remained approximately 45 MiB/s. For random payloads, compression produced no relation reduction and reduced action
-throughput from 46,538 to 38,741 actions/s. The result requires adaptive compression.
+remained approximately 45 MiB/s. For random payloads, compression produced no relation reduction and reduced commit
+throughput from 46,538 to 38,741 commits/s. The result requires adaptive compression.
 
 ### State and historical loads
 
-- One action/transaction: 1,895 actions/s.
-- 128 actions/transaction: 43,783 actions/s.
+- One commit/transaction: 1,895 commits/s.
+- 128 commits/transaction: 43,783 commits/s.
 - 100 events/model, as-of reconstruction: 150,487 events/s and 147 MiB/s logical payload.
 - 32 models per as-of query: p50 8.84 ms, 180,864 events/s, and 177 MiB/s logical payload.
 
@@ -306,7 +306,7 @@ The vertical implementation may begin. It must not be declared production-ready 
   retention tests pass;
 - representative production hardware sustains the required 100 GB/min write/read envelope, or a documented horizontal
   segment deployment reaches it with headroom;
-- action idempotency and unknown commit outcome are tested under failure;
+- commit idempotency and unknown commit outcome are tested under failure;
 - hard-delete/shared-payload and history-erasure behavior is accepted in lifecycle/GDPR tests.
 
 ## Rejected alternatives
@@ -319,7 +319,7 @@ The vertical implementation may begin. It must not be declared production-ready 
 - Physical partition count as the hash modulus: re-partitioning would change routing.
 - 128 physical partitions by default: overhead without a measured lookup benefit at tested cardinality.
 - One child- or parent-partitioned relationship table: opposite traversal fans out.
-- One action per JDBC transaction: state-index/commit overhead dominates.
+- One commit per JDBC transaction: state-index/commit overhead dominates.
 - Per-model `max(sequenceNumber)` lookup on head-cache miss: cardinality-dependent round trips.
 - Versioned document state for `eventSourced = false`: unnecessary duplicate source of truth.
 - Current-state fallback during historical dependency reconstruction: nondeterministic model state.

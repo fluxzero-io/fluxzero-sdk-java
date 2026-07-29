@@ -16,8 +16,8 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -70,18 +70,18 @@ import java.util.concurrent.CompletableFuture;
 public interface EventStoreClient extends AutoCloseable {
 
     /**
-     * Atomically commits the ordered state transitions of one independent-model action.
+     * Atomically commits the ordered state transitions of one independent-model commit.
      * <p>
      * Unlike aggregate event appends, this operation returns the runtime-assigned state, event, and per-model stream
      * positions. Implementations predating independent models remain source-compatible and fail only when this
      * capability is invoked.
      *
-     * @param action complete model action with its durable idempotency key
+     * @param commit complete model commit with its durable idempotency key
      * @return durable result containing the positions assigned by the event store
      */
-    default CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
+    default CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         return CompletableFuture.failedFuture(
-                new UnsupportedOperationException("Independent model actions are not supported by this event store"));
+                new UnsupportedOperationException("Independent model commits are not supported by this event store"));
     }
 
     /**
@@ -92,7 +92,7 @@ public interface EventStoreClient extends AutoCloseable {
     }
 
     /**
-     * Long-polls committed independent-model action substeps after a client-controlled state cursor.
+     * Long-polls committed independent-model commit substeps after a client-controlled state cursor.
      */
     default CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(
             TrackModelUpdates request) {

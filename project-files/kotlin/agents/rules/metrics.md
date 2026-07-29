@@ -97,12 +97,12 @@ runtime when a client connects or disconnects a WebSocket session.
 
 `HandlerMonitor` and `TrackerMonitor` are the SDK components that publish the standard handler and tracker metrics.
 
-### Model actions
+### Model commits
 
 | Metric | Meaning |
 |:-------|:--------|
-| `CommitModelAction` | Commits one package of model events, documents, snapshots and relationship deltas. |
-| `CommitModelActionResult$Metric` | Reports accepted, duplicate, rebase and conflict outcomes. |
+| `CommitModels` | Commits one package of model events, documents, snapshots and relationship deltas. |
+| `CommitModelsResult$Metric` | Reports accepted, duplicate, rebase and conflict outcomes. |
 | `GetModelEvents` | Batch-loads modelstream memberships at one state boundary. |
 | `GetModelEventsResult$Metric` | Reports stream, payload, membership and byte counts. |
 | `GetModelGraph` / `GetModelGraphResult$Metric` | Loads a bounded current or historical model graph. |

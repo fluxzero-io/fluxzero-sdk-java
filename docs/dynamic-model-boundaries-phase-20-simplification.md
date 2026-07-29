@@ -1,6 +1,6 @@
 # Dynamic model boundaries — Phase 20 production-code simplification
 
-> Historical design record. Phase 21b supersedes the SDK-owned `MaterializeModelAction` route with one runtime-owned
+> Historical design record. Phase 21b supersedes the SDK-owned `MaterializeModelCommit` route with one runtime-owned
 > direct-materialization path and durable restart recovery.
 
 ## Scope and baseline
@@ -14,9 +14,9 @@ Phase 20 started at SDK commit `6e6c81d609025e4037d555547825cffbb23ea207` and ru
 | Runtime | +16,249 / -12 | +14,452 / -11 |
 
 The largest production additions were `DefaultModelRepository` (+2,520), `InMemoryEventStore` (+2,271),
-`ModelActionHandlerRegistry` (+1,342) and `ModelActionCommitter` (+1,150) in the SDK, and
-`JdbcModelActionStore` (+7,007), `JdbcModelGraphProjectionStore` (+2,200), `JdbcSearchStore` (+1,526) and
-`InMemoryModelActionStore` (+1,387) in the runtime.
+`ModelCommitHandlerRegistry` (+1,342) and `ModelCommitter` (+1,150) in the SDK, and
+`JdbcModelCommitStore` (+7,007), `JdbcModelGraphProjectionStore` (+2,200), `JdbcSearchStore` (+1,526) and
+`InMemoryModelCommitStore` (+1,387) in the runtime.
 
 ## Absolute Phase 20 delta
 
@@ -41,11 +41,11 @@ replaces two larger implementations, including one in the other repository.
 
 - Independent-model wire validation now lives with the protocol in `common`. The SDK in-memory store and runtime use
   the same rules; the runtime keeps a small compatibility facade for its internal stream request.
-- Direct document and snapshot extraction is owned by `MaterializeModelAction.from(...)` instead of being copied in
-  `ModelActionCommitter` and `InMemoryEventStore`.
+- Direct document and snapshot extraction is owned by `MaterializeModelCommit.from(...)` instead of being copied in
+  `ModelCommitter` and `InMemoryEventStore`.
 - Ordinary, relation-aware model and graph search use one synchronous and one asynchronous pagination algorithm.
-  Request factories preserve each distinct wire action and its relation/composition options.
-- Runtime graph and ancestor reads share one action/state-boundary resolver.
+  Request factories preserve each distinct wire commit and its relation/composition options.
+- Runtime graph and ancestor reads share one commit/state-boundary resolver.
 - Runtime hard-deletion paths share one rows-to-deletion-batch conversion.
 
 Fresh CPD reports confirm that the materialization, pagination and deletion-batch duplicates are gone. The remaining
@@ -58,7 +58,7 @@ line count.
   initially reduced more code, but a same-machine A/B exposed a roughly 4% short-run write regression. The abstraction
   was removed before commit. CPD therefore still reports 23 duplicated planning lines; this is an intentional hot-path
   optimization.
-- `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` remained large because splitting their transaction-local
+- `JdbcModelCommitStore` and `JdbcModelGraphProjectionStore` remained large because splitting their transaction-local
   SQL into cosmetic collaborators would only move code. A subsequent whole-runtime architecture review found a deeper
   issue that this local simplification phase did not address: receipts, materialization recovery, cache tracking,
   projection signals/tasks and model-specific search lifecycle form parallel infrastructure instead of composing the
@@ -81,23 +81,23 @@ asynchronously.
 The baseline was built from detached worktrees and installed separately before each measurement. The final runtime was
 then installed and measured with the same JVM, PostgreSQL instance and benchmark parameters.
 
-### Single-target action/store and load
+### Single-target commit/store and load
 
-Twenty thousand measured 1-KiB actions, 3,000 warm-up actions, concurrency 128:
+Twenty thousand measured 1-KiB commits, 3,000 warm-up commits, concurrency 128:
 
 | Metric | Baseline | Final | Change |
 |---|---:|---:|---:|
-| write throughput, mean of two | 4,478 actions/s | 4,421 actions/s | -1.3% |
+| write throughput, mean of two | 4,478 commits/s | 4,421 commits/s | -1.3% |
 | current load, mean of two | 26,090 models/s | 27,397 models/s | +5.0% |
 | physical amplification | 1.94x | 1.93x | unchanged |
 | WAL amplification | 3.05x | 3.02x | unchanged within run variance |
 
 The write difference is below the observed run-to-run variation and there is no detectable regression.
 
-### Ten-target action with relationships
+### Ten-target commit with relationships
 
-Five thousand measured actions, ten 1-KiB targets per action, concurrency 128. Three normal runs averaged 441 baseline
-versus 449 final actions/s. A ten-iteration load profile then measured 18,962 baseline versus 18,922 final models/s
+Five thousand measured commits, ten 1-KiB targets per commit, concurrency 128. Three normal runs averaged 441 baseline
+versus 449 final commits/s. A ten-iteration load profile then measured 18,962 baseline versus 18,922 final models/s
 (-0.2%). Physical amplification remained 9.42x and WAL remained within PostgreSQL checkpoint variance.
 
 The end-to-end aggregate/model harness also completed its root, child, grandchild, cross-branch, move, delete and
@@ -107,7 +107,7 @@ paths; Phase 20 did not alter their SQL or execution model.
 
 ## Verification
 
-- Focused common validator/materialization, SDK pagination, in-memory model-action and committer suites passed.
+- Focused common validator/materialization, SDK pagination, in-memory model-commit and committer suites passed.
 - The complete nine-module SDK reactor passed, including test-server, proxy, annotation processing and Java/Kotlin
   downstream projects.
 - The complete four-module runtime reactor passed, including the full PostgreSQL integration suite.

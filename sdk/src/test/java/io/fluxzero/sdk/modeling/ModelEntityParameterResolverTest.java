@@ -19,9 +19,9 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.sdk.Fluxzero;
@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelEntityParameterResolverTest {
 
     @Test
-    void injectsValueAtExactHistoricalModelActionBoundary() throws Exception {
+    void injectsValueAtExactHistoricalModelCommitBoundary() throws Exception {
         AccountId accountId = new AccountId("historical");
         Method handler = Handler.class.getDeclaredMethod(
                 "onChanged", ChangeAccount.class, Account.class);
@@ -704,16 +704,16 @@ class ModelEntityParameterResolverTest {
                     fluxzero.client()
                             .forNamespace("customer")
                             .getEventStoreClient()
-                            .commitModelAction(
-                                    new CommitModelAction(
+                            .commitModels(
+                                    new CommitModels(
                                             "customer-create",
                                             -1L, List.of(accountId.toString()),
-                                            List.of(ModelActionSubstep.builder()
+                                            List.of(ModelCommitStep.builder()
                                                     .event(new Message(
                                                             new CreateAccount(
                                                                     accountId, 20),
                                                             Metadata.of(
-                                                                    ModelEventMetadata.ACTION_ID,
+                                                                    ModelEventMetadata.COMMIT_ID,
                                                                     "customer-create",
                                                                     ModelEventMetadata.SUBSTEP,
                                                                     0))
@@ -721,7 +721,7 @@ class ModelEntityParameterResolverTest {
                                                                     fluxzero.serializer()))
                                                     .publishEvent(false)
                                                     .targets(List.of(
-                                                            ModelActionTarget.builder()
+                                                            ModelCommitTarget.builder()
                                                                     .modelId(accountId.toString())
                                                                     .storeEvent(true)
                                                                     .updateState(true)

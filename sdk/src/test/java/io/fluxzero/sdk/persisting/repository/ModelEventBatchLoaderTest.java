@@ -91,19 +91,19 @@ class ModelEventBatchLoaderTest {
 
         var result = loader.load(
                 cursors,
-                ModelEventBatchLoader.Boundary.action("action-991", 3),
+                ModelEventBatchLoader.Boundary.commit("commit-991", 3),
                 ignored -> {
                 });
 
         assertEquals(42L, result.stateIndex());
         assertEquals(
-                "action-991",
-                requests.getFirst().getBoundaryActionId());
+                "commit-991",
+                requests.getFirst().getBoundaryCommitId());
         assertEquals(
                 3,
                 requests.getFirst().getBoundarySubstep());
         assertNull(requests.getFirst().getMaxStateIndex());
-        assertNull(requests.getLast().getBoundaryActionId());
+        assertNull(requests.getLast().getBoundaryCommitId());
         assertNull(requests.getLast().getBoundarySubstep());
         assertEquals(42L, requests.getLast().getMaxStateIndex());
     }
@@ -135,7 +135,7 @@ class ModelEventBatchLoaderTest {
 
         var result = loader.loadHeads(
                 List.of("a", "b", "c"),
-                ModelEventBatchLoader.Boundary.action("action-991", 3));
+                ModelEventBatchLoader.Boundary.commit("commit-991", 3));
 
         assertEquals(42L, result.stateIndex());
         assertEquals(List.of("a", "b", "c"),
@@ -148,8 +148,8 @@ class ModelEventBatchLoaderTest {
                         .map(request -> request.getMaxSize())
                         .toList());
         assertEquals(
-                "action-991",
-                requests.getFirst().getBoundaryActionId());
+                "commit-991",
+                requests.getFirst().getBoundaryCommitId());
         assertEquals(
                 42L,
                 requests.getLast().getMaxStateIndex());
@@ -175,7 +175,7 @@ class ModelEventBatchLoaderTest {
                                     sequenceNumber == 0L
                                             ? -1L
                                             : sequenceNumber - 1L,
-                                    "action-" + stateIndex, 0)))));
+                                    "commit-" + stateIndex, 0)))));
         });
         ModelEventBatchLoader loader = new ModelEventBatchLoader(
                 client, new ModelEventBatchLoader.Settings(4, 1, 1, 16L));
@@ -210,11 +210,11 @@ class ModelEventBatchLoaderTest {
                             ? List.of(
                                     new ModelEventStream(
                                             "a", aHead, List.of(new ModelEventMembership(
-                                                    0L, 0L, -1L, "action-a", 0))),
+                                                    0L, 0L, -1L, "commit-a", 0))),
                                     new ModelEventStream("b", bHead, List.of()))
                             : List.of(new ModelEventStream(
                                     "b", bHead, List.of(new ModelEventMembership(
-                                            0L, 1L, 0L, "action-b", 0)))));
+                                            0L, 1L, 0L, "commit-b", 0)))));
         });
         ModelEventBatchLoader loader = new ModelEventBatchLoader(
                 client, new ModelEventBatchLoader.Settings(4, 8, 8, 1L));
@@ -234,7 +234,7 @@ class ModelEventBatchLoaderTest {
                     request.getRequestId(), 0L, List.of(),
                     List.of(new ModelEventStream(
                             "a", new ModelHeadState("a", "example.A", 0L, 0L, true, false),
-                            List.of(new ModelEventMembership(0L, 0L, -1L, "action", 0)))));
+                            List.of(new ModelEventMembership(0L, 0L, -1L, "commit", 0)))));
         });
         EventStoreClient incompleteClient = mock(EventStoreClient.class);
         when(incompleteClient.getModelEvents(any())).thenAnswer(invocation -> {
@@ -286,7 +286,7 @@ class ModelEventBatchLoaderTest {
                     List.of(new ModelEventPayload(1L, event("event"))),
                     List.of(new ModelEventStream(
                             "a", new ModelHeadState("a", "example.A", 0L, 0L, true, false),
-                            List.of(new ModelEventMembership(0L, 1L, 0L, "action", 0)))));
+                            List.of(new ModelEventMembership(0L, 1L, 0L, "commit", 0)))));
         });
 
         assertThrows(

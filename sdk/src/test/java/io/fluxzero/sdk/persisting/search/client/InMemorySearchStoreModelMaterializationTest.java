@@ -16,11 +16,11 @@
 
 package io.fluxzero.sdk.persisting.search.client;
 
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
@@ -216,33 +216,33 @@ class InMemorySearchStoreModelMaterializationTest {
             String modelId,
             long stateIndex,
             ModelDocumentMutation mutation) {
-        ModelActionTarget target =
-                ModelActionTarget.builder()
+        ModelCommitTarget target =
+                ModelCommitTarget.builder()
                         .modelId(modelId)
                         .modelType("TestModel")
                         .updateState(true)
                         .document(mutation)
                         .relationships(List.of())
                         .build();
-        CommitModelAction action =
-                new CommitModelAction(
-                        "action-" + stateIndex,
+        CommitModels commit =
+                new CommitModels(
+                        "commit-" + stateIndex,
                         stateIndex - 1L,
                         List.of(modelId),
                         List.of(
-                                ModelActionSubstep.builder()
+                                ModelCommitStep.builder()
                                         .targets(
                                                 List.of(target))
                                         .build()),
                         ModelConflictPolicy.ACCEPT,
                         STORED);
-        store.materializeModelAction(
-                action,
+        store.materializeModelCommit(
+                commit,
                 List.of(
-                        new ModelActionSubstepResult(
+                        new ModelCommitStepResult(
                                 stateIndex, null,
                                 List.of(
-                                        new ModelActionTargetResult(
+                                        new ModelCommitTargetResult(
                                                 modelId, -1L,
                                                 true)))),
                 Set.of());

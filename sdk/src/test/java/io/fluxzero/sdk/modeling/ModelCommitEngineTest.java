@@ -36,10 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ModelActionEngineTest {
+class ModelCommitEngineTest {
 
-    private final ModelActionEngine engine =
-            new ModelActionEngine(List.of(new PayloadParameterResolver()));
+    private final ModelCommitEngine engine =
+            new ModelCommitEngine(List.of(new PayloadParameterResolver()));
 
     @Test
     void evaluatesAllWritesAgainstSameBeginStateThenPublishesResultingState() {
@@ -51,9 +51,9 @@ class ModelActionEngineTest {
                 command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
-        ModelActionContext begin = context(command, handlers, order, inventory);
+        ModelCommitContext begin = context(command, handlers, order, inventory);
 
-        ModelActionEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
 
         assertEquals(2, result.transitions().size());
         assertEquals(new Order(command.orderId(), "saw-stock-5"),
@@ -75,13 +75,13 @@ class ModelActionEngineTest {
                 command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
-        ModelActionContext begin = context(command, handlers, order, inventory);
+        ModelCommitContext begin = context(command, handlers, order, inventory);
 
-        ModelActionEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
 
         assertEquals(List.of("order-1"),
                      result.transitions().stream()
-                             .map(ModelActionEngine.Transition::modelId).toList());
+                             .map(ModelCommitEngine.Transition::modelId).toList());
         assertSame(inventory, result.resultingState().resolve(Inventory.class, null));
     }
 
@@ -92,9 +92,9 @@ class ModelActionEngineTest {
                 ModelMetadata.of(DeleteOrder.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
-        ModelActionContext begin = context(command, handlers, order);
+        ModelCommitContext begin = context(command, handlers, order);
 
-        ModelActionEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
 
         assertEquals(1, result.transitions().size());
         assertNull(result.transitions().getFirst().after());
@@ -108,9 +108,9 @@ class ModelActionEngineTest {
         List<ModelMetadata.HandlerMethod> handlers =
                 ModelMetadata.of(CreateOrder.class).handlerMethods();
         Entity<Order> empty = entity(command.orderId(), null);
-        ModelActionContext begin = context(command, handlers, empty);
+        ModelCommitContext begin = context(command, handlers, empty);
 
-        ModelActionEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
 
         assertEquals(new Order(command.orderId(), "created"),
                      result.resultingState().resolve(Order.class, null).get());
@@ -123,9 +123,9 @@ class ModelActionEngineTest {
         List<ModelMetadata.HandlerMethod> handlers =
                 ModelMetadata.of(ConditionalCreateOrder.class).handlerMethods();
         Entity<Order> empty = entity(command.orderId(), null);
-        ModelActionContext begin = context(command, handlers, empty);
+        ModelCommitContext begin = context(command, handlers, empty);
 
-        ModelActionEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
 
         assertEquals(new Order(command.orderId(), "created"),
                      result.resultingState().resolve(Order.class, null).get());
@@ -138,7 +138,7 @@ class ModelActionEngineTest {
                 ModelMetadata.of(DuplicateOrderWrite.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
-        ModelActionContext begin = context(command, handlers, order);
+        ModelCommitContext begin = context(command, handlers, order);
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
@@ -158,7 +158,7 @@ class ModelActionEngineTest {
                 command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
-        ModelActionContext begin = context(command, handlers, order, inventory);
+        ModelCommitContext begin = context(command, handlers, order, inventory);
 
         assertThrows(
                 MockFailure.class,
@@ -178,18 +178,18 @@ class ModelActionEngineTest {
                 transfer.sourceId(), new Account(transfer.sourceId(), 10));
         Entity<Account> destination = entity(
                 transfer.destinationId(), new Account(transfer.destinationId(), 20));
-        ModelActionContext begin = context(transfer, handlers, source, destination);
+        ModelCommitContext begin = context(transfer, handlers, source, destination);
 
-        ModelActionEngine.Evaluation result = engine.evaluate(message(transfer), begin, handlers);
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(transfer), begin, handlers);
 
         assertEquals(List.of("account-destination"),
                      result.transitions().stream()
-                             .map(ModelActionEngine.Transition::modelId).toList());
+                             .map(ModelCommitEngine.Transition::modelId).toList());
         assertEquals(30, ((Account) result.transitions().getFirst().after()).balance());
 
         Transfer delete = new Transfer(
                 transfer.sourceId(), transfer.destinationId(), true);
-        ModelActionContext deleteBegin = context(delete, handlers, source, destination);
+        ModelCommitContext deleteBegin = context(delete, handlers, source, destination);
         assertTrue(assertThrows(
                 IllegalStateException.class,
                 () -> engine.evaluate(message(delete), deleteBegin, handlers))
@@ -203,7 +203,7 @@ class ModelActionEngineTest {
                 ModelMetadata.of(ReturnOtherOrder.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
-        ModelActionContext begin = context(command, handlers, order);
+        ModelCommitContext begin = context(command, handlers, order);
 
         assertTrue(assertThrows(
                 IllegalStateException.class,
@@ -223,7 +223,7 @@ class ModelActionEngineTest {
                 secondId.toString(), entity(secondId, new Inventory(secondId, 10)));
         List<Long> requestedStateIndices = new ArrayList<>();
 
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) -> {
                     requestedStateIndices.add(requestedStateIndex);
@@ -238,7 +238,7 @@ class ModelActionEngineTest {
         assertEquals(
                 List.of(firstId, secondId),
                 result.substeps().stream()
-                        .map(ModelActionEngine.AppliedSubstep::message)
+                        .map(ModelCommitEngine.AppliedSubstep::message)
                         .map(DeserializingMessage::getPayload)
                         .map(AdjustInventory.class::cast)
                         .map(AdjustInventory::inventoryId).toList());
@@ -257,7 +257,7 @@ class ModelActionEngineTest {
                 inventoryId.toString(), entity(
                         inventoryId, new Inventory(inventoryId, 5)));
 
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         resolveSubstep(substep, 79, stored));
@@ -267,7 +267,7 @@ class ModelActionEngineTest {
         assertEquals(
                 List.of(inventoryId.toString(), orderId.toString()),
                 result.substeps().getFirst().transitions().stream()
-                        .map(ModelActionEngine.Transition::modelId)
+                        .map(ModelCommitEngine.Transition::modelId)
                         .sorted().toList());
     }
 
@@ -280,7 +280,7 @@ class ModelActionEngineTest {
         Map<String, Entity<?>> stored =
                 Map.of(id.toString(), entity(id, new Inventory(id, 5)));
 
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         resolveSubstep(substep, 88, stored));
@@ -292,7 +292,7 @@ class ModelActionEngineTest {
     }
 
     @Test
-    void failureInALaterSubstepRollsBackTheCompleteActionEvaluation() {
+    void failureInALaterSubstepRollsBackTheCompleteCommitEvaluation() {
         InventoryId id = new InventoryId("one");
         BulkMixedUpdate command = new BulkMixedUpdate(List.of(
                 new AdjustInventory(id, 1),
@@ -310,7 +310,7 @@ class ModelActionEngineTest {
                                 resolveSubstep(substep, 89, stored)));
 
         assertEquals(new Inventory(id, 5), storedInventory.get());
-        assertTrue(message.getContext(ModelActionContext.class)
+        assertTrue(message.getContext(ModelCommitContext.class)
                            .orElseThrow().entries().isEmpty());
     }
 
@@ -322,7 +322,7 @@ class ModelActionEngineTest {
                 Map.of(id.toString(), entity(id, new Inventory(id, 5)));
         int[] resolutions = {0};
 
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) -> {
                     resolutions[0]++;
@@ -337,8 +337,8 @@ class ModelActionEngineTest {
     }
 
     @Test
-    void interceptorMaySuppressAnActionWithoutCreatingASubstep() {
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+    void interceptorMaySuppressACommitWithoutCreatingASubstep() {
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(new SuppressInventoryUpdate()),
                 (substep, requestedStateIndex, stagedValues) ->
                         resolveSubstep(substep, 12, Map.of()));
@@ -364,17 +364,17 @@ class ModelActionEngineTest {
                                 substep, requestedStateIndex == null ? 70 : 71, stored)));
 
         assertTrue(exception.getMessage().contains(
-                "loaded at state index 71 while action is pinned at 70"));
+                "loaded at state index 71 while commit is pinned at 70"));
     }
 
     @Test
-    void actionResultRetainsNullDeleteTransitionAndOriginalEvent() {
+    void commitResultRetainsNullDeleteTransitionAndOriginalEvent() {
         OrderId id = new OrderId("delete");
         DeleteOrder command = new DeleteOrder(id);
         Map<String, Entity<?>> stored =
                 Map.of(id.toString(), entity(id, new Order(id, "pending")));
 
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         resolveSubstep(substep, -1, stored));
@@ -394,13 +394,13 @@ class ModelActionEngineTest {
                 new RenameReceiverOrder(id, "renamed", observations);
         List<ModelMetadata.HandlerMethod> handlers =
                 ModelMetadata.of(ReceiverOrder.class).handlerMethods();
-        ModelActionContext begin = context(
+        ModelCommitContext begin = context(
                 command, handlers, entity(id, new ReceiverOrder(id, "initial")));
 
-        ModelActionEngine.ActionEvaluation result = engine.evaluate(
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
-                        new ModelActionEngine.ResolvedSubstep(begin, handlers));
+                        new ModelCommitEngine.ResolvedSubstep(begin, handlers));
 
         assertEquals(
                 List.of("intercept-initial", "assert-initial", "apply-initial"),
@@ -417,10 +417,10 @@ class ModelActionEngineTest {
         AssertedOrderUpdate command = new AssertedOrderUpdate(id, observations);
         List<ModelMetadata.HandlerMethod> handlers =
                 ModelMetadata.of(AssertedOrderUpdate.class).handlerMethods();
-        ModelActionContext begin = context(
+        ModelCommitContext begin = context(
                 command, handlers, entity(id, new Order(id, "pending")));
 
-        ModelActionEngine.Evaluation result =
+        ModelCommitEngine.Evaluation result =
                 engine.evaluate(message(command), begin, handlers);
 
         assertEquals(
@@ -436,7 +436,7 @@ class ModelActionEngineTest {
         RejectAfterOrderUpdate command = new RejectAfterOrderUpdate(id);
         List<ModelMetadata.HandlerMethod> handlers =
                 ModelMetadata.of(RejectAfterOrderUpdate.class).handlerMethods();
-        ModelActionContext begin = context(
+        ModelCommitContext begin = context(
                 command, handlers, entity(id, new Order(id, "pending")));
         DeserializingMessage message = message(command);
 
@@ -445,10 +445,10 @@ class ModelActionEngineTest {
                 () -> engine.evaluate(message, begin, handlers));
 
         assertEquals(new Order(id, "pending"), begin.resolve(Order.class, null).get());
-        assertSame(begin, message.getContext(ModelActionContext.class).orElseThrow());
+        assertSame(begin, message.getContext(ModelCommitContext.class).orElseThrow());
     }
 
-    private static ModelActionEngine.ResolvedSubstep resolveSubstep(
+    private static ModelCommitEngine.ResolvedSubstep resolveSubstep(
             DeserializingMessage message,
             long stateIndex,
             Map<String, Entity<?>> stored) {
@@ -465,11 +465,11 @@ class ModelActionEngineTest {
             }
             loaded.put(target.modelId(), entity);
         }
-        return new ModelActionEngine.ResolvedSubstep(
-                ModelActionContext.create(stateIndex, resolution, loaded), handlers);
+        return new ModelCommitEngine.ResolvedSubstep(
+                ModelCommitContext.create(stateIndex, resolution, loaded), handlers);
     }
 
-    private static ModelActionContext context(
+    private static ModelCommitContext context(
             Object command,
             Collection<ModelMetadata.HandlerMethod> handlers,
             Entity<?>... entities) {
@@ -479,7 +479,7 @@ class ModelActionEngineTest {
         for (Entity<?> entity : entities) {
             loaded.put(entity.id().toString(), entity);
         }
-        return ModelActionContext.create(101, resolution, loaded);
+        return ModelCommitContext.create(101, resolution, loaded);
     }
 
     private static DeserializingMessage message(Object command) {

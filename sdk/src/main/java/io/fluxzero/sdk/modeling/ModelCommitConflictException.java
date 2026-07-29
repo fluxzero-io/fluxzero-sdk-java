@@ -16,36 +16,36 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.ModelActionConflict;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import lombok.Getter;
 
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Default SDK error when a rolled-back model action conflict is not retried.
+ * Default SDK error when a rolled-back model commit conflict is not retried.
  */
 @Getter
-public class ModelActionConflictException extends RuntimeException {
-    private final CommitModelActionResult result;
+public class ModelCommitConflictException extends RuntimeException {
+    private final CommitModelsResult result;
 
     /**
      * Creates an exception containing the runtime's current model and relationship positions.
      */
-    public ModelActionConflictException(CommitModelActionResult result) {
+    public ModelCommitConflictException(CommitModelsResult result) {
         super(message(result));
         this.result = result;
     }
 
-    private static String message(CommitModelActionResult result) {
+    private static String message(CommitModelsResult result) {
         Objects.requireNonNull(result, "result");
         if (result.isAccepted()) {
             throw new IllegalArgumentException("A conflict exception requires a rejected result");
         }
-        return "Model action %s conflicted with %s".formatted(
-                result.getActionId(),
-                result.getConflicts().stream().map(ModelActionConflict::getModelId)
+        return "Model commit %s conflicted with %s".formatted(
+                result.getCommitId(),
+                result.getConflicts().stream().map(ModelCommitConflict::getModelId)
                         .collect(Collectors.joining(", ")));
     }
 }

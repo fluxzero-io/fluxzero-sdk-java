@@ -17,9 +17,9 @@
 package io.fluxzero.sdk.benchmark;
 
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -308,7 +308,7 @@ public class ModelCacheBenchmark {
 
     private static void prepare(
             Fluxzero fluxzero, CounterId id) {
-        List<ModelActionSubstep> substeps =
+        List<ModelCommitStep> substeps =
                 new ArrayList<>(EVENT_COUNT);
         for (int i = 0; i < EVENT_COUNT; i++) {
             Object event = i == 0
@@ -318,8 +318,8 @@ public class ModelCacheBenchmark {
                     fluxzero, id, event));
         }
         fluxzero.client().getEventStoreClient()
-                .commitModelAction(
-                        new CommitModelAction(
+                .commitModels(
+                        new CommitModels(
                                 "cache-benchmark-prepare",
                                 -1L,
                                 List.of(id.toString()),
@@ -334,8 +334,8 @@ public class ModelCacheBenchmark {
             CounterId id,
             long readStateIndex) {
         fluxzero.client().getEventStoreClient()
-                .commitModelAction(
-                        new CommitModelAction(
+                .commitModels(
+                        new CommitModels(
                                 "cache-benchmark-append-"
                                 + readStateIndex,
                                 readStateIndex,
@@ -348,16 +348,16 @@ public class ModelCacheBenchmark {
                 .join();
     }
 
-    private static ModelActionSubstep substep(
+    private static ModelCommitStep substep(
             Fluxzero fluxzero,
             CounterId id,
             Object event) {
-        return ModelActionSubstep.builder()
+        return ModelCommitStep.builder()
                 .event(new Message(event)
                                .serialize(
                                        fluxzero.serializer()))
                 .targets(List.of(
-                        ModelActionTarget.builder()
+                        ModelCommitTarget.builder()
                                 .modelId(id.toString())
                                 .storeEvent(true)
                                 .updateState(true)

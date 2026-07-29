@@ -19,7 +19,7 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
@@ -67,10 +67,10 @@ import java.util.stream.Stream;
  * Regular {@code @HandleCommand} handlers remain first in the command registry. This handler therefore activates only
  * when normal command handling did not select a handler.
  */
-public final class ModelActionHandlerRegistry implements HandlerRegistry, HandlerFactory {
+public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory {
     private final DefaultModelRepository repository;
-    private final ModelActionEngine engine;
-    private final ModelActionCommitter committer;
+    private final ModelCommitEngine engine;
+    private final ModelCommitter committer;
     private final Handler<DeserializingMessage> decoratedHandler;
     private final HandlerDecorator handlerDecorator;
     private final ModelConflictPolicy conflictPolicy;
@@ -78,15 +78,15 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final int maxConflictRetries;
     private final AutomaticModelHandling automaticHandling;
     private final GraphProjectionCompletion graphProjectionCompletion;
-    private final ModelActionCoordinator actionCoordinator =
-            new ModelActionCoordinator();
+    private final ModelCommitCoordinator commitCoordinator =
+            new ModelCommitCoordinator();
     private final Serializer serializer;
     private final EventStoreClient eventStoreClient;
     private final List<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations =
             new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Class<?>, ActionPlan> actionPlans =
+    private final ConcurrentHashMap<Class<?>, CommitPlan> commitPlans =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<TargetPlanKey, ModelTargetResolver.TargetPlan> targetPlans =
             new ConcurrentHashMap<>();
@@ -100,8 +100,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         return repository;
     }
 
-    /** Creates the automatic model-action registry. */
-    public ModelActionHandlerRegistry(
+    /** Creates the automatic model-commit registry. */
+    public ModelCommitHandlerRegistry(
             DefaultModelRepository repository,
             EventStoreClient eventStoreClient,
             Serializer serializer,
@@ -120,11 +120,11 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         this.eventStoreClient =
                 Objects.requireNonNull(eventStoreClient, "eventStoreClient");
-        this.committer = new ModelActionCommitter(
+        this.committer = new ModelCommitter(
                 eventStoreClient, serializer, documentSerializer,
                 eventDispatchInterceptor, source, snapshotSerializer,
                 this::afterCommit);
-        this.engine = new ModelActionEngine(parameterResolvers);
+        this.engine = new ModelCommitEngine(parameterResolvers);
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
         this.conflictResolver = Objects.requireNonNull(
                 conflictResolver, "conflictResolver");
@@ -145,7 +145,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                 "graphProjectionCompletion");
         this.handlerDecorator = Objects.requireNonNull(
                 handlerDecorator, "handlerDecorator");
-        this.decoratedHandler = handlerDecorator.wrap(new ActionHandler(null));
+        this.decoratedHandler = handlerDecorator.wrap(new CommitHandler(null));
     }
 
     /**
@@ -208,7 +208,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     private boolean hasModelApplies(
             Class<?> payloadType) {
-        return declaresModelAction(payloadType, new LinkedHashSet<>());
+        return declaresModelCommit(payloadType, new LinkedHashSet<>());
     }
 
     private boolean automaticHandlingEnabled(
@@ -334,7 +334,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             List<HandlerInterceptor> extraInterceptors) {
         Class<?> targetType = ReflectionUtils.asClass(target);
         boolean modelReceiver = ModelMetadata.of(targetType).isModel();
-        boolean payloadAction = declaresModelAction(
+        boolean payloadCommit = declaresModelCommit(
                 targetType, new LinkedHashSet<>())
                                 && planFor(targetType).handlers().stream()
                                         .anyMatch(handler ->
@@ -342,7 +342,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                                         handler.executable()
                                                                 .getDeclaringClass(),
                                                         handler.executable()));
-        if (!modelReceiver && !payloadAction) {
+        if (!modelReceiver && !payloadCommit) {
             return Optional.empty();
         }
         if (modelReceiver) {
@@ -354,7 +354,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 .reduce(HandlerDecorator::andThen)
                 .orElseThrow();
         return Optional.of(decorator.wrap(
-                new ActionHandler(targetType)));
+                new CommitHandler(targetType)));
     }
 
     @Override
@@ -364,7 +364,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     @Override
     public void setSelfHandlerFilter(HandlerFilter selfHandlerFilter) {
-        // Model actions are selected from @Model and @Apply metadata, independent of local handler ownership.
+        // Model commits are selected from @Model and @Apply metadata, independent of local handler ownership.
     }
 
     private CompletableFuture<Object> execute(DeserializingMessage message) {
@@ -380,7 +380,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Object> executeRegistered(
             DeserializingMessage message) {
-        ModelActionEngine.ActionEvaluation initialEvaluation =
+        ModelCommitEngine.CommitEvaluation initialEvaluation =
                 evaluate(message);
         if (ModelConflictPolicies.resolve(
                 initialEvaluation,
@@ -392,7 +392,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         }
         ThreadLocalContext.Snapshot context =
                 ThreadLocalContext.capture();
-        return actionCoordinator.coordinate(
+        return commitCoordinator.coordinate(
                 initialEvaluation.readModelIds(),
                 contended -> {
                     if (!contended) {
@@ -422,7 +422,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Object> executeEvaluation(
             DeserializingMessage message,
-            ModelActionEngine.ActionEvaluation evaluation) {
+            ModelCommitEngine.CommitEvaluation evaluation) {
         ModelConflictPolicy effectiveConflictPolicy =
                 ModelConflictPolicies.resolve(
                         evaluation,
@@ -437,13 +437,13 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                     evaluation.transitions()
                                             .stream()
                                             .map(
-                                                    ModelActionEngine
+                                                    ModelCommitEngine
                                                             .Transition
                                                             ::modelId)
                                             .distinct()
                                             .toList());
                     try {
-                        CompletableFuture<Optional<CommitModelActionResult>> result =
+                        CompletableFuture<Optional<CommitModelsResult>> result =
                                 effectiveConflictPolicy
                                 == ModelConflictPolicy.ACCEPT
                                         ? committer.commitAcceptingRebase(
@@ -507,9 +507,9 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 });
     }
 
-    private CompletableFuture<Optional<CommitModelActionResult>>
+    private CompletableFuture<Optional<CommitModelsResult>>
             awaitGraphProjections(
-                    Optional<CommitModelActionResult> result,
+                    Optional<CommitModelsResult> result,
                     Map<String, Set<String>> collections) {
         if (result.isEmpty()
             || collections.isEmpty()
@@ -538,13 +538,13 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     }
 
     Set<String> awaitedGraphProjections(
-            ModelActionEngine.ActionEvaluation evaluation) {
+            ModelCommitEngine.CommitEvaluation evaluation) {
         return awaitedGraphProjectionTargets(
                 evaluation).keySet();
     }
 
     Map<String, Set<String>> awaitedGraphProjectionTargets(
-            ModelActionEngine.ActionEvaluation evaluation) {
+            ModelCommitEngine.CommitEvaluation evaluation) {
         GraphProjectionCompletion consumer =
                 Tracker.current()
                         .map(Tracker::getConfiguration)
@@ -555,7 +555,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                 GraphProjectionCompletion.DEFAULT);
         LinkedHashMap<String, LinkedHashSet<String>> result =
                 new LinkedHashMap<>();
-        for (ModelActionEngine.Transition transition :
+        for (ModelCommitEngine.Transition transition :
                 evaluation.transitions()) {
             Apply apply =
                     transition.handler()
@@ -640,10 +640,10 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private CompletableFuture<Void> ensureGraphProjections(
-            ModelActionEngine.ActionEvaluation evaluation) {
+            ModelCommitEngine.CommitEvaluation evaluation) {
         LinkedHashSet<ProjectionRoot> roots = evaluation.substeps().stream()
                 .flatMap(substep -> substep.transitions().stream())
-                .map(ModelActionEngine.Transition::modelType)
+                .map(ModelCommitEngine.Transition::modelType)
                 .flatMap(type -> projectionRoots(type).stream())
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         roots.forEach(this::registerGraphProjection);
@@ -670,7 +670,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         });
     }
 
-    private CompletableFuture<ModelActionEngine.ActionEvaluation> reload(
+    private CompletableFuture<ModelCommitEngine.CommitEvaluation> reload(
             DeserializingMessage message, List<String> staleModelIds) {
         repository.invalidateModels(staleModelIds);
         try {
@@ -681,7 +681,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private void afterCommit(
-            ModelActionCommitter.CommittedAction committed) {
+            ModelCommitter.CommittedCommit committed) {
         if (committed.prepared().transitionGroups().size()
             != committed.result().getSubsteps().size()) {
             throw new IllegalStateException(
@@ -692,23 +692,23 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         for (int substep = 0;
              substep < committed.prepared().transitionGroups().size();
              substep++) {
-            List<ModelActionCommitter.EffectiveTransition> transitions =
+            List<ModelCommitter.EffectiveTransition> transitions =
                     committed.prepared().transitionGroups().get(substep);
             var substepResult = committed.result().getSubsteps().get(substep);
-            var actionSubstep = committed.prepared().action().getSubsteps().get(substep);
+            var commitStep = committed.prepared().commit().getSubsteps().get(substep);
             if (transitions.size() != substepResult.getTargets().size()) {
                 throw new IllegalStateException(
                         "Model commit returned a different number of targets than requested");
             }
-            Instant timestamp = actionSubstep.getEvent() == null
+            Instant timestamp = commitStep.getEvent() == null
                     ? Instant.now()
-                    : Instant.ofEpochMilli(actionSubstep.getEvent().getTimestamp());
+                    : Instant.ofEpochMilli(commitStep.getEvent().getTimestamp());
             for (int targetIndex = 0;
                  targetIndex < transitions.size();
                  targetIndex++) {
-                ModelActionCommitter.EffectiveTransition effective =
+                ModelCommitter.EffectiveTransition effective =
                         transitions.get(targetIndex);
-                ModelActionEngine.Transition transition = effective.transition();
+                ModelCommitEngine.Transition transition = effective.transition();
                 if (!effective.updateState()) {
                     continue;
                 }
@@ -725,8 +725,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                                 transition.after(),
                                 targetResult.getSequenceNumber(),
                                 substepResult.getStateIndex(),
-                                actionSubstep.getEvent() == null
-                                        ? null : actionSubstep.getEvent().getMessageId(),
+                                commitStep.getEvent() == null
+                                        ? null : commitStep.getEvent().getMessageId(),
                                 substepResult.getEventIndex(),
                                 timestamp));
                 finalStates.put(
@@ -741,28 +741,28 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 List.copyOf(finalStates.values()));
     }
 
-    private ModelActionEngine.ActionEvaluation evaluate(DeserializingMessage initialMessage) {
-        return engine.evaluate(initialMessage, new ActionLoader(null));
+    private ModelCommitEngine.CommitEvaluation evaluate(DeserializingMessage initialMessage) {
+        return engine.evaluate(initialMessage, new CommitLoader(null));
     }
 
-    private ModelActionEngine.ActionEvaluation rebase(
+    private ModelCommitEngine.CommitEvaluation rebase(
             List<DeserializingMessage> messages,
             long stateIndex) {
-        return engine.rebase(messages, new ActionLoader(stateIndex));
+        return engine.rebase(messages, new CommitLoader(stateIndex));
     }
 
-    private final class ActionLoader implements ModelActionEngine.SubstepResolver {
+    private final class CommitLoader implements ModelCommitEngine.SubstepResolver {
         private final Long pinnedStateIndex;
-        private final Map<String, Entity<?>> actionEntities = new LinkedHashMap<>();
+        private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
         private final Map<AncestorPlanKey, List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
                 new LinkedHashMap<>();
 
-        private ActionLoader(Long pinnedStateIndex) {
+        private CommitLoader(Long pinnedStateIndex) {
             this.pinnedStateIndex = pinnedStateIndex;
         }
 
         @Override
-        public ModelActionEngine.ResolvedSubstep resolve(
+        public ModelCommitEngine.ResolvedSubstep resolve(
                 DeserializingMessage substep,
                 Long requestedStateIndex,
                 Map<String, Object> stagedValues) {
@@ -772,7 +772,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                         "Apply-only rebase moved from state index %d to %d"
                                 .formatted(pinnedStateIndex, boundary));
             }
-            ActionPlan plan = planFor(substep.getPayloadClass());
+            CommitPlan plan = planFor(substep.getPayloadClass());
             List<ModelMetadata.HandlerMethod> handlers =
                     pinnedStateIndex == null ? plan.handlers() : plan.applies();
             ModelTargetResolver.Resolution resolution =
@@ -784,12 +784,12 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     ? resolution.models() : ancestorPlans.get(planKey);
             List<ModelTargetResolver.ResolvedModel> missing = effectiveTargets == null ? List.of()
                     : effectiveTargets.stream()
-                            .filter(target -> !actionEntities.containsKey(target.modelId()))
+                            .filter(target -> !commitEntities.containsKey(target.modelId()))
                             .toList();
 
             long stateIndex = boundary == null ? -1L : boundary;
             if (effectiveTargets == null) {
-                ModelActionContext loaded = load(resolution, boundary, stagedValues);
+                ModelCommitContext loaded = load(resolution, boundary, stagedValues);
                 stateIndex = loaded.readStateIndex();
                 effectiveTargets = targets(loaded);
                 ancestorPlans.put(planKey, effectiveTargets);
@@ -808,11 +808,11 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
             for (ModelTargetResolver.ResolvedModel target : effectiveTargets) {
                 selected.put(target.modelId(), Objects.requireNonNull(
-                        actionEntities.get(target.modelId()),
-                        "Missing action-scoped model " + target.modelId()));
+                        commitEntities.get(target.modelId()),
+                        "Missing commit-scoped model " + target.modelId()));
             }
-            return new ModelActionEngine.ResolvedSubstep(
-                    ModelActionContext.create(stateIndex, effectiveResolution, selected), handlers);
+            return new ModelCommitEngine.ResolvedSubstep(
+                    ModelCommitContext.create(stateIndex, effectiveResolution, selected), handlers);
         }
 
         @Override
@@ -826,7 +826,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             LinkedHashMap<String, ModelTargetResolver.ResolvedModel> missing = new LinkedHashMap<>();
             for (DeserializingMessage message : messages) {
                 Object payload = message.getPayload();
-                ActionPlan plan = planFor(payload.getClass());
+                CommitPlan plan = planFor(payload.getClass());
                 ModelTargetResolver.Resolution resolution =
                         targetPlan(payload.getClass(), plan, false).resolve(payload);
                 if (resolution.hasAncestorDependencies()) {
@@ -838,7 +838,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     continue;
                 }
                 resolution.models().stream()
-                        .filter(target -> !actionEntities.containsKey(target.modelId()))
+                        .filter(target -> !commitEntities.containsKey(target.modelId()))
                         .forEach(target -> missing.putIfAbsent(target.modelId(), target));
             }
             if (!missing.isEmpty()) {
@@ -847,38 +847,38 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             }
         }
 
-        private ModelActionContext load(
+        private ModelCommitContext load(
                 ModelTargetResolver.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            ModelActionContext loaded = repository.loadContext(resolution, boundary, stagedValues);
+            ModelCommitContext loaded = repository.loadContext(resolution, boundary, stagedValues);
             if (boundary != null && loaded.readStateIndex() != boundary) {
                 throw new IllegalStateException(
-                        "Model action requested state index %d but loaded %d"
+                        "Model commit requested state index %d but loaded %d"
                                 .formatted(boundary, loaded.readStateIndex()));
             }
             loaded.entries().forEach(entry ->
-                    actionEntities.put(entry.target().modelId(), entry.entity()));
+                    commitEntities.put(entry.target().modelId(), entry.entity()));
             return loaded;
         }
 
-        private static List<ModelTargetResolver.ResolvedModel> targets(ModelActionContext context) {
-            return context.entries().stream().map(ModelActionContext.Entry::target).toList();
+        private static List<ModelTargetResolver.ResolvedModel> targets(ModelCommitContext context) {
+            return context.entries().stream().map(ModelCommitContext.Entry::target).toList();
         }
     }
 
-    private ActionPlan planFor(Class<?> payloadType) {
-        return actionPlans.computeIfAbsent(payloadType, type -> {
+    private CommitPlan planFor(Class<?> payloadType) {
+        return commitPlans.computeIfAbsent(payloadType, type -> {
             List<ModelMetadata.HandlerMethod> handlers = inspectHandlers(type);
             List<ModelMetadata.HandlerMethod> applies = handlers.stream()
                     .filter(handler -> handler.kind() == ModelMetadata.HandlerKind.APPLY)
                     .toList();
-            return new ActionPlan(handlers, applies);
+            return new CommitPlan(handlers, applies);
         });
     }
 
     private ModelTargetResolver.TargetPlan targetPlan(
-            Class<?> payloadType, ActionPlan plan, boolean appliesOnly) {
+            Class<?> payloadType, CommitPlan plan, boolean appliesOnly) {
         return targetPlans.computeIfAbsent(
                 new TargetPlanKey(payloadType, appliesOnly),
                 ignored -> ModelTargetResolver.plan(
@@ -886,7 +886,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private void clearPlans() {
-        actionPlans.clear();
+        commitPlans.clear();
         targetPlans.clear();
     }
 
@@ -935,7 +935,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         return List.copyOf(result);
     }
 
-    private boolean declaresModelAction(
+    private boolean declaresModelCommit(
             Class<?> payloadType,
             LinkedHashSet<Class<?>> visiting) {
         if (!visiting.add(payloadType)) {
@@ -954,7 +954,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     .flatMap(handler ->
                             handler.emittedPayloadTypes().stream())
                     .anyMatch(emitted ->
-                            declaresModelAction(emitted, visiting));
+                            declaresModelCommit(emitted, visiting));
         } finally {
             visiting.remove(payloadType);
         }
@@ -967,7 +967,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                || parameterType.equals(DeserializingMessage.class);
     }
 
-    private boolean ownsRegisteredModelAction(
+    private boolean ownsRegisteredModelCommit(
             Class<?> receiverType, Class<?> payloadType) {
         return registeredModelTypes.stream()
                 .distinct()
@@ -997,7 +997,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             String path) {
     }
 
-    private record ActionPlan(
+    private record CommitPlan(
             List<ModelMetadata.HandlerMethod> handlers,
             List<ModelMetadata.HandlerMethod> applies) {
     }
@@ -1015,18 +1015,18 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         }
     }
 
-    private final class ActionHandler
+    private final class CommitHandler
             implements Handler<DeserializingMessage> {
         private final Class<?> trackingTarget;
 
-        private ActionHandler(Class<?> trackingTarget) {
+        private CommitHandler(Class<?> trackingTarget) {
             this.trackingTarget = trackingTarget;
         }
 
         @Override
         public Class<?> getTargetClass() {
             return trackingTarget == null
-                    ? ModelActionHandlerRegistry.class : trackingTarget;
+                    ? ModelCommitHandlerRegistry.class : trackingTarget;
         }
 
         @Override
@@ -1038,7 +1038,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
             boolean selected = trackingTarget == null
                     || ModelMetadata.of(trackingTarget).isModel()
-                       && ownsRegisteredModelAction(
+                       && ownsRegisteredModelCommit(
                                trackingTarget, message.getPayloadClass())
                     || !ModelMetadata.of(trackingTarget).isModel()
                        && trackingTarget.isAssignableFrom(

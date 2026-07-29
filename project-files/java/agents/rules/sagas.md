@@ -97,7 +97,7 @@ Collection<StripeTransaction> split(PaymentSplitRequested event) {
 @Consumer(name = "stripe")
 @Builder(toBuilder = true)
 public record StripeTransaction(
-    @Association TransactionId transactionId, 
+    @Association TransactionId transactionId,
     @Association String stripeId, 
     int retries
 ) {

@@ -211,7 +211,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     Duration maxWaitDuration = Duration.ofSeconds(60);
 
     /**
-     * Overrides graph-projection result completion for model actions handled by this consumer.
+     * Overrides graph-projection result completion for model commits handled by this consumer.
      */
     @Default
     @NonNull

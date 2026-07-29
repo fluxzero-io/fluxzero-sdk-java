@@ -21,8 +21,8 @@ import io.fluxzero.common.api.eventsourcing.DeleteEvents;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -131,11 +131,11 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     }
 
     /**
-     * Commits an independent-model action and retains the positions returned by the runtime.
+     * Commits an independent-model commit and retains the positions returned by the runtime.
      */
     @Override
-    public CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
-        return send(action);
+    public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
+        return send(commit);
     }
 
     @Override

@@ -18,14 +18,14 @@ package io.fluxzero.sdk.persisting.repository;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
@@ -253,15 +253,15 @@ class DefaultModelRepositoryTest {
             fluxzero.serializer().registerTypeCaster(
                     "legacy.example.AliasedAccount",
                     AliasedAccount.class.getName());
-            ModelActionSubstep substep =
-                    ModelActionSubstep.builder()
+            ModelCommitStep substep =
+                    ModelCommitStep.builder()
                             .event(new Message(
                                     new CreateAliasedAccount(
                                             id, 7))
                                            .serialize(
                                                    fluxzero.serializer()))
                             .targets(List.of(
-                                    ModelActionTarget.builder()
+                                    ModelCommitTarget.builder()
                                             .modelId(
                                                     id.toString())
                                             .modelType(
@@ -272,11 +272,11 @@ class DefaultModelRepositoryTest {
                                                     List.of())
                                             .build()))
                             .build();
-            CommitModelActionResult result =
+            CommitModelsResult result =
                     fluxzero.client()
                             .getEventStoreClient()
-                            .commitModelAction(
-                                    new CommitModelAction(
+                            .commitModels(
+                                    new CommitModels(
                                             "renamed-type",
                                             -1L,
                                             List.of(
@@ -307,14 +307,14 @@ class DefaultModelRepositoryTest {
         AccountId id =
                 new AccountId("payload-type");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            ModelActionSubstep substep =
-                    ModelActionSubstep.builder()
+            ModelCommitStep substep =
+                    ModelCommitStep.builder()
                             .event(new Message(
                                     new CreateAccount(id, 9))
                                            .serialize(
                                                    fluxzero.serializer()))
                             .targets(List.of(
-                                    ModelActionTarget.builder()
+                                    ModelCommitTarget.builder()
                                             .modelId(id.toString())
                                             .modelType(
                                                     "missing.example.Account")
@@ -323,11 +323,11 @@ class DefaultModelRepositoryTest {
                                             .relationships(List.of())
                                             .build()))
                             .build();
-            CommitModelActionResult result =
+            CommitModelsResult result =
                     fluxzero.client()
                             .getEventStoreClient()
-                            .commitModelAction(
-                                    new CommitModelAction(
+                            .commitModels(
+                                    new CommitModels(
                                             "payload-type",
                                             -1L,
                                             List.of(id.toString()),
@@ -529,7 +529,7 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void reconstructionIncludesEarlierSubstepsFromTheSameAction() {
+    void reconstructionIncludesEarlierSubstepsFromTheSameCommit() {
         InventoryId inventoryId = new InventoryId("prefix");
         OrderId orderId = new OrderId("prefix");
         try (Fluxzero fluxzero = configuredFluxzero()) {
@@ -537,13 +537,13 @@ class DefaultModelRepositoryTest {
                     fluxzero, "prefix-stock", -1L,
                     new CreateInventory(inventoryId, 5),
                     inventoryId.toString());
-            commitAction(
-                    fluxzero, "prefix-action", stock,
+            commitModels(
+                    fluxzero, "prefix-commit", stock,
                     List.of(inventoryId.toString(), orderId.toString()),
-                    new ActionEvent(
+                    new CommitEvent(
                             new ChangeInventory(inventoryId, 1),
                             inventoryId.toString()),
-                    new ActionEvent(
+                    new CommitEvent(
                             new CreateOrder(orderId, inventoryId),
                             orderId.toString()));
 
@@ -1064,7 +1064,7 @@ class DefaultModelRepositoryTest {
             assertEquals(
                     handledEvent.getMessageId(),
                     handledEvent.getMetadata().get(
-                            ModelEventMetadata.ACTION_ID));
+                            ModelEventMetadata.COMMIT_ID));
 
             fluxzero.commandGateway().send(
                     new ChangeInventory(inventoryId, 95)).join();
@@ -1075,7 +1075,7 @@ class DefaultModelRepositoryTest {
                                     new GetModelEvents(
                                             List.of(), null,
                                             handledEvent.getMetadata().get(
-                                                    ModelEventMetadata.ACTION_ID),
+                                                    ModelEventMetadata.COMMIT_ID),
                                             0, 0L))
                             .getStateIndex();
             clearInvocations(eventStoreClient);
@@ -1099,9 +1099,9 @@ class DefaultModelRepositoryTest {
                     .getModelEvents(requests.capture());
             assertEquals(
                     handledEvent.getMetadata().get(
-                            ModelEventMetadata.ACTION_ID),
+                            ModelEventMetadata.COMMIT_ID),
                     requests.getAllValues().getFirst()
-                            .getBoundaryActionId());
+                            .getBoundaryCommitId());
             assertEquals(
                     0,
                     requests.getAllValues().getFirst()
@@ -1145,15 +1145,15 @@ class DefaultModelRepositoryTest {
 
     private static long commit(
             Fluxzero fluxzero,
-            String actionId,
+            String commitId,
             long readStateIndex,
             Object event,
             String... targetIds) {
-        ModelActionSubstep substep = ModelActionSubstep.builder()
+        ModelCommitStep substep = ModelCommitStep.builder()
                 .event(new Message(event).serialize(fluxzero.serializer()))
                 .publishEvent(false)
                 .targets(java.util.Arrays.stream(targetIds)
-                                 .map(modelId -> ModelActionTarget.builder()
+                                 .map(modelId -> ModelCommitTarget.builder()
                                          .modelId(modelId)
                                          .storeEvent(true)
                                          .updateState(true)
@@ -1161,34 +1161,34 @@ class DefaultModelRepositoryTest {
                                          .build())
                                  .toList())
                 .build();
-        CommitModelAction action = new CommitModelAction(
-                actionId, readStateIndex, List.of(targetIds),
+        CommitModels commit = new CommitModels(
+                commitId, readStateIndex, List.of(targetIds),
                 List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
-        CommitModelActionResult result = fluxzero.client().getEventStoreClient()
-                .commitModelAction(action).join();
+        CommitModelsResult result = fluxzero.client().getEventStoreClient()
+                .commitModels(commit).join();
         if (result.isRebaseRequired()) {
-            action = new CommitModelAction(
-                    actionId, result.getRebaseStateIndex(), List.of(targetIds),
+            commit = new CommitModels(
+                    commitId, result.getRebaseStateIndex(), List.of(targetIds),
                     List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
             result = fluxzero.client().getEventStoreClient()
-                    .commitModelAction(action).join();
+                    .commitModels(commit).join();
         }
         assertTrue(result.isAccepted());
         return result.getSubsteps().getLast()
                 .getStateIndex();
     }
 
-    private static long commitAction(
+    private static long commitModels(
             Fluxzero fluxzero,
-            String actionId,
+            String commitId,
             long readStateIndex,
             List<String> readModelIds,
-            ActionEvent... events) {
-        List<ModelActionSubstep> substeps = java.util.Arrays.stream(events)
-                .map(event -> ModelActionSubstep.builder()
+            CommitEvent... events) {
+        List<ModelCommitStep> substeps = java.util.Arrays.stream(events)
+                .map(event -> ModelCommitStep.builder()
                         .event(new Message(event.payload()).serialize(fluxzero.serializer()))
                         .publishEvent(false)
-                        .targets(List.of(ModelActionTarget.builder()
+                        .targets(List.of(ModelCommitTarget.builder()
                                                  .modelId(event.targetId())
                                                  .storeEvent(true)
                                                  .updateState(true)
@@ -1196,17 +1196,17 @@ class DefaultModelRepositoryTest {
                                                  .build()))
                         .build())
                 .toList();
-        CommitModelAction action = new CommitModelAction(
-                actionId, readStateIndex, readModelIds, substeps,
+        CommitModels commit = new CommitModels(
+                commitId, readStateIndex, readModelIds, substeps,
                 ModelConflictPolicy.ACCEPT, Guarantee.STORED);
-        CommitModelActionResult result = fluxzero.client().getEventStoreClient()
-                .commitModelAction(action).join();
+        CommitModelsResult result = fluxzero.client().getEventStoreClient()
+                .commitModels(commit).join();
         if (result.isRebaseRequired()) {
-            action = new CommitModelAction(
-                    actionId, result.getRebaseStateIndex(), readModelIds, substeps,
+            commit = new CommitModels(
+                    commitId, result.getRebaseStateIndex(), readModelIds, substeps,
                     ModelConflictPolicy.ACCEPT, Guarantee.STORED);
             result = fluxzero.client().getEventStoreClient()
-                    .commitModelAction(action).join();
+                    .commitModels(commit).join();
         }
         assertTrue(result.isAccepted());
         return result.getSubsteps().getLast()
@@ -1223,7 +1223,7 @@ class DefaultModelRepositoryTest {
                 .getStateIndex();
     }
 
-    private record ActionEvent(Object payload, String targetId) {
+    private record CommitEvent(Object payload, String targetId) {
     }
 
     @Model(eventSourced = false, searchable = true, collection = "products")

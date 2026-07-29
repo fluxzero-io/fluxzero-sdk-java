@@ -42,12 +42,12 @@ public class GetModelAncestors extends Request {
     Long maxStateIndex;
 
     /**
-     * Durable model action whose persisted result contains the exact boundary, or {@code null}.
+     * Durable model commit whose persisted result contains the exact boundary, or {@code null}.
      */
-    String boundaryActionId;
+    String boundaryCommitId;
 
     /**
-     * Ordered substep within {@link #boundaryActionId}, or {@code null}.
+     * Ordered substep within {@link #boundaryCommitId}, or {@code null}.
      */
     Integer boundarySubstep;
 
@@ -84,13 +84,13 @@ public class GetModelAncestors extends Request {
     }
 
     @ConstructorProperties({
-            "modelIds", "maxStateIndex", "boundaryActionId",
+            "modelIds", "maxStateIndex", "boundaryCommitId",
             "boundarySubstep", "maxDepth", "maxModels",
             "maxEventsPerModel", "maxBytes"})
     public GetModelAncestors(
             List<String> modelIds,
             Long maxStateIndex,
-            String boundaryActionId,
+            String boundaryCommitId,
             Integer boundarySubstep,
             int maxDepth,
             int maxModels,
@@ -98,7 +98,7 @@ public class GetModelAncestors extends Request {
             long maxBytes) {
         this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
         this.maxStateIndex = maxStateIndex;
-        this.boundaryActionId = boundaryActionId;
+        this.boundaryCommitId = boundaryCommitId;
         this.boundarySubstep = boundarySubstep;
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
@@ -110,7 +110,7 @@ public class GetModelAncestors extends Request {
     public Metric toMetric() {
         return new Metric(
                 modelIds == null ? 0 : modelIds.size(),
-                maxStateIndex, boundaryActionId,
+                maxStateIndex, boundaryCommitId,
                 boundarySubstep, maxDepth, maxModels,
                 maxEventsPerModel, maxBytes);
     }
@@ -119,7 +119,7 @@ public class GetModelAncestors extends Request {
     public static class Metric {
         int rootCount;
         Long maxStateIndex;
-        String boundaryActionId;
+        String boundaryCommitId;
         Integer boundarySubstep;
         int maxDepth;
         int maxModels;

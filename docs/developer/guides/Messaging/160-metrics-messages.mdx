@@ -61,12 +61,12 @@ All metric messages are published by the SDK, except for `ConnectEvent` and `Dis
 
 ---
 
-### Model actions
+### Model commits
 
 | Metric message | Description |
 |----------------|-------------|
-| **CommitModelAction** | Commits model events, documents, snapshots and relationship deltas as one package. |
-| **CommitModelActionResult$Metric** | Reports accepted, duplicate, rebase and conflict outcomes. |
+| **CommitModels** | Commits model events, documents, snapshots and relationship deltas as one package. |
+| **CommitModelsResult$Metric** | Reports accepted, duplicate, rebase and conflict outcomes. |
 | **GetModelEvents** | Batch-loads modelstream memberships at one state boundary. |
 | **GetModelEventsResult$Metric** | Reports stream, payload, membership and byte counts. |
 | **GetModelGraph / GetModelGraphResult$Metric** | Loads a bounded current or historical model graph. |

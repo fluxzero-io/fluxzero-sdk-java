@@ -33,20 +33,20 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ModelActionContextTest {
+class ModelCommitContextTest {
 
     private final DefaultEntityHelper entityHelper =
             new DefaultEntityHelper(List.of(new ModelEntityParameterResolver()), true);
 
     @Test
-    void injectsActionModelsIntoAssertionsInterceptorsAndApplies() {
+    void injectsCommitModelsIntoAssertionsInterceptorsAndApplies() {
         List<String> invocations = new ArrayList<>();
         ReserveInventory command = new ReserveInventory(
                 new OrderId("1"), new InventoryId("2"), invocations);
         Entity<Order> order = entity(command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
-        DeserializingMessage message = actionMessage(command, 91, order, inventory);
+        DeserializingMessage message = commitMessage(command, 91, order, inventory);
 
         message.apply(ignored -> {
             entityHelper.assertLegal(message, order);
@@ -61,7 +61,7 @@ class ModelActionContextTest {
         assertEquals(List.of("assert:5", "intercept:pending", "apply:5"), invocations);
         assertEquals(1, intercepted.size());
         assertEquals(new Order(command.orderId(), "reserved"), result);
-        assertEquals(91, message.getContext(ModelActionContext.class).orElseThrow().readStateIndex());
+        assertEquals(91, message.getContext(ModelCommitContext.class).orElseThrow().readStateIndex());
     }
 
     @Test
@@ -70,7 +70,7 @@ class ModelActionContextTest {
         Entity<Account> source = entity(command.sourceId(), new Account(command.sourceId(), 10));
         Entity<Account> destination = entity(
                 command.destinationId(), new Account(command.destinationId(), 20));
-        DeserializingMessage message = actionMessage(command, 92, source, destination);
+        DeserializingMessage message = commitMessage(command, 92, source, destination);
 
         Account result = message.apply(ignored ->
                 (Account) entityHelper.applyInvoker(message, source).orElseThrow().invoke());
@@ -86,7 +86,7 @@ class ModelActionContextTest {
                 new OrderId("new"), new InventoryId("missing"));
         Entity<Order> order = entity(command.orderId(), null);
         Entity<Inventory> inventory = entity(command.inventoryId(), null);
-        DeserializingMessage message = actionMessage(command, 93, order, inventory);
+        DeserializingMessage message = commitMessage(command, 93, order, inventory);
 
         Order result = message.apply(ignored ->
                 (Order) entityHelper.applyInvoker(message, order).orElseThrow().invoke());
@@ -96,7 +96,7 @@ class ModelActionContextTest {
 
         RequiresInventoryValue invalid = new RequiresInventoryValue(
                 command.orderId(), command.inventoryId());
-        DeserializingMessage invalidMessage = actionMessage(invalid, 94, order, inventory);
+        DeserializingMessage invalidMessage = commitMessage(invalid, 94, order, inventory);
         boolean invokerMissing = invalidMessage.apply(
                 ignored -> entityHelper.applyInvoker(invalidMessage, order).isEmpty());
         assertTrue(invokerMissing);
@@ -113,11 +113,11 @@ class ModelActionContextTest {
 
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionContext.create(1, resolution, Map.of(order.id().toString(), order)))
+                () -> ModelCommitContext.create(1, resolution, Map.of(order.id().toString(), order)))
                            .getMessage().contains("Missing loaded model"));
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionContext.create(
+                () -> ModelCommitContext.create(
                         1, resolution, Map.of(
                                 order.id().toString(), order,
                                 inventory.id().toString(), inventory,
@@ -126,19 +126,19 @@ class ModelActionContextTest {
                            .getMessage().contains("unrelated"));
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionContext.create(
+                () -> ModelCommitContext.create(
                         1, resolution, Map.of(
                                 order.id().toString(), entity(command.orderId(), "wrong"),
                                 inventory.id().toString(), inventory)))
                            .getMessage().contains("incompatible type"));
     }
 
-    private DeserializingMessage actionMessage(
+    private DeserializingMessage commitMessage(
             Object command, long stateIndex, Entity<?>... loadedModels) {
         ModelTargetResolver.Resolution resolution = resolution(command);
         Map<String, Entity<?>> models = java.util.Arrays.stream(loadedModels)
                 .collect(java.util.stream.Collectors.toMap(entity -> entity.id().toString(), entity -> entity));
-        ModelActionContext context = ModelActionContext.create(stateIndex, resolution, models);
+        ModelCommitContext context = ModelCommitContext.create(stateIndex, resolution, models);
         return context.attachTo(new DeserializingMessage(
                 new Message(command), MessageType.EVENT, null));
     }

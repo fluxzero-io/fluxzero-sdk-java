@@ -52,7 +52,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelActionContext;
+import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelEventReplayer;
 import io.fluxzero.sdk.modeling.ModelGraph;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
@@ -94,8 +94,8 @@ import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
  * loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.
  */
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> implements ModelRepository {
-    private static final int ACTION_ANCESTOR_MAX_DEPTH = 64;
-    private static final int ACTION_ANCESTOR_MAX_MODELS = 10_000;
+    private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
+    private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
     private static final int MAX_PARALLEL_GRAPH_RECONSTRUCTIONS = 8;
 
     private final Client client;
@@ -368,7 +368,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelTargetResolver.ResolvedModel target = new ModelTargetResolver.ResolvedModel(
                 modelId, modelType, ModelTargetResolver.Access.READ_ONLY,
                 List.of(metadata.entityId().orElseThrow().name()));
-        ModelActionContext context = loadContext(
+        ModelCommitContext context = loadContext(
                 new ModelTargetResolver.Resolution(
                         List.of(target), List.of()),
                 boundary(handlerBoundary),
@@ -425,7 +425,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         GetModelGraphResult graph = client.getEventStoreClient().getModelGraph(
                 new GetModelGraph(
                         rootId, boundary.stateIndex(),
-                        boundary.actionId(),
+                        boundary.commitId(),
                         boundary.substep(),
                         options.maxDepth(), options.maxModels(),
                         0, 0L, true));
@@ -569,7 +569,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                         new ModelEventStreamRequest(
                                                 modelId, -1L, 1)),
                                 boundary.stateIndex(),
-                                boundary.actionId(),
+                                boundary.commitId(),
                                 boundary.substep(),
                                 ModelEventBatchLoader.DEFAULT_SETTINGS
                                         .maxPayloadBytes()));
@@ -647,7 +647,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         GetModelGraphResult graph = client.getEventStoreClient().getModelGraph(
                 new GetModelGraph(
                         modelId, boundary.stateIndex(),
-                        boundary.actionId(),
+                        boundary.commitId(),
                         boundary.substep(), 0, 1,
                         0, 0L, true));
         pin(handlerBoundary, graph.getStateIndex());
@@ -668,21 +668,21 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                && current.getMessageType() != NOTIFICATION
             || current.getMetadata() == null
             || !current.getMetadata().containsKey(
-                    ModelEventMetadata.ACTION_ID)) {
+                    ModelEventMetadata.COMMIT_ID)) {
             return null;
         }
         return current.computeContextIfAbsent(
                         ModelEventStateBoundary.class,
                         message -> {
-                            Object actionId = message.getMetadata().get(
-                                    ModelEventMetadata.ACTION_ID);
+                            Object commitId = message.getMetadata().get(
+                                    ModelEventMetadata.COMMIT_ID);
                             Object substep = message.getMetadata().get(
                                     ModelEventMetadata.SUBSTEP);
-                            if (!(actionId instanceof String id)
+                            if (!(commitId instanceof String id)
                                 || id.isBlank()
                                 || substep == null) {
                                 throw new EventSourcingException(
-                                        "Published model event has no valid action boundary metadata");
+                                        "Published model event has no valid commit boundary metadata");
                             }
                             return new ModelEventStateBoundary(
                                     id, parseSubstep(substep));
@@ -698,13 +698,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 result = Integer.parseInt(value.toString());
             } catch (NumberFormatException failure) {
                 throw new EventSourcingException(
-                        "Published model event has an invalid action substep",
+                        "Published model event has an invalid commit substep",
                         failure);
             }
         }
         if (result < 0) {
             throw new EventSourcingException(
-                    "Published model event has a negative action substep");
+                    "Published model event has a negative commit substep");
         }
         return result;
     }
@@ -827,29 +827,29 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     /**
-     * Loads all direct action targets at one state boundary.
+     * Loads all direct commit targets at one state boundary.
      * <p>
      * A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
     @Override
-    public ModelActionContext loadContext(
+    public ModelCommitContext loadContext(
             ModelTargetResolver.Resolution resolution) {
         ModelEventStateBoundary handlerBoundary =
                 handlerBoundary();
-        ModelActionContext context = loadContext(
+        ModelCommitContext context = loadContext(
                 resolution, boundary(handlerBoundary), Map.of());
         pin(handlerBoundary, context.readStateIndex());
         return context;
     }
 
     /**
-     * Loads all direct action targets at one explicit state boundary.
+     * Loads all direct commit targets at one explicit state boundary.
      * <p>
      * A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
-    public ModelActionContext loadContext(
+    public ModelCommitContext loadContext(
             ModelTargetResolver.Resolution resolution, Long maxStateIndex) {
         return loadContext(
                 resolution,
@@ -858,9 +858,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     /**
-     * Loads an action context and overlays relationships declared by model values staged in earlier substeps.
+     * Loads an commit context and overlays relationships declared by model values staged in earlier substeps.
      */
-    public ModelActionContext loadContext(
+    public ModelCommitContext loadContext(
             ModelTargetResolver.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues) {
@@ -870,7 +870,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 stagedValues);
     }
 
-    private ModelActionContext loadContext(
+    private ModelCommitContext loadContext(
             ModelTargetResolver.Resolution resolution,
             ModelEventBatchLoader.Boundary boundary,
             Map<String, Object> stagedValues) {
@@ -879,6 +879,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         Objects.requireNonNull(stagedValues, "stagedValues");
         requireEventReconstruction();
         boolean historicalBoundary = boundary.historical();
+        if (!historicalBoundary
+            && modelCacheTracker != null
+            && resolution.models().stream()
+                    .anyMatch(target ->
+                                      ModelMetadata.validate(
+                                                      target.modelType())
+                                              .model().orElseThrow()
+                                              .cached())) {
+            /*
+             * Overlap the non-blocking tracker bootstrap with model I/O. This keeps websocket callbacks free while
+             * making the freshly reconstructed value eligible for the immediate hot-cache path in the common case.
+             */
+            modelCacheTracker.prepare();
+        }
         Long ancestorStateIndex = null;
         if (resolution.hasAncestorDependencies()) {
             AncestorResolution ancestors = resolveAncestors(
@@ -982,7 +996,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 }
             }
         }
-        return ModelActionContext.create(stateIndex, resolution, loaded);
+        return ModelCommitContext.create(stateIndex, resolution, loaded);
     }
 
     private AncestorResolution resolveAncestors(
@@ -1024,20 +1038,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         -1L, null));
             }
         }
-        if (requestRoots.size() > ACTION_ANCESTOR_MAX_MODELS) {
+        if (requestRoots.size() > COMMIT_ANCESTOR_MAX_MODELS) {
             throw new IllegalStateException(
-                    "Model action requires more than %d ancestor traversal roots"
-                            .formatted(ACTION_ANCESTOR_MAX_MODELS));
+                    "Model commit requires more than %d ancestor traversal roots"
+                            .formatted(COMMIT_ANCESTOR_MAX_MODELS));
         }
 
         GetModelGraphResult graph = client.getEventStoreClient().getModelAncestors(
                 new GetModelAncestors(
                         List.copyOf(requestRoots),
                         boundary.stateIndex(),
-                        boundary.actionId(),
+                        boundary.commitId(),
                         boundary.substep(),
-                        ACTION_ANCESTOR_MAX_DEPTH,
-                        ACTION_ANCESTOR_MAX_MODELS,
+                        COMMIT_ANCESTOR_MAX_DEPTH,
+                        COMMIT_ANCESTOR_MAX_MODELS,
                         0, 0L));
         List<ModelGraphEdge> edges = new ArrayList<>(graph.getEdges());
         if (!stagedValues.isEmpty()) {
@@ -1045,8 +1059,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             edges.addAll(stagedEdges);
         }
         GraphReachability reachable = reachableAncestors(
-                roots, edges, ACTION_ANCESTOR_MAX_DEPTH,
-                ACTION_ANCESTOR_MAX_MODELS);
+                roots, edges, COMMIT_ANCESTOR_MAX_DEPTH,
+                COMMIT_ANCESTOR_MAX_MODELS);
 
         Map<String, ModelHeadState> heads = new LinkedHashMap<>();
         graph.getStreams().forEach(stream ->
@@ -1326,7 +1340,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     /**
-     * Marks model targets as belonging to an in-flight action from this SDK so a concurrently observed tracker update
+     * Marks model targets as belonging to an in-flight commit from this SDK so a concurrently observed tracker update
      * does not race the authoritative accepted result into an unnecessary cache refresh.
      *
      * @return an idempotent completion callback
@@ -1341,7 +1355,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     /**
-     * Removes action-scoped entries before a strict-policy retry reload.
+     * Removes commit-scoped entries before a strict-policy retry reload.
      */
     public void invalidateModels(Iterable<String> modelIds) {
         modelIds.forEach(modelId -> {
@@ -1603,7 +1617,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             for (ModelTargetResolver.ResolvedModel target : targets) {
                 Entity<?> base = reconstructionBase(
                         target, boundary.stateIndex(),
-                        boundary.actionId() == null);
+                        boundary.commitId() == null);
                 states.put(
                         target.modelId(),
                         new MutableReconstruction(target, base));
@@ -1795,27 +1809,27 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         private Entity<?> reconstructView(
                 ModelTargetResolver.ResolvedModel target,
                 long readStateIndex,
-                String actionId,
+                String commitId,
                 int substep,
-                long actionStateIndex) {
+                long commitStateIndex) {
             return reconstructViews(
-                    List.of(target), readStateIndex, actionId,
-                    substep, actionStateIndex).get(target.modelId());
+                    List.of(target), readStateIndex, commitId,
+                    substep, commitStateIndex).get(target.modelId());
         }
 
         private Map<String, Entity<?>> reconstructViews(
                 List<ModelTargetResolver.ResolvedModel> targets,
                 long readStateIndex,
-                String actionId,
+                String commitId,
                 int substep,
-                long actionStateIndex) {
+                long commitStateIndex) {
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
             List<ModelTargetResolver.ResolvedModel> missing =
                     new ArrayList<>();
             for (ModelTargetResolver.ResolvedModel target : targets) {
                 ViewKey key = new ViewKey(
                         target.modelId(), target.modelType(), readStateIndex,
-                        actionId, substep, actionStateIndex);
+                        commitId, substep, commitStateIndex);
                 Entity<?> cached = reconstructed.get(key);
                 if (cached == null) {
                     missing.add(target);
@@ -1836,17 +1850,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         base.get(target.modelId()).sequenceNumber()));
                 eventLoader.load(
                         cursors,
-                        ModelEventBatchLoader.Boundary.action(
-                                actionId, substep - 1),
-                        page -> applyActionPrefix(
+                        ModelEventBatchLoader.Boundary.commit(
+                                commitId, substep - 1),
+                        page -> applyCommitPrefix(
                                 page, missing, base, readStateIndex,
-                                actionId, substep));
+                                commitId, substep));
             }
             for (ModelTargetResolver.ResolvedModel target : missing) {
                 Entity<?> entity = base.get(target.modelId());
                 reconstructed.put(new ViewKey(
                         target.modelId(), target.modelType(), readStateIndex,
-                        actionId, substep, actionStateIndex), entity);
+                        commitId, substep, commitStateIndex), entity);
                 result.put(target.modelId(), entity);
             }
             return ordered(targets, result);
@@ -1861,12 +1875,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             return result;
         }
 
-        private void applyActionPrefix(
+        private void applyCommitPrefix(
                 GetModelEventsResult page,
                 List<ModelTargetResolver.ResolvedModel> targets,
                 Map<String, Entity<?>> current,
                 long readStateIndex,
-                String actionId,
+                String commitId,
                 int substep) {
             Map<String, ModelTargetResolver.ResolvedModel> targetsById =
                     new HashMap<>();
@@ -1887,7 +1901,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 }
                 for (ModelEventMembership membership : stream.getMemberships()) {
                     if (membership.getStateIndex() > readStateIndex
-                        && membership.getActionId().equals(actionId)
+                        && membership.getCommitId().equals(commitId)
                         && membership.getSubstep() < substep) {
                         current.put(
                                 target.modelId(),
@@ -1929,12 +1943,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         ? base == null
                           || membership.getReadStateIndex() >= stateIndex(base)
                         : membership.getReadStateIndex() >= previous.getStateIndex()
-                          || sameEarlierAction(previous, membership);
+                          || sameEarlierCommit(previous, membership);
                 Entity<?> begin = followsCurrent
                         ? current
                         : reconstructView(
                                 target, membership.getReadStateIndex(),
-                                membership.getActionId(), membership.getSubstep(),
+                                membership.getCommitId(), membership.getSubstep(),
                                 membership.getStateIndex());
                 current = ReconstructionSession.this.apply(
                         target, begin, storedEvent);
@@ -1999,7 +2013,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             new ReplayAncestorKey(
                                     resolution,
                                     relationshipBoundary,
-                                    membership.getActionId(),
+                                    membership.getCommitId(),
                                     membership.getSubstep());
                     ModelTargetResolver.Resolution directResolution =
                             resolution;
@@ -2014,8 +2028,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                                         firstSubstep
                                                                 ? ModelEventBatchLoader.Boundary.at(
                                                                         relationshipBoundary)
-                                                                : ModelEventBatchLoader.Boundary.action(
-                                                                        membership.getActionId(),
+                                                                : ModelEventBatchLoader.Boundary.commit(
+                                                                        membership.getCommitId(),
                                                                         membership.getSubstep() - 1),
                                                         Map.of());
                                         boolean invalidBoundary =
@@ -2032,11 +2046,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                                                      .getStateIndex();
                                         if (invalidBoundary) {
                                             throw new EventSourcingException(
-                                                    "Historical ancestor graph for action %s substep %d "
+                                                    "Historical ancestor graph for commit %s substep %d "
                                                     + "resolved invalid boundary %d (read=%d, event=%d)"
                                                             .formatted(
                                                                     membership
-                                                                            .getActionId(),
+                                                                            .getCommitId(),
                                                                     membership
                                                                             .getSubstep(),
                                                                     ancestors
@@ -2058,7 +2072,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         : reconstructViews(
                                 dependencies,
                                 membership.getReadStateIndex(),
-                                membership.getActionId(),
+                                membership.getCommitId(),
                                 membership.getSubstep(),
                                 membership.getStateIndex());
                 Map<String, Entity<?>> loaded = new LinkedHashMap<>();
@@ -2068,7 +2082,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             : dependencyViews.get(dependency.modelId());
                     loaded.put(dependency.modelId(), entity);
                 }
-                ModelActionContext context = ModelActionContext.create(
+                ModelCommitContext context = ModelCommitContext.create(
                         membership.getReadStateIndex(), resolution, loaded);
                 DeserializingMessage event = new DeserializingMessage(
                         message, EVENT, null, serializer);
@@ -2221,9 +2235,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return entity instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
     }
 
-    private static boolean sameEarlierAction(
+    private static boolean sameEarlierCommit(
             ModelEventMembership previous, ModelEventMembership current) {
-        return previous.getActionId().equals(current.getActionId())
+        return previous.getCommitId().equals(current.getCommitId())
                && previous.getSubstep() < current.getSubstep();
     }
 
@@ -2250,9 +2264,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             String modelId,
             Class<?> modelType,
             long readStateIndex,
-            String actionId,
+            String commitId,
             int substep,
-            long actionStateIndex) {
+            long commitStateIndex) {
     }
 
     private record ModelKey(String modelId, Class<?> modelType) {
@@ -2272,34 +2286,34 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private record ReplayAncestorKey(
             ModelTargetResolver.Resolution resolution,
             long relationshipBoundary,
-            String actionId,
+            String commitId,
             int substep) {
     }
 
     private static final class ModelEventStateBoundary {
-        private final String sourceActionId;
+        private final String sourceCommitId;
         private final int sourceSubstep;
         private Long stateIndex;
 
         private ModelEventStateBoundary(
-                String sourceActionId, int sourceSubstep) {
-            this.sourceActionId = sourceActionId;
+                String sourceCommitId, int sourceSubstep) {
+            this.sourceCommitId = sourceCommitId;
             this.sourceSubstep = sourceSubstep;
         }
 
         private synchronized ModelEventBatchLoader.Boundary request() {
             return stateIndex == null
-                    ? ModelEventBatchLoader.Boundary.action(
-                            sourceActionId, sourceSubstep)
+                    ? ModelEventBatchLoader.Boundary.commit(
+                            sourceCommitId, sourceSubstep)
                     : ModelEventBatchLoader.Boundary.at(stateIndex);
         }
 
         private synchronized void pin(long value) {
             if (stateIndex != null && stateIndex != value) {
                 throw new EventSourcingException(
-                        "Published model action %s substep %d resolved to both state %d and %d"
+                        "Published model commit %s substep %d resolved to both state %d and %d"
                                 .formatted(
-                                        sourceActionId, sourceSubstep,
+                                        sourceCommitId, sourceSubstep,
                                         stateIndex, value));
             }
             stateIndex = value;

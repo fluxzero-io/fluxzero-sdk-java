@@ -22,7 +22,7 @@ import lombok.Value;
 import java.util.List;
 
 /**
- * One bounded page of model-action updates returned by {@link TrackModelUpdates}.
+ * One bounded page of model-commit updates returned by {@link TrackModelUpdates}.
  */
 @Value
 public class TrackModelUpdatesResult extends AbstractRequestResult {
@@ -40,13 +40,13 @@ public class TrackModelUpdatesResult extends AbstractRequestResult {
     long currentStateIndex;
 
     /**
-     * Highest namespace state from which a newly loaded direct document can start tracking without skipping an action
+     * Highest namespace state from which a newly loaded direct document can start tracking without skipping an commit
      * whose document/snapshot materialization is still pending.
      */
     long materializedStateIndex;
 
     /**
-     * Committed action-substep updates in increasing state-index order.
+     * Committed commit-substep updates in increasing state-index order.
      */
     List<ModelUpdate> updates;
 

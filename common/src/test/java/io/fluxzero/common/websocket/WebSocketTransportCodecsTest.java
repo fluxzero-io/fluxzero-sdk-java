@@ -34,8 +34,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -43,11 +43,11 @@ import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
-import io.fluxzero.common.api.modeling.ModelActionConflict;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
@@ -264,8 +264,8 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void jsonAndCborRoundTripModelActionRequestAndResult() throws Exception {
-        ModelActionTarget storedTarget = ModelActionTarget.builder()
+    void jsonAndCborRoundTripModelCommitRequestAndResult() throws Exception {
+        ModelCommitTarget storedTarget = ModelCommitTarget.builder()
                 .modelId("order-1")
                 .modelType("com.example.Order")
                 .storeEvent(true)
@@ -294,43 +294,43 @@ class WebSocketTransportCodecsTest {
                                                .path("orders")
                                                .build()))
                 .build();
-        ModelActionTarget nonStoredDelete = ModelActionTarget.builder()
+        ModelCommitTarget nonStoredDelete = ModelCommitTarget.builder()
                 .modelId("reservation-1")
                 .updateState(true)
                 .delete(true)
                 .updateRelationships(true)
                 .relationships(List.of())
                 .build();
-        CommitModelAction request = new CommitModelAction(
-                "action-1", 91L, List.of("order-1", "inventory-1"),
+        CommitModels request = new CommitModels(
+                "commit-1", 91L, List.of("order-1", "inventory-1"),
                 List.of(
-                        ModelActionSubstep.builder()
+                        ModelCommitStep.builder()
                                 .event(serializedMessage())
                                 .publishEvent(true)
                                 .targets(List.of(storedTarget))
                                 .build(),
-                        ModelActionSubstep.builder()
+                        ModelCommitStep.builder()
                                 .targets(List.of(nonStoredDelete))
                                 .build()),
                 ModelConflictPolicy.RETRY, Guarantee.STORED);
-        CommitModelActionResult result = CommitModelActionResult.accepted(
-                request.getRequestId(), request.getActionId(),
+        CommitModelsResult result = CommitModelsResult.accepted(
+                request.getRequestId(), request.getCommitId(),
                 List.of(
-                        new ModelActionSubstepResult(
+                        new ModelCommitStepResult(
                                 101L, 501L,
-                                List.of(new ModelActionTargetResult(
+                                List.of(new ModelCommitTargetResult(
                                         "order-1", 7L, true))),
-                        new ModelActionSubstepResult(
+                        new ModelCommitStepResult(
                                 102L, null,
-                                List.of(new ModelActionTargetResult(
+                                List.of(new ModelCommitTargetResult(
                                         "reservation-1", 2L, false)))));
         result.setRequestReceivedTimestamp(123L);
 
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
-            CommitModelAction decodedRequest = assertInstanceOf(
-                    CommitModelAction.class, roundTrip(codec, request));
+            CommitModels decodedRequest = assertInstanceOf(
+                    CommitModels.class, roundTrip(codec, request));
             assertEquals(request.getRequestId(), decodedRequest.getRequestId());
-            assertEquals("action-1", decodedRequest.getActionId());
+            assertEquals("commit-1", decodedRequest.getCommitId());
             assertEquals(91L, decodedRequest.getReadStateIndex());
             assertEquals(
                     ModelConflictPolicy.RETRY,
@@ -369,10 +369,10 @@ class WebSocketTransportCodecsTest {
             assertEquals(1, decodedRequest.toMetric().getRelationCount());
             assertEquals(serializedMessage().getBytes(), decodedRequest.toMetric().getEventBytes());
 
-            CommitModelActionResult decodedResult = assertInstanceOf(
-                    CommitModelActionResult.class, roundTrip(codec, result));
+            CommitModelsResult decodedResult = assertInstanceOf(
+                    CommitModelsResult.class, roundTrip(codec, result));
             assertEquals(result.getRequestId(), decodedResult.getRequestId());
-            assertEquals("action-1", decodedResult.getActionId());
+            assertEquals("commit-1", decodedResult.getCommitId());
             assertEquals(123L, decodedResult.getRequestReceivedTimestamp());
             assertEquals(101L, decodedResult.getSubsteps().getFirst().getStateIndex());
             assertEquals(501L, decodedResult.getSubsteps().getFirst().getEventIndex());
@@ -390,7 +390,7 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void modelUpdateTrackingRoundTripsActionsAndPrivacySafeDeletions()
+    void modelUpdateTrackingRoundTripsCommitsAndPrivacySafeDeletions()
             throws Exception {
         TrackModelUpdates request =
                 new TrackModelUpdates(
@@ -401,11 +401,11 @@ class WebSocketTransportCodecsTest {
                         102L, 105L, 104L,
                         List.of(
                                 new ModelUpdate(
-                                        ModelUpdateKind.ACTION,
-                                        "action-1", 0,
+                                        ModelUpdateKind.COMMIT,
+                                        "commit-1", 0,
                                         101L, null,
                                         List.of(
-                                                new ModelActionTargetResult(
+                                                new ModelCommitTargetResult(
                                                         "order-1",
                                                         4L,
                                                         true))),
@@ -436,7 +436,7 @@ class WebSocketTransportCodecsTest {
                     8L * 1_024L * 1_024L,
                     decodedRequest.getMaxBytes());
             assertEquals(
-                    ModelUpdateKind.ACTION,
+                    ModelUpdateKind.COMMIT,
                     decodedResult.getUpdates()
                             .getFirst().getKind());
             assertEquals(
@@ -459,17 +459,17 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void jsonAndCborRoundTripModelActionConflict() throws Exception {
-        CommitModelActionResult result = CommitModelActionResult.conflict(
-                42L, "action-1",
+    void jsonAndCborRoundTripModelCommitConflict() throws Exception {
+        CommitModelsResult result = CommitModelsResult.conflict(
+                42L, "commit-1",
                 List.of(
-                        new ModelActionConflict("order-1", 101L, 90L),
-                        new ModelActionConflict("inventory-1", 102L, 103L)),
+                        new ModelCommitConflict("order-1", 101L, 90L),
+                        new ModelCommitConflict("inventory-1", 102L, 103L)),
                 true);
 
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
-            CommitModelActionResult decoded = assertInstanceOf(
-                    CommitModelActionResult.class, roundTrip(codec, result));
+            CommitModelsResult decoded = assertInstanceOf(
+                    CommitModelsResult.class, roundTrip(codec, result));
 
             assertFalse(decoded.isAccepted());
             assertTrue(decoded.isRetryAllowed());
@@ -480,32 +480,32 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void modelActionProtocolIgnoresFutureFields() throws Exception {
-        CommitModelAction request = new CommitModelAction(
-                "action-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+    void modelCommitProtocolIgnoresFutureFields() throws Exception {
+        CommitModels request = new CommitModels(
+                "commit-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
         var json = (com.fasterxml.jackson.databind.node.ObjectNode)
                 objectMapper.readTree(objectMapper.writeValueAsBytes(request));
         json.remove("conflictPolicy");
         json.put("futurePolicy", "future");
 
-        CommitModelAction decoded = assertInstanceOf(
-                CommitModelAction.class,
+        CommitModels decoded = assertInstanceOf(
+                CommitModels.class,
                 objectMapper.readValue(objectMapper.writeValueAsBytes(json), JsonType.class));
 
         assertEquals(request.getRequestId(), decoded.getRequestId());
-        assertEquals("action-1", decoded.getActionId());
+        assertEquals("commit-1", decoded.getCommitId());
         assertEquals(-1L, decoded.getReadStateIndex());
         assertNull(decoded.getConflictPolicy());
         assertEquals(ModelConflictPolicy.ACCEPT, decoded.toMetric().getConflictPolicy());
 
-        CommitModelActionResult result = CommitModelActionResult.accepted(
-                request.getRequestId(), request.getActionId(), List.of());
+        CommitModelsResult result = CommitModelsResult.accepted(
+                request.getRequestId(), request.getCommitId(), List.of());
         var resultJson = (com.fasterxml.jackson.databind.node.ObjectNode)
                 objectMapper.readTree(objectMapper.writeValueAsBytes(result));
         resultJson.remove("conflicts");
         resultJson.remove("retryAllowed");
-        CommitModelActionResult decodedResult = assertInstanceOf(
-                CommitModelActionResult.class,
+        CommitModelsResult decodedResult = assertInstanceOf(
+                CommitModelsResult.class,
                 objectMapper.readValue(
                         objectMapper.writeValueAsBytes(resultJson), JsonType.class));
         assertTrue(decodedResult.isAccepted());
@@ -513,13 +513,13 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void cborWritesModelActionEventBytesAsNativeBinary() throws Exception {
-        CommitModelAction request = new CommitModelAction(
-                "action-1", 1L, List.of("order-1"),
-                List.of(ModelActionSubstep.builder()
+    void cborWritesModelCommitEventBytesAsNativeBinary() throws Exception {
+        CommitModels request = new CommitModels(
+                "commit-1", 1L, List.of("order-1"),
+                List.of(ModelCommitStep.builder()
                                 .event(serializedMessage())
                                 .publishEvent(true)
-                                .targets(List.of(ModelActionTarget.builder()
+                                .targets(List.of(ModelCommitTarget.builder()
                                                          .modelId("order-1")
                                                          .storeEvent(true)
                                                          .updateState(true)
@@ -543,7 +543,7 @@ class WebSocketTransportCodecsTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 100),
                         new ModelEventStreamRequest("inventory-1", 4L, 0)),
-                null, "action-991", 3, 4_096L);
+                null, "commit-991", 3, 4_096L);
         GetModelEventsResult result = new GetModelEventsResult(
                 request.getRequestId(), 91L,
                 List.of(new ModelEventPayload(80L, serializedMessage())),
@@ -552,7 +552,7 @@ class WebSocketTransportCodecsTest {
                                 "order-1",
                                 new ModelHeadState("order-1", "example.Order", 7L, 80L, true, false),
                                 List.of(new ModelEventMembership(
-                                        7L, 80L, 70L, "action-1", 2))),
+                                        7L, 80L, 70L, "commit-1", 2))),
                         new ModelEventStream(
                                 "inventory-1",
                                 new ModelHeadState("inventory-1", "example.Inventory", 4L, 79L, false, true),
@@ -563,8 +563,8 @@ class WebSocketTransportCodecsTest {
                     GetModelEvents.class, roundTrip(codec, request));
             assertNull(decodedRequest.getMaxStateIndex());
             assertEquals(
-                    "action-991",
-                    decodedRequest.getBoundaryActionId());
+                    "commit-991",
+                    decodedRequest.getBoundaryCommitId());
             assertEquals(
                     3, decodedRequest.getBoundarySubstep());
             assertEquals(4_096L, decodedRequest.getMaxBytes());
@@ -579,8 +579,8 @@ class WebSocketTransportCodecsTest {
                     serializedMessage(), decodedResult.getPayloads().getFirst().getEvent());
             assertEquals(2, decodedResult.getStreams().size());
             assertEquals(
-                    "action-1",
-                    decodedResult.getStreams().getFirst().getMemberships().getFirst().getActionId());
+                    "commit-1",
+                    decodedResult.getStreams().getFirst().getMemberships().getFirst().getCommitId());
             assertTrue(decodedResult.getStreams().get(1).getHead().isDeleted());
             assertEquals(1, decodedResult.toMetric().getPayloadCount());
             assertEquals(1, decodedResult.toMetric().getMembershipCount());
@@ -591,7 +591,7 @@ class WebSocketTransportCodecsTest {
     @Test
     void modelGraphRoundTripsTemporalEdgesAndGroupedStreams() throws Exception {
         GetModelGraph request = new GetModelGraph(
-                "order-1", null, "action-991", 3,
+                "order-1", null, "commit-991", 3,
                 12, 1_000,
                 128, 8_388_608L, true);
         GetModelGraphResult result = new GetModelGraphResult(
@@ -606,7 +606,7 @@ class WebSocketTransportCodecsTest {
                                 "order-1", "example.Order",
                                 7L, 80L, true, false),
                         List.of(new ModelEventMembership(
-                                7L, 80L, 70L, "action-1", 2)))));
+                                7L, 80L, 70L, "commit-1", 2)))));
 
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
             GetModelGraph decodedRequest = assertInstanceOf(
@@ -614,8 +614,8 @@ class WebSocketTransportCodecsTest {
             assertEquals("order-1", decodedRequest.getRootId());
             assertNull(decodedRequest.getMaxStateIndex());
             assertEquals(
-                    "action-991",
-                    decodedRequest.getBoundaryActionId());
+                    "commit-991",
+                    decodedRequest.getBoundaryCommitId());
             assertEquals(
                     3, decodedRequest.getBoundarySubstep());
             assertTrue(decodedRequest.isComposableOnly());
@@ -634,11 +634,11 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void modelAncestorsRoundTripMultipleRootsAndActionBoundary()
+    void modelAncestorsRoundTripMultipleRootsAndCommitBoundary()
             throws Exception {
         GetModelAncestors request = new GetModelAncestors(
                 List.of("line-1", "line-2"),
-                null, "action-991", 3,
+                null, "commit-991", 3,
                 12, 1_000, 0, 0L);
 
         for (WebSocketTransportCodec codec :
@@ -651,8 +651,8 @@ class WebSocketTransportCodecsTest {
                     List.of("line-1", "line-2"),
                     decoded.getModelIds());
             assertEquals(
-                    "action-991",
-                    decoded.getBoundaryActionId());
+                    "commit-991",
+                    decoded.getBoundaryCommitId());
             assertEquals(3, decoded.getBoundarySubstep());
             assertEquals(12, decoded.getMaxDepth());
             assertEquals(1_000, decoded.getMaxModels());

@@ -115,7 +115,7 @@ data class RenameProject(
 Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
 direct target and related ancestor resolved for the action. They must not perform nested model writes.
 
-## Multi-model actions
+## Multi-model commits
 
 ```kotlin
 data class ReserveStock(
@@ -140,7 +140,7 @@ data class ReserveStock(
 ```
 
 The SDK loads all targets at one state boundary and commits their events, direct documents, snapshots and relationship
-deltas as one model action. The event is globally published once.
+deltas as one model commit. The event is globally published once.
 
 Typed IDs resolve automatically. If two payload properties refer to the same model type, qualify the model parameter:
 
@@ -213,7 +213,7 @@ val graph: ModelGraph<Project> =
     Fluxzero.modelRepository().loadGraph(projectId)
 ```
 
-Current loads use the model cache and its long-polling update tracker. Event handlers use the exact action boundary:
+Current loads use the model cache and its long-polling update tracker. Event handlers use the exact commit boundary:
 
 ```kotlin
 @HandleEvent
@@ -226,7 +226,7 @@ fun on(
 }
 ```
 
-Use `Entity<T>` to observe an absent model after logical deletion. Ordinary events without model-action metadata do not
+Use `Entity<T>` to observe an absent model after logical deletion. Ordinary events without model-commit metadata do not
 receive model injection.
 
 ## Search and graph composition

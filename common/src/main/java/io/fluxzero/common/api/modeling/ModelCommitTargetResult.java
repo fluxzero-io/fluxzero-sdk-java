@@ -19,23 +19,23 @@ package io.fluxzero.common.api.modeling;
 import lombok.Value;
 
 /**
- * Current runtime positions for one model identity involved in a rejected model action.
+ * Resulting stream/head metadata for one committed target model.
  */
 @Value
-public class ModelActionConflict {
+public class ModelCommitTargetResult {
 
     /**
-     * Exact persisted model identity.
+     * Exact persisted model ID.
      */
     String modelId;
 
     /**
-     * Current state index of the model head, or {@code -1} when the model has no head.
+     * Resulting sequence number of the model stream.
      */
-    long currentStateIndex;
+    long sequenceNumber;
 
     /**
-     * Most recent relationship transition touching this identity as child or parent, or {@code -1} when none exists.
+     * Whether every current-state transition through this result remains reconstructible from stored model events.
      */
-    long currentRelationStateIndex;
+    boolean historyComplete;
 }

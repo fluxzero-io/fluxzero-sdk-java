@@ -16,7 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
@@ -27,6 +27,7 @@ import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -39,12 +40,85 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
+
+    @Test
+    void bootstrapDoesNotBlockTheLoadingCallback() throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        CompletableFuture<TrackModelUpdatesResult>
+                bootstrap = new CompletableFuture<>();
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls =
+                new ConcurrentLinkedQueue<>();
+        when(eventStore.trackModelUpdates(any()))
+                .thenAnswer(invocation -> {
+                    TrackModelUpdates request =
+                            invocation.getArgument(0);
+                    if (request.getMaxWaitMillis()
+                        == 0L) {
+                        return bootstrap;
+                    }
+                    CompletableFuture<TrackModelUpdatesResult>
+                            poll =
+                            new CompletableFuture<>();
+                    polls.add(poll);
+                    return poll;
+                });
+        Cache cache = new DefaultCache();
+        Entity<?> loaded =
+                entity(SampleModel.class);
+        cache.put("sample-1", loaded);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            assertTimeoutPreemptively(
+                    Duration.ofSeconds(1L),
+                    () -> tracker.loaded(
+                            "sample-1",
+                            SampleModel.class,
+                            10L));
+            assertNull(
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+
+            bootstrap.complete(
+                    new TrackModelUpdatesResult(
+                            1L, -1L,
+                            10L, 10L,
+                            List.of()));
+            awaitNext(polls);
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (tracker.current(
+                    "sample-1",
+                    SampleModel.class) == null
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
+            assertSame(
+                    loaded,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+        } finally {
+            cache.close();
+        }
+    }
 
     @Test
     void bootstrapSkipsHistoryButKeepsPendingDocumentsUncacheable()
@@ -165,23 +239,25 @@ class ModelCacheTrackerTest {
                     "sample-1",
                     SampleModel.class,
                     10L);
+            CompletableFuture<TrackModelUpdatesResult>
+                    firstPoll =
+                    awaitNext(polls);
             assertSame(
                     before,
                     tracker.current(
                             "sample-1",
                             SampleModel.class));
 
-            completeNext(
-                    polls,
+            firstPoll.complete(
                     new TrackModelUpdatesResult(
                             1L, 11L, 11L, 11L,
                             List.of(
                                     new ModelUpdate(
-                                            ModelUpdateKind.ACTION,
-                                            "action-1", 0,
+                                            ModelUpdateKind.COMMIT,
+                                            "commit-1", 0,
                                             11L, null,
                                             List.of(
-                                                    new ModelActionTargetResult(
+                                                    new ModelCommitTargetResult(
                                                             "sample-1",
                                                             1L,
                                                             true))))));
@@ -258,11 +334,11 @@ class ModelCacheTrackerTest {
                             1L, 11L, 11L, 10L,
                             List.of(
                                     new ModelUpdate(
-                                            ModelUpdateKind.ACTION,
-                                            "action-1", 0,
+                                            ModelUpdateKind.COMMIT,
+                                            "commit-1", 0,
                                             11L, null,
                                             List.of(
-                                                    new ModelActionTargetResult(
+                                                    new ModelCommitTargetResult(
                                                             "sample-1",
                                                             1L,
                                                             true))))));
@@ -331,11 +407,11 @@ class ModelCacheTrackerTest {
                             1L, 11L, 11L, 11L,
                             List.of(
                                     new ModelUpdate(
-                                            ModelUpdateKind.ACTION,
-                                            "unrelated-action", 0,
+                                            ModelUpdateKind.COMMIT,
+                                            "unrelated-commit", 0,
                                             11L, null,
                                             List.of(
-                                                    new ModelActionTargetResult(
+                                                    new ModelCommitTargetResult(
                                                             "another-model",
                                                             0L,
                                                             true))))));
@@ -394,11 +470,11 @@ class ModelCacheTrackerTest {
                             1L, 11L, 11L, 11L,
                             List.of(
                                     new ModelUpdate(
-                                            ModelUpdateKind.ACTION,
-                                            "local-action", 0,
+                                            ModelUpdateKind.COMMIT,
+                                            "local-commit", 0,
                                             11L, null,
                                             List.of(
-                                                    new ModelActionTargetResult(
+                                                    new ModelCommitTargetResult(
                                                             "sample-1",
                                                             1L,
                                                             true))))));
@@ -458,11 +534,11 @@ class ModelCacheTrackerTest {
                             1L, 11L, 11L, 11L,
                             List.of(
                                     new ModelUpdate(
-                                            ModelUpdateKind.ACTION,
-                                            "remote-action", 0,
+                                            ModelUpdateKind.COMMIT,
+                                            "remote-commit", 0,
                                             11L, null,
                                             List.of(
-                                                    new ModelActionTargetResult(
+                                                    new ModelCommitTargetResult(
                                                             "sample-1",
                                                             1L,
                                                             true))))));

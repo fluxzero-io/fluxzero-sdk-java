@@ -14,7 +14,7 @@ Model persistence remains one namespace-scoped service, but its durable change f
 `model_update` log. Cache tracking, direct-document recovery, hard-erasure tracking and graph projection consume that
 same committed fact. The previous receipt-target, graph-signal and graph-task stores are removed.
 
-The model service assigns a monotone, time-derived `stateIndex` with `IndexUtils`. One action receives a contiguous
+The model service assigns a monotone, time-derived `stateIndex` with `IndexUtils`. One commit receives a contiguous
 state range, one state per substep. `sequenceNumber` remains local to one model stream; `SerializedMessage#index`
 remains the global event-log index. These values are deliberately not conflated.
 
@@ -32,7 +32,7 @@ The design reuses Fluxzero's log principles:
 - local commits wake waiters without periodic database polling;
 - a durable consumer position, not an in-memory notification, is authoritative after restart.
 
-It does not instantiate a generic `JdbcMessageStore`. A model update is one action containing several substeps and
+It does not instantiate a generic `JdbcMessageStore`. A model update is one commit containing several substeps and
 target memberships, not another globally published message. It must be inserted on the caller's existing JDBC
 connection in the exact transaction that mutates heads, streams and relationships. The generic store would add message
 staging, partition metadata, message serialization and its own transaction/commit lifecycle. It would therefore add
@@ -46,7 +46,7 @@ second queue platform.
 For a JDBC-backed event log in the model database, the following become visible in one transaction:
 
 1. the locked namespace `model_state` and assigned state range;
-2. the durable idempotency/action boundary;
+2. the durable idempotency/commit boundary;
 3. model heads, stream memberships and shared or inline event payloads;
 4. temporal relation closes and opens;
 5. one `model_update` row;
@@ -56,13 +56,13 @@ Any failure rolls the complete package back. An external event-log implementatio
 publish-first recovery boundary; it cannot be made transactionally atomic without owning that external transaction.
 
 Search may use another database owned by the same runtime. No XA claim is made. The core transaction temporarily keeps
-the exact direct document/snapshot projection in `model_action`. The runtime writes it idempotently to search behind a
+the exact direct document/snapshot projection in `model_commit`. The runtime writes it idempotently to search behind a
 monotone fence. Command completion waits for direct materialization, so direct model search is visible immediately.
 After success, the projection blob is removed. A restart scans the durable pending marker and remaining blobs and
 continues automatically; client redelivery is not required.
 
 Graph projection is asynchronous by default. `AWAIT` delays result completion until each affected projection cursor has
-passed the action boundary. Replay of `model_update` is the durable work queue. There is no graph signal table, root
+passed the commit boundary. Replay of `model_update` is the durable work queue. There is no graph signal table, root
 task table or periodic remote-runtime observer.
 
 ## Durable data inventory
@@ -73,8 +73,8 @@ hash-range children. The current update hour and current shared-payload day each
 | Data | Cardinality and retention | Access and justification | Physical relations initially |
 | --- | --- | --- | ---: |
 | `model_state` | one row per namespace, durable | state head, pending floors, erasure key and capability flags | 1 |
-| `model_action` | one row per action, durable | idempotency and exact action/substep boundary; transient projection cleared after materialization; sparse raw target IDs only while an unstreamed target can still require hard-erasure repair | 9 |
-| `model_update` | one row per action, one hour by default | cache feed and recoverable projection input; time partitions dropped as complete units | 2 |
+| `model_commit` | one row per commit, durable | idempotency and exact commit/substep boundary; transient projection cleared after materialization; sparse raw target IDs only while an unstreamed target can still require hard-erasure repair | 9 |
+| `model_update` | one row per commit, one hour by default | cache feed and recoverable projection input; time partitions dropped as complete units | 2 |
 | `model_type` | one row per serialized model type, durable | untyped graph/model loading and serializer aliases | 1 |
 | `model_document_collection` | one row per direct model collection, durable | batched direct document lookup | 1 |
 | `model_head` | one row per model, durable | current stream/document/type head | 9 |
@@ -103,13 +103,13 @@ of these three model relations.
 Here, “physical relations” follows the backlog's table budget and means table parents plus table partitions, not every
 PostgreSQL catalog relation. The measured 48-table core additionally has three identity sequences and 89 physical index
 objects (27 partitioned roots or standalone indexes plus their inherited children). Those indexes implement primary
-keys and the named action-boundary, sparse erasure, payload-ownership, parent-traversal, lineage and pending-work access
+keys and the named commit-boundary, sparse erasure, payload-ownership, parent-traversal, lineage and pending-work access
 paths; they are recorded by the executable schema inventory but are not disguised as extra tables.
 
 The following unreleased preview objects are deterministically removed:
 
-- `model_action_receipt` and `model_action_receipt_target`;
-- `model_action_target`, after any pending unstreamed target references have been migrated into the owning action row;
+- `model_commit_receipt` and `model_commit_receipt_target`;
+- `model_commit_target`, after any pending unstreamed target references have been migrated into the owning commit row;
 - `model_update_partition` and the JSON target GIN index;
 - `model_graph_projection_signal` and `model_graph_projection_task`;
 - duplicate `model_relation_by_parent`;
@@ -133,11 +133,11 @@ Small single-target and small multi-target payloads remain inline. A larger mult
 light stream memberships. Hard deletion removes memberships first and removes the shared payload only when no surviving
 membership references it. The update log records explicit target IDs only for targets without a stream membership;
 stream targets are already located through `model_stream`. This keeps common multi-target rows small without weakening
-hard erasure. The same exceptional targets are retained as a sparse JSON array on their existing action row, protected
-by a partial GIN index that contains no entries for ordinary streamed actions. This permits a later hard delete to find
+hard erasure. The same exceptional targets are retained as a sparse JSON array on their existing commit row, protected
+by a partial GIN index that contains no entries for ordinary streamed commits. This permits a later hard delete to find
 and scrub pending split-store materialization even after the one-hour update feed has expired, without restoring a
 row-per-target table or scanning an hour of updates. The delete query repeats the partial-index predicate; its
-regression test requires bitmap index scans over the eight action partitions and rejects sequential scans.
+regression test requires bitmap index scans over the eight commit partitions and rejects sequential scans.
 
 ## Workers, waiters and cursors
 
@@ -165,7 +165,7 @@ from advertising unsafe visibility.
 
 - `model_update`: one hour by default (`fluxzero.modelUpdateRetention`, ISO-8601 duration). A graph cursor prevents
   deletion of a partition it has not consumed.
-- `model_action`: compact action identity and exact substep result are retained for idempotency and event-action
+- `model_commit`: compact commit identity and exact substep result are retained for idempotency and event-commit
   boundaries. Direct document/snapshot projection bytes are cleared immediately after successful materialization.
 - completed deletion targets: removed immediately; the compact deletion result remains.
 - temporal streams, shared payloads, erasure fences and protected lineage: governed by explicit model lifecycle, not
@@ -180,12 +180,12 @@ the same installed runtime jar twice. PostgreSQL, JVM, payload, warm-up and conc
 
 | Local PostgreSQL 18 profile | Before `7fc0fa3f` | Phase 21 | Result |
 | --- | ---: | ---: | ---: |
-| 1 target, 1 KiB, actions/s | 6,915 | 10,566 | +52.8% |
+| 1 target, 1 KiB, commits/s | 6,915 | 10,566 | +52.8% |
 | 1 target current loads/s | 23,511 | 26,724 | +13.7% |
-| 2 targets, 1 KiB, actions/s | 5,186 | 7,868 | +51.7% |
-| 10 targets, shared 16 KiB, median actions/s | 998 | 1,139 | +14.1% |
+| 2 targets, 1 KiB, commits/s | 5,186 | 7,868 | +51.7% |
+| 10 targets, shared 16 KiB, median commits/s | 998 | 1,139 | +14.1% |
 | 10 targets median p50 / p95 | 115.9 / 197.1 ms | 105.0 / 174.3 ms | lower |
-| 100 targets, shared 16 KiB, actions/s | 181 | 290 | +60.2% |
+| 100 targets, shared 16 KiB, commits/s | 181 | 290 | +60.2% |
 | direct searchable commits/s | 3,157 | 3,722 | +17.9% |
 | STORE_ONLY commits/s | 6,675 | 9,948 | +49.0% |
 | relation commits/s | 2,432 | 3,201 | +31.6% |
@@ -207,9 +207,9 @@ that the redesign removes singleton polling, N+1 relationship validation and red
 bottleneck elsewhere.
 
 After adding the sparse erasure field and index, the one-target hot-write confirmation still measured a median 7,716
-actions/s versus 5,346 before Phase 21 (+44.3%). Direct searchable commits measured 5,046 versus 3,102 actions/s
-(+62.7%). Ordinary actions put no entry in the partial GIN index; its eight initially empty child indexes add fixed
-catalog/storage overhead but no per-action index write.
+commits/s versus 5,346 before Phase 21 (+44.3%). Direct searchable commits measured 5,046 versus 3,102 commits/s
+(+62.7%). Ordinary commits put no entry in the partial GIN index; its eight initially empty child indexes add fixed
+catalog/storage overhead but no per-commit index write.
 
 ## Code budget
 
@@ -220,14 +220,14 @@ Against `origin/main`, runtime Java is:
 
 Within Phase 21 itself, production changed by +7,304/−13,534 tracked lines plus the 390-line update log: net **−5,840**.
 Tests and benchmarks changed by +656/−1,778 lines at the final count. The largest retained classes are
-`JdbcModelActionStore` (5,538 lines), `JdbcSearchStore` (2,646), `JdbcModelGraphProjectionStore` (876) and
-`JdbcModelUpdateLog` (390). The action store remains large because it owns one transaction spanning idempotency,
+`JdbcModelCommitStore` (5,538 lines), `JdbcSearchStore` (2,646), `JdbcModelGraphProjectionStore` (876) and
+`JdbcModelUpdateLog` (390). The commit store remains large because it owns one transaction spanning idempotency,
 streams, payload sharing, temporal relations and lifecycle; splitting those statements behind independent state
 machines would reintroduce the architecture this phase removed.
 
 ## Rejected alternatives
 
-- Keep receipt, target, signal and root-task tables: rejected because the same committed action was being copied into
+- Keep receipt, target, signal and root-task tables: rejected because the same committed commit was being copied into
   several state machines with separate recovery and retention.
 - Duplicate temporal edges by child and parent: rejected after indexed single-storage traversal met the load budget.
 - Precreate 32 children for every high-cardinality table: rejected; eight physical partitions retain pruning and
@@ -243,5 +243,5 @@ machines would reintroduce the architecture this phase removed.
   no permanent database poll has been added in anticipation.
 - The one-hour update retention is a live cache-coherence contract, not historical model retention. A consumer behind
   that boundary resets rather than silently skipping updates.
-- `model_action` idempotency rows currently have no archival policy. Removing them requires a replacement for exact
-  duplicate results and action-boundary lookup and is not hidden inside this release.
+- `model_commit` idempotency rows currently have no archival policy. Removing them requires a replacement for exact
+  duplicate results and commit-boundary lookup and is not hidden inside this release.

@@ -94,7 +94,7 @@ fun split(event: PaymentSplitRequested): Collection<StripeTransaction> {
 @Stateful
 @Consumer(name = "stripe")
 data class StripeTransaction(
-    @Association val transactionId: TransactionId, 
+    @Association val transactionId: TransactionId,
     @Association val stripeId: String, 
     val retries: Int = 0
 ) {

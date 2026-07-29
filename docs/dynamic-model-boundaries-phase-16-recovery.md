@@ -9,10 +9,10 @@ namespace-local long poll: commits, materialization completion and deletion wake
 directly. The discarded 100-ms database generation observer paid ten idle queries per second per active namespace for
 a multi-active topology that Fluxzero does not support.
 
-A runtime may still own separate primary and search databases. That is one logical runtime action, not one XA
+A runtime may still own separate primary and search databases. That is one logical runtime commit, not one XA
 transaction:
 
-1. the primary transaction commits streams, action metadata, relationships and the exact serialized
+1. the primary transaction commits streams, commit metadata, relationships and the exact serialized
    document/snapshot projection;
 2. the runtime applies that projection to its search store through monotone state-index fences;
 3. success is returned only after the search write completes;
@@ -20,7 +20,7 @@ transaction:
 
 Existing model namespaces activate their operational store asynchronously when their event-sourcing websocket endpoint
 is recreated. That store scans only IDs and byte sizes through the partial pending-materialization index, then loads at
-most 128 actions and 8 MiB of retained projection bytes per batch; one oversized action is always admitted for
+most 128 commits and 8 MiB of retained projection bytes per batch; one oversized commit is always admitted for
 progress. It applies exact retained bytes and retries temporary failures from 250 ms up to 30 seconds. An idle
 namespace with no pending work is never polled. Aggregate-only namespaces retain lazy initialization and do not acquire
 model/search schema work.
@@ -29,14 +29,14 @@ model/search schema work.
 
 No model-table TTL is silently enabled:
 
-- compact action results remain indefinitely because exact handler loads, the update cursor and idempotency require
+- compact commit results remain indefinitely because exact handler loads, the update cursor and idempotency require
   them;
 - pending document/snapshot bytes remain until success and are then cleared immediately;
 - completed deletion-target worksets are removed;
 - completed deletion identity and erasure fences remain for safe retries and model-ID reuse rejection;
 - protected lineage remains while detached descendants must still be lifecycle-discoverable.
 
-Action-result archival and fence-retention changes need an explicit replacement correctness contract. They are capacity
+Commit-result archival and fence-retention changes need an explicit replacement correctness contract. They are capacity
 and production-soak gates, not background behavior already present in this branch.
 
 ## Erasure keys
@@ -61,7 +61,7 @@ projection age, graph backlog, deletion failure, write latency and WAL pressure.
 
 ## Verification
 
-The focused JDBC model-action suite covers automatic recovery after restart, reuse of the original committed document,
+The focused JDBC model-commit suite covers automatic recovery after restart, reuse of the original committed document,
 temporary search failure followed by autonomous retry, direct materialization fencing, local long-poll wake-up,
 duplicate idempotency, graph projection and hard-deletion recovery.
 
@@ -73,9 +73,9 @@ The final adversarial review checked concurrent live/recovery materialization, d
 ordering, graph readiness, bounded heap exposure, idle behavior, namespace failover activation and shutdown:
 
 - equal or older recovery writes cannot cross a newer document or delete fence;
-- clearing an already-cleared action is idempotent and advances the materialized cursor from durable pending state;
+- clearing an already-cleared commit is idempotent and advances the materialized cursor from durable pending state;
 - graph projection starts only after the direct projection bytes have been cleared;
-- the first oversized action is admitted for progress, while ordinary batches remain bounded to 128 actions and
+- the first oversized commit is admitted for progress, while ordinary batches remain bounded to 128 commits and
   8 MiB of retained serialized input;
 - aggregate-only namespaces perform only the existing-table probe and retain lazy model/search initialization;
 - a recovery worker blocks on an interruptible search future and cannot keep shutdown hostage.
@@ -83,6 +83,6 @@ ordering, graph readiness, bounded heap exposure, idle behavior, namespace failo
 No wire or stored-format migration was introduced. The existing `update_generation` column is retained for rolling
 schema compatibility even though the unsupported periodic observer no longer consumes it.
 
-Remaining gates are deliberately operational rather than hidden background behavior: action-result archival needs a
+Remaining gates are deliberately operational rather than hidden background behavior: commit-result archival needs a
 replacement correctness contract; multi-active runtimes need request/result-log notification; deployments still own
 alert thresholds, production-duration soak and absolute 100-GB/min hardware qualification.

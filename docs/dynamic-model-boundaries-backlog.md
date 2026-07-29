@@ -10,7 +10,7 @@ Tickable implementation backlog for the coordinated SDK and runtime refactor.
 
 ## Outcome
 
-Replace the fixed aggregate consistency boundary for new models with an action-scoped boundary. Independently stored
+Replace the fixed aggregate consistency boundary for new models with an commit-scoped boundary. Independently stored
 models can be loaded, asserted, applied, moved, linked, unlinked, searched, cached, snapshotted, reconstructed, and
 deleted without loading their parent, siblings, children, or an artificial aggregate root.
 
@@ -51,13 +51,13 @@ phase, not the central abstraction.
 - A model parameter without a matching direct ID is a read-only ancestor dependency. Parameter-level
   `@Association("qualifier")` still selects a same-named payload property when present; otherwise it selects an
   ancestor edge with the same explicit `@ParentId(path = "qualifier")`. No extra relationship role is persisted.
-- `@AssertLegal`, `@InterceptApply`, and `@Apply` may inject every action-scoped model as either its value or
+- `@AssertLegal`, `@InterceptApply`, and `@Apply` may inject every commit-scoped model as either its value or
   `Entity<T>`.
 - Assertions and applies may read multiple loaded models.
 - Applies produced by one domain event all observe the same substep begin-state. Their results are not implicitly
   ordered.
 - `@InterceptApply` expansions are ordered substeps. Later substeps observe committed-in-memory results from earlier
-  substeps, while the complete handler action still commits or rolls back as one unit.
+  substeps, while the complete handler commit still commits or rolls back as one unit.
 - Only a model returned by an `@Apply` is a target of that event in a model stream.
 - A non-null return upserts the target model and stores the event according to its publication strategy.
 - A `null` return logically deletes the target model and still stores/publishes that original event according to its
@@ -65,7 +65,7 @@ phase, not the central abstraction.
 - `void` applies are rejected for `@Model`. Legacy mutable `@Aggregate` behavior is unchanged.
 - One original domain event is published at most once in the global event log, even when it is stored in multiple model
   streams.
-- One model-action request carries every precomputed consequence of the action: original events, target memberships,
+- One model-commit request carries every precomputed consequence of the commit: original events, target memberships,
   desired relationships, optional direct-document mutations, and optional snapshots. The runtime owns their ordering
   and completion; the SDK does not independently race direct document writes after an accepted commit.
 - `ACCEPT` means that a stale business event is not rejected. It never means that stale derived documents,
@@ -74,7 +74,7 @@ phase, not the central abstraction.
   Assertions, command handling, and `@InterceptApply` expansion are not rerun.
 - Conflict policy supports application, model, and apply scopes. `DEFAULT` inherits, `ACCEPT` retains the stale event,
   `FAIL` rolls back without automatic retry, and `RETRY` rolls back and permits a bounded complete reevaluation even
-  when relationships changed. Resolve each participant's override first and then combine one atomic action using
+  when relationships changed. Resolve each participant's override first and then combine one atomic commit using
   `FAIL > RETRY > ACCEPT`; one participant can never silently weaken another participant's stricter policy.
 - Automatic command-to-model handling is enabled by default but can be disabled application-wide, per `@Model`, or per
   `@Apply`. This controls only whether the automatic command registry claims a message; explicit
@@ -84,7 +84,7 @@ phase, not the central abstraction.
 - `@Model.cachingDepth` defaults to `1`, retaining the latest and one previous revision so event handlers can compare
   changes through `Entity.previous()`. `0` remains an explicit latest-only choice and `-1` remains explicit unbounded
   history.
-- No special websocket capability handshake is added. An old runtime rejects the new model-action request through the
+- No special websocket capability handshake is added. An old runtime rejects the new model-commit request through the
   existing unsupported-request behavior.
 
 ## Vocabulary and ordering
@@ -99,16 +99,16 @@ These terms must remain distinct in APIs, documentation, and tests.
 - **stateIndex**: a new, namespace-wide, time-derived monotone position assigned to every model state transition,
   including `STORE_ONLY`, `PUBLISH_ONLY`, and `EventPublication.NEVER` transitions that have no event-log position. It
   uses the same millisecond-plus-offset encoding as `IndexUtils`, but remains a separate namespace from `eventIndex`.
-- **actionId**: durable idempotency key grouping all state transitions in one handler action.
-- **readStateIndex**: the single state boundary pinned when an action begins.
+- **commitId**: durable idempotency key grouping all state transitions in one handler commit.
+- **readStateIndex**: the single state boundary pinned when an commit begins.
 
-No separate per-model version vector is the primary consistency mechanism. The action contains the IDs it read and one
+No separate per-model version vector is the primary consistency mechanism. The commit contains the IDs it read and one
 `readStateIndex`. The runtime can detect a stale read by checking whether any listed model head advanced beyond that
 boundary. A model-head record stores only current coordination metadata such as `lastStateIndex`; it is not document
 version history.
 
-An intercepted action may yield several original events. Each event/substep receives its own ordered `stateIndex`; all
-share the same `actionId`. If an event is published, its independently assigned `eventIndex` is recorded alongside the
+An intercepted commit may yield several original events. Each event/substep receives its own ordered `stateIndex`; all
+share the same `commitId`. If an event is published, its independently assigned `eventIndex` is recorded alongside the
 state transition. Every target stream entry for that original event shares those identities. Both index kinds can be
 mapped to an approximate millisecond timestamp, but their numeric values must never be compared as one total order.
 
@@ -119,14 +119,14 @@ same logical state that its original substep observed, never from its current he
 
 The intended mechanism is:
 
-1. Pin one persisted `readStateIndex = S` when the action starts.
+1. Pin one persisted `readStateIndex = S` when the commit starts.
 2. Evaluate ordered interceptor substeps against state as-of `S`, overlaid with successful earlier substeps from the
-   same action.
-3. Store `S`, `actionId`, and the ordered substep identity with every target stream entry.
-4. During reconstruction, load injected dependencies as-of `S` and overlay earlier substeps of the same action. Do not
+   same commit.
+3. Store `S`, `commitId`, and the ordered substep identity with every target stream entry.
+4. During reconstruction, load injected dependencies as-of `S` and overlay earlier substeps of the same commit. Do not
    substitute `stateIndex - 1`: with the default stale-read acceptance policy that could include unrelated changes
-   committed after `S` which the original action never observed.
-5. Batch and cache both base dependency loads and action-prefix overlays in the reconstruction context.
+   committed after `S` which the original commit never observed.
+5. Batch and cache both base dependency loads and commit-prefix overlays in the reconstruction context.
 6. For `eventSourced = false`, continue to use `DocumentStore` for normal current loads, but use its stored model events
    for an exceptional historical dependency load.
 7. Do not store per-event dependency version vectors or target-state outcomes on the normal path.
@@ -146,19 +146,19 @@ foundational storage contract.
 The first implementation deliberately does not solve cross-database atomicity or horizontal runtime coordination.
 Future request/result-log based horizontal scaling is out of scope.
 
-- `CommitModelAction` is one runtime request carrying `actionId`, `readStateIndex`, read IDs, original events, target
+- `CommitModels` is one runtime request carrying `commitId`, `readStateIndex`, read IDs, original events, target
   model IDs, desired relationships, optional direct current-document mutations, and optional snapshot candidates.
 - The JDBC runtime fast path stores model-stream entries, model heads, state indices, event-log publications, and
   relationship intervals in one transaction where those facilities share the same database.
 - In-memory stores provide the same observable all-or-nothing contract.
 - The protocol and storage interfaces do not assume that search shares that transaction. The first JDBC implementation
-  writes the exact direct-document/snapshot materialization intent in the core action transaction and completes it
+  writes the exact direct-document/snapshot materialization intent in the core commit transaction and completes it
   through a runtime-owned outbox. Direct current documents use monotone fences and immutable snapshots are idempotent;
   this remains correct for co-located and split stores without claiming XA. Folding co-located search into the core
   transaction remains a later optimization, not a different protocol.
-- Direct model search indexing/deletion is completed by the runtime before model-action success, exactly as it is for
+- Direct model search indexing/deletion is completed by the runtime before model-commit success, exactly as it is for
   current aggregates. A split-store failure may still occur after authoritative event/model storage has succeeded, but
-  a retry is resolved from the retained action package and must never use a fresh SDK reevaluation.
+  a retry is resolved from the retained commit package and must never use a fresh SDK reevaluation.
 - Current graph search may join current direct documents through current relationships without first materializing a
   composite document. Co-located JDBC stores should push filtering, traversal, sorting, and pagination into one
   relational query plan; split stores may use a bounded staged plan.
@@ -276,8 +276,8 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Prototype allocation of a monotone namespace-wide `stateIndex` in a disposable JDBC store and specify equivalent
   in-memory coordinator semantics without retaining production spike code.
 - [x] Prove one published event can be represented once globally with one membership per targeted model.
-- [x] Prove one action can allocate an ordered range for interceptor substeps.
-- [x] Prove an action-pinned `readStateIndex` can detect relevant intervening model writes using only read IDs plus the
+- [x] Prove one commit can allocate an ordered range for interceptor substeps.
+- [x] Prove an commit-pinned `readStateIndex` can detect relevant intervening model writes using only read IDs plus the
   shared boundary.
 - [x] Prove model reconstruction can load an event-sourced dependency as-of a substep begin boundary.
 - [x] Prove a normally document-loaded dependency can use the same stored history without adding document
@@ -296,7 +296,7 @@ Storage decisions, measurements, rejected alternatives, and production gates are
   remain required when the integrated model path exists.
 - [x] Add load benchmarks for complete streams, batched model IDs, and as-of dependency reconstruction. Snapshot-tail
   and controlled OS-cold-cache measurement remain Phase 5/9 integrated gates.
-- [x] Exercise hot, uniformly distributed, and one-million-ID short streams with 1, 2, 10, and 100 targets per action.
+- [x] Exercise hot, uniformly distributed, and one-million-ID short streams with 1, 2, 10, and 100 targets per commit.
   Zipf/customer distributions remain in scale certification.
 - [x] Exercise 64-byte, 1 KiB, and 16 KiB payloads with random and partially compressible content. Production extreme
   payloads remain in scale certification.
@@ -313,7 +313,7 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Compare raw, individual/opportunistic, and shared-block compression for short model streams; include the
   current 128-entry aggregate chunk behavior as a control.
 - [x] Prototype a first-class model-head table for batched sequence reservation and current `lastStateIndex` reads.
-- [x] Prove one action uses set-based/batched statements and bounded round trips rather than one query, write, or
+- [x] Prove one commit uses set-based/batched statements and bounded round trips rather than one query, write, or
   transaction per target.
 - [x] Measure read amplification for inline payloads, shared rows, shared blocks, batched IDs, and historical
   dependencies; retain snapshot/cache variants as integrated Phase 5 gates.
@@ -333,8 +333,8 @@ Storage decisions, measurements, rejected alternatives, and production gates are
   lookups each hit bounded partitions.
 - [x] Decide to duplicate temporal edges in both projections after measuring write/read amplification and partition
   pruning; cover moves, shared children, tombstones, as-of traversal, and GDPR lineage.
-- [x] Prove both adjacency projections change atomically together in JDBC and specify their inclusion in the model-action
-  transaction and rebuild from authoritative action/relation history.
+- [x] Prove both adjacency projections change atomically together in JDBC and specify their inclusion in the model-commit
+  transaction and rebuild from authoritative commit/relation history.
 - [x] Document stable-segment partition creation, regrouping/migration, rollback, observability, and the remaining
   backup/restore/vacuum certification work before adopting the layout.
 
@@ -355,7 +355,7 @@ Storage decisions, measurements, rejected alternatives, and production gates are
   restart/recovery, overload, and long soak tests remain release gates.
 - [x] Record results, datasets, hardware, database settings, query plans, and accepted limits in a committed report and
   ADR; retain CPU/allocation/IO profiles as integrated-path release gates.
-- [x] Pass the Phase 0 decision gate for a thin vertical implementation. Do not freeze broad `CommitModelAction`
+- [x] Pass the Phase 0 decision gate for a thin vertical implementation. Do not freeze broad `CommitModels`
   semantics or enable multi-model production use until the integrated path satisfies the recorded gates.
 
 ## Phase 1 — Model metadata and public vocabulary
@@ -387,11 +387,11 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Preserve supported `Entity<T>`, `AggregateRoot<T>`, and legacy aggregate call paths without adding model
   discovery to the aggregate hot path.
 - [x] Add `Fluxzero.loadModel(...)`, `ModelRepository`, and `TestFixture` model-event vocabulary. The standard
-  runtime-backed repository is wired when the model-action protocol lands; there is deliberately no temporary fallback
+  runtime-backed repository is wired when the model-commit protocol lands; there is deliberately no temporary fallback
   through `AggregateRepository`.
 - [x] Keep repository keys exactly equal to `ID.toString()` and cover typed and untyped delegation.
 
-## Phase 2 — Action-scoped loading and apply engine
+## Phase 2 — Commit-scoped loading and apply engine
 
 ### Slice 2.1 — Target resolution
 
@@ -399,19 +399,19 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Reuse parameter-level `@Association("propertyName")` only when automatic matching is ambiguous or overridden.
 - [x] Require only direct target IDs; never inspect or require parent/grandparent IDs for routing.
 - [x] Deduplicate exact ID-string identities and reject one identity requested as incompatible model types before loading.
-- [x] Define one deduplicated batch-load input and expose its single `readStateIndex` through `ModelActionContext`;
+- [x] Define one deduplicated batch-load input and expose its single `readStateIndex` through `ModelCommitContext`;
   runtime-backed batch I/O remains tracked in Phase 3.
-- [x] Reject unrelated loaded state when constructing an action context; parent, sibling, child, and graph nodes stay
+- [x] Reject unrelated loaded state when constructing an commit context; parent, sibling, child, and graph nodes stay
   unloaded unless they are direct targets of another selected handler.
 
 ### Slice 2.2 — Injection
 
-- [x] Inject any action-scoped model into `@AssertLegal`.
-- [x] Inject any action-scoped model into `@InterceptApply`.
-- [x] Inject any action-scoped model into `@Apply`.
+- [x] Inject any commit-scoped model into `@AssertLegal`.
+- [x] Inject any commit-scoped model into `@InterceptApply`.
+- [x] Inject any commit-scoped model into `@Apply`.
 - [x] Support both value parameters and `Entity<T>`, including empty wrappers for creation/missing-state decisions.
-- [x] Cache direct identity/property resolution within one action context.
-- [x] Keep target resolution and the bounded action context independent of live repository state so reconstruction can
+- [x] Cache direct identity/property resolution within one commit context.
+- [x] Keep target resolution and the bounded commit context independent of live repository state so reconstruction can
   reuse them; historical repository integration remains tracked in Slice 5.1.
 
 ### Slice 2.3 — Deterministic execution
@@ -420,8 +420,8 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Reject ambiguous duplicate writes to the same target unless their semantics are explicitly combined.
 - [x] Execute interceptor expansions as ordered substeps.
 - [x] Let later substeps resolve new targets and observe earlier substep results.
-- [x] Roll back the complete in-memory action on assertion/apply/interceptor failure.
-- [x] Keep evaluation side-effect free so a failed action produces no commit input; runtime rollback and no-store
+- [x] Roll back the complete in-memory commit on assertion/apply/interceptor failure.
+- [x] Keep evaluation side-effect free so a failed commit produces no commit input; runtime rollback and no-store
   integration remain tracked in Slice 3.3.
 
 ### Slice 2.4 — Return and lifecycle behavior
@@ -430,21 +430,21 @@ Storage decisions, measurements, rejected alternatives, and production gates are
 - [x] Null return creates a logical-delete target transition and retains the original event.
 - [x] Void return fails startup validation for models.
 - [x] Models merely read or injected receive no transition.
-- [x] Represent one event targeting several models once in the action result with all target transitions; physical
+- [x] Represent one event targeting several models once in the commit result with all target transitions; physical
   global-log and membership storage remains tracked in Slice 3.2.
 
 Phase 2 is complete at the side-effect-free SDK engine boundary. Runtime-backed batch loading, atomic commit, stream
 membership, and reconstruction are deliberately not simulated here; their production contracts remain explicit Phase
 3 and Phase 5 work.
 
-## Phase 3 — Wire protocol and runtime action commit
+## Phase 3 — Wire protocol and runtime commit commit
 
 ### Slice 3.1 — Common protocol
 
-- [x] Add `CommitModelAction` and result types to `common`.
-- [x] Carry `actionId`, `readStateIndex`, exact read IDs, ordered original events, resolved storage/publication effects,
+- [x] Add `CommitModels` and result types to `common`.
+- [x] Carry `commitId`, `readStateIndex`, exact read IDs, ordered original events, resolved storage/publication effects,
   target IDs, and complete desired outgoing relationships.
-- [x] Let the runtime reconcile desired relationships against current stored edges so a stale-but-accepted action never
+- [x] Let the runtime reconcile desired relationships against current stored edges so a stale-but-accepted commit never
   reopens an edge from its older read view.
 - [x] Keep event, state, and per-model sequence indices semantically distinct.
 - [x] Add JSON/CBOR compatibility tests, including nullable non-published events, native binary event payloads, and
@@ -452,24 +452,24 @@ membership, and reconstruction are deliberately not simulated here; their produc
 
 ### Slice 3.2 — Runtime storage contract
 
-- [x] Add action-aware model storage interfaces without changing legacy `AppendEvents`.
+- [x] Add commit-aware model storage interfaces without changing legacy `AppendEvents`.
 - [x] Allocate ordered state indices and batch-update current model heads without per-model head queries.
 - [x] Append an independently sequenced membership entry to every target stream while storing the serialized payload
   exactly according to the Phase 0 layout; never default to one full payload copy per target.
 - [x] Append each publishable original event exactly once to the global event log.
-- [x] Make `actionId` idempotent and return the prior result for a duplicate request.
+- [x] Make `commitId` idempotent and return the prior result for a duplicate request.
 - [x] Store current and historical relationship transitions at the same state boundary.
 
 ### Slice 3.3 — JDBC and in-memory implementations
 
-- [x] Add lazy schema provisioning, tables, and indexes for model heads, action idempotency, payloads, streams, and
+- [x] Add lazy schema provisioning, tables, and indexes for model heads, commit idempotency, payloads, streams, and
   temporal relationship intervals. No released predecessor schema exists to migrate.
 - [x] Implement the selected stable hash-bucket layout for model streams and heads with verified partition pruning.
 - [x] Use one JDBC transaction for model streams, state indices, event log, heads, and relationships when co-located.
-- [x] Avoid splitting one action across segment backlogs before the atomic write.
+- [x] Avoid splitting one commit across segment backlogs before the atomic write.
 - [x] Use set-based/batched writes with explicit limits and backpressure for large target sets.
 - [x] Add in-memory parity.
-- [x] Test partial failure, rollback, retry after lost response, duplicate action, restart, and concurrent commits.
+- [x] Test partial failure, rollback, retry after lost response, duplicate commit, restart, and concurrent commits.
 - [x] Keep legacy aggregate throughput on its current fast path.
 
 ### Slice 3.4 — Direct search completion
@@ -485,7 +485,7 @@ before the authoritative model commit, then awaits its batched direct mutation. 
 message metadata, configured collection and time paths, and avoids discovering a serialization failure only after
 authoritative state changed. Slice 5.1 now routes normal handler execution through this component using the pinned
 model loader. If the authoritative commit succeeds but the direct mutation fails, an in-process repair entry preserves
-the originally evaluated state for an exact same-action retry; process-loss reconciliation remains explicit future
+the originally evaluated state for an exact same-commit retry; process-loss reconciliation remains explicit future
 work rather than a claimed cross-store transaction.
 
 ### Slice 3.5 — Pinned model-stream batch reads
@@ -500,7 +500,7 @@ work rather than a claimed cross-store transaction.
 - [x] Resolve exact JDBC historical heads for models that changed after the requested boundary without adding a
   per-transition head-history write to the hot path.
 - [x] Add bounded/chunked SDK stream delivery for reconstruction over this protocol and verify its query overhead
-  against the Phase 0 load budgets. Applying events, historical dependency injection, action-prefix overlays,
+  against the Phase 0 load budgets. Applying events, historical dependency injection, commit-prefix overlays,
   snapshots, and reconstruction caches remain Slice 5.1.
 
 JDBC current heads, memberships, and unique payloads are loaded in one partition-prunable query. For a model changed
@@ -520,7 +520,7 @@ header, adding no column or hot-path write amplification.
 ### Slice 4.1 — Policies
 
 - [x] Add `ACCEPT` as the default policy: do not reject a stale `readStateIndex`.
-- [x] Add `FAIL`: runtime rejects and rolls back the complete action if a read/written model head advanced.
+- [x] Add `FAIL`: runtime rejects and rolls back the complete commit if a read/written model head advanced.
 - [x] Add `RETRY_IF_RELATIONS_UNCHANGED`: retry only if relevant relationship state still matches the read boundary.
 - [x] Return conflicting IDs and current state/relation indices without requiring a client-supplied version per model.
 
@@ -529,7 +529,7 @@ header, adding no column or hot-path write amplification.
 - [x] Add a client-side conflict resolver SPI that runs only after runtime rollback.
 - [x] Support bounded silent retry through a fresh pinned-evaluation supplier; Slice 5.1 supplies the real model reload.
 - [x] Support mapping the conflict to an application error.
-- [x] Prevent rejected actions from mutating direct documents and expose the reload seam without introducing a
+- [x] Prevent rejected commits from mutating direct documents and expose the reload seam without introducing a
   provisional second cache abstraction.
 - [x] Test single-writer default behavior remains low-overhead.
 
@@ -545,14 +545,14 @@ feature is released.
 
 ### Slice 5.1 — Model reconstruction
 
-- [x] Wire `ModelActionEngine` and `ModelActionCommitter` into normal command handling through the pinned model loader;
+- [x] Wire `ModelCommitEngine` and `ModelCommitter` into normal command handling through the pinned model loader;
   await direct search mutation before reporting successful completion.
-- [x] Connect the Phase 4 conflict reload seam to that loader and evict/refresh its action-scoped cache entries after
-  rejected actions and accepted stale evaluations.
+- [x] Connect the Phase 4 conflict reload seam to that loader and evict/refresh its commit-scoped cache entries after
+  rejected commits and accepted stale evaluations.
 - [x] Reconstruct only the requested model's hash-pruned stream using batched/sequential payload resolution from the
   selected Phase 0 layout.
-- [x] Resolve cross-model dependencies as-of the stored action `readStateIndex`.
-- [x] Reconstruct a later substep from its action `readStateIndex` plus earlier ordered substeps of the same `actionId`;
+- [x] Resolve cross-model dependencies as-of the stored commit `readStateIndex`.
+- [x] Reconstruct a later substep from its commit `readStateIndex` plus earlier ordered substeps of the same `commitId`;
   never admit unrelated intervening global state.
 - [x] Batch and context-cache historical dependency loads.
 - [x] Preserve normal self-only replay without dependency I/O.
@@ -586,14 +586,14 @@ feature is released.
 - [x] Never use a timeless relationship cache for as-of model reconstruction.
 - [x] Benchmark cache hit, miss, catch-up, invalidation, and billion-key pressure assumptions.
 
-### Slice 5.5 — Coherent action materialization
+### Slice 5.5 — Coherent commit materialization
 
-- [x] Extend the action package with pre-serialized optional direct-document mutations and snapshot candidates while
+- [x] Extend the commit package with pre-serialized optional direct-document mutations and snapshot candidates while
   retaining one event payload regardless of target count.
-- [x] Move direct-document completion from the SDK committer into the runtime-owned model-action workflow.
+- [x] Move direct-document completion from the SDK committer into the runtime-owned model-commit workflow.
 - [x] Keep the no-conflict fast path to one request and no reconstruction round trip.
 - [x] Make default `ACCEPT` return a rebase boundary instead of committing stale derived state; preserve the original
-  post-interception events and rerun only their `@Apply` handlers against all action-scoped models at that boundary.
+  post-interception events and rerun only their `@Apply` handlers against all commit-scoped models at that boundary.
 - [x] Commit the rebased event package only after a final boundary comparison succeeds; repeat within a configured
   bound if another relevant write wins the race.
 - [x] Distinguish a newly committed result from an idempotent duplicate. A fresh-process duplicate must use the
@@ -624,7 +624,7 @@ feature is released.
   memory-pressure-bounded.
 - [x] Parameterize applicable aggregate repository, playback, publication, search, snapshot, cache, fixture, and
   runtime integration contracts so every semantically shared behavior runs for both `@Aggregate` and `@Model`.
-- [x] Keep model-specific tests only for intentionally different identity, stream, relationship, action, and lifecycle
+- [x] Keep model-specific tests only for intentionally different identity, stream, relationship, commit, and lifecycle
   behavior; record every aggregate-only contract that is deliberately inapplicable.
 
 The completed contract matrix and the deliberately non-shared cases are recorded in
@@ -635,9 +635,9 @@ covers model commit/load/search, ancestor injection, and exactly-once global EVE
 
 ### Slice 5.7 — Assert-and-apply convenience
 
-- [x] Add `Fluxzero.assertAndApply(update)` for model actions, preserving the same action-scoped loading, assertion,
+- [x] Add `Fluxzero.assertAndApply(update)` for model commits, preserving the same commit-scoped loading, assertion,
   interceptor, apply, commit, conflict, and result semantics as normal dispatch.
-- [x] Enter the model-action engine directly instead of redispatching the update as a command, so an explicit
+- [x] Enter the model-commit engine directly instead of redispatching the update as a command, so an explicit
   `@HandleCommand` may assert-and-apply that same payload without recursion or a second command-handler invocation.
 - [x] Wait for durable commit before returning and propagate the original apply/commit failure; include an explicit
   metadata overload and make direct model documents searchable when the call returns.
@@ -657,7 +657,7 @@ covers model commit/load/search, ancestor injection, and exactly-once global EVE
 - [x] Add an optional explicit composition path without deriving a durable path from the Java class name.
 - [x] Compute relation deltas only for returned targets.
 - [x] Support attach, detach, move, and multiple parents by changing only the child model.
-- [x] Reject cycles at commit with the entire action rolled back.
+- [x] Reject cycles at commit with the entire commit rolled back.
 
 ### Slice 6.2 — Current and historical lookups
 
@@ -695,10 +695,10 @@ Integrity, temporal-boundary, and hot-path details:
   ancestors of that type exist.
 - [x] Detect ambiguous paths, missing required ancestors, cycles, depth/fan-out limits, and typed/untyped IDs with
   actionable errors.
-- [x] Cache ancestor traversal and model loads inside the action context; use one runtime request and one batched
+- [x] Cache ancestor traversal and model loads inside the commit context; use one runtime request and one batched
   child-partition query per breadth level, not one SDK request or store query per ancestor.
 - [x] Overlay `@ParentId` values staged by earlier interceptor substeps, so a later substep observes a move made earlier
-  in the same atomic action; use the persisted pre-substep graph boundary during later model reconstruction.
+  in the same atomic commit; use the persisted pre-substep graph boundary during later model reconstruction.
 
 Implementation and measurement details:
 [`dynamic-model-boundaries-phase-6-ancestor-injection.md`](dynamic-model-boundaries-phase-6-ancestor-injection.md).
@@ -709,7 +709,7 @@ Implementation and measurement details:
 
 - [x] Make every `searchable = true` model independently searchable without a custom event handler.
 - [x] Keep direct search read-after-commit consistency.
-- [x] Support mixed bulk model indexing/deletion through the action materialization package, with an independent
+- [x] Support mixed bulk model indexing/deletion through the commit materialization package, with an independent
   monotone fence and lifecycle for every `(collection, modelId)` rather than one aggregate-sized document operation.
 
 ### Slice 7.2 — Virtual graph search
@@ -741,7 +741,7 @@ Implementation and initial measurement details:
 ### Slice 7.3 — Materialized graph search document
 
 - [x] Add an opt-in asynchronous projection for a complete model graph.
-- [x] Consume idempotent model-action/result records.
+- [x] Consume idempotent model-commit/result records.
 - [x] Rebuild affected roots using temporal relations and batched model loads.
 - [x] Let a registered root projection override child-owned paths without changing relationship truth.
 - [x] Handle multi-parent fan-out, moves, deletes, late delivery, duplicate delivery, and rebuild.
@@ -781,20 +781,20 @@ Detailed erasure, safety, lineage-protection, and resumability contract:
   the first performance discovery point.
 - [x] Revalidate the one-million-ID cardinality dataset, partition/routing invariants, and linear billion-row sizing;
   retain absolute multi-billion deployment capacity as an infrastructure gate.
-- [x] Certify action latency and byte throughput for 1, 2, 10, and 100 targets under concurrent model reconstruction.
+- [x] Certify commit latency and byte throughput for 1, 2, 10, and 100 targets under concurrent model reconstruction.
 - [x] Certify local reconstruction, graph loads, and projection rebuilds for deep/wide/shared DAGs; retain controlled
   OS-cold-cache and customer-distribution profiles as deployment inputs.
 - [x] Certify local storage/WAL amplification, cache memory, restart/recovery, and overload/backpressure budgets;
   preserve production-duration vacuum/bloat, replication, and backup/restore as operational gates.
-- [x] Certify the non-JDBC publish-first event/action visibility race with the intended tracker retry policy; boundary
-  loads must fail instead of admitting wrong state until the durable action result is visible.
+- [x] Certify the non-JDBC publish-first event/commit visibility race with the intended tracker retry policy; boundary
+  loads must fail instead of admitting wrong state until the durable commit result is visible.
 - [x] Compare every result with the Phase 0/5 baselines and explain every material difference before release.
 
 ### Slice 9.2 — Compatibility
 
 - [x] Keep all aggregate APIs, formats, tests, and downstream projects green.
 - [x] Verify new SDK against old runtime gives the existing clear unsupported request-type error only when a distinct
-  model action is used; legacy request types remain unchanged.
+  model commit is used; legacy request types remain unchanged.
 - [x] Verify old SDK against new runtime remains unchanged through the unchanged legacy handlers and full aggregate
   contract suites.
 - [x] Add migration/rollback notes; no automatic aggregate-to-model data migration in the first release.
@@ -839,17 +839,17 @@ operations, and workload-specific physical sizing remain infrastructure deployme
   `IndexUtils.timestampFromIndex(stateIndex)`.
 - [x] Cover multiple substeps in one millisecond, more than one commit in one millisecond, clock rollback, restart,
   non-published transitions, temporal relation boundaries, graph high-watermarks, caches, snapshots, and write fences.
-- [x] Repeat the complete model-action store/load matrix and confirm that one clock read per commit batch causes no
+- [x] Repeat the complete model-commit store/load matrix and confirm that one clock read per commit batch causes no
   material throughput, p99, storage, or WAL regression.
 
 ### Slice 10.3 — Scoped conflict policy and retry
 
-- [x] Replace unreleased `RETRY_IF_RELATIONS_UNCHANGED` with `RETRY`; a rejected action may always perform a bounded
+- [x] Replace unreleased `RETRY_IF_RELATIONS_UNCHANGED` with `RETRY`; a rejected commit may always perform a bounded
   complete reload/assert/intercept/apply evaluation against the new model and relationship boundary.
 - [x] Add `DEFAULT` inheritance and support explicit policy at application, `@Model`, and `@Apply` scope. Resolve an
   apply override before its returned target's model setting; use the model setting for read-only dependencies; resolve
   remaining defaults through the application builder/property and finally `ACCEPT`.
-- [x] Combine participant policies for one atomic action using `FAIL > RETRY > ACCEPT`. If one participant requires
+- [x] Combine participant policies for one atomic commit using `FAIL > RETRY > ACCEPT`. If one participant requires
   `FAIL` and another requests `RETRY`, roll back and fail; if one requires `RETRY` and another accepts stale state, roll
   back and retry.
 - [x] Retain relationship transition indices in conflict diagnostics and custom resolver context, but do not make an
@@ -861,7 +861,7 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 - [x] Cover same-type multi-target applies, read-only ancestors, mixed model/apply overrides, retry assertion failure,
   retry after a move, retry exhaustion, custom application exceptions, and JSON/CBOR compatibility.
 
-### Slice 10.4 — Automatic model-action handling controls
+### Slice 10.4 — Automatic model-commit handling controls
 
 - [x] Add `DEFAULT`, `ENABLED`, and `DISABLED` automatic model handling at application, `@Model`, and `@Apply` scope,
   with explicit apply override, then returned-target model setting, then builder/property, then `ENABLED` precedence.
@@ -881,7 +881,7 @@ operations, and workload-specific physical sizing remain infrastructure deployme
   then an explicit active-consumer setting, each affected root's graph definition, application builder/property, and
   finally `ASYNC`.
 - [x] Keep projection execution on the existing durable signal/task worker. `AWAIT` delays request-result publication
-  until every affected root requiring it has crossed the committed action boundary; it never moves graph traversal or
+  until every affected root requiring it has crossed the committed commit boundary; it never moves graph traversal or
   search writes into the authoritative model transaction.
 - [x] If several transitions affect the same root, let `AWAIT` dominate `ASYNC` for that root. Mixed roots may complete
   independently; the command result waits only for roots whose effective policy is `AWAIT`.
@@ -889,8 +889,8 @@ operations, and workload-specific physical sizing remain infrastructure deployme
   Preserve `ConsumerConfiguration.awaitAsyncResults` as the independent choice of whether tracker/batch progress also
   waits. Direct `Fluxzero.assertAndApply` waits for required projection completion as part of its returned completion.
 - [x] Define duplicate, timeout, disconnect, restart, worker-failure, split-search-store, move, delete, and rebuild
-  semantics. The model action remains durably committed after projection failure; a duplicate request resumes waiting
-  for the same fenced projection work rather than reevaluating the action.
+  semantics. The model commit remains durably committed after projection failure; a duplicate request resumes waiting
+  for the same fenced projection work rather than reevaluating the commit.
 - [x] Emit bounded runtime projection-batch metrics with collection/root type, configuration and state boundaries,
   root/upsert/delete counts, bytes, stage durations, retry status, and remaining backlog. Evaluate an opt-in exact-root
   update metric separately for ID cardinality and privacy; metrics are never the correctness source.
@@ -911,7 +911,7 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 
 ### Slice 11.2 — Equivalent mutations and loads
 
-- [x] Measure root, direct-child, grandchild, cross-branch two-target, move, create, logical-delete, and recreate actions
+- [x] Measure root, direct-child, grandchild, cross-branch two-target, move, create, logical-delete, and recreate commits
   through the real SDK-to-websocket-to-runtime path.
 - [x] Compare cold/warm direct-target loads and cold/warm whole-root loads. For models report both independent target
   load and `loadGraph`; for aggregates report the one root load and the amount of unrelated history/materialization it
@@ -928,7 +928,7 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 - [x] Compare synchronous aggregate root-document mutation/search with synchronous direct-model document mutation/search.
 - [x] Compare current whole-root read/search using aggregate document loading, model `loadGraph`, relation-backed live
   graph composition (now `searchGraph(..., true)`), and materialized graph documents.
-- [x] For asynchronous model graph projection report action commit latency and time-to-root-search-visible separately.
+- [x] For asynchronous model graph projection report commit commit latency and time-to-root-search-visible separately.
   For `AWAIT`, report command-result latency and prove that an immediate root query after receiving the result observes
   the committed tree.
 - [x] Measure document bytes rewritten per leaf update, search/query latency, graph lag, rebuild throughput, storage,
@@ -951,9 +951,9 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 ### Slice 12.1 — Durable update cursor and protocol
 
 - [x] Add a bounded `TrackModelUpdates` long-poll contract ordered by namespace-wide `stateIndex`. One returned update
-  represents one committed model-action substep and carries its action ID, substep, nullable global `eventIndex`, and
+  represents one committed model-commit substep and carries its commit ID, substep, nullable global `eventIndex`, and
   resulting target heads without duplicating event or document payloads.
-- [x] Make action results efficiently trackable in state order without tailing `model_stream`: stored memberships alone
+- [x] Make commit results efficiently trackable in state order without tailing `model_stream`: stored memberships alone
   omit non-stored state transitions and duplicate one shared event across targets. Include explicit hard deletions in
   the same logical update cursor.
 - [x] Keep the request open while no newer update exists, bound waiters, response item/byte sizes, and wait duration,
@@ -980,14 +980,14 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 - [x] Advance the tracking cursor after affected entries are synchronously fenced and refreshes are safely scheduled;
   one slow document store must not block observation of unrelated model updates.
 - [x] Keep runtime-owned and SDK-owned document stores honest: expose a separate safe materialization boundary and let
-  the SDK close a retained action intent only after its direct documents and snapshots have completed. A split-store
+  the SDK close a retained commit intent only after its direct documents and snapshots have completed. A split-store
   crash before acknowledgement fails closed as visible materialization lag rather than blessing an old document.
 
 ### Slice 12.3 — Exact event-handler boundary
 
 - [x] Keep event-handler correctness independent from current-cache tracker lag: correlate the persisted
-  `actionId`/substep directly to its atomically committed model-state boundary instead of waiting for a cache refresh.
-- [x] Continue to reconstruct every injected target, parent, grandparent, and relation at the event action's exact
+  `commitId`/substep directly to its atomically committed model-state boundary instead of waiting for a cache refresh.
+- [x] Continue to reconstruct every injected target, parent, grandparent, and relation at the event commit's exact
   `stateIndex`. A current cache entry newer than that boundary must never leak into historical handling or replay.
 - [x] Prove that preceding `STORE_ONLY` transitions are included, later transitions are excluded, and a tracker already
   ahead of the handler remains exact. Co-located JDBC publication/model visibility remains one transaction; the
@@ -1000,14 +1000,14 @@ operations, and workload-specific physical sizing remain infrastructure deployme
 
 - [x] Cover reconnect, duplicate batches, timeout heartbeats, runtime restart, tracker shutdown, cache eviction,
   namespace isolation, old-runtime unsupported responses, hard delete/recreate, cascaded delete, privacy-safe
-  action-result sanitization, and the explicitly retained action-result retention gate.
+  commit-result sanitization, and the explicitly retained commit-result retention gate.
 - [x] Add transport metrics for tracker lag, observed `stateIndex`, update/target/publication counts and cursor
   progression; retain cache-eviction metrics and explicit failure/revalidation warnings without adding per-load
   metric allocation to the hot path.
 - [x] Replace the misleading single-sample warm-load number with local-cache-hit and validated/refresh load
   distributions. Compare aggregate and model leaf loads with identical functional histories and cache states.
 - [x] Benchmark update tracking and cache maintenance at representative target counts, cache hit ratios, read/write
-  ratios, concurrent handlers, and retained 100,000/1,000,000-action histories. Reject any design that adds material
+  ratios, concurrent handlers, and retained 100,000/1,000,000-commit histories. Reject any design that adds material
   unbounded write amplification or makes every SDK consume document/event payloads for uncached models.
 - [x] Re-run focused SDK/runtime suites, both full reactors, site/Javadoc and downstream compatibility, then perform a
   separate regression-only review of storage ordering, event replay, cache lifecycle, and hot-path allocation.
@@ -1038,7 +1038,7 @@ through 1.x, documented only as a legacy migration source, and scheduled for Jav
   `@HandleNotification` methods. Keep it separate from the legacy aggregate resolver.
 - [x] Resolve direct targets using the same canonical `@EntityId`, unique typed `Id<Model>` and parameter-level
   `@Association("payloadProperty")` rules as model applies.
-- [x] Load from the handler consumer namespace at the exact persisted action/substep boundary. Never leak a newer
+- [x] Load from the handler consumer namespace at the exact persisted commit/substep boundary. Never leak a newer
   current-cache value into event handling or replay.
 - [x] Deduplicate loads within one handled message; inject an empty `Entity<T>` for a missing/deleted target and match a
   bare `T` only when a value is present.
@@ -1092,7 +1092,7 @@ observe, so they need one adversarial correctness and performance review.
 
 - [x] Support model parameters for every selected message handler kind, not only event and notification handlers,
   whenever a payload or metadata identifier resolves the model.
-- [x] Keep event/notification injection pinned to the exact model-action boundary; use one current handler load context
+- [x] Keep event/notification injection pinned to the exact model-commit boundary; use one current handler load context
   for command, query, web, schedule, result, error, metrics, and other non-event messages. Event-sourced targets share
   its pinned repository boundary; document-loaded targets remain current-only direct-document reads.
 - [x] Support both `T` and `Entity<T>` and resolve a directly addressed non-family model from typed `Id<T>` values.
@@ -1117,22 +1117,22 @@ observe, so they need one adversarial correctness and performance review.
 
 ### Slice 14.4 — Non-blocking model commit/event-log path
 
-- [x] Avoid conditional event-log work entirely for model actions that publish no global events.
+- [x] Avoid conditional event-log work entirely for model commits that publish no global events.
 - [x] Measure mixed aggregate/model traffic and concurrent conditional model commits against the legacy append path.
 - [x] Remove the global monitor-plus-`join` bottleneck from published model commits while preserving event ordering,
   idempotency, rollback, and one-copy global publication; explicitly prove the accepted event-index gap contract if
   rejected reservations can leave gaps.
 - [x] Retain throughput, p50/p95/p99 latency, physical amplification, allocation, and JDBC/WAL evidence for store-only,
-  published, single-target, and multi-target actions.
+  published, single-target, and multi-target commits.
 
-### Slice 14.5 — Split-store repair and action-metadata retention
+### Slice 14.5 — Split-store repair and commit-metadata retention
 
 - [x] Add a durable repair path for process loss between an atomic runtime commit and SDK-owned
   document/cache/snapshot materialization, using the originally committed materialization rather than re-evaluating
   user code.
 - [x] Make duplicate delivery and operator-triggered repair converge idempotently and close the materialization fence
   only after all external writes succeed.
-- [x] Keep the existing compact action result as the single permanent exact-boundary/update-tracking/idempotency
+- [x] Keep the existing compact commit result as the single permanent exact-boundary/update-tracking/idempotency
   record. Do not duplicate it into per-substep/per-target rows; at the 100-GB/min envelope that normalization costs
   more WAL and storage than the MessagePack value it would replace.
 - [x] Treat only the potentially bulky document/snapshot projection as retry-window state: clear it on acknowledged
@@ -1157,7 +1157,7 @@ observe, so they need one adversarial correctness and performance review.
   deletion/GDPR, shutdown, allocations, and 100-GB/min operational assumptions.
 - [x] Publish a Phase 14 report with corrected rollout status, remaining deployment gates, and rollback/runbook updates.
 
-## Phase 15 — Contention-aware model-action performance
+## Phase 15 — Contention-aware model-commit performance
 
 This corrective phase rejects the Phase 14 short `ZIPF` result as a generic model-mutation baseline. Conflict-free
 throughput and same-model contention are separate contracts and must remain separately measurable.
@@ -1173,10 +1173,10 @@ throughput and same-model contention are separate contracts and must remain sepa
 
 ### Slice 15.2 — Preserve independent runtime batching around hot keys
 
-- [x] Replace the all-or-nothing optimistic model-action batch decision with ordered conflict-free `ACCEPT` waves.
-- [x] Keep independent actions batched when another model repeats, while preserving per-target write order and strict
+- [x] Replace the all-or-nothing optimistic model-commit batch decision with ordered conflict-free `ACCEPT` waves.
+- [x] Keep independent commits batched when another model repeats, while preserving per-target write order and strict
   `FAIL`/`RETRY` barriers.
-- [x] Cover independent actions around a hot model and write-only target ordering with deterministic planner tests.
+- [x] Cover independent commits around a hot model and write-only target ordering with deterministic planner tests.
 
 ### Slice 15.3 — Local single-writer fast path
 
@@ -1192,7 +1192,7 @@ throughput and same-model contention are separate contracts and must remain sepa
 
 - [x] Run focused coordinator, registry, committer, JDBC store and benchmark-compilation suites.
 - [x] Run both complete Maven reactors and `git diff --check`.
-- [x] Retain 10,000-action conflict-free and skewed event-only measurements plus searchable comparison.
+- [x] Retain 10,000-commit conflict-free and skewed event-only measurements plus searchable comparison.
 - [x] Correct the Phase 14 report and publish the
   [Phase 15 report](dynamic-model-boundaries-phase-15-contention-performance.md).
 - [x] Repair the retained PostgreSQL 18 benchmark compose mount without deleting or rewriting an existing benchmark
@@ -1225,7 +1225,7 @@ separate databases.
 
 - [x] Document that erasure-key configuration is optional: each runtime-owned database generates and persists its own
   key, while external configuration is an operational ownership/recovery choice.
-- [x] Record current retention precisely: compact action results, completed deletion identity and erasure fences have
+- [x] Record current retention precisely: compact commit results, completed deletion identity and erasure fences have
   no TTL; pending projection bytes and completed deletion-target worksets are the eagerly removed data.
 - [x] Distinguish built-in metrics/logs from deployment-owned dashboards and alert thresholds.
 
@@ -1238,20 +1238,20 @@ separate databases.
 - [x] Publish the [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) with final test counts and remaining
   operational gates.
 
-## Phase 17 — Bounded model-action receipts
+## Phase 17 — Bounded model-commit receipts
 
-The durable action boundary and the short-lived cache/update receipt are different data. This phase separates them
+The durable commit boundary and the short-lived cache/update receipt are different data. This phase separates them
 without allowing the runtime to inspect or mutate event metadata.
 
 ### Slice 17.1 — Durable core versus transient receipt
 
-- [x] Keep a compact hash-partitioned action core containing the action-id fence, substep state/event boundaries and
-  target positions, but no persisted raw target IDs for new actions.
+- [x] Keep a compact hash-partitioned commit core containing the commit-id fence, substep state/event boundaries and
+  target positions, but no persisted raw target IDs for new commits.
 - [x] Store the full target-bearing receipt once in an append-only, state-time-partitioned update table in the same
-  JDBC transaction as the action.
+  JDBC transaction as the commit.
 - [x] Reconstruct an exact duplicate response by combining the durable target positions with the target IDs already
-  present in the retried action, including after the transient receipt was purged.
-- [x] Preserve old full action rows as a readable rolling-upgrade format and initialize the update-retention floor at
+  present in the retried commit, including after the transient receipt was purged.
+- [x] Preserve old full commit rows as a readable rolling-upgrade format and initialize the update-retention floor at
   the existing durable head instead of replaying absent historical receipts.
 
 ### Slice 17.2 — Bounded tracking and partition retention
@@ -1266,11 +1266,11 @@ without allowing the runtime to inspect or mutate event metadata.
 
 ### Slice 17.3 — Privacy, failure and performance hardening
 
-- [x] Sanitize any retained pre-Phase-17 action rows and recent receipts during hard deletion while keeping the compact
-  new action core free of raw model IDs.
+- [x] Sanitize any retained pre-Phase-17 commit rows and recent receipts during hard deletion while keeping the compact
+  new commit core free of raw model IDs.
 - [x] Cover restart, rollback, duplicate-after-expiry, cursor reset, materialization, historical boundary and
   deletion-versus-retention races.
-- [x] Measure action throughput, WAL, physical amplification, tracking latency and partition-drop behavior against the
+- [x] Measure commit throughput, WAL, physical amplification, tracking latency and partition-drop behavior against the
   Phase 15 baseline.
 
 ### Slice 17.4 — Certification
@@ -1340,7 +1340,7 @@ search.
 ### Slice 19.3 — Deterministic placement and compatibility
 
 - [x] Preserve one deterministic ID-ordered list when different model types write to the same parent path.
-- [x] Preserve the distinct graph-search wire action and old-runtime unsupported-action behavior.
+- [x] Preserve the distinct graph-search wire commit and old-runtime unsupported-commit behavior.
 - [x] Cover no-projection live fallback, materialized default, forced live, child-path constraints, path overrides,
   path filtering and candidate bounds across common, SDK/local and runtime tests.
 
@@ -1383,20 +1383,20 @@ their purpose is testing. The phase report must therefore provide both Maven-lay
 ### Slice 20.2 — SDK and common simplification
 
 - [x] Reduce duplication and unnecessary intermediate representations around `DefaultModelRepository`,
-  `InMemoryEventStore`, automatic model actions, target/ancestor resolution, cache tracking and graph composition.
+  `InMemoryEventStore`, automatic model commits, target/ancestor resolution, cache tracking and graph composition.
 - [x] Prefer compiled immutable plans and central `ReflectionUtils.TypeMetadata` ownership over repeated reflection or
   runtime branching.
-- [x] Keep legacy aggregate traffic, direct single-model loads and actions on their current fast paths.
-- [x] Retain fixture/local/test-server parity without copying a second implementation of graph or action semantics.
+- [x] Keep legacy aggregate traffic, direct single-model loads and commits on their current fast paths.
+- [x] Retain fixture/local/test-server parity without copying a second implementation of graph or commit semantics.
 
 ### Slice 20.3 — Runtime simplification
 
-- [x] Decompose `JdbcModelActionStore` and `JdbcModelGraphProjectionStore` by cohesive storage responsibility where that
+- [x] Decompose `JdbcModelCommitStore` and `JdbcModelGraphProjectionStore` by cohesive storage responsibility where that
   reduces reasoning surface, while retaining set-based SQL, prepared-statement reuse, batching and transaction scope.
 - [x] Share pure validation, relationship, payload-membership and projection semantics between JDBC and in-memory
   stores where doing so removes duplication without introducing polymorphic dispatch or allocation on measured hot
   paths.
-- [x] Remove superseded compatibility scaffolding, dead alternatives and redundant action/result transformations.
+- [x] Remove superseded compatibility scaffolding, dead alternatives and redundant commit/result transformations.
 - [x] Keep lazy schema creation, hash pruning, backpressure, restart recovery and zero-overhead aggregate-only behavior
   intact.
 
@@ -1404,7 +1404,7 @@ their purpose is testing. The phase report must therefore provide both Maven-lay
 
 - [x] Compare before/after production lines, files and structural complexity; document important code that remained
   large because reducing it would obscure transactional or temporal invariants.
-- [x] Re-run the affected aggregate/model action and multi-target store/load profiles; retain the Phase 19
+- [x] Re-run the affected aggregate/model commit and multi-target store/load profiles; retain the Phase 19
   graph-search/stitch, split-store materialization and contention evidence for execution paths unchanged by this
   simplification.
 - [x] Accept no statistically meaningful throughput, p95/p99 latency, allocation, WAL, physical amplification or
@@ -1421,7 +1421,7 @@ must remove accidental infrastructure rather than merely split large classes or 
 
 The entry baseline against `origin/main` is a net increase of 15,832 physical Java production lines in the runtime
 (`22,847` to `38,679`, +69.3%). The new `modeling` package accounts for 13,158 lines. The six largest model additions
-account for 13,693 lines, including the 6,998-line `JdbcModelActionStore`. At first model use, the current core can
+account for 13,693 lines, including the 6,998-line `JdbcModelCommitStore`. At first model use, the current core can
 create roughly 309 parent/partition relations in one namespace; enabling every graph/search capability can raise the
 combined model/search total to roughly 444 before ordinary collection partitions and indexes. In addition,
 `JdbcSearchStore` currently initializes model-erasure state and 32 erasure partitions even for aggregate-only
@@ -1429,7 +1429,7 @@ namespaces.
 
 ### Non-negotiable Phase 21 contracts
 
-- [x] Preserve the public SDK API, wire actions, model identity, action ordering, `stateIndex` ordering, one-time global
+- [x] Preserve the public SDK API, wire commits, model identity, commit ordering, `stateIndex` ordering, one-time global
   event publication, publication strategies, exact historical loads, temporal relationships, conflict semantics,
   direct search visibility, graph search shape, snapshot behavior, cache coherence, retry/idempotency, hard erasure,
   detached lineage, split-store recovery, and `ASYNC`/`AWAIT` completion behavior.
@@ -1449,7 +1449,7 @@ namespaces.
   across restart, retry, stale completion, move, logical delete, or hard erasure.
 - [x] Retain the inline/shared payload policy and delete ownership guarantees without duplicating ordinary event
   payloads per target.
-- [x] Do not preserve an unreleased internal table layout, serialized action-result blob, or implementation class when
+- [x] Do not preserve an unreleased internal table layout, serialized commit-result blob, or implementation class when
   doing so obstructs the simpler architecture. Any required branch-local schema transition must nevertheless be
   deterministic, explicitly tested, and fail clearly rather than silently misreading old data.
 - [x] Do not accept cosmetic decomposition as completion. Production lines must be removed through shared ownership,
@@ -1480,26 +1480,26 @@ namespaces.
 - [x] Freeze the current branch as the behavioral and performance oracle. Record exact production/test LOC, physical
   schema objects, startup work, background workers, transaction statements, round trips, allocations, WAL and latency
   for aggregate-only and every representative model path.
-- [x] Map `model_state`, actions, receipts, targets, heads, streams, payloads, temporal relations, materialization,
+- [x] Map `model_state`, commits, receipts, targets, heads, streams, payloads, temporal relations, materialization,
   projection signals/tasks, fences, deletion state and protected lineage onto existing `MessageStore`,
   `PositionStore`, `Table`, partition-retention and endpoint/service primitives.
 - [x] Spike the compact internal model-update log and atomic `JdbcMessageStore` callback path. Prove time-based monotone
-  state indices, STORE_ONLY tracking, exact event-action boundaries, restart replay, bounded retention, and one global
+  state indices, STORE_ONLY tracking, exact event-commit boundaries, restart replay, bounded retention, and one global
   event publication. Record decisions and discard the spike before production implementation.
 - [x] Publish a replacement ADR with the exact target tables, indexes, partition counts, transaction boundary, retained
   state, workers and failure recovery. Do not start the rewrite until it satisfies the budgets above.
 
-### Slice 21.2 — Shared action log and narrow core stores
+### Slice 21.2 — Shared commit log and narrow core stores
 
 - [x] Implement the internal model-update log using existing message-log indexing, long polling, retention and consumer
   positions; use its assigned index as `stateIndex` unless the Phase 21.1 spike disproves that design.
-- [x] Reduce permanent action state to the minimum required for durable idempotency and exact action boundaries. Do not
+- [x] Reduce permanent commit state to the minimum required for durable idempotency and exact commit boundaries. Do not
   retain complete document/snapshot materialization blobs indefinitely.
-- [x] Decompose persistence into narrow model-stream/head, temporal-relation and action-idempotency stores, coordinated
-  by one action service. Keep set-based SQL, batching, transaction-local work and hash pruning on measured
+- [x] Decompose persistence into narrow model-stream/head, temporal-relation and commit-idempotency stores, coordinated
+  by one commit service. Keep set-based SQL, batching, transaction-local work and hash pruning on measured
   high-cardinality tables.
-- [x] Share action transition semantics between JDBC, local/test and test-server paths. Replace the independent
-  handwritten in-memory action engine with a thin storage adapter or the shared coordinator.
+- [x] Share commit transition semantics between JDBC, local/test and test-server paths. Replace the independent
+  handwritten in-memory commit engine with a thin storage adapter or the shared coordinator.
 - [x] Keep endpoints as protocol adapters and share one namespace-scoped model query/service graph rather than
   constructing a second full query-only model store.
 
@@ -1510,17 +1510,17 @@ namespaces.
 - [x] Reuse ordinary durable consumer positions and long polling. Local commits wake waiters immediately; single-active
   failover resumes from the durable position without permanent database polling.
 - [x] Preserve runtime-owned autonomous recovery after restart and temporary split-search-store failure. A committed
-  action may not depend on client redelivery for repair.
+  commit may not depend on client redelivery for repair.
 - [x] Preserve coalescing and bounded graph composition without a second generic scheduling platform. If a minimal
   durable root-task table remains necessary, prove why replay plus an existing consumer position is insufficient and
   keep it inside the schema budget.
-- [x] Preserve the direct-model zero-extra-round-trip cache hot path and exact event-handler action-boundary loads.
+- [x] Preserve the direct-model zero-extra-round-trip cache hot path and exact event-handler commit-boundary loads.
 
 ### Slice 21.4 — Lazy search lifecycle and erasure
 
 - [x] Move model document fences, snapshots and erasure out of generic search-store construction into a lazy,
   model-specific capability.
-- [x] Express hard deletion as a bounded lifecycle action using the same update/outbox/recovery mechanism. Retain
+- [x] Express hard deletion as a bounded lifecycle commit using the same update/outbox/recovery mechanism. Retain
   protected detached lineage and irreversible search fences without contaminating ordinary model commits or
   aggregate-only startup.
 - [x] Test `NONE` and cascading erasure, shared payload membership, detached descendants, split stores, restart during
@@ -1609,12 +1609,12 @@ The ownership inventory, accepted deletions, rejected single-source tracker and 
 performance measurements and remaining budget gap are recorded in
 [Phase 21b production-code compression](dynamic-model-boundaries-phase-21b-compression.md). The checkpoint is
 deliberately not a numerical completion claim: after removing the second materialization owner, duplicate snapshot
-writes, duplicate cycle validation and repeated action/parameter planning, runtime is +9,097 and SDK +18,447
+writes, duplicate cycle validation and repeated commit/parameter planning, runtime is +9,097 and SDK +18,447
 production lines. Reaching both requested ceilings now needs a product-scope or budget decision.
 
 ### Slice 21b.2 — Runtime compression
 
-- [x] Reduce `JdbcModelActionStore` by removing responsibilities and repeated persistence mechanics, not by hiding its
+- [x] Reduce `JdbcModelCommitStore` by removing responsibilities and repeated persistence mechanics, not by hiding its
   SQL or splitting it mechanically. Prefer the runtime's existing transaction, statement, schema, partition and
   lifecycle primitives where paired measurements prove they preserve or improve speed.
 - [x] Consolidate model/search materialization, graph projection, erasure and endpoint adaptation where they currently
@@ -1627,12 +1627,12 @@ production lines. Reaching both requested ceilings now needs a product-scope or 
 ### Slice 21b.3 — SDK compression
 
 - [x] Unify automatic handler registration, target planning, assertion/apply evaluation, conflict retry and commit
-  preparation around one action plan. Do not independently rediscover model targets or handler metadata in registry,
+  preparation around one commit plan. Do not independently rediscover model targets or handler metadata in registry,
   engine, committer and repository layers.
 - [x] Share aggregate-proven reflection, invocation, caching, reconstruction and client primitives where doing so
   removes real model code without adding model conditionals or allocations to legacy aggregate paths.
 - [x] Consolidate current, historical, ancestor and graph loading around the minimum batched reconstruction core while
-  preserving exact action-boundary semantics and the direct hot-cache path.
+  preserving exact commit-boundary semantics and the direct hot-cache path.
 - [x] Keep local, synchronous fixture, asynchronous fixture, test-server and websocket behavior on the same model
   transition semantics without duplicating a complete in-memory server in the SDK.
 - [ ] Meet the **+14,000** SDK ceiling while retaining all public Javadocs, Java/Kotlin downstream compatibility and
@@ -1648,8 +1648,161 @@ production lines. Reaching both requested ceilings now needs a product-scope or 
 - [x] Run both complete Maven reactors, site/Javadocs, binary compatibility, Java/Kotlin downstream projects,
   schema upgrade/restart/split-store recovery, `git diff --check` and a fresh adversarial regression review.
 - [x] Record final absolute/net production and test lines, deleted responsibilities, largest remaining classes, schema
-  objects and paired performance evidence. Phase 22 starts only after both hard code ceilings and all performance gates
-  pass.
+  objects and paired performance evidence. Phase 21c starts before external migration because the original absolute
+  event-throughput gate was not actually exercised by the retained comparison.
+
+## Phase 21c — Absolute model-commit throughput and terminology correction
+
+This is a release blocker. The previous model benchmark reported one-event operations as `commits/s` and compared
+successive model-store implementations, while the established JDBC event-store bulk control was not kept in the final
+matrix. A direct rerun stored 1,000,000 aggregate events, including global event-log publication, at 680,735 events/s.
+The integrated model store measured 6,424–8,194 one-event commits/s with direct documents, snapshots, relations and
+graph projection disabled. The workloads are not identical, but an 83–106x event-rate gap invalidates release
+readiness until batching, byte throughput and complete SDK-to-runtime behavior are measured and corrected explicitly.
+
+The feature initially introduced action-oriented terminology for the same persisted commit. That distinction had no
+domain value and obscured comparison with aggregate commits. Unreleased public, wire, runtime, schema, benchmark and
+documentation names therefore use `model commit`, `commit`, `commitId`, `commits/s` and `events/s` consistently.
+
+### Slice 21c.1 — Safe, absolute benchmark controls
+
+- [x] Make every destructive benchmark require or construct an explicit isolated datasource/schema, print its
+  effective target before teardown and refuse the runtime default database. Never let an ignored system property route
+  a benchmark `dropSchema` to a developer or customer database.
+- [x] Retain the existing `JdbcEventStoreBenchmark` as the bulk reference including aggregate event storage and global
+  tracking-log publication. Report commits/requests, events, logical bytes, physical bytes, WAL, p50/p95/p99 and batch
+  shape rather than one ambiguous rate.
+- [x] Extend the JDBC model benchmark with configurable commit steps/events, targets, model cardinality, payload size,
+  compressibility, publication, documents, snapshots and relations. Always report commits/s, globally published
+  events/s, model memberships/s and logical MiB/s separately.
+- [x] Run paired cold and warm loads for equivalent event counts and byte volumes. Report fetched blocks/rows, applied
+  events/s, logical MiB/s, p50/p95/p99, allocations and read amplification.
+
+### Slice 21c.2 — SDK-to-runtime end-to-end matrix
+
+- [x] Retain the functionally identical aggregate/member tree and independent-model graph through the real SDK,
+  WebSocket transport, runtime endpoints and PostgreSQL stores.
+- [x] Run the matrix with `searchable=false` for every independently stored model and with `searchable=true` for the
+  equivalent aggregate/model documents. Direct searchable documents must be synchronously visible in both cases;
+  asynchronous graph materialization is measured separately and may not hide commit latency.
+- [x] Add a conflict-free, high-cardinality throughput profile in addition to hot/Zipf contention. Report commands/s,
+  commits/s, events/s, logical MiB/s, end-to-end p50/p95/p99, allocations, physical bytes, WAL and query visibility.
+- [x] Compare aggregate and model paths under identical payloads, command concurrency, durability, publication,
+  cache state and search configuration. A small application benchmark may not substitute for the absolute JDBC gate.
+
+### Slice 21c.3 — JFR-guided commit-path redesign
+
+- [x] Capture repeatable JFR profiles for the bulk aggregate control and model commits with search disabled and
+  enabled. Retain summaries of CPU samples, allocation pressure, monitor/park time, socket/JDBC waits, compression,
+  serialization and garbage collection.
+- [x] Attribute every ordinary model commit statement, row, index update, serialization and copy. Remove redundant
+  idempotency reads, duplicate result serialization, underfilled count-bounded batches and per-event work that can be
+  represented once per byte-bounded commit batch.
+- [x] Recover aggregate-grade payload batching/compression without making direct or batched model reconstruction
+  perform an N+1 query or repeatedly decompress unrelated data. Evaluate cached immutable payload blocks, offsets and
+  adaptive inline/block crossover against real compressible and incompressible payloads.
+- [x] Keep model heads, sequence numbers, exact historical boundaries, durable retries, cache tracking, hard deletion
+  and shared-payload ownership correct. Performance work may change their physical representation but not weaken
+  their observable contract.
+
+### Slice 21c.4 — Commit terminology
+
+- [x] Replace all former action-oriented class, field, store, table, metric and benchmark terminology with
+  `CommitModels`, `ModelCommit*`, `commitId`, `model_commit`, `commit_id`, `commits/s` and `events/s`. Preserve
+  `action` only where it describes a user/domain action rather than the persistence commit.
+- [x] Use one clear request/result vocabulary analogous to existing aggregate commits: a model commit contains ordered
+  commit steps, each original event is published globally at most once and each target receives one stream
+  membership.
+- [x] Update JSON/CBOR type registration, WebSocket endpoints, local/test stores, fixtures, schema upgrade tests,
+  Javadocs and manuals together. Because this surface is unreleased, do not retain misleading commit aliases.
+
+### Slice 21c.5 — Release gate
+
+- [x] Require the common one-target, one-event model commit to remain at least as fast end-to-end as the equivalent
+  aggregate command.
+- [x] Require **at least 600,000 stored and globally published model events/s** on the same local datasource, JVM,
+  payload and batch shape as the established JDBC aggregate control. This is a hard acceptance floor, not a target or
+  extrapolation. The measured path retains model streams and heads, exact sequence/state boundaries, durable commit
+  identity, cache-update tracking, replay, conflict behavior, lifecycle and global event publication; disabling,
+  bypassing or weakening accepted functionality does not satisfy the gate.
+- [x] Report bulk `commits/s`, `events/s`, `memberships/s` and logical MiB/s independently so packing many events into
+  one commit cannot conceal unacceptable one-event command latency or vice versa.
+- [x] Require no material regression in hot/cold direct loads, batched reconstruction, direct search, graph search,
+  cache tracking, conflict handling, restart recovery, erasure, physical amplification or WAL.
+- [x] Repeat the complete JDBC and SDK-to-runtime matrices from clean schemas in alternating order and record variance.
+  Local hardware is a regression oracle; representative production hardware remains the absolute 100-GB/min
+  certification gate.
+- [x] Run both complete Maven reactors, site/Javadocs, downstream Java/Kotlin compatibility, wire round trips, binary
+  API review, `git diff --check` and an adversarial review. Only then reconsider release or start Phase 22.
+
+Phase 21c closed on 2026-07-29. The final clean-schema runtime gate committed 10,400,000 model events after a
+520,000-event warm-up at **1,018,715 stored memberships/s and 1,018,715 globally published events/s**, with exact
+post-run row-count verification, 1.01x physical amplification and 1.04x WAL amplification. The equivalent SDK-to-
+runtime tree remained faster than the aggregate representation in both execution orders: 1.371–1.457x without search
+and 1.299–1.424x with synchronous direct documents and asynchronous graph projection. Both complete Maven reactors,
+the SDK site/Javadocs, downstream Java/Kotlin builds, focused wire/storage matrices and `git diff --check` passed.
+JFR retained the real stream/head, commit identity, update tracking, event publication and transaction paths; the gate
+does not disable documents or graph work globally, but its explicit search-disabled profile isolates the absolute
+event-storage floor while the searchable end-to-end matrix verifies that those features remain intact.
+
+## Phase 21d — 100k one-event SDK-to-runtime commit gate
+
+This is a release blocker. Phase 21c proved the runtime store can retain and globally publish more than one million
+events/s when 100 events share one commit, but the customer-shaped SDK benchmark produced only 1,558–1,765 commands,
+one-event commits and events/s. The benchmark does perform automatic target resolution, model repository loading,
+`@Apply`, durable model-stream and global-log storage, cache maintenance and command-result delivery. Calling that
+result acceptable because it remained faster than the equivalent aggregate path confuses relative parity with
+absolute capacity.
+
+The hard gate is **at least 100,000 independently committed one-target, one-event model updates per second through the
+real Java SDK, WebSocket transport, tracked command consumer, runtime endpoints and PostgreSQL stores**. Every update
+must complete with its ordinary command result and retain model loading, exact state boundaries, model cache tracking,
+idempotency, replay, global event publication and failure semantics. Packing many events into one commit remains an
+important complementary byte-throughput profile, but may not substitute for this gate.
+
+### Slice 21d.1 — Honest decomposition and repeatable profiling
+
+- [ ] Extend the E2E driver with a model-only mode, asynchronous bounded in-flight sending and configurable
+  events-per-command while preserving the existing blocking `sendAndWait` latency profile.
+- [ ] Report command publication, command-log visibility, consumer queueing, target resolution, cache/repository load,
+  assertions/applies, commit submission, JDBC commit, cache update and result-delivery time separately.
+- [ ] Capture JFR profiles and allocation counts for the one-event runtime store, SDK sender, WebSocket endpoints,
+  tracked consumer and result path. Record CPU, allocation, park/monitor, socket, serialization, compression, JDBC and
+  garbage-collection costs rather than inferring the bottleneck from total latency.
+- [ ] Keep one-event commits, commits/s and events/s visibly identical in the gate output. Add a separate
+  multi-event-per-commit profile without using it to satisfy the one-event floor.
+
+### Slice 21d.2 — Runtime one-event commit capacity
+
+- [ ] Raise the current one-event runtime-store result from 24,987 commits/s to at least 100,000 commits/s without
+  weakening model heads, sequence/state indices, durable commit identity/results, update tracking, replay, lifecycle
+  or exactly-once global event publication.
+- [ ] Remove or batch fixed per-commit statements, rows, serialization and transaction work that dominates when a
+  commit contains one event. Preserve independent failure/results and bound batches by bytes, latency and memory.
+- [ ] Re-run searchable and non-searchable profiles. Synchronous direct-document visibility remains part of the
+  searchable commit; asynchronous graph composition is measured and fenced separately.
+
+### Slice 21d.3 — SDK, tracking and transport capacity
+
+- [ ] Support at least 100,000 bounded in-flight automatic model commands/s without one platform thread per request,
+  unbounded futures, hidden fire-and-forget behavior or omitted results.
+- [ ] Batch compatible command publication, tracking delivery, model loads/commits and result frames while preserving
+  per-command metadata, correlation, ordering contracts, exception delivery, cancellation and backpressure.
+- [ ] Keep automatic model caching enabled in the primary profile and prove every command still resolves and loads its
+  target through the ordinary `ModelRepository` path. Add cache-disabled and forced-cold controls.
+- [ ] Preserve ordinary aggregate, notification, event-handler and custom consumer behavior; model throughput work may
+  not globally change established delivery or batching semantics without focused compatibility evidence.
+
+### Slice 21d.4 — Absolute release gate
+
+- [ ] Sustain at least **100,000 one-event model commits/events per second end-to-end** after warm-up on the Phase 21c
+  local regression machine, with zero missing/duplicate events and results and exact post-run stream/global-log counts.
+- [ ] Record p50/p95/p99/max command-result latency at the passing throughput, plus unloaded single-command latency.
+  Throughput obtained through an unbounded queue or multi-second tails does not pass.
+- [ ] Repeat with synchronous direct search documents and default asynchronous graph projection; record their separate
+  floors and projection-visibility lag. Fix targeted `AWAIT` completion so it does not wait on unrelated roots.
+- [ ] Run both complete reactors, focused compatibility/concurrency/restart tests, Javadocs, downstream builds,
+  `git diff --check` and an adversarial regression review before closing Phase 21d.
 
 ## Phase 22 — Existing-application `@Aggregate` to `@Model` migration
 
@@ -1734,23 +1887,23 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   models; exact-name, unique typed-ID, and `@Association` resolution; global-ID deduplication; and deferred same-type
   write selection. Focused tests, Javadoc, and the full SDK reactor passed. The retained resolver measured 13.3 ns /
   104 bytes for one target and 73.4 ns / 504 bytes for two cross-model targets; the allocation-heavy predecessor was
-  discarded and is documented in the [Phase 2 report](dynamic-model-boundaries-phase-2-action-loading.md).
-- 2026-07-25 — SDK commit `ac2922b5f53` adds exact action-scoped model/value injection without touching legacy
+  discarded and is documented in the [Phase 2 report](dynamic-model-boundaries-phase-2-commit-loading.md).
+- 2026-07-25 — SDK commit `ac2922b5f53` adds exact commit-scoped model/value injection without touching legacy
   aggregate discovery. Automatic and qualified context lookup retained zero allocation at 2.73 ns and 4.59 ns median.
-- 2026-07-25 — Phase 2 completed at the side-effect-free SDK action boundary: deterministic cross-model applies,
-  ordered interceptor substeps, logical delete, receiver-side handlers, before/after assertions, action-prefix
+- 2026-07-25 — Phase 2 completed at the side-effect-free SDK commit boundary: deterministic cross-model applies,
+  ordered interceptor substeps, logical delete, receiver-side handlers, before/after assertions, commit-prefix
   reconstruction semantics, and complete in-memory rollback. Focused tests (39), Javadoc, and the full SDK reactor
-  passed. The retained complete one-write action measured 305.7 ns / 2,520 bytes median; details are in the
-  [Phase 2 report](dynamic-model-boundaries-phase-2-action-loading.md).
+  passed. The retained complete one-write commit measured 305.7 ns / 2,520 bytes median; details are in the
+  [Phase 2 report](dynamic-model-boundaries-phase-2-commit-loading.md).
 - 2026-07-25 — Runtime commits `41a57adc` and `b17806d2` complete authoritative storage Slices 3.2/3.3: lazy partitioned
-  JDBC schema, ordered namespace state indices, set-based heads/streams/actions/relationships, adaptive inline/shared
+  JDBC schema, ordered namespace state indices, set-based heads/streams/commits/relationships, adaptive inline/shared
   payloads, compact durable idempotency results, one-transaction global publication when co-located, in-memory parity,
-  and explicit per-action/pending-byte overload protection. Full runtime module passed (501 tests); the focused suite
+  and explicit per-commit/pending-byte overload protection. Full runtime module passed (501 tests); the focused suite
   additionally found and fixed multi-parent selective detach being misclassified as a move. The retained diagnostic
-  benchmark measured 8,839 actions/s for one 1-KiB target, 31,051 memberships/s for ten targets, 39,940 memberships/s
+  benchmark measured 8,839 commits/s for one 1-KiB target, 31,051 memberships/s for ten targets, 39,940 memberships/s
   for one hundred 16-KiB targets, and 18,704 memberships/s with one relationship per target. Details and limitations
   are in the [Phase 3 storage report](dynamic-model-boundaries-phase-3-storage.md). Direct search remains Slice 3.4.
-- 2026-07-25 — SDK commit `e4674571875` and runtime commit `2b77b7dd` add the action commit transport, synchronous
+- 2026-07-25 — SDK commit `e4674571875` and runtime commit `2b77b7dd` add the commit commit transport, synchronous
   direct-document mutation component, document-based model repository, and pinned batched model-stream reads.
   Multi-target reads carry and deserialize one shared payload while retaining independent stream memberships. The SDK
   `common`/`sdk` reactor passed 1,800 tests; the complete runtime module passed 508 tests. SDK and runtime in-memory
@@ -1761,7 +1914,7 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   stored delete bit preserve reconstructibility before a non-stored transition and delete/recreate state without a
   head-history row per transition. Changed historical heads use logarithmic exact probes on the existing stream
   primary key; current heads, memberships, and unique payloads share one query. Same-container A/B measurements found
-  identical 10.50-MiB physical storage for 5,000 one-target actions and equivalent throughput/WAL. The retained public
+  identical 10.50-MiB physical storage for 5,000 one-target commits and equivalent throughput/WAL. The retained public
   load measured 64,223 current models/s with 1,024-model batches; a 100,000-event head at the midpoint resolved in
   6.2 ms warm. The complete runtime module passed 511 tests. Byte-bounded SDK reconstruction remained open at this
   checkpoint.
@@ -1770,26 +1923,26 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   unlimited request behavior. The runtime
   applies it before deserialization and extracts uncompressed size from the existing compression header, so no
   storage column or write amplification was added. The SDK pins the first response boundary across 1,024-model chunks
-  and validates heads, sequence continuity, action metadata, payload references, limits, and forward progress page by
+  and validates heads, sequence continuity, commit metadata, payload references, limits, and forward progress page by
   page. Ten repeated reads of 10,000 one-event models measured 78,483 models/s without a byte cap and 76,490 models/s
   with an inactive 8-MiB cap: 2.5% overhead in this local warm-cache run for computing the safe global/byte prefix.
   The complete SDK reactor and all 516 runtime-module tests passed; the benchmark reactor also test-compiled.
 - 2026-07-26 — Phase 4 (`SDK 2b59b35d0d5`, runtime `a2a6d6d5`) adds optional global-read-boundary conflict handling
   without making it the model design frame: `ACCEPT` remains the zero-rejection default; strict policies roll back the
-  whole runtime action and may fail or retry after a fresh pinned load, optionally only while relationships remain
+  whole runtime commit and may fail or retry after a fresh pinned load, optionally only while relationships remain
   unchanged. Details are in the [Phase 4 report](dynamic-model-boundaries-phase-4-conflicts.md).
-- 2026-07-26 — Phase 5 (`SDK 0249394ba5c`, runtime `e0ea56e1`) connects independent model actions to normal local and
+- 2026-07-26 — Phase 5 (`SDK 0249394ba5c`, runtime `e0ea56e1`) connects independent model commits to normal local and
   tracked command handling; reconstructs exact self/cross-model state through bounded hash-pruned stream pages,
-  snapshots, cache suffixes, and action-prefix views; makes direct searchable documents visible before command success;
-  and returns grouped temporal graph bundles with explicit child-owned paths. Existing compact action results pin
+  snapshots, cache suffixes, and commit-prefix views; makes direct searchable documents visible before command success;
+  and returns grouped temporal graph bundles with explicit child-owned paths. Existing compact commit results pin
   event-handler loads without a second event→state table. The complete SDK reactor, site/Javadoc reactor, Java/Kotlin
   downstream projects, and complete runtime reactor passed; runtime reported 528 tests. The retained local integrated
-  diagnostics measured 9,193 one-target actions/s, 18,925 ten-target memberships/s, roughly 19–25k model loads/s, and
+  diagnostics measured 9,193 one-target commits/s, 18,925 ten-target memberships/s, roughly 19–25k model loads/s, and
   220,714 SDK replayed events/s. Full evidence and limitations are in the
   [Phase 5 report](dynamic-model-boundaries-phase-5-reconstruction.md). Production 100-GB/min certification,
-  action-result retention/archival, and the explicit non-JDBC publish-first visibility race remain Phase 9 gates.
-- 2026-07-26 — Coherent action materialization (`SDK 0b9b74b0764`, runtime `39cb88e1`) sends original events, optional
-  direct documents, due snapshots, and relationships as one model-action package. The core JDBC commit durably retains
+  commit-result retention/archival, and the explicit non-JDBC publish-first visibility race remain Phase 9 gates.
+- 2026-07-26 — Coherent commit materialization (`SDK 0b9b74b0764`, runtime `39cb88e1`) sends original events, optional
+  direct documents, due snapshots, and relationships as one model-commit package. The core JDBC commit durably retains
   exact compressed recovery intent; direct search and snapshots complete synchronously through state-index fences and
   survive restart without SDK reevaluation. Default `ACCEPT` now preserves the original post-interception events while
   reapplying only `@Apply` against a fresh pinned boundary. The retained 1/2/10/100-target comparison found no
@@ -1799,7 +1952,7 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   regression review retained public registry constructors, legacy snapshot readability, metric compatibility, and
   document/snapshot-aware runtime backpressure.
 - 2026-07-26 — Direct assert-and-apply (`SDK 51dc3fd3b84`) adds synchronous
-  `Fluxzero.assertAndApply(update[, metadata])`. It enters the independent-model action engine without command
+  `Fluxzero.assertAndApply(update[, metadata])`. It enters the independent-model commit engine without command
   redispatch, so an explicit handler can apply its own payload exactly once; it returns only after durable commit and
   direct-search visibility, while preserving the enclosing handler result and original failures. Synchronous,
   asynchronous-result, nested-dispatch, metadata, failure, and outside-handler fixture paths are covered. The complete
@@ -1809,9 +1962,9 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
 - 2026-07-26 — Ancestor injection (`SDK f408c5d7e10`, runtime `1424343c`) resolves parents, grandparents, and arbitrary
   read-only ancestors for `@AssertLegal`, `@InterceptApply`, and `@Apply` through one pinned temporal graph request.
   `@Association` remains a direct payload-property qualifier when that property exists and otherwise qualifies an
-  explicit `@ParentId(path = ...)` edge. Same-action moves overlay staged child relations; cold reconstruction resolves
-  the pre-event graph and original action-prefix state. Stored FQNs use the serializer's existing upcasting/type-caster
-  chain and remain optional metadata rather than identity. The direct action path performs no graph lookup. Full SDK,
+  explicit `@ParentId(path = ...)` edge. Same-commit moves overlay staged child relations; cold reconstruction resolves
+  the pre-event graph and original commit-prefix state. Stored FQNs use the serializer's existing upcasting/type-caster
+  chain and remain optional metadata rather than identity. The direct commit path performs no graph lookup. Full SDK,
   site/Javadoc, downstream, and runtime reactors passed; runtime reported 540 tests. The retained local JDBC diagnostic
   measured 25,479 ancestor roots/s and 4.797 / 5.363 / 7.002 ms p50/p95/p99 latency for 128-root batches. Deep/wide DAG
   certification and payload-only untyped `Object` reconstruction remain open.
@@ -1825,7 +1978,7 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   document retrieval dominating the broad result. Co-located recursive query compilation, stitched current documents,
   recursive/paging/move certification, and historical full-text graph search remain open.
 - 2026-07-26 — Current graph composition (`SDK e4de8597314`, runtime `f95cb5c4`) adds
-  `Search.includeModelGraph()` as a distinct bounded wire action. Explicit `@ParentId(path)` edges become deterministic
+  `Search.includeModelGraph()` as a distinct bounded wire commit. Explicit `@ParentId(path)` edges become deterministic
   list placements; missing child documents are omitted, shared DAG nodes are placed at every path, collisions and
   cycles fail, and root path filters run after stitching. Current document collections are stored once in a small
   registry while partitioned model heads retain only nullable integer locators. Exact `(segment, modelId)` joins and one
@@ -1845,17 +1998,17 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   71 tests; complete SDK, site/Javadoc, downstream, and runtime reactors passed. The runtime feature branch now
   resolves SDK `0-SNAPSHOT` so it cannot accidentally test these contracts against a published pre-feature SDK.
 - 2026-07-26 — Temporal graph integrity (`SDK 3f62c0bada4`, runtime `af521f6c`) adds explicit
-  `ModelRepository.loadGraphAt`, rejects model-relation cycles before event publication with complete action rollback,
-  preserves atomic same-substep edge reversals, and isolates invalid actions from valid coordinator neighbours.
+  `ModelRepository.loadGraphAt`, rejects model-relation cycles before event publication with complete commit rollback,
+  preserves atomic same-substep edge reversals, and isolates invalid commits from valid coordinator neighbours.
   Current/as-of traversal and half-open interval boundaries are covered in memory and JDBC. The retained batched
-  validator measured 493 actions/s versus 513 with validation temporarily disabled (3.9% throughput and 3.4% p99 cost)
-  on the exact local relation-heavy A/B; the per-action-query predecessor was discarded. The complete SDK,
+  validator measured 493 commits/s versus 513 with validation temporarily disabled (3.9% throughput and 3.4% p99 cost)
+  on the exact local relation-heavy A/B; the per-commit-query predecessor was discarded. The complete SDK,
   site/Javadoc, downstream, and runtime reactors passed; runtime reported 560 tests. Details and open production-scale
   DAG certification are in the
   [Phase 6 temporal graph report](dynamic-model-boundaries-phase-6-temporal-graph.md).
 - 2026-07-26 — Materialized model graphs (`SDK 304756a3f70`, runtime `a236277c`) add opt-in
   `@Model(graphProjection = @GraphProjection(...))` definitions, automatic typed-root registration, durable
-  action-transaction signals, coalesced hash-partitioned root tasks, resumable rebuilds, projection-local path
+  commit-transaction signals, coalesced hash-partitioned root tasks, resumable rebuilds, projection-local path
   overrides, and configuration/state-fenced graph documents in a collection distinct from direct model search.
   Direct documents remain synchronously visible; graph lag and both durable backlog stages are explicit. No projection
   table, query, signal, or hot-path write exists before opt-in. Full SDK, site/Javadoc, and runtime suites passed
@@ -1867,18 +2020,18 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   fixtures and the test server.
 - 2026-07-26 — Phase 8 SDK commit `49000dd69f1` and runtime commit `d3a74b60` add bounded deletion planning and
   explicitly confirmed `NONE`/`DESCENDANTS` hard deletion. JDBC execution is a fenced, hash-partitioned, resumable
-  1,024-target saga across streams, relationships, action materializations, snapshots, direct search, and materialized
+  1,024-target saga across streams, relationships, commit materializations, snapshots, direct search, and materialized
   graph search; detached lineage remains lifecycle-discoverable through HMAC tokens and the global event log is
   retained. Focused verification passed 51 SDK and 173 runtime tests. Retained benchmark results range from 0.097 s for
   `NONE` to 70.804 s for a 100,000-model wide cascade; a paired direct-document hot-path A/B measured 6,020 versus 6,070
-  actions/s (about -0.8%, with unchanged p50/physical amplification). Full measurements and remaining key-management
+  commits/s (about -0.8%, with unchanged p50/physical amplification). Full measurements and remaining key-management
   limitation are recorded in [the Phase 8 erasure contract](dynamic-model-boundaries-phase-8-erasure.md).
 - 2026-07-26 — Phase 9 runtime commit `62b8b3bd` hardens distributed rollout with cross-instance graph-projection
   registration, externally managed and startup-validated lineage HMAC keys, fail-closed external-store boundary
-  visibility, and retained concurrent complete-action/load benchmarks. The final SDK `./mvnw -B install` passed all
+  visibility, and retained concurrent complete-commit/load benchmarks. The final SDK `./mvnw -B install` passed all
   nine modules, including aggregate, protocol, annotation-processor, test-server, proxy, and Java/Kotlin downstream
   contracts. The final runtime `./mvnw -B install` passed all four modules and 601 runtime tests. The
-  [Phase 9 certification](dynamic-model-boundaries-phase-9-certification.md) records complete-action, graph,
+  [Phase 9 certification](dynamic-model-boundaries-phase-9-certification.md) records complete-commit, graph,
   projection, cache, storage/WAL, failure/recovery, compatibility, migration, rollback, and rollout evidence. The
   implementation is GO for merge and controlled rollout; absolute 100 GB/min capacity and production-duration
   operational qualification remain explicit infrastructure deployment gates.
@@ -1895,12 +2048,12 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   projection no-op. The [Phase 10 semantics](dynamic-model-boundaries-phase-10-semantics.md) and
   [paired Phase 11 report](dynamic-model-boundaries-phase-11-e2e.md) retain the complete contracts and measurements.
   The [Phase 9 decision](dynamic-model-boundaries-phase-9-certification.md) is renewed as GO for merge and controlled
-  rollout, with absolute 100 GB/min qualification, production-duration operations, action-result retention, and
+  rollout, with absolute 100 GB/min qualification, production-duration operations, commit-result retention, and
   workload-specific physical sizing retained as deployment gates.
 - 2026-07-27 — Phase 12 (`SDK 90665b4b1658`, runtime `6affc207b205`) replaces per-load model-head validation with one
   durable long-polled update cursor per active namespace. The retained hybrid cache fences remote changes immediately,
   refreshes only cached targets in bounded batches, keeps event-sourced replay bases, and reconstructs event-handler
-  state at its exact action boundary. A separate materialization head prevents direct documents or deletes from being
+  state at its exact commit boundary. A separate materialization head prevents direct documents or deletes from being
   fenced current before their external writes complete; SDK-owned stores close that fence with an idempotent
   acknowledgement. The regression-only review additionally separated update and document readiness to prevent
   head-of-line blocking, made tracker bootstrap safe during pending writes, and closed the old-document recache race
@@ -1909,7 +2062,7 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   compatibility. Measurements and the explicit split-database crash limitation are retained in the
   [Phase 12 report](dynamic-model-boundaries-phase-12-cache-tracking.md).
 - 2026-07-27 — Phase 13 (`SDK 2737dd80ab8`, `b13a59dc546`, `b1265fe2d7f`; runtime `f47a62fa`) makes the
-  public rollout model-first. Tracked event/notification handlers inject `T` and `Entity<T>` at the exact model-action
+  public rollout model-first. Tracked event/notification handlers inject `T` and `Entity<T>` at the exact model-commit
   boundary; unconfigured handlers can share a version-gated consumer per exact package; and one executable parity suite
   runs lifecycle, publication, search, rollback, snapshot and embedded-member contracts against aggregates and models.
   The runtime integration suite now covers direct and document-loaded models, exact event injection, logical/hard
@@ -1923,8 +2076,8 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
 - 2026-07-27 — Phase 14 (SDK: this commit; runtime `0f7615916615`) closes the production-hardening review.
   All message-handler kinds can inject direct independent models and arbitrary ancestors from typed payload IDs or
   `@Association`-selected payload/metadata values, while event and notification loads remain pinned to their exact
-  model-action boundary. Runtime erasure recovery now has one operational owner; shared event payloads survive until
-  their final stream membership is erased; store-only actions bypass the global event log; and published actions
+  model-commit boundary. Runtime erasure recovery now has one operational owner; shared event payloads survive until
+  their final stream membership is erased; store-only commits bypass the global event log; and published commits
   reserve ordered indices without waiting for JDBC under the global head monitor. Split search stores repair from the
   exact committed document/snapshot bytes and close a monotone materialization fence only after success. Complete
   event-sourced history is enforced before commit. Focused verification passed 74 SDK/common and 162 runtime tests;
@@ -1934,36 +2087,36 @@ Add one line per completed slice with SDK/runtime commit(s), tests, benchmarks, 
   100-GB/min deployment gate and rollback/runbook—are recorded in the
   [Phase 14 report](dynamic-model-boundaries-phase-14-hardening.md).
 - 2026-07-27 — Phase 15 (SDK: this commit; runtime `a0fce8ef`) corrects the misleading Phase 14 hot-key conclusion.
-  Default-`ACCEPT` actions now coordinate overlapping local read sets before commit, while the runtime retains
+  Default-`ACCEPT` commits now coordinate overlapping local read sets before commit, while the runtime retains
   independent optimistic batches as ordered conflict-free waves. Strict conflict policies and cross-process runtime
   authority are unchanged. Focused verification passed 28 SDK and 78 JDBC tests; both full reactors passed, including
   1,941 SDK and 643 runtime tests plus protocol, test-server, proxy, annotation-processing, Java/Kotlin downstream and
-  benchmark compilation. The retained conflict-free 10,000-action comparison measured models at 1,493.9 versus
-  aggregates at 1,089.0 actions/s (1.372×), with 59% less WAL and 50% less allocation. The deliberately skewed profile
+  benchmark compilation. The retained conflict-free 10,000-commit comparison measured models at 1,493.9 versus
+  aggregates at 1,089.0 commits/s (1.372×), with 59% less WAL and 50% less allocation. The deliberately skewed profile
   improved from 0.265× to 0.773× aggregate throughput; its remaining same-model serialization boundary is explicit in
   the [Phase 15 report](dynamic-model-boundaries-phase-15-contention-performance.md).
 - 2026-07-27 — Phase 16 (SDK: this commit; runtime `426793ec`) makes runtime-owned split-database
   document/snapshot materialization self-healing after namespace activation following restart. Exact retained
-  projection bytes are drained in 128-action/8-MiB batches with fenced idempotent writes and bounded retry, while the
+  projection bytes are drained in 128-commit/8-MiB batches with fenced idempotent writes and bounded retry, while the
   unsupported multi-active 100-ms observer is removed in favor of true single-active long polling. Erasure-key,
   retention and observability documentation now describes implemented behavior rather than deployment assumptions.
   Focused JDBC verification passed 78 tests. The complete runtime reactor passed all four modules and 643 tests; the
   complete SDK reactor passed all nine modules, including 1,941 SDK tests and Java/Kotlin downstream compatibility.
   The final adversarial review additionally made recovery waits interruptible during shutdown. The
-  [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) retains action-result archival, multi-active
+  [Phase 16 report](dynamic-model-boundaries-phase-16-recovery.md) retains commit-result archival, multi-active
   notification, customer alert thresholds, production-duration soak and absolute 100-GB/min qualification as explicit
   future or deployment gates.
-- 2026-07-27 — Phase 17 (SDK: `7207e9ed`; runtime: `2a500a42`) separates the permanent, ID-free model-action boundary
+- 2026-07-27 — Phase 17 (SDK: `7207e9ed`; runtime: `2a500a42`) separates the permanent, ID-free model-commit boundary
   from target-bearing cache receipts. Receipts and the sparse reverse lookup for publication-suppressed targets are
   hourly range-partitioned, atomically written and dropped as whole partitions after a configurable one-hour minimum;
   old trackers receive a backwards-compatible cache reset. Duplicate idempotency, exact historical boundaries, hard
   erasure and opaque event metadata remain intact after expiry and restart. The adversarial review additionally closed
-  an SDK race in which a tracked local action could start an unnecessary suffix refresh before its accepted result
+  an SDK race in which a tracked local commit could start an unnecessary suffix refresh before its accepted result
   seeded the cache. The final SDK reactor passed all nine modules and 1,943 SDK tests; the runtime reactor passed all
   four modules and 645 tests. Paired one- and ten-target results show commit throughput within 1.3% of the baseline,
   +4.2%/+1.6% WAL while receipts are retained, and 1.94–4.6x faster update tracking. Absolute 100 GB/min qualification
   and production-duration partition-rollover soak remain deployment gates; full evidence is retained in the
-  [Phase 17 report](dynamic-model-boundaries-phase-17-action-receipts.md).
+  [Phase 17 report](dynamic-model-boundaries-phase-17-commit-receipts.md).
 - 2026-07-28 — Phase 18 (SDK: this change; runtime unchanged) gives `LocalClient`, synchronous fixtures and the
   websocket test server real in-memory graph projection materialization. Explicitly placed non-searchable children now
   use the internal `$modelGraphComponents` collection without gaining an independent search collection; models without

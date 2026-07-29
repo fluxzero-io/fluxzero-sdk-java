@@ -50,7 +50,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-class ModelActionHandlerIntegrationTest {
+class ModelCommitHandlerIntegrationTest {
 
     @Test
     void payloadApplyCommitsModelAndDirectSearchBeforeCommandCompletion() {
@@ -162,7 +162,7 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
-    void existingCommandHandlerWinsOverModelActionFallback() {
+    void existingCommandHandlerWinsOverModelCommitFallback() {
         TestFixture fixture = TestFixture.create(new ExplicitHandler());
         AccountId accountId = new AccountId("2");
 
@@ -192,7 +192,7 @@ class ModelActionHandlerIntegrationTest {
                             .findFirst().orElseThrow();
                     assertEquals(command, event.getPayload());
                     assertEquals("direct",
-                                 event.getMetadata().get("model-action"));
+                                 event.getMetadata().get("model-commit"));
                     assertEquals(new Account(accountId, 63),
                                  fluxzero.modelRepository()
                                          .load(accountId).get());
@@ -821,7 +821,7 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
-    void laterInterceptorSubstepSeesAParentMovedEarlierInTheSameAction() {
+    void laterInterceptorSubstepSeesAParentMovedEarlierInTheSameCommit() {
         TestFixture fixture = TestFixture.create();
         FamilyRootId rootId = new FamilyRootId("staged");
         FamilyChildId firstId = new FamilyChildId("staged-first");
@@ -848,7 +848,7 @@ class ModelActionHandlerIntegrationTest {
                             .load(grandchildId).get();
                     var expected = new FamilyGrandchild(
                             grandchildId, secondId, secondId,
-                            "same-action:second/root");
+                            "same-commit:second/root");
                     if (!expected.equals(actual)) {
                         throw new AssertionError(
                                 "Expected " + expected
@@ -899,7 +899,7 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
-    void trackedPayloadApplyUsesTheSameModelActionPath() throws Throwable {
+    void trackedPayloadApplyUsesTheSameModelCommitPath() throws Throwable {
         LocalClient client = LocalClient.newInstance(null);
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableKeepalive()
@@ -954,7 +954,7 @@ class ModelActionHandlerIntegrationTest {
     }
 
     @Test
-    void trackedCrossModelReceiverActionExecutesOnlyOnce()
+    void trackedCrossModelReceiverCommitExecutesOnlyOnce()
             throws Throwable {
         LocalClient client = LocalClient.newInstance(null);
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
@@ -1073,7 +1073,7 @@ class ModelActionHandlerIntegrationTest {
         String handle(ExplicitlyDelegatedCreate command) {
             invocations.incrementAndGet();
             Fluxzero.assertAndApply(
-                    command, Metadata.of("model-action", "direct"));
+                    command, Metadata.of("model-commit", "direct"));
             return "delegated";
         }
     }
@@ -1497,7 +1497,7 @@ class ModelActionHandlerIntegrationTest {
                             : newPrimaryId,
                     grandchild.secondaryId(),
                     observe
-                            ? "same-action:" + parent.name()
+                            ? "same-commit:" + parent.name()
                               + "/" + grandparent.name()
                             : grandchild.observations());
         }

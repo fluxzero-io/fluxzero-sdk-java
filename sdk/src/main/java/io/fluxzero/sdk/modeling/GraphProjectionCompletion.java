@@ -26,7 +26,7 @@ public enum GraphProjectionCompletion {
     DEFAULT,
 
     /**
-     * Let durable graph projection continue asynchronously after the authoritative model action completes.
+     * Let durable graph projection continue asynchronously after the authoritative model commit completes.
      */
     ASYNC,
 

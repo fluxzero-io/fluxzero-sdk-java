@@ -31,9 +31,9 @@ public class ModelEventMembership {
     long stateIndex;
 
     /**
-     * Exact state boundary read by the action before this membership was produced.
+     * Exact state boundary read by the commit before this membership was produced.
      */
     long readStateIndex;
-    String actionId;
+    String commitId;
     int substep;
 }

@@ -1,7 +1,7 @@
 ---
 title: Model persistence
 slug: docs/guides/modeling-and-persistence/model-persistence
-description: Event-sourced and document-based models, caches, snapshots and model actions
+description: Event-sourced and document-based models, caches, snapshots and model commits
 sidebar:
    order: 200
 ---
@@ -39,7 +39,7 @@ Each applied update is stored in this account's model stream. Loading reconstruc
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
 
 Independent models prevent unrelated histories from accumulating in one enormous stream. An order line, payment
-attempt or short-lived process can keep its own small history while still participating in one multi-model action.
+attempt or short-lived process can keep its own small history while still participating in one multi-model commit.
 
 ## Document-based models
 
@@ -94,9 +94,9 @@ for ordinary small target sets; large multi-target payloads may be stored once a
 the selected stream membership, and the shared payload is deleted only after no surviving membership refers to it.
 The global event log is independent.
 
-## The model-action commit package
+## The model commit package
 
-The SDK evaluates one complete model action and submits:
+The SDK evaluates one complete model commit and submits:
 
 - the original applied events;
 - target model memberships;
@@ -107,9 +107,9 @@ The SDK evaluates one complete model action and submits:
 - conflict and graph-projection completion policies.
 
 The runtime assigns monotone, time-derived `stateIndex` values and commits the co-located event store, model streams,
-heads, relations, action result and projection signals atomically in its JDBC transaction.
+heads, relations, commit result and projection signals atomically in its JDBC transaction.
 
-The runtime completes direct documents and snapshots before it releases a successful model-action result. When event
+The runtime completes direct documents and snapshots before it releases a successful model-commit result. When event
 and search storage use separate runtime-managed databases, the core action retains the exact serialized
 materialization until the fenced search write succeeds. A retry or the runtime's restart worker reapplies that original
 package; application code is never re-evaluated to repair an already committed action. Materialized whole-root graph
@@ -210,7 +210,7 @@ policies separately.
 
 ## Performance shape
 
-Direct model actions are optimized around IDs:
+Direct model commits are optimized around IDs:
 
 - target streams and relation adjacency are distributed over Fluxzero's stable ID segments;
 - JDBC writes are byte-bounded and batched rather than issued once per target;

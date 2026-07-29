@@ -25,18 +25,18 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable begin-state of the direct and resolved ancestor models loaded for one action.
+ * Immutable begin-state of the direct and resolved ancestor models loaded for one commit.
  * <p>
  * Direct identities come from a {@link ModelTargetResolver.TargetPlan}. Read-only ancestor dependencies are resolved
  * through one bounded temporal graph request before the context is created. All entries share one
  * {@link #readStateIndex()}.
  */
-public final class ModelActionContext {
+public final class ModelCommitContext {
     private final long readStateIndex;
     private final List<Entry> entries;
     private final List<ModelTargetResolver.DeferredWriteTarget> deferredWrites;
 
-    private ModelActionContext(
+    private ModelCommitContext(
             long readStateIndex,
             List<Entry> entries,
             List<ModelTargetResolver.DeferredWriteTarget> deferredWrites) {
@@ -46,14 +46,14 @@ public final class ModelActionContext {
     }
 
     /**
-     * Creates an action context from one resolved target set and its loaded begin-state.
+     * Creates an commit context from one resolved target set and its loaded begin-state.
      *
      * @param readStateIndex one global state boundary shared by every supplied model
      * @param resolution     deduplicated direct and already-resolved ancestor targets used for the load
      * @param loadedModels   loaded entities keyed by their exact persisted ID string
      * @throws IllegalArgumentException if a target is missing, has an incompatible type, or extra state was loaded
      */
-    public static ModelActionContext create(
+    public static ModelCommitContext create(
             long readStateIndex,
             ModelTargetResolver.Resolution resolution,
             Map<String, ? extends Entity<?>> loadedModels) {
@@ -73,10 +73,10 @@ public final class ModelActionContext {
         }
         if (!remaining.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Action load returned unrelated model IDs %s; only resolved action targets may enter the context"
+                    "Commit load returned unrelated model IDs %s; only resolved commit targets may enter the context"
                             .formatted(remaining.keySet()));
         }
-        return new ModelActionContext(readStateIndex, entries, resolution.deferredWrites());
+        return new ModelCommitContext(readStateIndex, entries, resolution.deferredWrites());
     }
 
     private static void validateLoadedEntity(ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
@@ -100,7 +100,7 @@ public final class ModelActionContext {
      * Attaches this context to a deserializing message and returns that message.
      */
     public DeserializingMessage attachTo(DeserializingMessage message) {
-        return Objects.requireNonNull(message, "message").putContext(ModelActionContext.class, this);
+        return Objects.requireNonNull(message, "message").putContext(ModelCommitContext.class, this);
     }
 
     /**
@@ -191,7 +191,7 @@ public final class ModelActionContext {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    ModelActionContext withValues(Map<String, Object> values) {
+    ModelCommitContext withValues(Map<String, Object> values) {
         if (values.isEmpty()) {
             return this;
         }
@@ -214,13 +214,13 @@ public final class ModelActionContext {
                             .build();
             updated.add(new Entry(entry.target(), entity));
         }
-        return new ModelActionContext(readStateIndex, updated, deferredWrites);
+        return new ModelCommitContext(readStateIndex, updated, deferredWrites);
     }
 
     private static IllegalStateException ambiguous(
             Class<?> modelType, String sourceProperty, List<String> modelIds) {
         return new IllegalStateException(
-                "Action context contains multiple %s models%s: %s. Qualify the handler parameter with "
+                "Commit context contains multiple %s models%s: %s. Qualify the handler parameter with "
                         .formatted(modelType.getName(),
                                    sourceProperty == null ? "" : " for payload property '" + sourceProperty + "'",
                                    modelIds)

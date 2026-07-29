@@ -18,30 +18,24 @@ package io.fluxzero.common.api.modeling;
 
 import lombok.Value;
 
-import java.util.List;
-
 /**
- * Runtime-assigned positions for one committed model-action substep.
+ * Current runtime positions for one model identity involved in a rejected model commit.
  */
 @Value
-public class ModelActionSubstepResult {
+public class ModelCommitConflict {
 
     /**
-     * Namespace-wide, time-derived state transition position.
-     * <p>
-     * This is an opaque monotone boundary, independent from {@link #eventIndex}. Its millisecond timestamp can be
-     * decoded with the SDK's {@code IndexUtils.timestampFromIndex}; callers must not infer adjacent transitions using
-     * arithmetic.
+     * Exact persisted model identity.
      */
-    long stateIndex;
+    String modelId;
 
     /**
-     * Existing global event-log index, or {@code null} when the event was not published.
+     * Current state index of the model head, or {@code -1} when the model has no head.
      */
-    Long eventIndex;
+    long currentStateIndex;
 
     /**
-     * Resulting per-model stream/head positions.
+     * Most recent relationship transition touching this identity as child or parent, or {@code -1} when none exists.
      */
-    List<ModelActionTargetResult> targets;
+    long currentRelationStateIndex;
 }

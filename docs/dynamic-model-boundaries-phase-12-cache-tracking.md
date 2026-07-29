@@ -5,26 +5,26 @@
 
 Date: 2026-07-27
 
-> **Storage update (Phase 17):** the update cursor no longer scans permanently retained action results. Full
-> target-bearing receipts now have bounded time-partitioned retention; the compact durable action core keeps exact
+> **Storage update (Phase 17):** the update cursor no longer scans permanently retained commit results. Full
+> target-bearing receipts now have bounded time-partitioned retention; the compact durable commit core keeps exact
 > historical boundaries and duplicate idempotency. A lagged tracker receives a backwards-compatible namespace-cache
 > reset. The coherence and event-handler exactness contracts below are unchanged.
 
 ## Decision
 
 Independent-model caches follow a dedicated durable model-update cursor. They do not infer model freshness from the
-global event log: `STORE_ONLY`, document-only, relationship-only and hard-delete actions must be visible even when no
+global event log: `STORE_ONLY`, document-only, relationship-only and hard-delete commits must be visible even when no
 domain event is published.
 
-One long poll returns committed action substeps ordered by namespace-wide `stateIndex`. An update contains only the
-action/substep identity, nullable global `eventIndex`, and resulting target heads. Event, document and snapshot
+One long poll returns committed commit substeps ordered by namespace-wide `stateIndex`. An update contains only the
+commit/substep identity, nullable global `eventIndex`, and resulting target heads. Event, document and snapshot
 payloads are never sent to SDKs that do not cache the affected model. Responses are bounded by item count, estimated
 metadata bytes and wait duration; the oldest update is always allowed through so the cursor cannot deadlock.
 
-The JDBC action row stores its first and last state index. The existing hash partitioning by the stable 128 Fluxzero
-segments remains unchanged; every physical action partition gets a partial `(last_state_index, first_state_index)`
+The JDBC commit row stores its first and last state index. The existing hash partitioning by the stable 128 Fluxzero
+segments remains unchanged; every physical commit partition gets a partial `(last_state_index, first_state_index)`
 index. Sparse pending-materialization and pending-erasure indices maintain the safe document boundary without scanning
-retained actions on every poll. This avoids a new row per target and avoids tailing the much larger `model_stream`
+retained commits on every poll. This avoids a new row per target and avoids tailing the much larger `model_stream`
 membership table.
 
 ## Coherence protocol
@@ -55,7 +55,7 @@ reconnect therefore cannot lose an update. Multi-active runtime coordination is 
 request/result-log architecture instead of being approximated with polling.
 
 Direct document/snapshot materialization and explicit erasure form a readiness barrier distinct from the processed
-update cursor. An action or privacy-safe hard-delete fence can already be durable while an external document store is
+update cursor. A commit or privacy-safe hard-delete fence can already be durable while an external document store is
 still applying its write. The runtime reports both the durable high-watermark and `materializedStateIndex`; a new
 document cache never starts beyond the latter. Target updates are delivered and fenced immediately even when their
 document write is pending; only affected document refreshes wait for the materialized head. Unrelated invalidations
@@ -66,14 +66,14 @@ incorrectly fence it as current.
 
 When the runtime owns the SearchStore, it clears the readiness intent itself after the fenced document/snapshot write.
 In the supported split-store route, the SDK still performs its existing synchronous direct-document and snapshot
-writes, then sends one idempotent `CompleteModelActionMaterialization` acknowledgement. Command completion waits for
+writes, then sends one idempotent `CompleteModelCommitMaterialization` acknowledgement. Command completion waits for
 that acknowledgement. Thus the tracker cannot outrun a successful SDK-owned document write, without pretending that
 the two databases share one transaction.
 
 ## Event-handler exactness
 
 The current-cache tracker is not the historical truth for an event handler. A published model event carries its
-persisted action ID and substep. Injected targets and ancestors are reconstructed directly at that action's exact
+persisted commit ID and substep. Injected targets and ancestors are reconstructed directly at that commit's exact
 `stateIndex`; a tracker or cache already beyond the event therefore cannot leak later state. In the co-located JDBC
 configuration, global event publication and model visibility commit atomically. Split event/model stores retain the
 pre-existing documented partial-failure boundary and are not made transactionally atomic by this phase.
@@ -96,10 +96,10 @@ Focused verification covers:
 Commands:
 
 ```text
-runtime: ./mvnw -pl runtime -Dtest=JdbcModelActionStoreTest test
+runtime: ./mvnw -pl runtime -Dtest=JdbcModelCommitStoreTest test
          73 tests passed
 SDK:     ./mvnw -pl common,sdk -am \
-           -Dtest=WebSocketTransportCodecsTest,ModelActionCommitterTest,ModelCacheTrackerTest,InMemoryEventStoreModelActionTest,DefaultModelRepositoryTest \
+           -Dtest=WebSocketTransportCodecsTest,ModelCommitterTest,ModelCacheTrackerTest,InMemoryEventStoreModelCommitTest,DefaultModelRepositoryTest \
            -Dsurefire.failIfNoSpecifiedTests=false test
          101 tests passed (23 common, 78 SDK)
 ```
@@ -116,20 +116,20 @@ runtime: ./mvnw -B install
 
 A final regression-only review covered update/materialization ordering, tracker bootstrap and cancellation, remote
 completion order, event-handler historical exactness, privacy-safe hard deletion, cache eviction/lifecycle, retained
-action lookup, and write/read hot-path allocation. It found no new row-per-target write, event/document payload
+commit lookup, and write/read hot-path allocation. It found no new row-per-target write, event/document payload
 fan-out, or foreground validation round trip.
 
 ## Performance evidence
 
 These are comparative local PostgreSQL 18 / Apple-silicon laptop diagnostics, not production hardware certification.
-The retained benchmark code reports action writes, memberships, physical bytes, WAL, action lookup and update-cursor
+The retained benchmark code reports commit writes, memberships, physical bytes, WAL, commit lookup and update-cursor
 throughput separately.
 
 All density runs used 1 KiB events, synchronous global publication, no documents/relationships and a 256-update cursor
-page. The 100-target outlier used 1,000 actions and concurrency 32; the other rows used 2,000 actions and concurrency
+page. The 100-target outlier used 1,000 commits and concurrency 32; the other rows used 2,000 commits and concurrency
 64.
 
-| targets/action | actions/s | memberships/s | physical/logical | WAL/logical | tracked updates/s | tracked heads/s | cursor batch p95 |
+| targets/commit | commits/s | memberships/s | physical/logical | WAL/logical | tracked updates/s | tracked heads/s | cursor batch p95 |
 |---:|---:|---:|---:|---:|---:|---:|---:|
 | 1 | 5,479 | 5,479 | 1.82x | 4.33x | 157,103 | 157,103 | 4.64 ms |
 | 2 | 4,279 | 8,558 | 2.78x | 5.11x | 153,928 | 307,855 | 3.96 ms |
@@ -142,13 +142,13 @@ event-payload duplication.
 
 Retained-history runs:
 
-| retained actions | payload | write actions/s | physical | WAL | tracked updates/s | cursor page | cursor p95 |
+| retained commits | payload | write commits/s | physical | WAL | tracked updates/s | cursor page | cursor p95 |
 |---:|---:|---:|---:|---:|---:|---:|---:|
 | 100,000 | 128 B | 6,388 | 76.48 MiB | 106.78 MiB | 235,849 | 2,048 | 11.99 ms |
 | 1,000,000 | 32 B | 6,010 | 701.11 MiB | 1,187.79 MiB | 134,594 | 5,000 | 51.76 ms |
 
-The million-action physical/WAL ratios (22.97x / 38.92x) must be read with the deliberately tiny 32-byte payload:
-fixed action, head, membership and index rows dominate. Absolute retained size and sustained production-hardware
+The million-commit physical/WAL ratios (22.97x / 38.92x) must be read with the deliberately tiny 32-byte payload:
+fixed commit, head, membership and index rows dominate. Absolute retained size and sustained production-hardware
 measurements remain capacity-planning inputs, not reasons to duplicate payloads inline.
 
 The SDK cache harness uses a 10,000-event model, 100,000 loads per hot sample and ten independent samples:
@@ -175,11 +175,11 @@ in the existing model-load/document-store metrics.
 
 The normal command/query path intentionally observes the latest state known to its namespace tracker. Local runtime
 commits wake that tracker immediately; reconnect resumes from its durable cursor. Event handlers do not use the
-latest-known contract: they reconstruct on the persisted action boundary as described above.
+latest-known contract: they reconstruct on the persisted commit boundary as described above.
 
 The split-store acknowledgement narrows but does not claim to remove the pre-existing cross-database crash window. If
-an SDK process dies after its external document write but before acknowledgement, the durable action remains fenced
-and visible as materialization lag until the exact action is safely repaired or administratively resolved. This is
+an SDK process dies after its external document write but before acknowledgement, the durable commit remains fenced
+and visible as materialization lag until the exact commit is safely repaired or administratively resolved. This is
 fail-closed for cache correctness; horizontal request/result-log coordination remains explicitly outside this phase.
 
 There is no idle database poll per model namespace. `fluxzero.maxModelUpdateWaiters` remains the overload bound for

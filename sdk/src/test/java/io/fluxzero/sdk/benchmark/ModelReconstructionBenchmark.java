@@ -17,9 +17,9 @@
 package io.fluxzero.sdk.benchmark;
 
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -77,13 +77,13 @@ public class ModelReconstructionBenchmark {
     }
 
     private static void prepare(Fluxzero fluxzero, CounterId id) {
-        List<ModelActionSubstep> substeps = new ArrayList<>(EVENT_COUNT);
+        List<ModelCommitStep> substeps = new ArrayList<>(EVENT_COUNT);
         for (int i = 0; i < EVENT_COUNT; i++) {
             Object event = i == 0 ? new CreateCounter(id) : new Increment(id);
-            substeps.add(ModelActionSubstep.builder()
+            substeps.add(ModelCommitStep.builder()
                                  .event(new Message(event)
                                                 .serialize(fluxzero.serializer()))
-                                 .targets(List.of(ModelActionTarget.builder()
+                                 .targets(List.of(ModelCommitTarget.builder()
                                                           .modelId(id.toString())
                                                           .storeEvent(true)
                                                           .updateState(true)
@@ -91,8 +91,8 @@ public class ModelReconstructionBenchmark {
                                                           .build()))
                                  .build());
         }
-        fluxzero.client().getEventStoreClient().commitModelAction(
-                new CommitModelAction(
+        fluxzero.client().getEventStoreClient().commitModels(
+                new CommitModels(
                         "benchmark-action", -1L, List.of(id.toString()),
                         substeps, ModelConflictPolicy.ACCEPT,
                         Guarantee.STORED)).join();

@@ -46,7 +46,7 @@ Used for messages that intend to change state.
 **Automatic model commands**
 
 Commands that define model `@Apply` methods need no `@HandleCommand`. Fluxzero resolves typed IDs and performs the
-model action automatically. Use `@Consumer` only when this command needs an explicit consumer override; otherwise the
+model commit automatically. Use `@Consumer` only when this command needs an explicit consumer override; otherwise the
 configured package consumer handles it.
 
 **Example: Creating, Updating, and Deleting Models**
@@ -212,10 +212,10 @@ class AnalyticsHandler {
 [//]: # (@formatter:on)
 
 Directly addressed models and their parents, grandparents or further ancestors can be injected as `T` or `Entity<T>`.
-For events and notifications carrying a model-action boundary, Fluxzero loads the exact historical model state and
+For events and notifications carrying a model-commit boundary, Fluxzero loads the exact historical model state and
 relations for that event. Use `@Association("property")` to select another payload or metadata ID or to qualify an
 ancestor path; add `excludeMetadata = true` to require the payload. `Entity<T>` can be empty after logical deletion;
-bare non-null `T` only matches a present model. Ordinary events without a model-action boundary do not receive an
+bare non-null `T` only matches a present model. Ordinary events without a model-commit boundary do not receive an
 arbitrary current model.
 
 The same parameters work in command, query, schedule, result, error, metrics, document, custom and web handlers when
@@ -388,7 +388,7 @@ Handlers can inject various context parameters:
 - **Metadata**: Key-value pairs attached to the message.
 - **Instant**: The message timestamp.
 - **Entity<T> or T for an `@Model`**: Every handler kind can load a directly addressed model from the message payload
-  or metadata. `@HandleEvent` and `@HandleNotification` use the exact persisted model-action boundary; other handlers
+  or metadata. `@HandleEvent` and `@HandleNotification` use the exact persisted model-commit boundary; other handlers
   use the current repository context.
 - **Ancestor model parameters**: Once a descendant is addressed, its parent, grandparent, or further ancestor can be
   injected without repeating ancestor IDs. Use parameter-level `@Association("pathOrIdProperty")` to select another

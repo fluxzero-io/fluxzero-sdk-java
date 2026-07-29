@@ -37,15 +37,15 @@ All figures are local diagnostics on the retained PostgreSQL benchmark setup, no
 
 ### Paired aggregate/model end to end
 
-The 2,000-action, 48-leaf, concurrency-32 UNIFORM run was repeated for both model document modes.
+The 2,000-commit, 48-leaf, concurrency-32 UNIFORM run was repeated for both model document modes.
 
 | Profile | Aggregate | Model | Model / aggregate |
 | --- | ---: | ---: | ---: |
-| non-searchable mutation throughput | 1,007.2 actions/s | 1,029.6 actions/s | 1.022x |
+| non-searchable mutation throughput | 1,007.2 commits/s | 1,029.6 commits/s | 1.022x |
 | non-searchable WAL | 13.969 MB | 11.940 MB | 0.855x |
 | non-searchable storage growth | 3.195 MB | 4.596 MB | 1.438x |
 | non-searchable cold direct load | 24.556 ms | 14.719 ms | 0.599x |
-| searchable mutation throughput | 951.5 actions/s | 943.0 actions/s | 0.991x |
+| searchable mutation throughput | 951.5 commits/s | 943.0 commits/s | 0.991x |
 | searchable WAL | 15.140 MB | 13.491 MB | 0.891x |
 | searchable direct search p95 | 1.263 ms | 1.001 ms | — |
 | searchable forced-live root search p95 | 0.805 ms | 11.817 ms | — |

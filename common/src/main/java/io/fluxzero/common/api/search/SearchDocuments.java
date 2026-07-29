@@ -23,6 +23,7 @@ import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -69,6 +70,29 @@ public class SearchDocuments extends Request {
     int skip;
     SerializedDocument lastHit;
     List<String> documentIds;
+
+    /**
+     * Retains the original constructor descriptor for clients compiled before exact document-ID filtering was added.
+     */
+    SearchDocuments(SearchQuery query, List<String> sorting, Integer maxSize,
+                    List<String> pathFilters, int skip, SerializedDocument lastHit) {
+        this(query, sorting, maxSize, pathFilters, skip, lastHit, null);
+    }
+
+    @ConstructorProperties({
+            "query", "sorting", "maxSize", "pathFilters", "skip",
+            "lastHit", "documentIds"})
+    SearchDocuments(SearchQuery query, List<String> sorting, Integer maxSize,
+                    List<String> pathFilters, int skip, SerializedDocument lastHit,
+                    List<String> documentIds) {
+        this.query = query;
+        this.sorting = sorting;
+        this.maxSize = maxSize;
+        this.pathFilters = pathFilters;
+        this.skip = skip;
+        this.lastHit = lastHit;
+        this.documentIds = documentIds;
+    }
 
     /**
      * Computes a path-level filter based on the {@link #pathFilters} list.

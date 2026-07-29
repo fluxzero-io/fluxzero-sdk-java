@@ -23,7 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Resolves inherited participant conflict policies for one atomic model action.
+ * Resolves inherited participant conflict policies for one atomic model commit.
  */
 final class ModelConflictPolicies {
 
@@ -31,7 +31,7 @@ final class ModelConflictPolicies {
     }
 
     static ModelConflictPolicy resolve(
-            ModelActionEngine.ActionEvaluation evaluation,
+            ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy applicationPolicy) {
         ModelConflictPolicy application =
                 ModelConflictPolicy.resolve(
@@ -40,7 +40,7 @@ final class ModelConflictPolicies {
                 ModelConflictPolicy.ACCEPT;
         Set<String> writtenModelIds =
                 new HashSet<>();
-        for (ModelActionEngine.Transition transition :
+        for (ModelCommitEngine.Transition transition :
                 evaluation.transitions()) {
             writtenModelIds.add(
                     transition.modelId());

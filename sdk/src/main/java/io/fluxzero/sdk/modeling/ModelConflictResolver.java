@@ -16,12 +16,12 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 
 import java.util.Objects;
 
 /**
- * Decides what the SDK should do after the runtime has rejected and rolled back a model action.
+ * Decides what the SDK should do after the runtime has rejected and rolled back a model commit.
  * <p>
  * Returning {@link Resolution#RETRY} only has effect when the runtime marked the conflict retryable and the configured
  * retry bound has not been exhausted. Throwing an application exception maps the conflict directly to that error.
@@ -35,14 +35,14 @@ public interface ModelConflictResolver {
     Resolution resolve(Context context);
 
     /**
-     * Fails every conflict with {@link ModelActionConflictException}.
+     * Fails every conflict with {@link ModelCommitConflictException}.
      */
     static ModelConflictResolver fail() {
         return ignored -> Resolution.FAIL;
     }
 
     /**
-     * Silently retries conflicts whose action policy permits retry and whose retry bound is not exhausted.
+     * Silently retries conflicts whose commit policy permits retry and whose retry bound is not exhausted.
      */
     static ModelConflictResolver retryIfAllowed() {
         return context -> context.canRetry() ? Resolution.RETRY : Resolution.FAIL;
@@ -61,9 +61,9 @@ public interface ModelConflictResolver {
      *
      * @param result completed runtime conflict result
      * @param retries number of retries already performed
-     * @param maxRetries maximum retries permitted for this action
+     * @param maxRetries maximum retries permitted for this commit
      */
-    record Context(CommitModelActionResult result, int retries, int maxRetries) {
+    record Context(CommitModelsResult result, int retries, int maxRetries) {
         public Context {
             Objects.requireNonNull(result, "result");
             if (result.isAccepted()) {

@@ -4,16 +4,16 @@
 
 Phase 10 closes the pre-merge semantic corrections without changing the central model:
 
-- one SDK evaluation still produces one authoritative `CommitModelAction` package containing its events, direct
+- one SDK evaluation still produces one authoritative `CommitModels` package containing its events, direct
   documents, snapshots, and relationship transitions;
-- the runtime commits streams, heads, temporal relations, action result, durable materialization intent, and the
+- the runtime commits streams, heads, temporal relations, commit result, durable materialization intent, and the
   co-located global event publication atomically;
 - direct model documents remain synchronously searchable when commit succeeds;
 - materialized whole-graph documents remain durable projections and can either continue asynchronously or delay the
   command result until the relevant root boundary is visible.
 
 Conflict resolution is not the design frame. It is a scoped policy for the uncommon case in which a model actually read
-by an action changed before commit.
+by an commit changed before commit.
 
 ## Shared event payload ownership
 
@@ -46,26 +46,26 @@ clock rollback, and runtime restart, while `IndexUtils.timestampFromIndex(stateI
 millisecond whenever the wall-clock candidate won.
 
 Callers must treat state positions as opaque boundaries. Historical reconstruction no longer derives a previous
-boundary through `stateIndex - 1`; it resolves an exact earlier action substep. This matters when an earlier substep
+boundary through `stateIndex - 1`; it resolves an exact earlier commit substep. This matters when an earlier substep
 moves a child and a later substep injects its new parent: live evaluation and later event sourcing now observe the same
 ancestor. Temporal graph code asks explicitly for relations valid immediately before a boundary; it never assumes that
 the previous committed position is numerically adjacent. Projection coalescing traverses every edge whose validity
-overlaps the action/batch range in one set-based query per graph depth, covering old, moved, and final roots without a
+overlaps the commit/batch range in one set-based query per graph depth, covering old, moved, and final roots without a
 query per signal. Explicit hard deletion obtains its erasure fence from the same time-derived allocator.
 
 ## Conflict policy
 
 The public policies are `DEFAULT`, `ACCEPT`, `FAIL`, and `RETRY`.
 
-- `ACCEPT` is the application fallback. The original event is appended. If a model actually read by the action changed,
+- `ACCEPT` is the application fallback. The original event is appended. If a model actually read by the commit changed,
   only applies are rerun against the merged model boundary to derive current documents, snapshots, and relationships.
   Assertions and interceptors are not rerun.
-- `FAIL` rolls the complete action back and returns the conflict.
-- `RETRY` rolls the complete action back, reloads the complete action context, and reruns assertions, interceptors, and
+- `FAIL` rolls the complete commit back and returns the conflict.
+- `RETRY` rolls the complete commit back, reloads the complete commit context, and reruns assertions, interceptors, and
   applies up to the configured bound.
 
 Resolution order is `@Apply`, returned `@Model`, application builder/property, then `ACCEPT`. Read-only dependencies use
-their model policy. A multi-model action combines policies as `FAIL > RETRY > ACCEPT`, so it can never partially commit.
+their model policy. A multi-model commit combines policies as `FAIL > RETRY > ACCEPT`, so it can never partially commit.
 `ModelConflictResolver` remains the application SPI; a public `CUSTOM` enum is intentionally deferred until named,
 scoped resolver selection has a concrete use case.
 
@@ -100,15 +100,15 @@ separate hidden consumer.
 `GraphProjectionCompletion.DEFAULT`, `ASYNC`, and `AWAIT` resolve from `@Apply`, the active consumer, the root
 `@GraphProjection`, application configuration/property, then `ASYNC`.
 
-`ASYNC` writes the authoritative action and durable projection signal before returning. The runtime worker coalesces
+`ASYNC` writes the authoritative commit and durable projection signal before returning. The runtime worker coalesces
 affected roots, includes both sides of moves, waits for direct-document materialization, stitches the bounded current
 graph, and fences the write by configuration version and state index.
 
 `AWAIT` uses the same worker and storage transaction. It changes only result publication: the command result is held
-until every affected root requiring AWAIT has crossed the action boundary. The wait request carries the first and last
-state position occupied by the action, so a move in an early substep includes both its pre-action and final roots. It
+until every affected root requiring AWAIT has crossed the commit boundary. The wait request carries the first and last
+state position occupied by the commit, so a move in an early substep includes both its pre-commit and final roots. It
 does not move graph search into the authoritative transaction. Duplicate requests resume waiting for the durable task
-and never reevaluate the action. If an affected root can no longer be resolved from a current head, the waiter falls
+and never reevaluate the commit. If an affected root can no longer be resolved from a current head, the waiter falls
 back to the collection boundary instead of treating an empty root scope as complete; this may conservatively wait for
 unrelated work, but a root-document deletion can never be released too early.
 
@@ -134,7 +134,7 @@ never uses a cache entry newer than its boundary.
 
 Focused SDK verification covers policy precedence, mixed policies, automatic-handling opt-outs, root-package consumer
 selection, static model-side creation/replay, stale ACCEPT materialization, callback-thread rebase safety, AWAIT
-selection, and same-action ancestor moves.
+selection, and same-commit ancestor moves.
 
 Focused runtime verification covers time-derived indices and clock rollback, restart monotonicity, inline/shared
 thresholds, shared-payload erasure and races, relation diagnostics, durable AWAIT/restart semantics, scoped root waits,

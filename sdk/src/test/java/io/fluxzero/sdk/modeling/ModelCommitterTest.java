@@ -18,11 +18,11 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.ModelActionConflict;
-import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -64,11 +64,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-class ModelActionCommitterTest {
+class ModelCommitterTest {
 
     private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
     private final JacksonSerializer serializer = new JacksonSerializer();
-    private final ModelActionCommitter committer = new ModelActionCommitter(
+    private final ModelCommitter committer = new ModelCommitter(
             eventStoreClient, serializer, serializer,
             DispatchInterceptor.noOp, "client-1");
 
@@ -86,21 +86,21 @@ class ModelActionCommitterTest {
                         event,
                         transition(orderId, Order.class, before, after, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), after));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        var result = committer.commit("action-1", evaluation).join();
+        var result = committer.commit("commit-1", evaluation).join();
 
         assertTrue(result.isPresent());
-        ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient).commitModelAction(captor.capture());
-        CommitModelAction action = captor.getValue();
-        assertEquals("action-1", action.getActionId());
-        assertEquals(List.of(orderId.toString(), customerId.toString()), action.getReadModelIds());
-        assertEquals(1, action.getSubsteps().size());
-        assertEquals(UpdateOrder.class.getName(), action.getSubsteps().getFirst().getEvent().getType());
-        assertEquals("client-1", action.getSubsteps().getFirst().getEvent().getSource());
-        assertTrue(action.getSubsteps().getFirst().isPublishEvent());
-        var target = action.getSubsteps().getFirst().getTargets().getFirst();
+        ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient).commitModels(captor.capture());
+        CommitModels commit = captor.getValue();
+        assertEquals("commit-1", commit.getCommitId());
+        assertEquals(List.of(orderId.toString(), customerId.toString()), commit.getReadModelIds());
+        assertEquals(1, commit.getSubsteps().size());
+        assertEquals(UpdateOrder.class.getName(), commit.getSubsteps().getFirst().getEvent().getType());
+        assertEquals("client-1", commit.getSubsteps().getFirst().getEvent().getSource());
+        assertTrue(commit.getSubsteps().getFirst().isPublishEvent());
+        var target = commit.getSubsteps().getFirst().getTargets().getFirst();
         assertEquals(orderId.toString(), target.getModelId());
         assertTrue(target.isStoreEvent());
         assertNotNull(target.getDocument());
@@ -147,7 +147,7 @@ class ModelActionCommitterTest {
                                         "apply",
                                         GraphOnlyChild.class)),
                         Map.of(id.toString(), after));
-        when(eventStoreClient.commitModelAction(
+        when(eventStoreClient.commitModels(
                 any())).thenAnswer(invocation ->
                                            CompletableFuture.completedFuture(
                                                    result(
@@ -159,14 +159,14 @@ class ModelActionCommitterTest {
                         evaluation)
                 .join();
 
-        ArgumentCaptor<CommitModelAction> action =
+        ArgumentCaptor<CommitModels> commit =
                 ArgumentCaptor.forClass(
-                        CommitModelAction.class);
+                        CommitModels.class);
         verify(eventStoreClient)
-                .commitModelAction(
-                        action.capture());
+                .commitModels(
+                        commit.capture());
         var document =
-                action.getValue()
+                commit.getValue()
                         .getSubsteps().getFirst()
                         .getTargets().getFirst()
                         .getDocument();
@@ -201,7 +201,7 @@ class ModelActionCommitterTest {
                                         "apply",
                                         Customer.class)),
                         Map.of(id.toString(), after));
-        when(eventStoreClient.commitModelAction(
+        when(eventStoreClient.commitModels(
                 any())).thenAnswer(invocation ->
                                            CompletableFuture.completedFuture(
                                                    result(
@@ -213,14 +213,14 @@ class ModelActionCommitterTest {
                         evaluation)
                 .join();
 
-        ArgumentCaptor<CommitModelAction> action =
+        ArgumentCaptor<CommitModels> commit =
                 ArgumentCaptor.forClass(
-                        CommitModelAction.class);
+                        CommitModels.class);
         verify(eventStoreClient)
-                .commitModelAction(
-                        action.capture());
+                .commitModels(
+                        commit.capture());
         assertNull(
-                action.getValue()
+                commit.getValue()
                         .getSubsteps().getFirst()
                         .getTargets().getFirst()
                         .getDocument());
@@ -248,15 +248,15 @@ class ModelActionCommitterTest {
                                 orderId, Order.class, before, after,
                                 UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), after));
-        when(eventStoreClient.commitModelAction(any()))
+        when(eventStoreClient.commitModels(any()))
                 .thenAnswer(invocation ->
                                     CompletableFuture.completedFuture(
                                             result(invocation.getArgument(0))));
         committer.commit("move-order", evaluation).join();
 
-        ArgumentCaptor<CommitModelAction> captor =
-                ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient).commitModelAction(captor.capture());
+        ArgumentCaptor<CommitModels> captor =
+                ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient).commitModels(captor.capture());
         var target = captor.getValue().getSubsteps()
                 .getFirst().getTargets().getFirst();
         assertTrue(target.isUpdateRelationships());
@@ -273,7 +273,7 @@ class ModelActionCommitterTest {
     }
 
     @Test
-    void rejectedActionDoesNotWriteDirectSearchDocuments() throws Exception {
+    void rejectedCommitDoesNotWriteDirectSearchDocuments() throws Exception {
         OrderId orderId = new OrderId("1");
         Order before = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
         Order after = new Order(orderId, null, "confirmed", Instant.parse("2026-01-02T00:00:00Z"));
@@ -283,17 +283,17 @@ class ModelActionCommitterTest {
                         new UpdateOrder(orderId),
                         transition(orderId, Order.class, before, after, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), after));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation -> {
-            CommitModelAction request = invocation.getArgument(0);
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels request = invocation.getArgument(0);
             return CompletableFuture.completedFuture(conflict(request, false));
         });
 
         var result = committer.commit(
-                "action-1", evaluation, ModelConflictPolicy.FAIL).join();
+                "commit-1", evaluation, ModelConflictPolicy.FAIL).join();
 
         assertFalse(result.orElseThrow().isAccepted());
-        ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient).commitModelAction(captor.capture());
+        ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient).commitModels(captor.capture());
         assertEquals(ModelConflictPolicy.FAIL, captor.getValue().getConflictPolicy());
     }
 
@@ -309,7 +309,7 @@ class ModelActionCommitterTest {
                         new UpdateOrder(orderId),
                         transition(orderId, Order.class, before, first, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), first));
-        var reloadedEvaluation = new ModelActionEngine.ActionEvaluation(
+        var reloadedEvaluation = new ModelCommitEngine.CommitEvaluation(
                 42L, firstEvaluation.readModelIds(),
                 firstEvaluation.readModelTypes(),
                 List.of(substep(
@@ -319,15 +319,15 @@ class ModelActionCommitterTest {
                                 UpdateOrder.class, "apply", Order.class))),
                 Map.of(orderId.toString(), reloaded));
         AtomicInteger commits = new AtomicInteger();
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation -> {
-            CommitModelAction request = invocation.getArgument(0);
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels request = invocation.getArgument(0);
             return CompletableFuture.completedFuture(
                     commits.getAndIncrement() == 0 ? conflict(request, true) : result(request));
         });
         AtomicInteger reloads = new AtomicInteger();
 
         var result = committer.commit(
-                "action-1", firstEvaluation,
+                "commit-1", firstEvaluation,
                 ModelConflictPolicy.RETRY,
                 ModelConflictResolver.retryIfAllowed(), 1,
                 () -> {
@@ -338,11 +338,11 @@ class ModelActionCommitterTest {
         assertTrue(result.orElseThrow().isAccepted());
         assertEquals(2, commits.get());
         assertEquals(1, reloads.get());
-        ArgumentCaptor<CommitModelAction> updates =
+        ArgumentCaptor<CommitModels> updates =
                 ArgumentCaptor.forClass(
-                        CommitModelAction.class);
+                        CommitModels.class);
         verify(eventStoreClient, times(2))
-                .commitModelAction(
+                .commitModels(
                         updates.capture());
         var update =
                 updates.getAllValues().getLast()
@@ -363,14 +363,14 @@ class ModelActionCommitterTest {
                         new UpdateOrder(orderId),
                         transition(orderId, Order.class, order, order, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), order));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation -> {
-            CommitModelAction request = invocation.getArgument(0);
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels request = invocation.getArgument(0);
             return CompletableFuture.completedFuture(conflict(request, true));
         });
         AtomicInteger reloads = new AtomicInteger();
 
         CompletionException bounded = assertThrows(CompletionException.class, () -> committer.commit(
-                "action-1", evaluation,
+                "commit-1", evaluation,
                 ModelConflictPolicy.RETRY,
                 ModelConflictResolver.retryIfAllowed(), 1,
                 () -> {
@@ -378,13 +378,13 @@ class ModelActionCommitterTest {
                     return CompletableFuture.completedFuture(evaluation);
                 }).join());
 
-        assertInstanceOf(ModelActionConflictException.class, bounded.getCause());
+        assertInstanceOf(ModelCommitConflictException.class, bounded.getCause());
         assertEquals(1, reloads.get());
-        verify(eventStoreClient, times(2)).commitModelAction(any());
+        verify(eventStoreClient, times(2)).commitModels(any());
 
         IllegalStateException applicationError = new IllegalStateException("try again later");
         CompletionException mapped = assertThrows(CompletionException.class, () -> committer.commit(
-                "action-2", evaluation, ModelConflictPolicy.FAIL,
+                "commit-2", evaluation, ModelConflictPolicy.FAIL,
                 ignored -> {
                     throw applicationError;
                 },
@@ -409,13 +409,13 @@ class ModelActionCommitterTest {
                                 publishedId, PublishedOnly.class, published, published,
                                 MixedUpdate.class, "apply", PublishedOnly.class)),
                 Map.of(storedId.toString(), stored, publishedId.toString(), published));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
 
-        committer.commit("mixed-action", evaluation).join();
+        committer.commit("mixed-commit", evaluation).join();
 
-        ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient).commitModelAction(captor.capture());
+        ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient).commitModels(captor.capture());
         var substep = captor.getValue().getSubsteps().getFirst();
         assertTrue(substep.isPublishEvent());
         assertEquals(MixedUpdate.class.getName(), substep.getEvent().getType());
@@ -442,7 +442,7 @@ class ModelActionCommitterTest {
                 {before, null}
         };
         for (int i = 0; i < stateChanges.length; i++) {
-            String actionId =
+            String commitId =
                     "unsafe-publish-only-" + i;
             Object next = stateChanges[i][1];
             var evaluation =
@@ -466,7 +466,7 @@ class ModelActionCommitterTest {
                     assertThrows(
                             IllegalStateException.class,
                             () -> committer.commit(
-                                    actionId,
+                                    commitId,
                                     evaluation));
 
             assertTrue(
@@ -475,7 +475,7 @@ class ModelActionCommitterTest {
                                     "without storing its reconstructing event"));
         }
         verify(eventStoreClient, never())
-                .commitModelAction(any());
+                .commitModels(any());
     }
 
     @Test
@@ -488,19 +488,19 @@ class ModelActionCommitterTest {
                 substep(new UpdateOrder(id), transition(
                         id, Order.class, null, after, UpdateOrder.class, "apply", Order.class)),
                 Map.of(id.toString(), after));
-        CompletableFuture<CommitModelActionResult> stored =
+        CompletableFuture<CommitModelsResult> stored =
                 new CompletableFuture<>();
-        when(eventStoreClient.commitModelAction(any()))
+        when(eventStoreClient.commitModels(any()))
                 .thenReturn(stored);
 
-        var completion = committer.commit("action-1", evaluation);
+        var completion = committer.commit("commit-1", evaluation);
 
         assertFalse(completion.isDone());
-        ArgumentCaptor<CommitModelAction> request =
+        ArgumentCaptor<CommitModels> request =
                 ArgumentCaptor.forClass(
-                        CommitModelAction.class);
+                        CommitModels.class);
         verify(eventStoreClient)
-                .commitModelAction(request.capture());
+                .commitModels(request.capture());
         stored.complete(
                 result(request.getValue()));
         assertTrue(completion.join().isPresent());
@@ -523,7 +523,7 @@ class ModelActionCommitterTest {
                         UpdateOrder.class, "apply",
                         Order.class)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelActionEngine.ActionEvaluation(
+        var rebased = new ModelCommitEngine.CommitEvaluation(
                 51L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
@@ -532,17 +532,17 @@ class ModelActionCommitterTest {
                         Order.class))),
                 Map.of(id.toString(), merged));
         AtomicInteger commits = new AtomicInteger();
-        when(eventStoreClient.commitModelAction(any()))
+        when(eventStoreClient.commitModels(any()))
                 .thenAnswer(invocation -> {
-                    CommitModelAction request =
+                    CommitModels request =
                             invocation.getArgument(0);
                     if (commits.getAndIncrement() == 0) {
                         return CompletableFuture.completedFuture(
-                                CommitModelActionResult.rebase(
+                                CommitModelsResult.rebase(
                                         request.getRequestId(),
-                                        request.getActionId(),
+                                        request.getCommitId(),
                                         List.of(
-                                                new ModelActionConflict(
+                                                new ModelCommitConflict(
                                                         id.toString(),
                                                         51L, -1L)),
                                         51L));
@@ -552,7 +552,7 @@ class ModelActionCommitterTest {
                 });
 
         var accepted = committer.commitAcceptingRebase(
-                "action-rebase", original,
+                "commit-rebase", original,
                 (messages, boundary) -> {
                     assertEquals(51L, boundary);
                     assertEquals(1, messages.size());
@@ -561,14 +561,14 @@ class ModelActionCommitterTest {
                 }).join();
 
         assertTrue(accepted.orElseThrow().isAccepted());
-        ArgumentCaptor<CommitModelAction> requests =
+        ArgumentCaptor<CommitModels> requests =
                 ArgumentCaptor.forClass(
-                        CommitModelAction.class);
+                        CommitModels.class);
         verify(eventStoreClient, times(2))
-                .commitModelAction(requests.capture());
-        CommitModelAction initial =
+                .commitModels(requests.capture());
+        CommitModels initial =
                 requests.getAllValues().getFirst();
-        CommitModelAction retried =
+        CommitModels retried =
                 requests.getAllValues().getLast();
         assertEquals(
                 initial.getSubsteps().getFirst().getEvent()
@@ -602,7 +602,7 @@ class ModelActionCommitterTest {
                         UpdateOrder.class, "apply",
                         Order.class)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelActionEngine.ActionEvaluation(
+        var rebased = new ModelCommitEngine.CommitEvaluation(
                 51L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
@@ -610,14 +610,14 @@ class ModelActionCommitterTest {
                         UpdateOrder.class, "apply",
                         Order.class))),
                 Map.of(id.toString(), merged));
-        CompletableFuture<CommitModelActionResult> firstCommit =
+        CompletableFuture<CommitModelsResult> firstCommit =
                 new CompletableFuture<>();
-        AtomicReference<CommitModelAction> firstRequest =
+        AtomicReference<CommitModels> firstRequest =
                 new AtomicReference<>();
         AtomicInteger commits = new AtomicInteger();
-        when(eventStoreClient.commitModelAction(any()))
+        when(eventStoreClient.commitModels(any()))
                 .thenAnswer(invocation -> {
-                    CommitModelAction request =
+                    CommitModels request =
                             invocation.getArgument(0);
                     if (commits.getAndIncrement() == 0) {
                         firstRequest.set(request);
@@ -633,7 +633,7 @@ class ModelActionCommitterTest {
         Fluxzero expectedContext =
                 mock(Fluxzero.class);
 
-        CompletableFuture<Optional<CommitModelActionResult>> completion;
+        CompletableFuture<Optional<CommitModelsResult>> completion;
         Fluxzero.instance.set(
                 expectedContext);
         try {
@@ -659,14 +659,14 @@ class ModelActionCommitterTest {
                     completionThread.set(
                             Thread.currentThread()
                                     .getName());
-                    CommitModelAction request =
+                    CommitModels request =
                             firstRequest.get();
                     firstCommit.complete(
-                            CommitModelActionResult.rebase(
+                            CommitModelsResult.rebase(
                                     request.getRequestId(),
-                                    request.getActionId(),
+                                    request.getCommitId(),
                                     List.of(
-                                            new ModelActionConflict(
+                                            new ModelCommitConflict(
                                                     id.toString(),
                                                     51L, -1L)),
                                     51L));
@@ -692,12 +692,12 @@ class ModelActionCommitterTest {
                 substep(new DeleteOrder(id), transition(
                         id, Order.class, before, null, DeleteOrder.class, "apply", Order.class)),
                 java.util.Collections.singletonMap(id.toString(), null));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        committer.commit("action-1", evaluation).join();
+        committer.commit("commit-1", evaluation).join();
 
-        ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient).commitModelAction(captor.capture());
+        ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient).commitModels(captor.capture());
         var substep = captor.getValue().getSubsteps().getFirst();
         assertTrue(substep.isPublishEvent());
         assertTrue(substep.getTargets().getFirst().isStoreEvent());
@@ -725,12 +725,12 @@ class ModelActionCommitterTest {
                         id, PrivateDocument.class, null, after,
                         UpdatePrivateDocument.class, "apply", PrivateDocument.class)),
                 Map.of(id.toString(), after));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        committer.commit("action-1", evaluation).join();
+        committer.commit("commit-1", evaluation).join();
 
-        ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient).commitModelAction(captor.capture());
+        ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient).commitModels(captor.capture());
         var substep = captor.getValue().getSubsteps().getFirst();
         assertNull(substep.getEvent());
         assertFalse(substep.isPublishEvent());
@@ -758,10 +758,10 @@ class ModelActionCommitterTest {
                         TouchConditional.class, "apply", ConditionalModel.class)),
                 Map.of(id.toString(), value));
 
-        var result = committer.commit("action-1", evaluation).join();
+        var result = committer.commit("commit-1", evaluation).join();
 
         assertTrue(result.isEmpty());
-        verify(eventStoreClient, never()).commitModelAction(any());
+        verify(eventStoreClient, never()).commitModels(any());
     }
 
     @Test
@@ -776,13 +776,13 @@ class ModelActionCommitterTest {
         DocumentSerializer failingSerializer = mock(DocumentSerializer.class);
         when(failingSerializer.toDocument(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new MockSearchFailure());
-        ModelActionCommitter failingCommitter = new ModelActionCommitter(
+        ModelCommitter failingCommitter = new ModelCommitter(
                 eventStoreClient, serializer, failingSerializer,
                 DispatchInterceptor.noOp, "client-1");
 
-        assertThrows(MockSearchFailure.class, () -> failingCommitter.commit("action-1", evaluation));
+        assertThrows(MockSearchFailure.class, () -> failingCommitter.commit("commit-1", evaluation));
 
-        verify(eventStoreClient, never()).commitModelAction(any());
+        verify(eventStoreClient, never()).commitModels(any());
     }
 
     @Test
@@ -803,17 +803,17 @@ class ModelActionCommitterTest {
                                 SnapshotModel.class)),
                 Map.of(id.toString(), after));
 
-        CommitModelAction action = committer.prepare(
-                "action-snapshot", evaluation).action();
+        CommitModels commit = committer.prepare(
+                "commit-snapshot", evaluation).commit();
 
-        var snapshot = action.getSubsteps().getFirst()
+        var snapshot = commit.getSubsteps().getFirst()
                 .getTargets().getFirst().getSnapshot();
         assertNotNull(snapshot);
         assertEquals(2, snapshot.getSnapshotPeriod());
         assertEquals(3, snapshot.getMaxSnapshotCount());
         assertEquals(after, serializer.deserialize(
                 snapshot.getValue()));
-        assertEquals(1, action.toMetric().getSnapshotCount());
+        assertEquals(1, commit.toMetric().getSnapshotCount());
 
         var nextEvaluation = evaluation(
                 List.of(id.toString()),
@@ -828,17 +828,17 @@ class ModelActionCommitterTest {
                 Map.of(id.toString(),
                        new SnapshotModel(id, "third")));
         assertNull(committer.prepare(
-                        "action-no-snapshot",
+                        "commit-no-snapshot",
                         nextEvaluation)
-                           .action().getSubsteps().getFirst()
+                           .commit().getSubsteps().getFirst()
                            .getTargets().getFirst().getSnapshot());
     }
 
-    private static ModelActionEngine.ActionEvaluation evaluation(
+    private static ModelCommitEngine.CommitEvaluation evaluation(
             List<String> readModelIds,
-            ModelActionEngine.AppliedSubstep substep,
+            ModelCommitEngine.AppliedSubstep substep,
             Map<String, Object> finalValues) {
-        return new ModelActionEngine.ActionEvaluation(
+        return new ModelCommitEngine.CommitEvaluation(
                 41L, readModelIds,
                 finalValues.entrySet().stream()
                         .filter(entry ->
@@ -850,19 +850,19 @@ class ModelActionCommitterTest {
                 List.of(substep), finalValues);
     }
 
-    private static ModelActionEngine.AppliedSubstep substep(
-            Object event, ModelActionEngine.Transition... transitions) {
+    private static ModelCommitEngine.AppliedSubstep substep(
+            Object event, ModelCommitEngine.Transition... transitions) {
         return substep(Metadata.empty(), event, transitions);
     }
 
-    private static ModelActionEngine.AppliedSubstep substep(
-            Metadata metadata, Object event, ModelActionEngine.Transition... transitions) {
-        return new ModelActionEngine.AppliedSubstep(
+    private static ModelCommitEngine.AppliedSubstep substep(
+            Metadata metadata, Object event, ModelCommitEngine.Transition... transitions) {
+        return new ModelCommitEngine.AppliedSubstep(
                 new DeserializingMessage(new Message(event, metadata), MessageType.EVENT, null),
                 List.of(transitions));
     }
 
-    private static ModelActionEngine.Transition transition(
+    private static ModelCommitEngine.Transition transition(
             Object id, Class<?> modelType, Object before, Object after,
             Class<?> handlerType, String methodName, Class<?> parameterType) throws Exception {
         return transition(
@@ -870,35 +870,35 @@ class ModelActionCommitterTest {
                 handlerType, methodName, parameterType);
     }
 
-    private static ModelActionEngine.Transition transition(
+    private static ModelCommitEngine.Transition transition(
             Object id, Class<?> modelType, long beforeSequenceNumber,
             Object before, Object after,
             Class<?> handlerType, String methodName,
             Class<?> parameterType) throws Exception {
         Method handler = handlerType.getDeclaredMethod(methodName, parameterType);
-        return new ModelActionEngine.Transition(
+        return new ModelCommitEngine.Transition(
                 id.toString(), modelType, beforeSequenceNumber,
                 before, after, handler);
     }
 
-    private static CommitModelActionResult result(CommitModelAction request) {
-        List<ModelActionSubstepResult> substeps = request.getSubsteps().stream()
-                .map(substep -> new ModelActionSubstepResult(
+    private static CommitModelsResult result(CommitModels request) {
+        List<ModelCommitStepResult> substeps = request.getSubsteps().stream()
+                .map(substep -> new ModelCommitStepResult(
                         42L, substep.isPublishEvent() ? 100L : null,
                         substep.getTargets().stream().map(target ->
-                                new ModelActionTargetResult(
+                                new ModelCommitTargetResult(
                                         target.getModelId(), target.isStoreEvent() ? 0L : -1L,
                                         target.isStoreEvent())).toList()))
                 .toList();
-        return CommitModelActionResult.accepted(
-                request.getRequestId(), request.getActionId(), substeps);
+        return CommitModelsResult.accepted(
+                request.getRequestId(), request.getCommitId(), substeps);
     }
 
-    private static CommitModelActionResult conflict(
-            CommitModelAction request, boolean retryAllowed) {
-        return CommitModelActionResult.conflict(
-                request.getRequestId(), request.getActionId(),
-                List.of(new ModelActionConflict(
+    private static CommitModelsResult conflict(
+            CommitModels request, boolean retryAllowed) {
+        return CommitModelsResult.conflict(
+                request.getRequestId(), request.getCommitId(),
+                List.of(new ModelCommitConflict(
                         request.getReadModelIds().getFirst(),
                         request.getReadStateIndex() + 1L,
                         request.getReadStateIndex())),

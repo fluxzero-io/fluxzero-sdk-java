@@ -49,7 +49,7 @@ public class ModelGraphProjectionStatus extends AbstractRequestResult {
     long processedStateIndex;
 
     /**
-     * Number of durable action signals not yet expanded to affected roots.
+     * Number of durable commit signals not yet expanded to affected roots.
      */
     long pendingSignals;
 

@@ -15,7 +15,7 @@ explicit path retains the zero-document-write path.
 
 The local event and search stores are linked through a narrow materialization callback:
 
-- model actions retain compact affected-model signals;
+- model commits retain compact affected-model signals;
 - direct document and snapshot materialization completes first;
 - registered projections resolve affected roots at both the old and new relationship boundary;
 - the shared `ModelGraphDocumentStitcher` composes bounded current documents;

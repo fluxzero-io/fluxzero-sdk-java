@@ -45,11 +45,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ModelActionHandlerRegistryTest {
+class ModelCommitHandlerRegistryTest {
 
     @Test
     void receiverApplyTracksTheCommandPayloadRatherThanTheModel() {
-        ModelActionHandlerRegistry subject =
+        ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
         subject.registerHandler(
                 ReceiverModel.class,
@@ -72,7 +72,7 @@ class ModelActionHandlerRegistryTest {
 
     @Test
     void staticModelApplyTracksTheCommandPayloadRatherThanTheModel() {
-        ModelActionHandlerRegistry subject =
+        ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
         subject.registerHandler(
                 StaticApplyModel.class,
@@ -93,7 +93,7 @@ class ModelActionHandlerRegistryTest {
 
     @Test
     void automaticHandlingUsesApplyThenModelThenApplicationPrecedence() {
-        ModelActionHandlerRegistry disabledApplication =
+        ModelCommitHandlerRegistry disabledApplication =
                 subject(AutomaticModelHandling.DISABLED);
         disabledApplication.registerHandler(
                 ReceiverModel.class,
@@ -112,7 +112,7 @@ class ModelActionHandlerRegistryTest {
         assertTrue(disabledApplication.canHandle(
                 message(new ApplyEnabledCommand("apply"))));
 
-        ModelActionHandlerRegistry enabledApplication =
+        ModelCommitHandlerRegistry enabledApplication =
                 subject(AutomaticModelHandling.ENABLED);
         enabledApplication.registerHandler(
                 ApplyDisabledModel.class,
@@ -123,7 +123,7 @@ class ModelActionHandlerRegistryTest {
 
     @Test
     void oneDisabledApplyDeclinesTheCompleteMultiModelCommand() {
-        ModelActionHandlerRegistry subject =
+        ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
         subject.registerHandler(
                 MixedEnabledModel.class,
@@ -139,13 +139,13 @@ class ModelActionHandlerRegistryTest {
     @Test
     void graphProjectionCompletionUsesApplyThenRootThenApplicationPrecedence()
             throws Exception {
-        ModelActionEngine.Transition inherited =
+        ModelCommitEngine.Transition inherited =
                 transition(
                         ProjectionChild.class,
                         ProjectionApplies.class
                                 .getDeclaredMethod(
                                         "inherit"));
-        ModelActionEngine.Transition asynchronous =
+        ModelCommitEngine.Transition asynchronous =
                 transition(
                         ProjectionChild.class,
                         ProjectionApplies.class
@@ -183,18 +183,18 @@ class ModelActionHandlerRegistryTest {
     @Test
     void awaitDominatesAsyncForTheSameAffectedRoot()
             throws Exception {
-        ModelActionHandlerRegistry subject =
+        ModelCommitHandlerRegistry subject =
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.ASYNC);
-        ModelActionEngine.Transition asynchronous =
+        ModelCommitEngine.Transition asynchronous =
                 transition(
                         "shared-child",
                         ProjectionChild.class,
                         ProjectionApplies.class
                                 .getDeclaredMethod(
                                         "asynchronous"));
-        ModelActionEngine.Transition awaiting =
+        ModelCommitEngine.Transition awaiting =
                 transition(
                         "shared-child",
                         ProjectionChild.class,
@@ -228,7 +228,7 @@ class ModelActionHandlerRegistryTest {
                                 .build(),
                         null));
         try {
-            ModelActionHandlerRegistry subject =
+            ModelCommitHandlerRegistry subject =
                     subject(
                             AutomaticModelHandling.ENABLED,
                             GraphProjectionCompletion.ASYNC);
@@ -271,8 +271,8 @@ class ModelActionHandlerRegistryTest {
                                 0L, 0L, false)));
         JacksonSerializer serializer =
                 new JacksonSerializer();
-        ModelActionHandlerRegistry subject =
-                new ModelActionHandlerRegistry(
+        ModelCommitHandlerRegistry subject =
+                new ModelCommitHandlerRegistry(
                         mock(DefaultModelRepository.class),
                         eventStoreClient,
                         serializer,
@@ -300,19 +300,19 @@ class ModelActionHandlerRegistryTest {
                         any());
     }
 
-    private static ModelActionHandlerRegistry subject(
+    private static ModelCommitHandlerRegistry subject(
             AutomaticModelHandling automaticHandling) {
         return subject(
                 automaticHandling,
                 GraphProjectionCompletion.ASYNC);
     }
 
-    private static ModelActionHandlerRegistry subject(
+    private static ModelCommitHandlerRegistry subject(
             AutomaticModelHandling automaticHandling,
             GraphProjectionCompletion graphProjectionCompletion) {
         JacksonSerializer serializer =
                 new JacksonSerializer();
-        return new ModelActionHandlerRegistry(
+        return new ModelCommitHandlerRegistry(
                 mock(DefaultModelRepository.class),
                 mock(EventStoreClient.class),
                 serializer,
@@ -336,28 +336,28 @@ class ModelActionHandlerRegistryTest {
                 new JacksonSerializer());
     }
 
-    private static ModelActionEngine.ActionEvaluation evaluation(
-            ModelActionEngine.Transition... transitions) {
-        return new ModelActionEngine.ActionEvaluation(
+    private static ModelCommitEngine.CommitEvaluation evaluation(
+            ModelCommitEngine.Transition... transitions) {
+        return new ModelCommitEngine.CommitEvaluation(
                 1L,
                 java.util.Arrays.stream(transitions)
-                        .map(ModelActionEngine.Transition::modelId)
+                        .map(ModelCommitEngine.Transition::modelId)
                         .toList(),
                 java.util.Arrays.stream(transitions)
                         .collect(
                                 java.util.stream.Collectors.toMap(
-                                        ModelActionEngine.Transition::modelId,
-                                        ModelActionEngine.Transition::modelType,
+                                        ModelCommitEngine.Transition::modelId,
+                                        ModelCommitEngine.Transition::modelType,
                                         (first, second) ->
                                                 first)),
                 List.of(
-                        new ModelActionEngine.AppliedSubstep(
+                        new ModelCommitEngine.AppliedSubstep(
                                 null,
                                 List.of(transitions))),
                 Map.of());
     }
 
-    private static ModelActionEngine.Transition transition(
+    private static ModelCommitEngine.Transition transition(
             Class<?> modelType,
             java.lang.reflect.Executable handler) {
         return transition(
@@ -367,11 +367,11 @@ class ModelActionHandlerRegistryTest {
                 modelType, handler);
     }
 
-    private static ModelActionEngine.Transition transition(
+    private static ModelCommitEngine.Transition transition(
             String modelId,
             Class<?> modelType,
             java.lang.reflect.Executable handler) {
-        return new ModelActionEngine.Transition(
+        return new ModelCommitEngine.Transition(
                 modelId,
                 modelType, 0L, null,
                 new Object(), handler);

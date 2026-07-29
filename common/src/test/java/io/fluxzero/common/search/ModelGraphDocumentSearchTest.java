@@ -111,6 +111,38 @@ class ModelGraphDocumentSearchTest {
                         .toList());
     }
 
+    @Test
+    void doesNotUseLossyJdbcSummaryAsConstraintPrefilter() {
+        SerializedDocument root =
+                document(
+                        "root-00000",
+                        Map.of(
+                                "rootId",
+                                "root-00000"))
+                        .toBuilder()
+                        .summary("root -00000")
+                        .build();
+
+        List<SerializedDocument> result =
+                ModelGraphDocumentSearch.apply(
+                        List.of(root),
+                        SearchDocuments.builder()
+                                .query(SearchQuery.builder()
+                                               .collection("roots")
+                                               .constraint(match(
+                                                       "root-00000",
+                                                       true,
+                                                       "rootId"))
+                                               .build())
+                                .build());
+
+        assertEquals(List.of(root), result);
+        assertEquals(
+                "root -00000",
+                result.getFirst()
+                        .getSummary());
+    }
+
     private static SerializedDocument document(
             String id,
             Map<String, String> values) {

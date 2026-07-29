@@ -22,8 +22,8 @@ import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
@@ -105,9 +105,9 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
-    CompletableFuture<CommitModelActionResult> handle(
-            CommitModelAction request) {
-        return eventStore.commitModelAction(
+    CompletableFuture<CommitModelsResult> handle(
+            CommitModels request) {
+        return eventStore.commitModels(
                 request);
     }
 

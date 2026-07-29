@@ -24,13 +24,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class ModelActionValidatorTest {
+class ModelCommitValidatorTest {
 
     @Test
     void acceptsOneCompleteStateOnlyTransition() {
-        assertDoesNotThrow(() -> ModelActionValidator.validate(action(
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(commit(
                 List.of("order-1"),
-                ModelActionTarget.builder()
+                ModelCommitTarget.builder()
                         .modelId("order-1")
                         .updateState(true)
                         .relationships(List.of())
@@ -41,17 +41,17 @@ class ModelActionValidatorTest {
     void rejectsDuplicateReadsAndMalformedTargets() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(action(
+                () -> ModelCommitValidator.validate(commit(
                         List.of("order-1", "order-1"),
                         target("order-1"))));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(action(
+                () -> ModelCommitValidator.validate(commit(
                         List.of("order-1"),
                         target("order-2"))));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(action(
+                () -> ModelCommitValidator.validate(commit(
                         List.of("order-1"),
                         target("order-1").toBuilder()
                                 .relationships(List.of(
@@ -63,28 +63,28 @@ class ModelActionValidatorTest {
 
     @Test
     void rejectsSnapshotsThatCannotBeReconstructed() {
-        ModelActionTarget invalid = target("order-1").toBuilder()
+        ModelCommitTarget invalid = target("order-1").toBuilder()
                 .snapshot(new ModelSnapshotMutation(null, 0L, 10, 2))
                 .build();
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(action(List.of("order-1"), invalid)));
+                () -> ModelCommitValidator.validate(commit(List.of("order-1"), invalid)));
     }
 
     @Test
     void validatesTemporalGraphBoundsAndBoundaries() {
-        assertDoesNotThrow(() -> ModelActionValidator.validate(
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 new GetModelGraph("root-1", null, 16, 10_000, 100, 0L, true)));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(
+                () -> ModelCommitValidator.validate(
                         new GetModelGraph(
-                                "root-1", 10L, "action-1", 0,
+                                "root-1", 10L, "commit-1", 0,
                                 16, 10_000, 100, 0L, true)));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(
+                () -> ModelCommitValidator.validate(
                         new GetModelAncestors(
                                 List.of("child-1", "child-2"), null,
                                 1, 1, 100, 0L)));
@@ -92,30 +92,30 @@ class ModelActionValidatorTest {
 
     @Test
     void validatesDeletionBounds() {
-        assertDoesNotThrow(() -> ModelActionValidator.validate(
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 new PlanModelDeletion("root-1", ModelDeletionCascade.NONE)));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelActionValidator.validate(
+                () -> ModelCommitValidator.validate(
                         new PlanModelDeletion(
                                 "root-1", ModelDeletionCascade.DESCENDANTS,
                                 1_025, 100_000, 100)));
     }
 
-    private static CommitModelAction action(
+    private static CommitModels commit(
             List<String> readModelIds,
-            ModelActionTarget target) {
-        return new CommitModelAction(
-                "action-1", -1L, readModelIds,
-                List.of(ModelActionSubstep.builder()
+            ModelCommitTarget target) {
+        return new CommitModels(
+                "commit-1", -1L, readModelIds,
+                List.of(ModelCommitStep.builder()
                                 .targets(List.of(target))
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
                 Guarantee.STORED);
     }
 
-    private static ModelActionTarget target(String modelId) {
-        return ModelActionTarget.builder()
+    private static ModelCommitTarget target(String modelId) {
+        return ModelCommitTarget.builder()
                 .modelId(modelId)
                 .updateState(true)
                 .relationships(List.of())

@@ -1,7 +1,7 @@
 # Phase 6 temporal graph integrity
 
 This checkpoint completes the current/as-of relationship contract and makes model relationships a directed acyclic
-graph at every persisted model-action substep. It does not turn conflict resolution into the design frame and adds no
+graph at every persisted model-commit substep. It does not turn conflict resolution into the design frame and adds no
 graph work to an ordinary model write without a newly attached parent.
 
 ## Graph and time contract
@@ -34,14 +34,14 @@ Only a relationship change that introduces a new parent adjacency needs a cycle 
 an existing parent ID, unchanged stale relationships, and model writes without relationship changes do not add a
 validation traversal.
 
-All relationship changes within one action substep are overlaid before validation. This permits an atomic edge
-reversal, independent of target order. Substeps remain separate historical boundaries: an action that creates a cycle
+All relationship changes within one commit substep are overlaid before validation. This permits an atomic edge
+reversal, independent of target order. Substeps remain separate historical boundaries: an commit that creates a cycle
 in one substep and removes it in a later substep is rejected because the intermediate state would be addressable.
 
 The validator follows only parent paths reachable from newly attached parents. JDBC loads every frontier as one
 child-hash-pruned batch and caches stored ancestry across the whole coordinator batch; it never performs one query per
 node. The prefetched graph is only an optimization. Authoritative depth/model limits are applied to the effective graph
-after the action overlays, so a deep stored path cut in the same atomic substep cannot cause a false rejection.
+after the commit overlays, so a deep stored path cut in the same atomic substep cannot cause a false rejection.
 
 The initial limits are 1,024 parent levels and 100,000 effective nodes. Exceeding either limit fails closed because the
 runtime can no longer prove that the proposed state is acyclic within its resource bound.
@@ -49,29 +49,29 @@ runtime can no longer prove that the proposed state is acyclic within its resour
 Validation runs after conflict/relation reconciliation but before durable publication:
 
 - the in-memory store validates before appending the global event;
-- the co-located JDBC event log, action, streams, heads, relationship rows, and state head remain in one transaction;
+- the co-located JDBC event log, commit, streams, heads, relationship rows, and state head remain in one transaction;
 - the split event-log fallback performs validation before invoking its external publish callback, while retaining its
   existing publish-then-local-commit recovery boundary.
 
-A rejected cycle therefore publishes no event and advances no action, state index, model head, stream membership, or
-relationship interval. If one action in an optimistic JDBC coordinator batch is cyclic, the batch is retried as
-isolated actions; the rejected action fails alone and successfully stored neighbours still complete.
+A rejected cycle therefore publishes no event and advances no commit, state index, model head, stream membership, or
+relationship interval. If one commit in an optimistic JDBC coordinator batch is cyclic, the batch is retried as
+isolated commits; the rejected commit fails alone and successfully stored neighbours still complete.
 
 ## Hot-path measurement
 
-The retained implementation replaced an initial per-action validation-query variant. Both retained and disabled runs
-used the exact same local PostgreSQL profile: 5,000 actions, 2,000 warm-up actions, 10 one-KiB targets and one
+The retained implementation replaced an initial per-commit validation-query variant. Both retained and disabled runs
+used the exact same local PostgreSQL profile: 5,000 commits, 2,000 warm-up commits, 10 one-KiB targets and one
 relationship per target, 50,000 model keys, 256 concurrent submissions.
 
-| Variant | Actions/s | Memberships/s | p99 |
+| Variant | Commits/s | Memberships/s | p99 |
 | --- | ---: | ---: | ---: |
-| Initial per-action query, discarded | 425 | 4,254 | 790.411 ms |
+| Initial per-commit query, discarded | 425 | 4,254 | 790.411 ms |
 | Batched relationship validation, retained | 493 | 4,933 | 694.115 ms |
 | Exact temporary A/B with validation disabled | 513 | 5,133 | 671.464 ms |
 
 The retained validator cost 3.9% throughput and 3.4% p99 in this local relation-heavy A/B. An ordinary write without a
 new parent adjacency performs no cycle-loader query. A no-relationship control in the same environment measured 1,012
-actions/s, 10,124 memberships/s, and 499.187 ms p99.
+commits/s, 10,124 memberships/s, and 499.187 ms p99.
 
 These are comparative local diagnostics, not production certification. Absolute figures are not compared with older
 Phase 3 runs because the surrounding code, database state, and container changed. Deep, wide, and highly shared DAG
@@ -112,7 +112,7 @@ That permanent write amplification is not justified by the wide/shared results. 
 
 ## Deleted-parent lineage
 
-`ModelActionTarget.updateRelationships` separates an intentional complete `@ParentId` replacement from an ordinary
+`ModelCommitTarget.updateRelationships` separates an intentional complete `@ParentId` replacement from an ordinary
 model transition. The SDK compares the returned target's parent references with its own begin-state. It sends the
 complete resulting edge set only for attach, detach, move, or delete; unchanged targets carry neither relationship
 intent nor relationship payload. This both removes unnecessary relationship reconciliation from the ordinary write
@@ -146,7 +146,7 @@ an explicit Phase 8 gate rather than being guessed here.
   stored ancestry, and a deep stored path cut by the same atomic step.
 - In-memory tests cover pre-publication rejection and complete state/event rollback.
 - JDBC tests cover durable rollback, half-open SQL intervals, current/historical graph traversal, edge reversal, and
-  isolation of one cyclic action from valid neighbours in the coordinator queue.
+  isolation of one cyclic commit from valid neighbours in the coordinator queue.
 - SDK packaging tests distinguish unchanged parent references from explicit moves; the in-memory SDK store proves that
   a normal child write after parent deletion cannot reactivate the edge.
 - Runtime in-memory and JDBC tests prove that parent deletion leaves the child head and stream untouched, keeps the

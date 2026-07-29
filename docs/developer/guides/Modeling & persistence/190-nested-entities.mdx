@@ -59,7 +59,7 @@ record MoveLine(
 Changing only `orderId` moves the line and its descendants. Returning a model with a `null` parent ID detaches it.
 Neither the old nor new parent needs to be loaded.
 
-The runtime stores old and new relation boundaries with the model action's monotone `stateIndex`. Historical graph
+The runtime stores old and new relation boundaries with the model commit's monotone `stateIndex`. Historical graph
 loads therefore see the relation that belonged to the selected model state, not whichever parent happens to be current
 today.
 
@@ -207,7 +207,7 @@ with a `(configurationVersion, stateIndex)` fence. A move updates both the old a
 Projection completion is configurable:
 
 - `ASYNC` updates the projection durably in the background;
-- `AWAIT` delays the command result until every affected projection has reached the action boundary;
+- `AWAIT` delays the command result until every affected projection has reached the commit boundary;
 - `DEFAULT` inherits consumer, apply, model and application configuration and ultimately uses `ASYNC`.
 
 Prefer an operation-level `AWAIT` override when only some commands query the complete root immediately afterwards.

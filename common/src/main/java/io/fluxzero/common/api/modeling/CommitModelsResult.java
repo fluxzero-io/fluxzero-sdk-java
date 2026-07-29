@@ -25,14 +25,14 @@ import java.util.List;
 
 /**
  * Result of an accepted, rebase-requested, or conflict-rejected
- * {@link CommitModelAction}.
+ * {@link CommitModels}.
  * <p>
  * Accepted results are durable and include completion of direct document and snapshot materialization. A duplicate
- * accepted {@code actionId} returns the same logical result with the new request ID used for response correlation.
+ * accepted {@code commitId} returns the same logical result with the new request ID used for response correlation.
  * Rebase and conflict results are not retained under the idempotency key.
  */
 @Value
-public class CommitModelActionResult extends AbstractRequestResult {
+public class CommitModelsResult extends AbstractRequestResult {
 
     /**
      * Request ID used to correlate this response.
@@ -40,19 +40,19 @@ public class CommitModelActionResult extends AbstractRequestResult {
     long requestId;
 
     /**
-     * Durable action idempotency key.
+     * Durable commit idempotency key.
      */
-    String actionId;
+    String commitId;
 
     /**
      * Assigned positions in request substep order.
      */
-    List<ModelActionSubstepResult> substeps;
+    List<ModelCommitStepResult> substeps;
 
     /**
-     * Current positions for model identities involved in a rejected action. Empty for an accepted action.
+     * Current positions for model identities involved in a rejected commit. Empty for an accepted commit.
      */
-    List<ModelActionConflict> conflicts;
+    List<ModelCommitConflict> conflicts;
 
     /**
      * Whether the runtime permits an SDK retry. For strict conflict results
@@ -63,7 +63,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
     boolean retryAllowed;
 
     /**
-     * Whether an accepted response represents an already committed action ID rather than a new commit.
+     * Whether an accepted response represents an already committed commit ID rather than a new commit.
      */
     boolean duplicate;
 
@@ -78,21 +78,21 @@ public class CommitModelActionResult extends AbstractRequestResult {
     long timestamp = System.currentTimeMillis();
 
     /**
-     * Creates a model action result, normalizing omitted compatibility fields to empty collections.
+     * Creates a model commit result, normalizing omitted compatibility fields to empty collections.
      */
     @ConstructorProperties({
-            "requestId", "actionId", "substeps", "conflicts", "retryAllowed",
+            "requestId", "commitId", "substeps", "conflicts", "retryAllowed",
             "duplicate", "rebaseStateIndex"})
-    public CommitModelActionResult(
+    public CommitModelsResult(
             long requestId,
-            String actionId,
-            List<ModelActionSubstepResult> substeps,
-            List<ModelActionConflict> conflicts,
+            String commitId,
+            List<ModelCommitStepResult> substeps,
+            List<ModelCommitConflict> conflicts,
             boolean retryAllowed,
             boolean duplicate,
             Long rebaseStateIndex) {
         this.requestId = requestId;
-        this.actionId = actionId;
+        this.commitId = commitId;
         this.substeps = substeps == null ? List.of() : List.copyOf(substeps);
         this.conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
         this.retryAllowed = retryAllowed;
@@ -101,30 +101,30 @@ public class CommitModelActionResult extends AbstractRequestResult {
     }
 
     /**
-     * Creates an accepted action result.
+     * Creates an accepted commit result.
      */
-    public static CommitModelActionResult accepted(
-            long requestId, String actionId, List<ModelActionSubstepResult> substeps) {
-        return new CommitModelActionResult(
-                requestId, actionId, substeps, List.of(), false,
+    public static CommitModelsResult accepted(
+            long requestId, String commitId, List<ModelCommitStepResult> substeps) {
+        return new CommitModelsResult(
+                requestId, commitId, substeps, List.of(), false,
                 false, null);
     }
 
     /**
-     * Creates a rejected conflict result. Rejected results are not retained under the action idempotency key.
+     * Creates a rejected conflict result. Rejected results are not retained under the commit idempotency key.
      */
-    public static CommitModelActionResult conflict(
+    public static CommitModelsResult conflict(
             long requestId,
-            String actionId,
-            List<ModelActionConflict> conflicts,
+            String commitId,
+            List<ModelCommitConflict> conflicts,
             boolean retryAllowed) {
-        return new CommitModelActionResult(
-                requestId, actionId, List.of(), conflicts, retryAllowed,
+        return new CommitModelsResult(
+                requestId, commitId, List.of(), conflicts, retryAllowed,
                 false, null);
     }
 
     /**
-     * Returns whether the runtime committed the action.
+     * Returns whether the runtime committed the commit.
      */
     @Transient
     public boolean isAccepted() {
@@ -142,31 +142,31 @@ public class CommitModelActionResult extends AbstractRequestResult {
     /**
      * Copies this logical result with another transport request ID.
      */
-    public CommitModelActionResult forRequest(long requestId) {
-        return new CommitModelActionResult(
-                requestId, actionId, substeps, conflicts, retryAllowed,
+    public CommitModelsResult forRequest(long requestId) {
+        return new CommitModelsResult(
+                requestId, commitId, substeps, conflicts, retryAllowed,
                 duplicate, rebaseStateIndex);
     }
 
     /**
      * Copies this accepted result for an idempotent duplicate request.
      */
-    public CommitModelActionResult asDuplicateForRequest(long requestId) {
-        return new CommitModelActionResult(
-                requestId, actionId, substeps, conflicts, retryAllowed,
+    public CommitModelsResult asDuplicateForRequest(long requestId) {
+        return new CommitModelsResult(
+                requestId, commitId, substeps, conflicts, retryAllowed,
                 true, rebaseStateIndex);
     }
 
     /**
      * Requests an internal apply-only rebase at the supplied current boundary.
      */
-    public static CommitModelActionResult rebase(
+    public static CommitModelsResult rebase(
             long requestId,
-            String actionId,
-            List<ModelActionConflict> changedModels,
+            String commitId,
+            List<ModelCommitConflict> changedModels,
             long rebaseStateIndex) {
-        return new CommitModelActionResult(
-                requestId, actionId, List.of(), changedModels, true,
+        return new CommitModelsResult(
+                requestId, commitId, List.of(), changedModels, true,
                 false, rebaseStateIndex);
     }
 
@@ -176,7 +176,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
     @Override
     public Metric toMetric() {
         int targetCount = 0;
-        for (ModelActionSubstepResult substep : substeps) {
+        for (ModelCommitStepResult substep : substeps) {
             targetCount += substep.getTargets().size();
         }
         return new Metric(

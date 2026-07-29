@@ -25,40 +25,40 @@ import java.beans.Transient;
 import java.util.List;
 
 /**
- * Atomically commits the ordered state transitions produced by one model action.
+ * Atomically commits the ordered state transitions produced by one model commit.
  * <p>
- * The request carries one persisted read boundary and the exact model IDs read while evaluating the action. Each
- * {@link ModelActionSubstep} contains its original event once, regardless of the number of targeted model streams.
+ * The request carries one persisted read boundary and the exact model IDs read while evaluating the commit. Each
+ * {@link ModelCommitStep} contains its original event once, regardless of the number of targeted model streams.
  * Target transitions may also carry pre-serialized direct current-document mutations and snapshot candidates. The
- * runtime assigns their state-index fence, verifies snapshot boundaries, and completes them as part of the action
+ * runtime assigns their state-index fence, verifies snapshot boundaries, and completes them as part of the commit
  * workflow.
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
-public class CommitModelAction extends Command {
+public class CommitModels extends Command {
 
     /**
-     * Durable idempotency key shared by every substep in this action.
+     * Durable idempotency key shared by every substep in this commit.
      */
-    String actionId;
+    String commitId;
 
     /**
-     * Namespace-wide persisted state boundary at which action evaluation began.
+     * Namespace-wide persisted state boundary at which commit evaluation began.
      */
     long readStateIndex;
 
     /**
-     * Exact, deduplicated model ID strings read while evaluating the action.
+     * Exact, deduplicated model ID strings read while evaluating the commit.
      */
     List<String> readModelIds;
 
     /**
      * Original events/state transitions in evaluation order.
      */
-    List<ModelActionSubstep> substeps;
+    List<ModelCommitStep> substeps;
 
     /**
-     * Behavior when one of the action-scoped model heads advanced after {@link #readStateIndex}.
+     * Behavior when one of the commit-scoped model heads advanced after {@link #readStateIndex}.
      * A missing value is interpreted as {@link ModelConflictPolicy#ACCEPT}.
      */
     ModelConflictPolicy conflictPolicy;
@@ -69,20 +69,20 @@ public class CommitModelAction extends Command {
     Guarantee guarantee;
 
     /**
-     * Routes retries of the same action consistently without choosing one target model as its owner.
+     * Routes retries of the same commit consistently without choosing one target model as its owner.
      */
     @Override
     public String routingKey() {
-        return actionId;
+        return commitId;
     }
 
     /**
-     * Returns the logical event payload bytes carried once by this action.
+     * Returns the logical event payload bytes carried once by this commit.
      */
     @Transient
     public long getBytes() {
         long result = 0L;
-        for (ModelActionSubstep substep : substeps) {
+        for (ModelCommitStep substep : substeps) {
             long bytes = substep.getBytes();
             result = bytes > Long.MAX_VALUE - result ? Long.MAX_VALUE : result + bytes;
         }
@@ -103,14 +103,14 @@ public class CommitModelAction extends Command {
         long eventBytes = 0L;
         long directDocumentBytes = 0L;
         long snapshotBytes = 0L;
-        for (ModelActionSubstep substep : substeps) {
+        for (ModelCommitStep substep : substeps) {
             targetCount += substep.getTargets().size();
             storedTargetCount += substep.getStoredTargetCount();
             relationCount += substep.getRelationCount();
             publishedEventCount += substep.isPublishEvent() ? 1 : 0;
             eventBytes = addSaturated(
                     eventBytes, substep.getBytes());
-            for (ModelActionTarget target :
+            for (ModelCommitTarget target :
                     substep.getTargets()) {
                 if (target.getDocument() != null) {
                     directDocumentCount++;
@@ -144,7 +144,7 @@ public class CommitModelAction extends Command {
     }
 
     /**
-     * Payload-free model action metrics.
+     * Payload-free model commit metrics.
      */
     @Value
     public static class Metric {

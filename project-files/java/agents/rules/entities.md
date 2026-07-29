@@ -104,7 +104,7 @@ Use an explicit handler only for real orchestration:
 ```java
 @HandleCommand
 CompletableFuture<Void> handle(ImportProject command) {
-    // Orchestrate external work, then execute one model action.
+    // Orchestrate external work, then execute one model commit.
     return Fluxzero.assertAndApply(command);
 }
 ```
@@ -138,7 +138,7 @@ public record RenameProject(ProjectId projectId,
 Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
 direct target and related ancestor resolved for the action. They must not perform nested model writes.
 
-## Multi-model actions
+## Multi-model commits
 
 One payload can read and update unrelated models:
 
@@ -167,7 +167,7 @@ public record ReserveStock(
 ```
 
 The SDK loads all targets at one state boundary and commits their events, direct documents, snapshots and relationship
-deltas as one model action. The event is globally published once.
+deltas as one model commit. The event is globally published once.
 
 Typed IDs resolve automatically. If two payload properties refer to the same model type, qualify the model parameter:
 
@@ -242,7 +242,7 @@ ModelGraph<Project> graph =
         Fluxzero.modelRepository().loadGraph(projectId);
 ```
 
-Current loads use the model cache and its long-polling update tracker. Event handlers use the event's exact model-action
+Current loads use the model cache and its long-polling update tracker. Event handlers use the event's exact model-commit
 boundary:
 
 ```java
@@ -255,11 +255,11 @@ void on(RenameProject event,
 ```
 
 Directly affected event/notification models support `T` and `Entity<T>`. `Entity<T>` is required to observe an absent
-model after logical deletion. Ordinary events without model-action metadata do not receive model injection.
+model after logical deletion. Ordinary events without model-commit metadata do not receive model injection.
 
 ## Search and graph composition
 
-Direct searchable-model documents are synchronous with successful action completion:
+Direct searchable-model documents are synchronous with successful commit completion:
 
 ```java
 List<Task> open = Fluxzero.search(Task.class)
@@ -284,7 +284,7 @@ documents live; `searchGraph(Root.class, true)` forces live composition.
 
 ## Conflict policy
 
-Model actions default to `ModelConflictPolicy.DEFAULT`, resolved from apply/model, builder configuration or application
+Model commits default to `ModelConflictPolicy.DEFAULT`, resolved from apply/model, builder configuration or application
 properties. Public policies are:
 
 - `ACCEPT`: preserve the event once; rebase derived documents and relationships on current merged model state.

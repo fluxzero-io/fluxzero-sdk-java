@@ -25,64 +25,71 @@ import java.util.Set;
  * Keeping this validation with the protocol types ensures local clients, test servers and runtimes reject malformed
  * model requests consistently.
  */
-public final class ModelActionValidator {
+public final class ModelCommitValidator {
     private static final int MAX_GRAPH_EVENTS_PER_MODEL = 8_192;
 
-    private ModelActionValidator() {
+    private ModelCommitValidator() {
     }
 
     /**
-     * Validates the structural model-action wire contract.
+     * Validates the structural model-commit wire contract.
      */
-    public static void validate(CommitModelAction action) {
-        if (action == null) {
-            throw new IllegalArgumentException("Model action is required");
+    public static void validate(CommitModels commit) {
+        if (commit == null) {
+            throw new IllegalArgumentException("Model commit is required");
         }
-        if (action.getActionId() == null || action.getActionId().isBlank()) {
-            throw new IllegalArgumentException("Model actionId must not be blank");
+        if (commit.getCommitId() == null || commit.getCommitId().isBlank()) {
+            throw new IllegalArgumentException("Model commitId must not be blank");
         }
-        if (action.getReadStateIndex() < -1L) {
+        if (commit.getReadStateIndex() < -1L) {
             throw new IllegalArgumentException("Model readStateIndex must be at least -1");
         }
-        if (action.getGuarantee() == null) {
-            throw new IllegalArgumentException("Model action guarantee is required");
+        if (commit.getGuarantee() == null) {
+            throw new IllegalArgumentException("Model commit guarantee is required");
         }
-        requireNonEmpty(action.getSubsteps(), "Model action must contain at least one substep");
-        Set<String> readIds = uniqueIds(action.getReadModelIds(), "read model");
-        for (int i = 0; i < action.getSubsteps().size(); i++) {
-            ModelActionSubstep substep = action.getSubsteps().get(i);
+        requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
+        Set<String> readIds = uniqueIds(commit.getReadModelIds(), "read model");
+        for (int i = 0; i < commit.getSubsteps().size(); i++) {
+            ModelCommitStep substep = commit.getSubsteps().get(i);
             if (substep == null) {
-                throw new IllegalArgumentException("Model action substep %d is null".formatted(i));
+                throw new IllegalArgumentException("Model commit substep %d is null".formatted(i));
             }
-            requireNonEmpty(substep.getTargets(), "Model action substep %d has no targets".formatted(i));
-            boolean requiresEvent = substep.isPublishEvent()
-                                    || substep.getTargets().stream().anyMatch(
-                    target -> target != null && target.isStoreEvent());
+            requireNonEmpty(substep.getTargets(), "Model commit substep %d has no targets".formatted(i));
+            boolean requiresEvent = substep.isPublishEvent();
+            if (!requiresEvent) {
+                for (ModelCommitTarget target : substep.getTargets()) {
+                    if (target != null && target.isStoreEvent()) {
+                        requiresEvent = true;
+                        break;
+                    }
+                }
+            }
             if (requiresEvent && substep.getEvent() == null) {
                 throw new IllegalArgumentException(
-                        "Model action substep %d requires an event".formatted(i));
+                        "Model commit substep %d requires an event".formatted(i));
             }
             if (substep.getEvent() != null && substep.getEvent().getIndex() != null) {
                 throw new IllegalArgumentException(
-                        "Model action substep %d event already has an event index".formatted(i));
+                        "Model commit substep %d event already has an event index".formatted(i));
             }
-            Set<String> targetIds = new HashSet<>();
-            for (ModelActionTarget target : substep.getTargets()) {
+            Set<String> targetIds =
+                    substep.getTargets().size() > 1 ? new HashSet<>() : null;
+            for (ModelCommitTarget target : substep.getTargets()) {
                 if (target == null) {
                     throw new IllegalArgumentException(
-                            "Model action substep %d has a null target".formatted(i));
+                            "Model commit substep %d has a null target".formatted(i));
                 }
                 if (target.getModelId() == null || target.getModelId().isBlank()) {
                     throw new IllegalArgumentException(
-                            "Model action substep %d has a blank target ID".formatted(i));
+                            "Model commit substep %d has a blank target ID".formatted(i));
                 }
                 if (target.getModelType() != null && target.getModelType().isBlank()) {
                     throw new IllegalArgumentException(
-                            "Model action substep %d has a blank target model type".formatted(i));
+                            "Model commit substep %d has a blank target model type".formatted(i));
                 }
-                if (!targetIds.add(target.getModelId())) {
+                if (targetIds != null && !targetIds.add(target.getModelId())) {
                     throw new IllegalArgumentException(
-                            "Model action substep %d targets model %s more than once"
+                            "Model commit substep %d targets model %s more than once"
                                     .formatted(i, target.getModelId()));
                 }
                 if (!readIds.contains(target.getModelId())) {
@@ -113,10 +120,11 @@ public final class ModelActionValidator {
                 }
                 validateDocument(target);
                 validateSnapshot(target);
-                Set<RelationshipKey> relationships = new HashSet<>();
+                Set<RelationshipKey> relationships =
+                        target.getRelationships().size() > 1 ? new HashSet<>() : null;
                 for (ModelRelationship relationship : target.getRelationships()) {
                     RelationshipKey key = relationshipKey(relationship);
-                    if (!relationships.add(key)) {
+                    if (relationships != null && !relationships.add(key)) {
                         throw new IllegalArgumentException(
                                 "Target model %s contains duplicate parent relationship %s"
                                         .formatted(target.getModelId(), key));
@@ -130,7 +138,7 @@ public final class ModelActionValidator {
         }
     }
 
-    private static void validateDocument(ModelActionTarget target) {
+    private static void validateDocument(ModelCommitTarget target) {
         if (target.getDocument() == null) {
             return;
         }
@@ -153,7 +161,7 @@ public final class ModelActionValidator {
         }
     }
 
-    private static void validateSnapshot(ModelActionTarget target) {
+    private static void validateSnapshot(ModelCommitTarget target) {
         if (target.getSnapshot() == null) {
             return;
         }
@@ -191,7 +199,7 @@ public final class ModelActionValidator {
             validateStateIndex(request.getMaxStateIndex());
         }
         validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryActionId(), request.getBoundarySubstep());
+                request.getMaxStateIndex(), request.getBoundaryCommitId(), request.getBoundarySubstep());
         if (request.getRequests() == null) {
             throw new IllegalArgumentException("Model stream requests are required");
         }
@@ -229,7 +237,7 @@ public final class ModelActionValidator {
             validateStateIndex(request.getMaxStateIndex());
         }
         validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryActionId(), request.getBoundarySubstep());
+                request.getMaxStateIndex(), request.getBoundaryCommitId(), request.getBoundarySubstep());
         validateGraphBounds(
                 "graph", request.getMaxDepth(), request.getMaxModels(),
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 0, 1, "1");
@@ -256,7 +264,7 @@ public final class ModelActionValidator {
             validateStateIndex(request.getMaxStateIndex());
         }
         validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryActionId(), request.getBoundarySubstep());
+                request.getMaxStateIndex(), request.getBoundaryCommitId(), request.getBoundarySubstep());
         validateGraphBounds(
                 "ancestor", request.getMaxDepth(), request.getMaxModels(),
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count");
@@ -342,18 +350,18 @@ public final class ModelActionValidator {
         }
     }
 
-    private static void validateEventBoundary(Long stateIndex, String actionId, Integer substep) {
-        if (stateIndex != null && actionId != null) {
+    private static void validateEventBoundary(Long stateIndex, String commitId, Integer substep) {
+        if (stateIndex != null && commitId != null) {
             throw new IllegalArgumentException(
-                    "Specify either maxStateIndex or an action boundary, not both");
+                    "Specify either maxStateIndex or an commit boundary, not both");
         }
-        if ((actionId == null) != (substep == null)) {
+        if ((commitId == null) != (substep == null)) {
             throw new IllegalArgumentException(
-                    "Model action boundary requires both actionId and substep");
+                    "Model commit boundary requires both commitId and substep");
         }
-        if (actionId != null && (actionId.isBlank() || substep < 0)) {
+        if (commitId != null && (commitId.isBlank() || substep < 0)) {
             throw new IllegalArgumentException(
-                    "Model action boundary must be non-blank with a non-negative substep");
+                    "Model commit boundary must be non-blank with a non-negative substep");
         }
     }
 
@@ -385,16 +393,16 @@ public final class ModelActionValidator {
 
     private static Set<String> uniqueIds(Collection<String> values, String description) {
         if (values == null) {
-            throw new IllegalArgumentException("Model action %s IDs are required".formatted(description));
+            throw new IllegalArgumentException("Model commit %s IDs are required".formatted(description));
         }
         Set<String> result = new LinkedHashSet<>();
         for (String value : values) {
             if (value == null || value.isBlank()) {
-                throw new IllegalArgumentException("Model action has a blank %s ID".formatted(description));
+                throw new IllegalArgumentException("Model commit has a blank %s ID".formatted(description));
             }
             if (!result.add(value)) {
                 throw new IllegalArgumentException(
-                        "Model action contains duplicate %s ID %s".formatted(description, value));
+                        "Model commit contains duplicate %s ID %s".formatted(description, value));
             }
         }
         return result;

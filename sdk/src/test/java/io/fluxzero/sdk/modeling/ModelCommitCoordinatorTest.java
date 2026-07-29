@@ -25,12 +25,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ModelActionCoordinatorTest {
+class ModelCommitCoordinatorTest {
 
     @Test
     void serializesOverlappingReadSetsAndMarksTheWaiterForReevaluation() {
-        ModelActionCoordinator subject =
-                new ModelActionCoordinator();
+        ModelCommitCoordinator subject =
+                new ModelCommitCoordinator();
         CompletableFuture<String> firstCompletion =
                 new CompletableFuture<>();
         AtomicBoolean firstContended =
@@ -75,8 +75,8 @@ class ModelActionCoordinatorTest {
 
     @Test
     void keepsIndependentModelsParallelAndReleasesKeysAfterFailure() {
-        ModelActionCoordinator subject =
-                new ModelActionCoordinator();
+        ModelCommitCoordinator subject =
+                new ModelCommitCoordinator();
         CompletableFuture<String> firstCompletion =
                 new CompletableFuture<>();
         AtomicBoolean independentStarted =

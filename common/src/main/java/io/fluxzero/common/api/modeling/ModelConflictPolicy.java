@@ -17,16 +17,16 @@
 package io.fluxzero.common.api.modeling;
 
 /**
- * Runtime behavior when an action-scoped model changed after the action's {@code readStateIndex}.
+ * Runtime behavior when an commit-scoped model changed after the commit's {@code readStateIndex}.
  * <p>
  * Conflict rejection is deliberately optional. {@link #ACCEPT} preserves Fluxzero's normal single-writer-friendly
  * behavior: the original event is accepted, while stale derived documents, snapshots, and relationships are rebased
- * by reapplying it to the latest values of the models actually read by the action. Rejecting policies roll back the
- * complete runtime action; any retry is a new SDK evaluation against freshly loaded models.
+ * by reapplying it to the latest values of the models actually read by the commit. Rejecting policies roll back the
+ * complete runtime commit; any retry is a new SDK evaluation against freshly loaded models.
  */
 public enum ModelConflictPolicy {
     /**
-     * Inherit from the next broader model-action scope.
+     * Inherit from the next broader model-commit scope.
      */
     DEFAULT,
 
@@ -36,12 +36,12 @@ public enum ModelConflictPolicy {
     ACCEPT,
 
     /**
-     * Reject a stale action and let the client map the conflict to an application decision.
+     * Reject a stale commit and let the client map the conflict to an application decision.
      */
     FAIL,
 
     /**
-     * Reject a stale action and permit a bounded complete reevaluation against freshly loaded models and relations.
+     * Reject a stale commit and permit a bounded complete reevaluation against freshly loaded models and relations.
      */
     RETRY;
 

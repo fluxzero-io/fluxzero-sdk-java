@@ -226,7 +226,7 @@ CompletableFuture<List<FacetStats>> handle(ProjectFacetQuery query) {
 
 ## Consistency & The Window
 
-Direct searchable-model documents are **synchronous with model-action completion**.
+Direct searchable-model documents are **synchronous with model-commit completion**.
 
 - **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
   document.

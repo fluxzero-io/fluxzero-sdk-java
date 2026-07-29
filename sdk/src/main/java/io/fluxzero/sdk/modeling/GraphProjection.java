@@ -31,7 +31,7 @@ import java.lang.annotation.Target;
 public @interface GraphProjection {
 
     /**
-     * Default result-completion behavior for actions affecting this root projection.
+     * Default result-completion behavior for commits affecting this root projection.
      */
     GraphProjectionCompletion completion() default GraphProjectionCompletion.DEFAULT;
 

@@ -62,7 +62,7 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>The current entity instance (for non-static apply methods)</li>
  *     <li>Any parent, grandparent, or other ancestor entity in the aggregate hierarchy</li>
- *     <li>Any independently stored model loaded for the current model action, either as its value or as
+ *     <li>Any independently stored model loaded for the current model commit, either as its value or as
  *         {@link io.fluxzero.sdk.modeling.Entity}{@code <T>}</li>
  *     <li>The update object itself</li>
  *     <li>The full {@link io.fluxzero.sdk.common.Message} or its {@link io.fluxzero.common.api.Metadata}</li>

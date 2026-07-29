@@ -525,28 +525,28 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Runs the model assertions, apply interceptors, and applies declared for the given update and waits until the
-     * resulting model action has been committed.
+     * resulting model commit has been committed.
      * <p>
-     * This enters the model-action pipeline directly. It does not dispatch the update as a command and therefore can
+     * This enters the model-commit pipeline directly. It does not dispatch the update as a command and therefore can
      * safely be called from an explicit {@link HandleCommand} handler for the same payload type.
      *
      * @param update the update payload or message to assert and apply
      */
     static void assertAndApply(Object update) {
-        awaitModelAction(get().executeModelAction(Message.asMessage(update)));
+        awaitModelCommit(get().executeModelCommit(Message.asMessage(update)));
     }
 
     /**
-     * Runs and commits a model action with the supplied metadata.
+     * Runs and commits a model commit with the supplied metadata.
      *
      * @param update   the update payload to assert and apply
      * @param metadata metadata to attach to the model event
      */
     static void assertAndApply(Object update, Metadata metadata) {
-        awaitModelAction(get().executeModelAction(new Message(update, metadata)));
+        awaitModelCommit(get().executeModelCommit(new Message(update, metadata)));
     }
 
-    private static void awaitModelAction(CompletableFuture<Void> completion) {
+    private static void awaitModelCommit(CompletableFuture<Void> completion) {
         try {
             completion.join();
         } catch (CompletionException e) {
@@ -1478,7 +1478,7 @@ public interface Fluxzero extends AutoCloseable {
     FluxzeroConfiguration configuration();
 
     /**
-     * Executes one model action without routing it through command handlers.
+     * Executes one model commit without routing it through command handlers.
      * <p>
      * This is an infrastructure extension point used by {@link #assertAndApply(Object)}. Custom Fluxzero
      * implementations that support independent models should override it.
@@ -1486,9 +1486,9 @@ public interface Fluxzero extends AutoCloseable {
      * @param update message containing the model update
      * @return completion of the durable model commit
      */
-    default CompletableFuture<Void> executeModelAction(Message update) {
+    default CompletableFuture<Void> executeModelCommit(Message update) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "This Fluxzero implementation does not support direct model actions"));
+                "This Fluxzero implementation does not support direct model commits"));
     }
 
     /**

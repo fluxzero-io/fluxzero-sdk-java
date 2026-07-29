@@ -96,7 +96,7 @@ SDK instances are invalidated or refreshed after remote commits.
 ## Model parameters in message handlers
 
 Every selected message handler can inject directly addressed models and their ancestors. When an event or notification
-was produced by a model action, Fluxzero pins those loads to that action's persisted state boundary:
+was produced by a model commit, Fluxzero pins those loads to that action's persisted state boundary:
 
 ```java
 @HandleEvent
@@ -128,7 +128,7 @@ selected handler only requests an ancestor. Use `@Association("billingLines")` t
 ancestors of the requested type are reachable.
 
 Later cache entries never leak into historical event handling. Earlier `STORE_ONLY` model transitions are included
-because exactness is based on the committed model action, not only on the globally published event stream.
+because exactness is based on the committed model commit, not only on the globally published event stream.
 
 Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
 parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,

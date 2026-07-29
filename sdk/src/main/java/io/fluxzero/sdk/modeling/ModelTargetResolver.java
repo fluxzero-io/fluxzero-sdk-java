@@ -437,7 +437,7 @@ public final class ModelTargetResolver {
     }
 
     /**
-     * Read-only model dependency resolved by following temporal parent relations from the direct action targets.
+     * Read-only model dependency resolved by following temporal parent relations from the direct commit targets.
      *
      * @param modelType   required ancestor model type
      * @param association optional explicit {@link ParentId#path()} qualifier

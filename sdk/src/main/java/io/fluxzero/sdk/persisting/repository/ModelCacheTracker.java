@@ -17,7 +17,7 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.Registration;
-import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * Keeps cached independent models coherent by long-polling the durable model-action position.
+ * Keeps cached independent models coherent by long-polling the durable model-commit position.
  * <p>
  * Updates first fence an affected cache entry as stale. A coalescing refresh worker then advances the cached value.
  * This deliberately retains an event-sourced value as a replay base while it is stale; foreground callers only use
@@ -71,6 +71,8 @@ final class ModelCacheTracker implements AutoCloseable {
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicBoolean refreshScheduled =
             new AtomicBoolean();
+    private final AtomicBoolean refreshRequested =
+            new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Object startMonitor = new Object();
     private final Object trackMonitor = new Object();
@@ -80,6 +82,10 @@ final class ModelCacheTracker implements AutoCloseable {
     private volatile boolean unsupported;
     private volatile long cursor = -1L;
     private volatile long materializedCursor = -1L;
+    private volatile CompletableFuture<Boolean>
+            bootstrap;
+    private volatile CompletableFuture<TrackModelUpdatesResult>
+            pendingBootstrap;
     private volatile CompletableFuture<TrackModelUpdatesResult>
             pendingTrack;
     private volatile Thread trackerThread;
@@ -151,6 +157,13 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     /**
+     * Starts boundary observation without waiting for its websocket round trip.
+     */
+    void prepare() {
+        start();
+    }
+
+    /**
      * Publishes a freshly loaded current value and its inclusive runtime read boundary.
      */
     void loaded(String modelId, Class<?> modelType, long readStateIndex) {
@@ -168,6 +181,26 @@ final class ModelCacheTracker implements AutoCloseable {
             return;
         }
         if (!start()) {
+            /*
+             * Loading can complete on a websocket result callback. Blocking that callback on another request routed
+             * to the same session deadlocks response delivery. Finish publication after the asynchronous bootstrap;
+             * until then current() deliberately bypasses this cache entry.
+             */
+            if (!started.get()) {
+                CompletableFuture<Boolean> readiness =
+                        bootstrap;
+                if (readiness != null) {
+                    readiness.thenAccept(ready -> {
+                        if (ready) {
+                            publish(
+                                    modelId,
+                                    modelType,
+                                    readStateIndex,
+                                    requireGlobalBoundary);
+                        }
+                    });
+                }
+            }
             return;
         }
         AtomicBoolean created = new AtomicBoolean();
@@ -214,8 +247,8 @@ final class ModelCacheTracker implements AutoCloseable {
             Class<?> modelType,
             long stateIndex) {
         /*
-         * An entry that participated in the action already recorded every relevant tracked update. A newer global
-         * cursor may therefore consist entirely of unrelated model actions and must not force an event-store suffix
+         * An entry that participated in the commit already recorded every relevant tracked update. A newer global
+         * cursor may therefore consist entirely of unrelated model commits and must not force an event-store suffix
          * load after this authoritative local commit. A newly created entry keeps the global-boundary fence because
          * it may have missed an update for this model before it was registered.
          */
@@ -225,7 +258,7 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     /**
-     * Prevents a tracker update for an in-flight local action from starting a redundant suffix refresh before the
+     * Prevents a tracker update for an in-flight local commit from starting a redundant suffix refresh before the
      * accepted result can seed the same cache entry.
      */
     Runnable beginLocalCommit(
@@ -246,16 +279,25 @@ final class ModelCacheTracker implements AutoCloseable {
                     false, true)) {
                 return;
             }
+            AtomicBoolean refreshNeeded =
+                    new AtomicBoolean();
             targets.forEach(
-                    modelId ->
-                            pendingLocalCommits.computeIfPresent(
+                    modelId -> {
+                        pendingLocalCommits.computeIfPresent(
                                     modelId,
                                     (ignored, count) ->
                                             count == 1
                                                     ? null
                                                     : count
-                                                      - 1));
-            if (hasRefreshableEntries()) {
+                                                      - 1);
+                        Entry entry =
+                                entries.get(modelId);
+                        if (entry != null
+                            && entry.stale) {
+                            refreshNeeded.set(true);
+                        }
+                    });
+            if (refreshNeeded.get()) {
                 scheduleRefresh();
             }
         };
@@ -296,34 +338,42 @@ final class ModelCacheTracker implements AutoCloseable {
             if (closed.get() || unsupported) {
                 return false;
             }
-            TrackModelUpdatesResult position;
-            try {
-                /*
-                 * One zero-wait request per namespace establishes a cursor that cannot skip an action whose direct
-                 * document materialization is still pending. The returned update page itself is deliberately ignored:
-                 * a freshly loaded value already includes everything through materializedStateIndex.
-                 */
-                position = eventStoreClient
-                        .trackModelUpdates(
-                                new TrackModelUpdates(
-                                        -1L, 1, 0L))
-                        .join();
-                validatePosition(position);
-            } catch (Throwable failure) {
-                Throwable cause = unwrap(failure);
-                healthy = false;
-                if (cause
-                    instanceof UnsupportedOperationException) {
-                    unsupported = true;
-                    entries.clear();
-                    log.debug(
-                            "Model update tracking is not supported by this event store");
-                } else {
-                    log.warn(
-                            "Could not establish the model cache tracking boundary; current loads will bypass the cache",
-                            cause);
-                }
-                return false;
+            if (bootstrap == null
+                || bootstrap.isDone()) {
+                CompletableFuture<Boolean> readiness =
+                        new CompletableFuture<>();
+                bootstrap = readiness;
+                Thread.ofVirtual()
+                        .name("fluxzero-model-cache-bootstrap")
+                        .start(() ->
+                                       bootstrap(
+                                               readiness));
+            }
+            return false;
+        }
+    }
+
+    private void bootstrap(
+            CompletableFuture<Boolean> readiness) {
+        try {
+            /*
+             * One zero-wait request per namespace establishes a cursor that cannot skip a commit whose direct
+             * document materialization is still pending. Run it outside any websocket callback: JDK websocket
+             * callbacks are ordered per session, so joining a nested request from such a callback can prevent its
+             * own response from being delivered.
+             */
+            CompletableFuture<TrackModelUpdatesResult> request =
+                    eventStoreClient.trackModelUpdates(
+                            new TrackModelUpdates(
+                                    -1L, 1, 0L));
+            pendingBootstrap = request;
+            TrackModelUpdatesResult position =
+                    request.join();
+            pendingBootstrap = null;
+            validatePosition(position);
+            if (closed.get()) {
+                readiness.complete(false);
+                return;
             }
             /*
              * No cache entries predate this tracker, so historical target updates need not be replayed. Start update
@@ -338,7 +388,23 @@ final class ModelCacheTracker implements AutoCloseable {
             trackerThread = Thread.ofVirtual()
                     .name("fluxzero-model-cache-tracker")
                     .start(this::track);
-            return true;
+            readiness.complete(true);
+        } catch (Throwable failure) {
+            pendingBootstrap = null;
+            Throwable cause = unwrap(failure);
+            healthy = false;
+            if (cause
+                instanceof UnsupportedOperationException) {
+                unsupported = true;
+                entries.clear();
+                log.debug(
+                        "Model update tracking is not supported by this event store");
+            } else if (!closed.get()) {
+                log.warn(
+                        "Could not establish the model cache tracking boundary; current loads will bypass the cache",
+                        cause);
+            }
+            readiness.complete(false);
         }
     }
 
@@ -415,7 +481,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 cache.clear();
                 entries.clear();
             } else {
-                for (ModelActionTargetResult target :
+                for (ModelCommitTargetResult target :
                         update.getTargets()) {
                     markUpdated(
                             target,
@@ -434,14 +500,13 @@ final class ModelCacheTracker implements AutoCloseable {
         cursor = previous;
         materializedCursor =
                 result.getMaterializedStateIndex();
-        if (entries.values().stream()
-                .anyMatch(entry -> entry.stale)) {
+        if (!entries.isEmpty()) {
             scheduleRefresh();
         }
     }
 
     private void markUpdated(
-            ModelActionTargetResult target,
+            ModelCommitTargetResult target,
             long stateIndex) {
         Entry entry =
                 entries.get(
@@ -481,9 +546,11 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     private void scheduleRefresh() {
-        if (closed.get()
-            || !hasRefreshableEntries()
-            || !refreshScheduled
+        if (closed.get()) {
+            return;
+        }
+        refreshRequested.set(true);
+        if (!refreshScheduled
                     .compareAndSet(
                             false, true)) {
             return;
@@ -499,7 +566,9 @@ final class ModelCacheTracker implements AutoCloseable {
                         cursor,
                         materializedCursor);
         Throwable refreshFailure = null;
+        boolean fullBatch = false;
         try {
+            refreshRequested.set(false);
             //Collapse one tracker page and very closely following commits into one batched suffix load.
             LockSupport.parkNanos(
                     java.util.concurrent.TimeUnit.MILLISECONDS
@@ -526,6 +595,7 @@ final class ModelCacheTracker implements AutoCloseable {
                     }
                     if (targets.size()
                         == REFRESH_BATCH_SIZE) {
+                        fullBatch = true;
                         break;
                     }
                 }
@@ -550,6 +620,9 @@ final class ModelCacheTracker implements AutoCloseable {
                                         refreshed
                                                 .readStateIndex(),
                                         false));
+            }
+            if (fullBatch) {
+                refreshRequested.set(true);
             }
         } catch (Throwable failure) {
             refreshFailure = unwrap(failure);
@@ -580,34 +653,22 @@ final class ModelCacheTracker implements AutoCloseable {
             }
             refreshScheduled.set(false);
             if (!closed.get()
-                && hasRefreshableEntries()) {
+                && refreshRequested.get()) {
                 scheduleRefresh();
             }
         }
-    }
-
-    private boolean hasRefreshableEntries() {
-        long safeBoundary =
-                materializedCursor;
-        return entries.entrySet().stream()
-                .anyMatch(candidate -> {
-                    Entry entry = candidate.getValue();
-                    return entry.stale
-                           && !pendingLocalCommits
-                                   .containsKey(
-                                           candidate.getKey())
-                           && entry.modelType != null
-                           && entry.latestUpdate
-                              <= safeBoundary
-                           && cache.containsKey(
-                                   candidate.getKey());
-                });
     }
 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
             healthy = false;
+            CompletableFuture<TrackModelUpdatesResult>
+                    bootstrapRequest =
+                    pendingBootstrap;
+            if (bootstrapRequest != null) {
+                bootstrapRequest.cancel(true);
+            }
             synchronized (trackMonitor) {
                 CompletableFuture<TrackModelUpdatesResult>
                         request = pendingTrack;
@@ -660,7 +721,9 @@ final class ModelCacheTracker implements AutoCloseable {
                     "Invalid model update position: current="
                     + result.getCurrentStateIndex()
                     + ", materialized="
-                    + result.getMaterializedStateIndex());
+                    + result.getMaterializedStateIndex()
+                    + ", last="
+                    + result.getLastStateIndex());
         }
     }
 

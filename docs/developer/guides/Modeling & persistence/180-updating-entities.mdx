@@ -1,7 +1,7 @@
 ---
 title: Updating models
 slug: docs/guides/modeling-and-persistence/updating-entities
-description: Assertions, interceptors and automatic multi-model actions
+description: Assertions, interceptors and automatic multi-model commits
 sidebar:
    order: 180
 ---
@@ -49,7 +49,7 @@ An update that has enough information to identify its target models can be handl
   </TabItem>
 </Tabs>
 
-Publishing `RenameProduct` as a command automatically executes the model action. Fluxzero determines the target from
+Publishing `RenameProduct` as a command automatically executes the model commit. Fluxzero determines the target from
 `ProductId`, loads only that product, runs the assertions and applies, and commits the returned model.
 
 No `loadAggregate`, command-to-event translation handler or marker interface is required.
@@ -185,7 +185,7 @@ One update may return changes for several independent models. Fluxzero:
 1. resolves and batch-loads every direct target and requested ancestor;
 2. runs all assertions and interceptors;
 3. stages every returned model and relation delta;
-4. submits one model-action package to the runtime;
+4. submits one model-commit package to the runtime;
 5. publishes the original domain event once globally while linking it to every target stream.
 
 If evaluation fails, no target is committed. Conflict handling applies to the complete action:
@@ -221,6 +221,6 @@ Publish follow-up messages from handlers or event handlers instead.
 
 <Aside type="note" title="Legacy aggregate API">
 Existing Fluxzero 1.x applications may continue to use `@Aggregate` and
-`Fluxzero.loadAggregate(...).assertAndApply(...)`. New code should use model actions; the aggregate API is scheduled for
+`Fluxzero.loadAggregate(...).assertAndApply(...)`. New code should use model commits; the aggregate API is scheduled for
 deprecation in Fluxzero 2.0.
 </Aside>

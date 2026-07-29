@@ -27,8 +27,8 @@ import io.fluxzero.common.api.keyvalue.GetValue;
 import io.fluxzero.common.api.keyvalue.GetValueResult;
 import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
@@ -133,8 +133,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = DeleteEvents.class, name = "deleteEvents"),
 
         //modeling
-        @JsonSubTypes.Type(value = CommitModelAction.class, name = "commitModelAction"),
-        @JsonSubTypes.Type(value = CommitModelActionResult.class, name = "commitModelActionResult"),
+        @JsonSubTypes.Type(value = CommitModels.class, name = "commitModels"),
+        @JsonSubTypes.Type(value = CommitModelsResult.class, name = "commitModelsResult"),
         @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
         @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),
         @JsonSubTypes.Type(value = TrackModelUpdates.class, name = "trackModelUpdates"),

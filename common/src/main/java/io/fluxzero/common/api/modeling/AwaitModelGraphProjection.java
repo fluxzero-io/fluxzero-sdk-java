@@ -40,18 +40,18 @@ public class AwaitModelGraphProjection extends Request {
     String collection;
 
     /**
-     * Committed model-action boundary that must be visible in all affected roots.
+     * Committed model-commit boundary that must be visible in all affected roots.
      */
     long stateIndex;
 
     /**
-     * First state boundary occupied by the model action. The runtime uses the graph immediately before this boundary
-     * to include the old side of moves that occurred before the action's final substep.
+     * First state boundary occupied by the model commit. The runtime uses the graph immediately before this boundary
+     * to include the old side of moves that occurred before the commit's final substep.
      */
     long firstStateIndex;
 
     /**
-     * Models changed by the action. The runtime resolves their old and new projection roots before applying the fence.
+     * Models changed by the commit. The runtime resolves their old and new projection roots before applying the fence.
      * Empty retains the collection-wide barrier used by direct administrative callers.
      */
     List<String> modelIds;
@@ -67,7 +67,7 @@ public class AwaitModelGraphProjection extends Request {
     }
 
     /**
-     * Creates a projection barrier for the supplied affected models when the action consists of one state transition.
+     * Creates a projection barrier for the supplied affected models when the commit consists of one state transition.
      */
     public AwaitModelGraphProjection(
             String collection,

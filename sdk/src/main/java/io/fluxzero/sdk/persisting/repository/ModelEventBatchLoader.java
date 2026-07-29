@@ -40,7 +40,7 @@ import java.util.function.Consumer;
  * Delivers model-stream pages at one pinned state boundary without retaining a complete reconstruction in memory.
  * <p>
  * This is the transport boundary used by model reconstruction. It deliberately does not apply events: cross-model
- * historical dependencies and action-prefix overlays belong to the reconstruction context, not to transport paging.
+ * historical dependencies and commit-prefix overlays belong to the reconstruction context, not to transport paging.
  */
 final class ModelEventBatchLoader {
 
@@ -90,8 +90,8 @@ final class ModelEventBatchLoader {
     }
 
     /**
-     * Loads stream suffixes at either an explicit state boundary or the persisted state of one action substep.
-     * The action boundary is resolved by the runtime in the first stream request and all following pages use the
+     * Loads stream suffixes at either an explicit state boundary or the persisted state of one commit substep.
+     * The commit boundary is resolved by the runtime in the first stream request and all following pages use the
      * returned state index.
      */
     LoadResult load(
@@ -107,7 +107,7 @@ final class ModelEventBatchLoader {
             GetModelEventsResult response = eventStoreClient.getModelEvents(
                     new GetModelEvents(
                             List.of(), boundary.stateIndex(),
-                            boundary.actionId(), boundary.substep(),
+                            boundary.commitId(), boundary.substep(),
                             settings.maxPayloadBytes()));
             validateBoundary(response, boundary.stateIndex());
             pageConsumer.accept(response);
@@ -165,7 +165,7 @@ final class ModelEventBatchLoader {
                                                                  modelId, -1L, 0))
                                             .toList(),
                                     pinned.stateIndex(),
-                                    pinned.actionId(),
+                                    pinned.commitId(),
                                     pinned.substep(),
                                     settings.maxPayloadBytes()));
             long responseStateIndex =
@@ -260,7 +260,7 @@ final class ModelEventBatchLoader {
             GetModelEventsResult response = eventStoreClient.getModelEvents(
                     new GetModelEvents(
                             requests, pinned.stateIndex(),
-                            pinned.actionId(), pinned.substep(),
+                            pinned.commitId(), pinned.substep(),
                             settings.maxPayloadBytes()));
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
@@ -431,9 +431,9 @@ final class ModelEventBatchLoader {
                                     .formatted(requestedId, membership.getReadStateIndex(),
                                                membership.getStateIndex()));
                 }
-                if (membership.getActionId() == null || membership.getActionId().isBlank()
+                if (membership.getCommitId() == null || membership.getCommitId().isBlank()
                     || membership.getSubstep() < 0) {
-                    throw invalid("Model stream '" + requestedId + "' has invalid action membership");
+                    throw invalid("Model stream '" + requestedId + "' has invalid commit membership");
                 }
                 referencedPayloads.add(membership.getStateIndex());
                 cursor = membership.getSequenceNumber();
@@ -516,7 +516,7 @@ final class ModelEventBatchLoader {
         }
     }
 
-    record Boundary(Long stateIndex, String actionId, Integer substep) {
+    record Boundary(Long stateIndex, String commitId, Integer substep) {
         static final Boundary CURRENT = new Boundary(null, null, null);
 
         Boundary {
@@ -524,14 +524,14 @@ final class ModelEventBatchLoader {
                 throw new IllegalArgumentException(
                         "Model maxStateIndex must be at least -1");
             }
-            if (stateIndex != null && actionId != null) {
+            if (stateIndex != null && commitId != null) {
                 throw new IllegalArgumentException(
-                        "Specify either maxStateIndex or an action boundary, not both");
+                        "Specify either maxStateIndex or an commit boundary, not both");
             }
-            if ((actionId == null) != (substep == null)
-                || actionId != null && (actionId.isBlank() || substep < 0)) {
+            if ((commitId == null) != (substep == null)
+                || commitId != null && (commitId.isBlank() || substep < 0)) {
                 throw new IllegalArgumentException(
-                        "Model action boundary requires a non-blank actionId and non-negative substep");
+                        "Model commit boundary requires a non-blank commitId and non-negative substep");
             }
         }
 
@@ -539,12 +539,12 @@ final class ModelEventBatchLoader {
             return stateIndex == null ? CURRENT : new Boundary(stateIndex, null, null);
         }
 
-        static Boundary action(String actionId, int substep) {
-            return new Boundary(null, actionId, substep);
+        static Boundary commit(String commitId, int substep) {
+            return new Boundary(null, commitId, substep);
         }
 
         boolean historical() {
-            return stateIndex != null || actionId != null;
+            return stateIndex != null || commitId != null;
         }
     }
 }

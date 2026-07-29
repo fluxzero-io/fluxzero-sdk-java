@@ -24,7 +24,7 @@ import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelActionContext;
+import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelGraph;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import jakarta.validation.constraints.NotNull;
@@ -88,11 +88,11 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Loads all model parameters for one selected message handler at one repository boundary.
      * <p>
-     * Event and notification handlers carrying model-action metadata must be reconstructed at that exact action
+     * Event and notification handlers carrying model-commit metadata must be reconstructed at that exact commit
      * boundary. Other handlers use one current load context. Implementations should batch direct targets and ancestor
      * traversal rather than loading each parameter independently.
      */
-    default ModelActionContext loadContext(
+    default ModelCommitContext loadContext(
             @NonNull ModelTargetResolver.Resolution
                     resolution) {
         throw new UnsupportedOperationException(

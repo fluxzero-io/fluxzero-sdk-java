@@ -9,7 +9,7 @@ shared-payload erasure proof, and a genuinely paired aggregate/model end-to-end 
 
 The architectural result below remains valid, but the rollout GO is now conditional on completing Phases 10 and 11 in
 the [implementation backlog](dynamic-model-boundaries-backlog.md) and updating this decision with their evidence. No
-local result exposes a reason to return to aggregate-sized consistency boundaries or abandon the model-action/storage
+local result exposes a reason to return to aggregate-sized consistency boundaries or abandon the model-commit/storage
 protocol.
 
 This is deliberately not a claim that one laptop certified the production reference envelope. Unchanged Fluxzero
@@ -45,12 +45,12 @@ Documents, temporal edges, replicas, backups, and WAL are additional. This is wh
 relationships, erasure fences, and deletion targets use the stable segment and bounded physical partitions. The
 segment, rather than a PostgreSQL-native hash, also remains usable as a future shard-routing key.
 
-## Complete model-action store/load profile
+## Complete model-commit store/load profile
 
 The final implementation was measured with 1-KiB event payloads, publication enabled, current plus historical batched
-reconstruction, and the complete action schema. The Phase 5 paired result is included where it is directly comparable.
+reconstruction, and the complete commit schema. The Phase 5 paired result is included where it is directly comparable.
 
-| Targets | Actions | Actions/s | Memberships/s | Write p99 | Physical/logical | WAL/logical | Current models/s | Historical models/s | Phase 5 actions/s |
+| Targets | Commits | Commits/s | Memberships/s | Write p99 | Physical/logical | WAL/logical | Current models/s | Historical models/s | Phase 5 commits/s |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 1 | 20,000 | 5,645 | 5,645 | 72.960 ms | 1.89× | 2.24× | 26,708 | 26,999 | 4,407 |
 | 2 | 10,000 | 3,772 | 7,544 | 105.528 ms | 2.44× | 3.20× | 28,331 | 29,772 | 3,099 |
@@ -68,7 +68,7 @@ count.
 Four virtual-thread readers continuously requested 128-model event batches while a second, disjoint-target write pass
 updated existing models. The write comparison is the same executable with readers disabled/enabled.
 
-| Targets | Baseline actions/s | Concurrent actions/s | Write delta | Reader models/s | Reader memberships/s | Maximum observed load batch |
+| Targets | Baseline commits/s | Concurrent commits/s | Write delta | Reader models/s | Reader memberships/s | Maximum observed load batch |
 |---:|---:|---:|---:|---:|---:|---:|
 | 1 | 5,765 | 4,849 | -15.9% | 105,185 | 153,132 | 27.161 ms |
 | 2 | 4,506 | 3,794 | -15.8% | 125,186 | 179,388 | 17.352 ms |
@@ -77,7 +77,7 @@ updated existing models. The write comparison is the same executable with reader
 
 The concurrent write p99 values were 124.637, 121.681, 527.545, and 3,464.551 ms respectively. This is ordinary
 database contention rather than per-model read amplification: reconstruction remained set-based and around
-100k models/s throughout. The retained benchmark exposes `concurrentLoaders` and `concurrentActions` so deployments
+100k models/s throughout. The retained benchmark exposes `concurrentLoaders` and `concurrentCommits` so deployments
 can repeat this matrix on their own hardware.
 
 ## Graph and projection profile
@@ -113,11 +113,11 @@ it removes the bottleneck. It remains an evidence-driven future optimization.
 
 The executable contracts cover:
 
-- all-or-nothing JDBC event/action publication when co-located;
+- all-or-nothing JDBC event/commit publication when co-located;
 - one published event across transient retry with an external event store;
-- a publish-first external event becoming observable before its action result: boundary reconstruction fails closed
-  with “action boundary is not visible” and succeeds only after the durable action commit;
-- action idempotency, unknown/repeated result delivery, restart materialization, and document/snapshot write fences;
+- a publish-first external event becoming observable before its commit result: boundary reconstruction fails closed
+  with “commit boundary is not visible” and succeeds only after the durable commit commit;
+- commit idempotency, unknown/repeated result delivery, restart materialization, and document/snapshot write fences;
 - bounded coordinator count/bytes and request refusal rather than unbounded accumulation;
 - graph-projector failure, durable retry, rebuild, duplicate/late delivery, moves, and deletes;
 - 1,024-target resumable hard-delete batches, including a 100,000-model wide cascade;
@@ -125,7 +125,7 @@ The executable contracts cover:
   ID-reuse rejection;
 - cache/snapshot fencing and current/historical reconstruction boundaries.
 
-Split databases intentionally do not claim XA. The core action durably retains compressed materialization intent;
+Split databases intentionally do not claim XA. The core commit durably retains compressed materialization intent;
 document/snapshot/search application is idempotent and fenced, so failure resumes without re-running user assertions
 or duplicating the original event.
 
@@ -148,13 +148,13 @@ supported.
   paths.
 - The model tables and columns are additive and lazily initialized. There is no automatic aggregate-to-model data
   migration in the first release.
-- During a rolling upgrade, enable model traffic only after every serving runtime understands model actions. Direct
+- During a rolling upgrade, enable model traffic only after every serving runtime understands model commits. Direct
   aggregate traffic may continue throughout.
-- Rolling back runtime binaries remains safe for legacy traffic, but an old runtime cannot serve new model actions.
+- Rolling back runtime binaries remains safe for legacy traffic, but an old runtime cannot serve new model commits.
   Preserve the additive model tables, restore the new runtime, and resume durable materialization/erasure work.
 - Direct model documents remain synchronously searchable when commit succeeds. Whole-graph documents remain opt-in,
   asynchronous, rebuildable projections with an exposed high-watermark.
-- Compact action results are a reconstruction correctness dependency in the first release and must not yet be purged
+- Compact commit results are a reconstruction correctness dependency in the first release and must not yet be purged
   independently. Retention/archival requires a separately proven replacement index.
 
 ## Remaining deployment gates
@@ -165,7 +165,7 @@ These are operational qualifications, not unfinished model semantics:
   demonstrate the required 100 GB/min read/write envelope with headroom;
 - run a production-duration mixed-traffic soak including checkpoints, autovacuum, bloat, replica lag, failover, and
   overload recovery;
-- qualify backup/restore time and correctness for model streams, graph relations, action results, projection queues
+- qualify backup/restore time and correctness for model streams, graph relations, commit results, projection queues
   and erasure state; include configured key secrets when key ownership is external;
 - validate customer-specific payload, hot-key, Zipf, graph-degree, retention, and search distributions.
 
@@ -177,18 +177,18 @@ unless they reveal a material regression against the explicit budgets above.
 The pre-merge semantics corrections and paired end-to-end comparison renew the Phase 9 decision: the implementation is
 **GO for merge and controlled rollout**.
 
-The paired one-million-action history strengthened the functional case. Compared with the equivalent aggregate, models
-stored 12.2% more actions/s, wrote 51.8% of the WAL, loaded the selected cold leaf 4.1 times faster, and reconstructed
-the complete cold tree 2.8 times faster after bounded parallel graph reconstruction. The isolated 20,000-action profile
+The paired one-million-commit history strengthened the functional case. Compared with the equivalent aggregate, models
+stored 12.2% more commits/s, wrote 51.8% of the WAL, loaded the selected cold leaf 4.1 times faster, and reconstructed
+the complete cold tree 2.8 times faster after bounded parallel graph reconstruction. The isolated 20,000-commit profile
 used 43.8% of aggregate allocation. Synchronous direct-model search remained intact; asynchronous graph projection
 restored sub-millisecond root search, while `AWAIT` explicitly exposed its full-root materialization cost in result
 latency.
 
 The paired result also sharpened one deployment caveat rather than hiding it. On the highly compressible repeated
-1-KiB million-action payload, the retained model schema was 1.95 times the aggregate schema because individual event
-compression cannot match aggregate block compression and model actions retain durable idempotency state. Removing an
-unused 73-MiB stream action index materially improved the layout, but did not erase that workload-specific difference.
-Physical capacity, action-result retention, and the production 100-GB/min envelope therefore remain rollout sizing
+1-KiB million-commit payload, the retained model schema was 1.95 times the aggregate schema because individual event
+compression cannot match aggregate block compression and model commits retain durable idempotency state. Removing an
+unused 73-MiB stream commit index materially improved the layout, but did not erase that workload-specific difference.
+Physical capacity, commit-result retention, and the production 100-GB/min envelope therefore remain rollout sizing
 gates. They are not blockers to the API/storage design or to a controlled deployment.
 
 Full methodology and the exact latency, storage, WAL, allocation, GC, cache, and search tables are in the

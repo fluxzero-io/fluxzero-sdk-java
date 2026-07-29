@@ -13,7 +13,7 @@ ID in the handled payload.
 - Ancestors can be injected as either their value or `Entity<T>` into `@AssertLegal`, `@InterceptApply`, and `@Apply`.
   They are never writable merely because they were reached through the graph.
 - Missing and ambiguous ancestors, incompatible stored types, cycles, maximum depth, and maximum node count fail before
-  an action is committed.
+  an commit is committed.
 - Stored FQNs remain graph/deserialization metadata, not model identity. They are passed through the serializer's
   existing type-caster chain. When stored type metadata is absent but the handler supplies an unambiguous model class,
   that requested class is sufficient.
@@ -27,23 +27,23 @@ heads and temporal edges to one `stateIndex`.
 The runtime traverses the child-keyed relationship table breadth-first. Every level is one batched, child-hash-pruned
 query for the whole frontier; there is no request or query per node. Selected model streams are then batch-loaded
 through the existing partitioned stream protocol. The SDK caches the expanded target plan and loaded entities within
-the action.
+the commit.
 
-An earlier interceptor substep may change a `@ParentId`. The action loader overlays those staged outgoing edges and
+An earlier interceptor substep may change a `@ParentId`. The commit loader overlays those staged outgoing edges and
 keys its expansion cache by the staged relationship set, so later substeps observe the new parent without an
 intermediate commit. During later model reconstruction, an apply resolves its graph at the state immediately before
-the stored membership and reconstructs ancestor values at the membership's original read/action-prefix boundary. This
+the stored membership and reconstructs ancestor values at the membership's original read/commit-prefix boundary. This
 keeps current execution and event sourcing equivalent without storing target-state checkpoints.
 
 ## JDBC diagnostic
 
-The existing `JdbcModelActionStoreBenchmark` now includes ancestor-graph loads when relationships are enabled. A local
-PostgreSQL run used 5,000 one-target actions, one relationship per target, 1-KiB stored events, 128-root graph batches,
+The existing `JdbcModelCommitStoreBenchmark` now includes ancestor-graph loads when relationships are enabled. A local
+PostgreSQL run used 5,000 one-target commits, one relationship per target, 1-KiB stored events, 128-root graph batches,
 five load iterations, and head-only stream results:
 
 | Measurement | Result |
 | --- | ---: |
-| Model-action writes | 3,606 actions/s |
+| Model-commit writes | 3,606 commits/s |
 | Ordinary current head loads | 64,723 models/s |
 | Ancestor graph roots | 25,479 roots/s |
 | Ancestor graph nodes | 50,958 nodes/s |
@@ -57,10 +57,10 @@ that depth latency matters enough to justify carrying child-hash routing informa
 ## Verification
 
 - Direct parents, grandparents, qualified same-type parents, missing/ambiguous ancestors, persisted moves, and
-  same-action staged moves are covered end-to-end.
+  same-commit staged moves are covered end-to-end.
 - Cold reconstruction covers applies that inject ancestors, including a relationship changed in an earlier substep of
-  the same action.
-- JSON and CBOR protocol round trips cover multi-root action-boundary requests.
+  the same commit.
+- JSON and CBOR protocol round trips cover multi-root commit-boundary requests.
 - In-memory and JDBC runtime tests cover historical multi-parent DAG traversal, hash-partition routing, deterministic
   ordering, and depth refusal.
 - The complete SDK reactor passed, including test-server, proxy, annotation processing, and Java/Kotlin downstream

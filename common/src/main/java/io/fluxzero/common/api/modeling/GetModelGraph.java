@@ -41,12 +41,12 @@ public class GetModelGraph extends Request {
     Long maxStateIndex;
 
     /**
-     * Durable model action whose persisted result contains the exact boundary, or {@code null}.
+     * Durable model commit whose persisted result contains the exact boundary, or {@code null}.
      */
-    String boundaryActionId;
+    String boundaryCommitId;
 
     /**
-     * Ordered substep within {@link #boundaryActionId}, or {@code null}.
+     * Ordered substep within {@link #boundaryCommitId}, or {@code null}.
      */
     Integer boundarySubstep;
 
@@ -90,13 +90,13 @@ public class GetModelGraph extends Request {
     }
 
     @ConstructorProperties({
-            "rootId", "maxStateIndex", "boundaryActionId",
+            "rootId", "maxStateIndex", "boundaryCommitId",
             "boundarySubstep", "maxDepth", "maxModels",
             "maxEventsPerModel", "maxBytes", "composableOnly"})
     public GetModelGraph(
             String rootId,
             Long maxStateIndex,
-            String boundaryActionId,
+            String boundaryCommitId,
             Integer boundarySubstep,
             int maxDepth,
             int maxModels,
@@ -105,7 +105,7 @@ public class GetModelGraph extends Request {
             boolean composableOnly) {
         this.rootId = rootId;
         this.maxStateIndex = maxStateIndex;
-        this.boundaryActionId = boundaryActionId;
+        this.boundaryCommitId = boundaryCommitId;
         this.boundarySubstep = boundarySubstep;
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
@@ -117,7 +117,7 @@ public class GetModelGraph extends Request {
     @Override
     public Metric toMetric() {
         return new Metric(
-                maxStateIndex, boundaryActionId,
+                maxStateIndex, boundaryCommitId,
                 boundarySubstep, maxDepth, maxModels,
                 maxEventsPerModel, maxBytes, composableOnly);
     }
@@ -125,7 +125,7 @@ public class GetModelGraph extends Request {
     @Value
     public static class Metric {
         Long maxStateIndex;
-        String boundaryActionId;
+        String boundaryCommitId;
         Integer boundarySubstep;
         int maxDepth;
         int maxModels;

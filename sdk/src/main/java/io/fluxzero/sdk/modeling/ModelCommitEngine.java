@@ -47,14 +47,14 @@ import java.util.stream.Stream;
 import static io.fluxzero.common.handling.HandlerInspector.inspect;
 
 /**
- * Evaluates a complete model action without performing persistence.
+ * Evaluates a complete model commit without performing persistence.
  * <p>
  * Interceptor outputs form ordered substeps under one pinned read boundary. Every apply within one substep reads its
  * same immutable begin-state; only a successfully completed substep becomes visible to later substeps. A failure
- * produces no action result. This class never publishes or stores an event, allowing its caller to commit the returned
- * action atomically after evaluation.
+ * produces no commit result. This class never publishes or stores an event, allowing its caller to commit the returned
+ * commit atomically after evaluation.
  */
-final class ModelActionEngine {
+final class ModelCommitEngine {
     private static final int MAX_SUBSTEPS = 10_000;
 
     private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
@@ -63,7 +63,7 @@ final class ModelActionEngine {
     private final Map<List<ModelMetadata.HandlerMethod>, HandlerPlan> handlerPlans =
             new ConcurrentHashMap<>();
 
-    ModelActionEngine(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
+    ModelCommitEngine(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         List<ParameterResolver<? super DeserializingMessage>> resolvers =
                 new ArrayList<>(parameterResolvers.size() + 1);
         @SuppressWarnings("unchecked")
@@ -81,7 +81,7 @@ final class ModelActionEngine {
 
     Evaluation evaluate(
             DeserializingMessage message,
-            ModelActionContext beginState,
+            ModelCommitContext beginState,
             Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
@@ -95,7 +95,7 @@ final class ModelActionEngine {
         }
     }
 
-    ActionEvaluation evaluate(
+    CommitEvaluation evaluate(
             DeserializingMessage initialMessage, SubstepResolver resolver) {
         Objects.requireNonNull(initialMessage, "initialMessage");
         Deque<PendingSubstep> pending = new ArrayDeque<>();
@@ -103,7 +103,7 @@ final class ModelActionEngine {
         return evaluate(pending, resolver, initialMessage);
     }
 
-    private ActionEvaluation evaluate(
+    private CommitEvaluation evaluate(
             Deque<PendingSubstep> pending,
             SubstepResolver resolver,
             DeserializingMessage initialMessage) {
@@ -115,16 +115,16 @@ final class ModelActionEngine {
         List<AppliedSubstep> appliedSubsteps = new ArrayList<>();
         long readStateIndex = -1L;
         boolean stateIndexPinned = false;
-        ModelActionContext originalContext = initialMessage == null ? null
-                : initialMessage.getContext(ModelActionContext.class).orElse(null);
-        ModelActionContext actionBeginContext = null;
+        ModelCommitContext originalContext = initialMessage == null ? null
+                : initialMessage.getContext(ModelCommitContext.class).orElse(null);
+        ModelCommitContext commitBeginContext = null;
         int processed = 0;
 
         try {
             while (!pending.isEmpty()) {
                 if (++processed > MAX_SUBSTEPS) {
                     throw new IllegalStateException(
-                            "Model action exceeded %d interceptor substeps".formatted(MAX_SUBSTEPS));
+                            "Model commit exceeded %d interceptor substeps".formatted(MAX_SUBSTEPS));
                 }
                 PendingSubstep current = pending.removeFirst();
                 ResolvedSubstep resolved = Objects.requireNonNull(
@@ -136,13 +136,13 @@ final class ModelActionEngine {
                 if (!stateIndexPinned) {
                     readStateIndex = resolved.context().readStateIndex();
                     stateIndexPinned = true;
-                    actionBeginContext = resolved.context();
+                    commitBeginContext = resolved.context();
                 } else if (resolved.context().readStateIndex() != readStateIndex) {
                     throw new IllegalStateException(
-                            "Substep loaded at state index %d while action is pinned at %d"
+                            "Substep loaded at state index %d while commit is pinned at %d"
                                     .formatted(resolved.context().readStateIndex(), readStateIndex));
                 }
-                ModelActionContext context = resolved.context().withValues(stagedValues);
+                ModelCommitContext context = resolved.context().withValues(stagedValues);
                 resolved.context().entries().forEach(entry -> {
                     readModelIds.add(entry.target().modelId());
                     readModelTypes.putIfAbsent(
@@ -195,13 +195,13 @@ final class ModelActionEngine {
                 appliedSubsteps.add(new AppliedSubstep(
                         current.message(), evaluation.transitions()));
             }
-            return new ActionEvaluation(
+            return new CommitEvaluation(
                     readStateIndex, List.copyOf(readModelIds),
                     readModelTypes, appliedSubsteps,
                     stagedValues);
         } finally {
-            ModelActionContext restore =
-                    originalContext == null ? actionBeginContext : originalContext;
+            ModelCommitContext restore =
+                    originalContext == null ? commitBeginContext : originalContext;
             if (restore != null && initialMessage != null) {
                 restore.attachTo(initialMessage);
             }
@@ -209,18 +209,18 @@ final class ModelActionEngine {
     }
 
     /**
-     * Re-applies already produced action events against a new pinned model boundary.
+     * Re-applies already produced commit events against a new pinned model boundary.
      * <p>
      * Command handling, assertions, and interceptors are deliberately not invoked. The supplied messages are the
      * original post-interception substeps and only their {@link Apply @Apply} handlers contribute new derived state.
      */
-    ActionEvaluation rebase(
+    CommitEvaluation rebase(
             List<DeserializingMessage> appliedMessages,
             SubstepResolver resolver) {
         Objects.requireNonNull(appliedMessages, "appliedMessages");
         if (appliedMessages.isEmpty()) {
             throw new IllegalArgumentException(
-                    "A model action rebase requires at least one applied message");
+                    "A model commit rebase requires at least one applied message");
         }
         Deque<PendingSubstep> pending = new ArrayDeque<>(appliedMessages.size());
         appliedMessages.forEach(message -> pending.add(new PendingSubstep(message, false)));
@@ -229,7 +229,7 @@ final class ModelActionEngine {
 
     private Evaluation evaluateInContext(
             DeserializingMessage message,
-            ModelActionContext beginState,
+            ModelCommitContext beginState,
             Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
         HandlerPlan plan = handlerPlan(selectedHandlers);
 
@@ -253,7 +253,7 @@ final class ModelActionEngine {
             Class<?> targetType = handler.targetModelTypes().getFirst();
             Object result = invoker.invoke();
             String targetId = resolveWriteTarget(handler, targetType, result, beginState);
-            ModelActionContext.Entry target = beginState.entry(targetId);
+            ModelCommitContext.Entry target = beginState.entry(targetId);
             if (target == null || !beginState.mayWrite(
                     targetId, targetType, handler.executable().toGenericString())) {
                 throw new IllegalStateException(
@@ -278,7 +278,7 @@ final class ModelActionEngine {
             }
         }
         List<Transition> transitionList;
-        ModelActionContext resultingState;
+        ModelCommitContext resultingState;
         if (transitions == null) {
             transitionList = List.of();
             resultingState = beginState;
@@ -308,7 +308,7 @@ final class ModelActionEngine {
     private void invokeIfApplicable(
             ModelMetadata.HandlerMethod handler,
             DeserializingMessage message,
-            ModelActionContext context) {
+            ModelCommitContext context) {
         HandlerInvoker invoker = invoker(handler, message, context);
         if (invoker != null) {
             invoker.invoke();
@@ -318,7 +318,7 @@ final class ModelActionEngine {
     private HandlerInvoker invoker(
             ModelMetadata.HandlerMethod handler,
             DeserializingMessage message,
-            ModelActionContext context) {
+            ModelCommitContext context) {
         context.attachTo(message);
         Object target = invocationTarget(handler, message, context);
         return target == MissingTarget.INSTANCE
@@ -328,7 +328,7 @@ final class ModelActionEngine {
     private Object invocationTarget(
             ModelMetadata.HandlerMethod handler,
             DeserializingMessage message,
-            ModelActionContext context) {
+            ModelCommitContext context) {
         Executable executable = handler.executable();
         if (executable instanceof Constructor<?> || Modifier.isStatic(executable.getModifiers())) {
             return null;
@@ -375,7 +375,7 @@ final class ModelActionEngine {
             ModelMetadata.HandlerMethod handler,
             Class<?> targetType,
             Object result,
-            ModelActionContext context) {
+            ModelCommitContext context) {
         if (result != null) {
             if (!targetType.isInstance(result)) {
                 throw new IllegalStateException(
@@ -515,20 +515,20 @@ final class ModelActionEngine {
     }
 
     record ResolvedSubstep(
-            ModelActionContext context, List<ModelMetadata.HandlerMethod> handlers) {
+            ModelCommitContext context, List<ModelMetadata.HandlerMethod> handlers) {
         ResolvedSubstep {
             Objects.requireNonNull(context, "context");
             handlers = List.copyOf(handlers);
         }
     }
 
-    record ActionEvaluation(
+    record CommitEvaluation(
             long readStateIndex,
             List<String> readModelIds,
             Map<String, Class<?>> readModelTypes,
             List<AppliedSubstep> substeps,
             Map<String, Object> finalValues) {
-        ActionEvaluation {
+        CommitEvaluation {
             readModelIds = List.copyOf(readModelIds);
             readModelTypes =
                     Collections.unmodifiableMap(
@@ -552,8 +552,8 @@ final class ModelActionEngine {
     }
 
     record Evaluation(
-            ModelActionContext beginState,
-            ModelActionContext resultingState,
+            ModelCommitContext beginState,
+            ModelCommitContext resultingState,
             List<Transition> transitions) {
         Evaluation {
             transitions = List.copyOf(transitions);
@@ -594,7 +594,7 @@ final class ModelActionEngine {
                     result.add(handler);
                 }
             }
-            result.sort(ModelActionEngine::compareAssertions);
+            result.sort(ModelCommitEngine::compareAssertions);
             return List.copyOf(result);
         }
 
@@ -608,7 +608,7 @@ final class ModelActionEngine {
                     result.add(handler);
                 }
             }
-            result.sort(ModelActionEngine::compareHandlers);
+            result.sort(ModelCommitEngine::compareHandlers);
             return List.copyOf(result);
         }
     }

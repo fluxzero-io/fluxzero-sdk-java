@@ -26,9 +26,9 @@ import java.util.List;
  * Batch-loads independent model stream memberships at one namespace-wide state boundary.
  * <p>
  * A {@code null} {@link #maxStateIndex} pins the current committed boundary atomically with the model-head read.
- * Supplying a state boundary performs an as-of load. Alternatively, {@link #boundaryActionId} and
+ * Supplying a state boundary performs an as-of load. Alternatively, {@link #boundaryCommitId} and
  * {@link #boundarySubstep} resolve the state boundary of one published model event through its already persisted
- * action result inside the same runtime request. The two boundary forms are mutually exclusive. A stream request with
+ * commit result inside the same runtime request. The two boundary forms are mutually exclusive. A stream request with
  * {@code maxSize == 0} requests only its head.
  * {@link #maxBytes} bounds the total deduplicated serialized event payload selected by the runtime. The oldest single
  * payload is always allowed through to guarantee progress, even when it exceeds that bound.
@@ -47,12 +47,12 @@ public class GetModelEvents extends Request {
     Long maxStateIndex;
 
     /**
-     * Durable model action whose persisted result contains the exact boundary, or {@code null}.
+     * Durable model commit whose persisted result contains the exact boundary, or {@code null}.
      */
-    String boundaryActionId;
+    String boundaryCommitId;
 
     /**
-     * Ordered substep within {@link #boundaryActionId}, or {@code null}.
+     * Ordered substep within {@link #boundaryCommitId}, or {@code null}.
      */
     Integer boundarySubstep;
 
@@ -74,17 +74,17 @@ public class GetModelEvents extends Request {
     }
 
     @ConstructorProperties({
-            "requests", "maxStateIndex", "boundaryActionId",
+            "requests", "maxStateIndex", "boundaryCommitId",
             "boundarySubstep", "maxBytes"})
     public GetModelEvents(
             List<ModelEventStreamRequest> requests,
             Long maxStateIndex,
-            String boundaryActionId,
+            String boundaryCommitId,
             Integer boundarySubstep,
             long maxBytes) {
         this.requests = requests;
         this.maxStateIndex = maxStateIndex;
-        this.boundaryActionId = boundaryActionId;
+        this.boundaryCommitId = boundaryCommitId;
         this.boundarySubstep = boundarySubstep;
         this.maxBytes = maxBytes;
     }
@@ -102,7 +102,7 @@ public class GetModelEvents extends Request {
         }
         return new Metric(
                 requests.size(), headOnlyCount, maximumEventCount,
-                maxStateIndex, boundaryActionId,
+                maxStateIndex, boundaryCommitId,
                 boundarySubstep, maxBytes);
     }
 
@@ -112,7 +112,7 @@ public class GetModelEvents extends Request {
         int headOnlyCount;
         long maximumEventCount;
         Long maxStateIndex;
-        String boundaryActionId;
+        String boundaryCommitId;
         Integer boundarySubstep;
         long maxBytes;
     }

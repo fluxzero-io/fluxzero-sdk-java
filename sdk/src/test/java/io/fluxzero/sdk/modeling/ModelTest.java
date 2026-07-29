@@ -86,7 +86,7 @@ class ModelTest {
     }
 
     @Test
-    void addsIndependentActionAndGraphSettingsToAggregateEquivalentSettings() {
+    void addsIndependentCommitAndGraphSettingsToAggregateEquivalentSettings() {
         Set<String> modelSettings = Arrays.stream(Model.class.getDeclaredMethods())
                 .map(method -> method.getName()).collect(Collectors.toSet());
         Set<String> aggregateSettings = Arrays.stream(Aggregate.class.getDeclaredMethods())

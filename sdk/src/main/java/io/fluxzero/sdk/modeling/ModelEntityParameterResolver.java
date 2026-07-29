@@ -50,8 +50,8 @@ import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
  * ancestors are loaded with the directly addressed descendants in one handler-level context.
  * <p>
  * Handler matching is structural and never performs repository I/O. The complete model plan is loaded only when the
- * selected handler is invoked. Events and notifications require persisted model-action metadata and are reconstructed
- * at that exact action boundary; other message types use the repository's current boundary.
+ * selected handler is invoked. Events and notifications require persisted model-commit metadata and are reconstructed
+ * at that exact commit boundary; other message types use the repository's current boundary.
  */
 public class ModelEntityParameterResolver
         implements PreparedParameterResolver<Object> {
@@ -95,8 +95,8 @@ public class ModelEntityParameterResolver
         if (modelParameter == null) {
             return false;
         }
-        Optional<ModelActionContext> context =
-                actionContext(input);
+        Optional<ModelCommitContext> context =
+                commitContext(input);
         if (context.isPresent()) {
             Entity<?> entity = context.get().resolve(
                     modelParameter.modelType(),
@@ -123,8 +123,8 @@ public class ModelEntityParameterResolver
         if (modelParameter == null) {
             return null;
         }
-        Optional<ModelActionContext> context =
-                actionContext(input);
+        Optional<ModelCommitContext> context =
+                commitContext(input);
         if (context.isPresent()) {
             Entity<?> entity = context.get().resolve(
                     modelParameter.modelType(),
@@ -177,10 +177,10 @@ public class ModelEntityParameterResolver
             Object input,
             HandlerPlan plan,
             ModelMetadata.ModelParameter parameter) {
-        Optional<ModelActionContext> actionContext =
-                actionContext(input);
-        if (actionContext.isPresent()) {
-            return actionContext.get().resolve(
+        Optional<ModelCommitContext> commitContext =
+                commitContext(input);
+        if (commitContext.isPresent()) {
+            return commitContext.get().resolve(
                     parameter.modelType(),
                     parameter.associationProperty());
         }
@@ -191,21 +191,21 @@ public class ModelEntityParameterResolver
                 : null;
     }
 
-    private static Optional<ModelActionContext>
-            actionContext(Object input) {
+    private static Optional<ModelCommitContext>
+            commitContext(Object input) {
         if (input instanceof DeserializingMessage message) {
-            Optional<ModelActionContext> direct =
-                    message.getContext(ModelActionContext.class);
+            Optional<ModelCommitContext> direct =
+                    message.getContext(ModelCommitContext.class);
             if (direct.isPresent()) {
                 return direct;
             }
         }
         return DeserializingMessage.getOptionally()
                 .flatMap(message -> message.getContext(
-                        ModelActionContext.class));
+                        ModelCommitContext.class));
     }
 
-    private static ModelActionContext context(
+    private static ModelCommitContext context(
             DeserializingMessage message,
             HandlerPlan plan) {
         return resolvedPlan(message, plan).orElseThrow()
@@ -236,7 +236,7 @@ public class ModelEntityParameterResolver
         }
         return message.getMetadata() != null
                && message.getMetadata().containsKey(
-                ModelEventMetadata.ACTION_ID)
+                ModelEventMetadata.COMMIT_ID)
                && message.getMetadata().containsKey(
                 ModelEventMetadata.SUBSTEP);
     }
@@ -378,16 +378,16 @@ public class ModelEntityParameterResolver
 
     private static final class ResolvedHandlerPlan {
         private final ModelTargetResolver.Resolution resolution;
-        private volatile ModelActionContext context;
+        private volatile ModelCommitContext context;
 
         private ResolvedHandlerPlan(
                 ModelTargetResolver.Resolution resolution) {
             this.resolution = resolution;
         }
 
-        private ModelActionContext context(
+        private ModelCommitContext context(
                 DeserializingMessage message) {
-            ModelActionContext result = context;
+            ModelCommitContext result = context;
             if (result == null) {
                 synchronized (this) {
                     result = context;

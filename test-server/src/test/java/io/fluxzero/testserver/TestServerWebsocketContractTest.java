@@ -19,10 +19,10 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
-import io.fluxzero.common.api.modeling.CommitModelAction;
-import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.ModelActionSubstep;
-import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
@@ -431,7 +431,7 @@ class TestServerWebsocketContractTest {
                                                   List.of()),
                                           true)));
 
-            ModelActionTarget root =
+            ModelCommitTarget root =
                     modelTarget(
                             rootId, rootType,
                             new ModelDocumentMutation(
@@ -442,16 +442,16 @@ class TestServerWebsocketContractTest {
                                             "name",
                                             "root")),
                             List.of());
-            CommitModelActionResult rootResult =
+            CommitModelsResult rootResult =
                     await(eventStore
-                                  .commitModelAction(
-                                          modelAction(
+                                  .commitModels(
+                                          modelCommit(
                                                   "create-root-"
                                                   + UUID.randomUUID(),
                                                   -1L,
                                                   root)));
 
-            ModelActionTarget child =
+            ModelCommitTarget child =
                     modelTarget(
                             childId,
                             "ContractChild",
@@ -474,10 +474,10 @@ class TestServerWebsocketContractTest {
                                             .path(
                                                     "children")
                                             .build()));
-            CommitModelActionResult childResult =
+            CommitModelsResult childResult =
                     await(eventStore
-                                  .commitModelAction(
-                                          modelAction(
+                                  .commitModels(
+                                          modelCommit(
                                                   "create-child-"
                                                   + UUID.randomUUID(),
                                                   rootResult
@@ -661,12 +661,12 @@ class TestServerWebsocketContractTest {
                                      Metadata.empty(), id + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
     }
 
-    private static ModelActionTarget modelTarget(
+    private static ModelCommitTarget modelTarget(
             String modelId,
             String modelType,
             ModelDocumentMutation document,
             List<ModelRelationship> relationships) {
-        return ModelActionTarget.builder()
+        return ModelCommitTarget.builder()
                 .modelId(modelId)
                 .modelType(modelType)
                 .storeEvent(true)
@@ -677,18 +677,18 @@ class TestServerWebsocketContractTest {
                 .build();
     }
 
-    private static CommitModelAction modelAction(
-            String actionId,
+    private static CommitModels modelCommit(
+            String commitId,
             long readStateIndex,
-            ModelActionTarget target) {
-        return new CommitModelAction(
-                actionId,
+            ModelCommitTarget target) {
+        return new CommitModels(
+                commitId,
                 readStateIndex,
                 List.of(target.getModelId()),
                 List.of(
-                        ModelActionSubstep.builder()
+                        ModelCommitStep.builder()
                                 .event(
-                                        message(actionId))
+                                        message(commitId))
                                 .targets(
                                         List.of(target))
                                 .build()),
