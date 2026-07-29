@@ -165,8 +165,6 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             "X-Powered-By",
             "X-AspNet-Version",
             "X-AspNetMvc-Version");
-    private static final AtomicBoolean LOGGED_CORS_POLICY_CONFLICT = new AtomicBoolean();
-
     public ProxyRequestHandler(Client client) {
         this(client, new NamespaceSelector());
     }
@@ -440,26 +438,26 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     }
 
     protected boolean applyCorsHeaders(JettyExchange exchange) {
+        if (exchange.hasResponseHeader("Access-Control-Allow-Origin")) {
+            return false;
+        }
         String origin = exchange.getRequestHeader("Origin");
         if (corsOrigin(origin)) {
-            putCorsPolicyHeader(exchange, "Access-Control-Allow-Origin", origin);
-            putCorsPolicyHeader(exchange, "Access-Control-Allow-Credentials", "true");
+            List<String> varyValues = exchange.getResponseHeaderValues("Vary").stream()
+                    .flatMap(header -> Arrays.stream(header.split(",")))
+                    .map(String::trim)
+                    .filter(header -> !header.isEmpty())
+                    .collect(Collectors.toCollection(ArrayList::new));
+            if (varyValues.stream().noneMatch("Origin"::equalsIgnoreCase)) {
+                varyValues.add("Origin");
+            }
+
+            exchange.putResponseHeader("Access-Control-Allow-Origin", origin);
+            exchange.putResponseHeader("Access-Control-Allow-Credentials", "true");
+            exchange.putResponseHeader("Vary", String.join(", ", varyValues));
             return true;
         }
         return false;
-    }
-
-    private void putCorsPolicyHeader(JettyExchange exchange, String name, String value) {
-        List<String> conflictingValues = exchange.getResponseHeaderValues(name).stream()
-                .filter(existingValue -> !Objects.equals(existingValue, value))
-                .distinct()
-                .toList();
-        if (!conflictingValues.isEmpty() && LOGGED_CORS_POLICY_CONFLICT.compareAndSet(false, true)) {
-            log.warn("Central CORS policy is overriding application response header {} values {} with {}; "
-                     + "repeated warnings will be suppressed",
-                     name, conflictingValues, value);
-        }
-        exchange.putResponseHeader(name, value);
     }
 
     protected boolean corsOrigin(String origin) {
