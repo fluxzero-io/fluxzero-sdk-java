@@ -22,6 +22,8 @@ import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.Association;
 
 import java.lang.reflect.AccessibleObject;
@@ -34,6 +36,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -82,6 +85,31 @@ public final class ModelMetadata {
         ModelMetadata result = of(type);
         result.validateParentGraph();
         return result;
+    }
+
+    /**
+     * Returns whether a model handler can structurally consume the supplied payload type.
+     */
+    public static boolean acceptsPayload(
+            HandlerMethod handler, Class<?> payloadType) {
+        boolean unmatchedDomainParameter = false;
+        for (Parameter parameter : handler.executable().getParameters()) {
+            if (handler.modelParameters().stream()
+                    .anyMatch(model -> model.parameter().equals(parameter))) {
+                continue;
+            }
+            Class<?> type = parameter.getType();
+            if (type.isAssignableFrom(payloadType)) {
+                return true;
+            }
+            if (!type.equals(Instant.class)
+                && !type.equals(io.fluxzero.common.api.Metadata.class)
+                && !type.equals(Message.class)
+                && !type.equals(DeserializingMessage.class)) {
+                unmatchedDomainParameter = true;
+            }
+        }
+        return !unmatchedDomainParameter;
     }
 
     private ModelMetadata(Class<?> type) {

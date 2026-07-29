@@ -16,7 +16,6 @@
 package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -54,16 +53,6 @@ import java.util.stream.Stream;
  * @see DocumentSerializer
  */
 public interface SearchClient extends AutoCloseable {
-
-    /**
-     * Applies one exact independent-model materialization package through monotone state fences.
-     */
-    default CompletableFuture<Void> materializeModelAction(
-            MaterializeModelAction action) {
-        return CompletableFuture.failedFuture(
-                new UnsupportedOperationException(
-                        "Fenced independent-model materialization is not supported by this search client"));
-    }
 
     /**
      * Retrieves existing regular search collections and audit trails.

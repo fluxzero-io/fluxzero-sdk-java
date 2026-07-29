@@ -86,10 +86,7 @@ final class ModelEventBatchLoader {
             Map<String, Long> lastSequenceNumbers,
             Long maxStateIndex,
             Consumer<GetModelEventsResult> pageConsumer) {
-        return load(
-                lastSequenceNumbers, maxStateIndex,
-                null, null,
-                pageConsumer);
+        return load(lastSequenceNumbers, Boundary.at(maxStateIndex), pageConsumer);
     }
 
     /**
@@ -99,47 +96,25 @@ final class ModelEventBatchLoader {
      */
     LoadResult load(
             Map<String, Long> lastSequenceNumbers,
-            Long maxStateIndex,
-            String boundaryActionId,
-            Integer boundarySubstep,
+            Boundary boundary,
             Consumer<GetModelEventsResult> pageConsumer) {
         Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
+        Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
-        if (maxStateIndex != null && maxStateIndex < -1L) {
-            throw new IllegalArgumentException("Model maxStateIndex must be at least -1");
-        }
-        if (maxStateIndex != null
-            && boundaryActionId != null) {
-            throw new IllegalArgumentException(
-                    "Specify either maxStateIndex or an action boundary, not both");
-        }
-        if ((boundaryActionId == null)
-            != (boundarySubstep == null)) {
-            throw new IllegalArgumentException(
-                    "Model action boundary requires both actionId and substep");
-        }
-        if (boundaryActionId != null
-            && (boundaryActionId.isBlank()
-                || boundarySubstep < 0)) {
-            throw new IllegalArgumentException(
-                    "Model action boundary must be non-blank with a non-negative substep");
-        }
         LinkedHashMap<String, Long> validatedCursors = validateCursors(lastSequenceNumbers);
         List<String> ids = List.copyOf(validatedCursors.keySet());
         if (ids.isEmpty()) {
             GetModelEventsResult response = eventStoreClient.getModelEvents(
                     new GetModelEvents(
-                            List.of(), maxStateIndex,
-                            boundaryActionId, boundarySubstep,
+                            List.of(), boundary.stateIndex(),
+                            boundary.actionId(), boundary.substep(),
                             settings.maxPayloadBytes()));
-            validateBoundary(response, maxStateIndex);
+            validateBoundary(response, boundary.stateIndex());
             pageConsumer.accept(response);
             return new LoadResult(response.getStateIndex(), Map.of());
         }
 
-        Long pinnedStateIndex = maxStateIndex;
-        String actionBoundary = boundaryActionId;
-        Integer actionSubstep = boundarySubstep;
+        Boundary pinned = boundary;
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         int maxStreamsPerChunk = Math.min(
                 settings.maxStreamsPerRequest(), settings.maxMembershipsPerRequest());
@@ -148,16 +123,11 @@ final class ModelEventBatchLoader {
             List<String> chunkIds = ids.subList(offset, until);
             LinkedHashMap<String, Long> chunkCursors = new LinkedHashMap<>();
             chunkIds.forEach(modelId -> chunkCursors.put(modelId, validatedCursors.get(modelId)));
-            LoadResult chunk = loadChunk(
-                    chunkCursors, pinnedStateIndex,
-                    actionBoundary, actionSubstep,
-                    pageConsumer);
-            pinnedStateIndex = chunk.stateIndex();
-            actionBoundary = null;
-            actionSubstep = null;
+            LoadResult chunk = loadChunk(chunkCursors, pinned, pageConsumer);
+            pinned = Boundary.at(chunk.stateIndex());
             heads.putAll(chunk.heads());
         }
-        return new LoadResult(Objects.requireNonNull(pinnedStateIndex), heads);
+        return new LoadResult(pinned.stateIndex(), heads);
     }
 
     /**
@@ -168,20 +138,14 @@ final class ModelEventBatchLoader {
      */
     LoadResult loadHeads(
             List<String> modelIds,
-            Long maxStateIndex,
-            String boundaryActionId,
-            Integer boundarySubstep) {
+            Boundary boundary) {
+        Objects.requireNonNull(boundary, "boundary");
         List<String> ids = validateIds(modelIds);
         if (ids.isEmpty()) {
-            return load(
-                    Map.of(), maxStateIndex,
-                    boundaryActionId, boundarySubstep,
-                    ignored -> {
-                    });
+            return load(Map.of(), boundary, ignored -> {
+            });
         }
-        Long pinnedStateIndex = maxStateIndex;
-        String actionBoundary = boundaryActionId;
-        Integer actionSubstep = boundarySubstep;
+        Boundary pinned = boundary;
         LinkedHashMap<String, ModelHeadState> heads =
                 new LinkedHashMap<>();
         for (int offset = 0;
@@ -200,21 +164,16 @@ final class ModelEventBatchLoader {
                                                          new ModelEventStreamRequest(
                                                                  modelId, -1L, 0))
                                             .toList(),
-                                    pinnedStateIndex,
-                                    actionBoundary,
-                                    actionSubstep,
+                                    pinned.stateIndex(),
+                                    pinned.actionId(),
+                                    pinned.substep(),
                                     settings.maxPayloadBytes()));
             long responseStateIndex =
-                    validateBoundary(response, pinnedStateIndex);
+                    validateBoundary(response, pinned.stateIndex());
             validateHeadPage(response, chunkIds, heads);
-            if (pinnedStateIndex == null) {
-                pinnedStateIndex = responseStateIndex;
-            }
-            actionBoundary = null;
-            actionSubstep = null;
+            pinned = Boundary.at(responseStateIndex);
         }
-        return new LoadResult(
-                Objects.requireNonNull(pinnedStateIndex), heads);
+        return new LoadResult(pinned.stateIndex(), heads);
     }
 
     private static void validateHeadPage(
@@ -270,15 +229,11 @@ final class ModelEventBatchLoader {
 
     private LoadResult loadChunk(
             LinkedHashMap<String, Long> initialCursors,
-            Long requestedStateIndex,
-            String requestedActionId,
-            Integer requestedSubstep,
+            Boundary boundary,
             Consumer<GetModelEventsResult> pageConsumer) {
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(initialCursors);
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        Long pinnedStateIndex = requestedStateIndex;
-        String actionBoundary = requestedActionId;
-        Integer actionSubstep = requestedSubstep;
+        Boundary pinned = boundary;
 
         while (true) {
             List<String> active = cursors.entrySet().stream()
@@ -291,7 +246,8 @@ final class ModelEventBatchLoader {
                     .map(Map.Entry::getKey)
                     .toList();
             if (active.isEmpty()) {
-                return new LoadResult(Objects.requireNonNull(pinnedStateIndex), heads);
+                return new LoadResult(
+                        Objects.requireNonNull(pinned.stateIndex()), heads);
             }
 
             int perStreamLimit = Math.min(
@@ -303,21 +259,20 @@ final class ModelEventBatchLoader {
                     .toList();
             GetModelEventsResult response = eventStoreClient.getModelEvents(
                     new GetModelEvents(
-                            requests, pinnedStateIndex,
-                            actionBoundary, actionSubstep,
+                            requests, pinned.stateIndex(),
+                            pinned.actionId(), pinned.substep(),
                             settings.maxPayloadBytes()));
-            long responseStateIndex = validateBoundary(response, pinnedStateIndex);
-            if (pinnedStateIndex == null) {
-                pinnedStateIndex = responseStateIndex;
-            }
-            actionBoundary = null;
-            actionSubstep = null;
+            long responseStateIndex = validateBoundary(
+                    response, pinned.stateIndex());
+            pinned = Boundary.at(responseStateIndex);
 
             int advanced = validatePage(
                     response, active, cursors, heads, perStreamLimit, settings.maxPayloadBytes());
             pageConsumer.accept(response);
             if (advanced == 0 && hasIncompleteStream(cursors, heads)) {
-                throw invalid("Model event page made no progress at state index " + pinnedStateIndex);
+                throw invalid(
+                        "Model event page made no progress at state index "
+                        + pinned.stateIndex());
             }
         }
     }
@@ -558,6 +513,38 @@ final class ModelEventBatchLoader {
     record LoadResult(long stateIndex, Map<String, ModelHeadState> heads) {
         LoadResult {
             heads = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(heads));
+        }
+    }
+
+    record Boundary(Long stateIndex, String actionId, Integer substep) {
+        static final Boundary CURRENT = new Boundary(null, null, null);
+
+        Boundary {
+            if (stateIndex != null && stateIndex < -1L) {
+                throw new IllegalArgumentException(
+                        "Model maxStateIndex must be at least -1");
+            }
+            if (stateIndex != null && actionId != null) {
+                throw new IllegalArgumentException(
+                        "Specify either maxStateIndex or an action boundary, not both");
+            }
+            if ((actionId == null) != (substep == null)
+                || actionId != null && (actionId.isBlank() || substep < 0)) {
+                throw new IllegalArgumentException(
+                        "Model action boundary requires a non-blank actionId and non-negative substep");
+            }
+        }
+
+        static Boundary at(Long stateIndex) {
+            return stateIndex == null ? CURRENT : new Boundary(stateIndex, null, null);
+        }
+
+        static Boundary action(String actionId, int substep) {
+            return new Boundary(null, actionId, substep);
+        }
+
+        boolean historical() {
+            return stateIndex != null || actionId != null;
         }
     }
 }

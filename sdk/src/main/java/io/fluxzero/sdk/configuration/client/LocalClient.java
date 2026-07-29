@@ -159,6 +159,8 @@ public class LocalClient extends AbstractClient {
 
     @Override
     protected EventStoreClient createEventStoreClient() {
+        // Independent model commits own their direct search materialization locally.
+        getSearchClient();
         return (EventStoreClient) getTrackingClient(MessageType.EVENT);
     }
 
@@ -183,6 +185,9 @@ public class LocalClient extends AbstractClient {
                                 ::resolveCurrentGraph,
                         eventStore.getMessageStore()
                                 ::resolveModelDocumentCollections);
+        eventStore.getMessageStore()
+                .setModelActionMaterializer(
+                        result::materializeModelAction);
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(
                         result::materializeModelGraphProjection);

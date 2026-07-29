@@ -26,7 +26,6 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
-import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -276,13 +275,18 @@ class ModelActionHandlerRegistryTest {
                 new ModelActionHandlerRegistry(
                         mock(DefaultModelRepository.class),
                         eventStoreClient,
-                        mock(DocumentStore.class),
+                        serializer,
                         serializer,
                         mock(DocumentSerializer.class),
                         DispatchInterceptor.noOp,
                         "test",
                         List.of(),
-                        HandlerDecorator.noOp);
+                        HandlerDecorator.noOp,
+                        io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
+                        ModelConflictResolver.fail(),
+                        0,
+                        AutomaticModelHandling.ENABLED,
+                        GraphProjectionCompletion.ASYNC);
 
         subject.registerHandler(
                 RetryRoot.class,
@@ -311,7 +315,6 @@ class ModelActionHandlerRegistryTest {
         return new ModelActionHandlerRegistry(
                 mock(DefaultModelRepository.class),
                 mock(EventStoreClient.class),
-                mock(DocumentStore.class),
                 serializer,
                 serializer,
                 mock(DocumentSerializer.class),

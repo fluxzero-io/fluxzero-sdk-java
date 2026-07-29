@@ -21,12 +21,9 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelRelationship;
@@ -453,9 +450,6 @@ class TestServerWebsocketContractTest {
                                                   + UUID.randomUUID(),
                                                   -1L,
                                                   root)));
-            materialize(
-                    eventStore, search,
-                    rootResult, root);
 
             ModelActionTarget child =
                     modelTarget(
@@ -491,9 +485,6 @@ class TestServerWebsocketContractTest {
                                                           .getLast()
                                                           .getStateIndex(),
                                                   child)));
-            materialize(
-                    eventStore, search,
-                    childResult, child);
             await(eventStore
                           .awaitModelGraphProjection(
                                   new AwaitModelGraphProjection(
@@ -703,33 +694,6 @@ class TestServerWebsocketContractTest {
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
                 STORED);
-    }
-
-    private static void materialize(
-            EventStoreClient eventStore,
-            SearchClient search,
-            CommitModelActionResult result,
-            ModelActionTarget target)
-            throws Exception {
-        long stateIndex =
-                result.getSubsteps()
-                        .getLast()
-                        .getStateIndex();
-        await(search.materializeModelAction(
-                new MaterializeModelAction(
-                        result.getActionId(),
-                        stateIndex,
-                        List.of(
-                                new ModelDocumentMaterialization(
-                                        target.getModelId(),
-                                        stateIndex,
-                                        target.getDocument())),
-                        List.of())));
-        await(eventStore
-                      .completeModelActionMaterialization(
-                              new CompleteModelActionMaterialization(
-                                      result.getActionId(),
-                                      stateIndex)));
     }
 
     private static SerializedDocument structuredDocument(

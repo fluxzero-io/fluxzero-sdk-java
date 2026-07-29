@@ -165,8 +165,8 @@ public final class ModelTargetResolver {
         }
         PayloadMetadata metadata =
                 PayloadMetadata.of(value.getClass());
-        List<MutableResolvedModel> resolved =
-                new ArrayList<>();
+        LinkedHashMap<String, ResolvedModel> resolved =
+                new LinkedHashMap<>();
         for (PayloadProperty property :
                 metadata.properties.values()) {
             Optional<Class<?>> modelType =
@@ -196,25 +196,21 @@ public final class ModelTargetResolver {
                                         modelType.get()
                                                 .getName()));
             }
-            MutableResolvedModel existing =
-                    TargetPlan.find(
-                            resolved, modelId);
-            if (existing == null) {
-                resolved.add(
-                        new MutableResolvedModel(
-                                modelId,
-                                modelType.get(),
-                                READ,
-                                property.name));
-            } else {
-                existing.merge(
-                        modelType.get(), READ,
-                        property.name);
-            }
+            merge(resolved, new ResolvedModel(
+                    modelId, modelType.get(), Access.READ_ONLY, List.of(property.name)));
         }
-        return resolved.stream()
-                .map(MutableResolvedModel::freeze)
-                .toList();
+        return List.copyOf(resolved.values());
+    }
+
+    /**
+     * Merges one resolved identity into an insertion-ordered target map.
+     * <p>
+     * All model-aware handler paths use this operation so compatible type narrowing, access widening and source
+     * qualifiers cannot diverge between commands, regular message handlers and ancestor resolution.
+     */
+    public static void merge(
+            Map<String, ResolvedModel> targets, ResolvedModel addition) {
+        targets.merge(addition.modelId(), addition, ResolvedModel::merge);
     }
 
     private static void compileHandler(
@@ -348,7 +344,8 @@ public final class ModelTargetResolver {
                         List.of(), ancestorDependencies);
             }
 
-            List<MutableResolvedModel> resolved = new ArrayList<>(slots.size());
+            LinkedHashMap<String, ResolvedModel> resolved =
+                    new LinkedHashMap<>(slots.size());
             String[] idsBySlot = deferredWrites.isEmpty() ? null : new String[slots.size()];
             for (int i = 0; i < slots.size(); i++) {
                 SlotPlan slot = slots.get(i);
@@ -360,13 +357,9 @@ public final class ModelTargetResolver {
                 if (idsBySlot != null) {
                     idsBySlot[i] = modelId;
                 }
-                MutableResolvedModel existing = find(resolved, modelId);
-                if (existing == null) {
-                    resolved.add(new MutableResolvedModel(
-                            modelId, slot.modelType, slot.access, slot.property.name));
-                } else {
-                    existing.merge(slot.modelType, slot.access, slot.property.name);
-                }
+                merge(resolved, new ResolvedModel(
+                        modelId, slot.modelType, Access.from(slot.access),
+                        List.of(slot.property.name)));
             }
 
             List<DeferredWriteTarget> unresolvedWrites = new ArrayList<>();
@@ -379,27 +372,18 @@ public final class ModelTargetResolver {
                     }
                 }
                 if (candidateIds.size() == 1) {
-                    find(resolved, candidateIds.getFirst()).access |= WRITE;
+                    String modelId = candidateIds.getFirst();
+                    merge(resolved, new ResolvedModel(
+                            modelId, deferred.modelType, Access.WRITE_ONLY, List.of()));
                 } else {
                     unresolvedWrites.add(new DeferredWriteTarget(
                             deferred.modelType, List.copyOf(candidateIds), deferred.handler));
                 }
             }
-            List<ResolvedModel> result = new ArrayList<>(resolved.size());
-            resolved.forEach(model -> result.add(model.freeze()));
             return new Resolution(
-                    result,
+                    List.copyOf(resolved.values()),
                     unresolvedWrites,
                     ancestorDependencies);
-        }
-
-        private static MutableResolvedModel find(List<MutableResolvedModel> models, String modelId) {
-            for (MutableResolvedModel model : models) {
-                if (model.modelId.equals(modelId)) {
-                    return model;
-                }
-            }
-            return null;
         }
 
         private static IllegalArgumentException nullId(SlotPlan slot) {
@@ -433,6 +417,22 @@ public final class ModelTargetResolver {
             Objects.requireNonNull(modelType, "modelType");
             Objects.requireNonNull(access, "access");
             sourceProperties = List.copyOf(sourceProperties);
+        }
+
+        private ResolvedModel merge(ResolvedModel addition) {
+            if (!modelType.isAssignableFrom(addition.modelType)
+                && !addition.modelType.isAssignableFrom(modelType)) {
+                throw new IllegalStateException(
+                        "Model ID '%s' is requested as incompatible types %s and %s"
+                                .formatted(modelId, modelType.getName(), addition.modelType.getName()));
+            }
+            LinkedHashSet<String> sources = new LinkedHashSet<>(sourceProperties);
+            sources.addAll(addition.sourceProperties);
+            return new ResolvedModel(
+                    modelId,
+                    modelType.isAssignableFrom(addition.modelType) ? addition.modelType : modelType,
+                    access.merge(addition.access),
+                    List.copyOf(sources));
         }
     }
 
@@ -520,6 +520,10 @@ public final class ModelTargetResolver {
             return write;
         }
 
+        private Access merge(Access other) {
+            return from((read || other.read ? READ : 0) | (write || other.write ? WRITE : 0));
+        }
+
         private static Access from(int value) {
             return switch (value) {
                 case READ -> READ_ONLY;
@@ -537,7 +541,7 @@ public final class ModelTargetResolver {
     }
 
     private record SlotPlan(
-            Class<?> modelType, Source source, PayloadProperty property, int access, String handler) {
+            Class<?> modelType, PayloadProperty property, int access, String handler) {
     }
 
     private record DeferredWritePlan(Class<?> modelType, List<Integer> candidateSlotIndexes, String handler) {
@@ -563,7 +567,7 @@ public final class ModelTargetResolver {
         }
 
         private SlotPlan freeze() {
-            return new SlotPlan(modelType, source, property, access, handler);
+            return new SlotPlan(modelType, property, access, handler);
         }
     }
 
@@ -571,41 +575,6 @@ public final class ModelTargetResolver {
         private DeferredWritePlan freeze(Map<MutableSlot, Integer> slotIndexes) {
             return new DeferredWritePlan(
                     modelType, candidates.stream().map(slotIndexes::get).toList(), handler);
-        }
-    }
-
-    private static final class MutableResolvedModel {
-        private final String modelId;
-        private Class<?> modelType;
-        private int access;
-        private final List<String> sourceProperties = new ArrayList<>(1);
-
-        private MutableResolvedModel(
-                String modelId, Class<?> modelType, int access, String sourceProperty) {
-            this.modelId = modelId;
-            this.modelType = modelType;
-            this.access = access;
-            this.sourceProperties.add(sourceProperty);
-        }
-
-        private void merge(Class<?> requestedType, int additionalAccess, String sourceProperty) {
-            if (!modelType.equals(requestedType)) {
-                if (modelType.isAssignableFrom(requestedType)) {
-                    modelType = requestedType;
-                } else if (!requestedType.isAssignableFrom(modelType)) {
-                    throw new IllegalStateException(
-                            "Model ID '%s' is requested as incompatible types %s and %s"
-                                    .formatted(modelId, modelType.getName(), requestedType.getName()));
-                }
-            }
-            access |= additionalAccess;
-            if (!sourceProperties.contains(sourceProperty)) {
-                sourceProperties.add(sourceProperty);
-            }
-        }
-
-        private ResolvedModel freeze() {
-            return new ResolvedModel(modelId, modelType, Access.from(access), sourceProperties);
         }
     }
 

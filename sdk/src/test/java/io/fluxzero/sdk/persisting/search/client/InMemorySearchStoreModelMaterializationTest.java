@@ -16,8 +16,12 @@
 
 package io.fluxzero.sdk.persisting.search.client;
 
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
-import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.ModelActionSubstep;
+import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
+import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
@@ -156,23 +160,16 @@ class InMemorySearchStoreModelMaterializationTest {
                         .orElseThrow()
                         .getValue());
 
-        graphStore.materializeModelAction(
-                        new MaterializeModelAction(
-                                "update-child",
-                                11L,
-                                List.of(
-                                        new ModelDocumentMaterialization(
-                                                childId, 11L,
-                                                new ModelDocumentMutation(
-                                                        ModelDocumentMutation
-                                                                .GRAPH_COMPONENT_COLLECTION,
-                                                        structuredDocument(
-                                                                childId,
-                                                                ModelDocumentMutation
-                                                                        .GRAPH_COMPONENT_COLLECTION,
-                                                                "second")))),
-                                List.of()))
-                .join();
+        materialize(
+                graphStore, childId, 11L,
+                new ModelDocumentMutation(
+                        ModelDocumentMutation
+                                .GRAPH_COMPONENT_COLLECTION,
+                        structuredDocument(
+                                childId,
+                                ModelDocumentMutation
+                                        .GRAPH_COMPONENT_COLLECTION,
+                                "second")));
         graphStore.materializeModelGraphProjection(
                 configuration,
                 Set.of(rootId), 10L, false);
@@ -208,19 +205,47 @@ class InMemorySearchStoreModelMaterializationTest {
 
     private void materialize(
             long stateIndex, SerializedDocument document) {
-        subject.materializeModelAction(
-                        new MaterializeModelAction(
-                                "action-" + stateIndex,
-                                stateIndex,
+        materialize(
+                subject, "model-1", stateIndex,
+                new ModelDocumentMutation(
+                        "models", document));
+    }
+
+    private static void materialize(
+            InMemorySearchStore store,
+            String modelId,
+            long stateIndex,
+            ModelDocumentMutation mutation) {
+        ModelActionTarget target =
+                ModelActionTarget.builder()
+                        .modelId(modelId)
+                        .modelType("TestModel")
+                        .updateState(true)
+                        .document(mutation)
+                        .relationships(List.of())
+                        .build();
+        CommitModelAction action =
+                new CommitModelAction(
+                        "action-" + stateIndex,
+                        stateIndex - 1L,
+                        List.of(modelId),
+                        List.of(
+                                ModelActionSubstep.builder()
+                                        .targets(
+                                                List.of(target))
+                                        .build()),
+                        ModelConflictPolicy.ACCEPT,
+                        STORED);
+        store.materializeModelAction(
+                action,
+                List.of(
+                        new ModelActionSubstepResult(
+                                stateIndex, null,
                                 List.of(
-                                        new ModelDocumentMaterialization(
-                                                "model-1",
-                                                stateIndex,
-                                                new ModelDocumentMutation(
-                                                        "models",
-                                                        document))),
-                                List.of()))
-                .join();
+                                        new ModelActionTargetResult(
+                                                modelId, -1L,
+                                                true)))),
+                Set.of());
     }
 
     private static SerializedDocument document(String summary) {

@@ -90,8 +90,9 @@ class ModelEventBatchLoaderTest {
         cursors.put("c", -1L);
 
         var result = loader.load(
-                cursors, null,
-                "action-991", 3, ignored -> {
+                cursors,
+                ModelEventBatchLoader.Boundary.action("action-991", 3),
+                ignored -> {
                 });
 
         assertEquals(42L, result.stateIndex());
@@ -134,7 +135,7 @@ class ModelEventBatchLoaderTest {
 
         var result = loader.loadHeads(
                 List.of("a", "b", "c"),
-                null, "action-991", 3);
+                ModelEventBatchLoader.Boundary.action("action-991", 3));
 
         assertEquals(42L, result.stateIndex());
         assertEquals(List.of("a", "b", "c"),

@@ -1,5 +1,8 @@
 # Phase 14 — Production hardening and universal model injection
 
+> Historical design record. Phase 21b removed the SDK materialization-fetch/acknowledgement protocol; a successful
+> model-action result now means runtime-owned direct materialization has completed.
+
 Date: 2026-07-27
 
 ## Decision summary

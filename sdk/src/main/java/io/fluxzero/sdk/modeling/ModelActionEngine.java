@@ -69,7 +69,7 @@ final class ModelActionEngine {
         @SuppressWarnings("unchecked")
         ParameterResolver<? super DeserializingMessage> modelResolver =
                 (ParameterResolver<? super DeserializingMessage>) (ParameterResolver<?>)
-                        new ModelParameterResolver();
+                        new ModelEntityParameterResolver();
         resolvers.add(modelResolver);
         resolvers.addAll(parameterResolvers);
         this.parameterResolvers = List.copyOf(resolvers);
@@ -98,9 +98,16 @@ final class ModelActionEngine {
     ActionEvaluation evaluate(
             DeserializingMessage initialMessage, SubstepResolver resolver) {
         Objects.requireNonNull(initialMessage, "initialMessage");
-        Objects.requireNonNull(resolver, "resolver");
         Deque<PendingSubstep> pending = new ArrayDeque<>();
         pending.add(new PendingSubstep(initialMessage, true));
+        return evaluate(pending, resolver, initialMessage);
+    }
+
+    private ActionEvaluation evaluate(
+            Deque<PendingSubstep> pending,
+            SubstepResolver resolver,
+            DeserializingMessage initialMessage) {
+        Objects.requireNonNull(resolver, "resolver");
         Map<String, Object> stagedValues = new LinkedHashMap<>();
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
         Map<String, Class<?>> readModelTypes =
@@ -108,8 +115,8 @@ final class ModelActionEngine {
         List<AppliedSubstep> appliedSubsteps = new ArrayList<>();
         long readStateIndex = -1L;
         boolean stateIndexPinned = false;
-        ModelActionContext originalContext =
-                initialMessage.getContext(ModelActionContext.class).orElse(null);
+        ModelActionContext originalContext = initialMessage == null ? null
+                : initialMessage.getContext(ModelActionContext.class).orElse(null);
         ModelActionContext actionBeginContext = null;
         int processed = 0;
 
@@ -195,7 +202,7 @@ final class ModelActionEngine {
         } finally {
             ModelActionContext restore =
                     originalContext == null ? actionBeginContext : originalContext;
-            if (restore != null) {
+            if (restore != null && initialMessage != null) {
                 restore.attachTo(initialMessage);
             }
         }
@@ -211,66 +218,13 @@ final class ModelActionEngine {
             List<DeserializingMessage> appliedMessages,
             SubstepResolver resolver) {
         Objects.requireNonNull(appliedMessages, "appliedMessages");
-        Objects.requireNonNull(resolver, "resolver");
         if (appliedMessages.isEmpty()) {
             throw new IllegalArgumentException(
                     "A model action rebase requires at least one applied message");
         }
-        Map<String, Object> stagedValues = new LinkedHashMap<>();
-        LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
-        Map<String, Class<?>> readModelTypes =
-                new LinkedHashMap<>();
-        List<AppliedSubstep> appliedSubsteps =
-                new ArrayList<>(appliedMessages.size());
-        long readStateIndex = -1L;
-        boolean stateIndexPinned = false;
-
-        for (DeserializingMessage message : appliedMessages) {
-            ResolvedSubstep resolved = Objects.requireNonNull(
-                    resolver.resolve(
-                            message,
-                            stateIndexPinned ? readStateIndex : null,
-                            stagedValues),
-                    "Rebase substep resolver returned null");
-            if (!stateIndexPinned) {
-                readStateIndex = resolved.context().readStateIndex();
-                stateIndexPinned = true;
-            } else if (resolved.context().readStateIndex()
-                       != readStateIndex) {
-                throw new IllegalStateException(
-                        "Rebase substep loaded at state index %d while action is pinned at %d"
-                                .formatted(
-                                        resolved.context().readStateIndex(),
-                                        readStateIndex));
-            }
-            ModelActionContext context =
-                    resolved.context().withValues(stagedValues);
-            resolved.context().entries().forEach(entry -> {
-                readModelIds.add(
-                        entry.target().modelId());
-                readModelTypes.putIfAbsent(
-                        entry.target().modelId(),
-                        entry.target().modelType());
-            });
-            List<ModelMetadata.HandlerMethod> applies =
-                    resolved.handlers().stream()
-                            .filter(handler -> handler.kind()
-                                               == ModelMetadata.HandlerKind.APPLY)
-                            .toList();
-            Evaluation evaluation =
-                    evaluate(message, context, applies);
-            for (Transition transition : evaluation.transitions()) {
-                stagedValues.put(
-                        transition.modelId(),
-                        transition.after());
-            }
-            appliedSubsteps.add(new AppliedSubstep(
-                    message, evaluation.transitions()));
-        }
-        return new ActionEvaluation(
-                readStateIndex, List.copyOf(readModelIds),
-                readModelTypes, appliedSubsteps,
-                stagedValues);
+        Deque<PendingSubstep> pending = new ArrayDeque<>(appliedMessages.size());
+        appliedMessages.forEach(message -> pending.add(new PendingSubstep(message, false)));
+        return evaluate(pending, resolver, null);
     }
 
     private Evaluation evaluateInContext(

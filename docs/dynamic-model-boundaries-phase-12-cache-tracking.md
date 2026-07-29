@@ -1,5 +1,8 @@
 # Dynamic model boundaries — Phase 12 cache tracking
 
+> Historical design record. Phase 21b removed SDK-owned materialization acknowledgements; the runtime now owns direct
+> document/snapshot materialization and durable restart repair.
+
 Date: 2026-07-27
 
 > **Storage update (Phase 17):** the update cursor no longer scans permanently retained action results. Full

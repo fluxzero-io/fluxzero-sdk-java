@@ -18,12 +18,9 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
-import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
-import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
@@ -31,7 +28,6 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionValidator;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
@@ -51,6 +47,7 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
@@ -109,7 +106,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
     private final Map<String, CommitModelActionResult> modelActions = new ConcurrentHashMap<>();
-    private final Map<String, GetModelActionMaterializationResult>
+    private final Map<String, PendingModelMaterialization>
             modelActionMaterializations =
             new ConcurrentHashMap<>();
     private final List<ModelUpdate> modelUpdates = new ArrayList<>();
@@ -137,6 +134,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             new ArrayList<>();
     private ModelGraphProjectionMaterializer
             modelGraphProjectionMaterializer;
+    private ModelActionMaterializer modelActionMaterializer;
     private final Map<String, ModelDeletionResult>
             modelDeletions =
             new ConcurrentHashMap<>();
@@ -181,6 +179,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         drainModelGraphProjections();
     }
 
+    /**
+     * Links the SDK-only event store to the direct in-memory model materializer.
+     */
+    public synchronized void setModelActionMaterializer(
+            ModelActionMaterializer materializer) {
+        this.modelActionMaterializer =
+                Objects.requireNonNull(materializer);
+        List.copyOf(modelActionMaterializations.keySet())
+                .forEach(actionId -> {
+                    try {
+                        completeModelActionMaterialization(actionId);
+                    } catch (RuntimeException ignored) {
+                        // A later duplicate commit retries the retained package.
+                    }
+                });
+    }
+
     @Override
     public CompletableFuture<Void> storeEvents(String aggregateId, List<SerializedMessage> events, boolean storeOnly,
                                                Guarantee guarantee) {
@@ -197,8 +212,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             ModelActionValidator.validate(action);
             CommitModelActionResult previous = modelActions.get(action.getActionId());
             if (previous != null) {
+                completeModelActionMaterialization(
+                        action.getActionId());
                 return CompletableFuture.completedFuture(
-                        previous.asDuplicateForRequest(
+                        modelActions.get(action.getActionId())
+                                .asDuplicateForRequest(
                                 action.getRequestId()));
             }
             action.getSubsteps().stream()
@@ -228,6 +246,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 return CompletableFuture.completedFuture(
                         conflict);
             }
+            validateActionState(action);
 
             List<SerializedMessage> publishedEvents = action.getSubsteps().stream()
                     .filter(ModelActionSubstep::isPublishEvent)
@@ -255,14 +274,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                               && (!target.isUpdateState() || target.isStoreEvent());
                     String modelType = target.getModelType() == null
                             ? previousHead.modelType() : target.getModelType();
-                    if (previousHead.modelType() != null
-                        && target.getModelType() != null
-                        && !previousHead.modelType().equals(target.getModelType())) {
-                        throw new IllegalArgumentException(
-                                "Model %s already has type %s instead of %s"
-                                        .formatted(target.getModelId(), previousHead.modelType(),
-                                                   target.getModelType()));
-                    }
                     String documentCollection =
                             target.getDocument() == null
                                     ? previousHead.documentCollection()
@@ -307,9 +318,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             CommitModelActionResult result = CommitModelActionResult.accepted(
                     action.getRequestId(), action.getActionId(), List.copyOf(substepResults));
+            if (hasMaterialization(action, substepResults)) {
+                modelActionMaterializations.put(
+                        action.getActionId(),
+                        new PendingModelMaterialization(
+                                action, List.copyOf(substepResults),
+                                Set.of()));
+            }
             modelActions.put(action.getActionId(), result);
-            retainMaterialization(
-                    action, substepResults);
             modelGraphProjectionSignals.add(
                     new ModelGraphProjectionSignal(
                             substepResults.getFirst()
@@ -338,7 +354,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             synchronized (modelUpdateMonitor) {
                 modelUpdateMonitor.notifyAll();
             }
-            return CompletableFuture.completedFuture(result);
+            completeModelActionMaterialization(
+                    action.getActionId());
+            return CompletableFuture.completedFuture(
+                    modelActions.get(action.getActionId()));
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -406,90 +425,51 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return result;
     }
 
-    @Override
-    public synchronized CompletableFuture<Void> completeModelActionMaterialization(
-            CompleteModelActionMaterialization request) {
-        CommitModelActionResult action =
-                modelActions.get(
-                        request.getActionId());
-        if (action == null) {
-            return CompletableFuture.failedFuture(
-                    new IllegalArgumentException(
-                            "Unknown model action '%s'"
-                                    .formatted(
-                                            request.getActionId())));
-        }
-        long storedStateIndex =
-                action.getSubsteps().getLast()
-                        .getStateIndex();
-        if (storedStateIndex
-            != request.getLastStateIndex()) {
-            return CompletableFuture.failedFuture(
-                    new IllegalArgumentException(
-                            "Model action '%s' ends at state index %d instead of acknowledged %d"
-                                    .formatted(
-                                            request.getActionId(),
-                                            storedStateIndex,
-                                            request.getLastStateIndex())));
-        }
-        modelActionMaterializations.remove(
-                request.getActionId());
-        drainModelGraphProjections();
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public synchronized GetModelActionMaterializationResult
-            getModelActionMaterialization(
-                    GetModelActionMaterialization request) {
-        CommitModelActionResult action =
-                modelActions.get(
-                        request.getActionId());
-        if (action == null) {
-            throw new IllegalArgumentException(
-                    "Unknown model action '%s'"
-                            .formatted(
-                                    request.getActionId()));
-        }
-        GetModelActionMaterializationResult pending =
-                modelActionMaterializations.get(
-                        request.getActionId());
-        long lastStateIndex =
-                action.getSubsteps().getLast()
-                        .getStateIndex();
-        return pending == null
-                ? new GetModelActionMaterializationResult(
-                        request.getRequestId(),
-                        request.getActionId(),
-                        lastStateIndex, true,
-                        List.of(), List.of())
-                : new GetModelActionMaterializationResult(
-                        request.getRequestId(),
-                        pending.getActionId(),
-                        pending.getLastStateIndex(),
-                        false,
-                        pending.getDocuments(),
-                        pending.getSnapshots());
-    }
-
-    private void retainMaterialization(
+    private static boolean hasMaterialization(
             CommitModelAction action,
             List<ModelActionSubstepResult>
                     substepResults) {
-        MaterializeModelAction materialization =
-                MaterializeModelAction.from(
-                        action, substepResults);
-        if (!materialization.getDocuments().isEmpty()
-            || !materialization.getSnapshots().isEmpty()) {
-            modelActionMaterializations.put(
-                    action.getActionId(),
-                    new GetModelActionMaterializationResult(
-                            -1L, action.getActionId(),
-                            materialization.getLastStateIndex(),
-                            false,
-                            materialization.getDocuments(),
-                            materialization.getSnapshots()));
+        for (int substep = 0;
+             substep < action.getSubsteps().size();
+             substep++) {
+            List<ModelActionTarget> targets =
+                    action.getSubsteps().get(substep)
+                            .getTargets();
+            List<ModelActionTargetResult> assigned =
+                    substepResults.get(substep)
+                            .getTargets();
+            for (int target = 0;
+                 target < targets.size();
+                 target++) {
+                ModelActionTarget mutation =
+                        targets.get(target);
+                if (mutation.getDocument() != null
+                    || mutation.getSnapshot() != null
+                       && assigned.get(target)
+                               .isHistoryComplete()) {
+                    return true;
+                }
+            }
         }
+        return false;
+    }
+
+    private void completeModelActionMaterialization(
+            String actionId) {
+        PendingModelMaterialization pending =
+                modelActionMaterializations.get(actionId);
+        if (pending == null) {
+            return;
+        }
+        if (modelActionMaterializer == null) {
+            throw new IllegalStateException(
+                    "No direct model materializer is connected to the in-memory event store");
+        }
+        modelActionMaterializer.materialize(
+                pending.action(), pending.assignedSubsteps(),
+                pending.excludedModelIds());
+        modelActionMaterializations.remove(actionId);
+        drainModelGraphProjections();
     }
 
     private synchronized TrackModelUpdatesResult modelUpdates(
@@ -1032,28 +1012,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 result.getConflicts(),
                                 result.isRetryAllowed(),
                                 result.isDuplicate(),
-                                result.getRebaseStateIndex(),
-                                result.isDocumentsApplied(),
-                                result.isSnapshotsApplied()));
+                                result.getRebaseStateIndex()));
         modelActionMaterializations.replaceAll(
                 (actionId, materialization) ->
-                        new GetModelActionMaterializationResult(
-                                materialization.getRequestId(),
-                                materialization.getActionId(),
-                                materialization.getLastStateIndex(),
-                                materialization.isComplete(),
-                                materialization.getDocuments()
-                                        .stream()
-                                        .filter(update ->
-                                                        !selected.contains(
-                                                                update.getModelId()))
-                                        .toList(),
-                                materialization.getSnapshots()
-                                        .stream()
-                                        .filter(update ->
-                                                        !selected.contains(
-                                                                update.getModelId()))
-                                        .toList()));
+                        materialization.excluding(selected));
     }
 
     private ModelGraphProjectionStatus
@@ -1331,6 +1293,149 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return CommitModelActionResult.conflict(
                 action.getRequestId(), action.getActionId(), List.copyOf(conflicts.values()),
                 conflictPolicy == ModelConflictPolicy.RETRY);
+    }
+
+    private void validateActionState(CommitModelAction action) {
+        if (modelStateIndex > Long.MAX_VALUE
+                              - action.getSubsteps().size()) {
+            throw new IllegalStateException(
+                    "Model state index space is exhausted");
+        }
+        Map<String, String> types =
+                action.getSubsteps().size() > 1
+                        ? new HashMap<>()
+                        : null;
+        List<ModelRelationshipCycleValidator.Step> steps = null;
+        Map<String, Set<String>> relationshipOverrides = null;
+        for (ModelActionSubstep substep : action.getSubsteps()) {
+            LinkedHashMap<String, Boolean> changed = null;
+            for (ModelActionTarget target : substep.getTargets()) {
+                ModelStreamHead current =
+                        modelHeads.get(
+                                target.getModelId());
+                String previousType =
+                        types == null
+                                ? current == null
+                                        ? null
+                                        : current.modelType()
+                                : types.getOrDefault(
+                                        target.getModelId(),
+                                        current == null
+                                                ? null
+                                                : current.modelType());
+                if (previousType != null
+                    && target.getModelType() != null
+                    && !previousType.equals(
+                            target.getModelType())) {
+                    throw new IllegalArgumentException(
+                            "Model %s already has type %s instead of %s"
+                                    .formatted(
+                                            target.getModelId(),
+                                            previousType,
+                                            target.getModelType()));
+                }
+                if (types != null) {
+                    types.put(
+                            target.getModelId(),
+                            target.getModelType() == null
+                                    ? previousType
+                                    : target.getModelType());
+                }
+                if (target.isDelete()
+                    || target.isUpdateRelationships()) {
+                    if (relationshipOverrides
+                        == null) {
+                        relationshipOverrides =
+                                new HashMap<>();
+                        steps = new ArrayList<>();
+                    }
+                    if (changed == null) {
+                        changed =
+                                new LinkedHashMap<>();
+                    }
+                    relationshipOverrides.put(
+                            target.getModelId(),
+                            target.getRelationships().stream()
+                                    .map(ModelRelationship::getParentId)
+                                    .collect(
+                                            Collectors.toUnmodifiableSet()));
+                    changed.put(
+                            target.getModelId(),
+                            Boolean.TRUE);
+                }
+            }
+            Set<String> deletedParents =
+                    changed == null
+                            ? Set.of()
+                            : substep.getTargets().stream()
+                            .filter(ModelActionTarget::isDelete)
+                            .map(ModelActionTarget::getModelId)
+                            .collect(
+                                    Collectors.toUnmodifiableSet());
+            if (!deletedParents.isEmpty()) {
+                LinkedHashSet<String> children =
+                        new LinkedHashSet<>(
+                                currentModelRelationships.keySet());
+                children.addAll(
+                        relationshipOverrides.keySet());
+                for (String child : children) {
+                    Set<String> parents =
+                            relationshipOverrides.computeIfAbsent(
+                                    child,
+                                    this::currentParentIds);
+                    Set<String> retained = parents.stream()
+                            .filter(parent ->
+                                            !deletedParents.contains(
+                                                    parent))
+                            .collect(
+                                    Collectors.toUnmodifiableSet());
+                    if (!parents.equals(retained)) {
+                        relationshipOverrides.put(
+                                child, retained);
+                        changed.putIfAbsent(
+                                child, Boolean.FALSE);
+                    }
+                }
+            }
+            if (changed != null) {
+                List<ModelRelationshipCycleValidator.Change>
+                        changes =
+                        new ArrayList<>(
+                                changed.size());
+                for (Map.Entry<String, Boolean> entry :
+                        changed.entrySet()) {
+                    changes.add(
+                            new ModelRelationshipCycleValidator.Change(
+                                    entry.getKey(),
+                                    relationshipOverrides.get(
+                                            entry.getKey()),
+                                    entry.getValue()));
+                }
+                steps.add(
+                        new ModelRelationshipCycleValidator.Step(
+                                changes));
+            }
+        }
+        if (steps != null) {
+            ModelRelationshipCycleValidator.validate(
+                    steps,
+                    children -> children.stream()
+                            .collect(
+                                    Collectors.toUnmodifiableMap(
+                                            child -> child,
+                                            this::currentParentIds)));
+        }
+    }
+
+    private Set<String> currentParentIds(String childId) {
+        Map<ModelRelationship, MutableModelRelationship> relationships =
+                currentModelRelationships.get(childId);
+        return relationships == null
+                ? Set.of()
+                : relationships.keySet().stream()
+                .map(ModelRelationship::getParentId)
+                .collect(
+                        Collectors.toUnmodifiableSet());
     }
 
     private void updateModelRelationships(
@@ -1995,6 +2100,37 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             AwaitModelGraphProjection request,
             CompletableFuture<ModelGraphProjectionStatus>
                     result) {
+    }
+
+    private record PendingModelMaterialization(
+            CommitModelAction action,
+            List<ModelActionSubstepResult> assignedSubsteps,
+            Set<String> excludedModelIds) {
+        private PendingModelMaterialization excluding(
+                Set<String> modelIds) {
+            if (modelIds.isEmpty()) {
+                return this;
+            }
+            LinkedHashSet<String> excluded =
+                    new LinkedHashSet<>(
+                            excludedModelIds);
+            excluded.addAll(modelIds);
+            return new PendingModelMaterialization(
+                    action, assignedSubsteps,
+                    Set.copyOf(excluded));
+        }
+    }
+
+    /**
+     * Applies direct model documents and due snapshots before a local model commit reports success.
+     */
+    @FunctionalInterface
+    public interface ModelActionMaterializer {
+        void materialize(
+                CommitModelAction action,
+                List<ModelActionSubstepResult>
+                        assignedSubsteps,
+                Set<String> excludedModelIds);
     }
 
     /**

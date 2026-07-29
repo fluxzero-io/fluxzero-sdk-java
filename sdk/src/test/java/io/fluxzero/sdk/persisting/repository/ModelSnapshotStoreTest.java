@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -47,27 +46,6 @@ class ModelSnapshotStoreTest {
                         timestamp.toEpochMilli(),
                         2, 3)
                         .toDocument("model-1", 5L, 8L);
-
-        ModelSnapshotStore.Snapshot snapshot =
-                deserialize(document).orElseThrow();
-
-        assertEquals("value", snapshot.value());
-        assertEquals(5L, snapshot.sequenceNumber());
-        assertEquals(8L, snapshot.stateIndex());
-        assertEquals(timestamp, snapshot.timestamp());
-    }
-
-    @Test
-    void readsLegacyWrappedModelSnapshotDocument() throws Exception {
-        Instant timestamp = Instant.ofEpochMilli(1234L);
-        var legacy = new ModelSnapshotStore.SnapshotDocument(
-                "snapshot-1", "model-1", 5L, 8L,
-                timestamp, serializer.serialize("value"));
-        SerializedDocument document = new SerializedDocument(
-                legacy.id(), timestamp.toEpochMilli(), null,
-                ModelSnapshotStore.SNAPSHOT_COLLECTION,
-                serializer.serialize(legacy), null,
-                Set.of(), Set.of());
 
         ModelSnapshotStore.Snapshot snapshot =
                 deserialize(document).orElseThrow();

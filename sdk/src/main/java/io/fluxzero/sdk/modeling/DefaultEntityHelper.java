@@ -123,7 +123,7 @@ public class DefaultEntityHelper implements EntityHelper {
             boolean disablePayloadValidation) {
         List<ParameterResolver<? super DeserializingMessage>> resolvers =
                 new java.util.ArrayList<>(parameterResolvers.size() + 1);
-        resolvers.add((ParameterResolver) new ModelParameterResolver());
+        resolvers.add((ParameterResolver) new ModelEntityParameterResolver());
         resolvers.addAll(parameterResolvers);
         return new DefaultEntityHelper(List.copyOf(resolvers), disablePayloadValidation);
     }

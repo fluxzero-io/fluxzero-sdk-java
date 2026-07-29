@@ -29,14 +29,11 @@ import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
-import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
-import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
@@ -47,7 +44,6 @@ import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
@@ -139,14 +135,6 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //modeling
         @JsonSubTypes.Type(value = CommitModelAction.class, name = "commitModelAction"),
         @JsonSubTypes.Type(value = CommitModelActionResult.class, name = "commitModelActionResult"),
-        @JsonSubTypes.Type(value = CompleteModelActionMaterialization.class,
-                name = "completeModelActionMaterialization"),
-        @JsonSubTypes.Type(value = GetModelActionMaterialization.class,
-                name = "getModelActionMaterialization"),
-        @JsonSubTypes.Type(value = GetModelActionMaterializationResult.class,
-                name = "getModelActionMaterializationResult"),
-        @JsonSubTypes.Type(value = MaterializeModelAction.class,
-                name = "materializeModelAction"),
         @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
         @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),
         @JsonSubTypes.Type(value = TrackModelUpdates.class, name = "trackModelUpdates"),

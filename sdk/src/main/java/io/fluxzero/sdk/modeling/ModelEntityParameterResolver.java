@@ -28,7 +28,6 @@ import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -55,20 +54,23 @@ import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
  * at that exact action boundary; other message types use the repository's current boundary.
  */
 public class ModelEntityParameterResolver
-        implements PreparedParameterResolver<DeserializingMessage> {
+        implements PreparedParameterResolver<Object> {
 
     @Override
     public boolean mayApply(
             Executable method, Class<?> targetClass) {
-        return ReflectionUtils
-                .getMethodAnnotation(
-                        method, HandleMessage.class)
-                .isPresent()
-               && plan(method).hasModels();
+        HandlerPlan plan = plan(method);
+        return plan.hasModels()
+               && (ReflectionUtils.getMethodAnnotation(
+                        method, HandleMessage.class).isPresent()
+                   || ModelMetadata.of(method.getDeclaringClass())
+                        .handlerMethods().stream()
+                        .anyMatch(handler ->
+                                handler.executable().equals(method)));
     }
 
     @Override
-    public Function<DeserializingMessage, Object> resolve(
+    public Function<Object, Object> resolve(
             Parameter parameter,
             Annotation methodAnnotation) {
         HandlerPlan plan =
@@ -77,47 +79,69 @@ public class ModelEntityParameterResolver
                 plan.parameters().get(parameter);
         return modelParameter == null
                 ? null
-                : message -> value(
-                        parameter, modelParameter,
-                        context(message, plan).resolve(
-                                modelParameter.modelType(),
-                                modelParameter
-                                        .associationProperty()));
+                : input -> value(parameter, modelParameter,
+                                 resolveEntity(input, plan, modelParameter));
     }
 
     @Override
     public boolean matches(
             Parameter parameter,
             Annotation methodAnnotation,
-            DeserializingMessage message) {
-        HandlerPlan plan =
-                plan(parameter.getDeclaringExecutable());
-        return plan.parameters().containsKey(
-                parameter)
-               && resolvedPlan(message, plan)
-                       .isPresent();
-    }
-
-    @Override
-    public Function<DeserializingMessage, Object>
-            resolveIfPossible(
-                    Parameter parameter,
-                    Annotation methodAnnotation,
-                    DeserializingMessage message) {
+            Object input) {
         HandlerPlan plan =
                 plan(parameter.getDeclaringExecutable());
         ModelMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
-        if (modelParameter == null
-            || resolvedPlan(message, plan).isEmpty()) {
+        if (modelParameter == null) {
+            return false;
+        }
+        Optional<ModelActionContext> context =
+                actionContext(input);
+        if (context.isPresent()) {
+            Entity<?> entity = context.get().resolve(
+                    modelParameter.modelType(),
+                    modelParameter.associationProperty());
+            return entity != null
+                   && (modelParameter.entityWrapped()
+                       || entity.isPresent()
+                       || isNullable(parameter));
+        }
+        return input instanceof DeserializingMessage message
+               && resolvedPlan(message, plan).isPresent();
+    }
+
+    @Override
+    public Function<Object, Object>
+            resolveIfPossible(
+                    Parameter parameter,
+                    Annotation methodAnnotation,
+                    Object input) {
+        HandlerPlan plan =
+                plan(parameter.getDeclaringExecutable());
+        ModelMetadata.ModelParameter modelParameter =
+                plan.parameters().get(parameter);
+        if (modelParameter == null) {
+            return null;
+        }
+        Optional<ModelActionContext> context =
+                actionContext(input);
+        if (context.isPresent()) {
+            Entity<?> entity = context.get().resolve(
+                    modelParameter.modelType(),
+                    modelParameter.associationProperty());
+            if (entity == null
+                || !modelParameter.entityWrapped()
+                   && !entity.isPresent()
+                   && !isNullable(parameter)) {
+                return null;
+            }
+        } else if (!(input instanceof DeserializingMessage message)
+                   || resolvedPlan(message, plan).isEmpty()) {
             return null;
         }
         return invocation -> value(
                 parameter, modelParameter,
-                context(invocation, plan).resolve(
-                        modelParameter.modelType(),
-                        modelParameter
-                                .associationProperty()));
+                resolveEntity(invocation, plan, modelParameter));
     }
 
     @Override
@@ -149,18 +173,43 @@ public class ModelEntityParameterResolver
         return entity.get();
     }
 
+    private static Entity<?> resolveEntity(
+            Object input,
+            HandlerPlan plan,
+            ModelMetadata.ModelParameter parameter) {
+        Optional<ModelActionContext> actionContext =
+                actionContext(input);
+        if (actionContext.isPresent()) {
+            return actionContext.get().resolve(
+                    parameter.modelType(),
+                    parameter.associationProperty());
+        }
+        return input instanceof DeserializingMessage message
+                ? context(message, plan).resolve(
+                        parameter.modelType(),
+                        parameter.associationProperty())
+                : null;
+    }
+
+    private static Optional<ModelActionContext>
+            actionContext(Object input) {
+        if (input instanceof DeserializingMessage message) {
+            Optional<ModelActionContext> direct =
+                    message.getContext(ModelActionContext.class);
+            if (direct.isPresent()) {
+                return direct;
+            }
+        }
+        return DeserializingMessage.getOptionally()
+                .flatMap(message -> message.getContext(
+                        ModelActionContext.class));
+    }
+
     private static ModelActionContext context(
             DeserializingMessage message,
             HandlerPlan plan) {
-        ResolutionCache cache = cache(message);
-        return cache.contexts.computeIfAbsent(
-                plan.executable(),
-                ignored -> currentRepository(message)
-                        .loadContext(
-                                resolvedPlan(
-                                        message, plan)
-                                        .orElseThrow()
-                                        .resolution()));
+        return resolvedPlan(message, plan).orElseThrow()
+                .context(message);
     }
 
     private static Optional<ResolvedHandlerPlan>
@@ -248,7 +297,7 @@ public class ModelEntityParameterResolver
 
         private Optional<ResolvedHandlerPlan> resolve(
                 DeserializingMessage message) {
-            LinkedHashMap<String, MutableTarget> targets =
+            LinkedHashMap<String, ModelTargetResolver.ResolvedModel> targets =
                     new LinkedHashMap<>();
             LinkedHashSet<ModelTargetResolver
                     .AncestorDependency> ancestors =
@@ -270,76 +319,28 @@ public class ModelEntityParameterResolver
                                                     .toGenericString()));
                     continue;
                 }
-                String sourceProperty =
-                        association == null
-                                ? ModelMetadata.validate(
-                                                parameter
-                                                        .modelType())
-                                        .entityId()
-                                        .orElseThrow()
-                                        .name()
-                                : association;
-                targets.compute(
-                        modelId,
-                        (ignored, existing) -> {
-                            if (existing == null) {
-                                return new MutableTarget(
-                                        modelId,
-                                        parameter.modelType(),
-                                        sourceProperty);
-                            }
-                            existing.merge(
-                                    parameter.modelType(),
-                                    sourceProperty);
-                            return existing;
-                        });
+                ModelTargetResolver.merge(
+                        targets,
+                        new ModelTargetResolver.ResolvedModel(
+                                modelId, parameter.modelType(),
+                                ModelTargetResolver.Access.READ_ONLY,
+                                List.of(association == null
+                                                ? ModelMetadata.validate(parameter.modelType())
+                                                        .entityId().orElseThrow().name()
+                                                : association)));
             }
             if (!ancestors.isEmpty()) {
-                for (ModelTargetResolver.ResolvedModel anchor :
-                        ModelTargetResolver
-                                .resolveReferencedModels(
-                                        message.getPayload())) {
-                    targets.compute(
-                            anchor.modelId(),
-                            (ignored, existing) -> {
-                                if (existing == null) {
-                                    MutableTarget created =
-                                            new MutableTarget(
-                                            anchor.modelId(),
-                                            anchor.modelType(),
-                                            anchor.sourceProperties()
-                                                    .getFirst());
-                                    anchor.sourceProperties()
-                                            .stream()
-                                            .skip(1)
-                                            .forEach(source ->
-                                                             created.merge(
-                                                                     anchor.modelType(),
-                                                                     source));
-                                    return created;
-                                }
-                                anchor.sourceProperties()
-                                        .forEach(source ->
-                                                         existing.merge(
-                                                                 anchor.modelType(),
-                                                                 source));
-                                return existing;
-                            });
-                }
+                ModelTargetResolver.resolveReferencedModels(message.getPayload())
+                        .forEach(anchor -> ModelTargetResolver.merge(targets, anchor));
             }
             if (targets.isEmpty()) {
                 return Optional.empty();
             }
-            List<ModelTargetResolver.ResolvedModel>
-                    resolved = targets.values()
-                    .stream()
-                    .map(MutableTarget::freeze)
-                    .toList();
             return Optional.of(
                     new ResolvedHandlerPlan(
                             new ModelTargetResolver
                                     .Resolution(
-                                            resolved,
+                                            List.copyOf(targets.values()),
                                             List.of(),
                                             List.copyOf(
                                                     ancestors))));
@@ -375,55 +376,30 @@ public class ModelEntityParameterResolver
         }
     }
 
-    private static final class MutableTarget {
-        private final String modelId;
-        private Class<?> modelType;
-        private final List<String> sourceProperties =
-                new ArrayList<>(1);
+    private static final class ResolvedHandlerPlan {
+        private final ModelTargetResolver.Resolution resolution;
+        private volatile ModelActionContext context;
 
-        private MutableTarget(
-                String modelId, Class<?> modelType,
-                String sourceProperty) {
-            this.modelId = modelId;
-            this.modelType = modelType;
-            sourceProperties.add(sourceProperty);
+        private ResolvedHandlerPlan(
+                ModelTargetResolver.Resolution resolution) {
+            this.resolution = resolution;
         }
 
-        private void merge(
-                Class<?> requestedType,
-                String sourceProperty) {
-            if (!modelType.equals(requestedType)) {
-                if (modelType.isAssignableFrom(
-                        requestedType)) {
-                    modelType = requestedType;
-                } else if (!requestedType
-                        .isAssignableFrom(modelType)) {
-                    throw new IllegalStateException(
-                            "Model ID '%s' is requested as incompatible handler parameter types %s and %s"
-                                    .formatted(
-                                            modelId,
-                                            modelType.getName(),
-                                            requestedType
-                                                    .getName()));
+        private ModelActionContext context(
+                DeserializingMessage message) {
+            ModelActionContext result = context;
+            if (result == null) {
+                synchronized (this) {
+                    result = context;
+                    if (result == null) {
+                        context = result =
+                                currentRepository(message)
+                                        .loadContext(resolution);
+                    }
                 }
             }
-            if (!sourceProperties.contains(
-                    sourceProperty)) {
-                sourceProperties.add(sourceProperty);
-            }
+            return result;
         }
-
-        private ModelTargetResolver.ResolvedModel
-                freeze() {
-            return new ModelTargetResolver.ResolvedModel(
-                    modelId, modelType,
-                    ModelTargetResolver.Access.READ_ONLY,
-                    List.copyOf(sourceProperties));
-        }
-    }
-
-    private record ResolvedHandlerPlan(
-            ModelTargetResolver.Resolution resolution) {
     }
 
     private static final class HandlerPlans {
@@ -445,9 +421,6 @@ public class ModelEntityParameterResolver
     private static final class ResolutionCache {
         private final Map<Executable,
                 Optional<ResolvedHandlerPlan>> plans =
-                new ConcurrentHashMap<>();
-        private final Map<Executable,
-                ModelActionContext> contexts =
                 new ConcurrentHashMap<>();
     }
 }

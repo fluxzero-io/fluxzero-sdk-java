@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelActionContextTest {
 
     private final DefaultEntityHelper entityHelper =
-            new DefaultEntityHelper(List.of(new ModelParameterResolver()), true);
+            new DefaultEntityHelper(List.of(new ModelEntityParameterResolver()), true);
 
     @Test
     void injectsActionModelsIntoAssertionsInterceptorsAndApplies() {

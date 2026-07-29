@@ -20,9 +20,6 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
-import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionConflict;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTargetResult;
@@ -36,10 +33,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
-import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -72,26 +67,10 @@ import static org.mockito.Mockito.when;
 class ModelActionCommitterTest {
 
     private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
-    private final DocumentStore documentStore = mock(DocumentStore.class);
     private final JacksonSerializer serializer = new JacksonSerializer();
     private final ModelActionCommitter committer = new ModelActionCommitter(
-            eventStoreClient, documentStore, serializer, serializer,
+            eventStoreClient, serializer, serializer,
             DispatchInterceptor.noOp, "client-1");
-
-    @BeforeEach
-    void completeSdkMaterialization() {
-        when(eventStoreClient
-                     .completeModelActionMaterialization(
-                             any()))
-                .thenReturn(
-                        CompletableFuture.completedFuture(
-                                null));
-        when(documentStore
-                     .materializeModelAction(any()))
-                .thenReturn(
-                        CompletableFuture.completedFuture(
-                                null));
-    }
 
     @Test
     void commitsOriginalEventOnceWithoutResendingAnUnchangedChildOwnedRelationship() throws Exception {
@@ -132,22 +111,12 @@ class ModelActionCommitterTest {
                         Order.class));
         assertFalse(target.isUpdateRelationships());
         assertTrue(target.getRelationships().isEmpty());
-        ArgumentCaptor<MaterializeModelAction> materialization =
-                ArgumentCaptor.forClass(
-                        MaterializeModelAction.class);
-        verify(documentStore)
-                .materializeModelAction(
-                        materialization.capture());
-        var update =
-                materialization.getValue()
-                        .getDocuments().getFirst();
         SerializedDocument document =
-                update.getMutation().getDocument();
+                target.getDocument().getDocument();
         assertEquals(after, serializer.fromDocument(document, Order.class));
-        assertEquals(orderId.toString(), update.getModelId());
         assertEquals(
                 "orders",
-                update.getMutation().getCollection());
+                target.getDocument().getCollection());
         assertEquals(after.changedAt().toEpochMilli(), document.getTimestamp());
         assertEquals(after.changedAt().toEpochMilli(), document.getEnd());
         assertEquals(7, document.getDocument().getRevision());
@@ -255,8 +224,6 @@ class ModelActionCommitterTest {
                         .getSubsteps().getFirst()
                         .getTargets().getFirst()
                         .getDocument());
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
@@ -328,8 +295,6 @@ class ModelActionCommitterTest {
         ArgumentCaptor<CommitModelAction> captor = ArgumentCaptor.forClass(CommitModelAction.class);
         verify(eventStoreClient).commitModelAction(captor.capture());
         assertEquals(ModelConflictPolicy.FAIL, captor.getValue().getConflictPolicy());
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
@@ -373,16 +338,17 @@ class ModelActionCommitterTest {
         assertTrue(result.orElseThrow().isAccepted());
         assertEquals(2, commits.get());
         assertEquals(1, reloads.get());
-        ArgumentCaptor<MaterializeModelAction> updates =
+        ArgumentCaptor<CommitModelAction> updates =
                 ArgumentCaptor.forClass(
-                        MaterializeModelAction.class);
-        verify(documentStore, times(1))
-                .materializeModelAction(
+                        CommitModelAction.class);
+        verify(eventStoreClient, times(2))
+                .commitModelAction(
                         updates.capture());
         var update =
-                updates.getValue()
-                        .getDocuments().getFirst()
-                        .getMutation().getDocument();
+                updates.getAllValues().getLast()
+                        .getSubsteps().getFirst()
+                        .getTargets().getFirst()
+                        .getDocument().getDocument();
         assertEquals(reloaded, serializer.fromDocument(
                 update, Order.class));
     }
@@ -415,8 +381,6 @@ class ModelActionCommitterTest {
         assertInstanceOf(ModelActionConflictException.class, bounded.getCause());
         assertEquals(1, reloads.get());
         verify(eventStoreClient, times(2)).commitModelAction(any());
-        verify(documentStore, never())
-                .materializeModelAction(any());
 
         IllegalStateException applicationError = new IllegalStateException("try again later");
         CompletionException mapped = assertThrows(CompletionException.class, () -> committer.commit(
@@ -461,8 +425,6 @@ class ModelActionCommitterTest {
         assertFalse(
                 substep.getTargets().getLast()
                         .isUpdateState());
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
@@ -514,12 +476,10 @@ class ModelActionCommitterTest {
         }
         verify(eventStoreClient, never())
                 .commitModelAction(any());
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
-    void successfulCommitWaitsForDirectDocumentIndexing() throws Exception {
+    void successfulCommitWaitsForTheAuthoritativeStore() throws Exception {
         OrderId id = new OrderId("1");
         Order after = new Order(
                 id, null, "confirmed", Instant.parse("2026-01-02T00:00:00Z"));
@@ -528,68 +488,22 @@ class ModelActionCommitterTest {
                 substep(new UpdateOrder(id), transition(
                         id, Order.class, null, after, UpdateOrder.class, "apply", Order.class)),
                 Map.of(id.toString(), after));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
-                CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        CompletableFuture<Void> indexing = new CompletableFuture<>();
-        when(documentStore
-                     .materializeModelAction(any()))
-                .thenReturn(indexing);
-        CompletableFuture<Void> acknowledged =
+        CompletableFuture<CommitModelActionResult> stored =
                 new CompletableFuture<>();
-        when(eventStoreClient
-                     .completeModelActionMaterialization(
-                             any()))
-                .thenReturn(acknowledged);
+        when(eventStoreClient.commitModelAction(any()))
+                .thenReturn(stored);
 
         var completion = committer.commit("action-1", evaluation);
 
         assertFalse(completion.isDone());
-        indexing.complete(null);
-        assertFalse(completion.isDone());
-        ArgumentCaptor<CompleteModelActionMaterialization>
-                acknowledgement =
+        ArgumentCaptor<CommitModelAction> request =
                 ArgumentCaptor.forClass(
-                        CompleteModelActionMaterialization.class);
+                        CommitModelAction.class);
         verify(eventStoreClient)
-                .completeModelActionMaterialization(
-                        acknowledgement.capture());
-        assertEquals(
-                "action-1",
-                acknowledgement.getValue()
-                        .getActionId());
-        assertEquals(
-                42L,
-                acknowledgement.getValue()
-                        .getLastStateIndex());
-        acknowledged.complete(null);
+                .commitModelAction(request.capture());
+        stored.complete(
+                result(request.getValue()));
         assertTrue(completion.join().isPresent());
-    }
-
-    @Test
-    void runtimeCompletedDocumentsSkipTheSdkFallbackWrite() throws Exception {
-        OrderId id = new OrderId("runtime-document");
-        Order after = new Order(
-                id, null, "confirmed",
-                Instant.parse("2026-01-02T00:00:00Z"));
-        var evaluation = evaluation(
-                List.of(id.toString()),
-                substep(new UpdateOrder(id), transition(
-                        id, Order.class, null, after,
-                        UpdateOrder.class, "apply",
-                        Order.class)),
-                Map.of(id.toString(), after));
-        when(eventStoreClient.commitModelAction(any()))
-                .thenAnswer(invocation ->
-                                    CompletableFuture.completedFuture(
-                                            result(invocation.getArgument(0))
-                                                    .withDocumentsApplied()));
-
-        assertTrue(committer.commit(
-                "runtime-document",
-                evaluation).join().isPresent());
-
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
@@ -634,8 +548,7 @@ class ModelActionCommitterTest {
                                         51L));
                     }
                     return CompletableFuture.completedFuture(
-                            result(request)
-                                    .withDocumentsApplied());
+                            result(request));
                 });
 
         var accepted = committer.commitAcceptingRebase(
@@ -670,8 +583,6 @@ class ModelActionCommitterTest {
                                 .getTargets().getFirst()
                                 .getDocument().getDocument(),
                         Order.class));
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
@@ -713,8 +624,7 @@ class ModelActionCommitterTest {
                         return firstCommit;
                     }
                     return CompletableFuture.completedFuture(
-                            result(request)
-                                    .withDocumentsApplied());
+                            result(request));
                 });
         AtomicReference<String> completionThread =
                 new AtomicReference<>();
@@ -796,21 +706,13 @@ class ModelActionCommitterTest {
         assertNotNull(substep.getTargets().getFirst().getDocument());
         assertNull(substep.getTargets().getFirst().getDocument().getDocument());
         assertTrue(substep.getTargets().getFirst().getRelationships().isEmpty());
-        ArgumentCaptor<MaterializeModelAction> updates =
-                ArgumentCaptor.forClass(
-                        MaterializeModelAction.class);
-        verify(documentStore)
-                .materializeModelAction(
-                        updates.capture());
-        var update =
-                updates.getValue()
-                        .getDocuments().getFirst();
-        assertEquals(id.toString(), update.getModelId());
         assertEquals(
                 "orders",
-                update.getMutation().getCollection());
+                substep.getTargets().getFirst()
+                        .getDocument().getCollection());
         assertNull(
-                update.getMutation().getDocument());
+                substep.getTargets().getFirst()
+                        .getDocument().getDocument());
     }
 
     @Test
@@ -834,22 +736,15 @@ class ModelActionCommitterTest {
         assertFalse(substep.isPublishEvent());
         assertFalse(substep.getTargets().getFirst().isStoreEvent());
         assertTrue(substep.getTargets().getFirst().isUpdateState());
-        ArgumentCaptor<MaterializeModelAction> updates =
-                ArgumentCaptor.forClass(
-                        MaterializeModelAction.class);
-        verify(documentStore)
-                .materializeModelAction(
-                        updates.capture());
         var update =
-                updates.getValue()
-                        .getDocuments().getFirst();
+                substep.getTargets().getFirst()
+                        .getDocument();
         assertEquals(after, serializer.fromDocument(
-                update.getMutation().getDocument(),
+                update.getDocument(),
                 PrivateDocument.class));
-        assertEquals(id.toString(), update.getModelId());
         assertEquals(
                 "privateDocuments",
-                update.getMutation().getCollection());
+                update.getCollection());
     }
 
     @Test
@@ -867,206 +762,6 @@ class ModelActionCommitterTest {
 
         assertTrue(result.isEmpty());
         verify(eventStoreClient, never()).commitModelAction(any());
-        verify(documentStore, never())
-                .materializeModelAction(any());
-    }
-
-    @Test
-    void searchFailureRetainsOriginalRepairStateWhenSameActionIsReevaluated() throws Exception {
-        OrderId id = new OrderId("retry");
-        Order after = new Order(id, null, "confirmed", Instant.EPOCH);
-        var evaluation = evaluation(
-                List.of(id.toString()),
-                substep(new UpdateOrder(id), transition(
-                        id, Order.class, null, after, UpdateOrder.class, "apply", Order.class)),
-                Map.of(id.toString(), after));
-        when(eventStoreClient.commitModelAction(any())).thenAnswer(invocation ->
-                CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        when(documentStore
-                     .materializeModelAction(any()))
-                .thenReturn(CompletableFuture.failedFuture(new MockSearchFailure()))
-                .thenReturn(CompletableFuture.completedFuture(null));
-
-        CompletionException failure = assertThrows(
-                CompletionException.class,
-                () -> committer.commit("action-retry", evaluation).join());
-        assertInstanceOf(MockSearchFailure.class, failure.getCause());
-        Order divergent = new Order(
-                id, null, "divergent", Instant.EPOCH.plusSeconds(1));
-        var reevaluated = evaluation(
-                List.of(id.toString()),
-                substep(new UpdateOrder(id), transition(
-                        id, Order.class, after, divergent,
-                        UpdateOrder.class, "apply", Order.class)),
-                Map.of(id.toString(), divergent));
-        assertTrue(committer.commit(
-                "action-retry", reevaluated).join().isPresent());
-
-        ArgumentCaptor<CommitModelAction> actions = ArgumentCaptor.forClass(CommitModelAction.class);
-        verify(eventStoreClient, times(2)).commitModelAction(actions.capture());
-        assertEquals(
-                List.of("action-retry", "action-retry"),
-                actions.getAllValues().stream().map(CommitModelAction::getActionId).toList());
-        assertSame(
-                actions.getAllValues().getFirst(),
-                actions.getAllValues().getLast());
-        ArgumentCaptor<MaterializeModelAction> updates =
-                ArgumentCaptor.forClass(
-                        MaterializeModelAction.class);
-        verify(documentStore, times(2))
-                .materializeModelAction(
-                        updates.capture());
-        assertSameMaterialization(
-                updates.getAllValues().getFirst(),
-                updates.getAllValues().getLast());
-    }
-
-    @Test
-    void duplicateAfterProcessLossRepairsTheOriginallyCommittedMaterialization()
-            throws Exception {
-        OrderId id =
-                new OrderId("restart-repair");
-        Order original =
-                new Order(
-                        id, null, "original",
-                        Instant.EPOCH);
-        var originalEvaluation =
-                evaluation(
-                        List.of(id.toString()),
-                        substep(
-                                new UpdateOrder(id),
-                                transition(
-                                        id, Order.class,
-                                        null, original,
-                                        UpdateOrder.class,
-                                        "apply", Order.class)),
-                        Map.of(
-                                id.toString(),
-                                original));
-        AtomicReference<CommitModelAction> committed =
-                new AtomicReference<>();
-        AtomicReference<CommitModelActionResult>
-                committedResult =
-                new AtomicReference<>();
-        when(eventStoreClient.commitModelAction(any()))
-                .thenAnswer(invocation -> {
-                    CommitModelAction request =
-                            invocation.getArgument(0);
-                    if (committed.compareAndSet(
-                            null, request)) {
-                        CommitModelActionResult result =
-                                result(request);
-                        committedResult.set(result);
-                        return CompletableFuture
-                                .completedFuture(result);
-                    }
-                    return CompletableFuture
-                            .completedFuture(
-                                    committedResult.get()
-                                            .asDuplicateForRequest(
-                                                    request.getRequestId()));
-                });
-        when(documentStore
-                     .materializeModelAction(any()))
-                .thenReturn(
-                        CompletableFuture.failedFuture(
-                                new MockSearchFailure()))
-                .thenReturn(
-                        CompletableFuture.completedFuture(
-                                null));
-
-        assertThrows(
-                CompletionException.class,
-                () -> committer.commit(
-                                "restart-repair",
-                                originalEvaluation)
-                        .join());
-        ArgumentCaptor<MaterializeModelAction> writes =
-                ArgumentCaptor.forClass(
-                        MaterializeModelAction.class);
-        verify(documentStore)
-                .materializeModelAction(
-                        writes.capture());
-        MaterializeModelAction retained =
-                writes.getValue();
-        when(eventStoreClient
-                     .getModelActionMaterialization(
-                             any()))
-                .thenAnswer(invocation ->
-                                    new GetModelActionMaterializationResult(
-                                            invocation
-                                                    .<io.fluxzero.common.api.modeling.GetModelActionMaterialization>
-                                                            getArgument(
-                                                                    0)
-                                                    .getRequestId(),
-                                            retained.getActionId(),
-                                            retained.getLastStateIndex(),
-                                            false,
-                                            retained.getDocuments(),
-                                            retained.getSnapshots()));
-
-        Order divergent =
-                new Order(
-                        id, null, "divergent",
-                        Instant.EPOCH.plusSeconds(
-                                1));
-        var divergentEvaluation =
-                evaluation(
-                        List.of(id.toString()),
-                        substep(
-                                new UpdateOrder(id),
-                                transition(
-                                        id, Order.class,
-                                        original, divergent,
-                                        UpdateOrder.class,
-                                        "apply", Order.class)),
-                        Map.of(
-                                id.toString(),
-                                divergent));
-        ModelActionCommitter restarted =
-                new ModelActionCommitter(
-                        eventStoreClient, documentStore,
-                        serializer, serializer,
-                        DispatchInterceptor.noOp,
-                        "client-2");
-
-        assertTrue(
-                restarted.commit(
-                                "restart-repair",
-                                divergentEvaluation)
-                        .join().orElseThrow()
-                        .isDuplicate());
-
-        verify(documentStore, times(2))
-                .materializeModelAction(
-                        writes.capture());
-        MaterializeModelAction repaired =
-                writes.getAllValues().getLast();
-        assertEquals(
-                original,
-                serializer.fromDocument(
-                        repaired.getDocuments()
-                                .getFirst()
-                                .getMutation()
-                                .getDocument(),
-                        Order.class));
-        assertSameMaterialization(
-                retained, repaired);
-        ArgumentCaptor<CompleteModelActionMaterialization>
-                acknowledgement =
-                ArgumentCaptor.forClass(
-                        CompleteModelActionMaterialization.class);
-        verify(eventStoreClient)
-                .completeModelActionMaterialization(
-                        acknowledgement.capture());
-        assertEquals(
-                "restart-repair",
-                acknowledgement.getValue()
-                        .getActionId());
-        assertEquals(
-                retained.getLastStateIndex(),
-                acknowledgement.getValue()
-                        .getLastStateIndex());
     }
 
     @Test
@@ -1082,14 +777,12 @@ class ModelActionCommitterTest {
         when(failingSerializer.toDocument(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new MockSearchFailure());
         ModelActionCommitter failingCommitter = new ModelActionCommitter(
-                eventStoreClient, documentStore, serializer, failingSerializer,
+                eventStoreClient, serializer, failingSerializer,
                 DispatchInterceptor.noOp, "client-1");
 
         assertThrows(MockSearchFailure.class, () -> failingCommitter.commit("action-1", evaluation));
 
         verify(eventStoreClient, never()).commitModelAction(any());
-        verify(documentStore, never())
-                .materializeModelAction(any());
     }
 
     @Test
@@ -1155,23 +848,6 @@ class ModelActionCommitterTest {
                                 entry -> entry.getValue()
                                         .getClass())),
                 List.of(substep), finalValues);
-    }
-
-    private static void assertSameMaterialization(
-            MaterializeModelAction expected,
-            MaterializeModelAction actual) {
-        assertEquals(
-                expected.getActionId(),
-                actual.getActionId());
-        assertEquals(
-                expected.getLastStateIndex(),
-                actual.getLastStateIndex());
-        assertEquals(
-                expected.getDocuments(),
-                actual.getDocuments());
-        assertEquals(
-                expected.getSnapshots(),
-                actual.getSnapshots());
     }
 
     private static ModelActionEngine.AppliedSubstep substep(

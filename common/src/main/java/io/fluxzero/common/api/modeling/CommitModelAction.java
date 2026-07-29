@@ -162,7 +162,7 @@ public class CommitModelAction extends Command {
         ModelConflictPolicy conflictPolicy;
 
         /**
-         * Legacy name for {@link #getEventBytes()}.
+         * Legacy name for {@link #eventBytes}.
          */
         @Deprecated
         public long getBytes() {

@@ -27,9 +27,9 @@ import java.util.List;
  * Result of an accepted, rebase-requested, or conflict-rejected
  * {@link CommitModelAction}.
  * <p>
- * Accepted results are durable. A duplicate accepted {@code actionId} returns the same logical result with the new
- * request ID used for response correlation. Rebase and conflict results are
- * not retained under the idempotency key.
+ * Accepted results are durable and include completion of direct document and snapshot materialization. A duplicate
+ * accepted {@code actionId} returns the same logical result with the new request ID used for response correlation.
+ * Rebase and conflict results are not retained under the idempotency key.
  */
 @Value
 public class CommitModelActionResult extends AbstractRequestResult {
@@ -73,18 +73,6 @@ public class CommitModelActionResult extends AbstractRequestResult {
     Long rebaseStateIndex;
 
     /**
-     * Whether direct model-document consequences were completed by the authoritative store.
-     * <p>
-     * This remains {@code false} for SDK-local/in-memory compatibility stores that require the SDK fallback.
-     */
-    boolean documentsApplied;
-
-    /**
-     * Whether due model snapshots were completed by the authoritative store.
-     */
-    boolean snapshotsApplied;
-
-    /**
      * Timestamp at which this result object was created.
      */
     long timestamp = System.currentTimeMillis();
@@ -94,8 +82,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
      */
     @ConstructorProperties({
             "requestId", "actionId", "substeps", "conflicts", "retryAllowed",
-            "duplicate", "rebaseStateIndex", "documentsApplied",
-            "snapshotsApplied"})
+            "duplicate", "rebaseStateIndex"})
     public CommitModelActionResult(
             long requestId,
             String actionId,
@@ -103,9 +90,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
             List<ModelActionConflict> conflicts,
             boolean retryAllowed,
             boolean duplicate,
-            Long rebaseStateIndex,
-            boolean documentsApplied,
-            boolean snapshotsApplied) {
+            Long rebaseStateIndex) {
         this.requestId = requestId;
         this.actionId = actionId;
         this.substeps = substeps == null ? List.of() : List.copyOf(substeps);
@@ -113,8 +98,6 @@ public class CommitModelActionResult extends AbstractRequestResult {
         this.retryAllowed = retryAllowed;
         this.duplicate = duplicate;
         this.rebaseStateIndex = rebaseStateIndex;
-        this.documentsApplied = documentsApplied;
-        this.snapshotsApplied = snapshotsApplied;
     }
 
     /**
@@ -124,7 +107,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
             long requestId, String actionId, List<ModelActionSubstepResult> substeps) {
         return new CommitModelActionResult(
                 requestId, actionId, substeps, List.of(), false,
-                false, null, false, false);
+                false, null);
     }
 
     /**
@@ -137,7 +120,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
             boolean retryAllowed) {
         return new CommitModelActionResult(
                 requestId, actionId, List.of(), conflicts, retryAllowed,
-                false, null, false, false);
+                false, null);
     }
 
     /**
@@ -162,8 +145,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
     public CommitModelActionResult forRequest(long requestId) {
         return new CommitModelActionResult(
                 requestId, actionId, substeps, conflicts, retryAllowed,
-                duplicate, rebaseStateIndex, documentsApplied,
-                snapshotsApplied);
+                duplicate, rebaseStateIndex);
     }
 
     /**
@@ -172,28 +154,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
     public CommitModelActionResult asDuplicateForRequest(long requestId) {
         return new CommitModelActionResult(
                 requestId, actionId, substeps, conflicts, retryAllowed,
-                true, rebaseStateIndex, documentsApplied,
-                snapshotsApplied);
-    }
-
-    /**
-     * Marks runtime-owned direct document completion on an accepted result.
-     */
-    public CommitModelActionResult withDocumentsApplied() {
-        return new CommitModelActionResult(
-                requestId, actionId, substeps, conflicts, retryAllowed,
-                duplicate, rebaseStateIndex, true,
-                snapshotsApplied);
-    }
-
-    /**
-     * Marks runtime-owned snapshot completion on an accepted result.
-     */
-    public CommitModelActionResult withSnapshotsApplied() {
-        return new CommitModelActionResult(
-                requestId, actionId, substeps, conflicts, retryAllowed,
-                duplicate, rebaseStateIndex, documentsApplied,
-                true);
+                true, rebaseStateIndex);
     }
 
     /**
@@ -206,7 +167,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
             long rebaseStateIndex) {
         return new CommitModelActionResult(
                 requestId, actionId, List.of(), changedModels, true,
-                false, rebaseStateIndex, false, false);
+                false, rebaseStateIndex);
     }
 
     /**
@@ -220,8 +181,7 @@ public class CommitModelActionResult extends AbstractRequestResult {
         }
         return new Metric(
                 substeps.size(), targetCount, conflicts.size(), retryAllowed,
-                duplicate, isRebaseRequired(), documentsApplied,
-                snapshotsApplied, timestamp);
+                duplicate, isRebaseRequired(), timestamp);
     }
 
     /**
@@ -235,8 +195,6 @@ public class CommitModelActionResult extends AbstractRequestResult {
         boolean retryAllowed;
         boolean duplicate;
         boolean rebaseRequired;
-        boolean documentsApplied;
-        boolean snapshotsApplied;
         long timestamp;
     }
 }

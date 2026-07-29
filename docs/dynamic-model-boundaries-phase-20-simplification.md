@@ -1,5 +1,8 @@
 # Dynamic model boundaries — Phase 20 production-code simplification
 
+> Historical design record. Phase 21b supersedes the SDK-owned `MaterializeModelAction` route with one runtime-owned
+> direct-materialization path and durable restart recovery.
+
 ## Scope and baseline
 
 Phase 20 started at SDK commit `6e6c81d609025e4037d555547825cffbb23ea207` and runtime commit

@@ -17,7 +17,6 @@ package io.fluxzero.sdk.persisting.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -63,19 +62,6 @@ import static java.util.Collections.singletonList;
  * @see Fluxzero#search(Object)
  */
 public interface DocumentStore extends Namespaced<DocumentStore> {
-
-    /**
-     * Applies runtime-positioned independent-model documents and snapshots through monotone search-store fences.
-     * <p>
-     * Implementations must be idempotent and must ignore a direct-document write whose {@code stateIndex} is older
-     * than or equal to the currently stored fence. This is deliberately separate from ordinary bulk indexing.
-     */
-    default CompletableFuture<Void> materializeModelAction(
-            MaterializeModelAction action) {
-        return CompletableFuture.failedFuture(
-                new UnsupportedOperationException(
-                        "Fenced independent-model materialization is not supported by this document store"));
-    }
 
     /**
      * Retrieves existing regular search collections and audit trails.

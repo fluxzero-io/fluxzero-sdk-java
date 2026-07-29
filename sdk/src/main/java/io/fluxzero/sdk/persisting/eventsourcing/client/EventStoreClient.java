@@ -18,13 +18,10 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
-import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
-import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -85,26 +82,6 @@ public interface EventStoreClient extends AutoCloseable {
     default CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
         return CompletableFuture.failedFuture(
                 new UnsupportedOperationException("Independent model actions are not supported by this event store"));
-    }
-
-    /**
-     * Closes the runtime readiness fence after SDK-owned model documents and snapshots have been materialized.
-     */
-    default CompletableFuture<Void> completeModelActionMaterialization(
-            CompleteModelActionMaterialization request) {
-        return CompletableFuture.failedFuture(
-                new UnsupportedOperationException(
-                        "Independent model materialization completion is not supported by this event store"));
-    }
-
-    /**
-     * Loads the exact retained direct-document and snapshot mutations for restart-safe materialization repair.
-     */
-    default GetModelActionMaterializationResult
-            getModelActionMaterialization(
-                    GetModelActionMaterialization request) {
-        throw new UnsupportedOperationException(
-                "Independent model materialization repair is not supported by this event store");
     }
 
     /**

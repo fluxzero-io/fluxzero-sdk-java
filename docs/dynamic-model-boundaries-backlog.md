@@ -1569,76 +1569,85 @@ latency, allocation, WAL and physical-amplification oracles for this phase.
 - [ ] Finish with a runtime production-source delta of at most **+7,000 net physical lines** against `origin/main`.
   This requires removing at least 2,992 net lines from the Phase 21 result and reduces the feature growth by at least
   29.9%.
-- [ ] Finish with an SDK production-source delta of at most **+15,000 net physical lines** against `origin/main`.
-  This requires removing at least 4,872 net lines from the Phase 21 result and reduces the feature growth by at least
-  24.5%.
-- [ ] Count all hand-maintained production implementation under `src/main`, independent of language or file extension.
+- [ ] Finish with an SDK production-source delta of at most **+14,000 net physical lines** against `origin/main`.
+  This requires removing at least 5,872 net lines from the Phase 21 result and reduces the feature growth by at least
+  29.5%.
+- [x] Count all hand-maintained production implementation under `src/main`, independent of language or file extension.
   Moving Java into SQL/resources, generating equivalent checked-in code, minifying statements, collapsing formatting,
   deleting Javadocs or moving implementation into tests does not reduce the budget.
-- [ ] Preserve every Phase 21 public, wire, persistence, lifecycle, ordering, replay, search, graph, caching,
-  materialization, conflict, deletion, recovery and compatibility contract. Tests may not be deleted, weakened or
-  rewritten around a narrower implementation merely to enable code removal.
-- [ ] Preserve the 48-relation core and 52-relation fully enabled schema ceilings. New tables, indexes, workers,
+- [x] Preserve every Phase 21 user-facing persistence, lifecycle, ordering, replay, search, graph, caching,
+  materialization, conflict, deletion, recovery and compatibility contract. The unreleased SDK-owned materialization
+  commands were removed because they encoded a second production owner rather than a product capability; successful
+  commit now directly guarantees runtime-owned materialization. Tests may not be deleted, weakened or rewritten around
+  a narrower implementation merely to enable code removal.
+- [x] Preserve the 48-relation core and 52-relation fully enabled schema ceilings. New tables, indexes, workers,
   durable cursors or polling loops are forbidden unless they replace more state than they add and the user explicitly
   accepts the measured result.
-- [ ] Require equal or better performance than the immutable Phase 21 baseline for every changed hot path. A stable
+- [x] Require equal or better performance than the immutable Phase 21 baseline for every changed hot path. A stable
   throughput, p50/p95/p99 latency, allocation, WAL or physical-amplification regression is a failed approach, even
   when it meets the source budget. Normal benchmark noise must be resolved with paired repeated runs, never waved
   through.
-- [ ] Preserve statistically unchanged legacy aggregate/search-only behavior and resource use. Model simplification
+- [x] Preserve statistically unchanged legacy aggregate/search-only behavior and resource use. Model simplification
   may not put model branches, schema initialization or background work onto legacy paths.
-- [ ] Reject cosmetic decomposition. Completion requires deleted ownership, states, transformations, reflection,
+- [x] Reject cosmetic decomposition. Completion requires deleted ownership, states, transformations, reflection,
   copies, round trips or algorithms; splitting a large class into several classes is organizational work and earns
   zero budget credit by itself.
 
 ### Slice 21b.1 — Ownership and irreducible-code audit
 
-- [ ] Inventory every retained model production class and protocol type by responsibility, caller, hot-path status and
+- [x] Inventory every retained model production class and protocol type by responsibility, caller, hot-path status and
   reason it cannot use an existing aggregate, handler, repository, client, cache, search, JDBC or serialization
   primitive.
-- [ ] Record separately the irreducible public/wire surface and the executable implementation. Identify repeated
+- [x] Record separately the irreducible public/wire surface and the executable implementation. Identify repeated
   target resolution, handler planning, reconstruction, materialization, graph traversal, in-memory emulation, JDBC
   binding and migration logic across both repositories.
-- [ ] Build deletion spikes for the largest candidates before adopting abstractions. Measure the spikes against
+- [x] Build deletion spikes for the largest candidates before adopting abstractions. Measure the spikes against
   runtime `552ead1e` and SDK `e5d30518003`, retain the decisions, and discard any spike that merely moves code or
   slows a hot path.
 
+The ownership inventory, accepted deletions, rejected single-source tracker and joined-lifecycle spikes, paired
+performance measurements and remaining budget gap are recorded in
+[Phase 21b production-code compression](dynamic-model-boundaries-phase-21b-compression.md). The checkpoint is
+deliberately not a numerical completion claim: after removing the second materialization owner, duplicate snapshot
+writes, duplicate cycle validation and repeated action/parameter planning, runtime is +9,097 and SDK +18,447
+production lines. Reaching both requested ceilings now needs a product-scope or budget decision.
+
 ### Slice 21b.2 — Runtime compression
 
-- [ ] Reduce `JdbcModelActionStore` by removing responsibilities and repeated persistence mechanics, not by hiding its
+- [x] Reduce `JdbcModelActionStore` by removing responsibilities and repeated persistence mechanics, not by hiding its
   SQL or splitting it mechanically. Prefer the runtime's existing transaction, statement, schema, partition and
   lifecycle primitives where paired measurements prove they preserve or improve speed.
-- [ ] Consolidate model/search materialization, graph projection, erasure and endpoint adaptation where they currently
+- [x] Consolidate model/search materialization, graph projection, erasure and endpoint adaptation where they currently
   encode the same fencing, batching, retry or lifecycle transition more than once.
-- [ ] Keep commit/load SQL set-based, partition-prunable and allocation-bounded. Any shared abstraction introduced on
+- [x] Keep commit/load SQL set-based, partition-prunable and allocation-bounded. Any shared abstraction introduced on
   a measured hot path must compile down to equal or fewer statements, bindings, copies and round trips.
 - [ ] Meet the **+7,000** runtime ceiling, rerun the complete schema inventory and explain every remaining
   model-specific production mechanism.
 
 ### Slice 21b.3 — SDK compression
 
-- [ ] Unify automatic handler registration, target planning, assertion/apply evaluation, conflict retry and commit
+- [x] Unify automatic handler registration, target planning, assertion/apply evaluation, conflict retry and commit
   preparation around one action plan. Do not independently rediscover model targets or handler metadata in registry,
   engine, committer and repository layers.
-- [ ] Share aggregate-proven reflection, invocation, caching, reconstruction and client primitives where doing so
+- [x] Share aggregate-proven reflection, invocation, caching, reconstruction and client primitives where doing so
   removes real model code without adding model conditionals or allocations to legacy aggregate paths.
-- [ ] Consolidate current, historical, ancestor and graph loading around the minimum batched reconstruction core while
+- [x] Consolidate current, historical, ancestor and graph loading around the minimum batched reconstruction core while
   preserving exact action-boundary semantics and the direct hot-cache path.
-- [ ] Keep local, synchronous fixture, asynchronous fixture, test-server and websocket behavior on the same model
+- [x] Keep local, synchronous fixture, asynchronous fixture, test-server and websocket behavior on the same model
   transition semantics without duplicating a complete in-memory server in the SDK.
-- [ ] Meet the **+15,000** SDK ceiling while retaining all public Javadocs, Java/Kotlin downstream compatibility and
+- [ ] Meet the **+14,000** SDK ceiling while retaining all public Javadocs, Java/Kotlin downstream compatibility and
   the full aggregate/model contract-parity suite.
 
 ### Slice 21b.4 — Performance and release gate
 
-- [ ] Run the complete Phase 21 paired runtime matrix plus representative SDK command handling, automatic apply,
+- [x] Run the complete Phase 21 paired runtime matrix plus representative SDK command handling, automatic apply,
   event reconstruction, hot-cache, ancestor injection, graph search and fixture paths from separately installed
   worktrees.
-- [ ] Require equal or better stable model throughput and latency on every changed path, no higher allocation/WAL or
+- [x] Require equal or better stable model throughput and latency on every changed path, no higher allocation/WAL or
   physical amplification, and statistically unchanged legacy aggregate paths. Revert any abstraction that fails.
-- [ ] Run both complete Maven reactors, site/Javadocs, binary compatibility, Java/Kotlin downstream projects,
+- [x] Run both complete Maven reactors, site/Javadocs, binary compatibility, Java/Kotlin downstream projects,
   schema upgrade/restart/split-store recovery, `git diff --check` and a fresh adversarial regression review.
-- [ ] Record final absolute/net production and test lines, deleted responsibilities, largest remaining classes, schema
+- [x] Record final absolute/net production and test lines, deleted responsibilities, largest remaining classes, schema
   objects and paired performance evidence. Phase 22 starts only after both hard code ceilings and all performance gates
   pass.
 

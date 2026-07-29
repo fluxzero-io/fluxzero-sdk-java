@@ -19,7 +19,10 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
+import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelActionTargetResult;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
@@ -555,63 +558,88 @@ public class InMemorySearchStore implements SearchClient {
         return CompletableFuture.completedFuture(null);
     }
 
-    @Override
-    public synchronized CompletableFuture<Void>
+    public synchronized void
             materializeModelAction(
-                    MaterializeModelAction action) {
+                    CommitModelAction action,
+                    List<ModelActionSubstepResult>
+                            assignedSubsteps,
+                    Set<String> excludedModelIds) {
         Map<String, SerializedDocument> indexed =
                 new LinkedHashMap<>();
-        action.getDocuments().forEach(update -> {
-            long current =
-                    modelDocumentStateIndices
-                            .getOrDefault(
-                                    update.getModelId(),
-                                    -1L);
-            if (current >= update.getStateIndex()) {
-                return;
+        for (int substep = 0;
+             substep < action.getSubsteps().size();
+             substep++) {
+            List<ModelActionTarget> targets =
+                    action.getSubsteps().get(substep)
+                            .getTargets();
+            ModelActionSubstepResult assigned =
+                    assignedSubsteps.get(substep);
+            for (int targetIndex = 0;
+                 targetIndex < targets.size();
+                 targetIndex++) {
+                ModelActionTarget target =
+                        targets.get(targetIndex);
+                if (excludedModelIds.contains(
+                        target.getModelId())) {
+                    continue;
+                }
+                long stateIndex =
+                        assigned.getStateIndex();
+                if (target.getDocument() != null) {
+                    long current =
+                            modelDocumentStateIndices
+                                    .getOrDefault(
+                                            target.getModelId(),
+                                            -1L);
+                    if (current < stateIndex) {
+                        modelDocumentStateIndices.put(
+                                target.getModelId(),
+                                stateIndex);
+                        var mutation =
+                                target.getDocument();
+                        SerializedDocument document =
+                                mutation.getDocument();
+                        if (document == null) {
+                            documents.remove(
+                                    asIdentifier(
+                                            mutation.getCollection(),
+                                            target.getModelId()));
+                        } else {
+                            documents.put(
+                                    identifier.apply(document),
+                                    document);
+                            indexed.put(
+                                    identifier.apply(document),
+                                    document);
+                            collections.add(
+                                    document.getCollection());
+                        }
+                    }
+                }
+                ModelActionTargetResult position =
+                        assigned.getTargets()
+                                .get(targetIndex);
+                if (target.getSnapshot() != null
+                    && position.isHistoryComplete()) {
+                    SerializedDocument document =
+                            target.getSnapshot()
+                                    .toDocument(
+                                            target.getModelId(),
+                                            position.getSequenceNumber(),
+                                            stateIndex);
+                    documents.putIfAbsent(
+                            identifier.apply(document),
+                            document);
+                    collections.add(
+                            document.getCollection());
+                    trimModelSnapshots(
+                            target.getModelId(),
+                            target.getSnapshot()
+                                    .getMaxSnapshotCount());
+                }
             }
-            modelDocumentStateIndices.put(
-                    update.getModelId(),
-                    update.getStateIndex());
-            var mutation =
-                    update.getMutation();
-            SerializedDocument document =
-                    mutation.getDocument();
-            if (document == null) {
-                documents.remove(
-                        asIdentifier(
-                                mutation.getCollection(),
-                                update.getModelId()));
-            } else {
-                documents.put(
-                        identifier.apply(document),
-                        document);
-                indexed.put(
-                        identifier.apply(document),
-                        document);
-                collections.add(
-                        document.getCollection());
-            }
-        });
+        }
         storeMessages(indexed);
-        action.getSnapshots().forEach(update -> {
-            SerializedDocument document =
-                    update.getMutation().toDocument(
-                            update.getModelId(),
-                            update.getSequenceNumber(),
-                            update.getStateIndex());
-            documents.putIfAbsent(
-                    identifier.apply(document),
-                    document);
-            collections.add(
-                    document.getCollection());
-            trimModelSnapshots(
-                    update.getModelId(),
-                    update.getMutation()
-                            .getMaxSnapshotCount());
-        });
-        return CompletableFuture.completedFuture(
-                null);
     }
 
     /**

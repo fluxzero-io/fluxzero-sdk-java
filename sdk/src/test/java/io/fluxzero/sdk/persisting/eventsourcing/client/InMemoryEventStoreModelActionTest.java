@@ -29,6 +29,7 @@ import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -279,6 +281,74 @@ class InMemoryEventStoreModelActionTest {
         assertTrue(retryResult.isDuplicate());
         assertEquals(1, store.getBatch(null, 10, true).size());
         assertEquals(1, store.getEvents("order-1").count());
+    }
+
+    @Test
+    void duplicateCommitRetriesTheOriginalDirectMaterialization() {
+        InMemoryEventStore store = denseStore();
+        AtomicInteger attempts =
+                new AtomicInteger();
+        store.setModelActionMaterializer(
+                (action, assigned, excluded) -> {
+                    assertEquals(
+                            "action-1",
+                            action.getActionId());
+                    assertEquals(
+                            0L,
+                            assigned.getFirst()
+                                    .getStateIndex());
+                    assertTrue(excluded.isEmpty());
+                    if (attempts.getAndIncrement()
+                        == 0) {
+                        throw new IllegalStateException(
+                                "search unavailable");
+                    }
+                });
+        CommitModelAction action =
+                action(
+                        "action-1",
+                        ModelActionSubstep.builder()
+                                .event(event("event-1"))
+                                .publishEvent(true)
+                                .targets(
+                                        List.of(
+                                                storedTarget(
+                                                        "order-1")
+                                                        .toBuilder()
+                                                        .document(
+                                                                new ModelDocumentMutation(
+                                                                        "orders",
+                                                                        null))
+                                                        .build()))
+                                .build());
+
+        assertThrows(
+                CompletionException.class,
+                () -> store.commitModelAction(
+                                action)
+                        .join());
+        CommitModelAction retryAction =
+                action(
+                        "action-1",
+                        ModelActionSubstep.builder()
+                                .event(event("event-2"))
+                                .publishEvent(true)
+                                .targets(
+                                        action.getSubsteps()
+                                                .getFirst()
+                                                .getTargets())
+                                .build());
+        CommitModelActionResult retry =
+                store.commitModelAction(
+                                retryAction)
+                        .join();
+
+        assertEquals(2, attempts.get());
+        assertTrue(retry.isDuplicate());
+        assertEquals(
+                1,
+                store.getEvents("order-1")
+                        .count());
     }
 
     @Test
@@ -1027,6 +1097,52 @@ class InMemoryEventStoreModelActionTest {
         assertThrows(CompletionException.class, () -> store.commitModelAction(action).join());
         assertEquals(0, store.getBatch(null, 10, true).size());
         assertEquals(-1L, store.getModelEvents(
+                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+    }
+
+    @Test
+    void rejectsDynamicRelationshipCyclesBeforePublishingOrMutating() {
+        InMemoryEventStore store = denseStore();
+        ModelActionTarget child = storedTarget("b")
+                .toBuilder()
+                .updateRelationships(true)
+                .relationships(List.of(
+                        ModelRelationship.builder()
+                                .parentId("a")
+                                .build()))
+                .build();
+        store.commitModelAction(action(
+                "create-b",
+                ModelActionSubstep.builder()
+                        .event(event("event-b"))
+                        .publishEvent(true)
+                        .targets(List.of(child))
+                        .build())).join();
+        ModelActionTarget cyclic = storedTarget("a")
+                .toBuilder()
+                .updateRelationships(true)
+                .relationships(List.of(
+                        ModelRelationship.builder()
+                                .parentId("b")
+                                .build()))
+                .build();
+
+        assertThrows(
+                CompletionException.class,
+                () -> store.commitModelAction(
+                                action(
+                                        "cycle", 0L,
+                                        ModelConflictPolicy.ACCEPT,
+                                        ModelActionSubstep.builder()
+                                                .event(event("event-a"))
+                                                .publishEvent(true)
+                                                .targets(List.of(cyclic))
+                                                .build()))
+                        .join());
+
+        assertEquals(1, store.getBatch(null, 10, true).size());
+        assertEquals(0, store.getEvents("a").count());
+        assertEquals(0L, store.getModelEvents(
                 new GetModelEvents(List.of(), null, 0L)).getStateIndex());
     }
 

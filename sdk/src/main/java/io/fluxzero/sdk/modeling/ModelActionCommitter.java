@@ -21,10 +21,6 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModelAction;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
-import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
-import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
-import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.modeling.ModelActionSubstep;
 import io.fluxzero.common.api.modeling.ModelActionSubstepResult;
 import io.fluxzero.common.api.modeling.ModelActionTarget;
@@ -41,7 +37,6 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
-import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 
@@ -53,9 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -72,58 +65,37 @@ import static io.fluxzero.common.SearchUtils.parseTimeProperty;
  * before a successful model action returns, preserving immediate direct-search visibility across retries and restarts.
  */
 final class ModelActionCommitter {
-    private static final int MAX_PENDING_REPAIRS = 10_000;
     private static final int MAX_ACCEPT_REBASE_ATTEMPTS = 10;
 
     private final EventStoreClient eventStoreClient;
-    private final DocumentStore documentStore;
     private final Serializer serializer;
     private final Serializer snapshotSerializer;
     private final DocumentSerializer documentSerializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final String source;
-    private final Function<CommittedAction, CompletableFuture<Void>> afterCommit;
-    private final Map<String, PendingCommit> pendingRepairs =
-            new ConcurrentHashMap<>();
-    private final Semaphore pendingRepairCapacity =
-            new Semaphore(MAX_PENDING_REPAIRS);
+    private final Consumer<CommittedAction> afterCommit;
 
     ModelActionCommitter(
             EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
             Serializer serializer,
             DocumentSerializer documentSerializer,
             DispatchInterceptor dispatchInterceptor,
             String source) {
-        this(eventStoreClient, documentStore, serializer, documentSerializer,
+        this(eventStoreClient, serializer, documentSerializer,
              dispatchInterceptor, source, serializer,
-             ignored -> CompletableFuture.completedFuture(null));
+             ignored -> {
+             });
     }
 
     ModelActionCommitter(
             EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
-            Serializer serializer,
-            DocumentSerializer documentSerializer,
-            DispatchInterceptor dispatchInterceptor,
-            String source,
-            Function<CommittedAction, CompletableFuture<Void>> afterCommit) {
-        this(eventStoreClient, documentStore, serializer,
-             documentSerializer, dispatchInterceptor, source,
-             serializer, afterCommit);
-    }
-
-    ModelActionCommitter(
-            EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
             Serializer serializer,
             DocumentSerializer documentSerializer,
             DispatchInterceptor dispatchInterceptor,
             String source,
             Serializer snapshotSerializer,
-            Function<CommittedAction, CompletableFuture<Void>> afterCommit) {
+            Consumer<CommittedAction> afterCommit) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient);
-        this.documentStore = Objects.requireNonNull(documentStore);
         this.serializer = Objects.requireNonNull(serializer);
         this.snapshotSerializer = snapshotSerializer;
         this.documentSerializer = Objects.requireNonNull(documentSerializer);
@@ -142,7 +114,7 @@ final class ModelActionCommitter {
             ModelActionEngine.ActionEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
         return commitPrepared(
-                actionId, evaluation,
+                evaluation,
                 prepare(actionId, evaluation, conflictPolicy));
     }
 
@@ -172,7 +144,7 @@ final class ModelActionCommitter {
                     ThreadLocalContext.Snapshot context,
                     int attempts) {
         return commitPrepared(
-                actionId, evaluation, prepared)
+                evaluation, prepared)
                 .thenCompose(optional -> {
                     if (optional.isEmpty()
                         || !optional.get().isRebaseRequired()) {
@@ -227,209 +199,21 @@ final class ModelActionCommitter {
 
     private CompletableFuture<Optional<CommitModelActionResult>>
             commitPrepared(
-                    String actionId,
                     ModelActionEngine.ActionEvaluation evaluation,
-                    PreparedCommit candidatePrepared) {
-        PendingCommit pending = pendingRepairs.get(actionId);
-        boolean retainedRepair = pending != null;
-        if (pending == null) {
-            PreparedCommit prepared =
-                    candidatePrepared;
-            if (prepared.action() == null) {
-                return CompletableFuture.completedFuture(
-                        Optional.empty());
-            }
-            if (!pendingRepairCapacity.tryAcquire()) {
-                throw new RejectedExecutionException(
-                        "Too many model actions are awaiting commit or direct-document repair");
-            }
-            PendingCommit candidate =
-                    new PendingCommit(evaluation, prepared);
-            PendingCommit known =
-                    pendingRepairs.putIfAbsent(
-                            actionId, candidate);
-            if (known != null) {
-                pendingRepairCapacity.release();
-            }
-            pending = known == null
-                    ? candidate : known;
-            retainedRepair = known != null;
+                    PreparedCommit prepared) {
+        if (prepared.action() == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
         }
-        PendingCommit retained = pending;
-        PreparedCommit prepared = pending.prepared();
-        boolean repairFromRetainedEvaluation = retainedRepair;
         return eventStoreClient.commitModelAction(prepared.action())
-                .thenCompose(result -> {
+                .thenApply(result -> {
                     if (!result.isAccepted()) {
-                        clearPending(
-                                actionId, retained);
-                        return CompletableFuture.completedFuture(
-                                Optional.of(result));
+                        return Optional.of(result);
                     }
-                    if (result.isDuplicate()
-                        && !repairFromRetainedEvaluation) {
-                        clearPending(actionId, retained);
-                        return materializationComplete(
-                                result)
-                                ? CompletableFuture
-                                        .completedFuture(
-                                                Optional.of(
-                                                        result))
-                                : repairRetainedMaterialization(
-                                        actionId, result)
-                                        .thenApply(
-                                                ignored ->
-                                                        Optional.of(
-                                                                result));
-                    }
-                    boolean sdkOwnsMaterialization =
-                            requiresMaterialization(
-                                    prepared.action(),
-                                    result);
-                    MaterializeModelAction materialization =
-                            sdkOwnsMaterialization
-                                    ? MaterializeModelAction.from(
-                                            prepared.action(),
-                                            result.getSubsteps())
-                                    : null;
-                    CompletableFuture<Void> external =
-                            materialization == null
-                                    ? CompletableFuture
-                                            .completedFuture(
-                                                    null)
-                                    : documentStore
-                                            .materializeModelAction(
-                                                    materialization);
-                    CommitModelActionResult materializedResult =
-                            sdkOwnsMaterialization
-                                    ? result.withDocumentsApplied()
-                                            .withSnapshotsApplied()
-                                    : result;
-                    return external.thenCompose(ignored ->
-                                                         afterCommit.apply(
-                                                                 new CommittedAction(
-                                                                         retained.evaluation(),
-                                                                         prepared,
-                                                                         materializedResult)))
-                            .thenCompose(ignored ->
-                                                 sdkOwnsMaterialization
-                                                         ? eventStoreClient
-                                                                 .completeModelActionMaterialization(
-                                                                         new CompleteModelActionMaterialization(
-                                                                                 actionId,
-                                                                                 result.getSubsteps()
-                                                                                         .getLast()
-                                                                                         .getStateIndex()))
-                                                         : CompletableFuture
-                                                                 .completedFuture(
-                                                                         null))
-                            .thenApply(ignored -> {
-                                clearPending(
-                                        actionId, retained);
-                                return Optional.of(result);
-                            });
+                    afterCommit.accept(
+                            new CommittedAction(
+                                    evaluation, prepared, result));
+                    return Optional.of(result);
                 });
-    }
-
-    private static boolean materializationComplete(
-            CommitModelActionResult result) {
-        return result.isDocumentsApplied()
-               && result.isSnapshotsApplied();
-    }
-
-    private static boolean requiresMaterialization(
-            CommitModelAction action,
-            CommitModelActionResult result) {
-        boolean hasDocuments =
-                action.getSubsteps().stream()
-                        .flatMap(substep ->
-                                         substep.getTargets()
-                                                 .stream())
-                        .anyMatch(target ->
-                                          target.getDocument()
-                                          != null);
-        boolean hasSnapshots =
-                action.getSubsteps().stream()
-                        .flatMap(substep ->
-                                         substep.getTargets()
-                                                 .stream())
-                        .anyMatch(target ->
-                                          target.getSnapshot()
-                                          != null);
-        return hasDocuments
-               && !result.isDocumentsApplied()
-               || hasSnapshots
-                  && !result.isSnapshotsApplied();
-    }
-
-    private CompletableFuture<Void>
-            repairRetainedMaterialization(
-                    String actionId,
-                    CommitModelActionResult committed) {
-        ThreadLocalContext.Snapshot context =
-                ThreadLocalContext.capture();
-        return CompletableFuture.supplyAsync(
-                        context.wrap(
-                                () -> eventStoreClient
-                                        .getModelActionMaterialization(
-                                                new GetModelActionMaterialization(
-                                                        actionId))))
-                .thenCompose(retained -> {
-                    validateRetainedMaterialization(
-                            retained, committed);
-                    if (retained.isComplete()) {
-                        return CompletableFuture
-                                .completedFuture(null);
-                    }
-                    MaterializeModelAction materialization =
-                            new MaterializeModelAction(
-                                    retained.getActionId(),
-                                    retained.getLastStateIndex(),
-                                    retained.getDocuments(),
-                                    retained.getSnapshots());
-                    return documentStore
-                            .materializeModelAction(
-                                    materialization)
-                            .thenCompose(ignored ->
-                                                 eventStoreClient
-                                                         .completeModelActionMaterialization(
-                                                                 new CompleteModelActionMaterialization(
-                                                                         actionId,
-                                                                         retained.getLastStateIndex())));
-                });
-    }
-
-    private static void validateRetainedMaterialization(
-            GetModelActionMaterializationResult retained,
-            CommitModelActionResult committed) {
-        if (!committed.getActionId()
-                .equals(retained.getActionId())) {
-            throw new IllegalStateException(
-                    "Model materialization repair returned action '%s' for '%s'"
-                            .formatted(
-                                    retained.getActionId(),
-                                    committed.getActionId()));
-        }
-        long expected =
-                committed.getSubsteps().getLast()
-                        .getStateIndex();
-        if (retained.getLastStateIndex()
-            != expected) {
-            throw new IllegalStateException(
-                    "Model materialization repair for '%s' ends at state index %d instead of %d"
-                            .formatted(
-                                    committed.getActionId(),
-                                    retained.getLastStateIndex(),
-                                    expected));
-        }
-    }
-
-    private void clearPending(
-            String actionId, PendingCommit pending) {
-        if (pendingRepairs.remove(
-                actionId, pending)) {
-            pendingRepairCapacity.release();
-        }
     }
 
     CompletableFuture<Optional<CommitModelActionResult>> commit(
@@ -556,59 +340,9 @@ final class ModelActionCommitter {
 
             List<ModelActionTarget> targets = new ArrayList<>(transitions.size());
             for (EffectiveTransition transition : transitions) {
-                ModelActionEngine.Transition sourceTransition = transition.transition();
-                DirectDocument directDocument =
-                        transition.updateState()
-                                ? directDocument(
-                                        sourceTransition,
-                                        appliedSubstep
-                                                .message()
-                                                .getTimestamp(),
-                                        appliedSubstep
-                                                .message()
-                                                .getMetadata())
-                                        .map(this::serializeDocument)
-                                        .orElse(null)
-                                : null;
-                long nextSequence = nextSequence(
-                        sourceTransition, transition,
-                        nextSequences);
-                ModelSnapshotMutation snapshot =
-                        snapshot(
-                                sourceTransition,
-                                transition,
-                                nextSequence,
-                                appliedSubstep.message()
-                                        .getTimestamp());
-                RelationshipUpdate relationshipUpdate =
-                        transition.updateState()
-                                ? relationshipUpdate(
-                                        sourceTransition)
-                                : new RelationshipUpdate(
-                                        false, List.of());
-                targets.add(ModelActionTarget.builder()
-                                    .modelId(sourceTransition.modelId())
-                                    .modelType(sourceTransition.modelType().getName())
-                                    .storeEvent(transition.storeEvent())
-                                    .updateState(
-                                            transition
-                                                    .updateState())
-                                    .delete(
-                                            transition
-                                                    .updateState()
-                                            && sourceTransition
-                                                       .after()
-                                               == null)
-                                    .document(directDocument == null
-                                                      ? null : new ModelDocumentMutation(
-                                                              directDocument.collection(),
-                                                              directDocument.document()))
-                                    .snapshot(snapshot)
-                                    .updateRelationships(
-                                            relationshipUpdate.update())
-                                    .relationships(
-                                            relationshipUpdate.relationships())
-                                    .build());
+                targets.add(target(
+                        transition, appliedSubstep.message(),
+                        nextSequences, null));
             }
             substeps.add(ModelActionSubstep.builder()
                                  .event(event)
@@ -698,17 +432,6 @@ final class ModelActionCommitter {
                                             transition.modelType()
                                                     .getName()));
                 }
-                DirectDocument directDocument =
-                        originalTarget.isUpdateState()
-                                ? directDocument(
-                                        transition,
-                                        rebased.message()
-                                                .getTimestamp(),
-                                        rebased.message()
-                                                .getMetadata())
-                                        .map(this::serializeDocument)
-                                        .orElse(null)
-                                : null;
                 EffectiveTransition effectiveTransition =
                         new EffectiveTransition(
                                 transition,
@@ -720,43 +443,9 @@ final class ModelActionCommitter {
                                         .eventRouting());
                 validateCompleteHistory(
                         effectiveTransition);
-                long nextSequence = nextSequence(
-                        transition,
-                        effectiveTransition,
-                        nextSequences);
-                RelationshipUpdate relationshipUpdate =
-                        effectiveTransition
-                                .updateState()
-                                ? relationshipUpdate(
-                                        transition)
-                                : new RelationshipUpdate(
-                                        false, List.of());
-                targets.add(originalTarget.toBuilder()
-                                    .delete(
-                                            effectiveTransition
-                                                    .updateState()
-                                            && transition.after()
-                                               == null)
-                                    .document(
-                                            directDocument == null
-                                                    ? null
-                                                    : new ModelDocumentMutation(
-                                                            directDocument
-                                                                    .collection(),
-                                                            directDocument
-                                                                    .document()))
-                                    .snapshot(
-                                            snapshot(
-                                                    transition,
-                                                    effectiveTransition,
-                                                    nextSequence,
-                                                    rebased.message()
-                                                            .getTimestamp()))
-                                    .updateRelationships(
-                                            relationshipUpdate.update())
-                                    .relationships(
-                                            relationshipUpdate.relationships())
-                                    .build());
+                targets.add(target(
+                        effectiveTransition, rebased.message(),
+                        nextSequences, originalTarget));
                 effective.add(effectiveTransition);
             }
             if (!transitionsById.isEmpty()) {
@@ -780,6 +469,40 @@ final class ModelActionCommitter {
                 action,
                 List.copyOf(transitionGroups),
                 original.messages());
+    }
+
+    private ModelActionTarget target(
+            EffectiveTransition effective,
+            DeserializingMessage message,
+            Map<String, Long> nextSequences,
+            ModelActionTarget original) {
+        ModelActionEngine.Transition transition = effective.transition();
+        DirectDocument document = effective.updateState()
+                ? directDocument(
+                        transition, message.getTimestamp(), message.getMetadata())
+                        .map(this::serializeDocument).orElse(null)
+                : null;
+        RelationshipUpdate relationships = effective.updateState()
+                ? relationshipUpdate(transition)
+                : new RelationshipUpdate(false, List.of());
+        ModelActionTarget.ModelActionTargetBuilder builder = original == null
+                ? ModelActionTarget.builder()
+                        .modelId(transition.modelId())
+                        .modelType(transition.modelType().getName())
+                        .storeEvent(effective.storeEvent())
+                        .updateState(effective.updateState())
+                : original.toBuilder();
+        return builder
+                .delete(effective.updateState() && transition.after() == null)
+                .document(document == null ? null
+                        : new ModelDocumentMutation(document.collection(), document.document()))
+                .snapshot(snapshot(
+                        transition, effective,
+                        nextSequence(transition, effective, nextSequences),
+                        message.getTimestamp()))
+                .updateRelationships(relationships.update())
+                .relationships(relationships.relationships())
+                .build();
     }
 
     private SerializedMessage serialize(DeserializingMessage message) {
@@ -1053,11 +776,6 @@ final class ModelActionCommitter {
             ModelActionEngine.ActionEvaluation evaluation,
             PreparedCommit prepared,
             CommitModelActionResult result) {
-    }
-
-    private record PendingCommit(
-            ModelActionEngine.ActionEvaluation evaluation,
-            PreparedCommit prepared) {
     }
 
     record DirectDocument(

@@ -21,6 +21,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModelActionResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.handling.Handler;
@@ -36,7 +37,6 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
-import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
@@ -86,7 +86,11 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations =
             new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Class<?>, List<ModelMetadata.HandlerMethod>> handlerPlans =
+    private final ConcurrentHashMap<Class<?>, ActionPlan> actionPlans =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<TargetPlanKey, ModelTargetResolver.TargetPlan> targetPlans =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Class<?>, List<ProjectionRoot>> projectionPlans =
             new ConcurrentHashMap<>();
 
     /**
@@ -96,102 +100,10 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         return repository;
     }
 
+    /** Creates the automatic model-action registry. */
     public ModelActionHandlerRegistry(
             DefaultModelRepository repository,
             EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
-            Serializer serializer,
-            DocumentSerializer documentSerializer,
-            DispatchInterceptor eventDispatchInterceptor,
-            String source,
-            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
-            HandlerDecorator handlerDecorator) {
-        this(repository, eventStoreClient, documentStore, serializer,
-             serializer, documentSerializer, eventDispatchInterceptor,
-             source, parameterResolvers, handlerDecorator);
-    }
-
-    /**
-     * Creates a model-action registry with a dedicated snapshot serializer.
-     */
-    public ModelActionHandlerRegistry(
-            DefaultModelRepository repository,
-            EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
-            Serializer serializer,
-            Serializer snapshotSerializer,
-            DocumentSerializer documentSerializer,
-            DispatchInterceptor eventDispatchInterceptor,
-            String source,
-            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
-            HandlerDecorator handlerDecorator) {
-        this(repository, eventStoreClient, documentStore, serializer,
-             snapshotSerializer, documentSerializer,
-             eventDispatchInterceptor, source, parameterResolvers, handlerDecorator,
-             ModelConflictPolicy.ACCEPT, ModelConflictResolver.fail(), 0,
-             AutomaticModelHandling.ENABLED,
-             GraphProjectionCompletion.ASYNC);
-    }
-
-    /**
-     * Creates a model-action registry with an explicit optional conflict policy.
-     */
-    public ModelActionHandlerRegistry(
-            DefaultModelRepository repository,
-            EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
-            Serializer serializer,
-            DocumentSerializer documentSerializer,
-            DispatchInterceptor eventDispatchInterceptor,
-            String source,
-            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
-            HandlerDecorator handlerDecorator,
-            ModelConflictPolicy conflictPolicy,
-            ModelConflictResolver conflictResolver,
-            int maxConflictRetries) {
-        this(repository, eventStoreClient, documentStore, serializer,
-             serializer, documentSerializer, eventDispatchInterceptor,
-             source, parameterResolvers, handlerDecorator, conflictPolicy,
-             conflictResolver, maxConflictRetries,
-             AutomaticModelHandling.ENABLED,
-             GraphProjectionCompletion.ASYNC);
-    }
-
-    /**
-     * Creates a model-action registry with dedicated snapshot serialization and an explicit optional conflict policy.
-     */
-    public ModelActionHandlerRegistry(
-            DefaultModelRepository repository,
-            EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
-            Serializer serializer,
-            Serializer snapshotSerializer,
-            DocumentSerializer documentSerializer,
-            DispatchInterceptor eventDispatchInterceptor,
-            String source,
-            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
-            HandlerDecorator handlerDecorator,
-            ModelConflictPolicy conflictPolicy,
-            ModelConflictResolver conflictResolver,
-            int maxConflictRetries) {
-        this(repository, eventStoreClient, documentStore,
-             serializer, snapshotSerializer,
-             documentSerializer,
-             eventDispatchInterceptor, source,
-             parameterResolvers, handlerDecorator,
-             conflictPolicy, conflictResolver,
-             maxConflictRetries,
-             AutomaticModelHandling.ENABLED,
-             GraphProjectionCompletion.ASYNC);
-    }
-
-    /**
-     * Creates a model-action registry with scoped automatic handling defaults.
-     */
-    public ModelActionHandlerRegistry(
-            DefaultModelRepository repository,
-            EventStoreClient eventStoreClient,
-            DocumentStore documentStore,
             Serializer serializer,
             Serializer snapshotSerializer,
             DocumentSerializer documentSerializer,
@@ -209,7 +121,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         this.eventStoreClient =
                 Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.committer = new ModelActionCommitter(
-                eventStoreClient, documentStore, serializer, documentSerializer,
+                eventStoreClient, serializer, documentSerializer,
                 eventDispatchInterceptor, source, snapshotSerializer,
                 this::afterCommit);
         this.engine = new ModelActionEngine(parameterResolvers);
@@ -296,8 +208,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
 
     private boolean hasModelApplies(
             Class<?> payloadType) {
-        return !handlersFor(payloadType)
-                .isEmpty();
+        return declaresModelAction(payloadType, new LinkedHashSet<>());
     }
 
     private boolean automaticHandlingEnabled(
@@ -308,7 +219,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         }
         try {
             for (ModelMetadata.HandlerMethod handler :
-                    handlersFor(payloadType)) {
+                    planFor(payloadType).handlers()) {
                 if (handler.kind()
                     == ModelMetadata.HandlerKind.APPLY
                     && !handler.targetModelTypes()
@@ -372,11 +283,11 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             return Registration.noOp();
         }
         registeredModelTypes.add(targetType);
-        registerGraphProjection(targetType);
-        handlerPlans.clear();
+        projectionRoots(targetType).forEach(this::registerGraphProjection);
+        clearPlans();
         return () -> {
             registeredModelTypes.remove(targetType);
-            handlerPlans.clear();
+            clearPlans();
         };
     }
 
@@ -425,7 +336,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         boolean modelReceiver = ModelMetadata.of(targetType).isModel();
         boolean payloadAction = declaresModelAction(
                 targetType, new LinkedHashSet<>())
-                                && handlersFor(targetType).stream()
+                                && planFor(targetType).handlers().stream()
                                         .anyMatch(handler ->
                                                 handlerFilter.test(
                                                         handler.executable()
@@ -654,9 +565,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     apply == null
                             ? GraphProjectionCompletion.DEFAULT
                             : apply.graphProjectionCompletion();
-            projectionRoots(
-                    transition.modelType(),
-                    new LinkedHashSet<>())
+            projectionRoots(transition.modelType())
                     .forEach(root -> {
                         GraphProjectionCompletion policy =
                                 resolveProjectionCompletion(
@@ -702,104 +611,63 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private List<ProjectionRoot> projectionRoots(
-            Class<?> modelType,
-            Set<Class<?>> visited) {
+            Class<?> modelType) {
+        return projectionPlans.computeIfAbsent(modelType, this::inspectProjectionRoots);
+    }
+
+    private List<ProjectionRoot> inspectProjectionRoots(Class<?> modelType) {
+        return inspectProjectionRoots(modelType, new LinkedHashSet<>());
+    }
+
+    private List<ProjectionRoot> inspectProjectionRoots(
+            Class<?> modelType, Set<Class<?>> visited) {
         if (!visited.add(modelType)) {
             return List.of();
         }
-        List<ProjectionRoot> result =
-                new ArrayList<>();
-        ModelMetadata.of(modelType).model()
-                .filter(model ->
-                                !model.graphProjection()
-                                        .collection().isEmpty())
-                .flatMap(ignored ->
-                                 ModelGraphProjections.configuration(
-                                         modelType))
-                .ifPresent(configuration ->
-                                   result.add(
-                                           new ProjectionRoot(
-                                                   configuration
-                                                           .getCollection(),
-                                                   ModelMetadata.of(
-                                                                   modelType)
-                                                           .model()
-                                                           .orElseThrow()
-                                                           .graphProjection())));
-        ModelMetadata.of(modelType).parentReferences()
-                .stream()
+        List<ProjectionRoot> result = new ArrayList<>();
+        ModelMetadata metadata = ModelMetadata.of(modelType);
+        metadata.model()
+                .flatMap(model -> ModelGraphProjections.configuration(modelType)
+                        .map(configuration -> new ProjectionRoot(
+                                modelType, configuration, model.graphProjection())))
+                .ifPresent(result::add);
+        metadata.parentReferences().stream()
                 .map(ModelMetadata.ParentReference::parentModelType)
                 .filter(Objects::nonNull)
                 .forEach(parent ->
-                                 result.addAll(
-                                         projectionRoots(
-                                                 parent,
-                                                 visited)));
+                        result.addAll(inspectProjectionRoots(parent, visited)));
         return List.copyOf(result);
     }
 
     private CompletableFuture<Void> ensureGraphProjections(
             ModelActionEngine.ActionEvaluation evaluation) {
-        LinkedHashSet<Class<?>> visited =
-                new LinkedHashSet<>();
-        evaluation.substeps().stream()
-                .flatMap(substep ->
-                                 substep.transitions()
-                                         .stream())
+        LinkedHashSet<ProjectionRoot> roots = evaluation.substeps().stream()
+                .flatMap(substep -> substep.transitions().stream())
                 .map(ModelActionEngine.Transition::modelType)
-                .forEach(type ->
-                                 registerGraphProjections(
-                                         type, visited));
+                .flatMap(type -> projectionRoots(type).stream())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        roots.forEach(this::registerGraphProjection);
         return CompletableFuture.allOf(
-                visited.stream()
+                roots.stream()
+                        .map(ProjectionRoot::modelType)
+                        .distinct()
                         .map(graphProjectionRegistrations::get)
                         .filter(Objects::nonNull)
-                        .toArray(
-                                CompletableFuture[]::new));
-    }
-
-    private void registerGraphProjections(
-            Class<?> modelType,
-            Set<Class<?>> visited) {
-        if (!visited.add(modelType)) {
-            return;
-        }
-        registerGraphProjection(modelType);
-        ModelMetadata.of(modelType)
-                .parentReferences().stream()
-                .map(ModelMetadata.ParentReference::parentModelType)
-                .filter(Objects::nonNull)
-                .forEach(parentType ->
-                                 registerGraphProjections(
-                                         parentType, visited));
+                        .toArray(CompletableFuture[]::new));
     }
 
     private void registerGraphProjection(
-            Class<?> modelType) {
-        ModelGraphProjections.configuration(
-                        modelType)
-                .ifPresent(configuration -> {
-                    CompletableFuture<ModelGraphProjectionStatus>
-                            registration =
-                            graphProjectionRegistrations
-                                    .computeIfAbsent(
-                                            modelType,
-                                            ignored ->
-                                                    eventStoreClient
-                                                            .registerModelGraphProjection(
-                                                                    new RegisterModelGraphProjection(
-                                                                            configuration,
-                                                                            false)));
-                    registration.whenComplete(
-                            (result, failure) -> {
-                                if (failure != null) {
-                                    graphProjectionRegistrations
-                                            .remove(
-                                                    modelType,
-                                                    registration);
-                                }
-                            });
-                });
+            ProjectionRoot root) {
+        CompletableFuture<ModelGraphProjectionStatus> registration =
+                graphProjectionRegistrations.computeIfAbsent(
+                        root.modelType(),
+                        ignored -> eventStoreClient.registerModelGraphProjection(
+                                new RegisterModelGraphProjection(root.configuration(), false)));
+        registration.whenComplete((result, failure) -> {
+            if (failure != null) {
+                graphProjectionRegistrations.remove(root.modelType(), registration);
+            }
+        });
     }
 
     private CompletableFuture<ModelActionEngine.ActionEvaluation> reload(
@@ -812,12 +680,12 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         }
     }
 
-    private CompletableFuture<Void> afterCommit(
+    private void afterCommit(
             ModelActionCommitter.CommittedAction committed) {
         if (committed.prepared().transitionGroups().size()
             != committed.result().getSubsteps().size()) {
-            return CompletableFuture.failedFuture(new IllegalStateException(
-                    "Model commit returned a different number of substeps than requested"));
+            throw new IllegalStateException(
+                    "Model commit returned a different number of substeps than requested");
         }
         LinkedHashMap<String, DefaultModelRepository.CommittedModel> finalStates =
                 new LinkedHashMap<>();
@@ -829,8 +697,8 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             var substepResult = committed.result().getSubsteps().get(substep);
             var actionSubstep = committed.prepared().action().getSubsteps().get(substep);
             if (transitions.size() != substepResult.getTargets().size()) {
-                return CompletableFuture.failedFuture(new IllegalStateException(
-                        "Model commit returned a different number of targets than requested"));
+                throw new IllegalStateException(
+                        "Model commit returned a different number of targets than requested");
             }
             Instant timestamp = actionSubstep.getEvent() == null
                     ? Instant.now()
@@ -845,12 +713,6 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                     continue;
                 }
                 var targetResult = substepResult.getTargets().get(targetIndex);
-                Model model = ModelMetadata.of(
-                        transition.modelType()).model().orElseThrow();
-                boolean snapshotDue = model.snapshotPeriod() > 0
-                                      && Math.floorMod(
-                                              targetResult.getSequenceNumber() + 1L,
-                                              model.snapshotPeriod()) == 0L;
                 DefaultModelRepository.CommittedModel previous =
                         finalStates.get(transition.modelId());
                 List<DefaultModelRepository.CommittedRevision> revisions =
@@ -872,291 +734,160 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                         new DefaultModelRepository.CommittedModel(
                                 transition.modelId(), transition.modelType(),
                                 targetResult.isHistoryComplete(),
-                                snapshotDue
-                                && !committed.result()
-                                        .isSnapshotsApplied()
-                                || previous != null && previous.snapshotDue(),
                                 revisions));
             }
         }
-        return repository.updateAfterCommit(
+        repository.updateAfterCommit(
                 List.copyOf(finalStates.values()));
     }
 
     private ModelActionEngine.ActionEvaluation evaluate(DeserializingMessage initialMessage) {
-        class ActionLoader implements ModelActionEngine.SubstepResolver {
-            private final Map<String, Entity<?>> actionEntities =
-                    new LinkedHashMap<>();
-            private final Map<AncestorPlanKey,
-                    List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
-                    new LinkedHashMap<>();
-
-            @Override
-            public ModelActionEngine.ResolvedSubstep resolve(
-                    DeserializingMessage substep,
-                    Long requestedStateIndex,
-                    Map<String, Object> stagedValues) {
-                Object payload = substep.getPayload();
-                List<ModelMetadata.HandlerMethod> handlers =
-                        handlersFor(payload.getClass());
-                ModelTargetResolver.Resolution resolution =
-                        ModelTargetResolver.resolve(payload, handlers);
-                AncestorPlanKey ancestorPlanKey =
-                        resolution.hasAncestorDependencies()
-                                ? ancestorPlanKey(
-                                        resolution, stagedValues)
-                                : null;
-                List<ModelTargetResolver.ResolvedModel> effectiveTargets =
-                        ancestorPlanKey == null
-                                ? resolution.models()
-                                : ancestorPlans.get(ancestorPlanKey);
-                List<ModelTargetResolver.ResolvedModel> missing =
-                        effectiveTargets == null
-                                ? List.of()
-                                : effectiveTargets.stream()
-                                .filter(target -> !actionEntities.containsKey(
-                                        target.modelId()))
-                                .toList();
-                long stateIndex = requestedStateIndex == null
-                        ? -1L : requestedStateIndex;
-                if (effectiveTargets == null) {
-                    ModelActionContext loaded = repository.loadContext(
-                            resolution, requestedStateIndex,
-                            stagedValues);
-                    stateIndex = loaded.readStateIndex();
-                    effectiveTargets = targets(loaded);
-                    ancestorPlans.put(
-                            ancestorPlanKey, effectiveTargets);
-                    retain(loaded);
-                } else if (requestedStateIndex == null
-                           || !missing.isEmpty()) {
-                    ModelTargetResolver.Resolution loadResolution =
-                            requestedStateIndex == null
-                                    ? ancestorPlanKey == null
-                                            ? resolution
-                                            : resolution.withResolvedModels(
-                                                    effectiveTargets)
-                                    : new ModelTargetResolver.Resolution(
-                                            missing, List.of());
-                    ModelActionContext loaded = repository.loadContext(
-                            loadResolution, requestedStateIndex,
-                            stagedValues);
-                    stateIndex = loaded.readStateIndex();
-                    retain(loaded);
-                }
-                ModelTargetResolver.Resolution effectiveResolution =
-                        ancestorPlanKey == null
-                                ? resolution
-                                : resolution.withResolvedModels(
-                                        effectiveTargets);
-                LinkedHashMap<String, Entity<?>> selected =
-                        new LinkedHashMap<>();
-                for (ModelTargetResolver.ResolvedModel target :
-                        effectiveTargets) {
-                    selected.put(
-                            target.modelId(),
-                            Objects.requireNonNull(
-                                    actionEntities.get(target.modelId()),
-                                    "Missing action-scoped model "
-                                    + target.modelId()));
-                }
-                return new ModelActionEngine.ResolvedSubstep(
-                        ModelActionContext.create(
-                                stateIndex, effectiveResolution,
-                                selected),
-                        handlers);
-            }
-
-            @Override
-            public void prefetch(
-                    List<DeserializingMessage> messages,
-                    long readStateIndex,
-                    Map<String, Object> stagedValues) {
-                LinkedHashMap<String, ModelTargetResolver.ResolvedModel>
-                        missing = new LinkedHashMap<>();
-                for (DeserializingMessage message : messages) {
-                    Object payload = message.getPayload();
-                    List<ModelMetadata.HandlerMethod> handlers =
-                            handlersFor(payload.getClass());
-                    ModelTargetResolver.Resolution resolution =
-                            ModelTargetResolver.resolve(
-                                    payload, handlers);
-                    if (resolution.hasAncestorDependencies()) {
-                        AncestorPlanKey key = ancestorPlanKey(
-                                resolution, stagedValues);
-                        if (!ancestorPlans.containsKey(key)) {
-                            ModelActionContext loaded =
-                                    repository.loadContext(
-                                            resolution,
-                                            readStateIndex,
-                                            stagedValues);
-                            if (loaded.readStateIndex()
-                                != readStateIndex) {
-                                throw new IllegalStateException(
-                                        "Ancestor prefetch requested state index %d but loaded %d"
-                                                .formatted(
-                                                        readStateIndex,
-                                                        loaded.readStateIndex()));
-                            }
-                            ancestorPlans.put(key, targets(loaded));
-                            retain(loaded);
-                        }
-                        continue;
-                    }
-                    resolution.models().stream()
-                            .filter(target -> !actionEntities.containsKey(
-                                    target.modelId()))
-                            .forEach(target -> missing.putIfAbsent(
-                                    target.modelId(), target));
-                }
-                if (!missing.isEmpty()) {
-                    retain(repository.loadContext(
-                            new ModelTargetResolver.Resolution(
-                                    List.copyOf(missing.values()), List.of()),
-                            readStateIndex));
-                }
-            }
-
-            private void retain(ModelActionContext loaded) {
-                loaded.entries().forEach(entry -> actionEntities.put(
-                        entry.target().modelId(), entry.entity()));
-            }
-
-            private List<ModelTargetResolver.ResolvedModel> targets(
-                    ModelActionContext context) {
-                return context.entries().stream()
-                        .map(ModelActionContext.Entry::target)
-                        .toList();
-            }
-        }
-        return engine.evaluate(initialMessage, new ActionLoader());
+        return engine.evaluate(initialMessage, new ActionLoader(null));
     }
 
     private ModelActionEngine.ActionEvaluation rebase(
             List<DeserializingMessage> messages,
             long stateIndex) {
-        class RebaseLoader
-                implements ModelActionEngine.SubstepResolver {
-            private final Map<String, Entity<?>> actionEntities =
-                    new LinkedHashMap<>();
-            private final Map<AncestorPlanKey,
-                    List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
-                    new LinkedHashMap<>();
-
-            @Override
-            public ModelActionEngine.ResolvedSubstep resolve(
-                    DeserializingMessage substep,
-                    Long requestedStateIndex,
-                    Map<String, Object> stagedValues) {
-                long boundary = requestedStateIndex == null
-                        ? stateIndex : requestedStateIndex;
-                if (boundary != stateIndex) {
-                    throw new IllegalStateException(
-                            "Apply-only rebase moved from state index %d to %d"
-                                    .formatted(
-                                            stateIndex, boundary));
-                }
-                List<ModelMetadata.HandlerMethod> handlers =
-                        handlersFor(
-                                substep.getPayloadClass()).stream()
-                                .filter(handler -> handler.kind()
-                                                   == ModelMetadata.HandlerKind.APPLY)
-                                .toList();
-                ModelTargetResolver.Resolution resolution =
-                        ModelTargetResolver.resolve(
-                                substep.getPayload(),
-                                handlers);
-                AncestorPlanKey ancestorPlanKey =
-                        resolution.hasAncestorDependencies()
-                                ? ancestorPlanKey(
-                                        resolution, stagedValues)
-                                : null;
-                List<ModelTargetResolver.ResolvedModel> effectiveTargets =
-                        ancestorPlanKey == null
-                                ? resolution.models()
-                                : ancestorPlans.get(ancestorPlanKey);
-                List<ModelTargetResolver.ResolvedModel> missing =
-                        effectiveTargets == null
-                                ? List.of()
-                                : effectiveTargets.stream()
-                                .filter(target ->
-                                                !actionEntities
-                                                        .containsKey(
-                                                                target.modelId()))
-                                .toList();
-                if (effectiveTargets == null) {
-                    ModelActionContext loaded =
-                            repository.loadContext(
-                                    resolution, stateIndex,
-                                    stagedValues);
-                    if (loaded.readStateIndex()
-                        != stateIndex) {
-                        throw new IllegalStateException(
-                                "Apply-only rebase requested state index %d but loaded %d"
-                                        .formatted(
-                                                stateIndex,
-                                                loaded.readStateIndex()));
-                    }
-                    effectiveTargets = loaded.entries().stream()
-                            .map(ModelActionContext.Entry::target)
-                            .toList();
-                    ancestorPlans.put(
-                            ancestorPlanKey, effectiveTargets);
-                    loaded.entries().forEach(entry ->
-                                                     actionEntities.put(
-                                                             entry.target()
-                                                                     .modelId(),
-                                                             entry.entity()));
-                } else if (!missing.isEmpty()) {
-                    ModelActionContext loaded =
-                            repository.loadContext(
-                                    new ModelTargetResolver.Resolution(
-                                            missing, List.of()),
-                                    stateIndex, stagedValues);
-                    if (loaded.readStateIndex()
-                        != stateIndex) {
-                        throw new IllegalStateException(
-                                "Apply-only rebase requested state index %d but loaded %d"
-                                        .formatted(
-                                                stateIndex,
-                                                loaded.readStateIndex()));
-                    }
-                    loaded.entries().forEach(entry ->
-                                                     actionEntities.put(
-                                                             entry.target()
-                                                                     .modelId(),
-                                                             entry.entity()));
-                }
-                ModelTargetResolver.Resolution effectiveResolution =
-                        ancestorPlanKey == null
-                                ? resolution
-                                : resolution.withResolvedModels(
-                                        effectiveTargets);
-                LinkedHashMap<String, Entity<?>> selected =
-                        new LinkedHashMap<>();
-                for (ModelTargetResolver.ResolvedModel target :
-                        effectiveTargets) {
-                    selected.put(
-                            target.modelId(),
-                            Objects.requireNonNull(
-                                    actionEntities.get(
-                                            target.modelId()),
-                                    "Missing rebased model "
-                                    + target.modelId()));
-                }
-                return new ModelActionEngine.ResolvedSubstep(
-                        ModelActionContext.create(
-                                stateIndex, effectiveResolution,
-                                selected),
-                        handlers);
-            }
-        }
-        return engine.rebase(
-                messages, new RebaseLoader());
+        return engine.rebase(messages, new ActionLoader(stateIndex));
     }
 
-    private List<ModelMetadata.HandlerMethod> handlersFor(Class<?> payloadType) {
-        return handlerPlans.computeIfAbsent(payloadType, this::inspectHandlers);
+    private final class ActionLoader implements ModelActionEngine.SubstepResolver {
+        private final Long pinnedStateIndex;
+        private final Map<String, Entity<?>> actionEntities = new LinkedHashMap<>();
+        private final Map<AncestorPlanKey, List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
+                new LinkedHashMap<>();
+
+        private ActionLoader(Long pinnedStateIndex) {
+            this.pinnedStateIndex = pinnedStateIndex;
+        }
+
+        @Override
+        public ModelActionEngine.ResolvedSubstep resolve(
+                DeserializingMessage substep,
+                Long requestedStateIndex,
+                Map<String, Object> stagedValues) {
+            Long boundary = requestedStateIndex == null ? pinnedStateIndex : requestedStateIndex;
+            if (pinnedStateIndex != null && !pinnedStateIndex.equals(boundary)) {
+                throw new IllegalStateException(
+                        "Apply-only rebase moved from state index %d to %d"
+                                .formatted(pinnedStateIndex, boundary));
+            }
+            ActionPlan plan = planFor(substep.getPayloadClass());
+            List<ModelMetadata.HandlerMethod> handlers =
+                    pinnedStateIndex == null ? plan.handlers() : plan.applies();
+            ModelTargetResolver.Resolution resolution =
+                    targetPlan(substep.getPayloadClass(), plan, pinnedStateIndex != null)
+                            .resolve(substep.getPayload());
+            AncestorPlanKey planKey = resolution.hasAncestorDependencies()
+                    ? ancestorPlanKey(resolution, stagedValues) : null;
+            List<ModelTargetResolver.ResolvedModel> effectiveTargets = planKey == null
+                    ? resolution.models() : ancestorPlans.get(planKey);
+            List<ModelTargetResolver.ResolvedModel> missing = effectiveTargets == null ? List.of()
+                    : effectiveTargets.stream()
+                            .filter(target -> !actionEntities.containsKey(target.modelId()))
+                            .toList();
+
+            long stateIndex = boundary == null ? -1L : boundary;
+            if (effectiveTargets == null) {
+                ModelActionContext loaded = load(resolution, boundary, stagedValues);
+                stateIndex = loaded.readStateIndex();
+                effectiveTargets = targets(loaded);
+                ancestorPlans.put(planKey, effectiveTargets);
+            } else if ((pinnedStateIndex == null && requestedStateIndex == null)
+                       || !missing.isEmpty()) {
+                ModelTargetResolver.Resolution loadResolution =
+                        pinnedStateIndex == null && requestedStateIndex == null
+                                ? planKey == null ? resolution
+                                        : resolution.withResolvedModels(effectiveTargets)
+                                : new ModelTargetResolver.Resolution(missing, List.of());
+                stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
+            }
+
+            ModelTargetResolver.Resolution effectiveResolution = planKey == null
+                    ? resolution : resolution.withResolvedModels(effectiveTargets);
+            LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
+            for (ModelTargetResolver.ResolvedModel target : effectiveTargets) {
+                selected.put(target.modelId(), Objects.requireNonNull(
+                        actionEntities.get(target.modelId()),
+                        "Missing action-scoped model " + target.modelId()));
+            }
+            return new ModelActionEngine.ResolvedSubstep(
+                    ModelActionContext.create(stateIndex, effectiveResolution, selected), handlers);
+        }
+
+        @Override
+        public void prefetch(
+                List<DeserializingMessage> messages,
+                long readStateIndex,
+                Map<String, Object> stagedValues) {
+            if (pinnedStateIndex != null) {
+                return;
+            }
+            LinkedHashMap<String, ModelTargetResolver.ResolvedModel> missing = new LinkedHashMap<>();
+            for (DeserializingMessage message : messages) {
+                Object payload = message.getPayload();
+                ActionPlan plan = planFor(payload.getClass());
+                ModelTargetResolver.Resolution resolution =
+                        targetPlan(payload.getClass(), plan, false).resolve(payload);
+                if (resolution.hasAncestorDependencies()) {
+                    AncestorPlanKey key = ancestorPlanKey(resolution, stagedValues);
+                    if (!ancestorPlans.containsKey(key)) {
+                        ancestorPlans.put(
+                                key, targets(load(resolution, readStateIndex, stagedValues)));
+                    }
+                    continue;
+                }
+                resolution.models().stream()
+                        .filter(target -> !actionEntities.containsKey(target.modelId()))
+                        .forEach(target -> missing.putIfAbsent(target.modelId(), target));
+            }
+            if (!missing.isEmpty()) {
+                load(new ModelTargetResolver.Resolution(
+                        List.copyOf(missing.values()), List.of()), readStateIndex, stagedValues);
+            }
+        }
+
+        private ModelActionContext load(
+                ModelTargetResolver.Resolution resolution,
+                Long boundary,
+                Map<String, Object> stagedValues) {
+            ModelActionContext loaded = repository.loadContext(resolution, boundary, stagedValues);
+            if (boundary != null && loaded.readStateIndex() != boundary) {
+                throw new IllegalStateException(
+                        "Model action requested state index %d but loaded %d"
+                                .formatted(boundary, loaded.readStateIndex()));
+            }
+            loaded.entries().forEach(entry ->
+                    actionEntities.put(entry.target().modelId(), entry.entity()));
+            return loaded;
+        }
+
+        private static List<ModelTargetResolver.ResolvedModel> targets(ModelActionContext context) {
+            return context.entries().stream().map(ModelActionContext.Entry::target).toList();
+        }
+    }
+
+    private ActionPlan planFor(Class<?> payloadType) {
+        return actionPlans.computeIfAbsent(payloadType, type -> {
+            List<ModelMetadata.HandlerMethod> handlers = inspectHandlers(type);
+            List<ModelMetadata.HandlerMethod> applies = handlers.stream()
+                    .filter(handler -> handler.kind() == ModelMetadata.HandlerKind.APPLY)
+                    .toList();
+            return new ActionPlan(handlers, applies);
+        });
+    }
+
+    private ModelTargetResolver.TargetPlan targetPlan(
+            Class<?> payloadType, ActionPlan plan, boolean appliesOnly) {
+        return targetPlans.computeIfAbsent(
+                new TargetPlanKey(payloadType, appliesOnly),
+                ignored -> ModelTargetResolver.plan(
+                        payloadType, appliesOnly ? plan.applies() : plan.handlers()));
+    }
+
+    private void clearPlans() {
+        actionPlans.clear();
+        targetPlans.clear();
     }
 
     private static AncestorPlanKey ancestorPlanKey(
@@ -1191,18 +922,14 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
     private List<ModelMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
         List<ModelMetadata.HandlerMethod> payloadHandlers =
                 ModelMetadata.of(payloadType).handlerMethods();
-        boolean payloadModelAction = declaresModelAction(
-                payloadType, new LinkedHashSet<>());
         LinkedHashSet<ModelMetadata.HandlerMethod> result =
-                payloadModelAction
-                        ? new LinkedHashSet<>(payloadHandlers)
-                        : new LinkedHashSet<>();
+                new LinkedHashSet<>(payloadHandlers);
         LinkedHashSet<Class<?>> receiverTypes = new LinkedHashSet<>(
                 ModelTargetResolver.referencedModelTypes(payloadType));
         receiverTypes.addAll(registeredModelTypes);
         for (Class<?> receiverType : receiverTypes) {
             ModelMetadata.of(receiverType).handlerMethods().stream()
-                    .filter(handler -> potentiallyAcceptsPayload(handler, payloadType))
+                    .filter(handler -> ModelMetadata.acceptsPayload(handler, payloadType))
                     .forEach(result::add);
         }
         return List.copyOf(result);
@@ -1215,22 +942,10 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             return false;
         }
         try {
-            List<ModelMetadata.HandlerMethod> handlers =
-                    ModelMetadata.of(payloadType).handlerMethods();
+            List<ModelMetadata.HandlerMethod> handlers = planFor(payloadType).handlers();
             if (handlers.stream().anyMatch(handler ->
                     handler.kind() == ModelMetadata.HandlerKind.APPLY
                     && !handler.targetModelTypes().isEmpty())) {
-                return true;
-            }
-            LinkedHashSet<Class<?>> receiverTypes = new LinkedHashSet<>(
-                    ModelTargetResolver.referencedModelTypes(payloadType));
-            receiverTypes.addAll(registeredModelTypes);
-            if (receiverTypes.stream().anyMatch(receiverType ->
-                    ModelMetadata.of(receiverType).handlerMethods().stream()
-                            .filter(handler -> handler.kind()
-                                    == ModelMetadata.HandlerKind.APPLY)
-                            .anyMatch(handler -> potentiallyAcceptsPayload(
-                                    handler, payloadType)))) {
                 return true;
             }
             return handlers.stream()
@@ -1243,26 +958,6 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
         } finally {
             visiting.remove(payloadType);
         }
-    }
-
-    private static boolean potentiallyAcceptsPayload(
-            ModelMetadata.HandlerMethod handler, Class<?> payloadType) {
-        Executable executable = handler.executable();
-        boolean hasUnmatchedDomainParameter = false;
-        for (Parameter parameter : executable.getParameters()) {
-            if (handler.modelParameters().stream()
-                    .anyMatch(model -> model.parameter().equals(parameter))) {
-                continue;
-            }
-            Class<?> parameterType = parameter.getType();
-            if (parameterType.isAssignableFrom(payloadType)) {
-                return true;
-            }
-            if (!isFrameworkParameter(parameterType)) {
-                hasUnmatchedDomainParameter = true;
-            }
-        }
-        return !hasUnmatchedDomainParameter;
     }
 
     private static boolean isFrameworkParameter(Class<?> parameterType) {
@@ -1279,7 +974,7 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
                 .filter(type -> ModelMetadata.of(type).handlerMethods().stream()
                         .filter(handler -> handler.kind()
                                 == ModelMetadata.HandlerKind.APPLY)
-                        .anyMatch(handler -> potentiallyAcceptsPayload(
+                        .anyMatch(handler -> ModelMetadata.acceptsPayload(
                                 handler, payloadType)))
                 .min(java.util.Comparator.comparing(Class::getName))
                 .map(receiverType::equals)
@@ -1302,9 +997,22 @@ public final class ModelActionHandlerRegistry implements HandlerRegistry, Handle
             String path) {
     }
 
+    private record ActionPlan(
+            List<ModelMetadata.HandlerMethod> handlers,
+            List<ModelMetadata.HandlerMethod> applies) {
+    }
+
+    private record TargetPlanKey(
+            Class<?> payloadType, boolean appliesOnly) {
+    }
+
     private record ProjectionRoot(
-            String collection,
+            Class<?> modelType,
+            ModelGraphProjectionConfiguration configuration,
             GraphProjection projection) {
+        private String collection() {
+            return configuration.getCollection();
+        }
     }
 
     private final class ActionHandler

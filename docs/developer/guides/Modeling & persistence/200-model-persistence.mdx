@@ -109,11 +109,11 @@ The SDK evaluates one complete model action and submits:
 The runtime assigns monotone, time-derived `stateIndex` values and commits the co-located event store, model streams,
 heads, relations, action result and projection signals atomically in its JDBC transaction.
 
-Direct SDK-owned document stores are completed before the SDK releases the model action result. The core action retains
-the exact serialized document/snapshot materialization while that external work is pending. A retry after process loss
-retrieves and reapplies this original package through monotone `stateIndex` fences; application code is never
-re-evaluated to repair an already committed action. Materialized whole-root graph projections may continue
-asynchronously unless `AWAIT` was selected.
+The runtime completes direct documents and snapshots before it releases a successful model-action result. When event
+and search storage use separate runtime-managed databases, the core action retains the exact serialized
+materialization until the fenced search write succeeds. A retry or the runtime's restart worker reapplies that original
+package; application code is never re-evaluated to repair an already committed action. Materialized whole-root graph
+projections may continue asynchronously unless `AWAIT` was selected.
 
 ## Searchable models
 

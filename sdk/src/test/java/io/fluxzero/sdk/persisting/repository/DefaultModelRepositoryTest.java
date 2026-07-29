@@ -724,11 +724,9 @@ class DefaultModelRepositoryTest {
                         cache, List.of());
         AccountId id = new AccountId("fenced");
         repository.updateAfterCommit(List.of(
-                committed(id, 20, 1L, 20L)))
-                .join();
+                committed(id, 20, 1L, 20L)));
         repository.updateAfterCommit(List.of(
-                committed(id, 10, 0L, 10L)))
-                .join();
+                committed(id, 10, 0L, 10L)));
         AtomicReference<Entity<?>> cached =
                 new AtomicReference<>();
         cache.<Object>modifyEach((ignored, value) -> {
@@ -756,7 +754,6 @@ class DefaultModelRepositoryTest {
                     long stateIndex) {
         return new DefaultModelRepository.CommittedModel(
                 id.toString(), Account.class, true,
-                false,
                 List.of(
                         new DefaultModelRepository.CommittedRevision(
                                 new Account(id, balance),

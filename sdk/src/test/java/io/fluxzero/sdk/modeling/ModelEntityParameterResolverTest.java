@@ -153,7 +153,7 @@ class ModelEntityParameterResolverTest {
                         Entity<?> entity = (Entity<?>) resolve(
                                 message, entityHandler,
                                 entityHandler.getParameters()[1]);
-                        Function<DeserializingMessage, Object>
+                        Function<Object, Object>
                                 valueResolver =
                                 new ModelEntityParameterResolver()
                                         .resolveIfPossible(
@@ -756,7 +756,7 @@ class ModelEntityParameterResolverTest {
             DeserializingMessage message,
             Method handler,
             Parameter parameter) {
-        Function<DeserializingMessage, Object> resolver =
+        Function<Object, Object> resolver =
                 new ModelEntityParameterResolver()
                         .resolveIfPossible(
                                 parameter,

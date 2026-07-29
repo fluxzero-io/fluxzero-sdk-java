@@ -16,11 +16,9 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
-import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.SerializedDocument;
-import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
@@ -28,9 +26,7 @@ import io.fluxzero.sdk.persisting.search.DocumentStore;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.MODEL_ID_FACET;
 import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.SEQUENCE_NUMBER;
@@ -74,73 +70,11 @@ final class ModelSnapshotStore {
         }
     }
 
-    CompletableFuture<Void> storeSnapshot(
-            String modelId,
-            Object value,
-            long sequenceNumber,
-            long stateIndex,
-            Instant timestamp,
-            int maxSnapshotCount) {
-        if (value == null) {
-            return CompletableFuture.completedFuture(null);
-        }
-        try {
-            SerializedDocument document =
-                    new ModelSnapshotMutation(
-                            serializer.serialize(value),
-                            timestamp.toEpochMilli(),
-                            1,
-                            Math.max(1,
-                                     maxSnapshotCount))
-                            .toDocument(
-                                    modelId,
-                                    sequenceNumber,
-                                    stateIndex);
-            return documentStore.bulkUpdate(
-                            List.of(
-                                    IndexDocument.fromDocument(
-                                            document)))
-                    .thenCompose(ignored -> trim(modelId, maxSnapshotCount));
-        } catch (Exception e) {
-            throw new EventSourcingException(
-                    "Failed to store a snapshot for model " + modelId, e);
-        }
-    }
-
-    private CompletableFuture<Void> trim(
-            String modelId, int configuredMaxSnapshotCount) {
-        int maxSnapshotCount = Math.max(1, configuredMaxSnapshotCount);
-        List<SerializedDocument> snapshots = documentStore.search(SNAPSHOT_COLLECTION)
-                .matchFacet(MODEL_ID_FACET,
-                            modelId)
-                .sortBy("sequenceNumber", true)
-                .fetch(maxSnapshotCount + 1,
-                       SerializedDocument.class);
-        if (snapshots.size() <= maxSnapshotCount) {
-            return CompletableFuture.completedFuture(null);
-        }
-        return CompletableFuture.allOf(
-                snapshots.subList(maxSnapshotCount, snapshots.size()).stream()
-                        .map(snapshot -> documentStore.deleteDocument(
-                                snapshot.getId(), SNAPSHOT_COLLECTION))
-                        .toArray(CompletableFuture[]::new));
-    }
-
     private Optional<Snapshot> deserialize(
             SerializedDocument document) {
         try {
-            Object value = serializer.deserialize(
-                    document.getDocument());
-            if (value instanceof SnapshotDocument legacy) {
-                return Optional.of(new Snapshot(
-                        serializer.deserialize(
-                                legacy.serializedValue()),
-                        legacy.sequenceNumber(),
-                        legacy.stateIndex(),
-                        legacy.timestamp()));
-            }
             return Optional.of(new Snapshot(
-                    value,
+                    serializer.deserialize(document.getDocument()),
                     facetLong(document,
                               SEQUENCE_NUMBER),
                     facetLong(document,
@@ -184,18 +118,5 @@ final class ModelSnapshotStore {
 
     record Snapshot(
             Object value, long sequenceNumber, long stateIndex, Instant timestamp) {
-    }
-
-    /**
-     * Retained solely to deserialize snapshots written by the first independent-model implementation.
-     */
-    @SuppressWarnings("unused")
-    record SnapshotDocument(
-            String id,
-            String modelId,
-            long sequenceNumber,
-            long stateIndex,
-            Instant timestamp,
-            Data<byte[]> serializedValue) {
     }
 }

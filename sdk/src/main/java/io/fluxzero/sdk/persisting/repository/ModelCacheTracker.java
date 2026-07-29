@@ -73,6 +73,7 @@ final class ModelCacheTracker implements AutoCloseable {
             new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Object startMonitor = new Object();
+    private final Object trackMonitor = new Object();
     private final Registration evictionRegistration;
 
     private volatile boolean healthy;
@@ -345,16 +346,17 @@ final class ModelCacheTracker implements AutoCloseable {
         long backoffMillis = 25L;
         while (!closed.get() && !unsupported) {
             try {
-                CompletableFuture<TrackModelUpdatesResult>
-                        request =
-                        eventStoreClient.trackModelUpdates(
-                                new TrackModelUpdates(
-                                        cursor,
-                                        TRACK_BATCH_SIZE,
-                                        TRACK_WAIT_MILLIS));
-                pendingTrack = request;
-                if (closed.get()) {
-                    request.cancel(true);
+                CompletableFuture<TrackModelUpdatesResult> request;
+                synchronized (trackMonitor) {
+                    if (closed.get()) {
+                        return;
+                    }
+                    request = eventStoreClient.trackModelUpdates(
+                            new TrackModelUpdates(
+                                    cursor,
+                                    TRACK_BATCH_SIZE,
+                                    TRACK_WAIT_MILLIS));
+                    pendingTrack = request;
                 }
                 TrackModelUpdatesResult result =
                         request.join();
@@ -606,10 +608,12 @@ final class ModelCacheTracker implements AutoCloseable {
     public void close() {
         if (closed.compareAndSet(false, true)) {
             healthy = false;
-            CompletableFuture<TrackModelUpdatesResult>
-                    request = pendingTrack;
-            if (request != null) {
-                request.cancel(true);
+            synchronized (trackMonitor) {
+                CompletableFuture<TrackModelUpdatesResult>
+                        request = pendingTrack;
+                if (request != null) {
+                    request.cancel(true);
+                }
             }
             Thread thread = trackerThread;
             if (thread != null) {

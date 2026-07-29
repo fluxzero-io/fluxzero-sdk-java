@@ -35,17 +35,14 @@ public final class ModelActionContext {
     private final long readStateIndex;
     private final List<Entry> entries;
     private final List<ModelTargetResolver.DeferredWriteTarget> deferredWrites;
-    private final Map<Class<?>, String> entityIdProperties;
 
     private ModelActionContext(
             long readStateIndex,
             List<Entry> entries,
-            List<ModelTargetResolver.DeferredWriteTarget> deferredWrites,
-            Map<Class<?>, String> entityIdProperties) {
+            List<ModelTargetResolver.DeferredWriteTarget> deferredWrites) {
         this.readStateIndex = readStateIndex;
         this.entries = List.copyOf(entries);
         this.deferredWrites = List.copyOf(deferredWrites);
-        this.entityIdProperties = Map.copyOf(entityIdProperties);
     }
 
     /**
@@ -64,7 +61,6 @@ public final class ModelActionContext {
         Objects.requireNonNull(loadedModels, "loadedModels");
         Map<String, Entity<?>> remaining = new LinkedHashMap<>(loadedModels);
         List<Entry> entries = new ArrayList<>(resolution.models().size());
-        Map<Class<?>, String> entityIdProperties = new LinkedHashMap<>();
         for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
             Entity<?> entity = remaining.remove(target.modelId());
             if (entity == null) {
@@ -74,17 +70,13 @@ public final class ModelActionContext {
             }
             validateLoadedEntity(target, entity);
             entries.add(new Entry(target, entity));
-            entityIdProperties.computeIfAbsent(
-                    target.modelType(), type -> Objects.requireNonNull(
-                            ModelMetadata.of(type).entityIdName(), () -> type.getName() + " has no @EntityId"));
         }
         if (!remaining.isEmpty()) {
             throw new IllegalArgumentException(
                     "Action load returned unrelated model IDs %s; only resolved action targets may enter the context"
                             .formatted(remaining.keySet()));
         }
-        return new ModelActionContext(
-                readStateIndex, entries, resolution.deferredWrites(), entityIdProperties);
+        return new ModelActionContext(readStateIndex, entries, resolution.deferredWrites());
     }
 
     private static void validateLoadedEntity(ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
@@ -126,10 +118,9 @@ public final class ModelActionContext {
     }
 
     Entity<?> resolve(Class<?> modelType, String sourceProperty) {
-        String entityIdProperty = entityIdProperties.get(modelType);
-        if (entityIdProperty == null) {
-            entityIdProperty = compatibleEntityIdProperty(modelType);
-        }
+        String entityIdProperty = Objects.requireNonNull(
+                ModelMetadata.of(modelType).entityIdName(),
+                () -> modelType.getName() + " has no @EntityId");
         Entity<?> candidate = null;
         Entity<?> secondCandidate = null;
         Entity<?> exact = null;
@@ -219,31 +210,11 @@ public final class ModelActionContext {
                             .id(entry.entity().id())
                             .type(modelType)
                             .value(value)
-                            .idProperty(entityIdProperties.get(entry.target().modelType()))
+                            .idProperty(ModelMetadata.of(entry.target().modelType()).entityIdName())
                             .build();
             updated.add(new Entry(entry.target(), entity));
         }
-        return new ModelActionContext(
-                readStateIndex, updated, deferredWrites, entityIdProperties);
-    }
-
-    private String compatibleEntityIdProperty(Class<?> modelType) {
-        String result = null;
-        for (Map.Entry<Class<?>, String> entry : entityIdProperties.entrySet()) {
-            Class<?> candidateType = entry.getKey();
-            if (modelType.isAssignableFrom(candidateType) || candidateType.isAssignableFrom(modelType)) {
-                if (result != null && !result.equals(entry.getValue())) {
-                    throw new IllegalStateException(
-                            "Compatible model types for %s use different @EntityId properties"
-                                    .formatted(modelType.getName()));
-                }
-                result = entry.getValue();
-            }
-        }
-        if (result == null) {
-            throw new IllegalStateException(modelType.getName() + " is not loaded in this action");
-        }
-        return result;
+        return new ModelActionContext(readStateIndex, updated, deferredWrites);
     }
 
     private static IllegalStateException ambiguous(

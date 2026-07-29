@@ -16,7 +16,6 @@
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.api.BooleanResult;
-import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.*;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -60,13 +59,6 @@ public class SearchEndpoint extends WebsocketEndpoint {
     @Handle
     CompletableFuture<Void> handle(IndexDocuments request) {
         return store.index(request.getDocuments(), request.getGuarantee(), request.isIfNotExists());
-    }
-
-    @Handle
-    CompletableFuture<Void> handle(
-            MaterializeModelAction request) {
-        return store.materializeModelAction(
-                request);
     }
 
     @Handle
