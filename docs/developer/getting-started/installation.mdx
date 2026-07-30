@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install Fluxzero from CLI, via UI or manually
+description: Install the Fluxzero CLI on macOS, Windows or Linux, or add Fluxzero manually
 sidebar:
    order: 20
 tableOfContents: true
@@ -21,53 +21,78 @@ This will create a zip file with a ready-to-go Fluxzero project that you can dow
 
 ## Using the Fluxzero CLI
 
-To build Fluxzero projects, the only thing you need is Java 21+. However, we recommend using the **Fluxzero CLI** as it is the most convenient way to get started quickly. The CLI is a command line tool that helps you scaffold, build, and run Fluxzero applications.
+The **Fluxzero CLI** is the most convenient way to scaffold, build, and run Fluxzero applications.
+The CLI itself is a native executable and does not require Java. Generated Fluxzero projects require Java 21 or newer.
 
 <Steps>
 
 1. Get the Fluxzero CLI
 
    <Tabs>
-      <TabItem label="Bash">
-         ```shell
-            curl -o- -s -L https://fluxzero.io/cli.sh | bash
+      <TabItem label="macOS">
+         Install with [Homebrew](https://brew.sh/):
+
+         ```bash
+         brew install fluxzero-io/tap/fluxzero
          ```
 
-         This script will perform the following actions
-         - Check if you have Java 21+ installed
-         - Download the latest Fluxzero CLI release 
-         - Install the CLI in `~/.fluxzero/bin/fz`
-         - (Optionally) Install Fluxzero command `fz` into `/usr/local/bin`
+         Homebrew installs both the `fz` command and its `fluxzero` alias. Upgrade later releases with:
+
+         ```bash
+         brew update
+         brew upgrade fluxzero
+         ```
       </TabItem>
 
-      {/* <TabItem label="Docker">
-         If you prefer to use Docker, you can run the Fluxzero CLI in a container. This is useful if you don't want to install Java or the CLI on your local machine.
+      <TabItem label="Windows">
+         Install with WinGet from PowerShell or Windows Terminal:
 
-         Create an alias in your shell configuration file (e.g., `.bashrc`, `.zshrc`):
-         ```shell
-            alias fz='docker run --rm -it -v .:/project fluxzero/cli:latest' 
+         ```powershell
+         winget install --exact --id Fluxzero.FluxzeroCLI
          ```
 
-      </TabItem> */}
+         Upgrade later releases with:
+
+         ```powershell
+         winget upgrade --exact --id Fluxzero.FluxzeroCLI
+         ```
+
+         If WinGet is unavailable, use the automated installer instead:
+
+         ```powershell
+         iwr -useb https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/install.ps1 | iex
+         ```
+      </TabItem>
+
+      <TabItem label="Linux">
+         Run the automated installer:
+
+         ```bash
+         curl -sSL https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/install.sh | sh
+         ```
+
+         The installer downloads the native executable to `~/.fluxzero/bin` and helps make the `fz` and
+         `fluxzero` commands available on your `PATH`.
+      </TabItem>
 
       <TabItem label="Manually">
-         If you prefer, you can install the Fluxzero CLI with a few steps yourself
-         1. Download the latest [flux-cli.jar](https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/fluxzero-cli.jar)
-         2. Place it in your home directory under `.fluxzero/flux-cli.jar`
-         3. Create an alias in your shell configuration file (e.g., `.bashrc`, `.zshrc`):
-            ```shell
-            alias fz='java -jar ~/.fluxzero/flux-cli.jar'
-            ```
+         Native executables for macOS, Windows and Linux are available on the
+         [latest release page](https://github.com/fluxzero-io/fluxzero-cli/releases/latest).
 
-         ❗️ Note that the CLI is only tested on Java 21. We recommend to install `temurin 21` for the best compatibility.
+         Alternatively, download [fluxzero-cli.jar](https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/fluxzero-cli.jar)
+         and run it with Java 21 or newer:
+
+         ```shell
+         java -jar fluxzero-cli.jar
+         ```
       </TabItem>
-         
-      
    </Tabs>
 
-   
+   Verify the installation:
 
-    
+   ```shell
+   fz version
+   ```
 
 2. Generate a new project
 
@@ -84,7 +109,7 @@ To build Fluxzero projects, the only thing you need is Java 21+. However, we rec
       fz init --name my-project 
    ```
 
-   The cli will ask you which template you want to use. See `fz -h` for more options.
+   The CLI will ask you which template you want to use. See `fz --help` for more options.
 
 3. Build your project
 
