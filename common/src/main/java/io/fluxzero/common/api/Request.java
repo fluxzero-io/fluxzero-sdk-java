@@ -45,5 +45,19 @@ public abstract class Request implements JsonType {
     /**
      * A unique identifier automatically assigned to this request. Used to correlate with the response.
      */
-    private final long requestId = nextRequestId.getAndIncrement();
+    private final long requestId;
+
+    protected Request() {
+        this.requestId = nextRequestId.getAndIncrement();
+    }
+
+    /**
+     * Restores a transport-assigned request identifier.
+     *
+     * <p>This constructor is reserved for lossless protocol decoding. Application requests should
+     * continue to use the no-argument constructor so identifiers remain unique within the client.
+     */
+    protected Request(long requestId) {
+        this.requestId = requestId;
+    }
 }

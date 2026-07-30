@@ -32,7 +32,9 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.RetryAwareRequest;
 import io.fluxzero.common.api.ResultBatch;
+import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
@@ -152,6 +154,18 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     static final String RESULT_DIAGNOSTICS_PROPERTY = WebsocketResultDiagnostics.MODE_PROPERTY;
     static final String RESULT_TIMING_METRICS_ENABLED_PROPERTY =
             WebsocketResultDiagnostics.LEGACY_TIMING_ENABLED_PROPERTY;
+    private static final int GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE = 1_024;
+    private static final int WEBSOCKET_REQUEST_BATCH_SIZE =
+            Math.max(1, Integer.getInteger("fluxzero.webSocketRequestBatchSize", 16_384));
+    private static final Duration WEBSOCKET_REQUEST_COLLECTION_DELAY =
+            Duration.ofNanos(
+                    Math.max(
+                            0L,
+                            Long.getLong(
+                                    "fluxzero.webSocketRequestCollectionDelayNanos",
+                                    0L)));
+    private static final int WEBSOCKET_RESULT_CALLBACK_BATCH_SIZE =
+            Math.max(1, Integer.getInteger("fluxzero.webSocketResultCallbackBatchSize", 64));
 
     public static WebsocketConnector defaultWebsocketConnector = new JdkWebsocketConnector();
     public static ObjectMapper defaultObjectMapper = JsonMapper.builder().disable(FAIL_ON_UNKNOWN_PROPERTIES)
@@ -351,10 +365,33 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                          WebsocketSession session) {
         String sessionId = getNegotiatedSessionId(session);
         try {
-            return sessionBacklogs.computeIfAbsent(
-                    sessionId, id -> Backlog.forOrderedAsyncConsumer(
-                            batch -> sendBatchAsync(batch, session))).add(request);
+            return requestBacklog(sessionId, session).add(request);
         } finally {
+            publishRequestMetrics(request, correlationData, sessionId);
+        }
+    }
+
+    private void sendUntracked(
+            Request request, Map<String, String> correlationData, WebsocketSession session) {
+        String sessionId = getNegotiatedSessionId(session);
+        requestBacklog(sessionId, session).addUntracked(request);
+        publishRequestMetrics(request, correlationData, sessionId);
+    }
+
+    private Backlog<Request> requestBacklog(String sessionId, WebsocketSession session) {
+        return sessionBacklogs.computeIfAbsent(
+                sessionId,
+                id -> Backlog.forOrderedAsyncConsumer(
+                        batch -> sendBatchAsync(batch, session),
+                        WEBSOCKET_REQUEST_BATCH_SIZE,
+                        ignored -> 1L,
+                        Long.MAX_VALUE,
+                        WEBSOCKET_REQUEST_COLLECTION_DELAY));
+    }
+
+    private void publishRequestMetrics(
+            Request request, Map<String, String> correlationData, String sessionId) {
+        if (metricsEnabled()) {
             tryPublishMetrics(request, metricsMetadata().with(correlationData)
                     .with("sessionId", sessionId).with("requestId", request.getRequestId()));
         }
@@ -366,6 +403,25 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private CompletableFuture<Void> sendBatchAsync(List<Request> requests, WebsocketSession session) {
+        if (requests.size() > GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE
+                && !requests.stream().allMatch(CommitModels.class::isInstance)) {
+            CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
+            for (int offset = 0; offset < requests.size(); offset += GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE) {
+                List<Request> chunk =
+                        requests.subList(
+                                offset,
+                                Math.min(
+                                        requests.size(),
+                                        offset + GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE));
+                result = result.thenCompose(ignored -> sendBatchChunkAsync(chunk, session));
+            }
+            return result;
+        }
+        return sendBatchChunkAsync(requests, session);
+    }
+
+    private CompletableFuture<Void> sendBatchChunkAsync(
+            List<Request> requests, WebsocketSession session) {
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
             byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
@@ -503,7 +559,18 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         WebsocketResultDiagnostics.FrameTiming frameTiming = resultDiagnostics.frameTiming(receiveTiming);
         JsonType value;
         try {
-            value = transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
+            long decompressionStarted = System.nanoTime();
+            byte[] decompressed =
+                    getCompressionAlgorithm(session).decompress(bytes);
+            if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
+                && decompressed.length >= 1024 * 1024) {
+                System.out.printf(
+                        "Large websocket result decompression: %,d -> %,d bytes in %.3f ms%n",
+                        bytes.length, decompressed.length,
+                        (System.nanoTime() - decompressionStarted)
+                        / 1_000_000.0);
+            }
+            value = transportCodec(session).decode(decompressed);
         } catch (Exception e) {
             log().error("Could not parse input. Expected a {} websocket message.",
                         getTransportFormat(session), e);
@@ -511,16 +578,23 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
         long decodedTimestamp = resultDiagnostics.timestamp();
         String sessionId = getNegotiatedSessionId(session);
-        if (value instanceof ResultBatch) {
+        if (value instanceof ResultBatch resultBatch) {
             String batchId = Fluxzero.generateId();
-            ((ResultBatch) value).getResults().forEach(r -> {
+            List<RequestResult> results = resultBatch.getResults();
+            for (int offset = 0; offset < results.size(); offset += WEBSOCKET_RESULT_CALLBACK_BATCH_SIZE) {
+                int end = Math.min(results.size(), offset + WEBSOCKET_RESULT_CALLBACK_BATCH_SIZE);
+                List<RequestResult> callbackBatch = results.subList(offset, end);
                 long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-                executeResultCallback("result", () -> handleResult(
-                        r, batchId, sessionId,
-                        resultDiagnostics.resultTiming(
-                                frameTiming, decodedTimestamp, callbackQueuedTimestamp,
-                                resultDiagnostics.timestamp())));
-            });
+                executeResultCallback("result batch", () -> {
+                    for (RequestResult result : callbackBatch) {
+                        handleResult(
+                                result, batchId, sessionId,
+                                resultDiagnostics.resultTiming(
+                                        frameTiming, decodedTimestamp, callbackQueuedTimestamp,
+                                        resultDiagnostics.timestamp()));
+                    }
+                });
+            }
         } else {
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
             executeResultCallback("result", () -> handleResult(
@@ -543,24 +617,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 log().warn("Could not find outstanding read request for id {}", result.getRequestId());
             } else {
                 try {
-                    Metadata metadata = metricsMetadata()
-                            .with("requestId", webSocketRequest.request.getRequestId(),
-                                  "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
-                            .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
-                            .with("resultType", result.getClass().getSimpleName(),
-                                  "requestType", webSocketRequest.request.getClass().getSimpleName())
-                            .with(resultDiagnostics.metadata(result, clientResultTiming))
-                            .with(webSocketRequest.correlationData)
-                            .with("batchId", batchId)
-                            .with("sessionId", sessionId)
-                            .with("request", webSocketRequest.request.toMetric());
-                    Fluxzero.getOptionally().or(() -> ofNullable(webSocketRequest.fluxzero))
-                            .ifPresent(fc -> fc.execute(f -> ofNullable(webSocketRequest.adhocMetricsInterceptor)
-                                    .ifPresentOrElse(
-                                            i -> AdhocDispatchInterceptor.runWithAdhocInterceptor(
-                                                    () -> tryPublishMetrics(result, metadata), i,
-                                                    METRICS),
-                                            () -> tryPublishMetrics(result, metadata))));
+                    if (metricsEnabled()) {
+                        publishResultMetrics(
+                                result, batchId, sessionId, clientResultTiming, webSocketRequest);
+                    }
                 } finally {
                     if (result instanceof ErrorResult e) {
                         webSocketRequest.result.completeExceptionally(new ServiceException(e.getMessage()));
@@ -572,6 +632,32 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         } catch (Throwable e) {
             log().error("Failed to handle result {}", result, e);
         }
+    }
+
+    private void publishResultMetrics(
+            RequestResult result,
+            String batchId,
+            String sessionId,
+            WebsocketResultDiagnostics.ResultTiming clientResultTiming,
+            WebSocketRequest webSocketRequest) {
+        Metadata metadata = metricsMetadata()
+                .with("requestId", webSocketRequest.request.getRequestId(),
+                      "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
+                .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
+                .with("resultType", result.getClass().getSimpleName(),
+                      "requestType", webSocketRequest.request.getClass().getSimpleName())
+                .with(resultDiagnostics.metadata(result, clientResultTiming))
+                .with(webSocketRequest.correlationData)
+                .with("batchId", batchId)
+                .with("sessionId", sessionId)
+                .with("request", webSocketRequest.request.toMetric());
+        Fluxzero.getOptionally().or(() -> ofNullable(webSocketRequest.fluxzero))
+                .ifPresent(fc -> fc.execute(f -> ofNullable(webSocketRequest.adhocMetricsInterceptor)
+                        .ifPresentOrElse(
+                                i -> AdhocDispatchInterceptor.runWithAdhocInterceptor(
+                                        () -> tryPublishMetrics(result, metadata), i,
+                                        METRICS),
+                                () -> tryPublishMetrics(result, metadata))));
     }
 
     static Metadata responseTimingMetadata(RequestResult result) {
@@ -773,7 +859,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected void tryPublishMetrics(JsonType message, Metadata metadata) {
-        if (!allowMetrics || clientConfig.isDisableMetrics() || closed.get()) {
+        if (!metricsEnabled()) {
             return;
         }
         try {
@@ -796,6 +882,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
+    private boolean metricsEnabled() {
+        return allowMetrics && !clientConfig.isDisableMetrics() && !closed.get();
+    }
+
     protected Metadata metricsMetadata() {
         return Metadata.empty();
     }
@@ -807,11 +897,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         private final Map<String, String> correlationData;
         private final DispatchInterceptor adhocMetricsInterceptor;
         private final Fluxzero fluxzero;
+        private final AtomicBoolean sent = new AtomicBoolean();
         private volatile String sessionId;
         private volatile long sendTimestamp;
 
         @SuppressWarnings("unchecked")
         protected <T extends RequestResult> CompletableFuture<T> send() {
+            if (sent.getAndSet(true)
+                && request instanceof RetryAwareRequest retryAware) {
+                retryAware.markPossibleDuplicate();
+            }
             WebsocketSession session;
             try {
                 session = request instanceof Command c ? sessionPool.get(c.routingKey()) : sessionPool.get();
@@ -830,7 +925,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
             try {
                 sendTimestamp = System.currentTimeMillis();
-                AbstractWebsocketClient.this.send(request, correlationData, session);
+                AbstractWebsocketClient.this.sendUntracked(request, correlationData, session);
             } catch (Exception e) {
                 requests.remove(request.getRequestId());
                 result.completeExceptionally(e);

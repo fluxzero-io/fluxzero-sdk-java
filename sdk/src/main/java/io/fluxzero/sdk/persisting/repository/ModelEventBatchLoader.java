@@ -16,24 +16,28 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
+import io.fluxzero.common.api.modeling.ModelEventDataBlock;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.serialization.ModelStreamBatchDecoder;
+import io.fluxzero.common.serialization.SerializedMessagePackCodec;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -45,9 +49,10 @@ import java.util.function.Consumer;
 final class ModelEventBatchLoader {
 
     static final Settings DEFAULT_SETTINGS =
-            new Settings(1_024, 8_192, 128, 8L * 1_024L * 1_024L);
+            new Settings(32_768, 131_072, 128, 64L * 1_024L * 1_024L);
 
     private final EventStoreClient eventStoreClient;
+    private final ModelEventRequestBatcher requestBatcher;
     private final Settings settings;
 
     ModelEventBatchLoader(EventStoreClient eventStoreClient) {
@@ -57,6 +62,8 @@ final class ModelEventBatchLoader {
     ModelEventBatchLoader(EventStoreClient eventStoreClient, Settings settings) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.settings = Objects.requireNonNull(settings, "settings");
+        this.requestBatcher = new ModelEventRequestBatcher(
+                eventStoreClient, settings.maxStreamsPerRequest());
     }
 
     /**
@@ -98,6 +105,29 @@ final class ModelEventBatchLoader {
             Map<String, Long> lastSequenceNumbers,
             Boundary boundary,
             Consumer<GetModelEventsResult> pageConsumer) {
+        return load(
+                lastSequenceNumbers, boundary,
+                pageConsumer, null);
+    }
+
+    LoadResult loadForReconstruction(
+            Map<String, Long> lastSequenceNumbers,
+            Boundary boundary,
+            Consumer<GetModelEventsResult> pageConsumer,
+            Consumer<CompactPage> compactPageConsumer) {
+        return load(
+                lastSequenceNumbers, boundary,
+                pageConsumer,
+                Objects.requireNonNull(
+                        compactPageConsumer,
+                        "compactPageConsumer"));
+    }
+
+    private LoadResult load(
+            Map<String, Long> lastSequenceNumbers,
+            Boundary boundary,
+            Consumer<GetModelEventsResult> pageConsumer,
+            Consumer<CompactPage> compactPageConsumer) {
         Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
@@ -107,8 +137,8 @@ final class ModelEventBatchLoader {
             GetModelEventsResult response = eventStoreClient.getModelEvents(
                     new GetModelEvents(
                             List.of(), boundary.stateIndex(),
-                            boundary.commitId(), boundary.substep(),
-                            settings.maxPayloadBytes()));
+                            boundary.commitId(), boundary.substep(), boundary.eventIndex(),
+                            settings.maxPayloadBytes(), true));
             validateBoundary(response, boundary.stateIndex());
             pageConsumer.accept(response);
             return new LoadResult(response.getStateIndex(), Map.of());
@@ -123,7 +153,9 @@ final class ModelEventBatchLoader {
             List<String> chunkIds = ids.subList(offset, until);
             LinkedHashMap<String, Long> chunkCursors = new LinkedHashMap<>();
             chunkIds.forEach(modelId -> chunkCursors.put(modelId, validatedCursors.get(modelId)));
-            LoadResult chunk = loadChunk(chunkCursors, pinned, pageConsumer);
+            LoadResult chunk = loadChunk(
+                    chunkCursors, pinned,
+                    pageConsumer, compactPageConsumer);
             pinned = Boundary.at(chunk.stateIndex());
             heads.putAll(chunk.heads());
         }
@@ -157,7 +189,7 @@ final class ModelEventBatchLoader {
             List<String> chunkIds =
                     ids.subList(offset, until);
             GetModelEventsResult response =
-                    eventStoreClient.getModelEvents(
+                    requestBatcher.get(
                             new GetModelEvents(
                                     chunkIds.stream()
                                             .map(modelId ->
@@ -167,7 +199,9 @@ final class ModelEventBatchLoader {
                                     pinned.stateIndex(),
                                     pinned.commitId(),
                                     pinned.substep(),
-                                    settings.maxPayloadBytes()));
+                                    pinned.eventIndex(),
+                                    settings.maxPayloadBytes(),
+                                    true));
             long responseStateIndex =
                     validateBoundary(response, pinned.stateIndex());
             validateHeadPage(response, chunkIds, heads);
@@ -230,7 +264,8 @@ final class ModelEventBatchLoader {
     private LoadResult loadChunk(
             LinkedHashMap<String, Long> initialCursors,
             Boundary boundary,
-            Consumer<GetModelEventsResult> pageConsumer) {
+            Consumer<GetModelEventsResult> pageConsumer,
+            Consumer<CompactPage> compactPageConsumer) {
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(initialCursors);
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         Boundary pinned = boundary;
@@ -257,24 +292,359 @@ final class ModelEventBatchLoader {
                     .map(modelId -> new ModelEventStreamRequest(
                             modelId, cursors.get(modelId), perStreamLimit))
                     .toList();
-            GetModelEventsResult response = eventStoreClient.getModelEvents(
+            GetModelEvents request =
                     new GetModelEvents(
                             requests, pinned.stateIndex(),
-                            pinned.commitId(), pinned.substep(),
-                            settings.maxPayloadBytes()));
+                            pinned.commitId(), pinned.substep(), pinned.eventIndex(),
+                            settings.maxPayloadBytes(), true);
+            GetModelEventsResult response =
+                    compactPageConsumer == null
+                            ? requestBatcher.get(request)
+                            : requestBatcher.getCompact(request);
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
             pinned = Boundary.at(responseStateIndex);
 
-            int advanced = validatePage(
-                    response, active, cursors, heads, perStreamLimit, settings.maxPayloadBytes());
-            pageConsumer.accept(response);
+            int advanced;
+            if (compactPageConsumer != null
+                && isEmbeddedCompactPage(response)) {
+                CompactPage compactPage =
+                        validateCompactPage(
+                                response, requests, cursors, heads,
+                                perStreamLimit,
+                                settings.maxPayloadBytes());
+                advanced = compactPage.eventCount();
+                compactPageConsumer.accept(compactPage);
+            } else {
+                advanced = validatePage(
+                        response, active, cursors, heads,
+                        perStreamLimit,
+                        settings.maxPayloadBytes());
+                pageConsumer.accept(response);
+            }
             if (advanced == 0 && hasIncompleteStream(cursors, heads)) {
                 throw invalid(
                         "Model event page made no progress at state index "
                         + pinned.stateIndex());
             }
         }
+    }
+
+    private static boolean isEmbeddedCompactPage(
+            GetModelEventsResult response) {
+        return Objects.requireNonNull(
+                        response.getPayloads(),
+                        "Model event payloads")
+                .isEmpty()
+               && (response.getCompactPayloads() == null
+                   || response.getCompactPayloads().length == 0)
+               && (response.getCompactPayloadBlocks() == null
+                   || response.getCompactPayloadBlocks().isEmpty())
+               && response.getCompactMembershipBlocks() != null
+               && !response.getCompactMembershipBlocks().isEmpty();
+    }
+
+    private static CompactPage validateCompactPage(
+            GetModelEventsResult response,
+            List<ModelEventStreamRequest> requests,
+            Map<String, Long> cursors,
+            Map<String, ModelHeadState> knownHeads,
+            int perStreamLimit,
+            long maxPayloadBytes) {
+        long started = System.nanoTime();
+        List<ModelEventStream> responseStreams =
+                Objects.requireNonNull(
+                        response.getStreams(),
+                        "Model event streams");
+        if (responseStreams.size() != requests.size()) {
+            throw invalid(
+                    "Compact model event response contains %d streams for %d requests"
+                            .formatted(
+                                    responseStreams.size(),
+                                    requests.size()));
+        }
+        Map<String, Integer> ordinals =
+                new HashMap<>(requests.size() * 4 / 3 + 1);
+        @SuppressWarnings("unchecked")
+        List<CompactEvent>[] selected =
+                new List[requests.size()];
+        for (int ordinal = 0; ordinal < requests.size(); ordinal++) {
+            ModelEventStreamRequest request = requests.get(ordinal);
+            ModelEventStream stream = responseStreams.get(ordinal);
+            if (stream == null
+                || !request.getModelId().equals(stream.getModelId())) {
+                throw invalid(
+                        "Compact model event stream %d should be '%s' but was '%s'"
+                                .formatted(
+                                        ordinal,
+                                        request.getModelId(),
+                                        stream == null
+                                                ? null
+                                                : stream.getModelId()));
+            }
+            if (!Objects.requireNonNull(
+                            stream.getMemberships(),
+                            "Model event memberships")
+                    .isEmpty()) {
+                throw invalid(
+                        "Compact model event stream contains expanded memberships for "
+                        + request.getModelId());
+            }
+            if (ordinals.put(request.getModelId(), ordinal) != null) {
+                throw invalid(
+                        "Duplicate compact model event stream "
+                        + request.getModelId());
+            }
+            selected[ordinal] = new ArrayList<>();
+        }
+
+        long payloadBytes = 0L;
+        long lastStateIndex = -1L;
+        List<ModelEventDataBlock> compactBlocks =
+                response.getCompactMembershipBlocks();
+        List<DecodedCompactBlock> decodedBlocks =
+                (compactBlocks.size() < 8
+                        ? compactBlocks.stream()
+                        : compactBlocks.parallelStream())
+                        .map(
+                                ModelEventBatchLoader::decodeCompactBlock)
+                        .toList();
+        long decodedAt = System.nanoTime();
+        for (DecodedCompactBlock block :
+                decodedBlocks) {
+            List<ModelStreamBatchDecoder.Entry> entries =
+                    block.entries();
+            List<SerializedMessage> events =
+                    block.events();
+            for (int eventOrdinal = 0;
+                 eventOrdinal < entries.size();
+                 eventOrdinal++) {
+                ModelStreamBatchDecoder.Entry entry =
+                        entries.get(eventOrdinal);
+                Integer streamOrdinal =
+                        ordinals.get(entry.modelId());
+                if (streamOrdinal == null) {
+                    continue;
+                }
+                ModelEventStreamRequest request =
+                        requests.get(streamOrdinal);
+                List<CompactEvent> streamEvents =
+                        selected[streamOrdinal];
+                if (request.getMaxSize() <= 0
+                    || entry.sequenceNumber()
+                       <= request.getLastSequenceNumber()
+                    || entry.stateIndex()
+                       > response.getStateIndex()
+                    || streamEvents.size()
+                       >= request.getMaxSize()) {
+                    continue;
+                }
+                long expectedSequence =
+                        cursors.get(entry.modelId())
+                        + streamEvents.size() + 1L;
+                if (entry.sequenceNumber() != expectedSequence) {
+                    throw invalid(
+                            "Compact model stream '%s' returned sequence %d instead of %d"
+                                    .formatted(
+                                            entry.modelId(),
+                                            entry.sequenceNumber(),
+                                            expectedSequence));
+                }
+                if (entry.stateIndex() < 0L
+                    || entry.stateIndex()
+                       > response.getStateIndex()
+                    || entry.stateIndex()
+                       <= lastStateIndex) {
+                    throw invalid(
+                            "Compact model events are not strictly ordered at state index "
+                            + entry.stateIndex());
+                }
+                if (entry.readStateIndex() < -1L
+                    || entry.readStateIndex()
+                       >= entry.stateIndex()) {
+                    throw invalid(
+                            "Compact model stream '%s' has invalid read state index %d at state %d"
+                                    .formatted(
+                                            entry.modelId(),
+                                            entry.readStateIndex(),
+                                            entry.stateIndex()));
+                }
+                if (entry.commitId() == null
+                    || entry.commitId().isBlank()
+                    || entry.substep() < 0) {
+                    throw invalid(
+                            "Compact model stream '"
+                            + entry.modelId()
+                            + "' has invalid commit membership");
+                }
+                SerializedMessage event =
+                        events.get(eventOrdinal);
+                if (event.getIndex() != null
+                    && event.getIndex() != entry.eventIndex()) {
+                    throw invalid(
+                            "Compact event index %d does not match model membership %d"
+                                    .formatted(
+                                            event.getIndex(),
+                                            entry.eventIndex()));
+                }
+                event.setIndex(entry.eventIndex());
+                payloadBytes =
+                        addSaturated(
+                                payloadBytes,
+                                event.getBytes());
+                streamEvents.add(
+                        new CompactEvent(
+                                new ModelEventMembership(
+                                        entry.sequenceNumber(),
+                                        entry.stateIndex(),
+                                        entry.readStateIndex(),
+                                        entry.commitId(),
+                                        entry.substep()),
+                                event));
+                lastStateIndex = entry.stateIndex();
+            }
+        }
+        int eventCount =
+                Arrays.stream(selected)
+                        .mapToInt(List::size)
+                        .sum();
+        if (eventCount > 1
+            && maxPayloadBytes > 0L
+            && payloadBytes > maxPayloadBytes) {
+            throw invalid(
+                    "Compact model event response contains %d payload bytes, exceeding limit %d"
+                            .formatted(
+                                    payloadBytes,
+                                    maxPayloadBytes));
+        }
+
+        List<CompactStream> streams =
+                new ArrayList<>(requests.size());
+        for (int ordinal = 0; ordinal < requests.size(); ordinal++) {
+            ModelEventStreamRequest request = requests.get(ordinal);
+            ModelEventStream responseStream =
+                    responseStreams.get(ordinal);
+            ModelHeadState head =
+                    responseStream.getHead();
+            String modelId =
+                    request.getModelId();
+            long cursor =
+                    cursors.get(modelId);
+            boolean knownHead =
+                    knownHeads.containsKey(modelId);
+            ModelHeadState previousHead =
+                    knownHeads.get(modelId);
+            if (head != null) {
+                if (knownHead && previousHead == null) {
+                    throw invalid(
+                            "Model head appeared while loading "
+                            + modelId);
+                }
+                validateHead(
+                        modelId, head,
+                        response.getStateIndex(),
+                        previousHead);
+                if (cursor > head.getSequenceNumber()) {
+                    throw invalid(
+                            "Model stream '%s' starts after pinned head sequence %d"
+                                    .formatted(
+                                            modelId,
+                                            head.getSequenceNumber()));
+                }
+            } else if (knownHead
+                       && previousHead != null) {
+                throw invalid(
+                        "Model head disappeared while loading "
+                        + modelId);
+            }
+            if (!knownHead) {
+                knownHeads.put(modelId, head);
+            }
+            List<CompactEvent> events =
+                    selected[ordinal];
+            if (events.size() > perStreamLimit) {
+                throw invalid(
+                        "Model stream '%s' returned %d memberships, exceeding requested limit %d"
+                                .formatted(
+                                        modelId,
+                                        events.size(),
+                                        perStreamLimit));
+            }
+            if (head != null) {
+                for (CompactEvent event : events) {
+                    if (event.membership().getStateIndex()
+                        > head.getStateIndex()) {
+                        throw invalid(
+                                "Model stream '%s' has membership state %d beyond head state %d"
+                                        .formatted(
+                                                modelId,
+                                                event.membership().getStateIndex(),
+                                                head.getStateIndex()));
+                    }
+                }
+            }
+            long advancedCursor =
+                    events.isEmpty()
+                            ? cursor
+                            : events.getLast()
+                                    .membership()
+                                    .getSequenceNumber();
+            if (head != null
+                && advancedCursor
+                   > head.getSequenceNumber()) {
+                throw invalid(
+                        "Model stream '%s' advanced beyond head sequence %d"
+                                .formatted(
+                                        modelId,
+                                        head.getSequenceNumber()));
+            }
+            cursors.put(modelId, advancedCursor);
+            streams.add(
+                    new CompactStream(
+                            modelId,
+                            head,
+                            List.copyOf(events)));
+        }
+        CompactPage result = new CompactPage(
+                response.getStateIndex(),
+                List.copyOf(streams),
+                eventCount);
+        if (Boolean.getBoolean(
+                    "fluxzero.modelReconstructionDiagnostics")
+            && requests.size() >= 1_000) {
+            System.out.printf(
+                    "Compact model page: %,d streams, %,d events, decode %.3f ms, select/validate %.3f ms%n",
+                    requests.size(),
+                    eventCount,
+                    (decodedAt - started)
+                    / 1_000_000.0,
+                    (System.nanoTime() - decodedAt)
+                    / 1_000_000.0);
+        }
+        return result;
+    }
+
+    private static DecodedCompactBlock decodeCompactBlock(
+            ModelEventDataBlock data) {
+        ModelStreamBatchDecoder.DecodedBlock block =
+                ModelStreamBatchDecoder.decodeBlock(data);
+        if (block.embeddedPayloads() == null) {
+            throw invalid(
+                    "Compact model stream block has no embedded event payloads");
+        }
+        List<SerializedMessage> events =
+                SerializedMessagePackCodec.decode(
+                        block.embeddedPayloads());
+        if (events.size() != block.entries().size()) {
+            throw invalid(
+                    "Compact model stream block contains %d events for %d memberships"
+                            .formatted(
+                                    events.size(),
+                                    block.entries().size()));
+        }
+        return new DecodedCompactBlock(
+                block.entries(),
+                events);
     }
 
     private static List<String> validateIds(List<String> modelIds) {
@@ -334,19 +704,35 @@ final class ModelEventBatchLoader {
             long maxPayloadBytes) {
         List<ModelEventPayload> payloadList =
                 Objects.requireNonNull(response.getPayloads(), "Model event payloads");
-        Map<Long, ModelEventPayload> payloads = new HashMap<>();
+        long[] payloadStateIndices = new long[payloadList.size()];
+        boolean sortedPayloads = true;
         long payloadBytes = 0L;
-        for (ModelEventPayload payload : payloadList) {
+        for (int index = 0; index < payloadList.size(); index++) {
+            ModelEventPayload payload = payloadList.get(index);
             if (payload == null || payload.getEvent() == null) {
                 throw invalid("Model event response contains a null payload");
             }
             if (payload.getStateIndex() < 0L || payload.getStateIndex() > response.getStateIndex()) {
                 throw invalid("Model event payload has invalid state index " + payload.getStateIndex());
             }
-            if (payloads.putIfAbsent(payload.getStateIndex(), payload) != null) {
-                throw invalid("Duplicate model event payload at state index " + payload.getStateIndex());
+            payloadStateIndices[index] = payload.getStateIndex();
+            if (index > 0
+                && payloadStateIndices[index - 1] >= payloadStateIndices[index]) {
+                sortedPayloads = false;
             }
             payloadBytes = addSaturated(payloadBytes, payload.getEvent().getBytes());
+        }
+        Map<Long, Integer> payloadOrdinals = null;
+        if (!sortedPayloads) {
+            payloadOrdinals = new HashMap<>(payloadList.size() * 4 / 3 + 1);
+            for (int index = 0; index < payloadStateIndices.length; index++) {
+                if (payloadOrdinals.putIfAbsent(
+                        payloadStateIndices[index], index) != null) {
+                    throw invalid(
+                            "Duplicate model event payload at state index "
+                            + payloadStateIndices[index]);
+                }
+            }
         }
         if (payloadList.size() > 1 && maxPayloadBytes > 0L && payloadBytes > maxPayloadBytes) {
             throw invalid(
@@ -361,7 +747,8 @@ final class ModelEventBatchLoader {
                     "Model event response contains %d streams for %d requests"
                             .formatted(streams.size(), requestedIds.size()));
         }
-        Set<Long> referencedPayloads = new HashSet<>();
+        boolean[] referencedPayloads =
+                new boolean[payloadStateIndices.length];
         int advanced = 0;
         for (int i = 0; i < streams.size(); i++) {
             String requestedId = requestedIds.get(i);
@@ -419,7 +806,13 @@ final class ModelEventBatchLoader {
                             "Model stream '%s' has membership state %d beyond head state %d"
                                     .formatted(requestedId, membership.getStateIndex(), head.getStateIndex()));
                 }
-                if (!payloads.containsKey(membership.getStateIndex())) {
+                int payloadOrdinal = sortedPayloads
+                        ? Arrays.binarySearch(
+                                payloadStateIndices,
+                                membership.getStateIndex())
+                        : payloadOrdinals.getOrDefault(
+                                membership.getStateIndex(), -1);
+                if (payloadOrdinal < 0) {
                     throw invalid(
                             "Model stream '%s' references missing payload at state index %d"
                                     .formatted(requestedId, membership.getStateIndex()));
@@ -435,7 +828,7 @@ final class ModelEventBatchLoader {
                     || membership.getSubstep() < 0) {
                     throw invalid("Model stream '" + requestedId + "' has invalid commit membership");
                 }
-                referencedPayloads.add(membership.getStateIndex());
+                referencedPayloads[payloadOrdinal] = true;
                 cursor = membership.getSequenceNumber();
                 advanced++;
             }
@@ -446,10 +839,12 @@ final class ModelEventBatchLoader {
             }
             cursors.put(requestedId, cursor);
         }
-        if (!referencedPayloads.equals(payloads.keySet())) {
-            Set<Long> unreferenced = new HashSet<>(payloads.keySet());
-            unreferenced.removeAll(referencedPayloads);
-            throw invalid("Model event response contains unreferenced payloads " + unreferenced);
+        for (int index = 0; index < referencedPayloads.length; index++) {
+            if (!referencedPayloads[index]) {
+                throw invalid(
+                        "Model event response contains unreferenced payload "
+                        + payloadStateIndices[index]);
+            }
         }
         return advanced;
     }
@@ -495,6 +890,52 @@ final class ModelEventBatchLoader {
         return new EventSourcingException(message);
     }
 
+    record CompactPage(
+            long stateIndex,
+            List<CompactStream> streams,
+            int eventCount) {
+    }
+
+    record CompactStream(
+            String modelId,
+            ModelHeadState head,
+            List<CompactEvent> events) {
+    }
+
+    private record DecodedCompactBlock(
+            List<ModelStreamBatchDecoder.Entry> entries,
+            List<SerializedMessage> events) {
+    }
+
+    static final class CompactEvent {
+        private final ModelEventMembership membership;
+        private final SerializedMessage event;
+        private volatile Object preparedReplay;
+
+        private CompactEvent(
+                ModelEventMembership membership,
+                SerializedMessage event) {
+            this.membership = membership;
+            this.event = event;
+        }
+
+        ModelEventMembership membership() {
+            return membership;
+        }
+
+        SerializedMessage event() {
+            return event;
+        }
+
+        Object preparedReplay() {
+            return preparedReplay;
+        }
+
+        void preparedReplay(Object preparedReplay) {
+            this.preparedReplay = preparedReplay;
+        }
+    }
+
     record Settings(
             int maxStreamsPerRequest,
             int maxMembershipsPerRequest,
@@ -516,35 +957,46 @@ final class ModelEventBatchLoader {
         }
     }
 
-    record Boundary(Long stateIndex, String commitId, Integer substep) {
-        static final Boundary CURRENT = new Boundary(null, null, null);
+    record Boundary(Long stateIndex, String commitId, Integer substep, Long eventIndex) {
+        static final Boundary CURRENT = new Boundary(null, null, null, null);
 
         Boundary {
             if (stateIndex != null && stateIndex < -1L) {
                 throw new IllegalArgumentException(
                         "Model maxStateIndex must be at least -1");
             }
-            if (stateIndex != null && commitId != null) {
+            int specified = (stateIndex == null ? 0 : 1)
+                            + (commitId == null ? 0 : 1)
+                            + (eventIndex == null ? 0 : 1);
+            if (specified > 1) {
                 throw new IllegalArgumentException(
-                        "Specify either maxStateIndex or an commit boundary, not both");
+                        "Specify one model state, commit, or event boundary");
             }
             if ((commitId == null) != (substep == null)
                 || commitId != null && (commitId.isBlank() || substep < 0)) {
                 throw new IllegalArgumentException(
                         "Model commit boundary requires a non-blank commitId and non-negative substep");
             }
+            if (eventIndex != null && eventIndex < 0L) {
+                throw new IllegalArgumentException(
+                        "Model event boundary must have a non-negative event index");
+            }
         }
 
         static Boundary at(Long stateIndex) {
-            return stateIndex == null ? CURRENT : new Boundary(stateIndex, null, null);
+            return stateIndex == null ? CURRENT : new Boundary(stateIndex, null, null, null);
         }
 
         static Boundary commit(String commitId, int substep) {
-            return new Boundary(null, commitId, substep);
+            return new Boundary(null, commitId, substep, null);
+        }
+
+        static Boundary event(long eventIndex) {
+            return new Boundary(null, null, null, eventIndex);
         }
 
         boolean historical() {
-            return stateIndex != null || commitId != null;
+            return stateIndex != null || commitId != null || eventIndex != null;
         }
     }
 }

@@ -25,6 +25,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,12 +34,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 
 /**
@@ -51,6 +55,11 @@ import java.util.concurrent.locks.LockSupport;
 @Slf4j
 final class ModelCacheTracker implements AutoCloseable {
 
+    private static final boolean CACHE_DIAGNOSTICS =
+            Boolean.getBoolean("fluxzero.modelCacheDiagnostics");
+    private static final ConcurrentHashMap<String, LongAdder> CACHE_OUTCOMES =
+            new ConcurrentHashMap<>();
+    private static final AtomicLong CACHE_LOOKUPS = new AtomicLong();
     private static final int TRACK_BATCH_SIZE = 2_048;
     private static final long TRACK_WAIT_MILLIS = 30_000L;
     private static final int REFRESH_BATCH_SIZE = 1_024;
@@ -60,6 +69,8 @@ final class ModelCacheTracker implements AutoCloseable {
     private final Refresher refresher;
     private final ConcurrentHashMap<String, Entry> entries =
             new ConcurrentHashMap<>();
+    private final Set<String> staleModelIds =
+            ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, Integer>
             pendingLocalCommits =
             new ConcurrentHashMap<>();
@@ -111,6 +122,9 @@ final class ModelCacheTracker implements AutoCloseable {
                                 entries.remove(
                                         eviction.getId()
                                                 .toString());
+                                staleModelIds.remove(
+                                        eviction.getId()
+                                                .toString());
                             }
                         });
     }
@@ -119,18 +133,34 @@ final class ModelCacheTracker implements AutoCloseable {
      * Returns a cache entry only when every tracked update since its load boundary has been accounted for.
      */
     Entity<?> current(String modelId, Class<?> modelType) {
+        CurrentModel current = currentVersion(modelId, modelType);
+        return current == null ? null : current.entity();
+    }
+
+    /**
+     * Returns a current cached model together with the latest global boundary through which that
+     * exact value is known to be valid.
+     */
+    CurrentModel currentVersion(
+            String modelId,
+            Class<?> modelType) {
         if (!healthy || unsupported || closed.get()) {
+            cacheOutcome("unhealthy");
             return null;
         }
         Entry entry = entries.get(modelId);
         if (entry == null) {
+            cacheOutcome("no-entry");
             return null;
         }
         if (entry.stale) {
+            cacheOutcome("stale");
             if (entry.latestUpdate
                 > materializedCursor) {
+                cacheOutcome("stale-unmaterialized");
                 return null;
             }
+            staleModelIds.add(modelId);
             scheduleRefresh();
             CompletableFuture<Void> refresh =
                     entry.refresh;
@@ -138,22 +168,57 @@ final class ModelCacheTracker implements AutoCloseable {
                 try {
                     refresh.join();
                 } catch (CompletionException ignored) {
+                    cacheOutcome("refresh-failed");
                     return null;
                 }
             }
             if (entry.stale) {
+                cacheOutcome("stale-after-refresh");
                 return null;
             }
         }
-        Entity<?> cached = cache.get(modelId);
-        if (cached == null) {
-            entries.remove(modelId, entry);
-            return null;
+        synchronized (entry) {
+            if (entry.stale) {
+                return null;
+            }
+            Entity<?> cached = cache.get(modelId);
+            if (cached == null) {
+                cacheOutcome("cache-missing");
+                entries.remove(modelId, entry);
+                return null;
+            }
+            if (!modelType.equals(cached.type())) {
+                cacheOutcome("type-mismatch");
+                return null;
+            }
+            long modelStateIndex =
+                    cached instanceof ModelRoot<?> model
+                            ? model.stateIndex() : -1L;
+            if (modelStateIndex > entry.validThrough) {
+                cacheOutcome("ahead-of-proof");
+                /*
+                 * Cache replacement and tracker publication are deliberately separate operations.
+                 * Refuse the tiny intervening window instead of assigning an older proof to a newer value.
+                 */
+                return null;
+            }
+            cacheOutcome("hit");
+            return new CurrentModel(
+                    cached,
+                    entry.validThrough,
+                    modelStateIndex);
         }
-        if (!modelType.equals(cached.type())) {
-            return null;
+    }
+
+    private static void cacheOutcome(String outcome) {
+        if (!CACHE_DIAGNOSTICS) {
+            return;
         }
-        return cached;
+        CACHE_OUTCOMES.computeIfAbsent(outcome, ignored -> new LongAdder()).increment();
+        long lookups = CACHE_LOOKUPS.incrementAndGet();
+        if ((lookups & 8_191L) == 0L) {
+            System.out.printf("Model cache outcomes after %,d lookups: %s%n", lookups, CACHE_OUTCOMES);
+        }
     }
 
     /**
@@ -224,6 +289,13 @@ final class ModelCacheTracker implements AutoCloseable {
                        && started.get()
                        && readStateIndex
                           < cursor;
+            if (entry.stale
+                && !pendingLocalCommits
+                        .containsKey(modelId)) {
+                staleModelIds.add(modelId);
+            } else if (!entry.stale) {
+                staleModelIds.remove(modelId);
+            }
             if (!entry.stale
                 && entry.refresh != null) {
                 entry.refresh.complete(null);
@@ -234,7 +306,7 @@ final class ModelCacheTracker implements AutoCloseable {
                         new CompletableFuture<>();
             }
         }
-        if (entry.stale) {
+        if (staleModelIds.contains(modelId)) {
             scheduleRefresh();
         }
     }
@@ -267,11 +339,27 @@ final class ModelCacheTracker implements AutoCloseable {
                 modelIds.stream()
                         .distinct()
                         .toList();
+        boolean tracking =
+                start();
         targets.forEach(
-                modelId ->
-                        pendingLocalCommits.merge(
-                                modelId, 1,
-                                Integer::sum));
+                modelId -> {
+                    if (tracking) {
+                        /*
+                         * Register the target before its request reaches the runtime. This lets the tracker remember
+                         * updates for a model that is being created and therefore has no cache entry yet. Without the
+                         * placeholder, a concurrent tracker page can advance the global cursor past the local commit;
+                         * the accepted revision is then needlessly treated as stale even when every intervening update
+                         * was unrelated.
+                         */
+                        entries.computeIfAbsent(
+                                modelId,
+                                ignored ->
+                                        new Entry());
+                    }
+                    pendingLocalCommits.merge(
+                            modelId, 1,
+                            Integer::sum);
+                });
         AtomicBoolean completed =
                 new AtomicBoolean();
         return () -> {
@@ -293,7 +381,20 @@ final class ModelCacheTracker implements AutoCloseable {
                         Entry entry =
                                 entries.get(modelId);
                         if (entry != null
+                            && !entry.loaded
+                            && !pendingLocalCommits
+                                    .containsKey(modelId)
+                            && cache.get(modelId)
+                               == null) {
+                            entries.remove(
+                                    modelId, entry);
+                            staleModelIds.remove(
+                                    modelId);
+                            return;
+                        }
+                        if (entry != null
                             && entry.stale) {
+                            staleModelIds.add(modelId);
                             refreshNeeded.set(true);
                         }
                     });
@@ -305,10 +406,12 @@ final class ModelCacheTracker implements AutoCloseable {
 
     void forget(String modelId) {
         entries.remove(modelId);
+        staleModelIds.remove(modelId);
     }
 
     void forgetAll() {
         entries.clear();
+        staleModelIds.clear();
     }
 
     /**
@@ -470,6 +573,9 @@ final class ModelCacheTracker implements AutoCloseable {
                         result.getUpdates(),
                         "Model updates");
         long previous = cursor;
+        long previousMaterializedCursor =
+                materializedCursor;
+        boolean refreshNeeded = false;
         for (ModelUpdate update : updates) {
             if (update.getStateIndex() <= previous) {
                 throw new IllegalStateException(
@@ -480,10 +586,11 @@ final class ModelCacheTracker implements AutoCloseable {
                 == ModelUpdateKind.HARD_DELETE) {
                 cache.clear();
                 entries.clear();
+                staleModelIds.clear();
             } else {
                 for (ModelCommitTargetResult target :
                         update.getTargets()) {
-                    markUpdated(
+                    refreshNeeded |= markUpdated(
                             target,
                             update.getStateIndex());
                 }
@@ -500,19 +607,24 @@ final class ModelCacheTracker implements AutoCloseable {
         cursor = previous;
         materializedCursor =
                 result.getMaterializedStateIndex();
-        if (!entries.isEmpty()) {
+        if (refreshNeeded
+            || materializedCursor
+               > previousMaterializedCursor
+               && !staleModelIds.isEmpty()) {
             scheduleRefresh();
         }
     }
 
-    private void markUpdated(
+    private boolean markUpdated(
             ModelCommitTargetResult target,
             long stateIndex) {
+        String modelId =
+                target.getModelId();
         Entry entry =
                 entries.get(
-                        target.getModelId());
+                        modelId);
         if (entry == null) {
-            return;
+            return false;
         }
         if (!target.isHistoryComplete()
             && entry.modelType != null
@@ -521,12 +633,14 @@ final class ModelCacheTracker implements AutoCloseable {
                     .model().orElseThrow()
                     .eventSourced()) {
             cache.remove(
-                    target.getModelId());
+                    modelId);
             entries.remove(
-                    target.getModelId(),
+                    modelId,
                     entry);
-            return;
+            staleModelIds.remove(modelId);
+            return false;
         }
+        boolean stale;
         synchronized (entry) {
             entry.latestUpdate =
                     Math.max(
@@ -542,7 +656,15 @@ final class ModelCacheTracker implements AutoCloseable {
                             new CompletableFuture<>();
                 }
             }
+            stale = entry.stale;
         }
+        if (!stale
+            || pendingLocalCommits
+                    .containsKey(modelId)) {
+            return false;
+        }
+        staleModelIds.add(modelId);
+        return true;
     }
 
     private void scheduleRefresh() {
@@ -573,20 +695,25 @@ final class ModelCacheTracker implements AutoCloseable {
             LockSupport.parkNanos(
                     java.util.concurrent.TimeUnit.MILLISECONDS
                             .toNanos(1L));
-            for (Map.Entry<String, Entry> candidate :
-                    entries.entrySet()) {
-                Entry entry = candidate.getValue();
+            for (String modelId :
+                    staleModelIds) {
+                Entry entry =
+                        entries.get(modelId);
+                if (entry == null
+                    || !entry.stale
+                    || !cache.containsKey(modelId)) {
+                    staleModelIds.remove(modelId);
+                    continue;
+                }
                 if (entry.stale
                     && entry.latestUpdate
                        <= refreshBoundary
                     && !pendingLocalCommits
                             .containsKey(
-                                    candidate.getKey())
-                    && entry.modelType != null
-                    && cache.containsKey(
-                            candidate.getKey())) {
+                                    modelId)
+                    && entry.modelType != null) {
                     targets.put(
-                            candidate.getKey(),
+                            modelId,
                             entry.modelType);
                     if (entry.refresh == null
                         || entry.refresh.isDone()) {
@@ -692,6 +819,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 }
             });
             pendingLocalCommits.clear();
+            staleModelIds.clear();
             evictionRegistration.cancel();
             refreshExecutor.shutdownNow();
         }
@@ -735,6 +863,12 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     record RefreshedBatch(long readStateIndex) {
+    }
+
+    record CurrentModel(
+            Entity<?> entity,
+            long validThrough,
+            long modelStateIndex) {
     }
 
     private static final class Entry {

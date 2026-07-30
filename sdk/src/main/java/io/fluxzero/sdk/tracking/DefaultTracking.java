@@ -957,7 +957,9 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(message, () -> doHandle(message, h, handler, config));
+            return handleAsync(
+                    message, () -> doHandle(message, h, handler, config),
+                    h.requiresBatchSegmentOrder());
         }
         return doHandle(message, h, handler, config);
     }
@@ -966,7 +968,8 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerMethod<? super DeserializingMessage> h,
                             Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(message, () -> doHandle(message, h, handler, config));
+            return handleAsync(
+                    message, () -> doHandle(message, h, handler, config), true);
         }
         return doHandle(message, h, handler, config);
     }
@@ -975,10 +978,11 @@ public class DefaultTracking implements Tracking {
         return message instanceof ChunkedDeserializingMessage || config.getHandlingMode() == ASYNC;
     }
 
-    private <T> CompletableFuture<T> handleAsync(DeserializingMessage message, Supplier<T> task) {
+    private <T> CompletableFuture<T> handleAsync(
+            DeserializingMessage message, Supplier<T> task, boolean retainSegmentOrder) {
         Supplier<T> contextAwareTask = message.captureContext().wrap(task);
         SegmentedBatchHandlerQueue queue = batchHandlerQueue.get();
-        return queue == null
+        return queue == null || !retainSegmentOrder
                 ? supplyAsync(contextAwareTask, messageHandlerExecutor)
                 : queue.submit(contextAwareTask, messageHandlerExecutor);
     }
@@ -1107,24 +1111,23 @@ public class DefaultTracking implements Tracking {
             outstandingRequests.add(resultFuture);
             var context = message.captureContext();
             s.whenComplete(context.wrap((r, e) -> {
+                CompletionStage<Void> publication;
                 try {
-                    reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
-                            .toCompletableFuture().join();
-                    if (completion != null) {
-                        completion.complete(null);
-                    }
+                    publication = reportResult(
+                            Optional.<Object>ofNullable(e).orElse(r),
+                            h, message, config);
                 } catch (Throwable t) {
-                    if (completion != null) {
-                        completion.completeExceptionally(t);
-                    } else {
-                        close();
-                    }
-                } finally {
-                    outstandingRequests.remove(resultFuture);
-                    if (e != null) {
-                        close();
-                    }
+                    finishAsyncResult(
+                            resultFuture, completion, e, t);
+                    return;
                 }
+                publication.whenComplete(
+                        context.wrap((ignored, failure) ->
+                                             finishAsyncResult(
+                                                     resultFuture,
+                                                     completion,
+                                                     e,
+                                                     failure)));
             }));
             return completion == null ? completedReport : completion;
         } else {
@@ -1156,6 +1159,30 @@ public class DefaultTracking implements Tracking {
                 }
             }));
             return completion == null ? completedReport : completion;
+        }
+    }
+
+    private void finishAsyncResult(
+            CompletableFuture<?> resultFuture,
+            CompletableFuture<Void> completion,
+            Throwable resultFailure,
+            Throwable publicationFailure) {
+        try {
+            if (publicationFailure == null) {
+                if (completion != null) {
+                    completion.complete(null);
+                }
+            } else if (completion != null) {
+                completion.completeExceptionally(
+                        publicationFailure);
+            } else {
+                close();
+            }
+        } finally {
+            outstandingRequests.remove(resultFuture);
+            if (resultFailure != null) {
+                close();
+            }
         }
     }
 

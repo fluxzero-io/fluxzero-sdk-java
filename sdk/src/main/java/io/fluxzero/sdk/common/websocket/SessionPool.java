@@ -78,6 +78,9 @@ public class SessionPool implements AutoCloseable {
         if (routingKey == null) {
             return get();
         }
+        if (size == 1) {
+            return get(0);
+        }
         return get(ConsistentHashing.computeSegment(routingKey, size));
     }
 

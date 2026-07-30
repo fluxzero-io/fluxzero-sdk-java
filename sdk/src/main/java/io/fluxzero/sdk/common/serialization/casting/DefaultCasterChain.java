@@ -162,7 +162,12 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         return cast(caster.cast(input), desiredRevision).findAny().orElse(null);
     }
 
-    private boolean canSkipCast(SerializedObject<?> input, Integer desiredRevision) {
+    @Override
+    public boolean canSkipCast(S input, Integer desiredRevision) {
+        return canSkipSerialized(input, desiredRevision);
+    }
+
+    private boolean canSkipSerialized(SerializedObject<?> input, Integer desiredRevision) {
         return isComplete(input, desiredRevision) || !hasCaster(input.getType(), input.getRevision());
     }
 
@@ -191,7 +196,7 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         public Stream<? extends SerializedObject<?>> cast(Stream<? extends SerializedObject<BEFORE>> inputStream,
                                                           Integer rev) {
             return inputStream.flatMap(input -> {
-                if (delegate.canSkipCast(input, rev)) {
+                if (delegate.canSkipSerialized(input, rev)) {
                     return Stream.of(convertFormat(input));
                 }
                 ConvertingSerializedObject<BEFORE, INTERNAL> converting =
@@ -202,12 +207,17 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
 
         @Override
         public SerializedObject<?> castFirstOrNull(SerializedObject<BEFORE> input, Integer rev) {
-            if (delegate.canSkipCast(input, rev)) {
+            if (delegate.canSkipSerialized(input, rev)) {
                 return convertFormat(input);
             }
             ConvertingSerializedObject<BEFORE, INTERNAL> converting = new ConvertingSerializedObject<>(input, converter);
             ConvertingSerializedObject<BEFORE, INTERNAL> result = delegate.castFirstOrNull(converting, rev);
             return result == null ? null : result.getResult();
+        }
+
+        @Override
+        public boolean canSkipCast(SerializedObject<BEFORE> input, Integer rev) {
+            return delegate.canSkipSerialized(input, rev);
         }
 
         @Override

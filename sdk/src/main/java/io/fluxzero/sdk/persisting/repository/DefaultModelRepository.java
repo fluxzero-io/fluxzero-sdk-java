@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -42,7 +43,6 @@ import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.common.AbstractNamespaced;
-import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
@@ -65,6 +65,7 @@ import lombok.NonNull;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -77,6 +78,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -109,6 +111,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
     private final ModelCacheTracker modelCacheTracker;
+    private final Map<HandlerKey, ReplayPlan> replayPlans =
+            new ConcurrentHashMap<>();
 
     /**
      * Compatibility constructor for document-only repository use.
@@ -385,6 +389,45 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     @Override
+    public <T> List<Entity<T>> loadAll(
+            @NonNull List<?> modelIds,
+            @NonNull Class<T> modelType) {
+        if (modelIds.isEmpty()) {
+            return List.of();
+        }
+        ModelMetadata metadata = ModelMetadata.validate(modelType);
+        String idProperty = metadata.entityId().orElseThrow().name();
+        LinkedHashSet<String> uniqueIds = new LinkedHashSet<>();
+        List<String> ids = modelIds.stream()
+                .map(modelId -> Objects.requireNonNull(
+                        modelId, "Model ID must not be null").toString())
+                .peek(modelId -> {
+                    if (!uniqueIds.add(modelId)) {
+                        throw new IllegalArgumentException(
+                                "Duplicate model ID " + modelId);
+                    }
+                })
+                .toList();
+        List<ModelTargetResolver.ResolvedModel> targets = ids.stream()
+                .map(modelId -> new ModelTargetResolver.ResolvedModel(
+                        modelId,
+                        modelType,
+                        ModelTargetResolver.Access.READ_ONLY,
+                        List.of(idProperty)))
+                .toList();
+        ModelEventStateBoundary handlerBoundary = handlerBoundary();
+        ModelCommitContext context = loadContext(
+                new ModelTargetResolver.Resolution(targets, List.of()),
+                boundary(handlerBoundary),
+                Map.of());
+        pin(handlerBoundary, context.readStateIndex());
+        return context.entries().stream()
+                .map(ModelCommitContext.Entry::entity)
+                .map(DefaultModelRepository::<T>cast)
+                .toList();
+    }
+
+    @Override
     public <T> ModelGraph<T> loadGraph(
             @NonNull String rootId,
             @NonNull Class<T> rootType,
@@ -427,6 +470,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         rootId, boundary.stateIndex(),
                         boundary.commitId(),
                         boundary.substep(),
+                        boundary.eventIndex(),
                         options.maxDepth(), options.maxModels(),
                         0, 0L, true));
         pin(handlerBoundary, graph.getStateIndex());
@@ -464,8 +508,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             List<ModelTargetResolver.ResolvedModel> targets,
             long stateIndex,
             boolean cacheAtBoundary) {
-        int batchCount = Math.min(
+        return reconstructPinned(
+                targets, stateIndex, cacheAtBoundary,
                 MAX_PARALLEL_GRAPH_RECONSTRUCTIONS,
+                "Model graph");
+    }
+
+    private ReconstructionBatch reconstructPinned(
+            List<ModelTargetResolver.ResolvedModel> targets,
+            long stateIndex,
+            boolean cacheAtBoundary,
+            int maxParallelism,
+            String description) {
+        int batchCount = Math.min(
+                maxParallelism,
                 targets.size());
         if (batchCount < 2) {
             return new ReconstructionSession().reconstruct(
@@ -512,12 +568,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         throw error;
                     }
                     throw new EventSourcingException(
-                            "Failed to reconstruct model graph", cause);
+                            "Failed to reconstruct " + description.toLowerCase(), cause);
                 }
                 if (result.stateIndex() != stateIndex) {
                     throw new EventSourcingException(
-                            "Model graph batch moved from state index %d to %d during reconstruction"
+                            "%s batch moved from state index %d to %d during reconstruction"
                                     .formatted(
+                                            description,
                                             stateIndex,
                                             result.stateIndex()));
                 }
@@ -533,7 +590,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             target.modelId());
             if (entity == null) {
                 throw new EventSourcingException(
-                        "Model graph reconstruction omitted "
+                        description + " reconstruction omitted "
                         + target.modelId());
             }
             ordered.put(
@@ -571,6 +628,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                 boundary.stateIndex(),
                                 boundary.commitId(),
                                 boundary.substep(),
+                                boundary.eventIndex(),
                                 ModelEventBatchLoader.DEFAULT_SETTINGS
                                         .maxPayloadBytes()));
         pin(handlerBoundary, result.getStateIndex());
@@ -648,7 +706,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 new GetModelGraph(
                         modelId, boundary.stateIndex(),
                         boundary.commitId(),
-                        boundary.substep(), 0, 1,
+                        boundary.substep(), boundary.eventIndex(), 0, 1,
                         0, 0L, true));
         pin(handlerBoundary, graph.getStateIndex());
         ModelEventStream stream = graph.getStreams().getFirst();
@@ -665,27 +723,31 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 DeserializingMessage.getCurrent();
         if (current == null
             || current.getMessageType() != EVENT
-               && current.getMessageType() != NOTIFICATION
-            || current.getMetadata() == null
-            || !current.getMetadata().containsKey(
-                    ModelEventMetadata.COMMIT_ID)) {
+               && current.getMessageType() != NOTIFICATION) {
             return null;
         }
         return current.computeContextIfAbsent(
                         ModelEventStateBoundary.class,
                         message -> {
-                            Object commitId = message.getMetadata().get(
-                                    ModelEventMetadata.COMMIT_ID);
-                            Object substep = message.getMetadata().get(
-                                    ModelEventMetadata.SUBSTEP);
-                            if (!(commitId instanceof String id)
-                                || id.isBlank()
-                                || substep == null) {
-                                throw new EventSourcingException(
-                                        "Published model event has no valid commit boundary metadata");
+                            Long eventIndex = message.getIndex();
+                            if (eventIndex != null) {
+                                return ModelEventStateBoundary.event(
+                                        eventIndex);
                             }
-                            return new ModelEventStateBoundary(
-                                    id, parseSubstep(substep));
+                            Object commitId = message.getMetadata() == null
+                                    ? null
+                                    : message.getMetadata().get(
+                                            ModelEventMetadata.COMMIT_ID);
+                            Object substep = message.getMetadata() == null
+                                    ? null
+                                    : message.getMetadata().get(
+                                            ModelEventMetadata.SUBSTEP);
+                            return commitId instanceof String id
+                                   && !id.isBlank()
+                                   && substep != null
+                                    ? ModelEventStateBoundary.commit(
+                                            id, parseSubstep(substep))
+                                    : null;
                         });
     }
 
@@ -923,10 +985,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             }).stateIndex()
                     : ancestorStateIndex;
         } else {
-            ReconstructionBatch batch = session.reconstruct(
-                    eventTargets, boundary);
-            stateIndex = batch.stateIndex();
-            loaded.putAll(batch.entities());
+            CurrentModelContext cached =
+                    !historicalBoundary
+                    && ancestorStateIndex == null
+                            ? currentContext(eventTargets)
+                            : null;
+            if (cached == null) {
+                ReconstructionBatch batch = session.reconstruct(
+                        eventTargets, boundary);
+                stateIndex = batch.stateIndex();
+                loaded.putAll(batch.entities());
+            } else {
+                stateIndex = cached.stateIndex();
+                loaded.putAll(cached.entities());
+            }
         }
         boolean writesEventSourcedModel =
                 resolution.models().stream().anyMatch(
@@ -999,6 +1071,49 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return ModelCommitContext.create(stateIndex, resolution, loaded);
     }
 
+    /**
+     * Resolves a coherent current context without a store round trip when tracking has proved that
+     * every selected cached value overlaps at one global state boundary.
+     */
+    private CurrentModelContext currentContext(
+            List<ModelTargetResolver.ResolvedModel> targets) {
+        if (modelCacheTracker == null || targets.isEmpty()) {
+            return null;
+        }
+        LinkedHashMap<String, Entity<?>> entities =
+                new LinkedHashMap<>();
+        long latestModelStateIndex = -1L;
+        long sharedValidThrough = Long.MAX_VALUE;
+        for (ModelTargetResolver.ResolvedModel target :
+                targets) {
+            ModelCacheTracker.CurrentModel current =
+                    modelCacheTracker.currentVersion(
+                            target.modelId(),
+                            target.modelType());
+            if (current == null) {
+                return null;
+            }
+            entities.put(
+                    target.modelId(),
+                    current.entity());
+            latestModelStateIndex =
+                    Math.max(
+                            latestModelStateIndex,
+                            current.modelStateIndex());
+            sharedValidThrough =
+                    Math.min(
+                            sharedValidThrough,
+                            current.validThrough());
+        }
+        if (latestModelStateIndex
+            > sharedValidThrough) {
+            return null;
+        }
+        return new CurrentModelContext(
+                sharedValidThrough,
+                Map.copyOf(entities));
+    }
+
     private AncestorResolution resolveAncestors(
             ModelTargetResolver.Resolution resolution,
             ModelEventBatchLoader.Boundary boundary,
@@ -1050,6 +1165,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         boundary.stateIndex(),
                         boundary.commitId(),
                         boundary.substep(),
+                        boundary.eventIndex(),
                         COMMIT_ANCESTOR_MAX_DEPTH,
                         COMMIT_ANCESTOR_MAX_MODELS,
                         0, 0L));
@@ -1564,16 +1680,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 };
         private final Map<ModelKey, TreeMap<Long, Entity<?>>> checkpoints =
                 new HashMap<>();
-        private final Map<PayloadKey, List<Message>> deserializedEvents =
-                new LinkedHashMap<>(128, 0.75f, true) {
-                    @Override
-                    protected boolean removeEldestEntry(
-                            Map.Entry<PayloadKey, List<Message>> eldest) {
-                        return size() > 1_024;
-                    }
-                };
-        private final Map<HandlerKey, ReplayPlan> replayPlans =
-                new ConcurrentHashMap<>();
+        private final ConcurrentMap<PayloadKey, List<DeserializingMessage>>
+                deserializedEvents = new ConcurrentHashMap<>();
+        private final ConcurrentMap<PreparedReplayKey, List<PreparedReplay>>
+                preparedReplays = new ConcurrentHashMap<>();
         private final Map<ReplayAncestorKey, ModelTargetResolver.Resolution>
                 replayAncestorResolutions =
                 new LinkedHashMap<>(128, 0.75f, true) {
@@ -1604,6 +1714,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 List<ModelTargetResolver.ResolvedModel> targets,
             ModelEventBatchLoader.Boundary boundary,
             boolean cacheAtBoundary) {
+            long started = System.nanoTime();
             if (targets.isEmpty()) {
                 long stateBoundary = eventLoader.load(
                         Map.of(), boundary,
@@ -1617,7 +1728,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             for (ModelTargetResolver.ResolvedModel target : targets) {
                 Entity<?> base = reconstructionBase(
                         target, boundary.stateIndex(),
-                        boundary.commitId() == null);
+                        boundary.commitId() == null
+                        && boundary.eventIndex() == null);
                 states.put(
                         target.modelId(),
                         new MutableReconstruction(target, base));
@@ -1625,34 +1737,89 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         target.modelId(),
                         base == null ? -1L : base.sequenceNumber());
             }
-            ModelEventBatchLoader.LoadResult loaded = eventLoader.load(
-                    cursors, boundary,
-                    page -> applyPage(page, states));
+            ModelEventBatchLoader.LoadResult loaded =
+                    eventLoader.loadForReconstruction(
+                            cursors, boundary,
+                            page -> applyPage(
+                                    page, states),
+                            page -> applyCompactPage(
+                                    page, states));
+            long loadedAt = System.nanoTime();
+            List<FinalizedReconstruction> finalized =
+                    targets.stream()
+                            .map(target -> {
+                                ModelHeadState head =
+                                        loaded.heads()
+                                                .get(target.modelId());
+                                MutableReconstruction state =
+                                        states.get(target.modelId());
+                                Entity<?> entity;
+                                if (head == null) {
+                                    entity = empty(target);
+                                } else {
+                                    entity = withHead(
+                                            state.current, head);
+                                }
+                                validateReconstruction(
+                                        target, head, entity);
+                                boolean cacheable =
+                                        cacheAtBoundary
+                                        && ModelMetadata.of(
+                                                        target.modelType())
+                                                .model()
+                                                .orElseThrow()
+                                                .cached()
+                                        && (head == null
+                                            || head.isHistoryComplete());
+                                if (head == null && !cacheable) {
+                                    modelCache.remove(
+                                            target.modelId());
+                                }
+                                return new FinalizedReconstruction(
+                                        target, entity, cacheable);
+                            })
+                            .toList();
+            LinkedHashMap<String, Entity<?>> cacheCandidates =
+                    new LinkedHashMap<>();
+            finalized.stream()
+                    .filter(FinalizedReconstruction::cacheable)
+                    .forEach(value ->
+                                     cacheCandidates.put(
+                                             value.target().modelId(),
+                                             value.entity()));
+            modelCache.mergeAll(
+                    cacheCandidates,
+                    (current, candidate) ->
+                            current != null
+                            && stateIndex(current)
+                               >= stateIndex(candidate)
+                                    ? current
+                                    : candidate);
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            for (ModelTargetResolver.ResolvedModel target : targets) {
-                ModelHeadState head = loaded.heads().get(target.modelId());
-                MutableReconstruction state = states.get(target.modelId());
-                Entity<?> entity;
-                if (head == null) {
-                    modelCache.remove(
-                            target.modelId());
-                    entity = empty(target);
-                } else {
-                    entity = withHead(
-                            state.current, head);
-                }
-                validateReconstruction(target, head, entity);
+            for (FinalizedReconstruction value : finalized) {
+                ModelTargetResolver.ResolvedModel target =
+                        value.target();
+                Entity<?> entity = value.entity();
                 result.put(target.modelId(), entity);
-                if (cacheAtBoundary
-                    && ModelMetadata.of(target.modelType()).model().orElseThrow().cached()
-                    && (head == null || head.isHistoryComplete())) {
-                    modelCache.put(target.modelId(), entity);
-                }
                 reconstructed.put(new ViewKey(
                         target.modelId(), target.modelType(), loaded.stateIndex(),
                         null, Integer.MAX_VALUE, loaded.stateIndex()), entity);
             }
+            if (Boolean.getBoolean("fluxzero.modelReconstructionDiagnostics")
+                && targets.size() >= 1_000) {
+                System.out.printf(
+                        "Model reconstruction total: %,d targets, load/apply %.3f ms, finalize %.3f ms%n",
+                        targets.size(),
+                        (loadedAt - started) / 1_000_000.0,
+                        (System.nanoTime() - loadedAt) / 1_000_000.0);
+            }
             return new ReconstructionBatch(loaded.stateIndex(), result);
+        }
+
+        private record FinalizedReconstruction(
+                ModelTargetResolver.ResolvedModel target,
+                Entity<?> entity,
+                boolean cacheable) {
         }
 
         private Entity<?> reconstructionBase(
@@ -1743,27 +1910,288 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         private void applyPage(
                 GetModelEventsResult page,
                 Map<String, MutableReconstruction> states) {
-            Map<Long, io.fluxzero.common.api.SerializedMessage> payloads = new HashMap<>();
-            for (ModelEventPayload payload : page.getPayloads()) {
-                payloads.put(payload.getStateIndex(), payload.getEvent());
+            long started = System.nanoTime();
+            PayloadLookup payloads =
+                    PayloadLookup.from(page.getPayloads());
+            boolean independent =
+                    page.getStreams().size() >= 32
+                    && page.getStreams().parallelStream()
+                            .allMatch(stream ->
+                                              isIndependent(
+                                                      stream,
+                                                      states,
+                                                      payloads));
+            long classified = System.nanoTime();
+            if (independent) {
+                page.getStreams().parallelStream()
+                        .forEach(stream ->
+                                         applyStream(
+                                                 stream,
+                                                 states,
+                                                 payloads));
+            } else {
+                page.getStreams().forEach(stream ->
+                                                   applyStream(
+                                                           stream,
+                                                           states,
+                                                           payloads));
             }
-            for (ModelEventStream stream : page.getStreams()) {
-                MutableReconstruction state = states.get(stream.getModelId());
-                if (state == null) {
-                    throw new EventSourcingException(
-                            "Model event store returned unrelated stream " + stream.getModelId());
+            if (deserializedEvents.size() > 1_024) {
+                deserializedEvents.clear();
+            }
+            preparedReplays.clear();
+            if (Boolean.getBoolean("fluxzero.modelReconstructionDiagnostics")
+                && page.getStreams().size() >= 1_000) {
+                System.out.printf(
+                        "Model reconstruction: %,d streams, independent=%s, classify %.3f ms, apply %.3f ms%n",
+                        page.getStreams().size(),
+                        independent,
+                        (classified - started) / 1_000_000.0,
+                        (System.nanoTime() - classified) / 1_000_000.0);
+            }
+        }
+
+        private void applyCompactPage(
+                ModelEventBatchLoader.CompactPage page,
+                Map<String, MutableReconstruction> states) {
+            long started = System.nanoTime();
+            boolean independent =
+                    page.streams().size() >= 32
+                    && page.streams().parallelStream()
+                            .allMatch(stream ->
+                                              isIndependent(
+                                                      stream,
+                                                      states));
+            long classified = System.nanoTime();
+            if (independent) {
+                page.streams().parallelStream()
+                        .forEach(stream ->
+                                         applyCompactStream(
+                                                 stream,
+                                                 states));
+            } else {
+                page.streams().forEach(stream ->
+                                                   applyCompactStream(
+                                                           stream,
+                                                           states));
+            }
+            if (Boolean.getBoolean(
+                        "fluxzero.modelReconstructionDiagnostics")
+                && page.streams().size() >= 1_000) {
+                System.out.printf(
+                        "Compact model reconstruction: %,d streams, independent=%s, classify %.3f ms, apply %.3f ms%n",
+                        page.streams().size(),
+                        independent,
+                        (classified - started)
+                        / 1_000_000.0,
+                        (System.nanoTime() - classified)
+                        / 1_000_000.0);
+            }
+        }
+
+        private boolean isIndependent(
+                ModelEventBatchLoader.CompactStream stream,
+                Map<String, MutableReconstruction> states) {
+            MutableReconstruction state =
+                    states.get(stream.modelId());
+            if (state == null) {
+                throw new EventSourcingException(
+                        "Model event store returned unrelated stream "
+                        + stream.modelId());
+            }
+            for (ModelEventBatchLoader.CompactEvent compactEvent :
+                    stream.events()) {
+                ReplayPlan directPlan =
+                        directReplayPlan(
+                                compactEvent.event(),
+                                state.target.modelType());
+                if (directPlan != null) {
+                    compactEvent.preparedReplay(
+                            directPlan);
+                    continue;
                 }
-                if (stream.getHead() != null
-                    && !stream.getHead().isHistoryComplete()) {
-                    throw incompleteHistory(stream.getModelId());
+                ModelEventMembership membership =
+                        compactEvent.membership();
+                StoredEvent storedEvent =
+                        new StoredEvent(
+                                membership,
+                                compactEvent.event());
+                List<PreparedReplay> prepared =
+                        prepareReplay(
+                                state.target,
+                                membership,
+                                storedEvent,
+                                false);
+                compactEvent.preparedReplay(prepared);
+                for (PreparedReplay replay : prepared) {
+                    ReplayPlan plan =
+                            replay.plan();
+                    ModelTargetResolver.Resolution resolution =
+                            replay.resolution();
+                    if (!plan.handlers().isEmpty()
+                        && !plan.direct()
+                        && (resolution.hasAncestorDependencies()
+                            || resolution.models().stream()
+                                    .anyMatch(target ->
+                                                      !target.modelId()
+                                                              .equals(
+                                                                      stream.modelId())))) {
+                        return false;
+                    }
                 }
-                for (ModelEventMembership membership : stream.getMemberships()) {
-                    state.apply(new StoredEvent(
-                            membership,
-                            Objects.requireNonNull(
-                                    payloads.get(membership.getStateIndex()),
-                                    "Missing validated model payload")));
+            }
+            return true;
+        }
+
+        private ReplayPlan directReplayPlan(
+                SerializedMessage event,
+                Class<?> modelType) {
+            Class<?> payloadType =
+                    serializer.serializedClassWithoutUpcasting(
+                            event);
+            if (payloadType == null) {
+                return null;
+            }
+            ReplayPlan plan =
+                    replayPlans.computeIfAbsent(
+                            new HandlerKey(
+                                    payloadType,
+                                    modelType),
+                            ignored ->
+                                    replayPlan(
+                                            payloadType,
+                                            modelType));
+            return plan.direct() ? plan : null;
+        }
+
+        private void applyCompactStream(
+                ModelEventBatchLoader.CompactStream stream,
+                Map<String, MutableReconstruction> states) {
+            MutableReconstruction state =
+                    states.get(stream.modelId());
+            if (state == null) {
+                throw new EventSourcingException(
+                        "Model event store returned unrelated stream "
+                        + stream.modelId());
+            }
+            if (stream.head() != null
+                && !stream.head().isHistoryComplete()) {
+                throw incompleteHistory(
+                        stream.modelId());
+            }
+            for (ModelEventBatchLoader.CompactEvent compactEvent :
+                    stream.events()) {
+                StoredEvent storedEvent =
+                        new StoredEvent(
+                                compactEvent.membership(),
+                                compactEvent.event());
+                Object preparedReplay =
+                        compactEvent.preparedReplay();
+                if (preparedReplay instanceof ReplayPlan directPlan) {
+                    state.applyDirect(
+                            storedEvent,
+                            directPlan);
+                    continue;
                 }
+                @SuppressWarnings("unchecked")
+                List<PreparedReplay> prepared =
+                        (List<PreparedReplay>)
+                                preparedReplay;
+                if (prepared == null) {
+                    prepared =
+                            prepareReplay(
+                                    state.target,
+                                    compactEvent.membership(),
+                                    storedEvent,
+                                    false);
+                }
+                state.apply(
+                        storedEvent,
+                        prepared);
+            }
+        }
+
+        private boolean isIndependent(
+                ModelEventStream stream,
+                Map<String, MutableReconstruction> states,
+                PayloadLookup payloads) {
+            MutableReconstruction state = states.get(stream.getModelId());
+            if (state == null) {
+                throw new EventSourcingException(
+                        "Model event store returned unrelated stream "
+                        + stream.getModelId());
+            }
+            for (ModelEventMembership membership : stream.getMemberships()) {
+                StoredEvent storedEvent = new StoredEvent(
+                        membership,
+                        payloads.getRequired(
+                                membership.getStateIndex()));
+                List<PreparedReplay> prepared =
+                        new ArrayList<>();
+                for (DeserializingMessage event :
+                        deserialize(
+                                state.target.modelType(),
+                                membership,
+                                storedEvent)) {
+                    Class<?> payloadType = event.getPayloadClass();
+                    ReplayPlan plan = replayPlans.computeIfAbsent(
+                            new HandlerKey(
+                                    payloadType,
+                                    state.target.modelType()),
+                            ignored ->
+                                    replayPlan(
+                                            payloadType,
+                                            state.target.modelType()));
+                    if (plan.handlers().isEmpty()
+                        || plan.direct()) {
+                        prepared.add(
+                                new PreparedReplay(
+                                        event, plan, null));
+                        continue;
+                    }
+                    Object payload = event.getPayload();
+                    ModelTargetResolver.Resolution resolution =
+                            plan.targets().resolve(payload);
+                    if (resolution.hasAncestorDependencies()
+                        || resolution.models().stream()
+                                .anyMatch(target ->
+                                                  !target.modelId()
+                                                          .equals(
+                                                          stream.getModelId()))) {
+                        return false;
+                    }
+                    prepared.add(
+                            new PreparedReplay(
+                                    event, plan, resolution));
+                }
+                preparedReplays.put(
+                        new PreparedReplayKey(
+                                membership.getStateIndex(),
+                                state.target.modelType()),
+                        List.copyOf(prepared));
+            }
+            return true;
+        }
+
+        private void applyStream(
+                ModelEventStream stream,
+                Map<String, MutableReconstruction> states,
+                PayloadLookup payloads) {
+            MutableReconstruction state = states.get(stream.getModelId());
+            if (state == null) {
+                throw new EventSourcingException(
+                        "Model event store returned unrelated stream "
+                        + stream.getModelId());
+            }
+            if (stream.getHead() != null
+                && !stream.getHead().isHistoryComplete()) {
+                throw incompleteHistory(stream.getModelId());
+            }
+            for (ModelEventMembership membership : stream.getMemberships()) {
+                state.apply(new StoredEvent(
+                        membership,
+                        payloads.getRequired(
+                                membership.getStateIndex())));
             }
         }
 
@@ -1938,23 +2366,96 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             }
 
             private void apply(StoredEvent storedEvent) {
+                apply(
+                        storedEvent,
+                        null);
+            }
+
+            private void apply(
+                    StoredEvent storedEvent,
+                    List<PreparedReplay> prepared) {
                 ModelEventMembership membership = storedEvent.membership();
                 boolean followsCurrent = previous == null
                         ? base == null
                           || membership.getReadStateIndex() >= stateIndex(base)
                         : membership.getReadStateIndex() >= previous.getStateIndex()
-                          || sameEarlierCommit(previous, membership);
+                          || DefaultModelRepository.sameEarlierCommit(
+                                  previous,
+                                  membership);
                 Entity<?> begin = followsCurrent
                         ? current
                         : reconstructView(
                                 target, membership.getReadStateIndex(),
                                 membership.getCommitId(), membership.getSubstep(),
                                 membership.getStateIndex());
-                current = ReconstructionSession.this.apply(
-                        target, begin, storedEvent);
+                current = prepared == null
+                        ? ReconstructionSession.this.apply(
+                                target, begin, storedEvent)
+                        : ReconstructionSession.this.apply(
+                                target, begin, storedEvent,
+                                prepared);
                 previous = membership;
                 rememberCheckpoint(target, current);
             }
+
+            private void applyDirect(
+                    StoredEvent storedEvent,
+                    ReplayPlan plan) {
+                ModelEventMembership membership =
+                        storedEvent.membership();
+                boolean followsCurrent =
+                        previous == null
+                                ? base == null
+                                  || membership.getReadStateIndex()
+                                     >= stateIndex(base)
+                                : membership.getReadStateIndex()
+                                  >= previous.getStateIndex()
+                                  || DefaultModelRepository.sameEarlierCommit(
+                                          previous,
+                                          membership);
+                Entity<?> begin =
+                        followsCurrent
+                                ? current
+                                : reconstructView(
+                                        target,
+                                        membership.getReadStateIndex(),
+                                        membership.getCommitId(),
+                                        membership.getSubstep(),
+                                        membership.getStateIndex());
+                DeserializingMessage event =
+                        serializer.deserializeFirstMessageOrNull(
+                                storedEvent.event(),
+                                EVENT,
+                                null);
+                if (event == null) {
+                    throw new EventSourcingException(
+                            "Stored model event at state %d was unexpectedly dropped"
+                                    .formatted(
+                                            membership
+                                                    .getStateIndex()));
+                }
+                Object value =
+                        replayDirectValue(
+                                target,
+                                begin,
+                                membership.getStateIndex(),
+                                event,
+                                plan.handlers()
+                                        .getFirst());
+                current =
+                        withMembershipValue(
+                                begin,
+                                value,
+                                membership.getSequenceNumber(),
+                                membership.getStateIndex(),
+                                storedEvent.event(),
+                                begin);
+                previous = membership;
+                rememberCheckpoint(
+                        target,
+                        current);
+            }
+
         }
 
         private void rememberCheckpoint(
@@ -1980,13 +2481,36 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 Entity<?> begin,
                 StoredEvent storedEvent) {
             ModelEventMembership membership = storedEvent.membership();
-            List<Message> messages = deserialize(target.modelType(), membership, storedEvent);
+            List<PreparedReplay> prepared =
+                    preparedReplays.get(
+                            new PreparedReplayKey(
+                                    membership.getStateIndex(),
+                                    target.modelType()));
+            if (prepared == null) {
+                prepared =
+                        prepareReplay(
+                                target,
+                                membership,
+                                storedEvent,
+                                true);
+            }
+            return apply(
+                    target, begin, storedEvent,
+                    prepared);
+        }
+
+        private Entity<?> apply(
+                ModelTargetResolver.ResolvedModel target,
+                Entity<?> begin,
+                StoredEvent storedEvent,
+                List<PreparedReplay> prepared) {
+            ModelEventMembership membership =
+                    storedEvent.membership();
             Entity<?> result = begin;
-            for (Message message : messages) {
-                Object payload = message.getPayload();
-                ReplayPlan plan = replayPlans.computeIfAbsent(
-                        new HandlerKey(payload.getClass(), target.modelType()),
-                        ignored -> replayPlan(payload.getClass(), target.modelType()));
+            for (PreparedReplay preparedReplay : prepared) {
+                DeserializingMessage event = preparedReplay.event();
+                Class<?> payloadType = event.getPayloadClass();
+                ReplayPlan plan = preparedReplay.plan();
                 List<ModelMetadata.HandlerMethod> handlers = plan.handlers();
                 if (handlers.isEmpty()) {
                     if (ModelMetadata.of(target.modelType()).model().orElseThrow()
@@ -1995,10 +2519,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     }
                     throw new EventSourcingException(
                             "No replay apply found for %s on model %s"
-                                    .formatted(payload.getClass().getName(), target.modelType().getName()));
+                                    .formatted(payloadType.getName(), target.modelType().getName()));
+                }
+                if (plan.direct()) {
+                    result = replayDirect(
+                            target,
+                            result,
+                            membership,
+                            event,
+                            handlers.getFirst());
+                    continue;
                 }
                 ModelTargetResolver.Resolution resolution =
-                        plan.targets().resolve(payload);
+                        preparedReplay.resolution();
                 if (resolution.hasAncestorDependencies()) {
                     long relationshipBoundary =
                             membership.getReadStateIndex();
@@ -2075,22 +2608,40 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                 membership.getCommitId(),
                                 membership.getSubstep(),
                                 membership.getStateIndex());
-                Map<String, Entity<?>> loaded = new LinkedHashMap<>();
-                for (ModelTargetResolver.ResolvedModel dependency : resolution.models()) {
-                    Entity<?> entity = dependency.modelId().equals(target.modelId())
-                            ? result
-                            : dependencyViews.get(dependency.modelId());
-                    loaded.put(dependency.modelId(), entity);
+                Map<String, Entity<?>> loaded;
+                if (dependencies.isEmpty()
+                    && resolution.models().size() == 1
+                    && resolution.models().getFirst().modelId()
+                            .equals(target.modelId())) {
+                    loaded = Map.of(target.modelId(), result);
+                } else {
+                    loaded = new LinkedHashMap<>();
+                    for (ModelTargetResolver.ResolvedModel dependency :
+                            resolution.models()) {
+                        Entity<?> entity =
+                                dependency.modelId().equals(target.modelId())
+                                        ? result
+                                        : dependencyViews.get(
+                                                dependency.modelId());
+                        loaded.put(dependency.modelId(), entity);
+                    }
                 }
                 ModelCommitContext context = ModelCommitContext.create(
                         membership.getReadStateIndex(), resolution, loaded);
-                DeserializingMessage event = new DeserializingMessage(
-                        message, EVENT, null, serializer);
-                context.attachTo(event);
+                DeserializingMessage replayEvent =
+                        new DeserializingMessage(
+                                event.toMessage(),
+                                EVENT,
+                                null,
+                                serializer);
+                context.attachTo(replayEvent);
                 try {
                     ModelEventReplayer.ReplayResult replay =
                             eventReplayer.replay(
-                                    event, context, handlers, target.modelId());
+                                    replayEvent,
+                                    context,
+                                    handlers,
+                                    target.modelId());
                     if (replay.applied()) {
                         result = updateValue(result, replay.value());
                     } else {
@@ -2108,7 +2659,108 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             return withMembership(result, storedEvent, begin);
         }
 
-        private List<Message> deserialize(
+        private List<PreparedReplay> prepareReplay(
+                ModelTargetResolver.ResolvedModel target,
+                ModelEventMembership membership,
+                StoredEvent storedEvent,
+                boolean sharedPayload) {
+            List<DeserializingMessage> messages =
+                    sharedPayload
+                            ? deserialize(
+                                    target.modelType(),
+                                    membership,
+                                    storedEvent)
+                            : deserializeUncached(
+                                    target.modelType(),
+                                    storedEvent);
+            return messages.stream()
+                    .map(event -> {
+                        Class<?> payloadType =
+                                event.getPayloadClass();
+                        ReplayPlan plan =
+                                replayPlans.computeIfAbsent(
+                                        new HandlerKey(
+                                                payloadType,
+                                                target.modelType()),
+                                        ignored ->
+                                                replayPlan(
+                                                        payloadType,
+                                                        target.modelType()));
+                        return new PreparedReplay(
+                                event,
+                                plan,
+                                plan.handlers().isEmpty()
+                                || plan.direct()
+                                        ? null
+                                        : plan.targets()
+                                                .resolve(
+                                                        event.getPayload()));
+                    })
+                    .toList();
+        }
+
+        private Entity<?> replayDirect(
+                ModelTargetResolver.ResolvedModel target,
+                Entity<?> begin,
+                ModelEventMembership membership,
+                DeserializingMessage event,
+                ModelMetadata.HandlerMethod handler) {
+            return replayDirect(
+                    target,
+                    begin,
+                    membership.getStateIndex(),
+                    event,
+                    handler);
+        }
+
+        private Entity<?> replayDirect(
+                ModelTargetResolver.ResolvedModel target,
+                Entity<?> begin,
+                long stateIndex,
+                DeserializingMessage event,
+                ModelMetadata.HandlerMethod handler) {
+            return updateValue(
+                    begin,
+                    replayDirectValue(
+                            target,
+                            begin,
+                            stateIndex,
+                            event,
+                            handler));
+        }
+
+        private Object replayDirectValue(
+                ModelTargetResolver.ResolvedModel target,
+                Entity<?> begin,
+                long stateIndex,
+                DeserializingMessage event,
+                ModelMetadata.HandlerMethod handler) {
+            try {
+                ModelEventReplayer.ReplayResult replay =
+                        eventReplayer.replayDirect(
+                                event,
+                                begin,
+                                handler,
+                                target.modelId());
+                if (replay.applied()) {
+                    return replay.value();
+                }
+                throw new EventSourcingException(
+                        "Stored membership for %s at state %d produced no target transition"
+                                .formatted(
+                                        target.modelId(),
+                                        stateIndex));
+            } catch (Throwable failure) {
+                throw new EventSourcingException(
+                        "Failed to apply model event at state %d to %s"
+                                .formatted(
+                                        stateIndex,
+                                        target.modelId()),
+                        failure);
+            }
+        }
+
+        private List<DeserializingMessage> deserialize(
                 Class<?> modelType,
                 ModelEventMembership membership,
                 StoredEvent storedEvent) {
@@ -2120,8 +2772,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     serializer.deserializeMessages(
                                     Stream.of(storedEvent.event()), EVENT,
                                     ignoreUnknown ? UnknownTypeStrategy.IGNORE : UnknownTypeStrategy.FAIL)
-                            .map(DeserializingMessage::toMessage)
                             .toList());
+        }
+
+        private List<DeserializingMessage> deserializeUncached(
+                Class<?> modelType,
+                StoredEvent storedEvent) {
+            boolean ignoreUnknown =
+                    ModelMetadata.of(modelType)
+                            .model().orElseThrow()
+                            .ignoreUnknownEvents();
+            return serializer.deserializeMessages(
+                            Stream.of(
+                                    storedEvent.event()),
+                            EVENT,
+                            ignoreUnknown
+                                    ? UnknownTypeStrategy.IGNORE
+                                    : UnknownTypeStrategy.FAIL)
+                    .toList();
         }
 
         private ReplayPlan replayPlan(
@@ -2137,7 +2805,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             List<ModelMetadata.HandlerMethod> handlers = List.copyOf(result);
             return new ReplayPlan(
                     handlers,
-                    ModelTargetResolver.plan(payloadType, handlers));
+                    ModelTargetResolver.plan(payloadType, handlers),
+                    handlers.size() == 1
+                    && eventReplayer.supportsDirectReplay(
+                            handlers.getFirst(),
+                            payloadType,
+                            modelType));
         }
 
         @SuppressWarnings("unchecked")
@@ -2163,18 +2836,49 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 StoredEvent storedEvent,
                 Entity<?> previous) {
             ModelEventMembership membership = storedEvent.membership();
-            io.fluxzero.common.api.SerializedMessage event = storedEvent.event();
+            return withMembership(
+                    entity,
+                    membership.getSequenceNumber(),
+                    membership.getStateIndex(),
+                    storedEvent.event(),
+                    previous);
+        }
+
+        @SuppressWarnings("unchecked")
+        private Entity<?> withMembership(
+                Entity<?> entity,
+                long sequenceNumber,
+                long stateIndex,
+                SerializedMessage event,
+                Entity<?> previous) {
+            return withMembershipValue(
+                    entity,
+                    entity.get(),
+                    sequenceNumber,
+                    stateIndex,
+                    event,
+                    previous);
+        }
+
+        @SuppressWarnings("unchecked")
+        private Entity<?> withMembershipValue(
+                Entity<?> entity,
+                Object value,
+                long sequenceNumber,
+                long stateIndex,
+                SerializedMessage event,
+                Entity<?> previous) {
             Model model = ModelMetadata.of(entity.type())
                     .model().orElseThrow();
             return ImmutableModelRoot.<Object>builder()
                     .id(entity.id())
                     .type((Class<Object>) entity.type())
                     .idProperty(entity.idProperty())
-                    .value(entity.get())
+                    .value(value)
                     .entityHelper(entityHelper)
                     .serializer(serializer)
-                    .sequenceNumber(membership.getSequenceNumber())
-                    .stateIndex(membership.getStateIndex())
+                    .sequenceNumber(sequenceNumber)
+                    .stateIndex(stateIndex)
                     .lastEventId(event.getMessageId())
                     .lastEventIndex(event.getIndex())
                     .timestamp(Instant.ofEpochMilli(event.getTimestamp()))
@@ -2245,6 +2949,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             long stateIndex, Map<String, Entity<?>> entities) {
     }
 
+    private record CurrentModelContext(
+            long stateIndex, Map<String, Entity<?>> entities) {
+    }
+
     private record AncestorResolution(
             long stateIndex,
             ModelTargetResolver.Resolution resolution) {
@@ -2278,9 +2986,66 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private record HandlerKey(Class<?> payloadType, Class<?> modelType) {
     }
 
+    private record PreparedReplayKey(long stateIndex, Class<?> modelType) {
+    }
+
+    private record PreparedReplay(
+            DeserializingMessage event,
+            ReplayPlan plan,
+            ModelTargetResolver.Resolution resolution) {
+    }
+
     private record ReplayPlan(
             List<ModelMetadata.HandlerMethod> handlers,
-            ModelTargetResolver.TargetPlan targets) {
+            ModelTargetResolver.TargetPlan targets,
+            boolean direct) {
+    }
+
+    private record PayloadLookup(
+            long[] stateIndices,
+            SerializedMessage[] events,
+            Map<Long, SerializedMessage> unordered) {
+
+        private static PayloadLookup from(
+                List<ModelEventPayload> payloads) {
+            long[] stateIndices = new long[payloads.size()];
+            SerializedMessage[] events =
+                    new SerializedMessage[payloads.size()];
+            boolean sorted = true;
+            for (int index = 0; index < payloads.size(); index++) {
+                ModelEventPayload payload = payloads.get(index);
+                stateIndices[index] = payload.getStateIndex();
+                events[index] = payload.getEvent();
+                sorted &= index == 0
+                          || stateIndices[index - 1]
+                             < stateIndices[index];
+            }
+            if (sorted) {
+                return new PayloadLookup(
+                        stateIndices, events, null);
+            }
+            Map<Long, SerializedMessage> unordered =
+                    new HashMap<>(payloads.size() * 4 / 3 + 1);
+            for (int index = 0; index < stateIndices.length; index++) {
+                unordered.put(
+                        stateIndices[index], events[index]);
+            }
+            return new PayloadLookup(
+                    stateIndices, events, unordered);
+        }
+
+        private SerializedMessage getRequired(long stateIndex) {
+            SerializedMessage event;
+            if (unordered == null) {
+                int index = Arrays.binarySearch(
+                        stateIndices, stateIndex);
+                event = index < 0 ? null : events[index];
+            } else {
+                event = unordered.get(stateIndex);
+            }
+            return Objects.requireNonNull(
+                    event, "Missing validated model payload");
+        }
     }
 
     private record ReplayAncestorKey(
@@ -2292,31 +3057,59 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
     private static final class ModelEventStateBoundary {
         private final String sourceCommitId;
-        private final int sourceSubstep;
+        private final Integer sourceSubstep;
+        private final Long sourceEventIndex;
         private Long stateIndex;
 
         private ModelEventStateBoundary(
-                String sourceCommitId, int sourceSubstep) {
+                String sourceCommitId,
+                Integer sourceSubstep,
+                Long sourceEventIndex) {
             this.sourceCommitId = sourceCommitId;
             this.sourceSubstep = sourceSubstep;
+            this.sourceEventIndex = sourceEventIndex;
+        }
+
+        private static ModelEventStateBoundary commit(
+                String commitId, int substep) {
+            return new ModelEventStateBoundary(
+                    commitId, substep, null);
+        }
+
+        private static ModelEventStateBoundary event(
+                long eventIndex) {
+            return new ModelEventStateBoundary(
+                    null, null, eventIndex);
         }
 
         private synchronized ModelEventBatchLoader.Boundary request() {
-            return stateIndex == null
+            if (stateIndex != null) {
+                return ModelEventBatchLoader.Boundary.at(
+                        stateIndex);
+            }
+            return sourceEventIndex == null
                     ? ModelEventBatchLoader.Boundary.commit(
                             sourceCommitId, sourceSubstep)
-                    : ModelEventBatchLoader.Boundary.at(stateIndex);
+                    : ModelEventBatchLoader.Boundary.event(
+                            sourceEventIndex);
         }
 
         private synchronized void pin(long value) {
             if (stateIndex != null && stateIndex != value) {
                 throw new EventSourcingException(
-                        "Published model commit %s substep %d resolved to both state %d and %d"
+                        "Published model boundary %s resolved to both state %d and %d"
                                 .formatted(
-                                        sourceCommitId, sourceSubstep,
+                                        description(),
                                         stateIndex, value));
             }
             stateIndex = value;
+        }
+
+        private String description() {
+            return sourceEventIndex == null
+                    ? "commit %s substep %d".formatted(
+                            sourceCommitId, sourceSubstep)
+                    : "event %d".formatted(sourceEventIndex);
         }
     }
 

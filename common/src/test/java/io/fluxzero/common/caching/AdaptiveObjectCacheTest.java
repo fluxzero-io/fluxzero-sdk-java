@@ -23,7 +23,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -167,6 +169,52 @@ class AdaptiveObjectCacheTest {
         assertEquals("created!", cache.get("missing"));
         assertNull(cache.computeIfPresent("foo", (key, value) -> null));
         assertFalse(cache.containsKey("foo"));
+    }
+
+    @Test
+    void bulkMergeRetainsTheSelectedValues() {
+        Cache cache =
+                new AdaptiveObjectCache(
+                        10,
+                        MemoryPressureController.none());
+        cache.put("existing", "old");
+        Map<String, String> candidates =
+                new LinkedHashMap<>();
+        candidates.put("existing", "new");
+        candidates.put("added", "value");
+        candidates.put("ignored", "drop");
+
+        cache.mergeAll(
+                candidates,
+                (current, candidate) ->
+                        "drop".equals(candidate)
+                                ? null
+                                : current == null
+                                        ? candidate
+                                        : current);
+
+        assertEquals("old", cache.get("existing"));
+        assertEquals("value", cache.get("added"));
+        assertFalse(cache.containsKey("ignored"));
+    }
+
+    @Test
+    void bulkMergeAdmitsAnEmptyCacheInIterationOrder() {
+        Cache cache =
+                new AdaptiveObjectCache(
+                        2,
+                        MemoryPressureController.none());
+
+        cache.mergeAll(
+                new LinkedHashMap<>(
+                        Map.of(
+                                "a", "A",
+                                "b", "B",
+                                "c", "C")),
+                (current, candidate) ->
+                        candidate);
+
+        assertEquals(2, cache.size());
     }
 
     @Test

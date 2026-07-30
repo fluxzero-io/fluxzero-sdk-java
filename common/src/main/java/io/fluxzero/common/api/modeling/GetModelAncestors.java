@@ -52,6 +52,11 @@ public class GetModelAncestors extends Request {
     Integer boundarySubstep;
 
     /**
+     * Global event-log index of the published model event whose state boundary is requested.
+     */
+    Long boundaryEventIndex;
+
+    /**
      * Maximum number of parent-edge levels above the roots.
      */
     int maxDepth;
@@ -79,14 +84,10 @@ public class GetModelAncestors extends Request {
             int maxEventsPerModel,
             long maxBytes) {
         this(
-                modelIds, maxStateIndex, null, null,
+                modelIds, maxStateIndex, null, null, null,
                 maxDepth, maxModels, maxEventsPerModel, maxBytes);
     }
 
-    @ConstructorProperties({
-            "modelIds", "maxStateIndex", "boundaryCommitId",
-            "boundarySubstep", "maxDepth", "maxModels",
-            "maxEventsPerModel", "maxBytes"})
     public GetModelAncestors(
             List<String> modelIds,
             Long maxStateIndex,
@@ -100,6 +101,32 @@ public class GetModelAncestors extends Request {
         this.maxStateIndex = maxStateIndex;
         this.boundaryCommitId = boundaryCommitId;
         this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = null;
+        this.maxDepth = maxDepth;
+        this.maxModels = maxModels;
+        this.maxEventsPerModel = maxEventsPerModel;
+        this.maxBytes = maxBytes;
+    }
+
+    @ConstructorProperties({
+            "modelIds", "maxStateIndex", "boundaryCommitId",
+            "boundarySubstep", "boundaryEventIndex", "maxDepth", "maxModels",
+            "maxEventsPerModel", "maxBytes"})
+    public GetModelAncestors(
+            List<String> modelIds,
+            Long maxStateIndex,
+            String boundaryCommitId,
+            Integer boundarySubstep,
+            Long boundaryEventIndex,
+            int maxDepth,
+            int maxModels,
+            int maxEventsPerModel,
+            long maxBytes) {
+        this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
+        this.maxStateIndex = maxStateIndex;
+        this.boundaryCommitId = boundaryCommitId;
+        this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = boundaryEventIndex;
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
         this.maxEventsPerModel = maxEventsPerModel;
@@ -111,7 +138,7 @@ public class GetModelAncestors extends Request {
         return new Metric(
                 modelIds == null ? 0 : modelIds.size(),
                 maxStateIndex, boundaryCommitId,
-                boundarySubstep, maxDepth, maxModels,
+                boundarySubstep, boundaryEventIndex, maxDepth, maxModels,
                 maxEventsPerModel, maxBytes);
     }
 
@@ -121,6 +148,7 @@ public class GetModelAncestors extends Request {
         Long maxStateIndex;
         String boundaryCommitId;
         Integer boundarySubstep;
+        Long boundaryEventIndex;
         int maxDepth;
         int maxModels;
         int maxEventsPerModel;

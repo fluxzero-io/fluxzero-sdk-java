@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.repository;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -73,6 +74,41 @@ class RepositoryCacheTest {
 
             cache.onFirstWrite(() -> 42L, ignored -> invocations.incrementAndGet());
 
+            assertEquals(1, invocations.get());
+        } finally {
+            delegate.close();
+        }
+    }
+
+    @Test
+    void bulkMergePreservesNamespaceAndFirstWriteTracking() {
+        AdaptiveObjectCache delegate = new AdaptiveObjectCache();
+        try {
+            RepositoryCache first =
+                    new RepositoryCache(
+                            delegate, "model", "first");
+            RepositoryCache second =
+                    new RepositoryCache(
+                            delegate, "model", "second");
+            AtomicInteger invocations =
+                    new AtomicInteger();
+            first.onFirstWrite(
+                    () -> 42L,
+                    ignored -> invocations.incrementAndGet());
+
+            first.mergeAll(
+                    Map.of("same", "first-value"),
+                    (current, candidate) -> candidate);
+            second.mergeAll(
+                    Map.of("same", "second-value"),
+                    (current, candidate) -> candidate);
+
+            assertEquals(
+                    "first-value",
+                    first.get("same"));
+            assertEquals(
+                    "second-value",
+                    second.get("same"));
             assertEquals(1, invocations.get());
         } finally {
             delegate.close();

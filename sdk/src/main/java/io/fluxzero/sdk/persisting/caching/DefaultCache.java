@@ -26,6 +26,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -155,6 +156,15 @@ public final class DefaultCache implements Cache, AutoCloseable {
     @Override
     public <T> T compute(Object id, BiFunction<? super Object, ? super T, ? extends T> mappingFunction) {
         return delegate.compute(id, mappingFunction);
+    }
+
+    @Override
+    public <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        delegate.mergeAll(
+                values,
+                mergeFunction);
     }
 
     @Override

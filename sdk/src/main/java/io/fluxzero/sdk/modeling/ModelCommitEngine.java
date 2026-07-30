@@ -264,6 +264,8 @@ final class ModelCommitEngine {
                     targetId, targetType,
                     target.entity() instanceof ModelRoot<?> modelRoot
                             ? modelRoot.sequenceNumber() : -1L,
+                    target.entity() instanceof ModelRoot<?> modelRoot
+                            ? modelRoot.lastEventIndex() : null,
                     target.entity().get(), result,
                     handler.executable());
             if (transitions == null) {
@@ -293,6 +295,55 @@ final class ModelCommitEngine {
         }
         return new Evaluation(
                 beginState, resultingState, transitionList);
+    }
+
+    SingleTargetEvaluation evaluateSingleTarget(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId) {
+        beginState.attachTo(message);
+        return message.apply(
+                ignored -> evaluateSingleTargetInContext(
+                        message, beginState, handler, expectedTargetId));
+    }
+
+    private SingleTargetEvaluation evaluateSingleTargetInContext(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId) {
+        if (handler.kind() != ModelMetadata.HandlerKind.APPLY
+            || handler.targetModelTypes().size() != 1) {
+            throw new IllegalArgumentException(
+                    "Single-target replay requires one apply target");
+        }
+        HandlerInvoker invoker = invoker(handler, message, beginState);
+        if (invoker == null) {
+            return new SingleTargetEvaluation(
+                    false,
+                    beginState.entry(expectedTargetId).entity().get());
+        }
+        Class<?> targetType = handler.targetModelTypes().getFirst();
+        Object result = invoker.invoke();
+        String targetId =
+                resolveWriteTarget(
+                        handler, targetType, result, beginState);
+        ModelCommitContext.Entry target = beginState.entry(targetId);
+        if (!expectedTargetId.equals(targetId)
+            || target == null
+            || !beginState.mayWrite(
+                    targetId,
+                    targetType,
+                    handler.executable().toGenericString())) {
+            throw new IllegalStateException(
+                    "Apply %s returned model '%s', which is not replay target '%s'"
+                            .formatted(
+                                    handler.executable().toGenericString(),
+                                    targetId,
+                                    expectedTargetId));
+        }
+        return new SingleTargetEvaluation(true, result);
     }
 
     @SuppressWarnings("unchecked")
@@ -560,13 +611,28 @@ final class ModelCommitEngine {
         }
     }
 
+    record SingleTargetEvaluation(boolean applied, Object value) {
+    }
+
     record Transition(
             String modelId,
             Class<?> modelType,
             long beforeSequenceNumber,
+            Long beforeLastEventIndex,
             Object before,
             Object after,
             Executable handler) {
+        Transition(
+                String modelId,
+                Class<?> modelType,
+                long beforeSequenceNumber,
+                Object before,
+                Object after,
+                Executable handler) {
+            this(
+                    modelId, modelType, beforeSequenceNumber,
+                    null, before, after, handler);
+        }
     }
 
     private record PendingSubstep(

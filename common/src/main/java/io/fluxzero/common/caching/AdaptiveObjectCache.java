@@ -19,6 +19,8 @@ import io.fluxzero.common.Registration;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -183,6 +185,43 @@ public class AdaptiveObjectCache implements Cache {
         CacheEntry nextEntry = newEntry(next);
         putEntry(id, nextEntry);
         return unwrap(nextEntry);
+    }
+
+    @Override
+    public synchronized <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        Objects.requireNonNull(values, "values");
+        Objects.requireNonNull(mergeFunction, "mergeFunction");
+        if (values.isEmpty()) {
+            return;
+        }
+        if (expiry == null && delegate.size() == 0) {
+            Map<Object, CacheEntry> additions =
+                    new LinkedHashMap<>(
+                            (int) Math.min(
+                                    Integer.MAX_VALUE,
+                                    (long) values.size()
+                                    * 4L / 3L + 1L));
+            values.forEach((id, candidate) -> {
+                T next =
+                        mergeFunction.apply(
+                                null, candidate);
+                if (next != null) {
+                    additions.put(
+                            id, newEntry(next));
+                }
+            });
+            delegate.putAll(additions);
+            return;
+        }
+        values.forEach((id, candidate) ->
+                               this.<T>compute(
+                                       id,
+                                       (ignored, current) ->
+                                               mergeFunction.apply(
+                                                       current,
+                                                       candidate)));
     }
 
     @Override

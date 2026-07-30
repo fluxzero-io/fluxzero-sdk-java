@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
@@ -499,6 +500,81 @@ class ModelCacheTrackerTest {
     }
 
     @Test
+    void tracksUpdatesForANewModelFromTheStartOfItsLocalCommit()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> committed =
+                modelEntity(11L);
+        AtomicInteger refreshCount =
+                new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshCount
+                                         .incrementAndGet();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.prepare();
+            CompletableFuture<TrackModelUpdatesResult>
+                    firstPoll =
+                    awaitNext(polls);
+            Runnable localCommitComplete =
+                    tracker.beginLocalCommit(
+                            List.of(
+                                    "sample-1"));
+            firstPoll.complete(
+                    new TrackModelUpdatesResult(
+                            1L, 12L, 12L, 12L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "local-commit", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelCommitTargetResult(
+                                                            "sample-1",
+                                                            0L,
+                                                            true))),
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "unrelated-commit", 0,
+                                            12L, null,
+                                            List.of(
+                                                    new ModelCommitTargetResult(
+                                                            "another-model",
+                                                            0L,
+                                                            true))))));
+            awaitNext(polls);
+
+            cache.put(
+                    "sample-1",
+                    committed);
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    11L);
+            localCommitComplete.run();
+
+            assertSame(
+                    committed,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertEquals(
+                    0, refreshCount.get());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
     void failedLocalCommitReleasesItsDeferredRemoteRefresh()
             throws Exception {
         EventStoreClient eventStore =
@@ -728,6 +804,69 @@ class ModelCacheTrackerTest {
         }
     }
 
+    @Test
+    void localCommitPublishesTheBoundaryOfTheNewCachedRevision() {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> initial =
+                modelEntity(10L);
+        Entity<?> committed =
+                modelEntity(20L);
+        cache.put("sample-1", initial);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (tracker.current(
+                    "sample-1",
+                    SampleModel.class) == null
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
+            assertSame(
+                    initial,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+
+            cache.put("sample-1", committed);
+            assertNull(
+                    tracker.currentVersion(
+                            "sample-1",
+                            SampleModel.class));
+
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    20L);
+
+            ModelCacheTracker.CurrentModel current =
+                    tracker.currentVersion(
+                            "sample-1",
+                            SampleModel.class);
+            assertSame(committed, current.entity());
+            assertEquals(20L, current.validThrough());
+            assertEquals(20L, current.modelStateIndex());
+        } finally {
+            cache.close();
+        }
+    }
+
     private static ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
             polls(EventStoreClient eventStore) {
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
@@ -795,6 +934,17 @@ class ModelCacheTrackerTest {
                 .thenReturn(
                         (Class<Object>) modelType);
         return entity;
+    }
+
+    private static Entity<?> modelEntity(
+            long stateIndex) {
+        return ImmutableModelRoot
+                .<SampleModel>builder()
+                .id("sample-1")
+                .type(SampleModel.class)
+                .value(new SampleModel("sample-1"))
+                .stateIndex(stateIndex)
+                .build();
     }
 
     private record SampleModel(String id) {

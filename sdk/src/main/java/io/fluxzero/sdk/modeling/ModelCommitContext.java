@@ -59,6 +59,25 @@ public final class ModelCommitContext {
             Map<String, ? extends Entity<?>> loadedModels) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(loadedModels, "loadedModels");
+        if (resolution.models().size() == 1
+            && loadedModels.size() == 1) {
+            ModelTargetResolver.ResolvedModel target =
+                    resolution.models().getFirst();
+            Entity<?> entity = loadedModels.get(target.modelId());
+            if (entity == null) {
+                throw new IllegalArgumentException(
+                        "Missing loaded model '%s' of type %s at state index %d"
+                                .formatted(
+                                        target.modelId(),
+                                        target.modelType().getName(),
+                                        readStateIndex));
+            }
+            validateLoadedEntity(target, entity);
+            return new ModelCommitContext(
+                    readStateIndex,
+                    List.of(new Entry(target, entity)),
+                    resolution.deferredWrites());
+        }
         Map<String, Entity<?>> remaining = new LinkedHashMap<>(loadedModels);
         List<Entry> entries = new ArrayList<>(resolution.models().size());
         for (ModelTargetResolver.ResolvedModel target : resolution.models()) {

@@ -49,6 +49,8 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,6 +59,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
@@ -68,6 +71,12 @@ import java.util.stream.Stream;
  * when normal command handling did not select a handler.
  */
 public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory {
+    private static final boolean BATCH_DIAGNOSTICS =
+            Boolean.getBoolean(
+                    "fluxzero.modelCommitBatchGateDiagnostics");
+    private static final boolean DISABLE_BATCH_GATES =
+            Boolean.getBoolean(
+                    "fluxzero.disableModelCommitBatchGates");
     private final DefaultModelRepository repository;
     private final ModelCommitEngine engine;
     private final ModelCommitter committer;
@@ -368,27 +377,48 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private CompletableFuture<Object> execute(DeserializingMessage message) {
+        return execute(message, null);
+    }
+
+    private CompletableFuture<Object> execute(
+            DeserializingMessage message,
+            BatchCommitTicket batchTicket) {
         CompletableFuture<?> registrations =
                 CompletableFuture.allOf(
                         graphProjectionRegistrations
                                 .values()
                                 .toArray(
                                         CompletableFuture[]::new));
-        return registrations.thenCompose(
-                ignored -> executeRegistered(message));
+        CompletableFuture<Object> result =
+                registrations.thenCompose(
+                        ignored -> executeRegistered(
+                                message, batchTicket));
+        if (batchTicket != null) {
+            result.whenComplete((ignored, failure) -> {
+                if (failure != null) {
+                    batchTicket.exclude();
+                }
+            });
+        }
+        return result;
     }
 
     private CompletableFuture<Object> executeRegistered(
-            DeserializingMessage message) {
+            DeserializingMessage message,
+            BatchCommitTicket batchTicket) {
         ModelCommitEngine.CommitEvaluation initialEvaluation =
                 evaluate(message);
+        if (batchTicket != null) {
+            batchTicket.assign(
+                    initialEvaluation.readModelIds());
+        }
         if (ModelConflictPolicies.resolve(
                 initialEvaluation,
                 conflictPolicy)
             != ModelConflictPolicy.ACCEPT) {
-            return executeEvaluation(
-                    message,
-                    initialEvaluation);
+            return executeBatched(
+                    message, initialEvaluation,
+                    batchTicket);
         }
         ThreadLocalContext.Snapshot context =
                 ThreadLocalContext.capture();
@@ -397,9 +427,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 contended -> {
                     if (!contended) {
                         return context.supply(
-                                () -> executeEvaluation(
+                                () -> executeBatched(
                                         message,
-                                        initialEvaluation));
+                                        initialEvaluation,
+                                        batchTicket));
                     }
                     /*
                      * The predecessor commonly completes on the websocket result callback. A fresh evaluation may
@@ -414,10 +445,29 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                             .thenCompose(
                                     context.wrap(
                                             evaluation ->
-                                                    executeEvaluation(
+                                                    executeBatched(
                                                             message,
-                                                            evaluation)));
+                                                            evaluation,
+                                                            batchTicket)));
                 });
+    }
+
+    private CompletableFuture<Object> executeBatched(
+            DeserializingMessage message,
+            ModelCommitEngine.CommitEvaluation evaluation,
+            BatchCommitTicket batchTicket) {
+        if (batchTicket == null) {
+            return executeEvaluation(
+                    message, evaluation);
+        }
+        ThreadLocalContext.Snapshot context =
+                ThreadLocalContext.capture();
+        return batchTicket.awaitRelease()
+                .thenCompose(ignored ->
+                                     context.supply(
+                                             () -> executeEvaluation(
+                                                     message,
+                                                     evaluation)));
     }
 
     private CompletableFuture<Object> executeEvaluation(
@@ -1043,8 +1093,234 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     || !ModelMetadata.of(trackingTarget).isModel()
                        && trackingTarget.isAssignableFrom(
                                message.getPayloadClass());
-            return selected && canHandle(message)
-                    ? HandlerInvoker.call(() -> execute(message)) : null;
+            if (!selected || !canHandle(message)) {
+                return null;
+            }
+            BatchCommitTicket batchTicket =
+                    DISABLE_BATCH_GATES
+                            ? null
+                            : batchCommitTicket();
+            return new HandlerInvoker.DelegatingHandlerInvoker(
+                    HandlerInvoker.call(
+                            () -> execute(
+                                    message, batchTicket))) {
+                @Override
+                public boolean requiresBatchSegmentOrder() {
+                    /*
+                     * The generic tracker segment is deliberately coarse and may collide for unrelated models. Exact
+                     * read-set coordination and batch waves below own ordering for automatic model commits.
+                     */
+                    return false;
+                }
+
+                @Override
+                public Object invoke(
+                        java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
+                    return delegate.invoke(resultCombiner);
+                }
+            };
+        }
+    }
+
+    private BatchCommitTicket batchCommitTicket() {
+        BatchCommitGates gates =
+                DeserializingMessage.computeForBatchIfAbsent(
+                        this, ignored -> {
+                            BatchCommitGates created =
+                                    new BatchCommitGates();
+                            DeserializingMessage.whenBatchCompletes(
+                                    created::close);
+                            return created;
+                        });
+        return gates.register();
+    }
+
+    private static final class BatchCommitGates {
+        private final Map<String, Integer> modelOccurrences =
+                new HashMap<>();
+        private final Map<Integer, BatchCommitGate> waves =
+                new HashMap<>();
+        private int registered;
+        private int resolved;
+        private boolean closed;
+        private Throwable failure;
+
+        synchronized BatchCommitTicket register() {
+            if (closed) {
+                return BatchCommitTicket.released();
+            }
+            registered++;
+            return new BatchCommitTicket(this);
+        }
+
+        synchronized BatchCommitGate assign(
+                Collection<String> modelIds) {
+            List<String> keys =
+                    modelIds.stream()
+                            .distinct()
+                            .toList();
+            int wave =
+                    keys.stream()
+                            .mapToInt(key ->
+                                              modelOccurrences
+                                                      .getOrDefault(
+                                                              key, 0))
+                            .max()
+                            .orElse(0);
+            int nextWave = wave + 1;
+            keys.forEach(key ->
+                                 modelOccurrences.put(
+                                         key, nextWave));
+            BatchCommitGate gate =
+                    waves.computeIfAbsent(
+                            wave,
+                            ignored ->
+                                    new BatchCommitGate());
+            gate.register();
+            resolved++;
+            if (failure != null) {
+                gate.close(failure);
+            }
+            closeWavesIfResolved();
+            return gate;
+        }
+
+        synchronized void exclude() {
+            resolved++;
+            closeWavesIfResolved();
+        }
+
+        synchronized void close(Throwable failure) {
+            closed = true;
+            this.failure = failure;
+            if (BATCH_DIAGNOSTICS) {
+                System.out.printf(
+                        "SDK model commit gates close: registered=%d resolved=%d waves=%d failure=%s%n",
+                        registered, resolved, waves.size(),
+                        failure == null
+                                ? "none"
+                                : failure.getClass().getSimpleName());
+            }
+            if (failure != null) {
+                waves.values()
+                        .forEach(gate ->
+                                         gate.close(failure));
+                return;
+            }
+            closeWavesIfResolved();
+        }
+
+        private void closeWavesIfResolved() {
+            if (!closed
+                || failure != null
+                || resolved != registered) {
+                return;
+            }
+            waves.values()
+                    .forEach(gate ->
+                                     gate.close(null));
+        }
+    }
+
+    private static final class BatchCommitGate {
+        private final CompletableFuture<Void> release =
+                new CompletableFuture<>();
+        private int expected;
+        private int arrived;
+        private boolean closed;
+
+        synchronized void register() {
+            expected++;
+        }
+
+        synchronized CompletableFuture<Void> arrive() {
+            arrived++;
+            tryRelease();
+            return release;
+        }
+
+        synchronized void close(Throwable failure) {
+            closed = true;
+            if (failure != null) {
+                release.completeExceptionally(failure);
+                return;
+            }
+            tryRelease();
+            if (BATCH_DIAGNOSTICS && !release.isDone()) {
+                System.out.printf(
+                        "SDK model commit gate waiting: expected=%d arrived=%d%n",
+                        expected, arrived);
+            }
+        }
+
+        private void tryRelease() {
+            if (closed
+                && arrived == expected) {
+                if (BATCH_DIAGNOSTICS) {
+                    System.out.printf(
+                            "SDK model commit gate: expected=%d%n",
+                            expected);
+                }
+                release.complete(null);
+            }
+        }
+    }
+
+    private static final class BatchCommitTicket {
+        private static final BatchCommitTicket RELEASED =
+                new BatchCommitTicket(null);
+
+        private final BatchCommitGates gates;
+        private final AtomicBoolean resolved =
+                new AtomicBoolean();
+        private final AtomicBoolean arrived =
+                new AtomicBoolean();
+        private volatile BatchCommitGate gate;
+
+        private BatchCommitTicket(
+                BatchCommitGates gates) {
+            this.gates = gates;
+        }
+
+        static BatchCommitTicket released() {
+            return RELEASED;
+        }
+
+        void assign(
+                Collection<String> modelIds) {
+            if (gates != null
+                && resolved.compareAndSet(
+                        false, true)) {
+                gate = gates.assign(
+                        modelIds);
+            }
+        }
+
+        void exclude() {
+            if (gates != null
+                && resolved.compareAndSet(
+                        false, true)) {
+                gates.exclude();
+            }
+        }
+
+        CompletableFuture<Void> awaitRelease() {
+            if (gates == null) {
+                return CompletableFuture.completedFuture(
+                        null);
+            }
+            BatchCommitGate assigned =
+                    gate;
+            if (assigned == null) {
+                throw new IllegalStateException(
+                        "Model commit batch ticket was awaited before target assignment");
+            }
+            if (!arrived.compareAndSet(
+                    false, true)) {
+                throw new IllegalStateException(
+                        "Model commit batch ticket was awaited more than once");
+            }
+            return assigned.arrive();
         }
     }
 }

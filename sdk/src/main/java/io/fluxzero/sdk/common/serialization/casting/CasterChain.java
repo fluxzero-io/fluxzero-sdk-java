@@ -48,6 +48,16 @@ public interface CasterChain<I, O> extends Caster<I, O> {
     }
 
     /**
+     * Whether this chain is guaranteed to return the input as one unchanged logical value.
+     *
+     * <p>The default is deliberately conservative. Implementations may return {@code true} only when no caster can
+     * drop, split or transform this input at the requested revision.</p>
+     */
+    default boolean canSkipCast(I input, Integer rev) {
+        return false;
+    }
+
+    /**
      * Registers one or more objects that may contain casting logic (e.g. annotated methods or implementations).
      * These candidates are inspected and included into the chain if applicable.
      *
@@ -78,6 +88,11 @@ public interface CasterChain<I, O> extends Caster<I, O> {
             public AFTER castFirstOrNull(BEFORE input, Integer rev) {
                 O result = CasterChain.this.castFirstOrNull(before.apply(input), rev);
                 return result == null ? null : after.apply(result);
+            }
+
+            @Override
+            public boolean canSkipCast(BEFORE input, Integer rev) {
+                return CasterChain.this.canSkipCast(before.apply(input), rev);
             }
 
             @Override

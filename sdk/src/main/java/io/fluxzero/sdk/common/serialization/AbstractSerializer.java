@@ -276,6 +276,21 @@ public abstract class AbstractSerializer<I> implements Serializer {
         return new DeserializingMessage((DeserializingObject) object, messageType, topic, this);
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public Class<?> serializedClassWithoutUpcasting(SerializedObject<?> serializedObject) {
+        if (!(serializedObject.data().getValue() instanceof byte[])
+            || !Objects.equals(format, serializedObject.data().getFormat())
+            || !upcasterChain.canSkipCast(
+                    (SerializedObject<byte[]>) serializedObject, null)) {
+            return null;
+        }
+        String type = upcastType(serializedObject.data().getType());
+        return isKnownType(type)
+                ? ReflectionUtils.classForName(type, null)
+                : null;
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private DeserializingObject<byte[], ?> deserializeFirstObject(SerializedObject<?> input,
                                                                   UnknownTypeStrategy unknownTypeStrategy) {

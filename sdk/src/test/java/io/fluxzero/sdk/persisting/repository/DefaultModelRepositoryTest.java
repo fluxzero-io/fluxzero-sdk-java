@@ -22,6 +22,7 @@ import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
@@ -59,7 +60,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -72,6 +77,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -588,7 +594,35 @@ class DefaultModelRepositoryTest {
             assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
 
             verify(eventStoreClient, times(0))
-                    .getModelEvents(any());
+                    .getCompactModelEvents(any());
+        }
+    }
+
+    @Test
+    void acceptedLocalCommitSeedsTheNextAutomaticApplyWithoutAStoreReload() {
+        AccountId id = new AccountId("cached-apply");
+        LocalClient localClient = LocalClient.newInstance(null);
+        EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
+        LocalClient client = spy(localClient);
+        doReturn(eventStoreClient).when(client).getEventStoreClient();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(client)) {
+            fluxzero.commandGateway().send(
+                    new CreateAccount(id, 5)).join();
+            clearInvocations(eventStoreClient);
+
+            fluxzero.commandGateway().send(
+                    new ChangeAccount(id, 2)).join();
+
+            assertEquals(
+                    new Account(id, 7),
+                    fluxzero.modelRepository().load(id).get());
+            verify(eventStoreClient, times(0))
+                    .getCompactModelEvents(any());
+            verify(eventStoreClient, times(1))
+                    .commitModels(any());
         }
     }
 
@@ -617,7 +651,7 @@ class DefaultModelRepositoryTest {
                     fluxzero.modelRepository().load(id).get());
 
             var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
-            verify(eventStoreClient).getModelEvents(captor.capture());
+            verify(eventStoreClient).getCompactModelEvents(captor.capture());
             assertEquals(
                     1L, captor.getValue().getRequests().getFirst()
                             .getLastSequenceNumber());
@@ -746,6 +780,79 @@ class DefaultModelRepositoryTest {
         cache.close();
     }
 
+    @Test
+    void olderReconstructionCompletionCannotOverwriteANewerCachedModel()
+            throws InterruptedException {
+        AccountId id = new AccountId("reconstruction-fence");
+        LocalClient localClient = LocalClient.newInstance(null);
+        EventStoreClient eventStoreClient =
+                spy(localClient.getEventStoreClient());
+        LocalClient client = spy(localClient);
+        doReturn(eventStoreClient)
+                .when(client).getEventStoreClient();
+        try (Fluxzero fluxzero =
+                     DefaultFluxzero.builder()
+                             .disableKeepalive()
+                             .disableShutdownHook()
+                             .build(client)) {
+            fluxzero.commandGateway().send(
+                    new CreateAccount(id, 5)).join();
+            long oldStateIndex =
+                    currentStateIndex(fluxzero);
+            DefaultModelRepository repository =
+                    (DefaultModelRepository)
+                            fluxzero.modelRepository();
+            repository.invalidateModels(
+                    List.of(id.toString()));
+
+            CountDownLatch reconstructionLoaded =
+                    new CountDownLatch(1);
+            CountDownLatch allowReconstructionCompletion =
+                    new CountDownLatch(1);
+            AtomicBoolean intercept =
+                    new AtomicBoolean(true);
+            doAnswer(invocation -> {
+                GetModelEventsResult result =
+                        (GetModelEventsResult)
+                                invocation.callRealMethod();
+                if (intercept.compareAndSet(
+                        true, false)) {
+                    reconstructionLoaded
+                            .countDown();
+                    assertTrue(
+                            allowReconstructionCompletion
+                                    .await(
+                                            5,
+                                            TimeUnit.SECONDS));
+                }
+                return result;
+            }).when(eventStoreClient)
+                    .getCompactModelEvents(any());
+
+            CompletableFuture<Entity<Account>>
+                    olderReconstruction =
+                    CompletableFuture.supplyAsync(
+                            () -> repository.load(id));
+            assertTrue(
+                    reconstructionLoaded.await(
+                            5, TimeUnit.SECONDS));
+
+            repository.updateAfterCommit(
+                    List.of(committed(
+                            id, 20, 1L,
+                            oldStateIndex + 1L)));
+            allowReconstructionCompletion
+                    .countDown();
+
+            assertEquals(
+                    new Account(id, 5),
+                    olderReconstruction.join().get());
+            assertEquals(
+                    new Account(id, 20),
+                    repository.load(id).get());
+        }
+    }
+
     private static DefaultModelRepository.CommittedModel
             committed(
                     AccountId id,
@@ -853,7 +960,8 @@ class DefaultModelRepositoryTest {
                     fluxzero.modelRepository().load(shipmentId).get());
 
             var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
-            verify(eventStoreClient, times(2)).getModelEvents(captor.capture());
+            verify(eventStoreClient, times(2))
+                    .getCompactModelEvents(captor.capture());
             assertEquals(
                     2, captor.getAllValues().getLast()
                             .getRequests().size());
@@ -878,9 +986,10 @@ class DefaultModelRepositoryTest {
                     new CreateAccount(second, 2)))).join();
 
             var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
-            verify(eventStoreClient, atLeastOnce()).getModelEvents(captor.capture());
+            verify(eventStoreClient, atLeastOnce())
+                    .getCompactModelEvents(captor.capture());
             assertEquals(
-                    List.of(0, 2),
+                    List.of(2),
                     captor.getAllValues().stream()
                             .map(request -> request.getRequests().size())
                             .toList());
@@ -1021,7 +1130,7 @@ class DefaultModelRepositoryTest {
                                     GetModelEvents.class);
             verify(eventStoreClient,
                    atLeastOnce())
-                    .getModelEvents(
+                    .getCompactModelEvents(
                             captor.capture());
             List<ModelEventStreamRequest> requests =
                     captor.getAllValues()
@@ -1096,16 +1205,12 @@ class DefaultModelRepositoryTest {
             var requests = org.mockito.ArgumentCaptor.forClass(
                     GetModelEvents.class);
             verify(eventStoreClient, times(2))
-                    .getModelEvents(requests.capture());
+                    .getCompactModelEvents(
+                            requests.capture());
             assertEquals(
-                    handledEvent.getMetadata().get(
-                            ModelEventMetadata.COMMIT_ID),
+                    handledEvent.getIndex(),
                     requests.getAllValues().getFirst()
-                            .getBoundaryCommitId());
-            assertEquals(
-                    0,
-                    requests.getAllValues().getFirst()
-                            .getBoundarySubstep());
+                            .getBoundaryEventIndex());
             assertEquals(
                     handledStateIndex,
                     requests.getAllValues().getLast()

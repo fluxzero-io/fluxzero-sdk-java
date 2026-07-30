@@ -888,6 +888,16 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Loads several independently stored models at one coherent state boundary.
+     *
+     * <p>The native repository batches stream I/O and reconstruction while preserving input order.</p>
+     */
+    static <T> List<Entity<T>> loadModels(
+            List<?> modelIds, Class<T> modelType) {
+        return get().modelRepository().loadAll(modelIds, modelType);
+    }
+
+    /**
      * Loads the aggregate root of type {@code <T>} that currently contains the entity with given entityId. If no such
      * aggregate exists an empty aggregate root is returned with given {@code defaultType} as its type.
      * <p>

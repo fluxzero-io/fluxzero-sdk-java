@@ -16,6 +16,7 @@ package io.fluxzero.common;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -58,5 +59,48 @@ class BacklogTest {
         assertThrows(Exception.class, () -> subject.add("invalid").join());
         subject.add("valid").join();
         subject.shutDown();
+    }
+
+    @Test
+    void collectionDelayMicroBatchesItemsThatArriveAfterAnIdleStart() {
+        List<List<String>> batches = new ArrayList<>();
+        Backlog<String> subject = Backlog.forOrderedAsyncConsumer(batch -> {
+            batches.add(List.copyOf(batch));
+            return CompletableFuture.completedFuture(null);
+        }, 10, String::length, 100L, Duration.ofMillis(100));
+
+        CompletableFuture<Void> first = subject.add("first");
+        CompletableFuture<Void> second = subject.add("second");
+        CompletableFuture.allOf(first, second).join();
+        subject.shutDown();
+
+        assertEquals(List.of(List.of("first", "second")), batches);
+    }
+
+    @Test
+    void rejectsNegativeCollectionDelay() {
+        assertThrows(IllegalArgumentException.class, () ->
+                Backlog.forOrderedAsyncConsumer(
+                        batch -> CompletableFuture.completedFuture(null),
+                        10, String::length, 100L, Duration.ofNanos(-1)));
+    }
+
+    @Test
+    void untrackedBatchLeavesCompletionOwnershipWithConsumerAndKeepsDraining() {
+        List<List<String>> batches = new ArrayList<>();
+        Backlog<String> subject = Backlog.forOrderedAsyncConsumer(batch -> {
+            batches.add(List.copyOf(batch));
+            return batch.contains("fail")
+                    ? CompletableFuture.failedFuture(new IllegalStateException("expected"))
+                    : CompletableFuture.completedFuture(null);
+        }, 2, String::length, 100L);
+
+        subject.addAllUntracked(List.of("fail", "untracked"));
+        subject.add("tracked").join();
+        subject.shutDown();
+
+        assertEquals(
+                List.of(List.of("fail", "untracked"), List.of("tracked")),
+                batches);
     }
 }

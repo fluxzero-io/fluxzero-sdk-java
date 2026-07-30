@@ -19,6 +19,8 @@ import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.CacheEviction;
 import lombok.NonNull;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -84,6 +86,37 @@ final class RepositoryCache implements Cache {
         T result = delegate.compute(key(id), (ignored, value) -> mappingFunction.apply(id, value));
         markPopulated(result);
         return result;
+    }
+
+    @Override
+    public <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        if (values.isEmpty()) {
+            return;
+        }
+        markWriteStarted();
+        LinkedHashMap<CacheKey, T> namespaced =
+                new LinkedHashMap<>(
+                        (int) Math.min(
+                                Integer.MAX_VALUE,
+                                (long) values.size()
+                                * 4L / 3L + 1L));
+        values.forEach(
+                (id, value) ->
+                        namespaced.put(
+                                key(id), value));
+        delegate.mergeAll(
+                namespaced,
+                mergeFunction);
+        for (CacheKey cacheKey : namespaced.keySet()) {
+            Object retained =
+                    delegate.get(cacheKey);
+            if (retained != null) {
+                markPopulated(retained);
+                break;
+            }
+        }
     }
 
     @Override

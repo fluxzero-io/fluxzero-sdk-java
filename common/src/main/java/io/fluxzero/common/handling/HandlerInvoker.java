@@ -42,6 +42,16 @@ import static io.fluxzero.common.ObjectUtils.asCallable;
 public interface HandlerInvoker extends HandlerDescriptor {
 
     /**
+     * Whether asynchronous invocations in one tracked batch must retain the generic message-segment order.
+     *
+     * <p>The default is {@code true}. Framework invokers may return {@code false} only when they own a stricter
+     * ordering mechanism based on the actual state read and written by the invocation.</p>
+     */
+    default boolean requiresBatchSegmentOrder() {
+        return true;
+    }
+
+    /**
      * Returns a no-op invoker that performs no action and returns {@code null}.
      */
     static HandlerInvoker noOp() {
@@ -197,6 +207,11 @@ public interface HandlerInvoker extends HandlerDescriptor {
     @AllArgsConstructor
     abstract class DelegatingHandlerInvoker implements HandlerInvoker {
         protected final HandlerInvoker delegate;
+
+        @Override
+        public boolean requiresBatchSegmentOrder() {
+            return delegate.requiresBatchSegmentOrder();
+        }
 
         @Override
         public Class<?> getTargetClass() {

@@ -57,6 +57,11 @@ public class GetModelEvents extends Request {
     Integer boundarySubstep;
 
     /**
+     * Global event-log index of the published model event whose state boundary is requested.
+     */
+    Long boundaryEventIndex;
+
+    /**
      * Maximum total serialized bytes of unique returned event payloads. Zero disables the byte limit.
      * <p>
      * Membership and head metadata are not counted. A response may exceed this value by one payload when the oldest
@@ -64,18 +69,34 @@ public class GetModelEvents extends Request {
      */
     long maxBytes;
 
+    /**
+     * Requests globally published event payloads in their compact persisted representation.
+     * <p>
+     * Runtimes that support this optimization return those payloads through
+     * {@link GetModelEventsResult#getCompactPayloads()}. Regular payloads remain supported for compatibility and for
+     * payloads that are not backed by the global event log.
+     */
+    boolean compactPayloads;
+
     public GetModelEvents(
             List<ModelEventStreamRequest> requests,
             Long maxStateIndex,
             long maxBytes) {
         this(
                 requests, maxStateIndex,
-                null, null, maxBytes);
+                null, null, null, maxBytes, false);
     }
 
-    @ConstructorProperties({
-            "requests", "maxStateIndex", "boundaryCommitId",
-            "boundarySubstep", "maxBytes"})
+    public GetModelEvents(
+            List<ModelEventStreamRequest> requests,
+            Long maxStateIndex,
+            long maxBytes,
+            boolean compactPayloads) {
+        this(
+                requests, maxStateIndex,
+                null, null, null, maxBytes, compactPayloads);
+    }
+
     public GetModelEvents(
             List<ModelEventStreamRequest> requests,
             Long maxStateIndex,
@@ -86,7 +107,60 @@ public class GetModelEvents extends Request {
         this.maxStateIndex = maxStateIndex;
         this.boundaryCommitId = boundaryCommitId;
         this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = null;
         this.maxBytes = maxBytes;
+        this.compactPayloads = false;
+    }
+
+    @ConstructorProperties({
+            "requests", "maxStateIndex", "boundaryCommitId",
+            "boundarySubstep", "boundaryEventIndex", "maxBytes", "compactPayloads"})
+    public GetModelEvents(
+            List<ModelEventStreamRequest> requests,
+            Long maxStateIndex,
+            String boundaryCommitId,
+            Integer boundarySubstep,
+            Long boundaryEventIndex,
+            long maxBytes,
+            boolean compactPayloads) {
+        this.requests = requests;
+        this.maxStateIndex = maxStateIndex;
+        this.boundaryCommitId = boundaryCommitId;
+        this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = boundaryEventIndex;
+        this.maxBytes = maxBytes;
+        this.compactPayloads = compactPayloads;
+    }
+
+    GetModelEvents(
+            long requestId,
+            List<ModelEventStreamRequest> requests,
+            Long maxStateIndex,
+            String boundaryCommitId,
+            Integer boundarySubstep,
+            Long boundaryEventIndex,
+            long maxBytes,
+            boolean compactPayloads) {
+        super(requestId);
+        this.requests = requests;
+        this.maxStateIndex = maxStateIndex;
+        this.boundaryCommitId = boundaryCommitId;
+        this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = boundaryEventIndex;
+        this.maxBytes = maxBytes;
+        this.compactPayloads = compactPayloads;
+    }
+
+    public GetModelEvents(
+            List<ModelEventStreamRequest> requests,
+            Long maxStateIndex,
+            String boundaryCommitId,
+            Integer boundarySubstep,
+            Long boundaryEventIndex,
+            long maxBytes) {
+        this(
+                requests, maxStateIndex, boundaryCommitId, boundarySubstep,
+                boundaryEventIndex, maxBytes, false);
     }
 
     @Override
@@ -103,7 +177,7 @@ public class GetModelEvents extends Request {
         return new Metric(
                 requests.size(), headOnlyCount, maximumEventCount,
                 maxStateIndex, boundaryCommitId,
-                boundarySubstep, maxBytes);
+                boundarySubstep, boundaryEventIndex, maxBytes, compactPayloads);
     }
 
     @Value
@@ -114,6 +188,8 @@ public class GetModelEvents extends Request {
         Long maxStateIndex;
         String boundaryCommitId;
         Integer boundarySubstep;
+        Long boundaryEventIndex;
         long maxBytes;
+        boolean compactPayloads;
     }
 }

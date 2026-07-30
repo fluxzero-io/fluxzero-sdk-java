@@ -106,6 +106,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
     private final Map<String, CommitModelsResult> modelCommits = new ConcurrentHashMap<>();
+    private final Map<Long, Long> modelStateIndicesByEventIndex =
+            new ConcurrentHashMap<>();
     private final Map<String, PendingModelMaterialization>
             modelCommitMaterializations =
             new ConcurrentHashMap<>();
@@ -265,6 +267,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 long stateIndex =
                         modelStateIndex =
                                 nextStateIndex++;
+                if (substep.isPublishEvent()
+                    && substep.getEvent().getIndex()
+                       != null) {
+                    modelStateIndicesByEventIndex.put(
+                            substep.getEvent().getIndex(),
+                            stateIndex);
+                }
                 List<ModelCommitTargetResult> targetResults = new ArrayList<>(substep.getTargets().size());
                 for (ModelCommitTarget target : substep.getTargets()) {
                     ModelStreamHead previousHead = modelHeads.getOrDefault(
@@ -1523,7 +1532,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         long stateIndex = modelBoundary(
                 request.getMaxStateIndex(),
                 request.getBoundaryCommitId(),
-                request.getBoundarySubstep());
+                request.getBoundarySubstep(),
+                request.getBoundaryEventIndex());
         if (stateIndex < -1L || stateIndex > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1591,7 +1601,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         long boundary = modelBoundary(
                 request.getMaxStateIndex(),
                 request.getBoundaryCommitId(),
-                request.getBoundarySubstep());
+                request.getBoundarySubstep(),
+                request.getBoundaryEventIndex());
         if (boundary < -1L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1643,7 +1654,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         long boundary = modelBoundary(
                 request.getMaxStateIndex(),
                 request.getBoundaryCommitId(),
-                request.getBoundarySubstep());
+                request.getBoundarySubstep(),
+                request.getBoundaryEventIndex());
         if (boundary < -1L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1943,7 +1955,20 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private long modelBoundary(
             Long maxStateIndex,
             String boundaryCommitId,
-            Integer boundarySubstep) {
+            Integer boundarySubstep,
+            Long boundaryEventIndex) {
+        if (boundaryEventIndex != null) {
+            Long stateIndex =
+                    modelStateIndicesByEventIndex.get(
+                            boundaryEventIndex);
+            if (stateIndex == null) {
+                throw new IllegalArgumentException(
+                        "Model event boundary %d is not visible"
+                                .formatted(
+                                        boundaryEventIndex));
+            }
+            return stateIndex;
+        }
         if (boundaryCommitId != null) {
             CommitModelsResult result =
                     modelCommits.get(boundaryCommitId);

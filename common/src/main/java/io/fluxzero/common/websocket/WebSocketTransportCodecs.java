@@ -18,6 +18,8 @@ package io.fluxzero.common.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import io.fluxzero.common.api.JsonType;
+import io.fluxzero.common.api.modeling.ModelCommitWireCodec;
+import io.fluxzero.common.api.modeling.ModelEventWireCodec;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -81,11 +83,19 @@ public final class WebSocketTransportCodecs {
 
         @Override
         public byte[] encode(JsonType value) throws IOException {
-            return objectMapper.writeValueAsBytes(value);
+            byte[] compact = ModelCommitWireCodec.tryEncode(value);
+            if (compact == null) {
+                compact = ModelEventWireCodec.tryEncode(value);
+            }
+            return compact == null ? objectMapper.writeValueAsBytes(value) : compact;
         }
 
         public JsonType decode(byte[] bytes) throws IOException {
-            return objectMapper.readValue(bytes, JsonType.class);
+            JsonType compact = ModelCommitWireCodec.tryDecode(bytes);
+            if (compact == null) {
+                compact = ModelEventWireCodec.tryDecode(bytes);
+            }
+            return compact == null ? objectMapper.readValue(bytes, JsonType.class) : compact;
         }
     }
 

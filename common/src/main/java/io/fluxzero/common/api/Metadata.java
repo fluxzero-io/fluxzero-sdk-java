@@ -72,6 +72,8 @@ public class Metadata {
             .findAndAddModules().addModule(new NullCollectionsAsEmptyModule())
             .disable(FAIL_ON_EMPTY_BEANS).disable(FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
+    private static final Metadata EMPTY =
+            new Metadata(emptyMap());
 
     Map<String, String> entries;
 
@@ -104,7 +106,7 @@ public class Metadata {
      * @return a Metadata instance with no key-value pairs.
      */
     public static Metadata empty() {
-        return new Metadata(emptyMap());
+        return EMPTY;
     }
 
     /**
@@ -127,6 +129,19 @@ public class Metadata {
      */
     public static Metadata of(Map<?, ?> map) {
         return Metadata.empty().with(map);
+    }
+
+    /**
+     * Creates immutable metadata from values that are already normalized to strings.
+     *
+     * <p>This avoids the conversion copy used by {@link #of(Map)} and is intended for trusted serialization
+     * decoders.</p>
+     */
+    public static Metadata ofStrings(
+            Map<String, String> entries) {
+        return entries.isEmpty()
+                ? empty()
+                : new Metadata(Map.copyOf(entries));
     }
 
     /**

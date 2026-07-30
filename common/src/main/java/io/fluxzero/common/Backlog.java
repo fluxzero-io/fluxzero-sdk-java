@@ -16,6 +16,7 @@ package io.fluxzero.common;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
@@ -78,6 +80,7 @@ public class Backlog<T> implements Monitored<List<T>> {
     private final ErrorHandler<List<T>> errorHandler;
     private final ExecutorService executorService;
     private final boolean waitForAsyncConsumer;
+    private final long batchCollectionDelayNanos;
     private final AtomicBoolean flushing = new AtomicBoolean();
 
     private final AtomicLong insertPosition = new AtomicLong();
@@ -174,18 +177,45 @@ public class Backlog<T> implements Monitored<List<T>> {
             int maxBatchSize,
             ToLongFunction<? super T> batchWeight,
             long maxBatchWeight) {
+        return forOrderedAsyncConsumer(
+                consumer, maxBatchSize, batchWeight, maxBatchWeight, Duration.ZERO);
+    }
+
+    /**
+     * Creates an ordered async backlog bounded by item count and cumulative item weight, with a
+     * bounded collection delay whenever an idle backlog starts flushing.
+     * <p>
+     * The delay only applies to the first batch after the backlog was idle. Batches already queued
+     * behind an active consumer are drained immediately. This allows very short micro-batching
+     * windows without delaying a sustained backlog once it has filled.
+     *
+     * @param consumer             ordered asynchronous batch consumer
+     * @param maxBatchSize         maximum number of items in one batch
+     * @param batchWeight          non-negative weight of an item
+     * @param maxBatchWeight       maximum cumulative weight, except for one individually oversized item
+     * @param batchCollectionDelay maximum time to collect concurrent items after an idle start
+     */
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ToLongFunction<? super T> batchWeight,
+            long maxBatchWeight,
+            Duration batchCollectionDelay) {
         if (maxBatchSize <= 0) {
             throw new IllegalArgumentException("Maximum batch size must be positive");
         }
         if (maxBatchWeight <= 0L) {
             throw new IllegalArgumentException("Maximum batch weight must be positive");
         }
+        if (batchCollectionDelay == null || batchCollectionDelay.isNegative()) {
+            throw new IllegalArgumentException("Batch collection delay must not be negative");
+        }
         return new Backlog<>(
                 consumer, maxBatchSize,
                 (e, batch) -> log.error(
                         "Consumer {} failed to handle batch of size {}. Continuing with next batch.",
                         consumer, batch.size(), e),
-                true, batchWeight, maxBatchWeight);
+                true, batchWeight, maxBatchWeight, batchCollectionDelay.toNanos());
     }
 
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
@@ -213,6 +243,18 @@ public class Backlog<T> implements Monitored<List<T>> {
             boolean waitForAsyncConsumer,
             ToLongFunction<? super T> batchWeight,
             long maxBatchWeight) {
+        this(consumer, maxBatchSize, errorHandler, waitForAsyncConsumer,
+             batchWeight, maxBatchWeight, 0L);
+    }
+
+    private Backlog(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ErrorHandler<List<T>> errorHandler,
+            boolean waitForAsyncConsumer,
+            ToLongFunction<? super T> batchWeight,
+            long maxBatchWeight,
+            long batchCollectionDelayNanos) {
         this.maxBatchSize = maxBatchSize;
         this.consumer = consumer;
         this.executorService = Executors.newSingleThreadExecutor(newPlatformThreadFactory("Backlog"));
@@ -220,6 +262,7 @@ public class Backlog<T> implements Monitored<List<T>> {
         this.waitForAsyncConsumer = waitForAsyncConsumer;
         this.batchWeight = batchWeight;
         this.maxBatchWeight = maxBatchWeight;
+        this.batchCollectionDelayNanos = batchCollectionDelayNanos;
     }
 
     /**
@@ -247,6 +290,32 @@ public class Backlog<T> implements Monitored<List<T>> {
                 : awaitFlush(insertPosition.updateAndGet(p -> p + values.size()));
     }
 
+    /**
+     * Adds one value without allocating a separate flush future.
+     * <p>
+     * Use this only when the asynchronous consumer owns completion and failure propagation for the
+     * value itself. Consumer failures still reach the configured backlog error handler.
+     */
+    public void addUntracked(T value) {
+        queue.add(value);
+        insertPosition.incrementAndGet();
+        flushIfNotFlushing();
+    }
+
+    /**
+     * Adds multiple values without creating per-value flush futures.
+     *
+     * @see #addUntracked(Object)
+     */
+    public void addAllUntracked(Collection<? extends T> values) {
+        if (values.isEmpty()) {
+            return;
+        }
+        queue.addAll(values);
+        insertPosition.addAndGet(values.size());
+        flushIfNotFlushing();
+    }
+
     private CompletableFuture<Void> awaitFlush(long untilPosition) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         results.put(untilPosition, result);
@@ -262,6 +331,9 @@ public class Backlog<T> implements Monitored<List<T>> {
 
     private void flush() {
         try {
+            if (batchCollectionDelayNanos > 0L) {
+                LockSupport.parkNanos(batchCollectionDelayNanos);
+            }
             while (!queue.isEmpty()) {
                 List<T> batch = new ArrayList<>(initialBatchCapacity(maxBatchSize));
                 long weight = 0L;

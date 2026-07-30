@@ -358,7 +358,8 @@ final class ModelCommitter {
         }
         CommitModels commit = new CommitModels(
                 commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
-                List.copyOf(substeps), conflictPolicy, STORED);
+                List.copyOf(substeps), conflictPolicy, STORED,
+                possibleDuplicate(evaluation, transitionGroups));
         return new PreparedCommit(
                 commit, List.copyOf(transitionGroups),
                 List.copyOf(messages));
@@ -464,7 +465,8 @@ final class ModelCommitter {
                 evaluation.readModelIds(),
                 List.copyOf(substeps),
                 ModelConflictPolicy.ACCEPT,
-                original.commit().getGuarantee());
+                original.commit().getGuarantee(),
+                original.commit().getPossibleDuplicate());
         return new PreparedCommit(
                 commit,
                 List.copyOf(transitionGroups),
@@ -489,10 +491,12 @@ final class ModelCommitter {
                 ? ModelCommitTarget.builder()
                         .modelId(transition.modelId())
                         .modelType(transition.modelType().getName())
+                        .expectedSequenceNumber(transition.beforeSequenceNumber())
                         .storeEvent(effective.storeEvent())
                         .updateState(effective.updateState())
                 : original.toBuilder();
         return builder
+                .expectedSequenceNumber(transition.beforeSequenceNumber())
                 .delete(effective.updateState() && transition.after() == null)
                 .document(document == null ? null
                         : new ModelDocumentMutation(document.collection(), document.document()))
@@ -514,6 +518,26 @@ final class ModelCommitter {
                     + "logical event suppression must happen before model applies");
         }
         return serialized;
+    }
+
+    private static Boolean possibleDuplicate(
+            ModelCommitEngine.CommitEvaluation evaluation,
+            List<List<EffectiveTransition>> transitionGroups) {
+        Long sourceIndex = DeserializingMessage.getOptionally()
+                .map(DeserializingMessage::getIndex)
+                .orElse(null);
+        if (sourceIndex == null
+            || transitionGroups.stream()
+                    .flatMap(List::stream)
+                    .anyMatch(transition ->
+                                      !transition.storeEvent()
+                                      || !transition.publishEvent())) {
+            return null;
+        }
+        return evaluation.transitions().stream()
+                .map(ModelCommitEngine.Transition::beforeLastEventIndex)
+                .filter(Objects::nonNull)
+                .anyMatch(index -> index >= sourceIndex);
     }
 
     private Optional<EffectiveTransition> effectiveTransition(ModelCommitEngine.Transition transition) {

@@ -240,6 +240,16 @@ public interface Serializer extends ContentFilter {
     }
 
     /**
+     * Resolves the payload class when this serialized value is guaranteed not to require structural upcasting.
+     *
+     * <p>This conservative hook supports allocation-sensitive replay planning. {@code null} means that callers must
+     * use the normal deserialization pipeline; it does not mean that the serialized type is unknown.</p>
+     */
+    default Class<?> serializedClassWithoutUpcasting(SerializedObject<?> serializedObject) {
+        return null;
+    }
+
+    /**
      * Deserializes a single {@link SerializedMessage} into a {@link DeserializingMessage}. If the input data cannot be
      * deserialized to a single result (due to upcasting) a {@link DeserializationException} is thrown.
      *

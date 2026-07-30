@@ -16,6 +16,7 @@ package io.fluxzero.common.caching;
 
 import io.fluxzero.common.Registration;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -86,6 +87,31 @@ public interface Cache {
      * @return the newly computed value, or {@code null} if the mapping function returned {@code null}
      */
     <T> T compute(Object id, BiFunction<? super Object, ? super T, ? extends T> mappingFunction);
+
+    /**
+     * Merges a bounded group of candidate values into this cache.
+     * <p>
+     * The default implementation preserves the ordinary per-key {@link #compute(Object, BiFunction)} contract.
+     * Implementations may override this method to reduce lock transitions while retaining the same per-key merge
+     * semantics. The group as a whole is not an atomic transaction.
+     *
+     * @param values        candidate value by cache key
+     * @param mergeFunction selects the retained value from the current and candidate value
+     * @param <T>           value type
+     */
+    @SuppressWarnings("unchecked")
+    default <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        values.forEach(
+                (id, candidate) ->
+                        compute(
+                                id,
+                                (ignored, current) ->
+                                        mergeFunction.apply(
+                                                (T) current,
+                                                (T) candidate)));
+    }
 
     /**
      * Applies the given modifier function to all values currently in the cache.

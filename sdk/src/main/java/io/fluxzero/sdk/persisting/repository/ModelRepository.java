@@ -30,6 +30,7 @@ import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -84,6 +85,20 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage
      */
     <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);
+
+    /**
+     * Loads several models at one coherent state boundary, preserving input order.
+     *
+     * <p>The default implementation preserves compatibility for custom repositories. Native repositories override this
+     * method to use one multi-stream read and one reconstruction session.</p>
+     */
+    default <T> List<Entity<T>> loadAll(
+            @NonNull List<?> modelIds,
+            @NonNull Class<T> modelType) {
+        return modelIds.stream()
+                .map(modelId -> load(modelId, modelType))
+                .toList();
+    }
 
     /**
      * Loads all model parameters for one selected message handler at one repository boundary.

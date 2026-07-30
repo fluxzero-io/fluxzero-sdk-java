@@ -48,6 +48,9 @@ public final class ModelCommitValidator {
             throw new IllegalArgumentException("Model commit guarantee is required");
         }
         requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
+        if (validateSimpleInitialCommit(commit)) {
+            return;
+        }
         Set<String> readIds = uniqueIds(commit.getReadModelIds(), "read model");
         for (int i = 0; i < commit.getSubsteps().size(); i++) {
             ModelCommitStep substep = commit.getSubsteps().get(i);
@@ -86,6 +89,12 @@ public final class ModelCommitValidator {
                 if (target.getModelType() != null && target.getModelType().isBlank()) {
                     throw new IllegalArgumentException(
                             "Model commit substep %d has a blank target model type".formatted(i));
+                }
+                if (target.getExpectedSequenceNumber() != null
+                    && target.getExpectedSequenceNumber() < -1L) {
+                    throw new IllegalArgumentException(
+                            "Model commit substep %d target %s has an invalid expected sequence number"
+                                    .formatted(i, target.getModelId()));
                 }
                 if (targetIds != null && !targetIds.add(target.getModelId())) {
                     throw new IllegalArgumentException(
@@ -199,7 +208,8 @@ public final class ModelCommitValidator {
             validateStateIndex(request.getMaxStateIndex());
         }
         validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryCommitId(), request.getBoundarySubstep());
+                request.getMaxStateIndex(), request.getBoundaryCommitId(),
+                request.getBoundarySubstep(), request.getBoundaryEventIndex());
         if (request.getRequests() == null) {
             throw new IllegalArgumentException("Model stream requests are required");
         }
@@ -237,7 +247,8 @@ public final class ModelCommitValidator {
             validateStateIndex(request.getMaxStateIndex());
         }
         validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryCommitId(), request.getBoundarySubstep());
+                request.getMaxStateIndex(), request.getBoundaryCommitId(),
+                request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "graph", request.getMaxDepth(), request.getMaxModels(),
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 0, 1, "1");
@@ -264,7 +275,8 @@ public final class ModelCommitValidator {
             validateStateIndex(request.getMaxStateIndex());
         }
         validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryCommitId(), request.getBoundarySubstep());
+                request.getMaxStateIndex(), request.getBoundaryCommitId(),
+                request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "ancestor", request.getMaxDepth(), request.getMaxModels(),
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count");
@@ -350,10 +362,14 @@ public final class ModelCommitValidator {
         }
     }
 
-    private static void validateEventBoundary(Long stateIndex, String commitId, Integer substep) {
-        if (stateIndex != null && commitId != null) {
+    private static void validateEventBoundary(
+            Long stateIndex, String commitId, Integer substep, Long eventIndex) {
+        int specified = (stateIndex == null ? 0 : 1)
+                        + (commitId == null ? 0 : 1)
+                        + (eventIndex == null ? 0 : 1);
+        if (specified > 1) {
             throw new IllegalArgumentException(
-                    "Specify either maxStateIndex or an commit boundary, not both");
+                    "Specify one model state, commit, or event boundary");
         }
         if ((commitId == null) != (substep == null)) {
             throw new IllegalArgumentException(
@@ -362,6 +378,10 @@ public final class ModelCommitValidator {
         if (commitId != null && (commitId.isBlank() || substep < 0)) {
             throw new IllegalArgumentException(
                     "Model commit boundary must be non-blank with a non-negative substep");
+        }
+        if (eventIndex != null && eventIndex < 0L) {
+            throw new IllegalArgumentException(
+                    "Model event boundary must have a non-negative event index");
         }
     }
 
@@ -395,6 +415,13 @@ public final class ModelCommitValidator {
         if (values == null) {
             throw new IllegalArgumentException("Model commit %s IDs are required".formatted(description));
         }
+        if (values.size() == 1) {
+            String value = values.iterator().next();
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException("Model commit has a blank %s ID".formatted(description));
+            }
+            return Set.of(value);
+        }
         Set<String> result = new LinkedHashSet<>();
         for (String value : values) {
             if (value == null || value.isBlank()) {
@@ -406,6 +433,40 @@ public final class ModelCommitValidator {
             }
         }
         return result;
+    }
+
+    private static boolean validateSimpleInitialCommit(CommitModels commit) {
+        if (commit.getSubsteps().size() != 1 || commit.getReadModelIds() == null
+            || commit.getReadModelIds().size() != 1) {
+            return false;
+        }
+        ModelCommitStep substep = commit.getSubsteps().getFirst();
+        if (substep == null || !substep.isPublishEvent() || substep.getEvent() == null
+            || substep.getTargets() == null || substep.getTargets().size() != 1) {
+            return false;
+        }
+        ModelCommitTarget target = substep.getTargets().getFirst();
+        if (target == null || !target.isStoreEvent() || !target.isUpdateState()
+            || target.isDelete() || target.isUpdateRelationships()
+            || target.getRelationships() == null || !target.getRelationships().isEmpty()
+            || target.getDocument() != null || target.getSnapshot() != null
+            || !Long.valueOf(-1L).equals(target.getExpectedSequenceNumber())
+            || !java.util.Objects.equals(
+                    target.getModelId(), commit.getReadModelIds().getFirst())) {
+            return false;
+        }
+        if (substep.getEvent().getIndex() != null) {
+            throw new IllegalArgumentException(
+                    "Model commit substep 0 event already has an event index");
+        }
+        if (target.getModelId() == null || target.getModelId().isBlank()) {
+            throw new IllegalArgumentException("Model commit substep 0 has a blank target ID");
+        }
+        if (target.getModelType() != null && target.getModelType().isBlank()) {
+            throw new IllegalArgumentException(
+                    "Model commit substep 0 has a blank target model type");
+        }
+        return true;
     }
 
     private static void requireNonEmpty(Collection<?> values, String message) {

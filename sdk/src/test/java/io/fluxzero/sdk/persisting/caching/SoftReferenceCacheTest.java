@@ -29,6 +29,7 @@ import org.junit.jupiter.api.function.Executable;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -111,6 +112,34 @@ class SoftReferenceCacheTest {
     }
 
     @Test
+    void mergeAllRetainsTheValueSelectedForEveryKey() {
+        subject.put("current", "old");
+
+        subject.mergeAll(
+                Map.of(
+                        "current", "candidate",
+                        "new", "inserted"),
+                (current, candidate) ->
+                        current == null
+                                ? candidate
+                                : current);
+
+        assertEquals("old", subject.get("current"));
+        assertEquals("inserted", subject.get("new"));
+    }
+
+    @Test
+    void mergeAllCanRemoveAnExistingValue() {
+        subject.put("remove", "old");
+
+        subject.mergeAll(
+                Map.of("remove", "candidate"),
+                (current, candidate) -> null);
+
+        assertNull(subject.get("remove"));
+    }
+
+    @Test
     void testComputeInOtherCompute() {
         subject.compute("id1", (k, v) -> {
             subject.compute("id2", (k2, v2) -> "bar");
@@ -139,7 +168,11 @@ class SoftReferenceCacheTest {
         })));
         thread1.start();
         Thread.sleep(10);
-        var thread2 = new Thread(() -> subject.compute("foo", (k, v) -> "bar2"));
+        var thread2 = new Thread(
+                () ->
+                        subject.compute(
+                                new String("foo"),
+                                (k, v) -> "bar2"));
         thread2.start();
         Thread.sleep(10);
         assertNull(subject.get("foo"));

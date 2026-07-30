@@ -42,6 +42,15 @@ public class ModelCommitTarget {
     String modelType;
 
     /**
+     * Sequence number observed immediately before this transition, or {@code -1} when the model
+     * did not exist.
+     * <p>
+     * A {@code null} value denotes a legacy client. The runtime can use an explicit {@code -1} to
+     * avoid a point read for an independent create on the default single-writer path.
+     */
+    Long expectedSequenceNumber;
+
+    /**
      * Whether the substep event receives a membership in this model's stream.
      */
     boolean storeEvent;

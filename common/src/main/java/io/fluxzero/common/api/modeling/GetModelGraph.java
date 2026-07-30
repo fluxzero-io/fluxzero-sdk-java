@@ -51,6 +51,11 @@ public class GetModelGraph extends Request {
     Integer boundarySubstep;
 
     /**
+     * Global event-log index of the published model event whose state boundary is requested.
+     */
+    Long boundaryEventIndex;
+
+    /**
      * Maximum number of child-edge levels below the root.
      */
     int maxDepth;
@@ -84,15 +89,11 @@ public class GetModelGraph extends Request {
             long maxBytes,
             boolean composableOnly) {
         this(
-                rootId, maxStateIndex, null, null,
+                rootId, maxStateIndex, null, null, null,
                 maxDepth, maxModels,
                 maxEventsPerModel, maxBytes, composableOnly);
     }
 
-    @ConstructorProperties({
-            "rootId", "maxStateIndex", "boundaryCommitId",
-            "boundarySubstep", "maxDepth", "maxModels",
-            "maxEventsPerModel", "maxBytes", "composableOnly"})
     public GetModelGraph(
             String rootId,
             Long maxStateIndex,
@@ -107,6 +108,34 @@ public class GetModelGraph extends Request {
         this.maxStateIndex = maxStateIndex;
         this.boundaryCommitId = boundaryCommitId;
         this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = null;
+        this.maxDepth = maxDepth;
+        this.maxModels = maxModels;
+        this.maxEventsPerModel = maxEventsPerModel;
+        this.maxBytes = maxBytes;
+        this.composableOnly = composableOnly;
+    }
+
+    @ConstructorProperties({
+            "rootId", "maxStateIndex", "boundaryCommitId",
+            "boundarySubstep", "boundaryEventIndex", "maxDepth", "maxModels",
+            "maxEventsPerModel", "maxBytes", "composableOnly"})
+    public GetModelGraph(
+            String rootId,
+            Long maxStateIndex,
+            String boundaryCommitId,
+            Integer boundarySubstep,
+            Long boundaryEventIndex,
+            int maxDepth,
+            int maxModels,
+            int maxEventsPerModel,
+            long maxBytes,
+            boolean composableOnly) {
+        this.rootId = rootId;
+        this.maxStateIndex = maxStateIndex;
+        this.boundaryCommitId = boundaryCommitId;
+        this.boundarySubstep = boundarySubstep;
+        this.boundaryEventIndex = boundaryEventIndex;
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
         this.maxEventsPerModel = maxEventsPerModel;
@@ -118,7 +147,7 @@ public class GetModelGraph extends Request {
     public Metric toMetric() {
         return new Metric(
                 maxStateIndex, boundaryCommitId,
-                boundarySubstep, maxDepth, maxModels,
+                boundarySubstep, boundaryEventIndex, maxDepth, maxModels,
                 maxEventsPerModel, maxBytes, composableOnly);
     }
 
@@ -127,6 +156,7 @@ public class GetModelGraph extends Request {
         Long maxStateIndex;
         String boundaryCommitId;
         Integer boundarySubstep;
+        Long boundaryEventIndex;
         int maxDepth;
         int maxModels;
         int maxEventsPerModel;

@@ -430,6 +430,66 @@ class DefaultTrackingAsyncResultTest {
     }
 
     @Test
+    void handlerOwnedOrderingBypassesCoarseBatchSegments() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> firstResult = new CompletableFuture<>();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+
+        Handler<DeserializingMessage> handler = new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return DefaultTrackingAsyncResultTest.class;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.of(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                return new HandlerInvoker.DelegatingHandlerInvoker(
+                        HandlerInvoker.call(() -> {
+                            if (message.getMessageId().equals("first")) {
+                                firstStarted.countDown();
+                                return firstResult;
+                            }
+                            secondStarted.countDown();
+                            return null;
+                        })) {
+                    @Override
+                    public boolean requiresBatchSegmentOrder() {
+                        return false;
+                    }
+
+                    @Override
+                    public Object invoke(
+                            java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
+                        return delegate.invoke(resultCombiner);
+                    }
+                };
+            }
+        };
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
+                    List.of(handler), asyncConfig(false), true);
+
+            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(secondStarted.await(1, TimeUnit.SECONDS));
+            assertFalse(firstResult.isDone());
+        } finally {
+            firstResult.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
     void asyncHandlingModePropagatesAdhocDispatchInterceptors() {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);

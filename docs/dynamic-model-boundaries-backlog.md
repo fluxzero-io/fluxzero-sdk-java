@@ -1745,7 +1745,7 @@ JFR retained the real stream/head, commit identity, update tracking, event publi
 does not disable documents or graph work globally, but its explicit search-disabled profile isolates the absolute
 event-storage floor while the searchable end-to-end matrix verifies that those features remain intact.
 
-## Phase 21d — 100k one-event SDK-to-runtime commit gate
+## Phase 21d — 500–600k one-event SDK-to-runtime commit gate
 
 This is a release blocker. Phase 21c proved the runtime store can retain and globally publish more than one million
 events/s when 100 events share one commit, but the customer-shaped SDK benchmark produced only 1,558–1,765 commands,
@@ -1754,8 +1754,9 @@ one-event commits and events/s. The benchmark does perform automatic target reso
 result acceptable because it remained faster than the equivalent aggregate path confuses relative parity with
 absolute capacity.
 
-The hard gate is **at least 100,000 independently committed one-target, one-event model updates per second through the
-real Java SDK, WebSocket transport, tracked command consumer, runtime endpoints and PostgreSQL stores**. Every update
+The hard gate is now **at least 500,000 independently committed one-target, one-event model updates per second, with
+600,000/s as the desired release result**, through the real Java SDK, WebSocket transport, tracked command consumer,
+runtime endpoints and PostgreSQL stores. Every update
 must complete with its ordinary command result and retain model loading, exact state boundaries, model cache tracking,
 idempotency, replay, global event publication and failure semantics. Packing many events into one commit remains an
 important complementary byte-throughput profile, but may not substitute for this gate.
@@ -1774,17 +1775,22 @@ important complementary byte-throughput profile, but may not substitute for this
 
 ### Slice 21d.2 — Runtime one-event commit capacity
 
-- [ ] Raise the current one-event runtime-store result from 24,987 commits/s to at least 100,000 commits/s without
+- [x] Raise the one-event runtime store beyond the original 100,000/s floor without
   weakening model heads, sequence/state indices, durable commit identity/results, update tracking, replay, lifecycle
-  or exactly-once global event publication.
-- [ ] Remove or batch fixed per-commit statements, rows, serialization and transaction work that dominates when a
+  or exactly-once global event publication. The retained one-target, one-event result is **718,439 independently
+  committed and globally published events/s**.
+- [x] Remove or batch fixed per-commit statements, rows, serialization and transaction work that dominates when a
   commit contains one event. Preserve independent failure/results and bound batches by bytes, latency and memory.
 - [ ] Re-run searchable and non-searchable profiles. Synchronous direct-document visibility remains part of the
   searchable commit; asynchronous graph composition is measured and fenced separately.
 
 ### Slice 21d.3 — SDK, tracking and transport capacity
 
-- [ ] Support at least 100,000 bounded in-flight automatic model commands/s without one platform thread per request,
+- [x] Prove the low-level production WebSocket request/result boundary at the new scale before changing tracked
+  command handling. Two repeated 1,048,576-request runs, each containing one independent commit, one target and one
+  globally published event, completed at **539,986/s** and **538,773/s** with exact result, membership and event
+  counts.
+- [ ] Support at least 500,000 bounded in-flight automatic model commands/s without one platform thread per request,
   unbounded futures, hidden fire-and-forget behavior or omitted results.
 - [ ] Batch compatible command publication, tracking delivery, model loads/commits and result frames while preserving
   per-command metadata, correlation, ordering contracts, exception delivery, cancellation and backpressure.
@@ -1793,9 +1799,45 @@ important complementary byte-throughput profile, but may not substitute for this
 - [ ] Preserve ordinary aggregate, notification, event-handler and custom consumer behavior; model throughput work may
   not globally change established delivery or batching semantics without focused compatibility evidence.
 
-### Slice 21d.4 — Absolute release gate
+### Slice 21d.4 — Read capacity must keep up with writes
 
-- [ ] Sustain at least **100,000 one-event model commits/events per second end-to-end** after warm-up on the Phase 21c
+- [x] Retain a representative full-reconstruction profile rather than treating decoded JDBC rows as model loads:
+  8,192 independently stored models, ten published events per model, real WebSocket transport and
+  `Fluxzero.loadModels`, payload deserialization, `@Apply` replay and automatic model caching enabled.
+- [x] Keep physical stream blocks bounded at 1,024 memberships. The retained dataset uses 100 blocks for 81,920
+  memberships (819 average, 1,024 maximum); increasing the block size to make writes look faster was rejected because
+  it reduced random-read locality.
+- [x] Use bounded immutable runtime block/location caches, generation-fenced invalidation and zero-copy compact wire
+  slices. Cover current misses, appends, historical boundaries, restart locator recovery and repeatable-read
+  visibility. A possible-duplicate commit that cached a pre-commit location miss exposed and fixed a real stale-empty
+  read race.
+- [x] Gate sustained cold SDK reconstruction against the measured write floor for both long and shortest useful
+  streams. The ten-events-per-model profile remains useful for replay capacity, but originally hid excessive
+  per-model overhead. The stricter retained gate therefore uses 32,768 independently stored one-event models, real
+  WebSocket transport, four concurrent disjoint `Fluxzero.loadModels` pipelines, payload deserialization, `@Apply`
+  replay and automatic model caching. One long-lived `Fluxzero` instance clears its model cache before every measured
+  iteration without repeatedly charging tracker/WebSocket startup to sustained service. Final-code legacy
+  soft-reference-cache runs completed at **1,015,960** and **1,034,579 models/events/s**; current adaptive-cache runs
+  completed at **1,051,170** and **977,714 models/events/s**. Every retained result is above the
+  718,439-events/s independent one-event write result.
+- [x] Preserve embedded compact stream blocks when concurrent SDK reads are coalesced. Previously, two batched callers
+  silently forced expansion back into tens of thousands of membership/payload objects, adding roughly 48 ms of block
+  expansion and 60–117 ms of classification in the representative profile. Compact splitting now shares the immutable
+  wire blocks, while a caller starved by the combined byte window still retries independently.
+- [x] Do not re-coalesce an already large compact `loadModels` request. Combining several native batches made
+  hash-mixed physical blocks span callers and caused each split caller to decode unrelated entries again. Fine-grained
+  loads still coalesce; requests of at least 1,024 streams retain ordinary client/runtime concurrency. Add bounded
+  bulk-merge support to both legacy and adaptive automatic caches so a cold reconstructed batch does not take one
+  global cache lock transition per model.
+- [x] Keep a raw transport/storage control alongside reconstruction. Single-pipeline one-event compact reads completed
+  at **830,615–939,864 events/s** beside the final four-pipeline full reconstruction runs.
+  The older ten-events-per-model raw control remains approximately 1.17–2.03 million events/s. Physical blocks stay
+  capped at 1,024; no larger-block read-locality trade-off was used to pass the gate.
+
+### Slice 21d.5 — Absolute release gate
+
+- [ ] Sustain at least **500,000 one-event model commits/events per second end-to-end**, targeting 600,000/s, after
+  warm-up on the Phase 21c
   local regression machine, with zero missing/duplicate events and results and exact post-run stream/global-log counts.
 - [ ] Record p50/p95/p99/max command-result latency at the passing throughput, plus unloaded single-command latency.
   Throughput obtained through an unbounded queue or multi-second tails does not pass.

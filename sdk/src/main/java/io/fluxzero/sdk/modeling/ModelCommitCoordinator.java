@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -37,8 +38,18 @@ final class ModelCommitCoordinator {
     <T> CompletableFuture<T> coordinate(
             Collection<String> modelIds,
             Function<Boolean, CompletableFuture<T>> operation) {
+        return coordinate(modelIds, ignored -> {
+        }, operation);
+    }
+
+    <T> CompletableFuture<T> coordinate(
+            Collection<String> modelIds,
+            Consumer<Boolean> contentionObserver,
+            Function<Boolean, CompletableFuture<T>> operation) {
         Objects.requireNonNull(
                 modelIds, "modelIds");
+        Objects.requireNonNull(
+                contentionObserver, "contentionObserver");
         Objects.requireNonNull(operation, "operation");
         List<String> keys =
                 List.copyOf(
@@ -70,6 +81,18 @@ final class ModelCommitCoordinator {
         }
 
         boolean reevaluate = contended;
+        try {
+            contentionObserver.accept(contended);
+        } catch (Throwable failure) {
+            synchronized (tails) {
+                keys.forEach(key ->
+                                     tails.remove(
+                                             key,
+                                             release));
+            }
+            release.complete(null);
+            return CompletableFuture.failedFuture(failure);
+        }
         CompletableFuture<T> result =
                 predecessor.handle(
                                 (ignored, failure) ->

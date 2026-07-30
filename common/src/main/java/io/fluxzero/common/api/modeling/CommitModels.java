@@ -18,9 +18,12 @@ package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Command;
+import io.fluxzero.common.api.RetryAwareRequest;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
+import java.beans.ConstructorProperties;
 import java.beans.Transient;
 import java.util.List;
 
@@ -35,7 +38,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
-public class CommitModels extends Command {
+public class CommitModels extends Command implements RetryAwareRequest {
 
     /**
      * Durable idempotency key shared by every substep in this commit.
@@ -67,6 +70,72 @@ public class CommitModels extends Command {
      * Completion guarantee requested by the SDK.
      */
     Guarantee guarantee;
+
+    /**
+     * Whether this commit id may already have been stored.
+     * <p>
+     * {@code false} is a proof supplied by the SDK for the first transport attempt of a freshly
+     * handled source message. {@code true} requests a durable duplicate lookup. {@code null} keeps
+     * the conservative legacy behavior and also performs that lookup.
+     */
+    @NonFinal
+    volatile Boolean possibleDuplicate;
+
+    public CommitModels(
+            String commitId,
+            long readStateIndex,
+            List<String> readModelIds,
+            List<ModelCommitStep> substeps,
+            ModelConflictPolicy conflictPolicy,
+            Guarantee guarantee) {
+        this(
+                commitId, readStateIndex, readModelIds, substeps,
+                conflictPolicy, guarantee, null);
+    }
+
+    @ConstructorProperties({
+            "commitId", "readStateIndex", "readModelIds", "substeps",
+            "conflictPolicy", "guarantee", "possibleDuplicate"})
+    public CommitModels(
+            String commitId,
+            long readStateIndex,
+            List<String> readModelIds,
+            List<ModelCommitStep> substeps,
+            ModelConflictPolicy conflictPolicy,
+            Guarantee guarantee,
+            Boolean possibleDuplicate) {
+        this.commitId = commitId;
+        this.readStateIndex = readStateIndex;
+        this.readModelIds = readModelIds;
+        this.substeps = substeps;
+        this.conflictPolicy = conflictPolicy;
+        this.guarantee = guarantee;
+        this.possibleDuplicate = possibleDuplicate;
+    }
+
+    CommitModels(
+            long requestId,
+            String commitId,
+            long readStateIndex,
+            List<String> readModelIds,
+            List<ModelCommitStep> substeps,
+            ModelConflictPolicy conflictPolicy,
+            Guarantee guarantee,
+            Boolean possibleDuplicate) {
+        super(requestId);
+        this.commitId = commitId;
+        this.readStateIndex = readStateIndex;
+        this.readModelIds = readModelIds;
+        this.substeps = substeps;
+        this.conflictPolicy = conflictPolicy;
+        this.guarantee = guarantee;
+        this.possibleDuplicate = possibleDuplicate;
+    }
+
+    @Override
+    public void markPossibleDuplicate() {
+        possibleDuplicate = true;
+    }
 
     /**
      * Routes retries of the same commit consistently without choosing one target model as its owner.
