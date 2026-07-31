@@ -203,15 +203,18 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return removed == null ? null : removed.value();
     }
 
-    public synchronized void clear() {
-        clear(true);
+    public void clear() {
+        List<MemoryAwareCacheSupportEviction<K, V>> evictions;
+        synchronized (this) {
+            evictions = new ArrayList<>(entries.size());
+            entries.forEach((key, entry) -> evictions.add(eviction(key, entry, manual)));
+            clearEntries();
+        }
+        notifyEvictions(evictions);
     }
 
-    private void clear(boolean notify) {
+    private void clearEntries() {
         if (!entries.isEmpty()) {
-            if (notify) {
-                entries.forEach((key, entry) -> notifyEviction(key, entry.value(), entry.weight(), manual));
-            }
             entries.clear();
             if (orderedKeys != null) {
                 orderedKeys.clear();
@@ -334,7 +337,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             memoryPressureMonitorTask.cancel(false);
         }
         memoryPressureCaches.remove(memoryPressureReference);
-        clear(false);
+        clearEntries();
     }
 
     private WeakReference<MemoryAwareCacheSupport<?, ?>> registerMemoryPressureCache() {

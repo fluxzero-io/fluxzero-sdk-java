@@ -145,6 +145,25 @@ class MemoryAwareCacheSupportTest {
     }
 
     @Test
+    void clearingAllowsEvictionListenersToReenterTheCache() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> value.length(), null, MemoryPressureController.none(), null);
+        List<String> evicted = new ArrayList<>();
+        cache.put("a", "A");
+        cache.put("b", "B");
+        cache.registerEvictionListener(event -> {
+            evicted.add(event.key());
+            cache.remove("b");
+        });
+
+        cache.clear();
+
+        assertEquals(0, cache.size());
+        assertEquals(0L, cache.weight());
+        assertEquals(List.of("a", "b"), evicted);
+    }
+
+    @Test
     void putAllUsesIterationOrderAndMaintainsWeight() {
         MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
                 2, 1, (key, value) -> 1, Comparator.naturalOrder(), MemoryPressureController.none(), null);
