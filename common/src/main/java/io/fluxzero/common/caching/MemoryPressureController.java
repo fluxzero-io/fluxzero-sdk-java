@@ -19,6 +19,9 @@ import io.fluxzero.common.application.PropertySource;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -28,7 +31,9 @@ import java.util.function.LongSupplier;
 @FunctionalInterface
 public interface MemoryPressureController {
     /**
-     * Heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.
+     * Post-GC heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.
+     * Measuring retained occupancy instead of instantaneous Eden usage prevents a normal allocation burst just before
+     * a young collection from evicting hot cache entries.
      */
     String MEMORY_PRESSURE_HEAP_THRESHOLD_PERCENT_PROPERTY =
             "fluxzero.cache.memoryPressure.heapThresholdPercent";
@@ -101,7 +106,10 @@ public interface MemoryPressureController {
         JvmMemoryPressureController(PropertySource propertySource) {
             this(propertySource, System::nanoTime,
                  () -> Runtime.getRuntime().maxMemory(),
-                 () -> Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                 postCollectionUsedMemorySupplier(
+                         ManagementFactory.getMemoryPoolMXBeans(),
+                         () -> Runtime.getRuntime().totalMemory()
+                               - Runtime.getRuntime().freeMemory()),
                  collectionMillisSupplier(ManagementFactory.getGarbageCollectorMXBeans()));
         }
 
@@ -199,6 +207,36 @@ public interface MemoryPressureController {
                 }
                 return result;
             };
+        }
+
+        static LongSupplier postCollectionUsedMemorySupplier(
+                List<MemoryPoolMXBean> memoryPools,
+                LongSupplier fallback) {
+            return () -> {
+                long result = 0L;
+                boolean supported = false;
+                for (MemoryPoolMXBean memoryPool : memoryPools) {
+                    if (memoryPool.getType() != MemoryType.HEAP) {
+                        continue;
+                    }
+                    MemoryUsage usage = memoryPool.getCollectionUsage();
+                    if (usage == null || usage.getUsed() < 0L) {
+                        continue;
+                    }
+                    supported = true;
+                    result = saturatedAdd(
+                            result, usage.getUsed());
+                }
+                return supported ? result : fallback.getAsLong();
+            };
+        }
+
+        private static long saturatedAdd(
+                long left,
+                long right) {
+            long result = left + right;
+            return result < 0L || result < left
+                    ? Long.MAX_VALUE : result;
         }
 
         private static int propertyPercent(PropertySource propertySource, String property, int defaultValue) {

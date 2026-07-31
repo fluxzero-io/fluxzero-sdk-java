@@ -19,6 +19,9 @@ import io.fluxzero.common.application.SimplePropertySource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class MemoryAwareCacheSupportTest {
     private static final Duration EVENTUALLY_TIMEOUT = Duration.ofSeconds(2);
@@ -614,6 +619,45 @@ class MemoryAwareCacheSupportTest {
                 nanos::get, () -> 100L, () -> 85L, () -> 0L);
 
         assertTrue(controller.shouldEvict(1, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerMeasuresPostCollectionHeapUsage() {
+        MemoryPoolMXBean eden = mock(MemoryPoolMXBean.class);
+        MemoryPoolMXBean old = mock(MemoryPoolMXBean.class);
+        MemoryPoolMXBean nonHeap = mock(MemoryPoolMXBean.class);
+        when(eden.getType()).thenReturn(MemoryType.HEAP);
+        when(old.getType()).thenReturn(MemoryType.HEAP);
+        when(nonHeap.getType()).thenReturn(MemoryType.NON_HEAP);
+        when(eden.getCollectionUsage()).thenReturn(
+                new MemoryUsage(-1L, 5L, 10L, -1L));
+        when(old.getCollectionUsage()).thenReturn(
+                new MemoryUsage(-1L, 80L, 90L, 100L));
+        when(nonHeap.getCollectionUsage()).thenReturn(
+                new MemoryUsage(-1L, 1_000L, 1_000L, -1L));
+
+        java.util.function.LongSupplier supplier =
+                MemoryPressureController.JvmMemoryPressureController
+                        .postCollectionUsedMemorySupplier(
+                                List.of(eden, old, nonHeap),
+                                () -> 99L);
+
+        assertEquals(85L, supplier.getAsLong());
+    }
+
+    @Test
+    void jvmMemoryPressureControllerFallsBackWhenPostCollectionUsageIsUnsupported() {
+        MemoryPoolMXBean heap = mock(MemoryPoolMXBean.class);
+        when(heap.getType()).thenReturn(MemoryType.HEAP);
+        when(heap.getCollectionUsage()).thenReturn(null);
+
+        java.util.function.LongSupplier supplier =
+                MemoryPressureController.JvmMemoryPressureController
+                        .postCollectionUsedMemorySupplier(
+                                List.of(heap),
+                                () -> 73L);
+
+        assertEquals(73L, supplier.getAsLong());
     }
 
     @Test
