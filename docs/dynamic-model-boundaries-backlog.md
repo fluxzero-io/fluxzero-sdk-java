@@ -1796,6 +1796,9 @@ important complementary byte-throughput profile, but may not substitute for this
   per-command metadata, correlation, ordering contracts, exception delivery, cancellation and backpressure.
 - [~] Keep automatic model caching enabled in the primary profile and prove every command still resolves and loads its
   target through the ordinary `ModelRepository` path. Add cache-disabled and forced-cold controls.
+- [x] Prevent adaptive-cache memory-pressure eviction from deadlocking model-prefetch work: select and remove entries
+  under the internal cache lock, deliver eviction callbacks only after releasing it, and cover the former lock inversion
+  with a deterministic regression test. Completed in SDK commit `806d4dba308`.
 - [~] Measure the runtime-wide opaque-message-envelope backlog item against this exact E2E profile. If the retained JFR
   attribution holds, keep payload and metadata as serialized `Data<byte[]>` through runtime storage and routing and
   deserialize them only in the consuming SDK. Preserve runtime-owned routing headers, upcasting, metadata mutation
