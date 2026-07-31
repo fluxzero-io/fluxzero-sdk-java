@@ -2126,6 +2126,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         membership,
                         payloads.getRequired(
                                 membership.getStateIndex()));
+                ReplayPlan directPlan =
+                        directReplayPlan(
+                                storedEvent.event(),
+                                state.target.modelType());
+                if (directPlan != null) {
+                    continue;
+                }
                 List<PreparedReplay> prepared =
                         new ArrayList<>();
                 for (DeserializingMessage event :
@@ -2188,10 +2195,21 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 throw incompleteHistory(stream.getModelId());
             }
             for (ModelEventMembership membership : stream.getMemberships()) {
-                state.apply(new StoredEvent(
+                StoredEvent storedEvent = new StoredEvent(
                         membership,
                         payloads.getRequired(
-                                membership.getStateIndex())));
+                                membership.getStateIndex()));
+                ReplayPlan directPlan =
+                        directReplayPlan(
+                                storedEvent.event(),
+                                state.target.modelType());
+                if (directPlan == null) {
+                    state.apply(storedEvent);
+                } else {
+                    state.applyDirect(
+                            storedEvent,
+                            directPlan);
+                }
             }
         }
 
