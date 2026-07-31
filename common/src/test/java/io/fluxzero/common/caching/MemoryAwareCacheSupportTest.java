@@ -659,10 +659,53 @@ class MemoryAwareCacheSupportTest {
         AtomicLong collectionMillis = new AtomicLong();
         MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
                 nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
-        nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(100));
-        collectionMillis.addAndGet(20L);
+        nanos.addAndGet(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.addAndGet(1_000L);
 
         assertTrue(controller.shouldEvict(1, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerIgnoresTransientGcPressureWithoutResettingItsSample() {
+        AtomicLong nanos = new AtomicLong();
+        AtomicLong collectionMillis = new AtomicLong();
+        MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
+                nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
+
+        nanos.set(TimeUnit.MILLISECONDS.toNanos(250));
+        collectionMillis.set(200L);
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(1));
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(4));
+        collectionMillis.set(800L);
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.set(1_000L);
+        assertTrue(controller.shouldEvict(1, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerStartsANewWindowAfterSampling() {
+        AtomicLong nanos = new AtomicLong();
+        AtomicLong collectionMillis = new AtomicLong();
+        MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
+                nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
+
+        nanos.set(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.set(1_000L);
+        assertTrue(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(6));
+        collectionMillis.set(1_200L);
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(10));
+        collectionMillis.set(1_200L);
+        assertFalse(controller.shouldEvict(1, 100));
     }
 
     private static void assertEventually(Executable assertion) throws Throwable {

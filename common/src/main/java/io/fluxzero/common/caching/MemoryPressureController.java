@@ -34,7 +34,8 @@ public interface MemoryPressureController {
             "fluxzero.cache.memoryPressure.heapThresholdPercent";
     /**
      * GC-time percentage over the sampling window that triggers JVM-wide memory-aware cache trimming. Defaults to
-     * {@code 20}.
+     * {@code 20}. GC pressure is evaluated over a sustained window so a single short collection does not evict hot
+     * cache entries while heap usage remains healthy.
      */
     String MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY =
             "fluxzero.cache.memoryPressure.gcTimeThresholdPercent";
@@ -80,7 +81,7 @@ public interface MemoryPressureController {
         public static final int DEFAULT_GC_TIME_THRESHOLD_PERCENT = 20;
         public static final int DEFAULT_TRIM_RATIO_PERCENT = 20;
         public static final long DEFAULT_MAX_TRIM_WEIGHT = 1024L * 1024L * 1024L;
-        private static final long MIN_GC_SAMPLE_WINDOW_MILLIS = 100L;
+        private static final long MIN_GC_SAMPLE_WINDOW_MILLIS = 5_000L;
 
         private final LongSupplier nanoTimeSupplier;
         private final LongSupplier maxMemorySupplier;
@@ -174,15 +175,17 @@ public interface MemoryPressureController {
             return maxMemory > 0L && usedMemory * 100L / maxMemory >= heapUsageThresholdPercent;
         }
 
-        private boolean gcTimeLooksHigh() {
+        private synchronized boolean gcTimeLooksHigh() {
             long nowNanos = nanoTimeSupplier.getAsLong();
             long collectionMillis = collectionMillisSupplier.getAsLong();
             long elapsedMillis = (nowNanos - lastCheckNanos) / 1_000_000L;
+            if (elapsedMillis < MIN_GC_SAMPLE_WINDOW_MILLIS) {
+                return false;
+            }
             long collectionDelta = Math.max(0L, collectionMillis - lastCollectionMillis);
             lastCheckNanos = nowNanos;
             lastCollectionMillis = collectionMillis;
-            return elapsedMillis >= MIN_GC_SAMPLE_WINDOW_MILLIS
-                   && collectionDelta * 100L / elapsedMillis >= gcTimeThresholdPercent;
+            return collectionDelta * 100L / elapsedMillis >= gcTimeThresholdPercent;
         }
 
         private static LongSupplier collectionMillisSupplier(List<GarbageCollectorMXBean> garbageCollectors) {
