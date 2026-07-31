@@ -290,13 +290,18 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return trimForObservedMemoryPressure();
     }
 
-    private synchronized boolean trimForObservedMemoryPressure() {
-        if (closed || entries.isEmpty()) {
-            return false;
+    private boolean trimForObservedMemoryPressure() {
+        List<MemoryAwareCacheSupportEviction<K, V>> evictions;
+        synchronized (this) {
+            if (closed || entries.isEmpty()) {
+                return false;
+            }
+            evictions = removeToWeight(
+                    targetWeightAfterPressureTrim(weight, memoryPressureController.trimRatioPercent(),
+                                                  memoryPressureController.maxTrimWeight()),
+                    memoryPressure);
         }
-        trimToWeight(targetWeightAfterPressureTrim(weight, memoryPressureController.trimRatioPercent(),
-                                                   memoryPressureController.maxTrimWeight()),
-                     memoryPressure);
+        notifyEvictions(evictions);
         return true;
     }
 
@@ -415,25 +420,42 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized long evictCandidateForObservedMemoryPressure(MemoryPressureEvictionCandidate candidate) {
-        if (closed || entries.isEmpty()) {
-            return 0L;
+    private long evictCandidateForObservedMemoryPressure(MemoryPressureEvictionCandidate candidate) {
+        MemoryAwareCacheSupportEviction<K, V> eviction;
+        synchronized (this) {
+            if (closed || entries.isEmpty()) {
+                return 0L;
+            }
+            K key = (K) candidate.key();
+            Entry<V> removed = entries.remove(key);
+            if (removed == null) {
+                return 0L;
+            }
+            if (removed.lastAccess() != candidate.lastAccess()) {
+                entries.put(key, removed);
+                return 0L;
+            }
+            weight -= removed.weight();
+            if (orderedKeys != null) {
+                orderedKeys.remove(key);
+            }
+            eviction = eviction(key, removed, memoryPressure);
         }
-        K key = (K) candidate.key();
-        Entry<V> removed = entries.remove(key);
-        if (removed == null) {
-            return 0L;
+        notifyEviction(eviction);
+        return eviction.weight();
+    }
+
+    private List<MemoryAwareCacheSupportEviction<K, V>> removeToWeight(
+            long targetWeight, MemoryAwareCacheSupportEviction.Reason reason) {
+        List<MemoryAwareCacheSupportEviction<K, V>> evictions = new ArrayList<>();
+        while (weight > targetWeight && !entries.isEmpty()) {
+            Map.Entry<K, Entry<V>> eldest = entries.entrySet().iterator().next();
+            Entry<V> removed = removeEntry(eldest.getKey(), reason, false);
+            if (removed != null) {
+                evictions.add(eviction(eldest.getKey(), removed, reason));
+            }
         }
-        if (removed.lastAccess() != candidate.lastAccess()) {
-            entries.put(key, removed);
-            return 0L;
-        }
-        weight -= removed.weight();
-        if (orderedKeys != null) {
-            orderedKeys.remove(key);
-        }
-        notifyEviction(key, removed.value(), removed.weight(), memoryPressure);
-        return removed.weight();
+        return evictions;
     }
 
     private static long saturatedAdd(long left, long right) {
@@ -475,16 +497,26 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     }
 
     private void notifyEviction(K key, V value, long entryWeight, MemoryAwareCacheSupportEviction.Reason reason) {
-        if (!evictionListeners.isEmpty()) {
-            MemoryAwareCacheSupportEviction<K, V> event = new MemoryAwareCacheSupportEviction<>(key, value, entryWeight, reason);
-            evictionListeners.forEach(listener -> {
-                try {
-                    listener.accept(event);
-                } catch (Exception e) {
-                    log.error("Cache eviction listener {} failed", listener, e);
-                }
-            });
-        }
+        notifyEviction(new MemoryAwareCacheSupportEviction<>(key, value, entryWeight, reason));
+    }
+
+    private void notifyEvictions(List<MemoryAwareCacheSupportEviction<K, V>> evictions) {
+        evictions.forEach(this::notifyEviction);
+    }
+
+    private void notifyEviction(MemoryAwareCacheSupportEviction<K, V> event) {
+        evictionListeners.forEach(listener -> {
+            try {
+                listener.accept(event);
+            } catch (Exception e) {
+                log.error("Cache eviction listener {} failed", listener, e);
+            }
+        });
+    }
+
+    private static <K, V> MemoryAwareCacheSupportEviction<K, V> eviction(
+            K key, Entry<V> entry, MemoryAwareCacheSupportEviction.Reason reason) {
+        return new MemoryAwareCacheSupportEviction<>(key, entry.value(), entry.weight(), reason);
     }
 
     private Entry<V> getEntryForAccess(K key) {
