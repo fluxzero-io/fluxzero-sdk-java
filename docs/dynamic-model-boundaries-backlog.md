@@ -1763,14 +1763,14 @@ important complementary byte-throughput profile, but may not substitute for this
 
 ### Slice 21d.1 — Honest decomposition and repeatable profiling
 
-- [ ] Extend the E2E driver with a model-only mode, asynchronous bounded in-flight sending and configurable
+- [~] Extend the E2E driver with a model-only mode, asynchronous bounded in-flight sending and configurable
   events-per-command while preserving the existing blocking `sendAndWait` latency profile.
-- [ ] Report command publication, command-log visibility, consumer queueing, target resolution, cache/repository load,
+- [~] Report command publication, command-log visibility, consumer queueing, target resolution, cache/repository load,
   assertions/applies, commit submission, JDBC commit, cache update and result-delivery time separately.
-- [ ] Capture JFR profiles and allocation counts for the one-event runtime store, SDK sender, WebSocket endpoints,
+- [~] Capture JFR profiles and allocation counts for the one-event runtime store, SDK sender, WebSocket endpoints,
   tracked consumer and result path. Record CPU, allocation, park/monitor, socket, serialization, compression, JDBC and
   garbage-collection costs rather than inferring the bottleneck from total latency.
-- [ ] Keep one-event commits, commits/s and events/s visibly identical in the gate output. Add a separate
+- [~] Keep one-event commits, commits/s and events/s visibly identical in the gate output. Add a separate
   multi-event-per-commit profile without using it to satisfy the one-event floor.
 
 ### Slice 21d.2 — Runtime one-event commit capacity
@@ -1790,12 +1790,16 @@ important complementary byte-throughput profile, but may not substitute for this
   command handling. Two repeated 1,048,576-request runs, each containing one independent commit, one target and one
   globally published event, completed at **539,986/s** and **538,773/s** with exact result, membership and event
   counts.
-- [ ] Support at least 500,000 bounded in-flight automatic model commands/s without one platform thread per request,
+- [~] Support at least 500,000 bounded in-flight automatic model commands/s without one platform thread per request,
   unbounded futures, hidden fire-and-forget behavior or omitted results.
-- [ ] Batch compatible command publication, tracking delivery, model loads/commits and result frames while preserving
+- [~] Batch compatible command publication, tracking delivery, model loads/commits and result frames while preserving
   per-command metadata, correlation, ordering contracts, exception delivery, cancellation and backpressure.
-- [ ] Keep automatic model caching enabled in the primary profile and prove every command still resolves and loads its
+- [~] Keep automatic model caching enabled in the primary profile and prove every command still resolves and loads its
   target through the ordinary `ModelRepository` path. Add cache-disabled and forced-cold controls.
+- [~] Measure the runtime-wide opaque-message-envelope backlog item against this exact E2E profile. If the retained JFR
+  attribution holds, keep payload and metadata as serialized `Data<byte[]>` through runtime storage and routing and
+  deserialize them only in the consuming SDK. Preserve runtime-owned routing headers, upcasting, metadata mutation
+  extension points and wire/stored compatibility explicitly; do not count a metadata-free synthetic message as proof.
 - [ ] Preserve ordinary aggregate, notification, event-handler and custom consumer behavior; model throughput work may
   not globally change established delivery or batching semantics without focused compatibility evidence.
 
@@ -1836,7 +1840,7 @@ important complementary byte-throughput profile, but may not substitute for this
 
 ### Slice 21d.5 — Absolute release gate
 
-- [ ] Sustain at least **500,000 one-event model commits/events per second end-to-end**, targeting 600,000/s, after
+- [~] Sustain at least **500,000 one-event model commits/events per second end-to-end**, targeting 600,000/s, after
   warm-up on the Phase 21c
   local regression machine, with zero missing/duplicate events and results and exact post-run stream/global-log counts.
 - [ ] Record p50/p95/p99/max command-result latency at the passing throughput, plus unloaded single-command latency.
@@ -1845,6 +1849,10 @@ important complementary byte-throughput profile, but may not substitute for this
   floors and projection-visibility lag. Fix targeted `AWAIT` completion so it does not wait on unrelated roots.
 - [ ] Run both complete reactors, focused compatibility/concurrency/restart tests, Javadocs, downstream builds,
   `git diff --check` and an adversarial regression review before closing Phase 21d.
+
+The exact benchmark definitions, current measurements, JFR attribution and accepted/rejected experiments are kept in
+the [Phase 21d performance journal](dynamic-model-boundaries-phase-21d-performance.md). Update that journal before a
+new experiment whenever an earlier attempt could otherwise be repeated under another name.
 
 ## Phase 22 — Existing-application `@Aggregate` to `@Model` migration
 
