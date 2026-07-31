@@ -45,6 +45,12 @@ public interface MemoryPressureController {
     String MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY =
             "fluxzero.cache.memoryPressure.gcTimeThresholdPercent";
     /**
+     * Minimum occupied percentage of a cache's configured weight budget before sustained GC time alone may trigger
+     * trimming. Defaults to {@code 50}. Actual post-GC heap pressure remains sufficient by itself.
+     */
+    String MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY =
+            "fluxzero.cache.memoryPressure.gcCacheUtilizationPercent";
+    /**
      * Percentage of the registered memory-aware cache weight to evict per observed memory-pressure pass. Defaults to
      * {@code 20}.
      */
@@ -84,6 +90,7 @@ public interface MemoryPressureController {
     class JvmMemoryPressureController implements MemoryPressureController {
         public static final int DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT = 85;
         public static final int DEFAULT_GC_TIME_THRESHOLD_PERCENT = 20;
+        public static final int DEFAULT_GC_CACHE_UTILIZATION_PERCENT = 50;
         public static final int DEFAULT_TRIM_RATIO_PERCENT = 20;
         public static final long DEFAULT_MAX_TRIM_WEIGHT = 1024L * 1024L * 1024L;
         private static final long MIN_GC_SAMPLE_WINDOW_MILLIS = 5_000L;
@@ -94,6 +101,7 @@ public interface MemoryPressureController {
         private final LongSupplier collectionMillisSupplier;
         private final int heapUsageThresholdPercent;
         private final int gcTimeThresholdPercent;
+        private final int gcCacheUtilizationPercent;
         private final int trimRatioPercent;
         private final long maxTrimWeight;
         private volatile long lastCheckNanos;
@@ -124,6 +132,8 @@ public interface MemoryPressureController {
                                  DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT),
                  propertyPercent(propertySource, MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY,
                                  DEFAULT_GC_TIME_THRESHOLD_PERCENT),
+                 propertyPercent(propertySource, MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY,
+                                 DEFAULT_GC_CACHE_UTILIZATION_PERCENT),
                  propertyPercent(propertySource, MEMORY_PRESSURE_TRIM_RATIO_PERCENT_PROPERTY,
                                  DEFAULT_TRIM_RATIO_PERCENT),
                  propertyLong(propertySource, MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY,
@@ -133,13 +143,14 @@ public interface MemoryPressureController {
         JvmMemoryPressureController(LongSupplier nanoTimeSupplier, LongSupplier maxMemorySupplier,
                                     LongSupplier usedMemorySupplier, LongSupplier collectionMillisSupplier) {
             this(nanoTimeSupplier, maxMemorySupplier, usedMemorySupplier, collectionMillisSupplier,
-                 DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT, DEFAULT_GC_TIME_THRESHOLD_PERCENT, DEFAULT_TRIM_RATIO_PERCENT,
-                 DEFAULT_MAX_TRIM_WEIGHT);
+                 DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT, DEFAULT_GC_TIME_THRESHOLD_PERCENT,
+                 DEFAULT_GC_CACHE_UTILIZATION_PERCENT, DEFAULT_TRIM_RATIO_PERCENT, DEFAULT_MAX_TRIM_WEIGHT);
         }
 
         JvmMemoryPressureController(LongSupplier nanoTimeSupplier, LongSupplier maxMemorySupplier,
                                     LongSupplier usedMemorySupplier, LongSupplier collectionMillisSupplier,
                                     int heapUsageThresholdPercent, int gcTimeThresholdPercent,
+                                    int gcCacheUtilizationPercent,
                                     int trimRatioPercent, long maxTrimWeight) {
             this.nanoTimeSupplier = nanoTimeSupplier;
             this.maxMemorySupplier = maxMemorySupplier;
@@ -149,6 +160,8 @@ public interface MemoryPressureController {
                                                              heapUsageThresholdPercent);
             this.gcTimeThresholdPercent = validatePercent(MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY,
                                                           gcTimeThresholdPercent);
+            this.gcCacheUtilizationPercent = validatePercent(
+                    MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY, gcCacheUtilizationPercent);
             this.trimRatioPercent = validatePercent(MEMORY_PRESSURE_TRIM_RATIO_PERCENT_PROPERTY, trimRatioPercent);
             this.maxTrimWeight = validatePositiveLong(MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY, maxTrimWeight);
             this.lastCheckNanos = nanoTimeSupplier.getAsLong();
@@ -164,7 +177,8 @@ public interface MemoryPressureController {
         }
 
         boolean shouldEvictAll(long currentWeight, long maxWeight) {
-            return heapUsageLooksHigh() || gcTimeLooksHigh();
+            return heapUsageLooksHigh()
+                   || cacheUtilizationLooksHigh(currentWeight, maxWeight) && gcTimeLooksHigh();
         }
 
         @Override
@@ -181,6 +195,17 @@ public interface MemoryPressureController {
             long maxMemory = maxMemorySupplier.getAsLong();
             long usedMemory = usedMemorySupplier.getAsLong();
             return maxMemory > 0L && usedMemory * 100L / maxMemory >= heapUsageThresholdPercent;
+        }
+
+        private boolean cacheUtilizationLooksHigh(long currentWeight, long maxWeight) {
+            if (currentWeight <= 0L || maxWeight <= 0L || maxWeight == Long.MAX_VALUE) {
+                return false;
+            }
+            long quotient = maxWeight / 100L;
+            long remainder = maxWeight % 100L;
+            long threshold = quotient * gcCacheUtilizationPercent
+                             + Math.ceilDiv(remainder * gcCacheUtilizationPercent, 100L);
+            return currentWeight >= threshold;
         }
 
         private synchronized boolean gcTimeLooksHigh() {

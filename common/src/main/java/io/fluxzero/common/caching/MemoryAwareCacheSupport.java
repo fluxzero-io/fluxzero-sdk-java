@@ -56,6 +56,15 @@ import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.
  */
 @Slf4j
 public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
+    /**
+     * Unit represented by a cache weight. Only caches with the same unit can share a JVM-wide pressure budget.
+     */
+    public enum WeightUnit {
+        ENTRIES,
+        BYTES,
+        CUSTOM
+    }
+
     public static final Duration DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL = Duration.ofSeconds(1);
     private static final ScheduledExecutorService memoryPressureMonitor =
             Executors.newSingleThreadScheduledExecutor(daemonThreadFactory());
@@ -68,6 +77,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     private final long maxEntryWeight;
     private final ToLongBiFunction<? super K, ? super V> weigher;
     private final MemoryPressureController memoryPressureController;
+    private final WeightUnit weightUnit;
     private final ScheduledFuture<?> memoryPressureMonitorTask;
     private final WeakReference<MemoryAwareCacheSupport<?, ?>> memoryPressureReference;
     private final LinkedHashMap<K, Entry<V>> entries = new LinkedHashMap<>(128, 0.75f, true);
@@ -93,7 +103,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
                          Comparator<? super K> keyComparator,
                          MemoryPressureController memoryPressureController) {
         this(maxWeight, maxEntryWeight, weigher, keyComparator, memoryPressureController,
-             DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL);
+             DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL, WeightUnit.CUSTOM);
     }
 
     public MemoryAwareCacheSupport(long maxWeight, long maxEntryWeight,
@@ -101,6 +111,16 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
                          Comparator<? super K> keyComparator,
                          MemoryPressureController memoryPressureController,
                          Duration memoryPressureCheckInterval) {
+        this(maxWeight, maxEntryWeight, weigher, keyComparator, memoryPressureController,
+             memoryPressureCheckInterval, WeightUnit.CUSTOM);
+    }
+
+    public MemoryAwareCacheSupport(long maxWeight, long maxEntryWeight,
+                         ToLongBiFunction<? super K, ? super V> weigher,
+                         Comparator<? super K> keyComparator,
+                         MemoryPressureController memoryPressureController,
+                         Duration memoryPressureCheckInterval,
+                         WeightUnit weightUnit) {
         if (maxWeight < 0) {
             throw new IllegalArgumentException("maxWeight must be non-negative");
         }
@@ -111,6 +131,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         this.maxEntryWeight = maxEntryWeight;
         this.weigher = Objects.requireNonNull(weigher, "weigher");
         this.memoryPressureController = Objects.requireNonNull(memoryPressureController, "memoryPressureController");
+        this.weightUnit = Objects.requireNonNull(weightUnit, "weightUnit");
         this.orderedKeys = keyComparator == null ? null : new TreeMap<>(keyComparator);
         this.memoryPressureReference = registerMemoryPressureCache();
         this.memoryPressureMonitorTask = startMemoryPressureMonitor(memoryPressureCheckInterval);
@@ -282,7 +303,8 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         }
         if (memoryPressureController instanceof MemoryPressureController.JvmMemoryPressureController jvmController
             && jvmController.shouldEvictAll(currentWeight, maxWeight)) {
-            return trimAllForObservedMemoryPressure(jvmController.trimRatioPercent(), jvmController.maxTrimWeight());
+            return trimAllForObservedMemoryPressure(
+                    jvmController.trimRatioPercent(), jvmController.maxTrimWeight(), weightUnit);
         }
         if (!memoryPressureController.shouldEvict(currentWeight, maxWeight)) {
             return false;
@@ -325,7 +347,8 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return reference;
     }
 
-    private static boolean trimAllForObservedMemoryPressure(int trimRatioPercent, long maxTrimWeight) {
+    private static boolean trimAllForObservedMemoryPressure(
+            int trimRatioPercent, long maxTrimWeight, WeightUnit weightUnit) {
         cleanupMemoryPressureCaches();
         List<MemoryAwareCacheSupport<?, ?>> caches = new ArrayList<>();
         long totalWeight = 0L;
@@ -333,7 +356,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             MemoryAwareCacheSupport<?, ?> cache = reference.get();
             if (cache == null) {
                 memoryPressureCaches.remove(reference);
-            } else {
+            } else if (cache.weightUnit == weightUnit) {
                 long cacheWeight = cache.currentWeightForMemoryPressure();
                 if (cacheWeight > 0L) {
                     caches.add(cache);

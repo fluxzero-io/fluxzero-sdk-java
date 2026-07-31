@@ -50,6 +50,7 @@ public class AdaptiveObjectCache implements Cache {
     private final long maxEntryWeight;
     private final ToLongBiFunction<? super Object, ? super Object> weigher;
     private final MemoryPressureController memoryPressureController;
+    private final MemoryAwareCacheSupport.WeightUnit weightUnit;
     private final Duration expiry;
     private final Duration expiryCheckDelay;
     private final Clock clock;
@@ -80,7 +81,8 @@ public class AdaptiveObjectCache implements Cache {
      * Constructs a count-bounded cache with memory-pressure trimming and a maximum entry age.
      */
     public AdaptiveObjectCache(int maxSize, MemoryPressureController memoryPressureController, Duration expiry) {
-        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry);
+        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry,
+             MemoryAwareCacheSupport.WeightUnit.ENTRIES);
     }
 
     public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
@@ -95,35 +97,67 @@ public class AdaptiveObjectCache implements Cache {
     public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
                                ToLongBiFunction<? super Object, ? super Object> weigher,
                                MemoryPressureController memoryPressureController, Duration expiry) {
-        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, currentClock());
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry,
+             MemoryAwareCacheSupport.WeightUnit.CUSTOM);
+    }
+
+    private AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                                ToLongBiFunction<? super Object, ? super Object> weigher,
+                                MemoryPressureController memoryPressureController, Duration expiry,
+                                MemoryAwareCacheSupport.WeightUnit weightUnit) {
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, currentClock(), weightUnit);
     }
 
     public AdaptiveObjectCache(int maxSize, MemoryPressureController memoryPressureController, Duration expiry,
                                Clock clock) {
-        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry, clock);
+        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry, clock,
+             MemoryAwareCacheSupport.WeightUnit.ENTRIES);
     }
 
     public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
                                ToLongBiFunction<? super Object, ? super Object> weigher,
                                MemoryPressureController memoryPressureController, Duration expiry, Clock clock) {
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, clock,
+             MemoryAwareCacheSupport.WeightUnit.CUSTOM);
+    }
+
+    private AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                                ToLongBiFunction<? super Object, ? super Object> weigher,
+                                MemoryPressureController memoryPressureController, Duration expiry, Clock clock,
+                                MemoryAwareCacheSupport.WeightUnit weightUnit) {
         this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, DEFAULT_EXPIRY_CHECK_DELAY,
-             clock);
+             clock, weightUnit);
     }
 
     AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
                         ToLongBiFunction<? super Object, ? super Object> weigher,
                         MemoryPressureController memoryPressureController, Duration expiry, Duration expiryCheckDelay,
                         Clock clock) {
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, expiryCheckDelay, clock,
+             MemoryAwareCacheSupport.WeightUnit.CUSTOM);
+    }
+
+    private AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                                ToLongBiFunction<? super Object, ? super Object> weigher,
+                                MemoryPressureController memoryPressureController, Duration expiry,
+                                Duration expiryCheckDelay, Clock clock,
+                                MemoryAwareCacheSupport.WeightUnit weightUnit) {
         this.maxWeight = maxWeight;
         this.maxEntryWeight = maxEntryWeight;
         this.weigher = Objects.requireNonNull(weigher, "weigher");
         this.memoryPressureController = Objects.requireNonNull(memoryPressureController, "memoryPressureController");
+        this.weightUnit = Objects.requireNonNull(weightUnit, "weightUnit");
         this.expiry = expiry;
         this.expiryCheckDelay = expiryCheckDelay;
         this.clock = Objects.requireNonNull(clock, "clock");
         this.delegate = new MemoryAwareCacheSupport<>(maxWeight, maxEntryWeight, this::weigh, null,
-                                                      memoryPressureController);
-        this.delegate.registerEvictionListener(event -> deadlines.remove(event.key()));
+                                                      memoryPressureController,
+                                                      MemoryAwareCacheSupport.DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL,
+                                                      weightUnit);
+        if (expiry != null) {
+            this.delegate.registerEvictionListener(
+                    event -> deadlines.remove(event.key()));
+        }
         this.expiryPurger = startExpiryPurger();
     }
 
@@ -266,7 +300,7 @@ public class AdaptiveObjectCache implements Cache {
     @Override
     public Cache rebuild() {
         return new AdaptiveObjectCache(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry,
-                                       expiryCheckDelay, clock);
+                                       expiryCheckDelay, clock, weightUnit);
     }
 
     @Override

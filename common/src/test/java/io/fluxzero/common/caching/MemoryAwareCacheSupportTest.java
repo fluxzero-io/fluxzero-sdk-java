@@ -408,7 +408,7 @@ class MemoryAwareCacheSupportTest {
     void jvmMemoryPressureTrimIsCappedByConfiguredMaximumWeight() {
         AtomicLong usedMemory = new AtomicLong(1L);
         MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
-                () -> 0L, () -> 100L, usedMemory::get, () -> 0L, 85, 20, 50, 30);
+                () -> 0L, () -> 100L, usedMemory::get, () -> 0L, 85, 20, 50, 50, 30);
         MemoryAwareCacheSupport<String, String> cache1 = new MemoryAwareCacheSupport<>(
                 1_000, 1_000, (key, value) -> 10, null, controller, null);
         MemoryAwareCacheSupport<String, String> cache2 = new MemoryAwareCacheSupport<>(
@@ -516,6 +516,31 @@ class MemoryAwareCacheSupportTest {
         } finally {
             pressureAwareCache.close();
             optedOutCache.close();
+        }
+    }
+
+    @Test
+    void jvmMemoryPressureDoesNotCombineIncompatibleWeightUnits() {
+        AtomicLong usedMemory = new AtomicLong(1L);
+        MemoryPressureController controller = jvmController(usedMemory);
+        MemoryAwareCacheSupport<String, String> entries = new MemoryAwareCacheSupport<>(
+                1_000, 1_000, (key, value) -> 1, null, controller, null,
+                MemoryAwareCacheSupport.WeightUnit.ENTRIES);
+        MemoryAwareCacheSupport<String, String> bytes = new MemoryAwareCacheSupport<>(
+                1_000, 1_000, (key, value) -> 100, null, controller, null,
+                MemoryAwareCacheSupport.WeightUnit.BYTES);
+        try {
+            fill(entries, "entry", 10);
+            fill(bytes, "byte", 5);
+            usedMemory.set(85L);
+
+            assertTrue(entries.trimForMemoryPressure());
+
+            assertEquals(8L, entries.weight());
+            assertEquals(500L, bytes.weight());
+        } finally {
+            entries.close();
+            bytes.close();
         }
     }
 
@@ -706,7 +731,19 @@ class MemoryAwareCacheSupportTest {
         nanos.addAndGet(TimeUnit.SECONDS.toNanos(5));
         collectionMillis.addAndGet(1_000L);
 
-        assertTrue(controller.shouldEvict(1, 100));
+        assertTrue(controller.shouldEvict(50, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerKeepsSparseHotCacheUnderGcLoad() {
+        AtomicLong nanos = new AtomicLong();
+        AtomicLong collectionMillis = new AtomicLong();
+        MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
+                nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
+        nanos.set(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.set(1_000L);
+
+        assertFalse(controller.shouldEvict(49, 100));
     }
 
     @Test
@@ -729,7 +766,7 @@ class MemoryAwareCacheSupportTest {
 
         nanos.set(TimeUnit.SECONDS.toNanos(5));
         collectionMillis.set(1_000L);
-        assertTrue(controller.shouldEvict(1, 100));
+        assertTrue(controller.shouldEvict(50, 100));
     }
 
     @Test
@@ -741,7 +778,7 @@ class MemoryAwareCacheSupportTest {
 
         nanos.set(TimeUnit.SECONDS.toNanos(5));
         collectionMillis.set(1_000L);
-        assertTrue(controller.shouldEvict(1, 100));
+        assertTrue(controller.shouldEvict(50, 100));
 
         nanos.set(TimeUnit.SECONDS.toNanos(6));
         collectionMillis.set(1_200L);
@@ -775,7 +812,8 @@ class MemoryAwareCacheSupportTest {
     private static MemoryPressureController jvmController(AtomicLong usedMemory, int trimRatioPercent,
                                                           long maxTrimWeight) {
         return new MemoryPressureController.JvmMemoryPressureController(
-                () -> 0L, () -> 100L, usedMemory::get, () -> 0L, 85, 20, trimRatioPercent, maxTrimWeight);
+                () -> 0L, () -> 100L, usedMemory::get, () -> 0L,
+                85, 20, 50, trimRatioPercent, maxTrimWeight);
     }
 
     private static void fill(MemoryAwareCacheSupport<String, String> cache, String prefix, int count) {
