@@ -1087,6 +1087,10 @@ hashes were `e97b6469cbc4e32131b6c9bd5cb387249c8fd69d76ec7b5f0441962dde97ff09`,
 
 ## Measurement discipline
 
+The continuing cross-repository campaign, its accepted baseline and its candidate/experiment ledger are maintained in
+[`model-e2e-throughput-campaign.md`](model-e2e-throughput-campaign.md). That ledger is authoritative for checkpoint
+acceptance; this document preserves the detailed history that preceded it.
+
 Before accepting or rejecting another optimization:
 
 1. record SDK and runtime commit IDs plus dirty-diff identity;
