@@ -171,6 +171,7 @@ limiter from top allocation stacks alone.
 | E47 | 2026-08-01 | E46 clean control | Bounded 256-ready-commit transport chunks under the unchanged default policy | Equivalent dual JFR plus exact checks | Causal hit: 276,404/s, 5,081 SDK sends and 13,713 Runtime intake boundaries. Model-store capacity rose 0.267M→0.344M/s and p50/p99 fell 236/475→187/366 ms. Proceed to strict matched confirmation. |
 | E48 | 2026-08-01 | Same build with ready batching disabled | Bounded ready-commit transport default | Eight balanced non-JFR pairs; [`model-e2e-e48-ready-transport-confirmation.csv`](performance-runs/model-e2e-e48-ready-transport-confirmation.csv) | Accept as P2. Candidate geometric mean 330,222/s versus 275,049/s, +20.06%; all pairs +13.47% to +29.43%; paired bootstrap 95% +16.61% to +24.13%. All exact checks and 2,038 common/SDK tests passed. |
 | E49 | 2026-08-01 | Accepted P2 forced to `BINARY_V2` | Negotiated `BINARY_V3` with native model-update tracking | Four balanced non-JFR pairs; [`model-e2e-e49-native-model-update-screening.csv`](performance-runs/model-e2e-e49-native-model-update-screening.csv) | Reject and revert. Pair gains were +6.02%, +2.46%, +11.75% and -3.86%; geometric means were 294,659/s control and 306,260/s candidate, only +3.94%, with exact paired bootstrap 95% -1.48% to +9.35%. All exact checks passed. Removing the 109-page tracker CBOR fallback is real local work reduction but is not a stable critical-path improvement. |
+| E50 | 2026-08-01 | Accepted P2 storage path | Opt-in fused event-LTS/model-state/model-stream write under P2 readiness | Same-binary equivalent dual-JFR pair; 99 store tests; [`model-e2e-e50-fused-write-jfr.csv`](performance-runs/model-e2e-e50-fused-write-jfr.csv) | Reject and revert. Candidate/control were 247,471/275,485/s (-10.17%). Fusion reduced total event-JDBC service 3.981→3.568 s, but the faster individual transaction drained the Runtime backlog: packed transactions rose 142→263 and average size fell 7,846→4,236, reducing complete model capacity 0.314M→0.298M/s. P2 stabilizes transport readiness, not storage group commit. All exact checks and 99 fused-path tests passed; no E50 production code remains. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -529,6 +530,35 @@ Focused lifecycle tests prove that full chunks release before handler-batch clos
 the tracker batch still waits for the true commit response. The complete `common` plus `sdk` test run passed 2,038 tests
 with zero failures or errors. The public batching interface gains only a binary-compatible default method. P2 is
 therefore accepted as a throughput checkpoint rather than a diagnostic-only optimization.
+
+### Rejected experiment E50 — P2 does not stabilize storage group commit
+
+E50 retested E43's one-statement event/model write on the accepted P2 source pair. This was justified by E47: packed
+model/event storage capacity was only 0.344M/s, approximately the accepted route throughput, while P2 had reduced
+transport fragmentation and produced 135 transactions averaging 7,767 models. Candidate and control used identical
+classfiles; only the candidate Runtime enabled `fluxzero.fusedInitialModelWrites`. Both sides ran equivalent dual JFR,
+recreated the schema and passed every full-E2E exact check. The fused path also passed all 99
+`JdbcModelCommitStoreTest` tests before measurement.
+
+The result is a clear rejection, not a noisy throughput decision. Candidate throughput was 247,471/s versus 275,485/s
+control (**-10.17%**); p50/p95/p99/max all regressed from 189.940/293.589/345.632/390.167 ms to
+199.228/317.643/376.806/435.495 ms. Fusion did reduce aggregate event-JDBC service from 3.981 to 3.568 seconds. It
+nevertheless made each ordered storage attempt finish sooner, so the opportunistic Runtime backlog drained before the
+next ready wave grew: packed transactions increased from 142 to 263 across warm-up plus measurement, average size fell
+from 7,846 to 4,236 and complete packed-model service capacity fell from approximately 0.314M/s to 0.298M/s.
+
+This falsifies the assumption that P2 also fixes the storage feedback found in E43. P2 bounds and groups SDK transport
+readiness, but the Runtime storage transaction still takes whatever is ready when the preceding transaction completes.
+Reducing work inside one transaction therefore changes the next transaction's size. A future durability optimization
+must remove the fixed protocol work while preserving an arrival-defined atomic group, or extend an already-started
+ordered transaction with work that became ready during its database operation. A fixed delay, larger in-flight bound,
+explicit `AFTER_BATCH`, concurrent transactions or a claim based only on local SQL time remains disallowed.
+
+The exact run identities are in
+[`model-e2e-e50-fused-write-jfr.csv`](performance-runs/model-e2e-e50-fused-write-jfr.csv). Candidate/control Runtime
+JFR SHA-256 values are `78ff3ec43c8fb47921de7f7d119c741212ecc82b85ca3d4f42a457fb3d810edf` and
+`3837c4beefc5e00c20d2c0122ba51cea963e481e99489c43d523840169f84ef0`. The experiment was fully reverted; no fused
+write API, property or production code remains.
 
 ## Immediate sequence
 
