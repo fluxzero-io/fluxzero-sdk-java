@@ -670,6 +670,39 @@ The candidate benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are respec
 `78fd52619340fa9d8955a6810b687b7693db52bc89b92cb0234f4cf9ac60432c`, and
 `8f9fa7b8cd7048d00993a298559260ab3e57010342fc59df5733c477d28e1617`.
 
+### Diagnostic E64 — result durability is not the complete-route limiter
+
+E61's 405,700/s no-result upper bound removed SDK mapping/serialization, result publication, Runtime durability,
+tracking output and sender callbacks simultaneously. E59 ranks those clusters but cannot assign their cross-pipeline
+feedback independently. E64 retained ordinary result preparation, both WebSocket directions, Runtime result
+tracking, callback completion and every exact result/event/model assertion while selecting the Runtime's existing
+ephemeral store for `RESULT` only. This is a causal diagnostic and can never qualify as a durability-preserving
+checkpoint.
+
+The adjacent same-source 131,072-command JFR screen measured **174,019/s** with the ephemeral result store versus
+**177,524/s** for the durable control (-1.97%). The Runtime explicitly selected `InMemoryMessageStore` for `RESULT`,
+and its JFR contained zero result-JDBC events versus 69 result transactions in the control. Exact results, events and
+models still passed. Removing 0.437 s of observed result-JDBC service and every result commit did not improve E2E, so
+neither result transaction grouping nor result SQL is the next route-wide candidate.
+
+A full 1,048,576-command async-profiler run retained the ephemeral store to rerank the remaining result route. Its
+217,031/s is an environment observation, not a checkpoint comparison. Inclusive Runtime samples ranked WebSocket
+result output at 10.31%, transport compression at 8.53% and `SerializedMessage` work at 6.61%; SDK result preparation
+was 6.73% and result callbacks 4.37%. The percentages overlap and C2 still consumed 12.45%/8.76% of the two JVM
+profiles, but they unambiguously move E65 to result representation/transport/output rather than durability.
+
+The ephemeral-screen benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are respectively
+`6690673e5855452e90f818eebc0db7c5cce7b1ccd85b87eb32dbe8b31df37eeb`,
+`5cfd950fcfbd5856dcfc16be7f3d1a1d1c1116d62bb61402465b409c3472ac72`,
+`862490da0a0ab24765eb7bcb7155a4d9ea3c6dde1083f3fc0666991c41d2de63`, and
+`f6c5e20c23f0738e287fbc0e23defee4bcfa850119cc1c97db3bbdc0c65fb965`. The full CPU
+benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed values are
+`4a11bc2d022561d95bffac01d0c2ebd1ce7ee80bb6303cdeb7b1198bf19ba91c`,
+`7df66947cbaa7470a22cfaf28d19f3436e19e0cd327e8539697cc1c9fc19a935`,
+`f6eb27dba1128c42180d6d7e6acd386fc1e67b27c44cc426c3860a151c957b37`,
+`5547cb589fa26d2c67e5baedeeaa72b7b708bab42cad7c80d5411d0b26e0e53a`, and
+`1a5da2a2c199a03d703ede601f1a25988cc3d2fa99f328991776b1dadb3b0c04`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -690,10 +723,11 @@ The candidate benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are respec
 7. E62 closes pre-commit result fusion. Do not put result preparation or result-log completion back inside the model
    acknowledgement loop, and do not use per-message ForkJoin tasks, one shared ordered preparation worker or unbounded
    scheduling. Reopen only with a recoverable Runtime ownership boundary that leaves model batching independent.
-8. Return to the immutable accepted P2 pair and rerank its complete route. Use JFR lifecycle counters plus async-profiler
-   CPU/wall/allocation profiles to separate useful CPU, scheduler/system overhead and blocked durability time before
-   selecting E63; no E62 implementation may remain in that control.
-9. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+8. E63 closes result-only ordered front grouping: it reduced result transactions 15.94% but lost 5.75% E2E. Local
+   transaction reduction without route capacity is not a candidate-selection rule.
+9. E64 closes result durability as the next limiter: replacing all result JDBC work with the existing ephemeral store
+   changed E2E by -1.97%. E65 must isolate representation/transport/output before changing production code.
+10. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
