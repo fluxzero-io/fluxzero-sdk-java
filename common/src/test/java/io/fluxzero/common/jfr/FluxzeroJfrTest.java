@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FluxzeroJfrTest {
@@ -45,6 +46,10 @@ class FluxzeroJfrTest {
             FluxzeroJfr.finish(batch, null);
             FluxzeroJfr.requestStage(4_096L, "sdk", "handled", 64, 99L);
             FluxzeroJfr.requestStage(4_097L, "sdk", "handled", 64, 100L);
+            FluxzeroJfr.registerTraceCorrelation("sampled", 4_096L);
+            FluxzeroJfr.registerTraceCorrelation("not-sampled", 4_097L);
+            assertEquals(4_096L, FluxzeroJfr.resolveTraceCorrelation("sampled"));
+            assertNull(FluxzeroJfr.resolveTraceCorrelation("not-sampled"));
 
             recording.stop();
             recording.dump(recordingFile);

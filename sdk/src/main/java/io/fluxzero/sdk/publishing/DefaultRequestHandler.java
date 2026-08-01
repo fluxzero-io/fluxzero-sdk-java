@@ -21,6 +21,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -192,6 +193,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         }
         long scheduledAt = started == 0L ? 0L : System.nanoTime();
         requestSender.accept(requests);
+        recordRequestStages(requests, "request-dispatched");
         if (started != 0L) {
             System.out.printf("RequestHandler registered %,d requests: prepare %.3f ms, timeout %.3f ms, send %.3f ms%n",
                               requests.size(),
@@ -225,6 +227,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         }
         request.setRequestId(requestId);
         request.setSource(client.id());
+        recordRequestStage(request, "request-registered");
         ScheduledFuture<?> timeoutTask = scheduleTimeout && !timeout.isNegative()
                 ? timeoutExecutor.schedule(
                         () -> callback.completeExceptionally(timeoutException(request, requestId, timeout)),
@@ -234,6 +237,10 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
             callbacks.remove(requestId, callback);
             if (timeoutTask != null) {
                 timeoutTask.cancel(false);
+            }
+            if (e == null) {
+                recordRequestStage(request, "result-callback-complete");
+                recordTraceStage(m, "result-callback-complete");
             }
         });
         return new PreparedRequest(requestId, result);
@@ -291,6 +298,8 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                          response.getRequestId());
                 return;
             }
+            recordRequestStage(response, "result-received");
+            recordTraceStage(response, "result-received");
             callback.process(response, responseExecutor);
         });
         if (started != 0L) {
@@ -332,6 +341,52 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                 callback.completeExceptionally(error);
             }
         });
+    }
+
+    private static void recordRequestStages(List<SerializedMessage> messages, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        int batchSize = messages.size();
+        for (SerializedMessage message : messages) {
+            recordRequestStage(message, stage, batchSize);
+        }
+    }
+
+    private static void recordRequestStage(SerializedMessage message, String stage) {
+        recordRequestStage(message, stage, 1);
+    }
+
+    private static void recordRequestStage(SerializedMessage message, String stage, int batchSize) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        Integer requestId = message.getRequestId();
+        if (requestId != null) {
+            Long index = message.getIndex();
+            FluxzeroJfr.requestStage(
+                    Integer.toUnsignedLong(requestId), "sdk.request-handler", stage, batchSize,
+                    index == null ? -1L : index);
+        }
+    }
+
+    private static void recordTraceStage(SerializedMessage message, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled() || message == null) {
+            return;
+        }
+        String traceId = message.getMetadataValue("$traceId");
+        if (traceId == null) {
+            return;
+        }
+        try {
+            long parsed = Long.parseLong(traceId);
+            Long index = message.getIndex();
+            FluxzeroJfr.requestStage(
+                    parsed, "sdk.request-handler-trace", stage, 1,
+                    index == null ? -1L : index);
+        } catch (NumberFormatException ignored) {
+            // Detailed route timing supports the numeric default correlation ID; arbitrary user trace IDs remain valid.
+        }
     }
 
     private ScheduledThreadPoolExecutor timeoutExecutor() {

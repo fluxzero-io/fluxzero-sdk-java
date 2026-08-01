@@ -567,11 +567,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             BatchPrefetch prefetch,
             ModelCommitter.CommitBatch transportBatch,
             int transportSlot) {
+        recordModelRequestStage(message, "model-evaluation-start", 1);
         ModelCommitEngine.CommitEvaluation initialEvaluation =
                 prefetch == null
                         ? evaluate(message)
                         : evaluatePrefetched(
                                 message, prefetch, batchTicket);
+        recordModelRequestStage(message, "model-evaluation-complete", 1);
         pipelineDiagnostic("evaluated", EVALUATED_COMMANDS);
         if (batchTicket != null) {
             batchTicket.assign(
@@ -1874,12 +1876,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
         try {
             var serialized = message.getSerializedObject();
-            Integer requestId = serialized.getRequestId();
-            if (requestId != null) {
-                Long index = serialized.getIndex();
+            Long index = serialized.getIndex();
+            if (index != null) {
                 FluxzeroJfr.requestStage(
-                        Integer.toUnsignedLong(requestId), "sdk.model-handler", stage, batchSize,
-                        index == null ? -1L : index);
+                        index, "sdk.model-handler", stage, batchSize, index);
             }
         } catch (RuntimeException ignored) {
             // Diagnostics must not affect handler execution for custom message implementations.

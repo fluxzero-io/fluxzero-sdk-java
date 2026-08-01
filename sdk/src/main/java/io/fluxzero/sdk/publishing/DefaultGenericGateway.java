@@ -18,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.HasMessage;
@@ -211,7 +212,17 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             }
         }
         long prepared = diagnosticsStarted == 0L ? 0L : System.nanoTime();
-        List<SerializedMessage> serializedMessages = serializeMessages(externalMessages);
+        FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
+                "sdk.command-gateway", "serialize", messageType.name(),
+                externalMessages.size(), 0L, 0L, 0L);
+        List<SerializedMessage> serializedMessages;
+        try {
+            serializedMessages = serializeMessages(externalMessages);
+            FluxzeroJfr.finish(serializationEvent, null);
+        } catch (RuntimeException | Error failure) {
+            FluxzeroJfr.finish(serializationEvent, failure);
+            throw failure;
+        }
         long serializedAt = diagnosticsStarted == 0L ? 0L : System.nanoTime();
         SerializedMessage[] finalMessages = new SerializedMessage[serializedMessages.size()];
         int resultSize = 0;
@@ -289,7 +300,17 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             }
         }
         long preparedAt = started == 0L ? 0L : System.nanoTime();
-        List<SerializedMessage> serializedMessages = serializeMessages(externalMessages);
+        FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
+                "sdk.command-gateway", "serialize", messageType.name(),
+                externalMessages.size(), 0L, 0L, 0L);
+        List<SerializedMessage> serializedMessages;
+        try {
+            serializedMessages = serializeMessages(externalMessages);
+            FluxzeroJfr.finish(serializationEvent, null);
+        } catch (RuntimeException | Error failure) {
+            FluxzeroJfr.finish(serializationEvent, failure);
+            throw failure;
+        }
         long serializedAt = started == 0L ? 0L : System.nanoTime();
         for (int i = 0; i < externalSize; i++) {
             int requestIndex = externalIndices[i];
@@ -569,6 +590,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private CompletableFuture<Message> deserializeResponse(SerializedMessage m) {
+        recordTraceStage(m, "result-deserialization-start");
         Object result;
         try {
             result = serializer.deserialize(m);
@@ -583,12 +605,44 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (messageType == MessageType.WEBREQUEST) {
             message = new WebResponse(message);
         }
+        recordTraceStage(m, "result-deserialization-complete");
         return CompletableFuture.completedFuture(message);
+    }
+
+    private static void recordTraceStage(SerializedMessage message, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled() || message == null) {
+            return;
+        }
+        recordTraceStage(message.getMetadataValue("$traceId"), stage);
+    }
+
+    private static void recordTraceStage(Message message, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled() || message == null) {
+            return;
+        }
+        recordTraceStage(message.getMetadata().get("$traceId"), stage);
+    }
+
+    private static void recordTraceStage(String traceId, String stage) {
+        if (traceId == null) {
+            return;
+        }
+        try {
+            FluxzeroJfr.requestStage(
+                    Long.parseLong(traceId), "sdk.command-gateway", stage, 1, -1L);
+        } catch (NumberFormatException ignored) {
+            // Detailed route timing supports the numeric default correlation ID; arbitrary user trace IDs remain valid.
+        }
     }
 
     private CompletableFuture<Message> trackCallback(String messageId, CompletableFuture<Message> future) {
         callbacks.put(messageId, future);
-        return future.whenComplete((m, e) -> callbacks.remove(messageId));
+        return future.whenComplete((message, failure) -> {
+            callbacks.remove(messageId);
+            if (failure == null) {
+                recordTraceStage(message, "command-future-complete");
+            }
+        });
     }
 
     @Override

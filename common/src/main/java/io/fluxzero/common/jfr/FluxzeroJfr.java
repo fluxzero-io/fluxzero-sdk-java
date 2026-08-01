@@ -23,6 +23,10 @@ import jdk.jfr.Name;
 import jdk.jfr.StackTrace;
 import jdk.jfr.Timespan;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 /**
  * Shared low-overhead JFR events for following one Fluxzero message pipeline across SDK and Runtime components.
  *
@@ -32,6 +36,7 @@ import jdk.jfr.Timespan;
 public final class FluxzeroJfr {
 
     private static final long TRACE_SAMPLE_MASK = 4_096L - 1L;
+    private static final int MAX_TRACE_CORRELATIONS = 16_384;
     private static final EventType BATCH_TYPE = EventType.getEventType(Batch.class);
     private static final EventType REQUEST_STAGE_TYPE = EventType.getEventType(RequestStage.class);
 
@@ -46,6 +51,33 @@ public final class FluxzeroJfr {
     /** Returns whether sampled request-stage diagnostics are enabled in the active recording. */
     public static boolean requestStageEnabled() {
         return REQUEST_STAGE_TYPE.isEnabled();
+    }
+
+    /** Returns whether the supplied identifier belongs to the deterministic request-trace sample. */
+    public static boolean requestTraceSampled(long requestId) {
+        return (requestId & TRACE_SAMPLE_MASK) == 0L;
+    }
+
+    /**
+     * Remembers a sampled request across an asynchronous or protocol boundary that preserves only a string key.
+     *
+     * <p>The bounded table is populated only while request-stage recording is active. SDK and Runtime JVMs each
+     * populate their own table from information already available locally, so this does not add correlation data to
+     * the wire format.</p>
+     */
+    public static void registerTraceCorrelation(String correlationKey, long requestId) {
+        if (correlationKey == null || !requestStageEnabled() || !requestTraceSampled(requestId)) {
+            return;
+        }
+        TraceCorrelations.register(correlationKey, requestId);
+    }
+
+    /** Resolves a sampled request previously registered through {@link #registerTraceCorrelation(String, long)}. */
+    public static Long resolveTraceCorrelation(String correlationKey) {
+        if (correlationKey == null || !requestStageEnabled()) {
+            return null;
+        }
+        return TraceCorrelations.resolve(correlationKey);
     }
 
     /**
@@ -83,7 +115,7 @@ public final class FluxzeroJfr {
 
     /** Emits one deterministically sampled request-stage event. */
     public static void requestStage(long requestId, String component, String stage, int batchSize, long messageIndex) {
-        if ((requestId & TRACE_SAMPLE_MASK) != 0L || !requestStageEnabled()) {
+        if (!requestTraceSampled(requestId) || !requestStageEnabled()) {
             return;
         }
         RequestStage event = new RequestStage();
@@ -162,5 +194,27 @@ public final class FluxzeroJfr {
         public int batchSize;
         @Label("Message index")
         public long messageIndex;
+    }
+
+    private static final class TraceCorrelations {
+        private static final Map<String, Long> values = new ConcurrentHashMap<>();
+        private static final ConcurrentLinkedQueue<String> order = new ConcurrentLinkedQueue<>();
+
+        private static void register(String key, long requestId) {
+            if (values.put(key, requestId) == null) {
+                order.add(key);
+            }
+            while (values.size() > MAX_TRACE_CORRELATIONS) {
+                String oldest = order.poll();
+                if (oldest == null) {
+                    break;
+                }
+                values.remove(oldest);
+            }
+        }
+
+        private static Long resolve(String key) {
+            return values.get(key);
+        }
     }
 }

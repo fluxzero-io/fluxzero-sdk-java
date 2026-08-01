@@ -496,23 +496,26 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     private CompletableFuture<Void> sendBatchChunkAsync(
             List<Request> requests, WebsocketSession session) {
-        boolean modelCommits = (FluxzeroJfr.batchEnabled() || FluxzeroJfr.requestStageEnabled())
+        boolean modelCommitBatch = FluxzeroJfr.batchEnabled()
                 && requests.stream().allMatch(CommitModels.class::isInstance);
-        FluxzeroJfr.Batch batchEvent = modelCommits && FluxzeroJfr.batchEnabled()
+        boolean containsModelCommit = FluxzeroJfr.requestStageEnabled()
+                && requests.stream().anyMatch(CommitModels.class::isInstance);
+        FluxzeroJfr.Batch batchEvent = modelCommitBatch
                 ? FluxzeroJfr.startBatch(
                         "sdk.websocket-request", "send", "commit-models",
                         requests.size(), 0L, 0L, 0L)
                 : null;
-        if (modelCommits && FluxzeroJfr.requestStageEnabled()) {
-            requests.forEach(request -> FluxzeroJfr.requestStage(
-                    request.getRequestId(), "sdk.websocket-request", "send",
-                    requests.size(), -1L));
+        if (containsModelCommit) {
+            recordModelCommitStages(requests, "request-send-start");
         }
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
             byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
             if (batchEvent != null) {
                 batchEvent.bytes = bytes.length;
+            }
+            if (containsModelCommit) {
+                recordModelCommitStages(requests, "request-send-complete");
             }
             if (session.isOpen()) {
                 CompletableFuture<Void> result = sendEncodedBatch(session, object, bytes);
@@ -530,6 +533,27 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             }
             return handleSendFailure(object, session, e);
         }
+    }
+
+    private static void recordModelCommitStages(List<Request> requests, String stage) {
+        int batchSize = requests.size();
+        for (Request request : requests) {
+            try {
+                CommitModels commit = (CommitModels) request;
+                Long traceId = sourceTraceId(commit);
+                if (traceId != null) {
+                    FluxzeroJfr.requestStage(
+                            traceId, "sdk.model-transport", stage,
+                            batchSize, traceId);
+                }
+            } catch (RuntimeException ignored) {
+                // Diagnostics must not affect transport validation or custom decoded requests.
+            }
+        }
+    }
+
+    private static Long sourceTraceId(CommitModels commit) {
+        return FluxzeroJfr.resolveTraceCorrelation(commit.getCommitId());
     }
 
     private CompletableFuture<Void> sendEncodedBatch(WebsocketSession session, JsonType object, byte[] bytes)

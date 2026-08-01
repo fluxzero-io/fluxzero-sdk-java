@@ -501,14 +501,30 @@ public class DefaultTracker implements Runnable, Registration {
         int batchSize = messages.size();
         String component = "sdk.tracker." + trackingClient.getMessageType().name();
         for (SerializedMessage message : messages) {
-            Integer requestId = message.getRequestId();
-            if (requestId != null) {
+            Long traceId = traceId(message);
+            if (traceId != null) {
                 Long index = message.getIndex();
                 FluxzeroJfr.requestStage(
-                        Integer.toUnsignedLong(requestId), component, stage, batchSize,
+                        traceId, component, stage, batchSize,
                         index == null ? -1L : index);
             }
         }
+    }
+
+    private Long traceId(SerializedMessage message) {
+        if (trackingClient.getMessageType() == MessageType.COMMAND) {
+            return message.getIndex();
+        }
+        String traceId = message.getMetadataValue("$traceId");
+        if (traceId != null) {
+            try {
+                return Long.parseLong(traceId);
+            } catch (NumberFormatException ignored) {
+                // Non-numeric user trace identifiers fall back to request correlation below.
+            }
+        }
+        Integer requestId = message.getRequestId();
+        return requestId == null ? null : Integer.toUnsignedLong(requestId);
     }
 
 
