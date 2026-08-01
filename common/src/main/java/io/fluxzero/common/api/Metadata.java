@@ -126,9 +126,9 @@ public class Metadata {
     /**
      * Creates a compact metadata builder for values that are already normalized to strings.
      *
-     * <p>The builder avoids an intermediate hash table and encodes the metadata directly when {@link Builder#build()}
-     * is called. Repeated keys replace their earlier value, matching ordinary {@link Map#put(Object, Object)}
-     * semantics.</p>
+     * <p>The builder avoids an intermediate hash table and retains a compact immutable representation until the
+     * metadata reaches a serialization boundary. Repeated keys replace their earlier value, matching ordinary
+     * {@link Map#put(Object, Object)} semantics.</p>
      *
      * @param expectedEntries expected number of distinct metadata keys
      * @return a new builder
@@ -143,6 +143,7 @@ public class Metadata {
     public static final class Builder {
         private String[] entries;
         private int size;
+        private boolean shared;
 
         private Builder(int expectedEntries) {
             if (expectedEntries < 0 || expectedEntries > MAX_ENTRY_COUNT) {
@@ -162,6 +163,7 @@ public class Metadata {
                 int keyIndex = index * 2;
                 if (entries[keyIndex].equals(key)) {
                     if (value == null) {
+                        ensureMutable();
                         int nextIndex = keyIndex + 2;
                         int remaining = size * 2 - nextIndex;
                         if (remaining > 0) {
@@ -171,6 +173,7 @@ public class Metadata {
                         entries[clearedIndex] = null;
                         entries[clearedIndex + 1] = null;
                     } else {
+                        ensureMutable();
                         entries[keyIndex + 1] = value;
                     }
                     return this;
@@ -210,18 +213,34 @@ public class Metadata {
         }
 
         /**
-         * Builds immutable metadata that is already in its compact serialized representation.
+         * Builds immutable metadata that remains compact until its serialized representation is needed.
          */
         public Metadata build() {
-            return size == 0 ? empty() : fromData(new Data<>(
-                    MetadataBinaryCodec.encode(entries, size), DATA_TYPE, 0, DATA_FORMAT));
+            if (size == 0) {
+                return empty();
+            }
+            shared = true;
+            return new Metadata(
+                    new SerializedEntries(entries, size));
         }
 
         private void ensureCapacity(int requiredEntries) {
             int requiredLength = Math.multiplyExact(requiredEntries, 2);
-            if (requiredLength > entries.length) {
-                int growth = Math.max(8, entries.length >>> 1);
-                entries = Arrays.copyOf(entries, Math.max(requiredLength, entries.length + growth));
+            if (shared || requiredLength > entries.length) {
+                int nextLength = entries.length;
+                if (requiredLength > nextLength) {
+                    int growth = Math.max(8, nextLength >>> 1);
+                    nextLength = Math.max(requiredLength, nextLength + growth);
+                }
+                entries = Arrays.copyOf(entries, nextLength);
+                shared = false;
+            }
+        }
+
+        private void ensureMutable() {
+            if (shared) {
+                entries = entries.clone();
+                shared = false;
             }
         }
     }
@@ -434,11 +453,17 @@ public class Metadata {
     @SneakyThrows
     public Metadata with(Object key, Object value) {
         String keyString = Objects.requireNonNull(key, "Metadata key").toString();
-        if (hasOpaqueEntries() && value instanceof String stringValue) {
-            return withSerializedChange(keyString, stringValue);
+        if (entries instanceof SerializedEntries serializedEntries
+                && value instanceof String stringValue) {
+            return new Metadata(
+                    serializedEntries.with(
+                            keyString, stringValue));
         }
-        if (hasOpaqueEntries() && value instanceof Enum<?> enumValue) {
-            return withSerializedChange(keyString, enumValue.name());
+        if (entries instanceof SerializedEntries serializedEntries
+                && value instanceof Enum<?> enumValue) {
+            return new Metadata(
+                    serializedEntries.with(
+                            keyString, enumValue.name()));
         }
         return new Metadata(with(key, value, new HashMap<>(entries)));
     }
@@ -446,11 +471,6 @@ public class Metadata {
     private boolean hasOpaqueEntries() {
         return entries instanceof SerializedEntries serializedEntries
                && serializedEntries.isOpaque();
-    }
-
-    private Metadata withSerializedChange(String key, String value) {
-        byte[] merged = MetadataBinaryCodec.merge(toData(), key, value);
-        return fromData(new Data<>(merged, DATA_TYPE, 0, DATA_FORMAT));
     }
 
     /**
@@ -809,13 +829,22 @@ public class Metadata {
     private static final class SerializedEntries extends AbstractMap<String, String> {
         private volatile Data<byte[]> data;
         private volatile Map<String, String> decoded;
+        private volatile String[] compact;
+        private final int compactSize;
 
         private SerializedEntries(Data<byte[]> data) {
             this.data = data;
+            compactSize = -1;
         }
 
         private SerializedEntries(Map<String, String> decoded) {
             this.decoded = Objects.requireNonNull(decoded, "entries");
+            compactSize = -1;
+        }
+
+        private SerializedEntries(String[] compact, int compactSize) {
+            this.compact = Objects.requireNonNull(compact, "entries");
+            this.compactSize = compactSize;
         }
 
         private Data<byte[]> data() {
@@ -824,8 +853,14 @@ public class Metadata {
                 synchronized (this) {
                     current = data;
                     if (current == null) {
-                        current = new Data<>(MetadataBinaryCodec.encode(decoded()), DATA_TYPE, 0, DATA_FORMAT);
+                        String[] compactEntries = compact;
+                        current = new Data<>(
+                                compactEntries == null
+                                        ? MetadataBinaryCodec.encode(decoded())
+                                        : MetadataBinaryCodec.encode(compactEntries, compactSize),
+                                DATA_TYPE, 0, DATA_FORMAT);
                         data = current;
+                        compact = null;
                     }
                 }
             }
@@ -843,6 +878,19 @@ public class Metadata {
             if (current != null) {
                 return current.get(key);
             }
+            String[] compactEntries = compact;
+            if (compactEntries != null) {
+                if (!(key instanceof String stringKey)) {
+                    return null;
+                }
+                for (int index = 0; index < compactSize; index++) {
+                    int keyIndex = index * 2;
+                    if (compactEntries[keyIndex].equals(stringKey)) {
+                        return compactEntries[keyIndex + 1];
+                    }
+                }
+                return null;
+            }
             return key instanceof String string
                     ? MetadataBinaryCodec.get(data(), string) : null;
         }
@@ -853,6 +901,18 @@ public class Metadata {
             if (current != null) {
                 return current.containsKey(key);
             }
+            String[] compactEntries = compact;
+            if (compactEntries != null) {
+                if (!(key instanceof String stringKey)) {
+                    return false;
+                }
+                for (int index = 0; index < compactSize; index++) {
+                    if (compactEntries[index * 2].equals(stringKey)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
             return key instanceof String string
                     && MetadataBinaryCodec.containsKey(data(), string);
         }
@@ -860,7 +920,12 @@ public class Metadata {
         @Override
         public int size() {
             Map<String, String> current = decoded;
-            return current == null ? MetadataBinaryCodec.size(data()) : current.size();
+            if (current != null) {
+                return current.size();
+            }
+            return compact == null
+                    ? MetadataBinaryCodec.size(data())
+                    : compactSize;
         }
 
         private Map<String, String> decoded() {
@@ -869,7 +934,20 @@ public class Metadata {
                 synchronized (this) {
                     current = decoded;
                     if (current == null) {
-                        current = MetadataBinaryCodec.decode(data);
+                        String[] compactEntries = compact;
+                        if (compactEntries == null) {
+                            current = MetadataBinaryCodec.decode(data);
+                        } else {
+                            Map<String, String> materialized = new HashMap<>(
+                                    Math.max(16, (int) (compactSize / 0.75f) + 1));
+                            for (int index = 0; index < compactSize; index++) {
+                                int keyIndex = index * 2;
+                                materialized.put(
+                                        compactEntries[keyIndex],
+                                        compactEntries[keyIndex + 1]);
+                            }
+                            current = java.util.Collections.unmodifiableMap(materialized);
+                        }
                         decoded = current;
                     }
                 }
@@ -883,9 +961,71 @@ public class Metadata {
 
         private Map<String, String> traceEntries() {
             Map<String, String> current = decoded;
-            return current == null
-                    ? MetadataBinaryCodec.traceEntries(data())
-                    : Metadata.traceEntries(current);
+            if (current != null) {
+                return Metadata.traceEntries(current);
+            }
+            String[] compactEntries = compact;
+            if (compactEntries == null) {
+                return MetadataBinaryCodec.traceEntries(data());
+            }
+            Map<String, String> result = new HashMap<>();
+            for (int index = 0; index < compactSize; index++) {
+                int keyIndex = index * 2;
+                String key = compactEntries[keyIndex];
+                if (key.startsWith("$trace.")) {
+                    result.put(key, compactEntries[keyIndex + 1]);
+                }
+            }
+            return result;
+        }
+
+        private SerializedEntries with(String key, String value) {
+            Map<String, String> currentDecoded = decoded;
+            if (currentDecoded != null) {
+                if (currentDecoded.isEmpty()) {
+                    return new SerializedEntries(
+                            new String[]{key, value}, 1);
+                }
+                Map<String, String> entries =
+                        new HashMap<>(currentDecoded);
+                entries.put(key, value);
+                return new SerializedEntries(entries);
+            }
+            String[] compactEntries = compact;
+            if (compactEntries == null) {
+                Data<byte[]> currentData = data;
+                if (currentData != null) {
+                    return new SerializedEntries(new Data<>(
+                            MetadataBinaryCodec.merge(
+                                    currentData, key, value),
+                            DATA_TYPE, 0, DATA_FORMAT));
+                }
+                throw new IllegalStateException(
+                        "Metadata entries have no representation");
+            }
+            int matchingIndex = -1;
+            for (int index = 0; index < compactSize; index++) {
+                if (compactEntries[index * 2].equals(key)) {
+                    matchingIndex = index;
+                    break;
+                }
+            }
+            int nextSize = matchingIndex < 0
+                    ? Math.addExact(compactSize, 1)
+                    : compactSize;
+            String[] result = new String[
+                    Math.multiplyExact(nextSize, 2)];
+            int target = 0;
+            for (int index = 0; index < compactSize; index++) {
+                if (index != matchingIndex) {
+                    int source = index * 2;
+                    result[target++] = compactEntries[source];
+                    result[target++] = compactEntries[source + 1];
+                }
+            }
+            result[target] = key;
+            result[target + 1] = value;
+            return new SerializedEntries(result, nextSize);
         }
     }
 

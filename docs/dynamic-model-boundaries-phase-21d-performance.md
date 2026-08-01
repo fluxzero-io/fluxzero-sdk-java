@@ -783,6 +783,55 @@ shared database. A rolling deployment therefore requires either coordinated repl
 before native writes begin, or an explicit legacy-write activation gate. This persisted-format constraint must be
 resolved and documented operationally; client negotiation alone does not solve mixed-runtime database readers.
 
+### Read-cache keys and deferred compact metadata
+
+The next profiling cycle retained two independently testable SDK reductions. `RepositoryCache` now reuses lookup-only
+namespace keys from a reference-clearing, reentrancy-safe thread-local stack; keys used for insert, compute, removal or
+eviction publication remain stable objects. In the adjacent measured JFR, sampled `RepositoryCache.CacheKey`
+allocation fell from one estimated 12,522,704-byte sample to zero and execution samples containing
+`RepositoryCache` fell from 11/733 to 3/807. The focused test deliberately re-enters the same repository lookup from
+the delegate and verifies that nested lookups cannot mutate the outer key.
+
+The resulting JFR then identified metadata preparation as the larger remaining SDK cluster. The compact metadata
+builder previously encoded immediately, after which correlation, recursive-publication depth and request timeout
+could each cause another map or binary representation transition. The builder now publishes an immutable normalized
+string-array representation using copy-on-write when the builder itself is reused. Direct `get` and `containsKey`
+operations read that representation, normalized string additions remain compact, and the existing binary format is
+encoded once when `toData()` reaches the transport boundary. Inspection before that boundary retains the original
+wire order. Materialized map values, including their existing `String` identity behavior, and all public APIs remain
+unchanged.
+
+The production-default gate again used 65,536 model IDs, 65,536 warm-up updates, 1,048,576 measured updates, a 65,536
+in-flight bound, sixteen command-consumer threads, 32-byte payloads, `searchable=false`, two event-sourcing sessions,
+defaults version `2026.07.27`, adaptive model caching and ordinary stored/tracked command results. Every run completed
+the exact command-result, model-membership and global-event checks. Two final non-JFR runs reached 214,950/s and
+241,147/s with 145 and 137 commit batches respectively; their batch-size-sensitive spread is not treated as a clean
+throughput delta. The final measured-only JFR reached 216,372 commands/commits/events per second with
+259.013 / 320.966 / 338.486 / 356.913-ms p50/p95/p99/max result latency and 118 commit batches averaging 8,886.2
+items (min 1, max 16,384).
+
+The attribution change is unambiguous even though absolute throughput remains noisy. Against the immediately
+preceding read-key JFR, `DefaultRequestHandler.prepareRequest` metadata `HashMap` allocation fell from five samples
+estimating 289,590,104 bytes to zero. Execution samples in metadata binary lookup/UTF-8/encode stacks fell from 73/807
+to 55/753, while total sampled allocation fell from 39,725,492,992 to 39,060,208,624 bytes. No wire-format, result,
+membership or event-count change was accepted to obtain that reduction. The final recording and log are
+`/private/tmp/sdk-model-compact-metadata-final.jfr` and `.log`, SHA-256
+`9f6e8ecd364350802781dd43ef4461aa9aaae119c0efa0c27af7a8fdce15ee40` and
+`bcdcaa65c2128ca2599d732429fbad840edd7232059b578214aa78cc90b7403c`. The two non-JFR logs have SHA-256
+`bb9fe4fe4bbed565fa61a0cb2433b92151b25bb8ecd382db7d8c4de790bc0c70` and
+`4809703b434c6667ae3b5cf9990fbfa15629726c8b2604eb1090ccd1c3997608`.
+
+The measured source identity was SDK base `5569281e981f857d0c24455d9a7200e251dd4149` plus the four measured
+implementation/test-file dirty-diff SHA-256
+`e601844796c918584cf83210bfca432aa331622c262b3aeb80e2a8b422772849`, before this performance note and a
+subsequent Javadoc-only wording correction, and clean runtime commit
+`49f76b92ddcf82bb0430c532c08143c672d84893`. The wording correction does not alter class output. Installed artifact
+SHA-256 values were
+`f75c2a2ff21dd9fbcca43d3651d90f484a78345a44d48398568d2047669daec6` for `common`,
+`92179cf7c078407e07e201d6021d430a0b21fa52cd2706b47630201f3fb3d2d9` for `sdk`,
+`2e16b310c105401b1af44edd4585dc0b1d804abc047e7ac44b66ccee2b8efd09` for the runtime and
+`b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18` for the benchmark driver class.
+
 ## Measurement discipline
 
 Before accepting or rejecting another optimization:

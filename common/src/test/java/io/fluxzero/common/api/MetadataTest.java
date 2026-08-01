@@ -53,6 +53,41 @@ class MetadataTest {
     }
 
     @Test
+    void compactBuilderPreservesPreviouslyBuiltMetadataWhenReused() {
+        Metadata.Builder builder = Metadata.builder(2)
+                .put("one", "first");
+        Metadata first = builder.build();
+
+        Metadata second = builder
+                .put("one", "changed")
+                .put("two", "second")
+                .build();
+
+        assertEquals(Map.of("one", "first"), first.getEntries());
+        assertEquals(Map.of(
+                "one", "changed",
+                "two", "second"), second.getEntries());
+    }
+
+    @Test
+    void compactStringChangesPreserveValuesAndRoundTrip() {
+        Metadata metadata = Metadata.builder(2)
+                .put("one", "first")
+                .put("replace", "old")
+                .build()
+                .with("three", "third")
+                .with("replace", "new");
+        Data<byte[]> encoded = metadata.toData();
+
+        assertEquals(Map.of(
+                "one", "first",
+                "replace", "new",
+                "three", "third"), metadata.getEntries());
+        assertEquals(metadata, Metadata.fromData(encoded));
+        assertSame(encoded, metadata.toData());
+    }
+
+    @Test
     void preservesCompactMetadataWireFormat() {
         String key = "broken-\ud800-key-😀";
         String value = "München-東京";
@@ -67,7 +102,12 @@ class MetadataTest {
                 .put(encodedValue)
                 .array();
 
-        assertArrayEquals(expected, Metadata.of(key, value).toData().getValue());
+        Metadata metadata = Metadata.builder(1)
+                .put(key, value)
+                .build();
+        assertEquals(Map.of(key, value), metadata.getEntries());
+
+        assertArrayEquals(expected, metadata.toData().getValue());
     }
 
     @Test
