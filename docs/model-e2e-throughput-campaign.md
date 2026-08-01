@@ -11,16 +11,16 @@ experiments were rejected.
 | Field | Current state |
 | --- | --- |
 | `route` | stored/tracked command -> automatic `@Apply` -> atomic independent-model event/state commit -> globally published event -> durable ordinary result -> tracked caller completion |
-| `accepted_base` | P2: SDK production source `e94188b5876`, Runtime `ed9cb3419e0b`; later SDK commits are documentation only |
+| `accepted_base` | P2: SDK production source `e94188b5876`, Runtime `ed9cb3419e0b`; later source changes are JFR-only observability or documentation |
 | Accepted matched throughput | 330,222/s candidate geometric mean versus 275,049/s control; +20.06%, paired 95% CI 16.61–24.13% |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
-| Latest closed diagnostic | E70: the corrected low-overhead full-result smoke correlated all required processing stages for 33/33 sampled commands and joined 32 back to sender registration; [`model-e2e-e70-route-trace.md`](performance-runs/model-e2e-e70-route-trace.md) reports latency, service demand, wall rate, concurrency, queues and bytes |
-| Current production code | accepted P2 behavior plus uncommitted JFR-only E70 observability in both repositories; no E62–E68 production candidate code remains |
-| Next evidence target | repeat E70 over the fixed 1,048,576-command profile workload, then use the complete traces plus rates, concurrency, queues and batch feedback to select the first intact-route causal perturbation |
+| Latest closed diagnostic | E71 split the full 1,048,576-command P2 route into fundamental/composite intervals; E72 then retained 32/32 complete smoke traces while removing the two new observer-allocation sites; [`model-e2e-p2-route-anatomy.md`](performance-runs/model-e2e-p2-route-anatomy.md) is the durable checkpoint report |
+| Current production code | accepted P2 behavior plus low-allocation JFR-only E72 observability in both repositories; no E62–E68 production candidate code remains |
+| Next evidence target | split command tracking's 40.641-ms `strategy update -> batch resolved` interval into scheduling, wake-up, store scan and batch assembly; specify a batch-preserving parallel-preparation/ordered-commit model-store experiment without repeating E42 fragmentation |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after the E70 low-overhead trace validation on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after the E72 low-allocation observer validation on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -93,6 +93,22 @@ contract is:
 `run_id` and `evidence` are additional mandatory operational keys. The normalized register starts at the accepted E48
 checkpoint and backfills the later experiments that determine the current decision tree; E0–E47 retain their existing
 hashed ledger and per-experiment CSV evidence. Every new invocation is registered without exception.
+
+### Major checkpoint anatomy report
+
+Every accepted performance checkpoint and later “super checkpoint” also receives one human-readable route-anatomy
+report. It is measured on the complete qualifying route but explicitly separates its profiled diagnostic throughput
+from canonical non-profiled acceptance throughput. The report must contain:
+
+1. immutable SDK/Runtime source identity, workload, hashes and accepted canonical comparison;
+2. a table of direct fundamental marker-to-marker intervals with exact semantics and n/mean/p50/p95/p99/max;
+3. a separate composite table naming the fundamental components and any asynchronous overlap;
+4. stage capacity, batch size/count, queue, bytes and active-overlap evidence;
+5. corrections to earlier broad interpretations, current smoking guns and the next evidence required before code.
+
+P2's first complete instance is
+[`model-e2e-p2-route-anatomy.md`](performance-runs/model-e2e-p2-route-anatomy.md). The machine-readable registry remains
+the operational source for every individual invocation.
 
 ## Acceptance protocol
 
@@ -255,6 +271,8 @@ wall, allocation and lock profiles remain explanatory only and are never mixed n
 | E60 | 2026-08-01 | Accepted P2 negotiated ZSTD | Same-source negotiated LZ4 with measured-phase JFR in both JVMs | Equivalent direct pair, exact full-E2E checks and wire/resource accounting; [`model-e2e-e60-wire-compression.md`](performance-runs/model-e2e-e60-wire-compression.md) | Reject without production changes. LZ4 delivered 265,448/s versus 272,212/s for fresh ZSTD (-2.48%), with p50/p99/max latency +3.33%/+4.99%/+8.80%. It expanded model-commit wire bytes 81.01% and Runtime result bytes 84.86%, while providing no compensating CPU, GC or downstream storage advantage. Retain ZSTD and attack the structural serialized commit-then-result boundary. |
 | E61 | 2026-08-01 | Accepted P2 complete model route | Same route without ordinary command-result publication | Equivalent dual JFR and exact final event/model checks; [`model-e2e-e61-result-pipeline-upper-bound.md`](performance-runs/model-e2e-e61-result-pipeline-upper-bound.md) | Diagnostic hit, not a qualifying run. Removing the second result route raised 272,212/s to 405,700/s (+49.04%), reduced command/model-handler cumulative time 31.78%/29.55%, and improved packed-model transaction count/duration 14.93%/32.39%. This proves a large cross-pipeline feedback budget. E62 will carry a context-prepared native ordinary result with the model commit and use explicit negotiated/fallback semantics. |
 | E70 | 2026-08-02 | Accepted P2 complete model route | Cross-JVM sampled route correlation and capacity-aware stage summary | Seven 131,072-command JFR smokes; corrected log/JFR/summary SHA-256 `8e582536b26fb26343437dc6b0327ad0ae9590a05510b45ed1a47a7951566a86` / `b47bac4dc6d834e90c3feba00468e1c1470152e9127d9f56cd71ac1258e6c23f` / `0907c463324074111851546f51eb4a398652c513902a06b4c4a11e847d3abecf`; [`model-e2e-e70-route-trace.md`](performance-runs/model-e2e-e70-route-trace.md) | Diagnostic instrumentation complete at smoke scale. The corrected run correlated every required processing stage for 33/33 sampled commands and joined 32 to sender registration while retaining the ordinary durable result route. Output separates latency distributions from serial service demand, observed wall rate, concurrency, queues and bytes. Two trace-observer allocation sites that sampled about 247 MiB in a prior smoke disappeared. Throughput 170,765/s is non-comparable because JFR was active and WindowServer/Codex activity consumed substantial host CPU before the run. |
+| E71 | 2026-08-02 | Accepted P2 complete model route plus E70 observers | Atomic splitting of tracking, WebSocket, SDK callback, model-result and result-barrier intervals | Full 1,048,576-command JFR profile; log/JFR/refined-summary SHA-256 `2ff88c5b70e588eacb67b04ec4a4a8b96d2bce3bdbccb21c27744c0c9dac6fa1` / `3a6139446b82a1b8cee320cae68e2d0e205b4b579e3fead610eae078fecf3e3b` / `8c526b87514e2a7ca488478ca7a86b10ef1e600e0ebe752ed0446a1954009656`; [`model-e2e-p2-route-anatomy.md`](performance-runs/model-e2e-p2-route-anatomy.md) | Diagnostic hit. All 376 complete processing samples contained every new marker. The former command-durable-to-tracker aggregate is 44.728 ms, of which tracking `onUpdate -> batch resolved` owns 40.641 ms. The old post-commit suspicion resolves to only 0.970 ms through the per-message result barrier plus a separate 7.988-ms handler-batch tail. The one-lane packed model/event store supplied 0.295M/s service at 0.250M/s wall rate with 130 queued jobs and 41.168-ms queue p95. E71's 247,536/s is profiling-only and does not replace P2's 330,222/s canonical anchor. |
+| E72 | 2026-08-02 | E71 atomic observer | Direct numeric metadata tracing and pre-sampled static route components | Complete 131,072-command JFR smoke; log/JFR/refined-summary SHA-256 `26de6fccd6446cd4213c0faee2ba71fb466db0df3a9cb885766f9b21a836f56b` / `242596aaaf319e3a52ab5297d6939937f5626a2a9dcb1f1ef453243481db5d8f` / `4fb75d5ec951590cad895be8298c77e9ff75674b78173cbf1badd2bce0beaa74` | Diagnostic observer correction accepted. All 32 expected routes remained fully staged. The prior smoke's 263.8-MiB SDK and 163.3-MiB Runtime observer-allocation sites disappeared, while tracking resolution and model queue/durability remained the largest structural intervals. Throughput 184,154/s is a loaded-host JFR smoke and is not canonical-comparable. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 

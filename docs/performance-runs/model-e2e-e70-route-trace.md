@@ -1,5 +1,9 @@
 # E70 complete-route timing trace
 
+E71 subsequently split E70's broad intervals into directly adjacent fundamental boundaries. The durable P2 checkpoint
+view is now [`model-e2e-p2-route-anatomy.md`](model-e2e-p2-route-anatomy.md); this document remains the E70 smoke-scale
+instrumentation record.
+
 E70 validates low-overhead correlation across the accepted P2 production behavior. It is a JFR profile smoke, not a
 canonical throughput comparison: 131,072 measured commands followed 32,768 warm-up updates, JFR was active, and host
 load before the corrected run included WindowServer at 38.6% of one core plus Codex/ChatGPT activity. The run retained
@@ -133,4 +137,3 @@ supporting structural clues, not candidate-selection evidence by themselves.
 5. Command storage has ample local JDBC service rate, but the following delivery interval dominates its critical-path
    latency. That points toward tracking delivery cadence, scheduling or closed-loop batch feedback rather than command
    SQL itself; latency alone still does not prove throughput limitation.
-
