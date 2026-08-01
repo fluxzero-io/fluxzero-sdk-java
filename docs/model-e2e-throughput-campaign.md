@@ -399,14 +399,99 @@ The next structural target is therefore the fixed synchronous PostgreSQL protoco
 transaction. E27 already showed little server compute but several serialized client round trips. Those operations must
 be fused or pipelined while retaining one ordered atomic commit, rather than amortized by waiting for a larger batch.
 
+### Rejected experiment E42 — concurrent packed storage transactions
+
+E42 tested whether bounded concurrency across conflict-disjoint packed model commits could overlap that fixed JDBC
+work. A diagnostic depth of four reserved non-overlapping state ranges and model identifiers while retaining the
+existing ordered `JdbcMessageStore` commit executor. Correctness held in all 99 `JdbcModelCommitStoreTest` tests, but
+the mechanism worked against the adaptive batching boundary: it produced **393 transactions averaging 2,668 models**
+instead of E35's 119 averaging 8,812. E2E reached 220,122/s with p50/p99 237.320/453.009 ms, effectively unchanged
+from the noisy JFR baseline and with worse tail latency.
+
+The phase comparison rejects concurrent transactions, not the fixed-work diagnosis:
+
+| Phase | E35 existing ordered transaction | E42 depth four | Interpretation |
+| --- | ---: | ---: | --- |
+| Event stage | 1.119 s | 0.115 s | Pending jobs forced more direct tails, but this was outweighed below. |
+| Direct event insert | 0.793 s / 119 | 1.361 s / 393 | More protocol calls dominated. |
+| Co-located model write | 0.745 s | 3.238 s | Smaller concurrent transactions amplified fixed work. |
+| Event commit | 0.151 s | 0.941 s | Transaction concurrency increased commit cost. |
+| Model stream insert | 0.404 s | 1.502 s | The same data was split across many more COPY operations. |
+| State lock | 0.145 s | 0.652 s | Lock round trips multiplied. |
+| State update | 0.167 s | 1.035 s | Update round trips multiplied. |
+
+Recording `/private/tmp/model-e2e-storage-pipeline-4-e42.jfr` has SHA-256
+`a86e214ce1f275b047dcd7e7d857cbdd4dbe60350b3e523628794cb257f7696d`; its benchmark log has SHA-256
+`140a3ef344469f9ce323508be27e2921f4b76f083b2f6cb9aa30dda98a209161`. The entire pipeline candidate and its
+configuration were removed after measurement; no E42 production code remains. The next candidate must preserve the
+existing single ordered packed transaction and reduce protocol exchanges *inside* it.
+
+### Experiment E43 — fused write exposes a closed-loop batching limit
+
+E43 kept the existing single ordered transaction and replaced its direct event insert, model-type ensure, model-stream
+COPY and state lock/update rounds with one conditional data-modifying statement. The event store handed its already
+serialized compact LTS rows to the co-located model task; state validation, event rows, initial stream blocks and the
+state-head update remained one atomic transaction. The erasure route retained the existing validation and write path
+under the same state lock. All 99 `JdbcModelCommitStoreTest` tests passed with the route enabled.
+
+The local mechanism worked but the complete pipeline did not improve. Event stage work effectively disappeared and the
+combined event/model write consumed 1.855 s across the measured million commands, versus about 2.657 s for E35's event
+stage, direct insert and co-located model phases. The faster completion immediately drained the model backlog, however,
+so durable model transactions increased from **119 × 8,812** to **272 × 3,855**. The extra fixed statement and commit
+rounds reduced model-store capacity from 0.293M/s to 0.271M/s. Full E2E was 228,551/s with p50/p99 223.803/413.438 ms:
+only +3.4% against the unmatched E35 JFR observation and with worse tail latency. It therefore fails the checkpoint
+gate despite the real local phase reduction.
+
+| E43 phase | Calls / items | Total or capacity | p95 |
+| --- | ---: | ---: | ---: |
+| Fused initial write | 272 / 1,048,576 | 1.855 s; 0.565M/s | 17.870 ms |
+| Complete packed model store | 272 / 1,048,576 | 3.869 s; 0.271M/s | 32.125 ms |
+| Event transaction commit | 272 / 1,048,576 | 0.783 s; 1.339M/s | 6.450 ms |
+| Result store | 639 / 1,048,576 | 0.302M/s JDBC service | 19.005 ms |
+
+The Runtime recording `/private/tmp/model-e2e-fused-write-e43b-runtime.jfr` has SHA-256
+`1f159fbe4a6721bfa25e3f743bb7584ad1a54f813ceb52fc936195315e32cd88`; the client recording has SHA-256
+`2df6022a2831baef5f5b14e9810650fb6e5e452a4d132381f8be072f91ef1062`. The benchmark log SHA-256 is
+`7072d04036e7837342e51850226f21ae0f705ec561e838e8e33451b336eef688`; the Runtime log SHA-256 is
+`087096dc26dc881010e7011cf3d56f22acaa30cdcced985b74dcd656216f2d23`. Exact result, membership and global-event
+checks passed. Because the full route failed the checkpoint gate, the fused implementation was removed after E45; no
+production code or opt-in switch from this experiment remains.
+
+E44 then combined the same fused implementation with explicit `ASYNC_AFTER_BATCH` solely as a causal readiness upper
+bound. It reduced Runtime intake frames from 100,905 to 8,201 and raised the average model transaction from 3,855 to
+5,041. The fused statement reached 0.882M/s local capacity, complete packed-model service reached 0.411M/s and E2E
+reached 254,253/s with p50/p99 193.399/433.333 ms. Result-store service also rose from 0.302M/s to 0.436M/s because its
+waves grew from 1,641 to 2,411 messages. This proves that ready-wave shape affects every downstream writer, but the
+explicit policy is rejected: it delays commit start until handler-batch close and is not the production default.
+
+E44 Runtime/client JFR SHA-256 values are
+`6bba05f742a4587918c875bdfb5864980f04e2e569683503eaa691e6a8dbe3b9` and
+`54e3365352479a3d3624085467bd26358c9c6712d4349cd19dd065a872d9630e`; benchmark/Runtime log SHA-256 values are
+`b8b6dfc65fab214adbc5ee97c96f3fb5a1fdf3bb9dd0a7772c5ae5abc17f8a41` and
+`c9fe3d01cf6f3f6bec94f45052e735daba04254da9ec3cdd344f77962a95a97a`. All exact checks passed.
+
+E45 combined the fused write with the previously rejected generic 1-ms WebSocket collection delay, under the correct
+default commit policy. It reached 261,963/s, p50/p99 195.232/418.183 ms, 68,882 Runtime commit frames and 204 model
+transactions averaging 5,140. Complete model service was 0.370M/s and fused-statement capacity 0.692M/s. This is a
+useful +14.6% diagnostic signal versus adjacent E43, but it does not reproduce E33's 114-transaction shape and remains
+far below the target. Because the delay also changes command/result request latency and earlier matched screening
+already rejected it as a production mechanism, no generic delay is retained.
+
+E45 Runtime/client JFR SHA-256 values are
+`f9494370664f8ed7eea2a067b11143623a8a11f17e9e784fcd4d6681f6227411` and
+`0c5fd04196012dc3cbfdd8c67c487e5e26e783daaf21ea75d149689e7f8fa010`; benchmark/Runtime log SHA-256 values are
+`39cb4b5c6ee2f2c49a6624e34c78d653ffe8d3f8fead14c25a88ac04e92d9760` and
+`a02727672391d9ccf614b8e12f713fa185391e400a7e3329607b808461c8b844`. Exact checks passed.
+
 ## Immediate sequence
 
 1. Keep P1 as the accepted comparison point; locator and global-direct-tail experiments are closed unless a new profile
    changes their ranking.
-2. Fuse or pipeline the synchronous PostgreSQL operations in the packed model/event transaction so an 8k–10k batch
-   completes inside the 65-ms full-route latency budget; do not rely on timer-filled 16k batches.
-3. Re-profile transport after storage latency falls. The 82k-frame fragmentation is real CPU work, but E36 proves it
-   is not independently the current E2E gate; preserve `ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH` when reducing it.
+2. Treat transaction fusion and readiness-delay/coalescing as closed experiments: E43–E45 proved real local effects
+   but none crossed the full-route checkpoint gate under the production default.
+3. Re-rank the combined client/Runtime JFR rather than extending the storage rabbit hole. E43's client recording points
+   at per-message envelope encode/copy, metadata encoding, result handling and cache updates; quantify their complete
+   caller/allocation stacks and choose the largest contract-safe structural removal.
 4. Confirm each candidate through matched non-JFR runs, checkpoint only a positive correct result and rerank the full
    path.
 5. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.
