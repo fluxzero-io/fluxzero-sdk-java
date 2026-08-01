@@ -44,6 +44,7 @@ import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.common.exception.ServiceException;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -52,6 +53,8 @@ import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
+import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
+import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -90,7 +93,6 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
-import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
 import static io.fluxzero.sdk.Fluxzero.publishMetrics;
 import static io.fluxzero.sdk.common.ClientUtils.ignoreMarker;
 import static io.fluxzero.sdk.common.Message.asMessage;
@@ -340,8 +342,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return new WebSocketRequest(
                 request,
                 captureMetrics
-                        ? currentCorrelationData()
-                        : Map.of(),
+                        ? captureCorrelationData()
+                        : null,
                 captureMetrics
                         ? getAdhocInterceptor(METRICS)
                                 .orElse(null)
@@ -359,7 +361,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         boolean captureMetrics = metricsEnabled();
         return new PreparedRequest<>(new WebSocketRequest(
                 request,
-                captureMetrics ? currentCorrelationData() : Map.of(),
+                captureMetrics ? captureCorrelationData() : null,
                 captureMetrics ? getAdhocInterceptor(METRICS).orElse(null) : null,
                 captureMetrics ? Fluxzero.getOptionally().orElse(null) : null));
     }
@@ -399,7 +401,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected CompletableFuture<Void> sendCommand(Command command) {
         return switch (command.getGuarantee()) {
             case NONE -> {
-                sendUntracked(command, currentCorrelationData(), sessionPool.get(command.routingKey()));
+                sendUntracked(command, captureCorrelationData(), sessionPool.get(command.routingKey()));
                 yield CompletableFuture.completedFuture(null);
             }
             case SENT -> sendAndForget(command);
@@ -409,11 +411,11 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     @SneakyThrows
     private CompletableFuture<Void> sendAndForget(Command object) {
-        return send(object, Fluxzero.currentCorrelationData(), sessionPool.get(object.routingKey()));
+        return send(object, captureCorrelationData(), sessionPool.get(object.routingKey()));
     }
 
     @SneakyThrows
-    private CompletableFuture<Void> send(Request request, Map<String, String> correlationData,
+    private CompletableFuture<Void> send(Request request, Object correlationData,
                                          WebsocketSession session) {
         String sessionId = getNegotiatedSessionId(session);
         try {
@@ -424,7 +426,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private void sendUntracked(
-            Request request, Map<String, String> correlationData, WebsocketSession session) {
+            Request request, Object correlationData, WebsocketSession session) {
         String sessionId = getNegotiatedSessionId(session);
         requestBacklog(sessionId, session).addUntracked(request);
         publishRequestMetrics(request, correlationData, sessionId);
@@ -442,11 +444,30 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private void publishRequestMetrics(
-            Request request, Map<String, String> correlationData, String sessionId) {
+            Request request, Object correlationData, String sessionId) {
         if (metricsEnabled()) {
-            tryPublishMetrics(request, metricsMetadata().with(correlationData)
+            tryPublishMetrics(request, applyCorrelationData(metricsMetadata(), correlationData)
                     .with("sessionId", sessionId).with("requestId", request.getRequestId()));
         }
+    }
+
+    private Object captureCorrelationData() {
+        CorrelationDataProvider provider = Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
+                .orElse(DefaultCorrelationDataProvider.INSTANCE);
+        return provider == DefaultCorrelationDataProvider.INSTANCE
+                ? DefaultCorrelationDataProvider.INSTANCE.getCorrelationMetadata(DeserializingMessage.getCurrent())
+                : provider.getCorrelationData();
+    }
+
+    @SuppressWarnings("unchecked")
+    static Metadata applyCorrelationData(Metadata metadata, Object correlationData) {
+        if (correlationData instanceof Metadata correlationMetadata) {
+            return metadata.with(correlationMetadata);
+        }
+        if (correlationData instanceof Map<?, ?> correlationMap) {
+            return metadata.with((Map<String, String>) correlationMap);
+        }
+        return metadata;
     }
 
     @SneakyThrows
@@ -816,14 +837,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             String sessionId,
             WebsocketResultDiagnostics.ResultTiming clientResultTiming,
             WebSocketRequest webSocketRequest) {
-        Metadata metadata = metricsMetadata()
+        Metadata baseMetadata = metricsMetadata()
                 .with("requestId", webSocketRequest.request.getRequestId(),
                       "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
                 .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
                 .with("resultType", result.getClass().getSimpleName(),
                       "requestType", webSocketRequest.request.getClass().getSimpleName())
-                .with(resultDiagnostics.metadata(result, clientResultTiming))
-                .with(webSocketRequest.correlationData)
+                .with(resultDiagnostics.metadata(result, clientResultTiming));
+        Metadata metadata = applyCorrelationData(baseMetadata, webSocketRequest.correlationData)
                 .with("batchId", batchId)
                 .with("sessionId", sessionId)
                 .with("request", webSocketRequest.request.toMetric());
@@ -1070,7 +1091,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected class WebSocketRequest {
         private final Request request;
         private final CompletableFuture<RequestResult> result = new CompletableFuture<>();
-        private final Map<String, String> correlationData;
+        private final Object correlationData;
         private final DispatchInterceptor adhocMetricsInterceptor;
         private final Fluxzero fluxzero;
         private final AtomicBoolean sent = new AtomicBoolean();

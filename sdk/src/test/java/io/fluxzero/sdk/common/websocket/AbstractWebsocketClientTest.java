@@ -83,6 +83,22 @@ import static org.mockito.Mockito.when;
 class AbstractWebsocketClientTest {
 
     @Test
+    void appliesCompactAndCustomCorrelationDataWithExistingSemantics() {
+        Metadata base = Metadata.of("keep", "base", "remove", "old");
+
+        assertEquals(Metadata.of("keep", "compact", "remove", "old"),
+                     AbstractWebsocketClient.applyCorrelationData(
+                             base, Metadata.of("keep", "compact")));
+
+        Map<String, String> custom = new HashMap<>();
+        custom.put("keep", "custom");
+        custom.put("remove", null);
+        assertEquals(Metadata.of("keep", "custom"),
+                     AbstractWebsocketClient.applyCorrelationData(base, custom));
+        assertEquals(base, AbstractWebsocketClient.applyCorrelationData(base, null));
+    }
+
+    @Test
     void supportedCompressionAlgorithmsDefaultToConfiguredCompressionFirst() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
