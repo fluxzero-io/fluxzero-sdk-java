@@ -101,8 +101,11 @@ Functional and throughput evidence are separate gates:
 1. A focused test must protect the changed contract and the relevant reactor build must pass.
 2. Screening uses at least four balanced alternating runs per side (`A B B A` and its inverse), without profilers.
 3. A candidate that appears faster is confirmed with at least eight runs per side. Order remains balanced and is logged.
-4. The comparison uses paired log-throughput differences. Acceptance requires at least 5% improvement and a 95%
-   bootstrap confidence interval wholly above zero. Every run must pass all exact correctness checks.
+4. The comparison uses paired log-throughput differences. Acceptance requires a 95% bootstrap confidence interval
+   wholly above zero and a practically worthwhile net improvement. There is no mechanical 5% floor: a reproducible
+   3–4% gain may be accepted when the change is simple, low-risk, maintainable and neutral or better on operational
+   characteristics. Smaller gains demand stronger evidence; complex or high-risk changes demand proportionally more
+   benefit. Every run must pass all exact correctness checks.
 5. p95/p99 latency, allocation, retained memory, queue growth, database work and batch shape are checked for a displaced
    bottleneck or resource regression. A local hotspot reduction alone is not an E2E throughput win.
 6. JFR and async-profiler runs are compared only with equivalently profiled controls. Their absolute throughput is not
@@ -117,15 +120,18 @@ candidate must pass three distinct phases in order:
 
 1. **Understand.** Repeated canonical full-result runs establish a route-wide causal model. The model identifies the
    critical-path dependency, parallel work, queue growth, worker/resource saturation and feedback into batch shape.
-2. **Causally validate.** A benchmark-only toggle or ablation removes exactly one suspected cost from the otherwise
-   complete canonical route. It must quantify the maximum full-route gain and preserve all other lifecycle stages as
-   far as the hypothesis permits. Its predicted effect must agree with the observed stage timing and queue response.
+2. **Causally validate.** Keep the complete canonical route and its durability/results contract intact by default.
+   Instrument, accelerate or relieve one suspected limiter as narrowly as possible and measure the immediate effect on
+   full-route throughput, latency, queues and batch feedback. A benchmark-only ablation is optional diagnostic evidence,
+   not the preferred or final proof; removing a lifecycle stage may estimate an upper bound but cannot select or accept
+   production work by itself.
 3. **Optimize.** Production code changes only after the limiter, mechanism and plausible canonical E2E impact are all
    established. The candidate then enters the matched acceptance protocol above.
 
-The evidence hierarchy is strict: qualifying full-route E2E runs are the source of truth; full-route ablations support
-causality; profilers, microbenchmarks and deliberately incomplete routes such as result-free runs only explain or
-exclude mechanisms. Supporting evidence cannot independently select a production target or advance the score.
+The evidence hierarchy is strict: qualifying full-route E2E runs are the source of truth. Detailed correlated traces
+and controlled perturbations within that intact route establish causality. Ablations, profilers, microbenchmarks and
+deliberately incomplete routes such as result-free runs only explain, exclude or bound mechanisms. Supporting evidence
+cannot independently select a production target or advance the score.
 
 ## Baseline and candidate register
 
@@ -194,10 +200,11 @@ For every stage the canonical report records:
   local cost.
 
 Batch events describe capacity, while a deterministic 1-in-4096 command trace correlates the critical path across
-stage boundaries. Nested and parallel wall times are not added together: each report distinguishes elapsed critical
-path, local service demand and queueing. Field collection is guarded by `Event.shouldCommit()` and measured against an
-uninstrumented canonical control. Separate CPU, wall, allocation and lock profiles remain explanatory only and are
-never mixed numerically with non-profiled throughput.
+stage boundaries. The timing table is interpreted together with per-window arrival/completion rates, queue and worker
+occupancy, batch formation and bytes: high latency alone does not prove a throughput limiter. Nested and parallel wall
+times are not added together; each report distinguishes elapsed critical path, local service demand and queueing. Field
+collection is guarded by `Event.shouldCommit()` and measured against an uninstrumented canonical control. Separate CPU,
+wall, allocation and lock profiles remain explanatory only and are never mixed numerically with non-profiled throughput.
 
 ## Experiment ledger
 
