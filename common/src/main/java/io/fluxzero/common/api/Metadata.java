@@ -376,6 +376,11 @@ public class Metadata {
         if (entries.isEmpty()) {
             return metadata;
         }
+        if (hasOpaqueEntries() && metadata.hasOpaqueEntries()) {
+            return fromData(new Data<>(
+                    MetadataBinaryCodec.merge(toData(), metadata.toData()),
+                    DATA_TYPE, 0, DATA_FORMAT));
+        }
         Map<String, String> map = new HashMap<>(entries);
         map.putAll(metadata.entries);
         return new Metadata(map);
@@ -1250,6 +1255,83 @@ public class Metadata {
             return writer.toByteArray();
         }
 
+        private static byte[] merge(Data<byte[]> base, Data<byte[]> changes) {
+            BinaryReader changeReader = new BinaryReader(changes);
+            int changeSize = changeReader.readSize();
+            int changeEntriesOffset = changeReader.position;
+            int[] changeKeyOffsets = new int[changeSize];
+            int[] changeKeyLengths = new int[changeSize];
+            for (int index = 0; index < changeSize; index++) {
+                int keyLength = changeReader.readStringLength();
+                changeKeyOffsets[index] = changeReader.position;
+                changeKeyLengths[index] = keyLength;
+                changeReader.position += keyLength;
+                changeReader.skipString();
+            }
+            changeReader.requireComplete();
+
+            BinaryReader baseReader = new BinaryReader(base);
+            int baseSize = baseReader.readSize();
+            int retainedBytes = 0;
+            int replaced = 0;
+            for (int index = 0; index < baseSize; index++) {
+                int entryOffset = baseReader.position;
+                int keyLength = baseReader.readStringLength();
+                int keyOffset = baseReader.position;
+                baseReader.position += keyLength;
+                baseReader.skipString();
+                if (containsRawKey(baseReader.bytes, keyOffset, keyLength,
+                                   changeReader.bytes, changeKeyOffsets, changeKeyLengths)) {
+                    replaced++;
+                } else {
+                    retainedBytes = addSize(retainedBytes, baseReader.position - entryOffset);
+                }
+            }
+            baseReader.requireComplete();
+
+            int changeBytes = changeReader.limit - changeEntriesOffset;
+            int encodedSize = addSize(Integer.BYTES, retainedBytes);
+            encodedSize = addSize(encodedSize, changeBytes);
+            BinaryWriter writer = new BinaryWriter(encodedSize);
+            writer.writeInt(Math.addExact(baseSize - replaced, changeSize));
+            baseReader = new BinaryReader(base);
+            baseReader.readSize();
+            for (int index = 0; index < baseSize; index++) {
+                int entryOffset = baseReader.position;
+                int keyLength = baseReader.readStringLength();
+                int keyOffset = baseReader.position;
+                baseReader.position += keyLength;
+                baseReader.skipString();
+                if (!containsRawKey(baseReader.bytes, keyOffset, keyLength,
+                                    changeReader.bytes, changeKeyOffsets, changeKeyLengths)) {
+                    writer.write(baseReader.bytes, entryOffset, baseReader.position - entryOffset);
+                }
+            }
+            baseReader.requireComplete();
+            writer.write(changeReader.bytes, changeEntriesOffset, changeBytes);
+            return writer.toByteArray();
+        }
+
+        private static boolean containsRawKey(
+                byte[] keyBytes, int keyOffset, int keyLength,
+                byte[] candidateBytes, int[] candidateOffsets, int[] candidateLengths) {
+            for (int candidateIndex = 0; candidateIndex < candidateOffsets.length; candidateIndex++) {
+                if (candidateLengths[candidateIndex] != keyLength) {
+                    continue;
+                }
+                int candidateOffset = candidateOffsets[candidateIndex];
+                int index = 0;
+                while (index < keyLength
+                        && keyBytes[keyOffset + index] == candidateBytes[candidateOffset + index]) {
+                    index++;
+                }
+                if (index == keyLength) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static byte[] encodedLookupKey(String key) {
             for (int index = 0; index < key.length(); index++) {
                 if (key.charAt(index) > 0x7f) {
@@ -1287,37 +1369,48 @@ public class Metadata {
 
             private void writeString(String value) {
                 int lengthOffset = position;
-                writeInt(0);
-                int valueOffset = position;
+                int length = value.length();
+                writeInt(length);
+                ensure(length);
                 for (int index = 0; index < value.length(); index++) {
                     char current = value.charAt(index);
                     if (current <= 0x7f) {
-                        writeByte(current);
+                        bytes[position++] = (byte) current;
+                    } else {
+                        position = lengthOffset;
+                        writeUtf8(value);
+                        return;
+                    }
+                }
+            }
+
+            private void writeUtf8(String value) {
+                int byteLength = stringSize(value) - Integer.BYTES;
+                writeInt(byteLength);
+                ensure(byteLength);
+                for (int index = 0; index < value.length(); index++) {
+                    char current = value.charAt(index);
+                    if (current <= 0x7f) {
+                        bytes[position++] = (byte) current;
                     } else if (current <= 0x7ff) {
-                        writeByte(0xc0 | current >>> 6);
-                        writeByte(0x80 | current & 0x3f);
+                        bytes[position++] = (byte) (0xc0 | current >>> 6);
+                        bytes[position++] = (byte) (0x80 | current & 0x3f);
                     } else if (Character.isHighSurrogate(current)
                             && index + 1 < value.length()
                             && Character.isLowSurrogate(value.charAt(index + 1))) {
                         int codePoint = Character.toCodePoint(current, value.charAt(++index));
-                        writeByte(0xf0 | codePoint >>> 18);
-                        writeByte(0x80 | codePoint >>> 12 & 0x3f);
-                        writeByte(0x80 | codePoint >>> 6 & 0x3f);
-                        writeByte(0x80 | codePoint & 0x3f);
+                        bytes[position++] = (byte) (0xf0 | codePoint >>> 18);
+                        bytes[position++] = (byte) (0x80 | codePoint >>> 12 & 0x3f);
+                        bytes[position++] = (byte) (0x80 | codePoint >>> 6 & 0x3f);
+                        bytes[position++] = (byte) (0x80 | codePoint & 0x3f);
                     } else if (Character.isSurrogate(current)) {
-                        writeByte('?');
+                        bytes[position++] = '?';
                     } else {
-                        writeByte(0xe0 | current >>> 12);
-                        writeByte(0x80 | current >>> 6 & 0x3f);
-                        writeByte(0x80 | current & 0x3f);
+                        bytes[position++] = (byte) (0xe0 | current >>> 12);
+                        bytes[position++] = (byte) (0x80 | current >>> 6 & 0x3f);
+                        bytes[position++] = (byte) (0x80 | current & 0x3f);
                     }
                 }
-                writeInt(lengthOffset, position - valueOffset);
-            }
-
-            private void writeByte(int value) {
-                ensure(1);
-                bytes[position++] = (byte) value;
             }
 
             private void writeInt(int offset, int value) {

@@ -201,6 +201,29 @@ class MetadataTest {
     }
 
     @Test
+    void mergesMetadataDirectlyWhileRightHandValuesWin() {
+        Metadata base = Metadata.fromData(Metadata.of(
+                "tenant", "old",
+                "unchanged", "München",
+                "emoji-😀", "base").toData());
+        Metadata changes = Metadata.fromData(Metadata.of(
+                "tenant", "東京",
+                "emoji-😀", "changed",
+                "added", "value").toData());
+
+        Metadata merged = base.with(changes);
+
+        assertEquals(Map.of(
+                "tenant", "東京",
+                "unchanged", "München",
+                "emoji-😀", "changed",
+                "added", "value"), merged.getEntries());
+        assertEquals("old", base.get("tenant"));
+        assertEquals("東京", changes.get("tenant"));
+        assertEquals(merged, Metadata.fromData(merged.toData()));
+    }
+
+    @Test
     void appliesRepeatedChangesToSerializedMetadata() {
         Metadata original = Metadata.of(
                 "tenant", "München",
