@@ -23,9 +23,11 @@ import io.fluxzero.sdk.tracking.handling.Invocation;
 import jakarta.annotation.Nullable;
 import lombok.Getter;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 
-import static io.fluxzero.sdk.Fluxzero.currentTime;
+import static io.fluxzero.sdk.Fluxzero.currentClock;
 import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 
 /**
@@ -101,9 +103,15 @@ public enum DefaultCorrelationDataProvider implements CorrelationDataProvider {
             if (triggerNamespace != null) {
                 result.put(getTriggerNamespaceKey(), triggerNamespace);
             }
-            result.putAll(currentMetadata.getTraceEntries());
-            result.put(getDelayKey(), Long.toString(
-                    Duration.between(currentMessage.getTimestamp(), currentTime()).toMillis()));
+            result.putTraceEntries(currentMetadata);
+            Clock clock = currentClock();
+            Instant timestamp = currentMessage.getTimestamp();
+            long currentMillis = clock.millis();
+            long timestampMillis = timestamp.toEpochMilli();
+            long delay = timestamp.getNano() % 1_000_000 == 0 && currentMillis >= timestampMillis
+                    ? currentMillis - timestampMillis
+                    : Duration.between(timestamp, clock.instant()).toMillis();
+            result.put(getDelayKey(), Long.toString(delay));
         }
         return result.build();
     }

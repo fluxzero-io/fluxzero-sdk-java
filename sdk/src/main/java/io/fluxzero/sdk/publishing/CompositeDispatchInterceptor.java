@@ -28,10 +28,14 @@ import java.util.List;
 /** Ordered, flat dispatch chain that can compile the same order into a local policy. */
 final class CompositeDispatchInterceptor implements DispatchInterceptor {
     private final DispatchInterceptor[] interceptors;
+    private final DispatchInterceptor[] monitoringInterceptors;
 
     private CompositeDispatchInterceptor(List<DispatchInterceptor> interceptors) {
         this.interceptors = interceptors.toArray(
                 DispatchInterceptor[]::new);
+        this.monitoringInterceptors = interceptors.stream()
+                .filter(CompositeDispatchInterceptor::overridesMonitorDispatch)
+                .toArray(DispatchInterceptor[]::new);
     }
 
     static DispatchInterceptor combine(DispatchInterceptor first, DispatchInterceptor second) {
@@ -49,6 +53,39 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
             }
         } else {
             target.add(interceptor);
+        }
+    }
+
+    static boolean requiresMonitoring(DispatchInterceptor interceptor, MessageType messageType) {
+        if (interceptor instanceof CompositeDispatchInterceptor composite) {
+            return composite.requiresMonitoring(messageType);
+        }
+        return overridesMonitorDispatch(interceptor)
+               && requiresMonitoringInterceptor(interceptor, messageType);
+    }
+
+    private boolean requiresMonitoring(MessageType messageType) {
+        for (DispatchInterceptor interceptor : monitoringInterceptors) {
+            if (requiresMonitoringInterceptor(interceptor, messageType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean requiresMonitoringInterceptor(DispatchInterceptor interceptor, MessageType messageType) {
+        return interceptor.getClass() != AdhocDispatchInterceptor.class
+               || AdhocDispatchInterceptor.hasAdhocInterceptor(messageType);
+    }
+
+    private static boolean overridesMonitorDispatch(DispatchInterceptor interceptor) {
+        try {
+            return interceptor.getClass().getMethod(
+                            "monitorDispatch", Message.class, MessageType.class, String.class, String.class,
+                            boolean.class)
+                    .getDeclaringClass() != DispatchInterceptor.class;
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("DispatchInterceptor contract is missing monitorDispatch", e);
         }
     }
 
@@ -76,9 +113,9 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
     public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                 boolean request) {
         for (int index = 0;
-             index < interceptors.length;
+             index < monitoringInterceptors.length;
              index++) {
-            interceptors[index].monitorDispatch(
+            monitoringInterceptors[index].monitorDispatch(
                     message, messageType, topic,
                     namespace, request);
         }

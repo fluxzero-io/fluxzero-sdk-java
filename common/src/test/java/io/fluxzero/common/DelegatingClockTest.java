@@ -14,36 +14,25 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk;
+package io.fluxzero.common;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.Answers;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class FluxzeroClockTest {
+class DelegatingClockTest {
 
     @Test
-    void usesTheClockFromTheThreadBoundFluxzeroInstance() {
-        Clock clock = Clock.fixed(
-                Instant.parse("2026-08-01T08:00:00Z"),
-                ZoneOffset.UTC);
-        Fluxzero fluxzero = mock(
-                Fluxzero.class, Answers.CALLS_REAL_METHODS);
-        when(fluxzero.clock()).thenReturn(clock);
+    void delegatesMillisDirectly() {
+        Clock delegate = mock(Clock.class);
+        when(delegate.millis()).thenReturn(42L);
+        DelegatingClock subject = new DelegatingClock();
+        subject.setDelegate(delegate);
 
-        fluxzero.apply(current -> {
-            assertSame(clock, Fluxzero.currentClock());
-            assertEquals(clock.instant(), Fluxzero.currentTime());
-            assertEquals(clock.millis(), Fluxzero.currentClock().millis());
-            return null;
-        });
+        assertEquals(42L, subject.millis());
     }
 }

@@ -177,6 +177,41 @@ class DefaultResultGatewayTest {
     }
 
     @Test
+    void onlyResponsesWithAnActiveAdhocMonitorEnterTheOrderedMonitorPass() throws Exception {
+        ThreadLocal<String> context = ThreadLocalContext.create();
+        List<String> monitored = Collections.synchronizedList(new ArrayList<>());
+        DispatchInterceptor monitor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType messageType,
+                                             String topic) {
+                return message;
+            }
+
+            @Override
+            public void monitorDispatch(Message message, io.fluxzero.common.MessageType messageType, String topic,
+                                        String namespace, boolean request) {
+                monitored.add(message.getPayload() + ":" + context.get());
+            }
+        };
+        DispatchInterceptor chain = DispatchInterceptor.noOp.andThen(new AdhocDispatchInterceptor());
+        DefaultResultGateway gateway = gateway(
+                new DefaultResponseMapper(), chain, invocation -> CompletableFuture.completedFuture(null));
+
+        context.set("plain-context");
+        CompletableFuture<Void> plain = gateway.respondBatched("plain", "sender", 1);
+        AtomicReference<CompletableFuture<Void>> monitoredPublication = new AtomicReference<>();
+        context.set("monitored-context");
+        AdhocDispatchInterceptor.runWithAdhocInterceptor(
+                () -> monitoredPublication.set(gateway.respondBatched("monitored", "sender", 2)), monitor, RESULT);
+        context.remove();
+
+        CompletableFuture.allOf(plain, monitoredPublication.get()).get(2, TimeUnit.SECONDS);
+
+        assertEquals(List.of("monitored:monitored-context"), monitored);
+        gateway.close();
+    }
+
+    @Test
     void preparationFailureIsIsolatedWithoutChangingResultOrder() throws Exception {
         ThreadLocal<String> context = ThreadLocalContext.create();
         DefaultResponseMapper delegate = new DefaultResponseMapper();

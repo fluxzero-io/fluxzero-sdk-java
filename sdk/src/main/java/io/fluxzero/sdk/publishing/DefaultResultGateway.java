@@ -150,14 +150,22 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         }
         PreparedResponse prepared = new PreparedResponse(
                 batchResponse.payload(), batchResponse.metadata(), target, requestId, context,
-                errorHandler, trackCompletion ? new CompletableFuture<>() : null);
+                CompositeDispatchInterceptor.requiresMonitoring(dispatchInterceptor, RESULT), errorHandler,
+                trackCompletion ? new CompletableFuture<>() : null);
         getResponseBacklog().addUntracked(prepared);
         return prepared.dispatched();
     }
 
     private CompletableFuture<Void> publishBatch(List<PreparedResponse> responses) {
         int size = responses.size();
-        Message[] messages = new Message[size];
+        boolean hasMonitoring = false;
+        for (int index = 0; index < size; index++) {
+            if (responses.get(index).monitor()) {
+                hasMonitoring = true;
+                break;
+            }
+        }
+        Message[] messages = hasMonitoring ? new Message[size] : null;
         SerializedMessage[] serialized = new SerializedMessage[size];
         Throwable[] failures = new Throwable[size];
         if (size < PARALLEL_SERIALIZATION_THRESHOLD) {
@@ -173,31 +181,42 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
 
         PreparedResponse[] published = new PreparedResponse[size];
         int publishedSize = 0;
-        ThreadLocalContext.Snapshot workerContext = ThreadLocalContext.capture();
-        try (ThreadLocalContext.Activation activation = ThreadLocalContext.openActivation()) {
+        ThreadLocalContext.Snapshot workerContext = hasMonitoring ? ThreadLocalContext.capture() : null;
+        ThreadLocalContext.Activation activation = hasMonitoring ? ThreadLocalContext.openActivation() : null;
+        try {
             for (int index = 0; index < size; index++) {
                 PreparedResponse response = responses.get(index);
                 if (failures[index] != null) {
-                    activation.use(workerContext);
+                    if (activation != null) {
+                        activation.use(workerContext);
+                    }
                     handlePreparationFailure(response, failures[index]);
                     continue;
                 }
                 if (serialized[index] == null) {
-                    activation.use(workerContext);
+                    if (activation != null) {
+                        activation.use(workerContext);
+                    }
                     complete(response, null);
                     continue;
                 }
-                try {
-                    Message message = messages[index];
-                    activation.use(response.context());
-                    dispatchInterceptor.monitorDispatch(
-                            message, RESULT, null, client.namespace(), false);
-                    serialized[publishedSize] = serialized[index];
-                    published[publishedSize++] = response;
-                } catch (Throwable e) {
-                    activation.use(workerContext);
-                    handlePreparationFailure(response, e);
+                if (response.monitor()) {
+                    try {
+                        activation.use(response.context());
+                        dispatchInterceptor.monitorDispatch(
+                                messages[index], RESULT, null, client.namespace(), false);
+                    } catch (Throwable e) {
+                        activation.use(workerContext);
+                        handlePreparationFailure(response, e);
+                        continue;
+                    }
                 }
+                serialized[publishedSize] = serialized[index];
+                published[publishedSize++] = response;
+            }
+        } finally {
+            if (activation != null) {
+                activation.close();
             }
         }
         if (publishedSize == 0) {
@@ -251,7 +270,9 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                     }
                     result.setTarget(response.target());
                     result.setRequestId(response.requestId());
-                    messages[index] = message;
+                    if (response.monitor()) {
+                        messages[index] = message;
+                    }
                     serialized[index] = SerializedMessage.encode(result);
                 } catch (Throwable e) {
                     failures[index] = e;
@@ -295,7 +316,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     private CompletableFuture<Void> enqueueRetry(PreparedResponse response) {
         PreparedResponse retry = new PreparedResponse(
                 response.payload(), response.metadata(), response.target(), response.requestId(), response.context(),
-                null, new CompletableFuture<>());
+                response.monitor(), null, new CompletableFuture<>());
         getResponseBacklog().addUntracked(retry);
         return retry.dispatched();
     }
@@ -321,8 +342,8 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     }
 
     private record PreparedResponse(Object payload, Metadata metadata, String target, Integer requestId,
-                                    ThreadLocalContext.Snapshot context, ResultPreparationErrorHandler errorHandler,
-                                    CompletableFuture<Void> dispatched) {
+                                    ThreadLocalContext.Snapshot context, boolean monitor,
+                                    ResultPreparationErrorHandler errorHandler, CompletableFuture<Void> dispatched) {
     }
 
     /** Handles an asynchronous result-preparation failure and may retry the supplied publication. */

@@ -29,7 +29,11 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -38,6 +42,8 @@ import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionIntercepto
 import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.NAMESPACE_METADATA_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class CorrelationDataProviderTest {
     private final CorrelationDataProvider testProvider = new TestCorrelationDataProvider();
@@ -119,6 +125,37 @@ class CorrelationDataProviderTest {
         actual.remove(defaultProvider.getDelayKey());
 
         assertEquals(expected, actual);
+    }
+
+    @Test
+    void compactDefaultCorrelationMetadataPreservesSubMillisecondDelaySemantics() {
+        Clock clock = Clock.fixed(Instant.ofEpochSecond(11), ZoneOffset.UTC);
+        Fluxzero fluxzero = mock(Fluxzero.class, Answers.CALLS_REAL_METHODS);
+        when(fluxzero.clock()).thenReturn(clock);
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("trigger", Metadata.empty(), "message-id",
+                            Instant.ofEpochSecond(10, 999_999_999)),
+                MessageType.COMMAND, new JacksonSerializer());
+
+        Metadata correlation = fluxzero.apply(
+                ignored -> defaultProvider.getCorrelationMetadata(current));
+
+        assertEquals("0", correlation.get(defaultProvider.getDelayKey()));
+    }
+
+    @Test
+    void compactDefaultCorrelationMetadataPreservesNegativeSubMillisecondDelaySemantics() {
+        Clock clock = Clock.fixed(Instant.ofEpochSecond(10, 999_999_999), ZoneOffset.UTC);
+        Fluxzero fluxzero = mock(Fluxzero.class, Answers.CALLS_REAL_METHODS);
+        when(fluxzero.clock()).thenReturn(clock);
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("trigger", Metadata.empty(), "message-id", Instant.ofEpochSecond(11)),
+                MessageType.COMMAND, new JacksonSerializer());
+
+        Metadata correlation = fluxzero.apply(
+                ignored -> defaultProvider.getCorrelationMetadata(current));
+
+        assertEquals("0", correlation.get(defaultProvider.getDelayKey()));
     }
 
     @Test

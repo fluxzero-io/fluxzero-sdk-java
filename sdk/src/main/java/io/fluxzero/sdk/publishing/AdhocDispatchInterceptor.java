@@ -88,7 +88,7 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
         return Optional.ofNullable(current == null ? null : current.get(messageType));
     }
 
-    private static boolean hasAdhocInterceptor(MessageType messageType) {
+    static boolean hasAdhocInterceptor(MessageType messageType) {
         Map<MessageType, DispatchInterceptor> current = delegates.get();
         return current != null && current.get(messageType) != null;
     }

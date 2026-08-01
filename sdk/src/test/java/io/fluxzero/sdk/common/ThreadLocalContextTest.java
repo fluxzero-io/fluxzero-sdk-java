@@ -104,7 +104,7 @@ class ThreadLocalContextTest {
         first.set("second");
         second.set(2);
         ThreadLocalContext.Snapshot secondSnapshot = ThreadLocalContext.capture();
-        first.set("third");
+        first.set("second");
         second.set(3);
         ThreadLocalContext.Snapshot thirdSnapshot = ThreadLocalContext.capture();
         first.set("outer");
@@ -121,7 +121,7 @@ class ThreadLocalContextTest {
             assertEquals(2, second.get());
 
             activation.use(thirdSnapshot);
-            assertEquals("third", first.get());
+            assertEquals("second", first.get());
             assertEquals(3, second.get());
         }
 

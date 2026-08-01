@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -195,6 +196,16 @@ public class Metadata {
          */
         public Builder putAll(Map<String, String> values) {
             values.forEach(this::put);
+            return this;
+        }
+
+        /**
+         * Adds or replaces the trace entries from existing metadata without materializing an intermediate map.
+         *
+         * @return this builder
+         */
+        public Builder putTraceEntries(@NonNull Metadata metadata) {
+            metadata.forEachTraceEntry(this::put);
             return this;
         }
 
@@ -708,6 +719,18 @@ public class Metadata {
                 : traceEntries(entries);
     }
 
+    private void forEachTraceEntry(BiConsumer<String, String> consumer) {
+        if (entries instanceof SerializedEntries serializedEntries && serializedEntries.isOpaque()) {
+            MetadataBinaryCodec.forEachTraceEntry(serializedEntries.data(), consumer);
+            return;
+        }
+        entries.forEach((key, value) -> {
+            if (key.startsWith("$trace.")) {
+                consumer.accept(key, value);
+            }
+        });
+    }
+
     private static Map<String, String> traceEntries(Map<String, String> source) {
         Map<String, String> result = new HashMap<>();
         source.forEach((key, value) -> {
@@ -1157,6 +1180,20 @@ public class Metadata {
             }
             reader.requireComplete();
             return result;
+        }
+
+        private static void forEachTraceEntry(Data<byte[]> data, BiConsumer<String, String> consumer) {
+            BinaryReader reader = new BinaryReader(data);
+            int size = reader.readSize();
+            for (int i = 0; i < size; i++) {
+                String key = reader.readStringIfStartsWith("$trace.");
+                if (key == null) {
+                    reader.skipString();
+                } else {
+                    consumer.accept(key, reader.readString());
+                }
+            }
+            reader.requireComplete();
         }
 
         private static byte[] merge(Data<byte[]> data, Map<String, String> changes) {

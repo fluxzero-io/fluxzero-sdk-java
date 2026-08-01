@@ -183,6 +183,27 @@ class MetadataTest {
     }
 
     @Test
+    void addsTraceValuesFromOpaqueDataWithoutMaterializingTheSource() {
+        Data<byte[]> data = Metadata.of(
+                "$trace.workflow", "München-東京",
+                "$trace.attempt", "2",
+                "tenant", "demo").toData();
+        Metadata source = Metadata.fromData(data);
+
+        Metadata result = Metadata.builder(3)
+                .put("$trace.workflow", "old")
+                .put("local", "value")
+                .putTraceEntries(source)
+                .build();
+
+        assertEquals(Map.of(
+                "$trace.workflow", "München-東京",
+                "$trace.attempt", "2",
+                "local", "value"), result.getEntries());
+        assertSame(data, source.toData());
+    }
+
+    @Test
     void mergesNormalizedValuesIntoOpaqueDataWithoutChangingTheBase() {
         Metadata base = Metadata.fromData(Metadata.of(
                 "tenant", "old",

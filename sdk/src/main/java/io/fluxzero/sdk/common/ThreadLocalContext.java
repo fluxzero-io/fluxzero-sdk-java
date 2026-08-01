@@ -197,15 +197,25 @@ public final class ThreadLocalContext {
                         previous.participants) {
                     setSnapshotValue(participant, null);
                 }
+                for (int i = 0;
+                     i < next.participants.length;
+                     i++) {
+                    setSnapshotValue(
+                            next.participants[i],
+                            next.values[i]);
+                }
+            } else {
+                for (int i = 0;
+                     i < next.participants.length;
+                     i++) {
+                    if (previous.values[i] != next.values[i]) {
+                        setSnapshotValue(
+                                next.participants[i],
+                                next.values[i]);
+                    }
+                }
             }
-            for (int i = 0;
-                 i < next.participants.length;
-                 i++) {
-                setSnapshotValue(
-                        next.participants[i],
-                        next.values[i]);
-            }
-            activeValues.get().restore(next, sameParticipants);
+            activeValues.get().restore(previous, next, sameParticipants);
         }
     }
 
@@ -302,14 +312,16 @@ public final class ThreadLocalContext {
             }
         }
 
-        private void restore(Snapshot next, boolean sameParticipants) {
+        private void restore(Snapshot previous, Snapshot next, boolean sameParticipants) {
             if (!sameParticipants) {
                 Arrays.fill(values, 0, size, null);
             }
             for (int i = 0; i < next.participants.length; i++) {
-                putRestored(
-                        next.participants[i],
-                        next.values[i]);
+                if (!sameParticipants || previous.values[i] != next.values[i]) {
+                    putRestored(
+                            next.participants[i],
+                            next.values[i]);
+                }
             }
             snapshot = next;
             dirty = false;
