@@ -35,3 +35,5 @@ E66-P1,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,2
 E66-P2,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,319150,312611,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
 E66-P3,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,302927,292239,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
 E66-P4,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,250133,273612,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
+E67-CPU,profile,result-free-model-commit,P2,accepted-source-cpu-attribution,1048576,65536,async-profiler-cpu,,373615,false,diagnostic-global-cache-lock,diagnostic-only,model-e2e-throughput-campaign.md
+E67-LOCK,profile,result-free-model-commit,P2,accepted-source-lock-attribution,1048576,65536,async-profiler-lock,,107185,false,diagnostic-global-cache-lock,diagnostic-only,model-e2e-throughput-campaign.md

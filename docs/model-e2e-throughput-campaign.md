@@ -15,12 +15,12 @@ experiments were rejected.
 | Accepted matched throughput | 330,222/s candidate geometric mean versus 275,049/s control; +20.06%, paired 95% CI 16.61–24.13% |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
-| Latest closed diagnostic | E66: a faster ZSTD level won its microbenchmark and one JFR pair, but canonical matched throughput was only +3.99% with mixed pair signs; the candidate was reverted |
-| Current production code | clean accepted P2 source in both repositories; no E62–E66 candidate code remains |
-| Next evidence target | rerank the result-free E61 upper-bound route with threaded CPU profiling; its model/cache/commit path caps even total result removal near 405,700/s and now dominates the distance to 1M/s |
+| Latest closed diagnostic | E67: CPU and lock profiles of the result-free route attribute 97.2% of measured client lock weight to the global AdaptiveCache/LRU monitor in `MemoryAwareCacheSupport.get()` |
+| Current production code | clean accepted P2 source in both repositories; no E62–E67 candidate code remains |
+| Next evidence target | remove the proven global AdaptiveCache read bottleneck without weakening adaptive memory bounds, eviction or model-cache proof semantics; screen on the result-free route, then confirm on the canonical full-result route |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E66 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
+Last updated after E67 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -832,6 +832,37 @@ Canonical benchmark/Runtime log pairs 1–4 are respectively
 `e45eb98e438ef8cb8f9ade8d7622ba7880d4afc52661b32993cc9cc83e2ec5d2`/
 `fb746a6c6a9a00a56b5d832ff11b2ece3259967f5f3ac2ff2baafde4f4ae148c`.
 
+### Diagnostic E67 — the result-free client serializes on the AdaptiveCache read monitor
+
+E67 profiled the accepted P2 source on the E61 result-free route: 1,048,576 measured commands after 65,536 warm-up
+updates, with ordinary command results deliberately absent. These runs are diagnostic-only and cannot be compared to
+the unprofiled 320–330k/s canonical full-result observations. Threaded CPU profiling measured 373,615 commands/s. Of
+11,195 client CPU samples, `ModelCommitHandlerRegistry` was 33.96% inclusive, `ModelCommitter` 13.73%,
+`SerializedMessage` 12.97% and `CompletableFuture` 12.34%. The cache-specific clusters were
+`ModelCacheTracker.currentVersion` at 7.24% and `MemoryAwareCacheSupport.updateAll` at 4.04%. The Runtime profile was
+distributed: `JdbcModelCommitStore` was 15.05%, compression 10.93% and `JdbcMessageStore` 9.98% inclusive.
+
+The follow-up async-profiler lock recording measured 107,185 commands/s under its much higher instrumentation
+overhead. Its absolute rate is not a regression signal. The ownership evidence is decisive: 580,594 of 597,435 total
+client lock-weight units (97.18%) were stacks entering `MemoryAwareCacheSupport.get()`. Cache bulk updates accounted
+for only 6,043 units, and no independent `ModelCacheTracker.Entry` monitor cluster remained. The global synchronized
+AdaptiveCache/LRU read path therefore serializes the 16 command consumers. This is AdaptiveCache itself, not a
+`SoftReferenceCache`; E67 does not propose changing defaults, capacity, memory-pressure behavior or eviction
+semantics.
+
+The CPU benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed SHA-256 values are
+`fc8be8a04e26892faef28b1bb4efd592a288c4ccc2c291c773e5aa9acf6c5d8f`,
+`82eb2ce5266b382d3f1f3c78f3ae6c403c61824c2bcbeabe706c2a512591a2bf`,
+`ff5de8ad00ae371a6e8f5795f8c36b5f39b6a32c63e381bf1a02872ee1753817`,
+`9267da7a350f579a724cd575ce81d60fde7ce8dd50abfc320f718245b2eec2b4`, and
+`48497fceb8c3d3df4326152cca2db0043ab2a82c046be092da03245dd0b4ecb2`. The lock
+benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed values are
+`de176df978f051a8ce1846493d21f8f6fdf0a4275e3ddf5e3de4b247789a9cc5`,
+`b12c535f9c2aba804a110b541f817aa8dc6b09b2f7a9eef6893df50a94cd9d3d`,
+`8aa1cc230e51d8f6d7526942d4adeb7b897fd0cc3f9303542cc247a5d383fde4`,
+`be692e4da30092bec8a107fc30828354cb196605cf11405dc514c1204df8b845`, and
+`8ce0b8dcd761dadb36fb69390aae5e54aba72d0e6074d0e25a295b0a4aeb035c`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -861,7 +892,10 @@ Canonical benchmark/Runtime log pairs 1–4 are respectively
 11. E66 attributes 76% of raw result envelopes to metadata, but rejects the fastest credible compression-only
     response at +3.99% canonical E2E. Stop result codec microtuning and profile the E61 result-free upper-bound route:
     even deleting all ordinary-result work leaves only 405,700/s, so model/cache/commit work now dominates the 1M gap.
-12. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+12. E67 proves that the result-free SDK read path is serialized by the global AdaptiveCache/LRU monitor: 97.2% of
+    client lock weight enters `MemoryAwareCacheSupport.get()`. Remove that global read bottleneck while preserving
+    adaptive bounds and exact LRU/eviction behavior; do not optimize the secondary per-entry proof lock first.
+13. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
     the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
