@@ -100,7 +100,7 @@ R1's targeted allocation improvement is real, but matched A/B experiment E2 reje
 Its +0.71% geometric-mean result was far below the 5% threshold and the paired 95% interval included a regression.
 The implementation must therefore be reverted before C1 is assessed.
 
-### Uncommitted common/SDK candidate C1
+### Rejected common/SDK candidate C1
 
 - Base SDK: `3da2fdc604807cd480a375133261ba28dac95996` plus dirty diff SHA-256
   `f0f7b6da84837b4922844cd5b1ef02d682c011587e9d45a7df918cf622862df8`.
@@ -114,8 +114,9 @@ The implementation must therefore be reverted before C1 is assessed.
   `60946ec944a06f03a06f720f8f893e0eabab2c362a51877afd5ea977e883c0e6`.
 - Log SHA-256: `e07fcd60c2867c660ae4dc3c46435b709643353d659018cc18186b0be9ff214d`.
 
-C1 remains uncommitted until R1 is resolved and C1 then passes its own matched comparison against the accepted runtime
-side. Exact full builds are also required before a checkpoint.
+C1's targeted allocation reduction is real, but matched A/B experiment E3 rejected it as a throughput checkpoint. Its
+geometric-mean result was 0.38% slower than A0 and its paired interval was extremely wide. The two-file dirty candidate
+must be discarded rather than committed.
 
 ## Instrumentation plan
 
@@ -142,15 +143,15 @@ limiter from top allocation stacks alone.
 | E0 | 2026-08-01 | A0 | R1 | Historical adjacent non-JFR and JFR runs | Inconclusive. Targeted allocation fell sharply, but unmatched absolute rates cannot establish E2E improvement. Run strict A/B. |
 | E1 | 2026-08-01 | R1 | C1 | Adjacent JFR runs | Inconclusive. Common ZSTD allocation fell and correctness passed, but C1 needs a matched control after R1 is resolved. |
 | E2 | 2026-08-01 | A0 | R1 | Four balanced non-JFR runs per side; [`model-e2e-e2-screening.csv`](performance-runs/model-e2e-e2-screening.csv) | Reject R1 as throughput checkpoint. A0 geometric mean 194,075/s; R1 195,453/s; delta +0.71%, paired bootstrap 95% interval -1.76% to +3.24%. All correctness checks passed. |
+| E3 | 2026-08-01 | A0 | C1 | Four balanced non-JFR runs per side; [`model-e2e-e3-screening.csv`](performance-runs/model-e2e-e3-screening.csv) | Reject C1. A0 geometric mean 217,418/s; C1 216,586/s; delta -0.38%, paired bootstrap 95% interval -13.41% to +21.61%. Both sides varied sharply, so the candidate has no positive signal and the next step is stage instrumentation, not more blind micro-optimization. All correctness checks passed. |
 
 ## Immediate sequence
 
-1. Revert R1 while preserving its allocation lesson and retain A0 as the accepted runtime side.
-2. Compare C1 against A0 using the same protocol; commit it only if it improves full E2E.
-3. Add the batch JFR events, sampled causality trace and per-run PostgreSQL delta capture without changing message
+1. Retain A0 as the accepted production side and discard the rejected C1 dirty diff.
+2. Add the batch JFR events, sampled causality trace and per-run PostgreSQL delta capture without changing message
    semantics.
-4. Establish the primary capacity limiter using JFR plus separate async-profiler CPU/wall/alloc/lock recordings.
-5. Remove that limiter architecturally, confirm it through matched A/B, checkpoint it and repeat.
+3. Establish the primary capacity limiter using JFR plus separate async-profiler CPU/wall/alloc/lock recordings.
+4. Remove that limiter architecturally, confirm it through matched A/B, checkpoint it and repeat.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
