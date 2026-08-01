@@ -342,15 +342,74 @@ that become roughly 127 runtime transactions, identify an exact lifecycle bounda
 and overlap preparation without publishing, committing or completing out of order. Fixed sleeps, larger unbounded
 queues and relaxed durability remain excluded.
 
+## Diagnostic checkpoint D5 — transport fragmentation and batch-capacity curve
+
+The apparent 605-to-127 batch transition hid another boundary. JFR-only tracing at the SDK WebSocket send and Runtime
+model intake shows that E35's 629 handler batches became **82,547 Runtime frames averaging 12.7 commits**, before the
+ordered model backlog opportunistically merged them into 119 durable transactions averaging 8,812. The Runtime intake
+count covers all 1,048,576 measured commits. The SDK event starts at the benchmark recording barrier and therefore
+misses about 11,000 already-prepared sends at the leading edge; deterministic request-stage samples link the same
+request IDs across both sides.
+
+The generic WebSocket collection delay is not a model-batch control. One millisecond happened to reduce model
+transactions to 114 in E33, while five milliseconds increased them to 140 in E34. It also changes command and result
+request batching. Both settings are rejected. The explicit `ASYNC_AFTER_BATCH` policy in E36 supplied a diagnostic
+upper bound without changing production defaults: roughly 467 large frames carried nearly all commits, accompanied by
+4,117 late singleton frames. It improved profiled E2E only modestly and increased model transactions to 136, so fewer
+transport frames alone do not stabilize the storage boundary.
+
+Model-store collection delays of 5 and 20 ms improved local service capacity but not enough to justify their latency.
+An opt-in per-drain minimum then established the complete curve. A 16,384-commit target more than doubled model
+capacity under the default handler policy; combined with large after-batch transport bursts it reached **0.855M model
+commits/s**. Full E2E throughput fell because filling the target with the current 0.2M/s arrival rate consumed the
+command/result latency budget and fragmented downstream results. The generic minimum-backlog overload, its tests and
+the Runtime property were removed after E41; none remains in production code.
+
+| Experiment | Diagnostic setting | E2E | Runtime frames | Model transactions / average | Model service capacity | p50 / p99 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| E33 | generic WebSocket delay 1 ms | 242,055/s | not yet traced | 114 / 9,198 | 0.311M/s | 223.397 / 405.970 ms |
+| E34 | generic WebSocket delay 5 ms | 239,506/s | not yet traced | 140 / 7,489 | 0.296M/s | 229.347 / 362.854 ms |
+| E35 | production default, boundary trace | 221,043/s | 82,547 / 12.7 | 119 / 8,812 | 0.293M/s | 244.144 / 404.629 ms |
+| E36 | explicit `ASYNC_AFTER_BATCH` upper bound | 238,632/s | 4,584 / 228.7 | 136 / 7,710 | 0.313M/s | 223.189 / 407.074 ms |
+| E37 | model idle-start delay 5 ms | 229,172/s | 71,153 / 14.7 | 108 / 9,709 | 0.329M/s | 242.455 / 377.484 ms |
+| E38 | model idle-start delay 20 ms | 236,099/s | 75,355 / 13.9 | 103 / 10,180 | 0.361M/s | 222.085 / 453.891 ms |
+| E39 | default policy, minimum 16,384 / 100 ms tail | 198,529/s | 88,810 / 11.8 | 63 / 16,644 | **0.603M/s** | 244.601 / 484.123 ms |
+| E40 | after-batch upper bound, minimum 16,384 / 100 ms | 185,453/s | 1,214 / 863.7 | 50 / 20,972 | **0.855M/s** | 272.445 / 509.676 ms |
+| E41 | after-batch upper bound, minimum 16,384 / 10 ms | 240,664/s | 845 / 1,240.9 | 106 / 9,892 | 0.431M/s | 214.880 / 394.962 ms |
+
+All values in this table come from JFR diagnostic runs and are compared only as mechanistic evidence. Recording and log
+identities are:
+
+| Experiment | JFR SHA-256 | Log SHA-256 |
+| --- | --- | --- |
+| E33 | `f106f98e5bfe7442ef6637ed556684c3c393e2b08047fbb4286b4754e7c7d489` | `cc6bf1ea47f38a6f39cd2239bf5a081b6cf9d41bd140d5473dd3d3721e1714e1` |
+| E34 | `205cf13cfd5e334bbb00f25486f5f4687e1f5bde55968f4a146e80f0ec83bf11` | `2f8868f63c22fd45fa5bc54016f31bb8f258bf86661dbb81755dfa5baffcbaf6` |
+| E35 | `d458b60c3932363485ab15695a85f9ae81c8d12874a467fb21f1c8694edfdc93` | `18924defa10fa709a41a484328a31a1b04fcf190eb93c364d3db891cd3bf4bbf` |
+| E36 | `f0c83e2327aff6db334e544519d3d7bda31bdf28caabf60dc3f17639329586bc` | `a054c88e85fe62c731c1da40323277f66632bca668f24e8a4f2d9bf490196acd` |
+| E37 | `7185ae4821a78881a1868b6743d6eb8439eb7bd8426ef24a5cc6d5dd5e504b43` | `b360743e79e6b7da460a1f5fb8bda2e9336683942ea2902694d32c1b3554f08b` |
+| E38 | `ab1b0499fe4133e5953ed5a1fd6bc46a23f316937aaf1cd9275911fba1dcfdc8` | `8576cee27aa99b44756b904af7dc340defa86fa804981033ef497d09472462a6` |
+| E39 | `53a3cf9dc55a33da3927f952486bded5d6b1addc36e78b818a9b6cc3c4024231` | `5876128b5b27f9d0fdb28c087fccfc9e43c807d826bcffeb39e9ceeab0a08027` |
+| E40 | `f45450bba9e3c8cd0de694cb98ea6ee393963a3a1a4a825fd1ac5317261fcbcd` | `3424bc3bfdc0cb1a6cbb83e059568294b6099233c5733e41847996f43dc3b25c` |
+| E41 | `2db8feec0564536a311a9907571eab7ec611c65336e86ce6925412c0ce7dec5b` | `46a019554fb73e1b20fb9e77fe7041a1d27c0ab231668e4cdefda2af05a6a85a` |
+
+The canonical 65,536 in-flight bound makes latency part of the throughput contract. At E35's 221,043/s it implies
+about 296 ms mean residence time, consistent with the observed distribution. One million commands/s requires the full
+durable result path to average at most 65.5 ms; intentionally holding a partial batch cannot meet that requirement.
+The next structural target is therefore the fixed synchronous PostgreSQL protocol work inside each 8k–10k model/event
+transaction. E27 already showed little server compute but several serialized client round trips. Those operations must
+be fused or pipelined while retaining one ordered atomic commit, rather than amortized by waiting for a larger batch.
+
 ## Immediate sequence
 
 1. Keep P1 as the accepted comparison point; locator and global-direct-tail experiments are closed unless a new profile
    changes their ranking.
-2. Trace SDK command/model batch identity through model-commit enqueue and runtime storage, then preserve that boundary
-   while overlapping preparation; E32 proves that faster writes alone shrink batches and cancel their own gain.
-3. Remove fixed transaction work per model batch together with the batch-boundary fix, confirm through matched runs,
-   checkpoint it and rerank the full path.
-4. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.
+2. Fuse or pipeline the synchronous PostgreSQL operations in the packed model/event transaction so an 8k–10k batch
+   completes inside the 65-ms full-route latency budget; do not rely on timer-filled 16k batches.
+3. Re-profile transport after storage latency falls. The 82k-frame fragmentation is real CPU work, but E36 proves it
+   is not independently the current E2E gate; preserve `ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH` when reducing it.
+4. Confirm each candidate through matched non-JFR runs, checkpoint only a positive correct result and rerank the full
+   path.
+5. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.

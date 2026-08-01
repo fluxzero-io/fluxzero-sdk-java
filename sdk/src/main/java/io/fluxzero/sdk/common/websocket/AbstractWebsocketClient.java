@@ -496,16 +496,35 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     private CompletableFuture<Void> sendBatchChunkAsync(
             List<Request> requests, WebsocketSession session) {
+        boolean modelCommits = (FluxzeroJfr.batchEnabled() || FluxzeroJfr.requestStageEnabled())
+                && requests.stream().allMatch(CommitModels.class::isInstance);
+        FluxzeroJfr.Batch batchEvent = modelCommits && FluxzeroJfr.batchEnabled()
+                ? FluxzeroJfr.startBatch(
+                        "sdk.websocket-request", "send", "commit-models",
+                        requests.size(), 0L, 0L, 0L)
+                : null;
+        if (modelCommits && FluxzeroJfr.requestStageEnabled()) {
+            requests.forEach(request -> FluxzeroJfr.requestStage(
+                    request.getRequestId(), "sdk.websocket-request", "send",
+                    requests.size(), -1L));
+        }
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
             byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
+            if (batchEvent != null) {
+                batchEvent.bytes = bytes.length;
+            }
             if (session.isOpen()) {
-                return sendEncodedBatch(session, object, bytes);
+                CompletableFuture<Void> result = sendEncodedBatch(session, object, bytes);
+                FluxzeroJfr.finish(batchEvent, null);
+                return result;
             } else if (!closed.get()) {
                 abort(session, "Channel closed ahead of sending");
             }
+            FluxzeroJfr.finish(batchEvent, null);
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
+            FluxzeroJfr.finish(batchEvent, e);
             if (e instanceof InterruptedException) {
                 currentThread().interrupt();
             }
