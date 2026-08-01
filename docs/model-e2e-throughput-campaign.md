@@ -15,12 +15,12 @@ experiments were rejected.
 | Accepted matched throughput | 330,222/s candidate geometric mean versus 275,049/s control; +20.06%, paired 95% CI 16.61–24.13% |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
-| Latest closed diagnostic | E67: CPU and lock profiles of the result-free route attribute 97.2% of measured client lock weight to the global AdaptiveCache/LRU monitor in `MemoryAwareCacheSupport.get()` |
-| Current production code | clean accepted P2 source in both repositories; no E62–E67 candidate code remains |
-| Next evidence target | remove the proven global AdaptiveCache read bottleneck without weakening adaptive memory bounds, eviction or model-cache proof semantics; screen on the result-free route, then confirm on the canonical full-result route |
+| Latest closed diagnostic | E68: exact segmented LRU removed 99.8% of profiled cache-get lock weight, but two unprofiled result-free pairs measured −1.60% geometric-mean E2E; the candidate was reverted |
+| Current production code | clean accepted P2 source in both repositories; no E62–E68 candidate code remains |
+| Next evidence target | treat the E67 lock result as profiler-amplified rather than a route-capacity limiter; use the E67 CPU/service profile to select a coarser per-command model-evaluation or completion-allocation boundary |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E67 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
+Last updated after E68 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -863,6 +863,52 @@ benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed values are
 `be692e4da30092bec8a107fc30828354cb196605cf11405dc514c1204df8b845`, and
 `8ce0b8dcd761dadb36fb69390aae5e54aba72d0e6074d0e25a295b0a4aeb035c`.
 
+### Rejected experiment E68 — removing the cache monitor does not raise route capacity
+
+E68 replaced the single access-ordered `LinkedHashMap` monitor with 64 access-ordered segments. Reads touched only
+their key's segment, while weight-changing operations remained serialized and exact cache-wide LRU eviction locked all
+segments in a fixed order. The implementation retained hard references, exact maximum weights, entry admission,
+memory-pressure trimming, global access ordering and eviction reasons. All 73 focused `MemoryAwareCacheSupport` and
+`AdaptiveObjectCache` tests passed, including a deterministic cross-segment concurrency test.
+
+The candidate did exactly what the lock hypothesis predicted. Under the same result-free lock profile, total client
+lock weight fell from 597,435 to 2,142 (−99.64%); cache-get weight fell from 580,594 to 1,111 (−99.81%). Profiled
+throughput consequently changed from 107,185/s to 406,628/s. That fourfold number is profiler observer-effect: the
+control emitted and processed vastly more lock events. It cannot be used as an unprofiled route-capacity claim.
+
+Two adjacent unprofiled result-free pairs rejected the candidate before any canonical full-result work:
+
+| Pair | P2 control | Segmented LRU | Delta |
+| --- | ---: | ---: | ---: |
+| 1 | 361,559/s | 367,338/s | +1.60% |
+| 2 | 398,680/s | 379,961/s | −4.70% |
+
+Control/candidate geometric means were 379,666/373,596 commands/s, **−1.60%**. The signs conflict and the aggregate
+is negative, so E68 stops without expanding into canonical A/B. The production and test diff was fully reverted;
+common and SDK production source again match accepted P2 `e94188b5876`. This corrects the E67 interpretation: the
+global cache monitor is real and dominates an instrumented lock recording, but it is not the largest unprofiled route
+capacity constraint.
+
+Candidate pair-1 benchmark/Runtime/client-JFR hashes are
+`52c96c0030e204f76aff08ddd3ae1e0c68adbaef6555a8611cdc53e21ee5bd44`,
+`23a985a3e4adf475358913b9fa980661a1d8eceeba10d32c39295b62af754af2`, and
+`5f0e9091c11bf37ae5afb042479c03b80c8e76e17f29edfe7b3159c5fde2b8b8`; control hashes are
+`c91b5adc5bb064b85f5b3d1bf3393c2f9005a7ae83c6a3b2e2be60aac8f2e281`,
+`1d1cea341e63355de059677cf6248972bf8ec64f0a31b314cc22595ff6dadd58`, and
+`a8227c8047cb83fd68cb5e03fe4212a2df59b109c3e21b8f1ed804498ec2ff5b`. Pair-2 control values are
+`72525163bef8edb609dce7d7fcf7e04ba7d83c240dd68b490ded43a26351dd77`,
+`f746c47f4585db72889e221593be277c499e3e4fe62b4cdb4caaff7a14321165`, and
+`b75a5146421420a8205a2f76b57237c0489d36e4203e6fd3e36a860d071ac3bc`; candidate values are
+`7b624f404f8d4f6b1cbf6a61e2e558f741b20b6ac3e7625bec0ea572de3c29ee`,
+`c0aa97fae3db3931859510d54d73c80e2adc4314275e65f391e660d770d8444b`, and
+`c27e7c8f3c1790a3977a046f6a63d3bf739ccc5a353517abaa7f4f3ceabba1fb`. The lock
+benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed hashes are
+`ba5c72117b691c825582fb97fe73d8d87d910f4e1a03797c1590e06c0779bbe4`,
+`c44ece9978dcd446222422281570e3b38c64bacd4dca5f9c67ed05ac1ddbeb73`,
+`6a85bb90201df981d9b92cd160139248cf257b0813ea7cd9eb781a6f05e20d83`,
+`f724809404b9718301d11d82dcd5316c5950ad49d999b32f95f7adae97f274c8`, and
+`b68dccddc6ef8f33b1609ba4077e83129dc26177e9409cffd18ec949ad708de1`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -893,9 +939,12 @@ benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed values are
     response at +3.99% canonical E2E. Stop result codec microtuning and profile the E61 result-free upper-bound route:
     even deleting all ordinary-result work leaves only 405,700/s, so model/cache/commit work now dominates the 1M gap.
 12. E67 proves that the result-free SDK read path is serialized by the global AdaptiveCache/LRU monitor: 97.2% of
-    client lock weight enters `MemoryAwareCacheSupport.get()`. Remove that global read bottleneck while preserving
-    adaptive bounds and exact LRU/eviction behavior; do not optimize the secondary per-entry proof lock first.
-13. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+    client lock weight enters `MemoryAwareCacheSupport.get()`. E68 then proves this is profiler-amplified: removing
+    99.8% of cache-get lock weight produced −1.60% unprofiled E2E. Do not reopen cache synchronization without a new
+    unprofiled capacity mechanism.
+13. Use the E67 CPU/service profile to select a coarser architectural target in per-command model evaluation,
+    commit-completion state or allocation. A local profiler win is insufficient; screen against P2 immediately.
+14. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
     the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the

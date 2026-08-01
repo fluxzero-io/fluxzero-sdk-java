@@ -37,3 +37,6 @@ E66-P3,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,3
 E66-P4,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,250133,273612,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
 E67-CPU,profile,result-free-model-commit,P2,accepted-source-cpu-attribution,1048576,65536,async-profiler-cpu,,373615,false,diagnostic-global-cache-lock,diagnostic-only,model-e2e-throughput-campaign.md
 E67-LOCK,profile,result-free-model-commit,P2,accepted-source-lock-attribution,1048576,65536,async-profiler-lock,,107185,false,diagnostic-global-cache-lock,diagnostic-only,model-e2e-throughput-campaign.md
+E68-P1,smoke,result-free-model-commit,P2,segmented-exact-lru,1048576,65536,none,361559,367338,false,rejected-neutral,reverted,model-e2e-throughput-campaign.md
+E68-LOCK,profile,result-free-model-commit,P2,segmented-exact-lru,1048576,65536,async-profiler-lock,107185,406628,false,diagnostic-observer-effect,reverted,model-e2e-throughput-campaign.md
+E68-P2,smoke,result-free-model-commit,P2,segmented-exact-lru,1048576,65536,none,398680,379961,false,rejected-neutral,reverted,model-e2e-throughput-campaign.md
