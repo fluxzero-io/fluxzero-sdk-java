@@ -327,6 +327,11 @@ public class Metadata {
         return MetadataBinaryCodec.get(data, offset, length, key);
     }
 
+    static long getLong(
+            byte[] data, int offset, int length, String key, long defaultValue) {
+        return MetadataBinaryCodec.getLong(data, offset, length, key, defaultValue);
+    }
+
     /**
      * Returns the compact serialized representation of this metadata.
      *
@@ -1224,6 +1229,50 @@ public class Metadata {
             return value < 0 ? null : new String(
                     data, (int) (value >>> Integer.SIZE), (int) value,
                     StandardCharsets.UTF_8);
+        }
+
+        private static long getLong(
+                byte[] data, int offset, int length, String key, long defaultValue) {
+            long value = findValue(data, offset, length, key);
+            if (value < 0) {
+                return defaultValue;
+            }
+            return parseLong(
+                    data, (int) (value >>> Integer.SIZE), (int) value,
+                    defaultValue);
+        }
+
+        private static long parseLong(
+                byte[] bytes, int offset, int length, long defaultValue) {
+            if (length == 0) {
+                return defaultValue;
+            }
+            int position = offset;
+            int limitPosition = offset + length;
+            boolean negative = false;
+            byte first = bytes[position];
+            if (first == '-' || first == '+') {
+                negative = first == '-';
+                if (++position == limitPosition) {
+                    return defaultValue;
+                }
+            }
+            long limit = negative ? Long.MIN_VALUE : -Long.MAX_VALUE;
+            long multiplyLimit = limit / 10;
+            long result = 0;
+            while (position < limitPosition) {
+                int digit = bytes[position++] - '0';
+                if (digit < 0 || digit > 9
+                    || result < multiplyLimit) {
+                    return defaultValue;
+                }
+                result *= 10;
+                if (result < limit + digit) {
+                    return defaultValue;
+                }
+                result -= digit;
+            }
+            return negative ? result : -result;
         }
 
         /**

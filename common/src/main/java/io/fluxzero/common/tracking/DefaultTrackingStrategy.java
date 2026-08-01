@@ -21,6 +21,7 @@ import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,6 +67,8 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private final PositionStore positionStore;
     private final TaskScheduler scheduler;
     private final int segments;
+    private final String traceMessageType;
+    private final String traceComponent;
     private final ConcurrentHashMap<Tracker, WaitingTracker> waitingTrackers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Tracker, TrackerRequest<?>> openRequests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TrackerCluster> clusters = new ConcurrentHashMap<>();
@@ -80,19 +83,42 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore) {
         this(source, positionStore, new InMemoryTaskScheduler(
                 "tracking-scheduler-%s".formatted(source),
-                newWorkerPool("tracking-worker-%s".formatted(source), 8)));
+                newWorkerPool("tracking-worker-%s".formatted(source), 8)), MAX_SEGMENT, null);
+    }
+
+    /**
+     * Creates a strategy whose JFR-only request stages identify the logical message log.
+     *
+     * @param traceMessageType logical message type used only while request-stage recording is enabled
+     */
+    public DefaultTrackingStrategy(
+            MessageStore source, PositionStore positionStore, String traceMessageType) {
+        this(source, positionStore, new InMemoryTaskScheduler(
+                "tracking-scheduler-%s".formatted(source),
+                newWorkerPool("tracking-worker-%s".formatted(source), 8)), MAX_SEGMENT, traceMessageType);
     }
 
     public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler) {
-        this(source, positionStore, scheduler, MAX_SEGMENT);
+        this(source, positionStore, scheduler, MAX_SEGMENT, null);
     }
 
     protected DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
                                       int segments) {
+        this(source, positionStore, scheduler, segments, null);
+    }
+
+    protected DefaultTrackingStrategy(
+            MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
+            int segments, String traceMessageType) {
         this.source = source;
         this.positionStore = positionStore;
         this.scheduler = scheduler;
         this.segments = segments;
+        this.traceMessageType = traceMessageType;
+        this.traceComponent = "COMMAND".equals(traceMessageType)
+                ? "runtime.tracking-strategy.COMMAND"
+                : "RESULT".equals(traceMessageType)
+                        ? "runtime.tracking-strategy.RESULT" : null;
         sourceRegistration = source.registerMonitor(this::onUpdate);
         purgeCeasedTrackers(Duration.ofSeconds(2));
     }
@@ -332,6 +358,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         if (stopped) {
             return;
         }
+        recordRequestStages(messages, "update-received");
         updateNotificationVersion.incrementAndGet();
         updateNotificationPending.set(true);
         if (updateNotificationRunning.compareAndSet(false, true)) {
@@ -456,11 +483,33 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     private boolean completeRequest(Tracker tracker, TrackerRequest<?> result, MessageBatch batch) {
+        recordRequestStages(batch.getMessages(), "batch-resolved");
         boolean completed = result.complete(batch);
         if (completed) {
             openRequests.remove(tracker, result);
         }
         return completed;
+    }
+
+    private void recordRequestStages(List<SerializedMessage> messages, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()
+                || messages.isEmpty()
+                || !("COMMAND".equals(traceMessageType) || "RESULT".equals(traceMessageType))) {
+            return;
+        }
+        int batchSize = messages.size();
+        for (SerializedMessage message : messages) {
+            Long boxedIndex = message.getIndex();
+            long traceId = "RESULT".equals(traceMessageType)
+                    ? message.getMetadataLongValue("$traceId", Long.MIN_VALUE)
+                    : boxedIndex == null ? Long.MIN_VALUE : boxedIndex;
+            if (traceId != Long.MIN_VALUE
+                && FluxzeroJfr.requestTraceSampled(traceId)) {
+                FluxzeroJfr.requestStage(
+                        traceId, traceComponent, stage, batchSize,
+                        boxedIndex == null ? -1L : boxedIndex);
+            }
+        }
     }
 
     private void cancelRequest(Tracker tracker, TrackerRequest<?> result) {

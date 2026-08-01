@@ -32,6 +32,7 @@ import io.fluxzero.common.api.tracking.ReadFromIndexResult;
 import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -87,6 +88,7 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                 configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
                 Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
                 .thenApply(result -> {
+                    recordReadStages(result.getMessageBatch(), "read-future-complete");
                     if (Boolean.getBoolean("fluxzero.trackingReadDiagnostics")
                         && !result.getMessageBatch().getMessages().isEmpty()) {
                         long received = result.getRequestReceivedTimestamp();
@@ -108,6 +110,29 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                     }
                     return result.getMessageBatch();
                 });
+    }
+
+    private void recordReadStages(MessageBatch batch, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()
+                || messageType != MessageType.COMMAND && messageType != MessageType.RESULT) {
+            return;
+        }
+        int batchSize = batch.getMessages().size();
+        String component = messageType == MessageType.RESULT
+                ? "sdk.tracking-client.RESULT"
+                : "sdk.tracking-client.COMMAND";
+        for (SerializedMessage message : batch.getMessages()) {
+            Long boxedIndex = message.getIndex();
+            long traceId = messageType == MessageType.RESULT
+                    ? message.getMetadataLongValue("$traceId", Long.MIN_VALUE)
+                    : boxedIndex == null ? Long.MIN_VALUE : boxedIndex;
+            if (traceId != Long.MIN_VALUE
+                && FluxzeroJfr.requestTraceSampled(traceId)) {
+                FluxzeroJfr.requestStage(
+                        traceId, component, stage,
+                        batchSize, boxedIndex == null ? -1L : boxedIndex);
+            }
+        }
     }
 
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,

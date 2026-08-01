@@ -336,6 +336,8 @@ final class ModelCommitter {
              */
             pendingCommits.remove(
                     result.getRequestId(), pending);
+            recordCommitStage(
+                    pending.prepared(), "model-result-matched");
             if (result.isAccepted()) {
                 committed.add(
                         new CommittedCommit(

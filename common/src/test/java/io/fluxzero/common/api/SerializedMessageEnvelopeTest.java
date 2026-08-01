@@ -229,6 +229,28 @@ class SerializedMessageEnvelopeTest {
     }
 
     @Test
+    void readsOpaqueLongMetadataWithoutMaterializingMetadata() throws Exception {
+        SerializedMessage encoded = SerializedMessage.encode(
+                new SerializedMessage(
+                        new Data<>(new byte[]{1}, "type", 0),
+                        Metadata.of(
+                                "positive", Long.MAX_VALUE,
+                                "negative", Long.MIN_VALUE,
+                                "plus", "+42",
+                                "invalid", "9223372036854775808"),
+                        "message-id", 1L));
+        SerializedMessage decoded = SerializedMessage.decode(
+                encoded.copyEnvelope(), 0, encoded.envelopeSize());
+
+        assertEquals(Long.MAX_VALUE, decoded.getMetadataLongValue("positive", 1L));
+        assertEquals(Long.MIN_VALUE, decoded.getMetadataLongValue("negative", 1L));
+        assertEquals(42L, decoded.getMetadataLongValue("plus", 1L));
+        assertEquals(7L, decoded.getMetadataLongValue("invalid", 7L));
+        assertEquals(8L, decoded.getMetadataLongValue("missing", 8L));
+        assertFalse(decoded.isMetadataMaterialized());
+    }
+
+    @Test
     void readsAllChunkStatesFromFixedEnvelopeFlags() throws Exception {
         SerializedMessage encoded = SerializedMessage.encode(
                 new SerializedMessage(

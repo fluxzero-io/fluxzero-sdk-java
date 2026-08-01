@@ -25,6 +25,7 @@ import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
@@ -1112,6 +1113,7 @@ public class DefaultTracking implements Tracking {
             outstandingRequests.add(resultFuture);
             var context = message.captureContext();
             s.whenComplete(context.wrap((r, e) -> {
+                recordResultFlowStage(message, "handler-result-future-complete");
                 CompletionStage<Void> publication;
                 try {
                     publication = reportResult(
@@ -1132,23 +1134,37 @@ public class DefaultTracking implements Tracking {
             }));
             return completion == null ? completedReport : completion;
         } else {
+            recordResultFlowStage(message, "handler-result-ready");
             CompletableFuture<Void> postHandlerCompletion = Invocation.resultPublicationBarrier(message);
             if (postHandlerCompletion.isDone()) {
+                boolean barrierRecorded = false;
                 try {
                     postHandlerCompletion.join();
-                    return resultPublicationCompletion(sendResult(result, h, message, config), config);
+                    recordResultFlowStage(message, "result-barrier-complete");
+                    barrierRecorded = true;
+                    CompletionStage<Void> publication = sendResult(result, h, message, config);
+                    recordResultFlowStage(message, "result-publication-requested");
+                    return resultPublicationCompletion(publication, config);
                 } catch (Throwable e) {
-                    return resultPublicationCompletion(
-                            sendResult(unwrapException(e), h, message, config), config);
+                    if (!barrierRecorded) {
+                        recordResultFlowStage(message, "result-barrier-complete");
+                    }
+                    CompletionStage<Void> publication =
+                            sendResult(unwrapException(e), h, message, config);
+                    recordResultFlowStage(message, "result-publication-requested");
+                    return resultPublicationCompletion(publication, config);
                 }
             }
+            recordResultFlowStage(message, "result-barrier-wait-start");
             CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
             Object response = result;
             var context = message.captureContext();
             postHandlerCompletion.whenComplete(context.wrap((ignored, error) -> {
                 try {
+                    recordResultFlowStage(message, "result-barrier-complete");
                     CompletionStage<Void> publication = sendResult(
                             error == null ? response : unwrapException(error), h, message, config);
+                    recordResultFlowStage(message, "result-publication-requested");
                     if (completion != null) {
                         publication.whenComplete((published, publicationError) -> {
                             if (publicationError == null) {
@@ -1167,6 +1183,22 @@ public class DefaultTracking implements Tracking {
                 }
             }));
             return completion == null ? completedReport : completion;
+        }
+    }
+
+    private static void recordResultFlowStage(
+            DeserializingMessage message, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        try {
+            Long index = message.getSerializedObject().getIndex();
+            if (index != null) {
+                FluxzeroJfr.requestStage(
+                        index, "sdk.result-flow", stage, 1, index);
+            }
+        } catch (RuntimeException ignored) {
+            // Diagnostics must not affect result publication for custom serialized messages.
         }
     }
 

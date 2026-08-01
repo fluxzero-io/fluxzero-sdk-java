@@ -648,6 +648,31 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
                 : metadata == null ? null : metadata.get(key);
     }
 
+    /**
+     * Reads a decimal long metadata value without materializing an opaque metadata value as a {@link String}.
+     *
+     * @param key metadata key
+     * @param defaultValue value returned when the key is absent or its value is not a valid decimal {@code long}
+     * @return parsed value or {@code defaultValue}
+     */
+    public long getMetadataLongValue(String key, long defaultValue) {
+        Objects.requireNonNull(key, "key");
+        if (metadataDeferred) {
+            return Metadata.getLong(
+                    envelope, metadataOffset, metadataLength, key,
+                    defaultValue);
+        }
+        String value = metadata == null ? null : metadata.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
     @Override
     public boolean chunked() {
         int chunkState = envelopeChunkState();

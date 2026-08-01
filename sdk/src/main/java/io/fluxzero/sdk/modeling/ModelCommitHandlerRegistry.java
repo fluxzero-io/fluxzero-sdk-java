@@ -2164,6 +2164,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             startedExecution.whenComplete((result, failure) -> {
                 if (failure == null) {
+                    if (diagnosticMessage != null) {
+                        recordModelRequestStage(
+                                diagnosticMessage, "model-execution-complete", 1);
+                    }
                     execution.complete(result);
                 } else {
                     execution.completeExceptionally(failure);

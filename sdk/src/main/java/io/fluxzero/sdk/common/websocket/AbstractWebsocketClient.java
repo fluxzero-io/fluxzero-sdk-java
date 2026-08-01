@@ -35,6 +35,8 @@ import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.RetryAwareRequest;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
@@ -712,13 +714,17 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             List<RequestResult> results = restoreResultContext(
                     resultBatch.getResults());
             WebSocketRequest[] receivedRequests = receiveResultContext(results);
+            recordResultStages(results, "response-context-restored");
+            recordResultStages(results, "result-preparation-start");
             CompletableFuture<Void> preparation =
                     prepareResultGroup(results);
+            recordPreparationCompletion(results, preparation);
             for (int offset = 0; offset < results.size(); offset += WEBSOCKET_RESULT_CALLBACK_BATCH_SIZE) {
                 int end = Math.min(results.size(), offset + WEBSOCKET_RESULT_CALLBACK_BATCH_SIZE);
                 int start = offset;
                 List<RequestResult> callbackBatch = results.subList(offset, end);
                 long callbackQueuedTimestamp = resultDiagnostics.timestamp();
+                recordResultStages(callbackBatch, "result-callback-queued");
                 FluxzeroJfr.Batch callbackEvent = FluxzeroJfr.startBatch(
                         "sdk.websocket", "result-callback", "RESULT", callbackBatch.size(), 0L, 0L, 0L);
                 long callbackQueuedNanos = callbackEvent == null ? 0L : System.nanoTime();
@@ -731,6 +737,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     ResultHandlingContext context = new ResultHandlingContext();
                     resultHandlingContext.set(context);
                     try {
+                        recordResultStages(callbackBatch, "result-callback-start");
                         preparation.join();
                         for (int index = 0; index < callbackBatch.size(); index++) {
                             RequestResult result = callbackBatch.get(index);
@@ -742,6 +749,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                             frameTiming, decodedTimestamp, callbackQueuedTimestamp,
                                             resultDiagnostics.timestamp()));
                         }
+                        recordResultStages(callbackBatch, "result-callback-complete");
                     } catch (Throwable failure) {
                         callbackFailure = failure;
                         failReceivedRequests(receivedRequests, start, end, failure);
@@ -756,11 +764,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             }
         } else {
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-            RequestResult result = restoreResultContext(
-                    List.of((RequestResult) value)).getFirst();
+            List<RequestResult> singleResult = restoreResultContext(
+                    List.of((RequestResult) value));
+            RequestResult result = singleResult.getFirst();
             WebSocketRequest receivedRequest = receiveResultContext(result);
+            recordResultStages(singleResult, "response-context-restored");
+            recordResultStages(singleResult, "result-preparation-start");
             CompletableFuture<Void> preparation =
-                    prepareResultGroup(List.of(result));
+                    prepareResultGroup(singleResult);
+            recordPreparationCompletion(singleResult, preparation);
+            recordResultStages(singleResult, "result-callback-queued");
             FluxzeroJfr.Batch callbackEvent = FluxzeroJfr.startBatch(
                     "sdk.websocket", "result-callback", "RESULT", 1, 0L, 0L, 0L);
             long callbackQueuedNanos = callbackEvent == null ? 0L : System.nanoTime();
@@ -775,12 +788,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 context.request = receivedRequest;
                 resultHandlingContext.set(context);
                 try {
+                    recordResultStages(singleResult, "result-callback-start");
                     preparation.join();
                     handleResult(
                             result, null, sessionId,
                             resultDiagnostics.resultTiming(
                                     frameTiming, decodedTimestamp, callbackQueuedTimestamp,
                                     resultDiagnostics.timestamp()));
+                    recordResultStages(singleResult, "result-callback-complete");
                 } catch (Throwable failure) {
                     callbackFailure = failure;
                     failReceivedRequest(receivedRequest, failure);
@@ -792,6 +807,60 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     FluxzeroJfr.finish(callbackEvent, callbackFailure);
                 }
             });
+        }
+    }
+
+    private static void recordPreparationCompletion(
+            List<RequestResult> results, CompletableFuture<Void> preparation) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        preparation.whenComplete((ignored, failure) -> {
+            if (failure == null) {
+                recordResultStages(results, "result-preparation-complete");
+            }
+        });
+    }
+
+    private static void recordResultStages(List<RequestResult> results, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        int resultBatchSize = results.size();
+        for (RequestResult result : results) {
+            if (result instanceof CommitModelsResult commit) {
+                Long traceId = FluxzeroJfr.resolveTraceCorrelation(commit.getCommitId());
+                if (traceId != null) {
+                    FluxzeroJfr.requestStage(
+                            traceId, "sdk.websocket-input.MODEL", stage,
+                            resultBatchSize, traceId);
+                }
+                continue;
+            }
+            if (!(result instanceof ReadResult readResult)) {
+                continue;
+            }
+            List<io.fluxzero.common.api.SerializedMessage> messages =
+                    readResult.getMessageBatch().getMessages();
+            int messageBatchSize = messages.size();
+            for (io.fluxzero.common.api.SerializedMessage message : messages) {
+                Long boxedIndex = message.getIndex();
+                long traceId = message.getMetadataLongValue(
+                        "$traceId", Long.MIN_VALUE);
+                String component = "sdk.websocket-input.RESULT";
+                if (traceId == Long.MIN_VALUE) {
+                    if (boxedIndex == null) {
+                        continue;
+                    }
+                    traceId = boxedIndex;
+                    component = "sdk.websocket-input.COMMAND";
+                }
+                if (FluxzeroJfr.requestTraceSampled(traceId)) {
+                    FluxzeroJfr.requestStage(
+                            traceId, component, stage,
+                            messageBatchSize, boxedIndex == null ? -1L : boxedIndex);
+                }
+            }
         }
     }
 
