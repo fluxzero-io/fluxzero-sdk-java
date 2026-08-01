@@ -1037,6 +1037,54 @@ The final JFR and logs are `/private/tmp/sdk-model-metadata-key-cache-final.jfr`
 bytewise runtime artifact hash `d043947db3f5ddbc60bbd6d5510c1698736f7b2d855a3f69d33e6de83ffa652a` from the same clean source commit.
 The benchmark driver remained `b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
 
+### Reuse the runtime ZSTD destination buffer
+
+The metadata-key recording's largest clearly removable runtime allocation was below the tracking store rather than in
+another SDK metadata accessor. `JdbcMessageStore` serializes native envelopes into an uncompressed LTS block and then
+compresses that block. The runtime ZSTD helper used `ZstdCompressCtx.compress(byte[])`, which allocates a
+compression-bound destination and then trims it, after which `compressBytes` allocated and copied the final Fluxzero
+header plus compressed payload. The adjacent control attributed 1,142.2 MiB of sampled allocation to the first helper
+and 1,161.9 MiB to the second result allocation.
+
+Each of the existing sixteen pooled ZSTD contexts now owns a reusable destination buffer. Compression writes directly
+at the seven-byte Fluxzero-header offset and returns one exactly sized header-plus-payload array. A pooled buffer is
+retained only up to 4 MiB, bounding retained Java buffers at 64 MiB across the complete pool; larger one-off batches use
+a reclaimable temporary destination. Header-free `doCompress` remains header-free, ZSTD level one is unchanged, and
+the `NONE` and `LZ4` paths retain their previous implementation. Focused tests compare the header-free bytes against
+the previous `ZstdCompressCtx` encoder, exercise grow/reuse/grow buffer order and round-trip the persisted header.
+
+The final production-default JFR again used 65,536 models, 65,536 warm-up updates, 1,048,576 measured updates, the
+65,536 in-flight bound, sixteen command consumers, 32-byte payloads, two event-sourcing sessions, defaults version
+`2026.07.27`, adaptive caching and ordinary tracked command results. It completed every exact result, membership and
+global-event check at 203,909 commands/s with 273.362 / 348.536 / 375.244 / 384.211-ms p50/p95/p99/max latency and
+122 commit batches averaging 8,594.9 items (min 5, max 16,384). The exact same final artifacts reached 197,258/s
+without JFR, with 127 batches averaging 8,256.5 items. As in the preceding checkpoints, those absolute rates are not
+treated as an isolated throughput delta.
+
+The allocation attribution is direct. The old runtime `doCompress` stack disappeared from 1,142.2 MiB to zero, and
+the complete runtime header/result stack fell from 1,161.9 MiB to 121.5 MiB. The new bounded compressor accounted for
+119.9 MiB of that result. That is a 94.7% reduction for the specific runtime compression-output path; total sampled
+allocation fell from 38,044.5 MiB to 35,915.4 MiB, although unrelated sites and sampling still vary between recordings.
+The separately named common/SDK WebSocket ZSTD compressor remains visible and was not conflated with the removed
+runtime-store allocation.
+
+The focused compression and persisted-message suites passed all seven tests. A final serial runtime reactor then
+passed the runtime, benchmark application and benchmark modules in 1:03. Its log is
+`/private/tmp/runtime-zstd-buffer-final-full-build.log`, SHA-256
+`a22ae1a6729cfeca27a7bd60528effce5431e25621c1a32ac842949545fc16bf`. The post-verification shaded runtime artifact
+from the same source has SHA-256 `5411544dfdfaf1b9c7e117147f5c93584e1e48c650e16e8dc88bfd4efe346cfa`.
+
+The canonical recording and logs are `/private/tmp/sdk-model-zstd-buffer-final2.jfr`, `.log` and `-run1.log`, with
+SHA-256 `e245e957ae23626b2d36b963400babc9f2e2e1ae9d97eb44ede688f85d372e7e`,
+`4e4e88bbb17c1123ee679294c86a8e064919e2a4b6497a5e2e6a45f768c13df8` and
+`5c14ba1abbb5a185a10643da029087ff32a39de9b1e5e8b10a7fd7c415e4e337`. Measured source identity was clean SDK commit
+`8ccbce0becc` and runtime base `d867f8e21203fabf67e485171924cb9ce58ab2b0` plus the production/test diff SHA-256
+`1788e0430395250dc09622162d7a394a70d1f6d19d82b96db1ef6df880406f51`. Installed common, SDK and runtime artifact
+hashes were `e97b6469cbc4e32131b6c9bd5cb387249c8fd69d76ec7b5f0441962dde97ff09`,
+`e407aead852cb10997e5be1ed465e03aa708dadcb2a114812a15d5d073c3a66b` and
+`55dde6d1ee26b97c2388262eb5201719a3fb75f1cc792e285abd6ebd884ca528`; the benchmark driver remained
+`b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
+
 ## Measurement discipline
 
 Before accepting or rejecting another optimization:
