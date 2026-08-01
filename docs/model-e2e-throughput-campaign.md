@@ -85,7 +85,7 @@ Functional and throughput evidence are separate gates:
 The 283,183/s run is a valid observation, not an outlier. One observation is insufficient to estimate stable baseline
 throughput, so A0 must be remeasured through the matched protocol before accepting or rejecting later candidates.
 
-### Provisional runtime candidate R1
+### Rejected runtime candidate R1
 
 - Runtime: `6099bed6` (`perf(serialization): reuse ZSTD compression buffers`), compared with `d867f8e2`.
 - SDK in its recorded runs: `8ccbce0becc`.
@@ -96,8 +96,9 @@ throughput, so A0 must be remeasured through the matched protocol before accepti
 - Non-JFR log: `/private/tmp/sdk-model-zstd-buffer-final2-run1.log`, SHA-256
   `5c14ba1abbb5a185a10643da029087ff32a39de0b1e5e8b10a7fd7c415e4e337`.
 
-R1 is committed but remains provisional as a throughput checkpoint. Its targeted allocation improvement is real; its
-global E2E effect has not yet passed matched A/B and may be neutral or negative.
+R1's targeted allocation improvement is real, but matched A/B experiment E2 rejected it as a throughput checkpoint.
+Its +0.71% geometric-mean result was far below the 5% threshold and the paired 95% interval included a regression.
+The implementation must therefore be reverted before C1 is assessed.
 
 ### Uncommitted common/SDK candidate C1
 
@@ -140,17 +141,16 @@ limiter from top allocation stacks alone.
 | --- | --- | --- | --- | --- | --- |
 | E0 | 2026-08-01 | A0 | R1 | Historical adjacent non-JFR and JFR runs | Inconclusive. Targeted allocation fell sharply, but unmatched absolute rates cannot establish E2E improvement. Run strict A/B. |
 | E1 | 2026-08-01 | R1 | C1 | Adjacent JFR runs | Inconclusive. Common ZSTD allocation fell and correctness passed, but C1 needs a matched control after R1 is resolved. |
+| E2 | 2026-08-01 | A0 | R1 | Four balanced non-JFR runs per side; [`model-e2e-e2-screening.csv`](performance-runs/model-e2e-e2-screening.csv) | Reject R1 as throughput checkpoint. A0 geometric mean 194,075/s; R1 195,453/s; delta +0.71%, paired bootstrap 95% interval -1.76% to +3.24%. All correctness checks passed. |
 
 ## Immediate sequence
 
-1. Rebuild A0 and R1 from exact detached source trees and run balanced non-profiled A/B with identical artifacts and
-   host conditions.
-2. Accept or reject R1 as the runtime side. Preserve the allocation finding even if throughput rejects the implementation.
-3. Compare C1 against the accepted runtime side using the same protocol; commit it only if it improves full E2E.
-4. Add the batch JFR events, sampled causality trace and per-run PostgreSQL delta capture without changing message
+1. Revert R1 while preserving its allocation lesson and retain A0 as the accepted runtime side.
+2. Compare C1 against A0 using the same protocol; commit it only if it improves full E2E.
+3. Add the batch JFR events, sampled causality trace and per-run PostgreSQL delta capture without changing message
    semantics.
-5. Establish the primary capacity limiter using JFR plus separate async-profiler CPU/wall/alloc/lock recordings.
-6. Remove that limiter architecturally, confirm it through matched A/B, checkpoint it and repeat.
+4. Establish the primary capacity limiter using JFR plus separate async-profiler CPU/wall/alloc/lock recordings.
+5. Remove that limiter architecturally, confirm it through matched A/B, checkpoint it and repeat.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
