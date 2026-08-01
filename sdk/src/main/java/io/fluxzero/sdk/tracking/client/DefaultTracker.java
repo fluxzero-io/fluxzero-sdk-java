@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.sdk.Fluxzero;
@@ -437,26 +438,77 @@ public class DefaultTracker implements Runnable, Registration {
 
     private void doProcess(Consumer<List<SerializedMessage>> consumer, MessageBatch messageBatch) {
         List<SerializedMessage> messages = messageBatch.getMessages();
+        FluxzeroJfr.Batch event = trackingBatchEvent(messages);
+        recordRequestStages(messages, "tracker-delivered");
+        long handlingStarted = event == null ? 0L : System.nanoTime();
+        Throwable diagnosticFailure = null;
         try {
-            consumer.accept(messages);
-        } catch (BatchProcessingException e) {
-            log.error(
-                    "Consumer {} failed to handle batch of {} messages at index {} and did not handle exception. "
-                    + "Consumer will be updated to the last processed index and then stopped.",
-                    tracker.getName(), messages.size(), e.getMessageIndex());
-            storePosition(messages.stream().map(SerializedMessage::getIndex)
-                                  .filter(i -> e.getMessageIndex() != null && i != null
-                                               && i < e.getMessageIndex())
-                                  .max(naturalOrder()).orElse(null), messageBatch.getSegment());
-            cancelAndDisconnect();
-            return;
-        } catch (Exception e) {
-            log.error("Consumer {} failed to handle batch of {} messages and did not handle exception. "
-                      + "Tracker will be stopped.", tracker.getName(), messages.size(), e);
-            cancelAndDisconnect();
+            try {
+                consumer.accept(messages);
+            } catch (BatchProcessingException e) {
+                diagnosticFailure = e;
+                log.error(
+                        "Consumer {} failed to handle batch of {} messages at index {} and did not handle exception. "
+                        + "Consumer will be updated to the last processed index and then stopped.",
+                        tracker.getName(), messages.size(), e.getMessageIndex());
+                storePosition(messages.stream().map(SerializedMessage::getIndex)
+                                      .filter(i -> e.getMessageIndex() != null && i != null
+                                                   && i < e.getMessageIndex())
+                                      .max(naturalOrder()).orElse(null), messageBatch.getSegment());
+                cancelAndDisconnect();
+                return;
+            } catch (Exception e) {
+                diagnosticFailure = e;
+                log.error("Consumer {} failed to handle batch of {} messages and did not handle exception. "
+                          + "Tracker will be stopped.", tracker.getName(), messages.size(), e);
+                cancelAndDisconnect();
+                return;
+            }
+            long handled = event == null ? 0L : System.nanoTime();
+            if (event != null) {
+                event.callbackNanos = handled - handlingStarted;
+            }
+            storePosition(messageBatch.getLastIndex(), messageBatch.getSegment());
+            if (event != null) {
+                event.storageNanos = System.nanoTime() - handled;
+            }
+            recordRequestStages(messages, "tracker-completed");
+        } catch (RuntimeException | Error failure) {
+            diagnosticFailure = failure;
+            throw failure;
+        } finally {
+            FluxzeroJfr.finish(event, diagnosticFailure);
+        }
+    }
+
+    private FluxzeroJfr.Batch trackingBatchEvent(List<SerializedMessage> messages) {
+        if (!FluxzeroJfr.batchEnabled()) {
+            return null;
+        }
+        long bytes = 0L;
+        for (SerializedMessage message : messages) {
+            bytes += message.getBytes();
+        }
+        return FluxzeroJfr.startBatch(
+                "sdk.tracker", "handle", trackingClient.getMessageType().name(),
+                messages.size(), bytes, 0L, 0L);
+    }
+
+    private void recordRequestStages(List<SerializedMessage> messages, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
             return;
         }
-        storePosition(messageBatch.getLastIndex(), messageBatch.getSegment());
+        int batchSize = messages.size();
+        String component = "sdk.tracker." + trackingClient.getMessageType().name();
+        for (SerializedMessage message : messages) {
+            Integer requestId = message.getRequestId();
+            if (requestId != null) {
+                Long index = message.getIndex();
+                FluxzeroJfr.requestStage(
+                        Integer.toUnsignedLong(requestId), component, stage, batchSize,
+                        index == null ? -1L : index);
+            }
+        }
     }
 
 

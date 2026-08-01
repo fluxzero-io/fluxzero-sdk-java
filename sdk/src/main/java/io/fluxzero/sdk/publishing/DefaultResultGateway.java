@@ -19,6 +19,7 @@ import io.fluxzero.common.Backlog;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
@@ -39,6 +40,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -71,6 +73,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final ResponseMapper responseMapper;
+    private final AtomicLong responseQueueDepth = new AtomicLong();
 
     @Getter(lazy = true)
     private final GatewayClient gatewayClient = client.getGatewayClient(RESULT);
@@ -151,13 +154,18 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         PreparedResponse prepared = new PreparedResponse(
                 batchResponse.payload(), batchResponse.metadata(), target, requestId, context,
                 CompositeDispatchInterceptor.requiresMonitoring(dispatchInterceptor, RESULT), errorHandler,
-                trackCompletion ? new CompletableFuture<>() : null);
-        getResponseBacklog().addUntracked(prepared);
+                trackCompletion ? new CompletableFuture<>() : null,
+                FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L);
+        enqueue(prepared);
         return prepared.dispatched();
     }
 
     private CompletableFuture<Void> publishBatch(List<PreparedResponse> responses) {
         int size = responses.size();
+        long queueDepth = responseQueueDepth.addAndGet(-size);
+        FluxzeroJfr.Batch event = resultBatchEvent(responses, queueDepth);
+        recordResponseStages(responses, "result-publication-start");
+        long preparationStarted = event == null ? 0L : System.nanoTime();
         boolean hasMonitoring = false;
         for (int index = 0; index < size; index++) {
             if (responses.get(index).monitor()) {
@@ -220,6 +228,10 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             }
         }
         if (publishedSize == 0) {
+            if (event != null) {
+                event.preparationNanos = System.nanoTime() - preparationStarted;
+            }
+            FluxzeroJfr.finish(event, null);
             return CompletableFuture.completedFuture(null);
         }
 
@@ -227,6 +239,17 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 ? serialized : Arrays.copyOf(serialized, publishedSize);
         PreparedResponse[] appendedResponses = publishedSize == published.length
                 ? published : Arrays.copyOf(published, publishedSize);
+        long appendStarted = 0L;
+        if (event != null) {
+            event.outputItemCount = publishedSize;
+            event.preparationNanos = System.nanoTime() - preparationStarted;
+            long bytes = 0L;
+            for (SerializedMessage message : appendBatch) {
+                bytes += message.envelopeSize();
+            }
+            event.bytes = bytes;
+            appendStarted = System.nanoTime();
+        }
         CompletableFuture<Void> result;
         try {
             result = getGatewayClient().append(Guarantee.NONE, appendBatch);
@@ -247,7 +270,72 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 }
             });
         }
+        if (event != null || FluxzeroJfr.requestStageEnabled()) {
+            long publicationStarted = appendStarted;
+            result.whenComplete((ignored, failure) -> {
+                if (event != null) {
+                    event.publicationNanos = System.nanoTime() - publicationStarted;
+                }
+                if (failure == null) {
+                    recordResponseStages(appendedResponses, "result-publication-complete");
+                }
+                FluxzeroJfr.finish(event, failure);
+            });
+        }
         return result;
+    }
+
+    private void enqueue(PreparedResponse response) {
+        responseQueueDepth.incrementAndGet();
+        try {
+            getResponseBacklog().addUntracked(response);
+        } catch (RuntimeException | Error failure) {
+            responseQueueDepth.decrementAndGet();
+            throw failure;
+        }
+    }
+
+    private static FluxzeroJfr.Batch resultBatchEvent(
+            List<PreparedResponse> responses, long queueDepth) {
+        if (!FluxzeroJfr.batchEnabled()) {
+            return null;
+        }
+        long now = System.nanoTime();
+        long enqueued = responses.getFirst().enqueuedNanos();
+        FluxzeroJfr.Batch event = FluxzeroJfr.startBatch(
+                "sdk.result-gateway", "publish", RESULT.name(), responses.size(), 0L,
+                Math.max(0L, queueDepth), 0L);
+        event.queueWaitNanos = enqueued == 0L ? 0L : Math.max(0L, now - enqueued);
+        return event;
+    }
+
+    private static void recordResponseStages(
+            List<PreparedResponse> responses, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        int batchSize = responses.size();
+        for (PreparedResponse response : responses) {
+            Integer requestId = response.requestId();
+            if (requestId != null) {
+                FluxzeroJfr.requestStage(
+                        Integer.toUnsignedLong(requestId), "sdk.result-gateway", stage, batchSize, -1L);
+            }
+        }
+    }
+
+    private static void recordResponseStages(
+            PreparedResponse[] responses, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        for (PreparedResponse response : responses) {
+            Integer requestId = response.requestId();
+            if (requestId != null) {
+                FluxzeroJfr.requestStage(
+                        Integer.toUnsignedLong(requestId), "sdk.result-gateway", stage, responses.length, -1L);
+            }
+        }
     }
 
     private void prepareRange(List<PreparedResponse> responses, Message[] messages, SerializedMessage[] serialized,
@@ -316,8 +404,9 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     private CompletableFuture<Void> enqueueRetry(PreparedResponse response) {
         PreparedResponse retry = new PreparedResponse(
                 response.payload(), response.metadata(), response.target(), response.requestId(), response.context(),
-                response.monitor(), null, new CompletableFuture<>());
-        getResponseBacklog().addUntracked(retry);
+                response.monitor(), null, new CompletableFuture<>(),
+                FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L);
+        enqueue(retry);
         return retry.dispatched();
     }
 
@@ -343,7 +432,8 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
 
     private record PreparedResponse(Object payload, Metadata metadata, String target, Integer requestId,
                                     ThreadLocalContext.Snapshot context, boolean monitor,
-                                    ResultPreparationErrorHandler errorHandler, CompletableFuture<Void> dispatched) {
+                                    ResultPreparationErrorHandler errorHandler, CompletableFuture<Void> dispatched,
+                                    long enqueuedNanos) {
     }
 
     /** Handles an asynchronous result-preparation failure and may retry the supplied publication. */
