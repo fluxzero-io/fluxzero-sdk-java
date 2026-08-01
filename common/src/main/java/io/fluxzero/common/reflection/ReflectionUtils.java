@@ -445,11 +445,28 @@ public class ReflectionUtils {
     }
 
     public static Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
+        return Optional.ofNullable(getAnnotatedPropertyValueOrNull(target, annotation));
+    }
+
+    /**
+     * Returns the value of the first property carrying the given annotation, or {@code null} when the target,
+     * annotated property, or property value is absent.
+     *
+     * <p>This is the allocation-free counterpart of {@link #getAnnotatedPropertyValue(Object, Class)} for callers
+     * that already use {@code null} as their absence sentinel. It uses the same centrally cached
+     * {@link TypeMetadata} and compiled {@link MemberInvoker}.</p>
+     *
+     * @param target target object, or {@code null}
+     * @param annotation annotation that identifies the property
+     * @return the property value, or {@code null} when absent
+     */
+    public static Object getAnnotatedPropertyValueOrNull(
+            Object target, Class<? extends Annotation> annotation) {
         if (target == null) {
-            return Optional.empty();
+            return null;
         }
         Optional<MemberInvoker> invoker = getAnnotatedPropertyInvoker(asClass(target), annotation);
-        return invoker.isEmpty() ? Optional.empty() : Optional.ofNullable(invoker.get().invoke(target));
+        return invoker.isEmpty() ? null : invoker.get().invoke(target);
     }
 
     public static Collection<Object> getAnnotatedPropertyValues(Object target, Class<? extends Annotation> annotation) {
