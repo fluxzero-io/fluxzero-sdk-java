@@ -23,7 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class RepositoryCacheTest {
 
@@ -169,6 +171,60 @@ class RepositoryCacheTest {
             assertNull(cache.get("remove"));
         } finally {
             delegate.close();
+        }
+    }
+
+    @Test
+    void reusesReadKeysWithoutBreakingReentrantCacheAccess() {
+        ReentrantAdaptiveCache delegate =
+                new ReentrantAdaptiveCache();
+        try {
+            RepositoryCache cache =
+                    new RepositoryCache(
+                            delegate, "model", "tenant");
+            delegate.repositoryCache = cache;
+            cache.put("outer", "outer-value");
+            cache.put("nested", "nested-value");
+            delegate.reenter = true;
+
+            assertEquals("outer-value", cache.get("outer"));
+            Object firstLookupKey = delegate.outerLookupKey;
+
+            assertEquals("nested-value", delegate.nestedValue);
+            assertNotSame(
+                    delegate.outerLookupKey,
+                    delegate.nestedLookupKey);
+            assertEquals(0, firstLookupKey.hashCode());
+
+            assertEquals("outer-value", cache.get("outer"));
+            assertSame(firstLookupKey, delegate.outerLookupKey);
+        } finally {
+            delegate.close();
+        }
+    }
+
+    private static final class ReentrantAdaptiveCache extends AdaptiveObjectCache {
+        private RepositoryCache repositoryCache;
+        private boolean reenter;
+        private boolean nested;
+        private Object outerLookupKey;
+        private Object nestedLookupKey;
+        private Object nestedValue;
+
+        @Override
+        public <T> T get(Object id) {
+            if (reenter && !nested) {
+                outerLookupKey = id;
+                nested = true;
+                try {
+                    nestedValue = repositoryCache.get("nested");
+                } finally {
+                    nested = false;
+                }
+            } else if (nested) {
+                nestedLookupKey = id;
+            }
+            return super.get(id);
         }
     }
 }

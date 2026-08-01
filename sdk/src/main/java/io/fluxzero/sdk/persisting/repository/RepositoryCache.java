@@ -35,6 +35,9 @@ import java.util.function.LongSupplier;
  */
 final class RepositoryCache implements Cache {
 
+    private static final ThreadLocal<LookupKeyPool> LOOKUP_KEYS =
+            ThreadLocal.withInitial(LookupKeyPool::new);
+
     private final Cache delegate;
     private final String component;
     private final String namespace;
@@ -184,7 +187,13 @@ final class RepositoryCache implements Cache {
 
     @Override
     public <T> T get(Object id) {
-        return delegate.get(key(id));
+        LookupKeyPool pool = LOOKUP_KEYS.get();
+        CacheKey lookupKey = pool.acquire(component, namespace, id);
+        try {
+            return delegate.get(lookupKey);
+        } finally {
+            pool.release(lookupKey);
+        }
     }
 
     @Override
@@ -192,16 +201,28 @@ final class RepositoryCache implements Cache {
             Iterable<? extends U> lookups,
             Function<? super U, ?> keyFunction,
             BiConsumer<? super U, ? super T> valueConsumer) {
-        delegate.supplyAll(
-                lookups,
-                lookup -> key(
-                        keyFunction.apply(lookup)),
-                valueConsumer);
+        LookupKeyPool pool = LOOKUP_KEYS.get();
+        CacheKey lookupKey = pool.acquire(component, namespace, null);
+        try {
+            delegate.supplyAll(
+                    lookups,
+                    lookup -> lookupKey.forId(
+                            keyFunction.apply(lookup)),
+                    valueConsumer);
+        } finally {
+            pool.release(lookupKey);
+        }
     }
 
     @Override
     public boolean containsKey(Object id) {
-        return delegate.containsKey(key(id));
+        LookupKeyPool pool = LOOKUP_KEYS.get();
+        CacheKey lookupKey = pool.acquire(component, namespace, id);
+        try {
+            return delegate.containsKey(lookupKey);
+        } finally {
+            pool.release(lookupKey);
+        }
     }
 
     @Override
@@ -312,15 +333,19 @@ final class RepositoryCache implements Cache {
     }
 
     private static final class CacheKey {
-        private final String component;
-        private final String namespace;
+        private String component;
+        private String namespace;
         private Object id;
         private int hashCode;
 
         private CacheKey(String component, String namespace, Object id) {
+            forLookup(component, namespace, id);
+        }
+
+        private CacheKey forLookup(String component, String namespace, Object id) {
             this.component = component;
             this.namespace = namespace;
-            forId(id);
+            return forId(id);
         }
 
         private CacheKey forId(Object id) {
@@ -343,6 +368,13 @@ final class RepositoryCache implements Cache {
             return id;
         }
 
+        private void clear() {
+            component = null;
+            namespace = null;
+            id = null;
+            hashCode = 0;
+        }
+
         @Override
         public boolean equals(Object candidate) {
             return candidate instanceof CacheKey other
@@ -363,6 +395,43 @@ final class RepositoryCache implements Cache {
             return first == second
                    || first != null
                       && first.equals(second);
+        }
+    }
+
+    /**
+     * Provides reusable lookup keys without retaining repository scopes or identifiers in handler threads. A small
+     * stack keeps nested cache access from mutating an outer lookup key while a custom key is computing equality.
+     */
+    private static final class LookupKeyPool {
+        private CacheKey[] keys = new CacheKey[1];
+        private int depth;
+
+        private CacheKey acquire(String component, String namespace, Object id) {
+            if (depth == keys.length) {
+                CacheKey[] expanded = new CacheKey[keys.length << 1];
+                System.arraycopy(keys, 0, expanded, 0, keys.length);
+                keys = expanded;
+            }
+            int index = depth++;
+            CacheKey result = keys[index];
+            if (result == null) {
+                result = new CacheKey(null, null, null);
+                keys[index] = result;
+            }
+            try {
+                return result.forLookup(component, namespace, id);
+            } catch (RuntimeException | Error e) {
+                release(result);
+                throw e;
+            }
+        }
+
+        private void release(CacheKey key) {
+            int index = --depth;
+            if (keys[index] != key) {
+                throw new IllegalStateException("Lookup keys must be released in reverse acquisition order");
+            }
+            key.clear();
         }
     }
 }
