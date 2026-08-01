@@ -152,6 +152,11 @@ limiter from top allocation stacks alone.
 | E9/E10 | 2026-08-01 | Legacy staged tails | Always-direct tails | Eight balanced non-JFR runs per side | Candidate geometric mean 320,399/s versus 207,045/s, +54.75%; paired bootstrap 95% +50.23% to +58.84%. Replaced by an adaptive form before acceptance because always-direct storage can retain one LTS row per isolated low-rate append. |
 | E11 | 2026-08-01 | Forced legacy staged tails | Adaptive direct tails under storage backlog | Eight balanced non-JFR runs per side; [`model-e2e-e11-adaptive-tail-confirmation.csv`](performance-runs/model-e2e-e11-adaptive-tail-confirmation.csv) | Accept after verification. Adaptive geometric mean 271,464/s versus 206,862/s, +31.23%; all eight pairs +17.13% to +53.54%; paired bootstrap 95% +24.68% to +38.92%. Exact checks passed in all sixteen runs. |
 | E12 | 2026-08-01 | Accepted adaptive default | Final equivalent JFR | `/private/tmp/model-e2e-adaptive-tail-e12.jfr`, SHA-256 `4874af77a902a20930b3d695183ecb29dbe0cfc087fef54a7d03401f84877e9b` | 274,466/s, exact checks passed. Result service capacity remains 0.510M/s with 29.959-ms p95 queue wait. Allocation is 35,240 MiB versus E6e's 35,207 MiB, so the throughput gain does not hide a memory increase. The packed model store at 0.391M/s is now the lowest measured serial capacity and becomes the next profiler target after checkpoint P1. |
+| E13 | 2026-08-01 | P1 with ordinary locator | Skip only the asynchronous derived locator | JFR `/private/tmp/model-e2e-no-locator-e13.jfr`, SHA-256 `dd31892fd49eeb679be0b0311e7b5a9b4d50c76ce3151445c936d0849dc1df33`; log SHA-256 `ed93baad9afa866bfce01afc83bf451fc6fb1445553fbc8ee5cc5267a51c971d` | Diagnostic only: 316,038/s, +15.1% versus unmatched E12. Exact E2E checks passed. The model store improved only 0.391M to 0.403M/s and remained the foreground limit, while removing locator contention improved every JDBC writer. The locator is material database load, but not the sole durable limiter. |
+| E14 | 2026-08-01 | P1 | Measured-phase async-profiler wall plus JFR/SQL | Wall profile `/private/tmp/model-e2e-wall-e14.collapsed`, SHA-256 `f94ca529d976e02a8fa15d03f1dc58384c3648558def211e3a361b2d62e83e1f`; JFR SHA-256 `327538303aa6f997f7c99b07d92ca70a0b94faec9cd4568ab9481ff7cc108856` | 279,545/s. The event commit thread had 724 active wall samples: 215 staging flush, 206 model lock/COPY/update, 152 serialization wait and 63 commit. Across shared insert workers another 911 samples were in direct LTS inserts, 890 ending in PostgreSQL socket wait. Locator COPY wrote one scalar row per membership and consumed about 4.87 s aggregate server execution. Foreground event/model durability and direct LTS writes, not SDK `@Apply`, are the next target. |
+| E15 | 2026-08-01 | P1 adaptive tails | Force direct tails for command, event and result | Equivalent JFR `/private/tmp/model-e2e-force-direct-e15.jfr`, SHA-256 `ebc2bfb99af164b0da0f8c0c2110b3f72e202ed6131080e98bacac1339509366`; log SHA-256 `7a91ec60123d8897a52c30175add0a6f99f5ae3337c04cf1ab56e8b0851eeb05` | Reject. Event storage p95 improved 35.151 to 25.737 ms and staging deletes disappeared, but global row fragmentation displaced work into command/result and GC rose from 7/219 ms to 26/1,256 ms. Full E2E fell to 249,001/s. Do not generalize direct tails beyond the accepted adaptive rule. |
+| E16 | 2026-08-01 | Scalar B-tree locator | Same scalar locator without its index | Equivalent JFR `/private/tmp/model-e2e-unindexed-locator-e16.jfr`, SHA-256 `51cbd4ca22f6f488257ffc73c6088297925254afc07c5ee8317525045af31a46`; log SHA-256 `3c6b0cefa56069a5c46d93a78ecc3b49bce0592d4912149e140b0ed6e243f1e9` | Reject: 240,206/s. Removing index maintenance reduced locator shared-buffer hits but still required about 4.17 s aggregate COPY execution for 1.05M scalar rows. The index is not the dominant locator write cost, and removing it destroys the cold-read contract. |
+| E17/E18 | 2026-08-01 | Immediate locator wake-up | 10-ms then 100-ms locator coalescing | E17 JFR SHA-256 `03113c6f945df458e2700cf0fb6ecaf7d4643aaadc85e7811f2c09794cb26994`; [`model-e2e-e18-locator-coalescing-screening.csv`](performance-runs/model-e2e-e18-locator-coalescing-screening.csv) | Reject and revert. At 100 ms, per-partition COPY/commit rounds fell from about 116 to 30 while writing the same rows and ending with the durable cursor exactly at the authoritative stream head. Three alternating non-JFR pairs were +0.035%, -4.013% and +2.501%; geometric means 261,112/s control and 259,732/s candidate, delta -0.529%. Lower derived-index load did not improve the full boundary. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -241,13 +246,48 @@ is independently disabled. Verification then passed in sequence against the same
   test compilation;
 - `git diff --check` passed in both repositories before staging.
 
+## Diagnostic checkpoint D2 — derived locator versus foreground durability
+
+The scalar model-stream locator is intentionally derived and unlogged. Reads remain correct while it lags because they
+combine the locator prefix with the authoritative packed stream tail at the reader's own repeatable-read boundary.
+That does not make its capacity irrelevant: E14 wrote about 1.05 million locator memberships through eight partitioned
+COPY streams, which made those statements the largest aggregate PostgreSQL consumer.
+
+Several attractive shortcuts are conclusively excluded:
+
+- the previous compact `integer[]` plus GIN representation wrote far fewer rows, but had already been replaced because
+  random cold model loads were materially slower; returning to it would trade away the read target;
+- a scalar PostgreSQL hash index had previously lowered locator SQL work about 26% but produced 221k/s versus 228k/s
+  for the B-tree control, so it was not retained;
+- skipping the locator (E13), skipping its index (E16), globally forcing direct tracking tails (E15) and delaying the
+  locator writer (E17/E18) are all diagnostics, not acceptable production changes;
+- E18 proves that cutting locator transaction count by roughly three quarters is E2E-neutral. The locator remains a
+  future sustained-capacity concern, but it is not the next foreground optimization.
+
+E14's wall profile supplies the new ranking. During its 5.14-second measured window, the three single commit threads
+were active for only 393 command, 724 event and 476 result samples; their largest classified work was durable commit,
+staging flush, packed model storage and serialization wait. Separately, direct LTS inserts accumulated 911 wall samples
+over the shared JDBC workers, of which 890 ended in PostgreSQL socket wait. This explains why summing only the commit
+thread understates storage service: full compressed rows are inserted asynchronously on the transaction connection
+before the ordered commit thread can proceed.
+
+E18 paired log identities, in execution order:
+
+| Pair | Immediate control | 100-ms coalescing | Delta |
+| --- | --- | --- | ---: |
+| 1 | 267,711/s, SHA `19101af69500696857c93e271a1747805bc5fa5e1a6226dce0a9565985243e42` | 267,805/s, SHA `ed0b334fe327c844faa17bd14b682732a71d8a20956c5d3e6e1043d0b00cd146` | +0.035% |
+| 2 | 259,456/s, SHA `3ae0aab52f9cc706949f438962fa536eae22965df32eb8a2421c01cacbf8b93b` | 249,044/s, SHA `3a096e6fcdb566818c6d88b89471a9e7c7eb9dd38408c93e2bb257cbbd6a3be5` | -4.013% |
+| 3 | 256,301/s, SHA `bad480e3ba900053c9a9cecbab5b53cdc1ca6ea8703e2245d52ad6be7f4c7a37` | 262,712/s, SHA `54cf8c176b38c9a0d9718260777fda74a72cb83d619e97832732618cd87956ca` | +2.501% |
+
 ## Immediate sequence
 
-1. Complete the adversarial review and full relevant reactor verification for P1, then checkpoint it in SDK and Runtime.
-2. Treat the packed model store's 0.391M/s as the next provisional limiter; split its queue, PostgreSQL wait,
-   serialization and cache-publication work before editing it.
-3. Remove that proven limiter architecturally, confirm it through the same matched protocol, checkpoint it and repeat.
-4. Continue until five consecutive qualifying full-E2E runs exceed 1M/s.
+1. Keep P1 as the accepted comparison point; locator and global-direct-tail experiments are closed unless a new profile
+   changes their ranking.
+2. Split foreground JDBC direct-row insertion, staging, packed model mutation and durable commit with nested timings;
+   E14 proves that work spans both the ordered commit threads and shared insert workers.
+3. Remove the highest foreground service-demand component architecturally, confirm it through the matched protocol,
+   checkpoint it and rerank the full path.
+4. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
