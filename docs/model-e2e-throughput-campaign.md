@@ -177,6 +177,7 @@ limiter from top allocation stacks alone.
 | E53 | 2026-08-01 | E52 deferred locator rejected | Real hashes plus eager single-transaction server-side locator materialization | Same-binary PostgreSQL-stat pair, focused hashed-tail/legacy-rebuild test and exact full-E2E checks; [`model-e2e-e52-e53-locator-experiments.csv`](performance-runs/model-e2e-e52-e53-locator-experiments.csv); [`model-e2e-e52-e53-locator-experiments.md`](performance-runs/model-e2e-e52-e53-locator-experiments.md) | Reject and revert. PostgreSQL locator execution fell from 6.953 s of client COPY to 2.025 s across server-side inserts, but 270 wakes still issued 2,160 partition statements and 270 cursor updates. Candidate/control were 279,032/336,033/s (-16.96%) with p95 306.365/221.813 ms. The derived locator is a real database resource hotspot, but these pairs disprove it as the current E2E critical-path limiter; rerank from a control critical-path profile. |
 | E54 | 2026-08-01 | Accepted P2 model-store batches | Opt-in collection window between durable model-store batches | Four balanced 1 ms same-binary pairs plus 2 ms screening; [`model-e2e-e54-inter-batch-delay.csv`](performance-runs/model-e2e-e54-inter-batch-delay.csv); [`model-e2e-e54-inter-batch-delay.md`](performance-runs/model-e2e-e54-inter-batch-delay.md) | Reject and revert. Control JFR proved a large fixed cost and size-dependent capacity, but a time-based delay did not reliably create larger Runtime transactions. The four 1 ms pair gains were +5.43%, -3.81%, -0.86% and +1.73%; geometric means were 315,150/s candidate and 313,388/s control, only +0.56%, with exact paired-bootstrap 95% -2.46% to +3.82%. The 2 ms screen was +4.28%. Next: reservation/arrival-boundary-aware merging or a correctness-safe parallel durable lane, not sleep-based batching. |
 | E55 | 2026-08-01 | Accepted P2 ready chunk 256 | SDK ready-commit chunks of 1,024 and 4,096 | Two same-binary configuration pairs; [`model-e2e-e55-ready-chunk-screening.csv`](performance-runs/model-e2e-e55-ready-chunk-screening.csv); [`model-e2e-e55-ready-chunk-screening.md`](performance-runs/model-e2e-e55-ready-chunk-screening.md) | Reject without code changes. Chunk 1,024 was 302,721/304,438/s (-0.56%); chunk 4,096 was 306,288/314,081/s (-2.48%) with worse p95/p99. Neither setting consistently increased SDK dispatch batches, so ready-chunk reservations are fragmented again by physical WebSocket intake and closed-loop completions before the Runtime durable queue. The 256 P2 default remains. |
+| E56 | 2026-08-01 | Accepted P2 clean control | Nested event-transaction attribution plus fresh PostgreSQL statement accounting | Equivalent dual JFR, fresh non-JFR PostgreSQL statistics and exact checks; [`model-e2e-e56-event-transaction-attribution.md`](performance-runs/model-e2e-e56-event-transaction-attribution.md) | Diagnostic hit. The packed model route spent 3.328 of 3.723 s inside its co-located event transaction and only 0.051 s waiting for that writer. Direct compact-row insertion, staging/prior-tail flush and model SQL consumed 0.969/0.948/0.828 s. A fresh 291,045/s control needed 472 event-LTS inserts, 166 staging inserts and 158 select/delete tail flushes, but only about 221 ms of aggregate PostgreSQL execution. Repeated client/protocol boundaries, not server compute or another queue delay, are the current limiter. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -568,14 +569,14 @@ write API, property or production code remains.
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
-   transactions and fused SQL remain closed; P2 is distinct because full ready chunks leave before batch close.
-2. Use SDK `1b6b3571a1c` plus Runtime `ed9cb3419e0b` as the immutable P2 source pair for every next control.
-3. Re-rank E47's new client and Runtime profile. Runtime response encode/send, CBOR transport and LTS compression now
-   dominate its CPU/allocation view; client model evaluation/coordination, result processing and WebSocket result decode
-   are the largest remaining complete clusters. Quantify service capacity and choose the largest structural removal.
-4. Confirm each candidate through matched non-JFR runs, checkpoint only a positive correct result and rerank the full
-   path.
-5. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.
+   transactions and an isolated repeat of fused SQL or direct tails remain closed.
+2. Use SDK `33e928c594a` plus Runtime `ed9cb3419e0b` as the immutable source pair for every next control.
+3. Screen larger bounded compact LTS blocks plus a direct tail only for large co-located model transactions. This attacks
+   E56's direct-row and staging-row multiplicity together while leaving ordinary low-rate logs unchanged.
+4. If the complete route does not improve, move to a transaction-extension design that admits already-arrived ordered
+   work before a correctness-safe seal point. Do not substitute a timer or an `AFTER_BATCH` policy.
+5. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+   the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
