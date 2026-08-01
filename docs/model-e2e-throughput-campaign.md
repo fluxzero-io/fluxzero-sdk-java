@@ -15,12 +15,12 @@ experiments were rejected.
 | Accepted matched throughput | 330,222/s candidate geometric mean versus 275,049/s control; +20.06%, paired 95% CI 16.61–24.13% |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
-| Latest closed diagnostic | E68: exact segmented LRU removed 99.8% of profiled cache-get lock weight, but two unprofiled result-free pairs measured −1.60% geometric-mean E2E; the candidate was reverted |
-| Current production code | clean accepted P2 source in both repositories; no E62–E68 candidate code remains |
-| Next evidence target | build a route-wide causal time budget on repeated canonical full-result runs; no profiler or result-free hotspot may select another production candidate by itself |
+| Latest closed diagnostic | E70: the corrected low-overhead full-result smoke correlated all required processing stages for 33/33 sampled commands and joined 32 back to sender registration; [`model-e2e-e70-route-trace.md`](performance-runs/model-e2e-e70-route-trace.md) reports latency, service demand, wall rate, concurrency, queues and bytes |
+| Current production code | accepted P2 behavior plus uncommitted JFR-only E70 observability in both repositories; no E62–E68 production candidate code remains |
+| Next evidence target | repeat E70 over the fixed 1,048,576-command profile workload, then use the complete traces plus rates, concurrency, queues and batch feedback to select the first intact-route causal perturbation |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after the E69 process correction on 2026-08-01. This table is updated whenever a run changes the accepted base, current
+Last updated after the E70 low-overhead trace validation on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -160,7 +160,8 @@ throughput, so A0 must be remeasured through the matched protocol before accepti
   `5c14ba1abbb5a185a10643da029087ff32a39de0b1e5e8b10a7fd7c415e4e337`.
 
 R1's targeted allocation improvement is real, but matched A/B experiment E2 rejected it as a throughput checkpoint.
-Its +0.71% geometric-mean result was far below the 5% threshold and the paired 95% interval included a regression.
+Its +0.71% geometric-mean result had a paired 95% interval that included a regression. It therefore fails the current
+positive-evidence rule independently of the campaign's former 5% threshold.
 The implementation must therefore be reverted before C1 is assessed.
 
 ### Rejected common/SDK candidate C1
@@ -253,6 +254,7 @@ wall, allocation and lock profiles remain explanatory only and are never mixed n
 | E59 | 2026-08-01 | Accepted P2 clean route | Measured-phase dual JFR plus threaded CPU, wall, allocation and lock profiles in both JVMs | Exact full-E2E checks in every run; [`model-e2e-e59-full-route-profile.md`](performance-runs/model-e2e-e59-full-route-profile.md) | Diagnostic hit. Command consumers spent 59.2% of wall samples in the real batch completion await and model-handler lifetime was 48.975 of 55.078 cumulative command-batch seconds. However E58 already proved that reducing only packed storage is neutral. Result append remained a 6.423-s/447-operation serial tail while the machine averaged 84.7% CPU. Runtime ZSTD, result output and LTS encoding were the largest independent CPU clusters; client encoding, callbacks, model preparation and adaptive cache were distributed secondary demand. Next run is a same-source compression-algorithm diagnostic, not another transaction or cache micro-tweak. |
 | E60 | 2026-08-01 | Accepted P2 negotiated ZSTD | Same-source negotiated LZ4 with measured-phase JFR in both JVMs | Equivalent direct pair, exact full-E2E checks and wire/resource accounting; [`model-e2e-e60-wire-compression.md`](performance-runs/model-e2e-e60-wire-compression.md) | Reject without production changes. LZ4 delivered 265,448/s versus 272,212/s for fresh ZSTD (-2.48%), with p50/p99/max latency +3.33%/+4.99%/+8.80%. It expanded model-commit wire bytes 81.01% and Runtime result bytes 84.86%, while providing no compensating CPU, GC or downstream storage advantage. Retain ZSTD and attack the structural serialized commit-then-result boundary. |
 | E61 | 2026-08-01 | Accepted P2 complete model route | Same route without ordinary command-result publication | Equivalent dual JFR and exact final event/model checks; [`model-e2e-e61-result-pipeline-upper-bound.md`](performance-runs/model-e2e-e61-result-pipeline-upper-bound.md) | Diagnostic hit, not a qualifying run. Removing the second result route raised 272,212/s to 405,700/s (+49.04%), reduced command/model-handler cumulative time 31.78%/29.55%, and improved packed-model transaction count/duration 14.93%/32.39%. This proves a large cross-pipeline feedback budget. E62 will carry a context-prepared native ordinary result with the model commit and use explicit negotiated/fallback semantics. |
+| E70 | 2026-08-02 | Accepted P2 complete model route | Cross-JVM sampled route correlation and capacity-aware stage summary | Seven 131,072-command JFR smokes; corrected log/JFR/summary SHA-256 `8e582536b26fb26343437dc6b0327ad0ae9590a05510b45ed1a47a7951566a86` / `b47bac4dc6d834e90c3feba00468e1c1470152e9127d9f56cd71ac1258e6c23f` / `0907c463324074111851546f51eb4a398652c513902a06b4c4a11e847d3abecf`; [`model-e2e-e70-route-trace.md`](performance-runs/model-e2e-e70-route-trace.md) | Diagnostic instrumentation complete at smoke scale. The corrected run correlated every required processing stage for 33/33 sampled commands and joined 32 to sender registration while retaining the ordinary durable result route. Output separates latency distributions from serial service demand, observed wall rate, concurrency, queues and bytes. Two trace-observer allocation sites that sampled about 247 MiB in a prior smoke disappeared. Throughput 170,765/s is non-comparable because JFR was active and WindowServer/Codex activity consumed substantial host CPU before the run. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -829,8 +831,10 @@ exact result/event/model checks:
 | 3 | 302,927/s | 292,239/s | -3.53% |
 | 4 | 250,133/s | 273,612/s | +9.39% |
 
-Control/candidate geometric means were 281,844/293,094 commands/s: only **+3.99%**, below the predeclared 5% gate,
-with two positive and two negative pairs. E66 therefore rejects ZSTD-level tuning despite the real local codec win.
+Control/candidate geometric means were 281,844/293,094 commands/s: **+3.99%**, with two positive and two negative
+pairs. Four sign-conflicting screening pairs do not establish a positive confidence interval and are insufficient for
+the eight-pair confirmation gate. E66 therefore rejects ZSTD-level tuning despite the real local codec win; the
+decision does not rely on the campaign's former mechanical 5% threshold.
 The property was removed and common production source again matches accepted P2 exactly. This also closes metadata
 encoding microcaches as the next checkpoint target: result preparation was 5.34% of the E64 client CPU profile, but
 actual metadata string encoding inside it was only about 0.8% of total client samples.
@@ -987,10 +991,12 @@ Runtime-collapsed/client-collapsed SHA-256 values are
     unprofiled capacity mechanism.
 13. E69 is retained as explanatory allocation evidence only. Before another candidate, instrument repeated canonical
     full-result runs into the route-wide stage timing and critical-path model defined above.
-14. Causally validate the largest canonical constraint with one cheap full-route ablation. Only if that exposes a
-    material E2E budget may its mechanism select a production optimization.
-15. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
-    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
+14. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+    complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
+    mechanisms, and never as acceptance evidence.
+15. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+    and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
+    and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
