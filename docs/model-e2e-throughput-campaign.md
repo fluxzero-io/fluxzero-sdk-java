@@ -488,6 +488,10 @@ E45 Runtime/client JFR SHA-256 values are
 
 ### Accepted checkpoint P2 — bounded ready-commit transport batches
 
+P2 is SDK commit `1b6b3571a1c` (`perf(modeling): batch ready model commits`) against unchanged Runtime commit
+`ed9cb3419e0b61e49869886f81f742f1c8bf6a77`. The measured candidate diff was committed without functional changes
+after the confirmation matrix and full reactor verification.
+
 E46 reran the accepted and fully reverted source state in separate client and Runtime JVMs. It handled exactly 1,048,576
 measured commands at 218,600/s under dual JFR, with p50/p95/p99/max 236.050/383.319/475.474/521.326 ms. The SDK
 produced 98,321 Runtime commit intake boundaries averaging only 10.7 commits. Runtime partial WebSocket binary handling
@@ -529,7 +533,7 @@ therefore accepted as a throughput checkpoint rather than a diagnostic-only opti
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
    transactions and fused SQL remain closed; P2 is distinct because full ready chunks leave before batch close.
-2. Commit P2 only after final install/downstream verification and record its immutable source commit in this ledger.
+2. Use SDK `1b6b3571a1c` plus Runtime `ed9cb3419e0b` as the immutable P2 source pair for every next control.
 3. Re-rank E47's new client and Runtime profile. Runtime response encode/send, CBOR transport and LTS compression now
    dominate its CPU/allocation view; client model evaluation/coordination, result processing and WebSocket result decode
    are the largest remaining complete clusters. Quantify service capacity and choose the largest structural removal.
