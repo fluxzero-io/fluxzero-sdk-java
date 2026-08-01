@@ -182,6 +182,7 @@ limiter from top allocation stacks alone.
 | E58 | 2026-08-01 | Accepted P2 ordered packed transaction | One non-blocking admission of compatible jobs already queued before a safe event/model seal | Equivalent dual-JFR mechanism pair, balanced four-pair non-JFR screen, 8 backlog tests, 41 message-store tests, 99 model-store tests and exact checks; [`model-e2e-e58-active-transaction-extension.csv`](performance-runs/model-e2e-e58-active-transaction-extension.csv); [`model-e2e-e58-active-transaction-extension.md`](performance-runs/model-e2e-e58-active-transaction-extension.md) | Reject and revert. The mechanism worked: packed transactions fell 155→119, average size rose 7,188→9,362, packed storage fell 3.711→3.044 s and staging nearly halved. Full screening was neutral: candidate/control geometric means 318,936/319,158/s (-0.07%), paired bootstrap 95% -3.41% to +3.38%. Tail latency improved, but p50 worsened and throughput had a -5.00% pair. Local transaction service is no longer the full-route throughput limiter under P2. |
 | E59 | 2026-08-01 | Accepted P2 clean route | Measured-phase dual JFR plus threaded CPU, wall, allocation and lock profiles in both JVMs | Exact full-E2E checks in every run; [`model-e2e-e59-full-route-profile.md`](performance-runs/model-e2e-e59-full-route-profile.md) | Diagnostic hit. Command consumers spent 59.2% of wall samples in the real batch completion await and model-handler lifetime was 48.975 of 55.078 cumulative command-batch seconds. However E58 already proved that reducing only packed storage is neutral. Result append remained a 6.423-s/447-operation serial tail while the machine averaged 84.7% CPU. Runtime ZSTD, result output and LTS encoding were the largest independent CPU clusters; client encoding, callbacks, model preparation and adaptive cache were distributed secondary demand. Next run is a same-source compression-algorithm diagnostic, not another transaction or cache micro-tweak. |
 | E60 | 2026-08-01 | Accepted P2 negotiated ZSTD | Same-source negotiated LZ4 with measured-phase JFR in both JVMs | Equivalent direct pair, exact full-E2E checks and wire/resource accounting; [`model-e2e-e60-wire-compression.md`](performance-runs/model-e2e-e60-wire-compression.md) | Reject without production changes. LZ4 delivered 265,448/s versus 272,212/s for fresh ZSTD (-2.48%), with p50/p99/max latency +3.33%/+4.99%/+8.80%. It expanded model-commit wire bytes 81.01% and Runtime result bytes 84.86%, while providing no compensating CPU, GC or downstream storage advantage. Retain ZSTD and attack the structural serialized commit-then-result boundary. |
+| E61 | 2026-08-01 | Accepted P2 complete model route | Same route without ordinary command-result publication | Equivalent dual JFR and exact final event/model checks; [`model-e2e-e61-result-pipeline-upper-bound.md`](performance-runs/model-e2e-e61-result-pipeline-upper-bound.md) | Diagnostic hit, not a qualifying run. Removing the second result route raised 272,212/s to 405,700/s (+49.04%), reduced command/model-handler cumulative time 31.78%/29.55%, and improved packed-model transaction count/duration 14.93%/32.39%. This proves a large cross-pipeline feedback budget. E62 will carry a context-prepared native ordinary result with the model commit and use explicit negotiated/fallback semantics. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -584,11 +585,14 @@ write API, property or production code remains.
    in normal recordings.
 5. E60 closed negotiated LZ4: it expanded both principal wire streams 81-85%, ran 2.48% slower and worsened most latency
    percentiles. ZSTD remains the default; do not reopen a codec substitution without a new ratio/CPU mechanism.
-6. Design E61 around the proven structural serialization: command consumers await model durability, after which the SDK
-   publishes an independently encoded and durably appended ordinary result. Test whether a prepared ordinary result can
-   share the model-commit transport/durability boundary without weakening ordering, idempotency, context, errors,
-   `awaitAsyncResults`, atomicity or old-client/runtime compatibility. Instrument the proposed join before broad edits.
-7. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+6. E61 established the result-pipeline upper bound at 405,700/s, +49.04% over its adjacent complete-route control. It is
+   diagnostic only because results were deliberately absent, but it proves the structural budget and records the E62
+   negotiated/fallback contract in the linked report.
+7. Implement E62 narrowly: prepare only a known automatic handler result, carry its native envelope only on the newly
+   negotiated transport, append accepted results in original model-commit batch order, and fall back to the established
+   result gateway on unsupported peers or fused-storage failure. Verify context, interceptors, duplicate/conflict/error
+   behavior and actual durability before measuring.
+8. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
