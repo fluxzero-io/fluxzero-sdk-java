@@ -24,6 +24,17 @@ public interface ModelCommitBatchingClient {
 
     ModelCommitBatch beginModelCommitBatch(int capacity);
 
+    /**
+     * Begins a transport batch for commits that become ready independently during handler execution.
+     * <p>
+     * Unlike {@link #beginModelCommitBatch(int)}, this batch does not imply that commit execution waits for the batch
+     * boundary. Implementations may release bounded full chunks immediately and use {@link ModelCommitBatch#flush()}
+     * only to release the remaining tail. Returning {@code null} retains individual commit transport.
+     */
+    default ModelCommitBatch beginReadyModelCommitBatch() {
+        return null;
+    }
+
     interface ModelCommitBatch {
 
         CompletableFuture<CommitModelsResult> add(int slot, CommitModels commit);

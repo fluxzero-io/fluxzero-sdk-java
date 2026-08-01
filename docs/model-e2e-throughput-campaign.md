@@ -167,6 +167,9 @@ limiter from top allocation stacks alone.
 | E28/E29 | 2026-08-01 | COPY plus separate state lock/update | Multi-row INSERT, then conditional state reservation | JFR SHA-256 `74a1426bbef21fc8c6baae1f1bc5ae00c730b4f055722ac9a8569f266d876212` and `b540a83b20f209858d161f1d9e2902554a9578fd12b73cbd458f5e6510b5a18f` | Microphases improved but no full-route hit. INSERT reduced stream-block time 363→277 ms. Combining lock/update reduced those state calls to one 177-ms reservation, but model capacity remained about 0.291M/s because event staging and transaction service dominated. Continue only as part of a structural event/model candidate. |
 | E30/E31 | 2026-08-01 | Adaptive tails only under prior storage backlog | Direct underfilled tail for large co-located model transactions | JFR SHA-256 `c3f8b7e1a118e53ab11b37d2b33d3899213ddae1f0e50f07675b70f9e6e031ed` and `7f7da4ecd7b6f8019e97e33322ace750f8b204ccfca03e2f90244783316b7b8f` | The combined prototype cut event staging 1,235→63 ms and raised model capacity about 0.291M→0.323M/s. Tail-only E31 still delivered only 0.287M/s because faster drainage produced more, smaller model transactions and amplified COPY/lock overhead. Proceeded to matched screening only for the combined candidate. |
 | E32 | 2026-08-01 | P1 | Multi-row stream insert + state reservation + selective co-located direct tail | Two balanced non-JFR pairs; [`model-e2e-e32-packed-write-screening.csv`](performance-runs/model-e2e-e32-packed-write-screening.csv) | Reject early and revert. Pairs were +1.261% and -4.294%; geometric means 249,936/s control and 246,048/s candidate, delta -1.555%. The second pair also regressed every latency percentile. Faster per-transaction work caused smaller storage batches and more transactions, cancelling the local phase gains. |
+| E46 | 2026-08-01 | Clean P1 plus tracing checkpoints | Matched client/Runtime JFR rerank after rejected storage experiments were removed | Client/Runtime JFR SHA-256 `d3594ce20f792891b61f9852320ce2fb6f469749974850a020c96f4b1f81875e` / `cce1dbc928f88f78261726ceb9abc1411d1b94a2752d967e4f74809a0417d5ef` | 218,600/s diagnostic. It proved that 1,048,576 commits crossed 98,321 small Runtime intake boundaries while Runtime partial-binary WebSocket handling was the largest CPU cluster. Reopen only contract-safe ready-commit transport batching; generic delays and `AFTER_BATCH` remain rejected. |
+| E47 | 2026-08-01 | E46 clean control | Bounded 256-ready-commit transport chunks under the unchanged default policy | Equivalent dual JFR plus exact checks | Causal hit: 276,404/s, 5,081 SDK sends and 13,713 Runtime intake boundaries. Model-store capacity rose 0.267M→0.344M/s and p50/p99 fell 236/475→187/366 ms. Proceed to strict matched confirmation. |
+| E48 | 2026-08-01 | Same build with ready batching disabled | Bounded ready-commit transport default | Eight balanced non-JFR pairs; [`model-e2e-e48-ready-transport-confirmation.csv`](performance-runs/model-e2e-e48-ready-transport-confirmation.csv) | Accept as P2. Candidate geometric mean 330,222/s versus 275,049/s, +20.06%; all pairs +13.47% to +29.43%; paired bootstrap 95% +16.61% to +24.13%. All exact checks and 2,038 common/SDK tests passed. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -483,15 +486,53 @@ E45 Runtime/client JFR SHA-256 values are
 `39cb4b5c6ee2f2c49a6624e34c78d653ffe8d3f8fead14c25a88ac04e92d9760` and
 `a02727672391d9ccf614b8e12f713fa185391e400a7e3329607b808461c8b844`. Exact checks passed.
 
+### Accepted checkpoint P2 — bounded ready-commit transport batches
+
+E46 reran the accepted and fully reverted source state in separate client and Runtime JVMs. It handled exactly 1,048,576
+measured commands at 218,600/s under dual JFR, with p50/p95/p99/max 236.050/383.319/475.474/521.326 ms. The SDK
+produced 98,321 Runtime commit intake boundaries averaging only 10.7 commits. Runtime partial WebSocket binary handling
+was its largest inclusive CPU cluster, while the packed model writer completed 147 transactions averaging 7,133.2
+models at only 0.267M models/s. This clean rerank superseded the weaker E43 profile for the next candidate decision.
+
+The accepted candidate does not add a timer and does not change `ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH`. Each commit is
+still prepared immediately after its handler. A handler-batch-local transport scope releases every full bounded chunk
+of 256 ready commits immediately; batch close releases at most 255 tail commits before registering the existing
+completion barrier. Every commit retains its own Runtime response future, request ID, correlation context, retry state
+and result processing. Custom batching clients can retain individual transport, explicit after-batch and synchronous
+policies retain their prior paths, and memory is bounded by 255 prepared requests per active handler batch.
+
+E47 confirmed the mechanism under equivalent dual JFR. It reached 276,404/s with
+p50/p95/p99/max 186.904/329.153/365.952/415.646 ms. Logical SDK model-commit sends fell to 5,081 averaging 204.7;
+physical Runtime intake boundaries fell to 13,713 averaging 76.5. The packed model writer completed 135 transactions
+averaging 7,767.2 at 0.344M models/s. Thus the improvement is not merely fewer frames: less Runtime WebSocket work also
+fed the serial durable writer more effectively. The client and Runtime recordings have SHA-256
+`a8ca46b56f50b9516821b5584d01bc5920eeeddaa2ddd27c2ad35787f26f682f` and
+`bc2d878a25cd0b6284fab5001ae89becba7bb53c38e1d3f017c67953845f32a9`; benchmark and Runtime logs have SHA-256
+`81458618bbf322ad57a7c931ec6da5d79dbea6b46e1bd80c6b7719c8621c9c5d` and
+`da79ab9d6938ecd9b0316cccc7a46803603a9692acbbe12d8b5697502a1e7a60`.
+
+E48 compared the same binaries with only `fluxzero.disableReadyModelCommitTransportBatching=true` on control runs.
+The sixteen executions used order `A B B A B A A B` followed by its inverse; every run restarted the external Runtime,
+recreated the isolated schema and captured source/diff, host, JVM, database and log identities. Candidate throughput was
+321,469–340,707/s and control throughput 249,268–292,349/s. Candidate/control geometric means were 330,222/275,049/s,
+a **20.06%** gain. All eight paired gains were positive (13.47–29.43%) and the paired bootstrap 95% interval was
+16.61–24.13%. Every run verified the full ordinary-result boundary, expected model state and event count. Candidate
+p95 and p99 latency were lower in seven of eight pairs; the one p99 exception remained a throughput-positive pair and
+had no error or queue-growth signal. No Runtime log contained an error.
+
+Focused lifecycle tests prove that full chunks release before handler-batch close, the tail releases only at close and
+the tracker batch still waits for the true commit response. The complete `common` plus `sdk` test run passed 2,038 tests
+with zero failures or errors. The public batching interface gains only a binary-compatible default method. P2 is
+therefore accepted as a throughput checkpoint rather than a diagnostic-only optimization.
+
 ## Immediate sequence
 
-1. Keep P1 as the accepted comparison point; locator and global-direct-tail experiments are closed unless a new profile
-   changes their ranking.
-2. Treat transaction fusion and readiness-delay/coalescing as closed experiments: E43–E45 proved real local effects
-   but none crossed the full-route checkpoint gate under the production default.
-3. Re-rank the combined client/Runtime JFR rather than extending the storage rabbit hole. E43's client recording points
-   at per-message envelope encode/copy, metadata encoding, result handling and cache updates; quantify their complete
-   caller/allocation stacks and choose the largest contract-safe structural removal.
+1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
+   transactions and fused SQL remain closed; P2 is distinct because full ready chunks leave before batch close.
+2. Commit P2 only after final install/downstream verification and record its immutable source commit in this ledger.
+3. Re-rank E47's new client and Runtime profile. Runtime response encode/send, CBOR transport and LTS compression now
+   dominate its CPU/allocation view; client model evaluation/coordination, result processing and WebSocket result decode
+   are the largest remaining complete clusters. Quantify service capacity and choose the largest structural removal.
 4. Confirm each candidate through matched non-JFR runs, checkpoint only a positive correct result and rerank the full
    path.
 5. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.

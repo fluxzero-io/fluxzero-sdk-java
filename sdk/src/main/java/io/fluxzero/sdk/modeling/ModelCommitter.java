@@ -375,6 +375,16 @@ final class ModelCommitter {
                 producers);
     }
 
+    CommitBatch beginReadyBatch() {
+        ModelCommitBatchingClient.ModelCommitBatch delegate =
+                !Boolean.getBoolean(
+                        "fluxzero.disableReadyModelCommitTransportBatching")
+                && eventStoreClient instanceof ModelCommitBatchingClient batching
+                        ? batching.beginReadyModelCommitBatch()
+                        : null;
+        return delegate == null ? null : new CommitBatch(delegate);
+    }
+
     private CompletableFuture<Void> processCommits(
             List<CommittedCommit> committed) {
         return Objects.requireNonNull(
@@ -1163,6 +1173,12 @@ final class ModelCommitter {
             this.remainingProducers = new AtomicInteger(producers);
         }
 
+        private CommitBatch(
+                ModelCommitBatchingClient.ModelCommitBatch delegate) {
+            this.delegate = Objects.requireNonNull(delegate);
+            this.remainingProducers = null;
+        }
+
         private CompletableFuture<CommitModelsResult> add(
                 int slot, CommitModels commit) {
             return delegate == null
@@ -1171,8 +1187,16 @@ final class ModelCommitter {
         }
 
         void producerDone() {
-            if (remainingProducers.decrementAndGet() == 0
+            if (remainingProducers != null
+                && remainingProducers.decrementAndGet() == 0
                 && delegate != null
+                && completed.compareAndSet(false, true)) {
+                delegate.flush();
+            }
+        }
+
+        void flush() {
+            if (delegate != null
                 && completed.compareAndSet(false, true)) {
                 delegate.flush();
             }

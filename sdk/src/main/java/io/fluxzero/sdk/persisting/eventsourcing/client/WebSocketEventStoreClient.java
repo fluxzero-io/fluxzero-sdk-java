@@ -104,6 +104,9 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         implements EventStoreClient, ModelCommitResultBatchSource,
         ModelCommitBatchingClient {
 
+    private static final int READY_MODEL_COMMIT_BATCH_SIZE = Math.max(
+            1, Integer.getInteger("fluxzero.readyModelCommitBatchSize", 256));
+
     private final int fetchBatchSize;
     private final List<Function<List<CommitModelsResult>, CompletableFuture<Void>>>
             modelCommitResultProcessors = new CopyOnWriteArrayList<>();
@@ -163,6 +166,59 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
     @Override
     public ModelCommitBatch beginModelCommitBatch(int capacity) {
         return new WebSocketModelCommitBatch(capacity);
+    }
+
+    @Override
+    public ModelCommitBatch beginReadyModelCommitBatch() {
+        return new WebSocketReadyModelCommitBatch();
+    }
+
+    private final class WebSocketReadyModelCommitBatch
+            implements ModelCommitBatch {
+        private List<PreparedRequest<CommitModelsResult>> pending =
+                new ArrayList<>(READY_MODEL_COMMIT_BATCH_SIZE);
+        private boolean completed;
+
+        @Override
+        public synchronized CompletableFuture<CommitModelsResult> add(
+                int slot, CommitModels commit) {
+            if (completed) {
+                return commitModels(commit);
+            }
+            PreparedRequest<CommitModelsResult> request =
+                    prepareRequest(commit);
+            pending.add(request);
+            if (pending.size() == READY_MODEL_COMMIT_BATCH_SIZE) {
+                sendPending();
+            }
+            return request.result();
+        }
+
+        @Override
+        public synchronized void flush() {
+            if (!completed) {
+                completed = true;
+                sendPending();
+            }
+        }
+
+        @Override
+        public synchronized void fail(Throwable failure) {
+            if (!completed) {
+                completed = true;
+                pending.forEach(request -> request.fail(failure));
+                pending = List.of();
+            }
+        }
+
+        private void sendPending() {
+            if (pending.isEmpty()) {
+                return;
+            }
+            List<PreparedRequest<CommitModelsResult>> batch = pending;
+            pending = new ArrayList<>(READY_MODEL_COMMIT_BATCH_SIZE);
+            sendPreparedRequests(batch);
+        }
     }
 
     private final class WebSocketModelCommitBatch

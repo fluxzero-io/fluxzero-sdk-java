@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -47,13 +48,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 class ModelCommitHandlerRegistryTest {
 
@@ -270,6 +274,73 @@ class ModelCommitHandlerRegistryTest {
             batch.get(5, TimeUnit.SECONDS);
             handlingResult.get(5, TimeUnit.SECONDS);
         } finally {
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void defaultPolicyBuffersReadyTransportBeforeBatchCloseAndFlushesTailAtClose()
+            throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(
+                EventStoreClient.class,
+                withSettings().extraInterfaces(ModelCommitBatchingClient.class));
+        ModelCommitBatchingClient batchingClient =
+                (ModelCommitBatchingClient) eventStoreClient;
+        ModelCommitBatchingClient.ModelCommitBatch transportBatch =
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+        CompletableFuture<CommitModels> commitPrepared = new CompletableFuture<>();
+        CompletableFuture<Void> transportFlushed = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(batchingClient.beginReadyModelCommitBatch()).thenReturn(transportBatch);
+        when(transportBatch.add(anyInt(), any())).thenAnswer(invocation -> {
+            commitPrepared.complete(invocation.getArgument(1));
+            return commitResponse;
+        });
+        doAnswer(invocation -> {
+            transportFlushed.complete(null);
+            return null;
+        }).when(transportBatch).flush();
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        CompletableFuture<CompletableFuture<Object>> handlingStarted = new CompletableFuture<>();
+        CountDownLatch finishHandlerIteration = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(message(new TimingCreateCommand("timed"))),
+                            current -> {
+                                handlingStarted.complete(
+                                        subject.handle(current).orElseThrow());
+                                try {
+                                    finishHandlerIteration.await();
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(e);
+                                }
+                            }), executor);
+
+            CommitModels commit = commitPrepared.get(5, TimeUnit.SECONDS);
+            CompletableFuture<Object> handlingResult = handlingStarted.get(5, TimeUnit.SECONDS);
+            assertFalse(transportFlushed.isDone());
+            assertFalse(batch.isDone());
+            assertFalse(handlingResult.isDone());
+            verify(eventStoreClient, never()).commitModels(any());
+
+            finishHandlerIteration.countDown();
+            transportFlushed.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+
+            commitResponse.complete(CommitModelsResult.acceptedSingleTarget(
+                    commit.getRequestId(), commit.getCommitId(), 1L, 1L,
+                    "timed", 0L, true));
+            batch.get(5, TimeUnit.SECONDS);
+            handlingResult.get(5, TimeUnit.SECONDS);
+        } finally {
+            finishHandlerIteration.countDown();
             executor.shutdownNow();
             subject.close();
         }

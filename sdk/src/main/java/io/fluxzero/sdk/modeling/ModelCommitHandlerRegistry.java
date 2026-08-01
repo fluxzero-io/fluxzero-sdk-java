@@ -499,6 +499,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Object> execute(
             DeserializingMessage message,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
+        return execute(
+                message, null, null,
+                transportBatch, transportSlot);
+    }
+
+    private CompletableFuture<Object> execute(
+            DeserializingMessage message,
             BatchCommitTicket batchTicket) {
         return execute(
                 message, batchTicket, null);
@@ -508,12 +517,25 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             DeserializingMessage message,
             BatchCommitTicket batchTicket,
             BatchPrefetch prefetch) {
+        return execute(
+                message, batchTicket, prefetch,
+                null, -1);
+    }
+
+    private CompletableFuture<Object> execute(
+            DeserializingMessage message,
+            BatchCommitTicket batchTicket,
+            BatchPrefetch prefetch,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
         CompletableFuture<Object> result;
         if (graphProjectionRegistrations.isEmpty()) {
             result = executeRegistered(
                     message,
                     batchTicket,
-                    prefetch);
+                    prefetch,
+                    transportBatch,
+                    transportSlot);
         } else {
             CompletableFuture<?> registrations =
                     CompletableFuture.allOf(
@@ -525,7 +547,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     ignored -> executeRegistered(
                             message,
                             batchTicket,
-                            prefetch));
+                            prefetch,
+                            transportBatch,
+                            transportSlot));
         }
         if (batchTicket != null) {
             result.whenComplete((ignored, failure) -> {
@@ -540,7 +564,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private CompletableFuture<Object> executeRegistered(
             DeserializingMessage message,
             BatchCommitTicket batchTicket,
-            BatchPrefetch prefetch) {
+            BatchPrefetch prefetch,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
         ModelCommitEngine.CommitEvaluation initialEvaluation =
                 prefetch == null
                         ? evaluate(message)
@@ -557,7 +583,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             != ModelConflictPolicy.ACCEPT) {
             return executeBatched(
                     message, initialEvaluation,
-                    batchTicket);
+                    batchTicket,
+                    transportBatch,
+                    transportSlot);
         }
         return commitCoordinator.coordinate(
                 initialEvaluation.readModelIds(),
@@ -566,7 +594,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         return executeBatched(
                                 message,
                                 initialEvaluation,
-                                batchTicket);
+                                batchTicket,
+                                transportBatch,
+                                transportSlot);
                     }
                     ThreadLocalContext.Snapshot context =
                             executionContext(
@@ -588,17 +618,22 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                                     executeBatched(
                                                             message,
                                                             evaluation,
-                                                            batchTicket)));
+                                                            batchTicket,
+                                                            transportBatch,
+                                                            transportSlot)));
                 });
     }
 
     private CompletableFuture<Object> executeBatched(
             DeserializingMessage message,
             ModelCommitEngine.CommitEvaluation evaluation,
-            BatchCommitTicket batchTicket) {
+            BatchCommitTicket batchTicket,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
         if (batchTicket == null) {
             return executeEvaluation(
-                    message, evaluation);
+                    message, evaluation,
+                    transportBatch, transportSlot);
         }
         ThreadLocalContext.Snapshot context =
                 executionContext(
@@ -1688,7 +1723,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
         CompletableFuture<Object> completion = handlerTicket == null
                 ? execute(message)
-                : handlerTicket.start(() -> execute(message));
+                : handlerTicket.start(() -> execute(
+                        message,
+                        handlerTicket.transportBatch(),
+                        handlerTicket.transportSlot()));
         if (commitPolicy.awaitAfterBatch()) {
             return awaitAfterHandlerCommitsBeforeResults
                     ? completion : null;
@@ -2012,8 +2050,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 ? secondType : firstType;
     }
 
-    private static final class HandlerCommitBatch {
+    private final class HandlerCommitBatch {
         private final List<HandlerCommitTicket> tickets = new ArrayList<>();
+        private final ModelCommitter.CommitBatch transportBatch =
+                committer.beginReadyBatch();
         private final FluxzeroJfr.Batch jfrEvent = FluxzeroJfr.startBatch(
                 "sdk.model-handler", "commit-after-handler", MessageType.COMMAND.name(),
                 0, 0L, 0L, 0L);
@@ -2028,7 +2068,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 "Model handler commit batch was already closed"));
             }
             HandlerCommitTicket ticket = new HandlerCommitTicket(
-                    FluxzeroJfr.requestStageEnabled() ? message : null);
+                    FluxzeroJfr.requestStageEnabled() ? message : null,
+                    transportBatch,
+                    tickets.size());
             tickets.add(ticket);
             recordModelRequestStage(
                     message, "model-commit-registered", tickets.size());
@@ -2042,9 +2084,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 snapshot = List.copyOf(tickets);
             }
             if (failure != null) {
+                if (transportBatch != null) {
+                    transportBatch.fail(failure);
+                }
                 snapshot.forEach(ticket -> ticket.fail(failure));
                 finishDiagnostics(snapshot, failure);
                 return;
+            }
+            if (transportBatch != null) {
+                transportBatch.flush();
             }
             CompletableFuture<Void> completion =
                     CompletableFuture.allOf(
@@ -2078,17 +2126,25 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private static final class HandlerCommitTicket {
         private final DeserializingMessage diagnosticMessage;
+        private final ModelCommitter.CommitBatch transportBatch;
+        private final int transportSlot;
         private final CompletableFuture<Object> execution = new CompletableFuture<>();
         private final AtomicBoolean started = new AtomicBoolean();
 
-        private HandlerCommitTicket(DeserializingMessage diagnosticMessage) {
+        private HandlerCommitTicket(
+                DeserializingMessage diagnosticMessage,
+                ModelCommitter.CommitBatch transportBatch,
+                int transportSlot) {
             this.diagnosticMessage = diagnosticMessage;
+            this.transportBatch = transportBatch;
+            this.transportSlot = transportSlot;
         }
 
         static HandlerCommitTicket failed(
                 DeserializingMessage message, Throwable failure) {
             HandlerCommitTicket ticket = new HandlerCommitTicket(
-                    FluxzeroJfr.requestStageEnabled() ? message : null);
+                    FluxzeroJfr.requestStageEnabled() ? message : null,
+                    null, -1);
             ticket.fail(failure);
             return ticket;
         }
@@ -2118,6 +2174,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
         CompletableFuture<Object> execution() {
             return execution;
+        }
+
+        ModelCommitter.CommitBatch transportBatch() {
+            return transportBatch;
+        }
+
+        int transportSlot() {
+            return transportSlot;
         }
 
         void fail(Throwable failure) {

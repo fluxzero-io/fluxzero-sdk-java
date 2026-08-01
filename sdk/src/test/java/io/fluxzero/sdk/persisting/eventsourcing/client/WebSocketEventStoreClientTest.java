@@ -22,17 +22,47 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static io.fluxzero.common.Guarantee.STORED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class WebSocketEventStoreClientTest {
+
+    @Test
+    void readyModelCommitBatchSendsFullChunksAndFlushesItsTail() {
+        RecordingEventStoreClient subject = new RecordingEventStoreClient();
+        ModelCommitBatchingClient.ModelCommitBatch batch =
+                subject.beginReadyModelCommitBatch();
+
+        try {
+            for (int index = 0; index < 256; index++) {
+                assertFalse(batch.add(index, commit("commit-" + index)).isDone());
+            }
+            assertEquals(List.of(256), subject.sentBatchSizes);
+
+            assertFalse(batch.add(256, commit("tail")).isDone());
+            assertEquals(List.of(256), subject.sentBatchSizes);
+
+            batch.flush();
+            assertEquals(List.of(256, 1), subject.sentBatchSizes);
+            batch.flush();
+            assertEquals(List.of(256, 1), subject.sentBatchSizes);
+        } finally {
+            subject.close();
+        }
+    }
 
     @Test
     void explicitMaxSizeStopsAfterPartialFirstBatch() {
@@ -59,5 +89,35 @@ class WebSocketEventStoreClientTest {
         assertEquals(aggregateId, requests.getFirst().getAggregateId());
         assertEquals(-1L, requests.getFirst().getLastSequenceNumber());
         assertEquals(maxSize, requests.getFirst().getBatchSize());
+    }
+
+    private static CommitModels commit(String id) {
+        return new CommitModels(
+                id, -1L, List.of(), List.of(),
+                ModelConflictPolicy.ACCEPT, STORED);
+    }
+
+    private static final class RecordingEventStoreClient
+            extends WebSocketEventStoreClient {
+        private final List<Integer> sentBatchSizes = new ArrayList<>();
+
+        private RecordingEventStoreClient() {
+            super(
+                    URI.create("ws://localhost/event-sourcing"),
+                    8_192,
+                    WebSocketClient.newInstance(
+                            WebSocketClient.ClientConfig.builder()
+                                    .runtimeBaseUrl("ws://localhost")
+                                    .name("ready-model-commit-test")
+                                    .disableMetrics(true)
+                                    .build()),
+                    false);
+        }
+
+        @Override
+        protected void sendPreparedRequests(
+                List<? extends PreparedRequest<?>> preparedRequests) {
+            sentBatchSizes.add(preparedRequests.size());
+        }
     }
 }
