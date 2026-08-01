@@ -6,6 +6,23 @@ boundaries. The detailed history before this campaign remains in
 records the accepted comparison point, every candidate, the evidence required to accept it and the reason rejected
 experiments were rejected.
 
+## Live scoreboard
+
+| Field | Current state |
+| --- | --- |
+| `route` | stored/tracked command -> automatic `@Apply` -> atomic independent-model event/state commit -> globally published event -> durable ordinary result -> tracked caller completion |
+| `accepted_base` | P2: SDK production source `e94188b5876`, Runtime `ed9cb3419e0b`; later SDK commits are documentation only |
+| Accepted matched throughput | 330,222/s candidate geometric mean versus 275,049/s control; +20.06%, paired 95% CI 16.61–24.13% |
+| Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
+| Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
+| Latest closed diagnostic | E65: minimizing the application result body reduced the pre-compression result envelope by only 2.06%; fixed result-route representation/transport dominates |
+| Current production code | clean accepted P2 source in both repositories; no E62–E65 candidate code remains |
+| Next evidence target | attribute the roughly 666 fixed bytes per result across native headers/strings/metadata, then remove repeated representation and copies without changing result semantics |
+| Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
+
+Last updated after E65 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
+diagnosis, code state or next target.
+
 ## Objective and non-negotiable boundary
 
 Reach more than 1,000,000 commands per second locally for the complete production-default path:
@@ -53,6 +70,29 @@ Each run prints the complete configuration, uses a newly created benchmark schem
 record also captures source commits, dirty-diff hashes, artifact hashes, Java version, host load, thermal/power state and
 whether JFR or another profiler was active. A run lacking that identity can suggest a hypothesis but cannot accept a
 checkpoint.
+
+## Operational run registration
+
+Every measurement is appended to the machine-readable
+[`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) before the experiment is closed. Its minimum
+contract is:
+
+| Field | Contract |
+| --- | --- |
+| `run_type` | exactly `canonical`, `profile` or `smoke` |
+| `route` | explicit measured lifecycle; result-free or non-durable diagnostics never reuse the canonical label |
+| `accepted_base` | immutable production checkpoint used as control |
+| `candidate` | code or diagnostic mechanism under measurement |
+| `command_count` / `warmup_count` | exact workload sizes |
+| `profiling` | `none`, JFR or the exact async-profiler mode |
+| `control_throughput` / `candidate_throughput` | observed commands/s; blank only when that side was intentionally absent |
+| `canonical_comparable` | `true` only for unprofiled full-route runs on the fixed workload that are eligible for the acceptance protocol |
+| `decision` | current evidence-based disposition |
+| `code_status` | exactly `accepted`, `reverted` or `diagnostic-only` |
+
+`run_id` and `evidence` are additional mandatory operational keys. The normalized register starts at the accepted E48
+checkpoint and backfills the later experiments that determine the current decision tree; E0–E47 retain their existing
+hashed ledger and per-experiment CSV evidence. Every new invocation is registered without exception.
 
 ## Acceptance protocol
 
@@ -703,6 +743,35 @@ benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed values are
 `5547cb589fa26d2c67e5baedeeaa72b7b708bab42cad7c80d5411d0b26e0e53a`, and
 `1a5da2a2c199a03d703ede601f1a25988cc3d2fa99f328991776b1dadb3b0c04`.
 
+### Diagnostic E65 — the fixed result route dominates its application body
+
+E64 leaves two plausible representations of the remaining cost: repeatedly serializing and moving the returned model
+body, or the fixed envelope, routing, compression, tracking and callback work paid for every result regardless of its
+payload. E65 keeps the durable result store, both WebSocket legs, ordinary tracking, request correlation and sender
+callbacks, but a benchmark-only response mapper replaces the application result body with one shared empty byte array.
+The changed response value makes this diagnostic non-qualifying; all event/model assertions and the exact ordinary
+result count remain mandatory.
+
+The same-binary adjacent JFR pair measured 176,038/s control and 182,645/s with the minimal body (+3.75%). That single
+smoke delta is not a throughput candidate: model transactions also changed from 27 to 24 and result transactions from
+71 to 65. The representation counters are decisive. SDK result envelopes fell only from 89,099,414 to 87,266,723
+bytes (-2.06%), result direct-LTS compressed bytes fell 2,662,707 to 2,634,507 (-1.06%), and Runtime outbound
+`ReadResult` bytes changed from 5,082,716 to 5,086,874 (+0.08%). The ordinary automatic-model result payload itself
+was already four bytes and became two bytes. Almost the complete roughly 680-byte pre-compression message is fixed
+envelope, routing, identity and metadata representation.
+
+E65 therefore rejects application-body reuse as the next large target and selects attribution/removal of repeated
+fixed result representation and copies. The benchmark-only mapper was removed; no production source changed. Control
+benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are
+`e9c0403535d517942ff60666994d7c70e6fbc7d6df7827992fd875e44f84a54f`,
+`37b4cdece9ecf203b084669332f41acf9a4a9b533d491b0ae3d1df7ae199a5bb`,
+`e386dccb590469d97ee9cbd8ae6a4c62ef0a5d59ea40fc13d14c3b7a64cfa296`, and
+`175773d79ad74bcf55e9492afb1241ce8c8cde68c33ce6fec8283ba430a88d7d`. Candidate values are
+`e7e09cb3f645789f5600e78d7fa375c77cba1b95acb1893d3110f3a2851afb30`,
+`d2be2908dafdbd276cdc192ea8e8864b11f5a7401391b1a3ceb24d020d8ea7a9`,
+`cc912a37d68167ba7e75dffcbcca6af3313d713e0eb1012784b70c827325c10a`, and
+`425a278c5d7416e52049206226731733b51a233cbdac4aa09a0f27784d10add7`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -726,8 +795,10 @@ benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed values are
 8. E63 closes result-only ordered front grouping: it reduced result transactions 15.94% but lost 5.75% E2E. Local
    transaction reduction without route capacity is not a candidate-selection rule.
 9. E64 closes result durability as the next limiter: replacing all result JDBC work with the existing ephemeral store
-   changed E2E by -1.97%. E65 must isolate representation/transport/output before changing production code.
-10. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+   changed E2E by -1.97%. E65 subsequently isolated application-body representation from the fixed result route.
+10. E65 closes application-result-body reuse as the large target: removing half the already tiny payload changed
+    pre-compression envelopes by only -2.06% and outbound bytes by +0.08%. Attribute the fixed representation next.
+11. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
