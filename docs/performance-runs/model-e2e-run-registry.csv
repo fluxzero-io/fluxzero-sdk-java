@@ -40,3 +40,4 @@ E67-LOCK,profile,result-free-model-commit,P2,accepted-source-lock-attribution,10
 E68-P1,smoke,result-free-model-commit,P2,segmented-exact-lru,1048576,65536,none,361559,367338,false,rejected-neutral,reverted,model-e2e-throughput-campaign.md
 E68-LOCK,profile,result-free-model-commit,P2,segmented-exact-lru,1048576,65536,async-profiler-lock,107185,406628,false,diagnostic-observer-effect,reverted,model-e2e-throughput-campaign.md
 E68-P2,smoke,result-free-model-commit,P2,segmented-exact-lru,1048576,65536,none,398680,379961,false,rejected-neutral,reverted,model-e2e-throughput-campaign.md
+E69-ALLOC,profile,result-free-model-commit,P2,accepted-source-allocation-attribution,1048576,65536,async-profiler-allocation,,399449,false,diagnostic-no-candidate-selection,diagnostic-only,model-e2e-throughput-campaign.md

@@ -17,10 +17,10 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest closed diagnostic | E68: exact segmented LRU removed 99.8% of profiled cache-get lock weight, but two unprofiled result-free pairs measured −1.60% geometric-mean E2E; the candidate was reverted |
 | Current production code | clean accepted P2 source in both repositories; no E62–E68 candidate code remains |
-| Next evidence target | treat the E67 lock result as profiler-amplified rather than a route-capacity limiter; use the E67 CPU/service profile to select a coarser per-command model-evaluation or completion-allocation boundary |
+| Next evidence target | build a route-wide causal time budget on repeated canonical full-result runs; no profiler or result-free hotspot may select another production candidate by itself |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E68 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
+Last updated after the E69 process correction on 2026-08-01. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -110,6 +110,23 @@ Functional and throughput evidence are separate gates:
 7. Only a confirmed improvement advances the accepted baseline and earns a performance checkpoint commit. Neutral or
    slower candidates are reverted or left uncommitted, and their lesson is recorded below.
 
+## Candidate-selection protocol
+
+Verification after implementation is not a substitute for validation before implementation. Every new production
+candidate must pass three distinct phases in order:
+
+1. **Understand.** Repeated canonical full-result runs establish a route-wide causal model. The model identifies the
+   critical-path dependency, parallel work, queue growth, worker/resource saturation and feedback into batch shape.
+2. **Causally validate.** A benchmark-only toggle or ablation removes exactly one suspected cost from the otherwise
+   complete canonical route. It must quantify the maximum full-route gain and preserve all other lifecycle stages as
+   far as the hypothesis permits. Its predicted effect must agree with the observed stage timing and queue response.
+3. **Optimize.** Production code changes only after the limiter, mechanism and plausible canonical E2E impact are all
+   established. The candidate then enters the matched acceptance protocol above.
+
+The evidence hierarchy is strict: qualifying full-route E2E runs are the source of truth; full-route ablations support
+causality; profilers, microbenchmarks and deliberately incomplete routes such as result-free runs only explain or
+exclude mechanisms. Supporting evidence cannot independently select a production target or advance the score.
+
 ## Baseline and candidate register
 
 ### Accepted source comparison point A0
@@ -160,21 +177,27 @@ must be discarded rather than committed.
 
 ## Instrumentation plan
 
-The diagnostic pass must establish service demand, waiting and backpressure for each batch stage rather than infer the
-limiter from top allocation stacks alone.
+The next diagnostic pass stays on the complete canonical route and produces one operational timing table. Stable stage
+IDs cover sender command mapping/serialization; SDK outbound queue/compress/write; Runtime decode and durable command
+append; store-to-tracker wait and fetch; SDK decode/interceptors/handler/automatic `@Apply`; model cache/load,
+evaluation and commit planning; commit serialization/queue/transport; Runtime model/event transaction and acknowledgement;
+SDK cache/proof update and completion barrier; result mapping/interception/serialization; result transport and durable
+append; result tracking/outbound transport; and sender decode/callback completion.
 
-1. Add cheap batch-level JFR events for command received/stored/delivered, handler completed, model commit queued/stored,
-   event published, result queued/stored/delivered and callback completed.
-2. Record batch count and bytes, queue depth, active workers, wait duration, compression input/output and JDBC
-   round-trips/transaction duration. Guard field collection with `Event.shouldCommit()`.
-3. Capture a deterministic 1-in-4096 request trace across those stages. Do not emit an event per command for every
-   request.
-4. Run separate async-profiler CPU, wall-clock, allocation and lock profiles for the measured phase. Never conflate their
-   overhead or conclusions.
-5. Reset and capture PostgreSQL 18 `pg_stat_statements`, `pg_stat_io`, per-backend I/O and WAL/timing deltas for each
-   profiled run.
-6. Correlate throughput loss with stage capacity, worker saturation, queue occupancy, park/lock time, database service
-   time and allocation/GC. The proven highest-capacity constraint becomes the next architectural target.
+For every stage the canonical report records:
+
+- invocation and item counts, input/output bytes and batch-size avg/p50/p95/p99/max;
+- wall duration and per-item service duration avg/p50/p95/p99/max;
+- queue-wait avg/p50/p95/p99/max, queue depth and active/available workers;
+- CPU demand where measurable, compression ratio, JDBC round-trips/transaction time, WAL and I/O deltas;
+- upstream/downstream throughput and backlog slope, so a batching feedback loop is visible rather than mistaken for a
+  local cost.
+
+Batch events describe capacity, while a deterministic 1-in-4096 command trace correlates the critical path across
+stage boundaries. Nested and parallel wall times are not added together: each report distinguishes elapsed critical
+path, local service demand and queueing. Field collection is guarded by `Event.shouldCommit()` and measured against an
+uninstrumented canonical control. Separate CPU, wall, allocation and lock profiles remain explanatory only and are
+never mixed numerically with non-profiled throughput.
 
 ## Experiment ledger
 
@@ -909,6 +932,19 @@ benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed hashes are
 `f724809404b9718301d11d82dcd5316c5950ad49d999b32f95f7adae97f274c8`, and
 `b68dccddc6ef8f33b1609ba4077e83129dc26177e9409cffd18ec949ad708de1`.
 
+### Diagnostic E69 — allocation recording retained without candidate selection
+
+An accepted-source result-free allocation profile was already running when the candidate-selection protocol above was
+corrected. It completed at 399,449 commands/s and is retained as diagnostic evidence, but it will not be interpreted to
+select a production target. The route deliberately omits ordinary results, allocation profiling changes execution
+costs, and neither condition qualifies it to establish the canonical limiter. Benchmark/Runtime/client-JFR/
+Runtime-collapsed/client-collapsed SHA-256 values are
+`0f141fc8cd08acd71cede7031e6c413b3c47efcf948ed47d6becd47f40475f14`,
+`46e855cf016885177655e7496a00532fde55a855902ddca10bae07eb5292354c`,
+`59b054cf7c5ce303535f11b899302d6766b1e01d70e017fc1357b9c42b016985`,
+`d8df1d0260927bd20e2d6094b1e0ea399116a369554090fe09e746cd8decc485`, and
+`8939bd8074b719d6ca9ddc7484fe3c21c4ee9ee40cf011daf39edf1aa006bac3`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -942,9 +978,11 @@ benchmark/Runtime/client-JFR/Runtime-collapsed/client-collapsed hashes are
     client lock weight enters `MemoryAwareCacheSupport.get()`. E68 then proves this is profiler-amplified: removing
     99.8% of cache-get lock weight produced −1.60% unprofiled E2E. Do not reopen cache synchronization without a new
     unprofiled capacity mechanism.
-13. Use the E67 CPU/service profile to select a coarser architectural target in per-command model evaluation,
-    commit-completion state or allocation. A local profiler win is insufficient; screen against P2 immediately.
-14. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+13. E69 is retained as explanatory allocation evidence only. Before another candidate, instrument repeated canonical
+    full-result runs into the route-wide stage timing and critical-path model defined above.
+14. Causally validate the largest canonical constraint with one cheap full-route ablation. Only if that exposes a
+    material E2E budget may its mechanism select a production optimization.
+15. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
     the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
