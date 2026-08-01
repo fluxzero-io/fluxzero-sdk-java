@@ -28,6 +28,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
+import io.fluxzero.sdk.publishing.DefaultResultGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -61,6 +63,50 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultTrackingAsyncResultTest {
+
+    @Test
+    void defaultResultGatewaySkipsPublicationCompletionWhenResultsAreNotAwaited() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        DefaultResultGateway resultGateway = mock(DefaultResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+
+        CompletionStage<Void> completion = tracking.report(
+                "ok", descriptor(), message(serializer), ConsumerConfiguration.builder().name("web").build());
+
+        assertTrue(completion.toCompletableFuture().isDone());
+        verify(resultGateway).respondBatchedAndForget(
+                eq("ok"), eq("benchmark-app"), eq(7),
+                any(DefaultResultGateway.ResultPreparationErrorHandler.class));
+        verify(resultGateway, never()).respondBatched(
+                eq("ok"), eq("benchmark-app"), eq(7),
+                any(DefaultResultGateway.ResultPreparationErrorHandler.class));
+        tracking.close();
+    }
+
+    @Test
+    void defaultResultGatewayPublicationCompletionIsPreservedWhenResultsAreAwaited() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        DefaultResultGateway resultGateway = mock(DefaultResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        CompletableFuture<Void> publication = new CompletableFuture<>();
+        when(resultGateway.respondBatched(
+                eq("ok"), eq("benchmark-app"), eq(7),
+                any(DefaultResultGateway.ResultPreparationErrorHandler.class))).thenReturn(publication);
+        TestTracking tracking = tracking(resultGateway, serializer);
+
+        CompletionStage<Void> completion = tracking.report(
+                "ok", descriptor(), message(serializer),
+                ConsumerConfiguration.builder().name("web").awaitAsyncResults(true).build());
+
+        assertFalse(completion.toCompletableFuture().isDone());
+        publication.complete(null);
+        assertTrue(completion.toCompletableFuture().isDone());
+        verify(resultGateway, never()).respondBatchedAndForget(
+                eq("ok"), eq("benchmark-app"), eq(7),
+                any(DefaultResultGateway.ResultPreparationErrorHandler.class));
+        tracking.close();
+    }
 
     @Test
     void asyncResultsAreNotAwaitedByDefault() {

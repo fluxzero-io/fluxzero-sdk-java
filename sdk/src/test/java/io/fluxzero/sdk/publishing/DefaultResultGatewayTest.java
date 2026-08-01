@@ -31,7 +31,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -92,6 +94,85 @@ class DefaultResultGatewayTest {
 
         appendCompletion.complete(null);
         publication.get(2, TimeUnit.SECONDS);
+        gateway.close();
+    }
+
+    @Test
+    void unawaitedResponsesDoNotNeedIndividualCompletionsButBatchesRemainOrdered() throws Exception {
+        AtomicInteger appendCalls = new AtomicInteger();
+        CountDownLatch firstAppended = new CountDownLatch(1);
+        CountDownLatch secondAppended = new CountDownLatch(1);
+        CompletableFuture<Void> firstAppendCompletion = new CompletableFuture<>();
+        DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), DispatchInterceptor.noOp, invocation -> {
+            if (appendCalls.incrementAndGet() == 1) {
+                firstAppended.countDown();
+                return firstAppendCompletion;
+            }
+            secondAppended.countDown();
+            return CompletableFuture.completedFuture(null);
+        });
+
+        gateway.respondBatchedAndForget("first", "sender", 1, null);
+        assertTrue(firstAppended.await(2, TimeUnit.SECONDS));
+
+        gateway.respondBatchedAndForget("second", "sender", 2, null);
+        assertFalse(secondAppended.await(100, TimeUnit.MILLISECONDS));
+
+        firstAppendCompletion.complete(null);
+        assertTrue(secondAppended.await(2, TimeUnit.SECONDS));
+        assertEquals(2, appendCalls.get());
+        gateway.close();
+    }
+
+    @Test
+    void batchedResponsesKeepTheirOwnContextWhileSwitchingDirectlyBetweenSnapshots() throws Exception {
+        ThreadLocal<String> context = ThreadLocalContext.create();
+        DefaultResponseMapper delegate = new DefaultResponseMapper();
+        Map<String, String> mappedContexts = new ConcurrentHashMap<>();
+        ResponseMapper mapper = new ResponseMapper() {
+            @Override
+            public Message map(Object response) {
+                return map(response, io.fluxzero.common.api.Metadata.empty());
+            }
+
+            @Override
+            public Message map(Object response, io.fluxzero.common.api.Metadata metadata) {
+                mappedContexts.put(response.toString(), context.get());
+                return delegate.map(response, metadata);
+            }
+        };
+        List<String> monitoredContexts = Collections.synchronizedList(new ArrayList<>());
+        DispatchInterceptor interceptor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType messageType,
+                                             String topic) {
+                return message;
+            }
+
+            @Override
+            public void monitorDispatch(Message message, io.fluxzero.common.MessageType messageType, String topic,
+                                        String namespace, boolean request) {
+                monitoredContexts.add(context.get());
+            }
+        };
+        DefaultResultGateway gateway = gateway(
+                mapper, interceptor, invocation -> CompletableFuture.completedFuture(null));
+        List<CompletableFuture<Void>> publications = new ArrayList<>();
+        List<String> expectedContexts = new ArrayList<>();
+
+        for (int index = 0; index < 512; index++) {
+            String expectedContext = "context-" + index;
+            context.set(expectedContext);
+            expectedContexts.add(expectedContext);
+            publications.add(gateway.respondBatched("result-" + index, "sender", index));
+        }
+        context.remove();
+        CompletableFuture.allOf(publications.toArray(CompletableFuture[]::new)).get(3, TimeUnit.SECONDS);
+
+        for (int index = 0; index < 512; index++) {
+            assertEquals(expectedContexts.get(index), mappedContexts.get("result-" + index));
+        }
+        assertEquals(expectedContexts, monitoredContexts);
         gateway.close();
     }
 

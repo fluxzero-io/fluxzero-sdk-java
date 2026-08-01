@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -123,14 +124,33 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
      */
     public CompletableFuture<Void> respondBatched(Object response, String target, Integer requestId,
                                                    ResultPreparationErrorHandler errorHandler) {
+        return enqueueBatched(response, target, requestId, errorHandler, true);
+    }
+
+    /**
+     * Enqueues an automatically published handler response without allocating an individual completion future.
+     *
+     * <p>The ordered result backlog still waits for the actual transport append before publishing its next batch.
+     * This method is intended for consumers that explicitly do not await asynchronous result publication.</p>
+     */
+    public void respondBatchedAndForget(Object response, String target, Integer requestId,
+                                        ResultPreparationErrorHandler errorHandler) {
+        enqueueBatched(response, target, requestId, errorHandler, false);
+    }
+
+    private CompletableFuture<Void> enqueueBatched(Object response, String target, Integer requestId,
+                                                   ResultPreparationErrorHandler errorHandler,
+                                                   boolean trackCompletion) {
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         BatchResponse batchResponse = BatchResponse.of(response, target, requestId);
         if (!(getGatewayClient() instanceof WebsocketGatewayClient)) {
-            return respond(batchResponse.payload(), batchResponse.metadata(), target, requestId, Guarantee.NONE);
+            CompletableFuture<Void> result = respond(
+                    batchResponse.payload(), batchResponse.metadata(), target, requestId, Guarantee.NONE);
+            return trackCompletion ? result : null;
         }
         PreparedResponse prepared = new PreparedResponse(
                 batchResponse.payload(), batchResponse.metadata(), target, requestId, context,
-                errorHandler, new CompletableFuture<>());
+                errorHandler, trackCompletion ? new CompletableFuture<>() : null);
         getResponseBacklog().addUntracked(prepared);
         return prepared.dispatched();
     }
@@ -141,34 +161,43 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         SerializedMessage[] serialized = new SerializedMessage[size];
         Throwable[] failures = new Throwable[size];
         if (size < PARALLEL_SERIALIZATION_THRESHOLD) {
-            for (int index = 0; index < size; index++) {
-                prepareResponse(responses.get(index), messages, serialized, failures, index);
-            }
+            prepareRange(responses, messages, serialized, failures, 0, size);
         } else {
-            IntStream.range(0, size).parallel().forEach(
-                    index -> prepareResponse(responses.get(index), messages, serialized, failures, index));
+            int taskCount = Math.min(size, Math.max(2, ForkJoinPool.getCommonPoolParallelism() * 4));
+            IntStream.range(0, taskCount).parallel().forEach(taskIndex -> {
+                int start = (int) ((long) size * taskIndex / taskCount);
+                int end = (int) ((long) size * (taskIndex + 1) / taskCount);
+                prepareRange(responses, messages, serialized, failures, start, end);
+            });
         }
 
         PreparedResponse[] published = new PreparedResponse[size];
         int publishedSize = 0;
-        for (int index = 0; index < size; index++) {
-            PreparedResponse response = responses.get(index);
-            if (failures[index] != null) {
-                handlePreparationFailure(response, failures[index]);
-                continue;
-            }
-            if (serialized[index] == null) {
-                response.dispatched().complete(null);
-                continue;
-            }
-            try {
-                Message message = messages[index];
-                response.context().run(() -> dispatchInterceptor.monitorDispatch(
-                        message, RESULT, null, client.namespace(), false));
-                serialized[publishedSize] = serialized[index];
-                published[publishedSize++] = response;
-            } catch (Throwable e) {
-                handlePreparationFailure(response, e);
+        ThreadLocalContext.Snapshot workerContext = ThreadLocalContext.capture();
+        try (ThreadLocalContext.Activation activation = ThreadLocalContext.openActivation()) {
+            for (int index = 0; index < size; index++) {
+                PreparedResponse response = responses.get(index);
+                if (failures[index] != null) {
+                    activation.use(workerContext);
+                    handlePreparationFailure(response, failures[index]);
+                    continue;
+                }
+                if (serialized[index] == null) {
+                    activation.use(workerContext);
+                    complete(response, null);
+                    continue;
+                }
+                try {
+                    Message message = messages[index];
+                    activation.use(response.context());
+                    dispatchInterceptor.monitorDispatch(
+                            message, RESULT, null, client.namespace(), false);
+                    serialized[publishedSize] = serialized[index];
+                    published[publishedSize++] = response;
+                } catch (Throwable e) {
+                    activation.use(workerContext);
+                    handlePreparationFailure(response, e);
+                }
             }
         }
         if (publishedSize == 0) {
@@ -185,64 +214,81 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         } catch (Throwable e) {
             result = CompletableFuture.failedFuture(e);
         }
-        result.whenComplete((ignored, failure) -> {
-            for (PreparedResponse response : appendedResponses) {
-                if (failure == null) {
-                    response.dispatched().complete(null);
-                } else {
-                    response.dispatched().completeExceptionally(failure);
-                }
+        boolean hasTrackedCompletions = false;
+        for (PreparedResponse response : appendedResponses) {
+            if (response.dispatched() != null) {
+                hasTrackedCompletions = true;
+                break;
             }
-        });
+        }
+        if (hasTrackedCompletions) {
+            result.whenComplete((ignored, failure) -> {
+                for (PreparedResponse response : appendedResponses) {
+                    complete(response, failure);
+                }
+            });
+        }
         return result;
     }
 
-    private void prepareResponse(PreparedResponse response, Message[] messages, SerializedMessage[] serialized,
-                                 Throwable[] failures, int index) {
-        try {
-            response.context().run(() -> {
-                Message message = dispatchInterceptor.interceptDispatch(
-                        responseMapper.map(response.payload(), response.metadata()),
-                        RESULT, null, client.namespace());
-                if (message == null) {
-                    return;
+    private void prepareRange(List<PreparedResponse> responses, Message[] messages, SerializedMessage[] serialized,
+                              Throwable[] failures, int start, int end) {
+        try (ThreadLocalContext.Activation activation = ThreadLocalContext.openActivation()) {
+            for (int index = start; index < end; index++) {
+                PreparedResponse response = responses.get(index);
+                try {
+                    activation.use(response.context());
+                    Message message = dispatchInterceptor.interceptDispatch(
+                            responseMapper.map(response.payload(), response.metadata()),
+                            RESULT, null, client.namespace());
+                    if (message == null) {
+                        continue;
+                    }
+                    SerializedMessage result = dispatchInterceptor.modifySerializedMessage(
+                            message.serialize(serializer), message, RESULT, null);
+                    if (result == null) {
+                        continue;
+                    }
+                    result.setTarget(response.target());
+                    result.setRequestId(response.requestId());
+                    messages[index] = message;
+                    serialized[index] = SerializedMessage.encode(result);
+                } catch (Throwable e) {
+                    failures[index] = e;
                 }
-                SerializedMessage result = dispatchInterceptor.modifySerializedMessage(
-                        message.serialize(serializer), message, RESULT, null);
-                if (result == null) {
-                    return;
-                }
-                result.setTarget(response.target());
-                result.setRequestId(response.requestId());
-                messages[index] = message;
-                serialized[index] = SerializedMessage.encode(result);
-            });
-        } catch (Throwable e) {
-            failures[index] = e;
+            }
         }
     }
 
     private void handlePreparationFailure(PreparedResponse response, Throwable failure) {
         if (response.errorHandler() == null) {
-            response.dispatched().completeExceptionally(failure);
+            complete(response, failure);
             return;
         }
         try {
             CompletionStage<Void> recovery = response.context().supply(() -> response.errorHandler().handle(
                     failure, () -> enqueueRetry(response)));
             if (recovery == null) {
-                response.dispatched().complete(null);
+                complete(response, null);
             } else {
                 recovery.whenComplete((ignored, recoveryFailure) -> {
-                    if (recoveryFailure == null) {
-                        response.dispatched().complete(null);
-                    } else {
-                        response.dispatched().completeExceptionally(recoveryFailure);
-                    }
+                    complete(response, recoveryFailure);
                 });
             }
         } catch (Throwable e) {
-            response.dispatched().completeExceptionally(e);
+            complete(response, e);
+        }
+    }
+
+    private static void complete(PreparedResponse response, Throwable failure) {
+        CompletableFuture<Void> completion = response.dispatched();
+        if (completion == null) {
+            return;
+        }
+        if (failure == null) {
+            completion.complete(null);
+        } else {
+            completion.completeExceptionally(failure);
         }
     }
 

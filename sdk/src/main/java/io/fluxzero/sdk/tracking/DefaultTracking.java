@@ -1215,6 +1215,13 @@ public class DefaultTracking implements Tracking {
         ResultGateway resultGateway = this.resultGateway.forNamespace(config.getNamespace());
         try {
             if (resultGateway instanceof DefaultResultGateway defaultResultGateway) {
+                if (!config.awaitAsyncResults()) {
+                    defaultResultGateway.respondBatchedAndForget(
+                            result, request.getSource(), request.getRequestId(),
+                            (failure, retry) -> handleResultPublicationFailure(
+                                    failure, retry, message, h, config));
+                    return completedReport;
+                }
                 return defaultResultGateway.respondBatched(
                         result, request.getSource(), request.getRequestId(),
                         (failure, retry) -> handleResultPublicationFailure(

@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.common;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -52,6 +53,44 @@ public final class ThreadLocalContext {
     /** Returns an immutable snapshot of every context value active on the current thread. */
     public static Snapshot capture() {
         return activeValues.get().capture();
+    }
+
+    /**
+     * Opens a scope that can switch directly between multiple snapshots and restores the original context on close.
+     *
+     * <p>This is useful for ordered batches whose items each carry their own request context. Unlike invoking
+     * {@link Snapshot#run(Runnable)} for every item, intermediate switches do not first restore an empty worker
+     * context. Context changes made while processing an item are still detected and cleared by the next switch.</p>
+     */
+    public static Activation openActivation() {
+        return new Activation(capture());
+    }
+
+    /** A reusable context-switching scope created by {@link #openActivation()}. */
+    public static final class Activation implements AutoCloseable {
+        private final Snapshot previous;
+        private boolean closed;
+
+        private Activation(Snapshot previous) {
+            this.previous = previous;
+        }
+
+        /** Replaces the currently active context with the supplied snapshot. */
+        public void use(Snapshot next) {
+            if (closed) {
+                throw new IllegalStateException("Context activation has already been closed");
+            }
+            Snapshot.activate(capture(), Objects.requireNonNull(next, "snapshot"));
+        }
+
+        /** Restores the context that was active when this scope was opened. */
+        @Override
+        public void close() {
+            if (!closed) {
+                closed = true;
+                Snapshot.activate(capture(), previous);
+            }
+        }
     }
 
     /** A reusable snapshot of the context that was active when {@link #capture()} was called. */
@@ -166,7 +205,7 @@ public final class ThreadLocalContext {
                         next.participants[i],
                         next.values[i]);
             }
-            activeValues.get().restore(next);
+            activeValues.get().restore(next, sameParticipants);
         }
     }
 
@@ -263,8 +302,10 @@ public final class ThreadLocalContext {
             }
         }
 
-        private void restore(Snapshot next) {
-            Arrays.fill(values, 0, size, null);
+        private void restore(Snapshot next, boolean sameParticipants) {
+            if (!sameParticipants) {
+                Arrays.fill(values, 0, size, null);
+            }
             for (int i = 0; i < next.participants.length; i++) {
                 putRestored(
                         next.participants[i],
