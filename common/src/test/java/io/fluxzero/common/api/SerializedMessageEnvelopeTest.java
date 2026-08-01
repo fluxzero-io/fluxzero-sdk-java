@@ -392,6 +392,25 @@ class SerializedMessageEnvelopeTest {
         assertEquals("before?after?", decoded.getSource());
     }
 
+    @Test
+    void repeatedRoutingHeadersRetainExactUtf8Bytes() throws Exception {
+        String source = "repeated-source-😀";
+        String target = "repeated-target-東京";
+
+        for (int i = 0; i < 3; i++) {
+            SerializedMessage message = message();
+            message.setSource(source);
+            message.setTarget(target);
+
+            SerializedMessage encoded = SerializedMessage.encode(message);
+            SerializedMessage decoded = SerializedMessage.decode(
+                    encoded.copyEnvelope(), 0, encoded.envelopeSize());
+
+            assertEquals(source, decoded.getSource());
+            assertEquals(target, decoded.getTarget());
+        }
+    }
+
     private static SerializedMessage message() {
         return new SerializedMessage(
                 new Data<>(new byte[]{1, 2, 3, 4}, "type-😀", 2, "application/json"),

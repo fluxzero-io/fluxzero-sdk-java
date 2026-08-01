@@ -65,6 +65,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
     private static final int MATERIALIZED_STRING = Integer.MIN_VALUE;
     private static final int UNKNOWN_ENCODED_STRING = Integer.MIN_VALUE;
+    private static final int MAX_CACHED_ROUTING_HEADER_CHARS = 256;
     private static final ThreadLocal<EncodedDataHeaderCache> ENCODED_DATA_HEADER_CACHE =
             ThreadLocal.withInitial(EncodedDataHeaderCache::new);
     private static final Data<byte[]> DEFERRED_DATA =
@@ -245,16 +246,19 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         String messageId = message.getMessageId();
         boolean reuseEncodedType = message.hasEncodedDataType();
         boolean reuseEncodedFormat = message.hasEncodedDataFormat();
-        EncodedDataHeaderCache headerCache = reuseEncodedType && reuseEncodedFormat
-                ? null : ENCODED_DATA_HEADER_CACHE.get();
+        EncodedDataHeaderCache headerCache = ENCODED_DATA_HEADER_CACHE.get();
         byte[] encodedType = reuseEncodedType ? null : headerCache.type(type);
         byte[] encodedFormat = reuseEncodedFormat ? null : headerCache.format(format);
+        byte[] encodedSource = headerCache.source(source);
+        byte[] encodedTarget = headerCache.target(target);
         int typeLength = reuseEncodedType
                 ? message.encodedDataTypeLength : length(encodedType);
         int formatLength = reuseEncodedFormat
                 ? message.encodedDataFormatLength : length(encodedFormat);
-        int sourceLength = utf8Length(source);
-        int targetLength = utf8Length(target);
+        int sourceLength = encodedSource == null
+                ? utf8Length(source) : encodedSource.length;
+        int targetLength = encodedTarget == null
+                ? utf8Length(target) : encodedTarget.length;
         int messageIdLength = message.encodedMessageIdLength(
                 messageId);
 
@@ -296,8 +300,12 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         cursor = reuseEncodedFormat
                 ? message.copyEncodedDataFormat(result, cursor)
                 : copy(encodedFormat, result, cursor);
-        cursor = writeUtf8(source, result, cursor);
-        cursor = writeUtf8(target, result, cursor);
+        cursor = encodedSource == null
+                ? writeUtf8(source, result, cursor)
+                : copy(encodedSource, result, cursor);
+        cursor = encodedTarget == null
+                ? writeUtf8(target, result, cursor)
+                : copy(encodedTarget, result, cursor);
         cursor = message.copyEncodedMessageId(
                 messageId, result, cursor);
         cursor = payloadView == null
@@ -1177,6 +1185,10 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         private byte[] encodedType;
         private String format;
         private byte[] encodedFormat;
+        private final RepeatedUtf8Header source =
+                new RepeatedUtf8Header();
+        private final RepeatedUtf8Header target =
+                new RepeatedUtf8Header();
 
         private byte[] type(String value) {
             if (value == null) {
@@ -1198,6 +1210,44 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
                 encodedFormat = value.getBytes(StandardCharsets.UTF_8);
             }
             return encodedFormat;
+        }
+
+        private byte[] source(String value) {
+            return source.encoded(value);
+        }
+
+        private byte[] target(String value) {
+            return target.encoded(value);
+        }
+    }
+
+    /**
+     * Caches only routing headers that repeat on the same encoder thread. The first occurrence retains no encoded
+     * copy, so high-cardinality targets keep the existing allocation-free direct-encoding path.
+     */
+    private static final class RepeatedUtf8Header {
+        private String candidate;
+        private byte[] encoded;
+
+        private byte[] encoded(String value) {
+            if (value == null
+                || value.length()
+                   > MAX_CACHED_ROUTING_HEADER_CHARS) {
+                candidate = null;
+                encoded = null;
+                return null;
+            }
+            if (value != candidate
+                && !value.equals(candidate)) {
+                candidate = value;
+                encoded = null;
+                return null;
+            }
+            if (encoded == null) {
+                encoded = value.getBytes(
+                        StandardCharsets.UTF_8);
+            }
+            return encoded;
         }
     }
 

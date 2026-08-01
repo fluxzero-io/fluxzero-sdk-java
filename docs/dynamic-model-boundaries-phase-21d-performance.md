@@ -874,6 +874,55 @@ hashes were `a75590ebb386705b5307ae50e6e18a0189b66df58dd6d2334433be6252daa430`,
 `211e0600a110c62b8fba677cd9af05048a370709e4fb8f0cb58f5dcba138f491`; the benchmark driver remained
 `b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
 
+### Reuse repeated routing-header UTF-8
+
+The next JFR attributed all eighteen remaining `SerializedMessage.utf8Length` samples by field and caller. Eight
+sampled source scans covered outgoing commands and automatic model events, four target scans covered ordinary command
+results, and seven samples entered the message-id helper; a few records contained both the outer encode line and the
+nested message-id frame. Source and target are routing headers that normally repeat for an entire encoder stream, but
+were still counted and written character by character for every newly materialized envelope.
+
+`SerializedMessage` now promotes a source or target to a per-thread encoded header only after seeing the same value a
+second time. The first occurrence and every high-cardinality value therefore retain the previous allocation-free
+direct encoder. Values longer than 256 characters are never retained, limiting each encoded routing-header cache to at
+most 1,024 UTF-8 bytes plus its string. Existing envelope-backed type, format and message-id slices remain preferred,
+and no public API or wire byte changes. A focused Unicode round-trip covers the first observation, promotion and reuse
+branches.
+
+The production-default JFR again used 65,536 models, 65,536 warm-up updates, 1,048,576 measured updates, 65,536
+in-flight commands, sixteen command consumers, 32-byte payloads, two event-sourcing sessions, defaults version
+`2026.07.27`, adaptive caching and ordinary tracked results. It completed all exact result, membership and global-event
+checks at 224,959 commands/s with 251.920 / 314.300 / 354.344 / 392.947-ms p50/p95/p99/max result latency and 77 commit
+batches averaging 13,617.9 items. Two same-binary non-JFR repetitions reached 211,640/s and 225,726/s, with respectively
+93 and 166 batches; this spread is retained as batch-shape evidence rather than treated as an isolated throughput
+delta.
+
+The call-stack improvement is direct: `utf8Length` fell from eighteen execution samples to one unique result
+message-id sample. The replacement repeated-header lookup appeared in four samples, leaving five samples in the whole
+variable-header preparation cluster instead of eighteen. The allocation profile contains no new repeated-routing-
+header site; total sampled allocation remains too variable across recordings to claim a byte reduction from this small
+change.
+
+The focused envelope suite passed all nineteen tests. The first full SDK reactor passed 2,035 SDK tests before one
+unrelated JUnit temp-directory cleanup race (`DirectoryNotEmptyException`) failed extension shutdown; that exact test
+passed immediately in isolation. A complete repetition then passed all nine SDK, test-server, proxy, annotation-
+processor and Java/Kotlin downstream modules in 25.130 seconds. The runtime reactor subsequently passed all four
+runtime, application and benchmark modules against the newly installed common artifact in 1:01.
+
+The JFR and logs are `/private/tmp/sdk-model-routing-header-cache.jfr`, `.log`,
+`/private/tmp/sdk-model-routing-header-cache-run1.log` and `-run2.log`, with SHA-256
+`9f1214aeab06e88855cf24087d0291e107d141c042fd30549c44d516be6bb32a`,
+`8186d10ffaf20f09a4c502db47307a56ca8646a31a9cea4e8df9db9b1478e77f`,
+`8dcbb93360e80ba50bc81dcdda37ec4ed8960c510b68af3133d6ae373e99ea90` and
+`730f3360aef9ed2f537193a53b180fc8fb09895d25fce6e11b89b5eec47ab819`. Measured source identity was SDK base
+`bcf4134efecac92f8e105cb507424317a9dc72b5` plus the two-file diff SHA-256
+`b2f3e081b85af63f5d05f768a92765869fb8358aeb6555b41566de3921e35235`, and clean runtime commit
+`d867f8e21203fabf67e485171924cb9ce58ab2b0`. Installed common, SDK and runtime artifact hashes were
+`1279b78ae1689c56bcd667bb1ffe50e96f53eeb1aff9ced869f4d1a99b63f1c6`,
+`78c51ac48eef864b2beaed7e779244012350e47956e5a86ac50fde9689a10d0e` and
+`211e0600a110c62b8fba677cd9af05048a370709e4fb8f0cb58f5dcba138f491`; the benchmark driver remained
+`b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
+
 ## Measurement discipline
 
 Before accepting or rejecting another optimization:
