@@ -29,3 +29,9 @@ E63-JFR,smoke,canonical-full-result,P2,E63-result-front-grouping,131072,32768,jf
 E64-JFR,smoke,full-result-ephemeral-store,P2,E64-ephemeral-result-store,131072,32768,jfr,177524,174019,false,diagnostic-storage-excluded,diagnostic-only,model-e2e-throughput-campaign.md
 E64-CPU,profile,full-result-ephemeral-store,P2,E64-ephemeral-result-store,1048576,65536,async-profiler-cpu,,217031,false,diagnostic-rerank,diagnostic-only,model-e2e-throughput-campaign.md
 E65-JFR,smoke,minimal-body-full-result-route,P2,E65-minimal-result-body,131072,32768,jfr,176038,182645,false,diagnostic-fixed-route-dominates,reverted,model-e2e-throughput-campaign.md
+E66-MICRO,smoke,result-envelope-zstd-micro,P2,zstd-level-minus1,0,500,none,3359.9,4354.4,false,diagnostic-screened-in,diagnostic-only,model-e2e-throughput-campaign.md
+E66-JFR,profile,canonical-full-result,P2,zstd-level-minus1,131072,32768,jfr,196767,215089,false,rejected-by-confirmation,reverted,model-e2e-throughput-campaign.md
+E66-P1,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,260933,295221,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
+E66-P2,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,319150,312611,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
+E66-P3,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,302927,292239,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md
+E66-P4,canonical,canonical-full-result,P2,zstd-level-minus1,1048576,65536,none,250133,273612,true,rejected-below-threshold,reverted,model-e2e-throughput-campaign.md

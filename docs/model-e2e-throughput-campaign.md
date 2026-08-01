@@ -15,12 +15,12 @@ experiments were rejected.
 | Accepted matched throughput | 330,222/s candidate geometric mean versus 275,049/s control; +20.06%, paired 95% CI 16.61–24.13% |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
-| Latest closed diagnostic | E65: minimizing the application result body reduced the pre-compression result envelope by only 2.06%; fixed result-route representation/transport dominates |
-| Current production code | clean accepted P2 source in both repositories; no E62–E65 candidate code remains |
-| Next evidence target | attribute the roughly 666 fixed bytes per result across native headers/strings/metadata, then remove repeated representation and copies without changing result semantics |
+| Latest closed diagnostic | E66: a faster ZSTD level won its microbenchmark and one JFR pair, but canonical matched throughput was only +3.99% with mixed pair signs; the candidate was reverted |
+| Current production code | clean accepted P2 source in both repositories; no E62–E66 candidate code remains |
+| Next evidence target | rerank the result-free E61 upper-bound route with threaded CPU profiling; its model/cache/commit path caps even total result removal near 405,700/s and now dominates the distance to 1M/s |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E65 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
+Last updated after E66 on 2026-08-01. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -85,7 +85,7 @@ contract is:
 | `candidate` | code or diagnostic mechanism under measurement |
 | `command_count` / `warmup_count` | exact workload sizes |
 | `profiling` | `none`, JFR or the exact async-profiler mode |
-| `control_throughput` / `candidate_throughput` | observed commands/s; blank only when that side was intentionally absent |
+| `control_throughput` / `candidate_throughput` | observed route throughput; command routes use commands/s and a non-command microdiagnostic names its unit in the evidence |
 | `canonical_comparable` | `true` only for unprofiled full-route runs on the fixed workload that are eligible for the acceptance protocol |
 | `decision` | current evidence-based disposition |
 | `code_status` | exactly `accepted`, `reverted` or `diagnostic-only` |
@@ -772,6 +772,66 @@ benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are
 `cc912a37d68167ba7e75dffcbcca6af3313d713e0eb1012784b70c827325c10a`, and
 `425a278c5d7416e52049206226731733b51a233cbdac4aa09a0f27784d10add7`.
 
+### Rejected experiment E66 — a faster ZSTD level is below the E2E gate
+
+E66 first attributed one persisted native result block without changing either repository. Every result was exactly
+667 pre-compression bytes: 507 metadata, 72 fixed header, 36 target, 32 message ID, 16 format, two type and two payload
+bytes. The metadata had ten entries. Six entries totalling 320 encoded bytes had one value across all 128 messages;
+the 89-byte tracker entry had two values. Correlation ID, trace ID and delay plus the entry-count header used the
+remaining 98 bytes. This proves that low-cardinality correlation metadata, not the application payload, owns most raw
+result representation.
+
+The accepted level-1 ZSTD codec compressed the actual 85,376-byte block to 2,464 bytes at 3,359.9 input MB/s in a
+5,000-iteration, 500-iteration-warm-up microdiagnostic. Level -1 reached 4,354.4 MB/s (+29.60%) with a 2,753-byte
+result (+11.73%, still only 3.22% of raw). A temporary default-neutral system property allowed the two JVMs to select
+level -1 from identical class files. All nine compression tests passed. An adjacent 131,072-command dual-JFR pair then
+measured 196,767/s control and 215,089/s candidate (+9.31%), while p95 result latency fell from 421.348 to 314.597 ms.
+Its command batches changed from nine to eight, so this remained screening evidence rather than a causal throughput
+claim.
+
+The required canonical non-JFR screen used order `A B B A B A A B`, recreated the schema per invocation and passed all
+exact result/event/model checks:
+
+| Pair | Level 1 control | Level -1 candidate | Delta |
+| --- | ---: | ---: | ---: |
+| 1 | 260,933/s | 295,221/s | +13.14% |
+| 2 | 319,150/s | 312,611/s | -2.05% |
+| 3 | 302,927/s | 292,239/s | -3.53% |
+| 4 | 250,133/s | 273,612/s | +9.39% |
+
+Control/candidate geometric means were 281,844/293,094 commands/s: only **+3.99%**, below the predeclared 5% gate,
+with two positive and two negative pairs. E66 therefore rejects ZSTD-level tuning despite the real local codec win.
+The property was removed and common production source again matches accepted P2 exactly. This also closes metadata
+encoding microcaches as the next checkpoint target: result preparation was 5.34% of the E64 client CPU profile, but
+actual metadata string encoding inside it was only about 0.8% of total client samples.
+
+The JFR control log/Runtime/client/Runtime hashes are
+`fc8887e7cc59c5714119785b32797b44e40d5a47a4cc999a9ff6928b0c7a3652`,
+`d2f0802a18b8453bd26a2e459096a8ee6cb4287737b95b7a4a7e5ea6dc071c81`,
+`57f36aa75907d970b7c255929a5710cffce0a2fd89705ca2e6901dfcade17c95`, and
+`a112489575df7956981864e5631c5d50c8cbe03ebb6af2a703c0092cd2caabe2`; candidate hashes are
+`82a51257bf7212f970e1a19ef61dd57c1248427347ccdccb14c8ca4bf432f82f`,
+`6f9f7f9fd37bca81d5dc8a2c7583b31ef356e26a3ab9f05986d64f9c516e92b9`,
+`86b826bd49900d6657a823551113a527ea501cd0cc619a177bbcbed720842d1a`, and
+`91f0d9335df4a29fd9d9e69c77412dd8a68b15598a7d8718f0bc7cbe32ba30f2`.
+Canonical benchmark/Runtime log pairs 1–4 are respectively
+`86ff7d60267a6d276a3d15b1a9ae56a5e350806257f642fdef2f79e698cb1438`/
+`0b177c495609dd1ff6b3c418ebabd5ed4a4cdde74bca5b6304210ffc3faa26b8` followed by
+`5b4d1736f73058101e0e5e7222a8d118c69cf4edb821084a426e658aabdcb7e3`/
+`948d33461a6130b3b02da06b34c75e493156378ba718827423b8ac4b80633e40`,
+`d1e4f118997194db90c92731da366844fb98b9fddadf16f1ccdc1d5d6b7c972a`/
+`22432f091eaf037c25ea83b4e95f682dc59ee290f1977ba61f982800d3c8e7d3` followed by
+`4983bb8e4258232692615c3eff6ba4015244449d4943cc40fce99b4797781000`/
+`f9376f976b96a274e4cb61676e22feb3c5e08b16c1c2249184c3aef6d564015b`,
+`05c547a7645d666ce535f6e6ab9dcac8674dc20640398ebe92c4683f3c4bade2`/
+`4c553897c5932253ffab21f90cc35b87de3be5160701cf95ce7922114ab37336` followed by
+`84ec898c5eacd910dd50b118a328737c73c5f3ca9485def2e4a1c46ca6d98058`/
+`66c40401c010d8ef597da86ffaad57af60ae7a929d984f566c8e2a9f74f82a56`, and
+`fe819f2ff301c937471967ee62a5c8feb1c092bd7a5a8467cab4dc213f15ed0c`/
+`77722f89a69dda6314243a43f99448c74a1a90406a3b575ff16c2c54567be0b2` followed by
+`e45eb98e438ef8cb8f9ade8d7622ba7880d4afc52661b32993cc9cc83e2ec5d2`/
+`fb746a6c6a9a00a56b5d832ff11b2ece3259967f5f3ac2ff2baafde4f4ae148c`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -798,8 +858,11 @@ benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are
    changed E2E by -1.97%. E65 subsequently isolated application-body representation from the fixed result route.
 10. E65 closes application-result-body reuse as the large target: removing half the already tiny payload changed
     pre-compression envelopes by only -2.06% and outbound bytes by +0.08%. Attribute the fixed representation next.
-11. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
-   the full path and repeat until five consecutive qualifying runs exceed 1M/s.
+11. E66 attributes 76% of raw result envelopes to metadata, but rejects the fastest credible compression-only
+    response at +3.99% canonical E2E. Stop result codec microtuning and profile the E61 result-free upper-bound route:
+    even deleting all ordinary-result work leaves only 405,700/s, so model/cache/commit work now dominates the 1M gap.
+12. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
