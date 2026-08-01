@@ -82,6 +82,10 @@ public class Metadata {
 
     private static final int MAX_ENTRY_COUNT = 2_000_000;
     private static final int MAX_DATA_BYTES = 512 * 1024 * 1024;
+    static final int UNKNOWN_CHUNK_STATUS = -1;
+    static final int CHUNKED_STATUS = 1;
+    static final int LAST_CHUNK_STATUS = 1 << 1;
+    static final int FIRST_CHUNK_STATUS = 1 << 2;
     public static JsonMapper objectMapper = JsonMapper.builder()
             .findAndAddModules().addModule(new NullCollectionsAsEmptyModule())
             .disable(FAIL_ON_EMPTY_BEANS).disable(FAIL_ON_UNKNOWN_PROPERTIES)
@@ -288,10 +292,18 @@ public class Metadata {
      * preserve application metadata without repeatedly serializing and deserializing it.</p>
      */
     public static Metadata fromData(@NonNull Data<byte[]> data) {
+        return fromData(data, UNKNOWN_CHUNK_STATUS);
+    }
+
+    static Metadata fromData(@NonNull Data<byte[]> data, int chunkStatus) {
         if (!DATA_TYPE.equals(data.getType()) || !DATA_FORMAT.equals(data.getFormat()) || data.getRevision() != 0) {
             throw new IllegalArgumentException("Unsupported serialized metadata descriptor: " + data);
         }
-        return new Metadata(new SerializedEntries(data));
+        if (chunkStatus < UNKNOWN_CHUNK_STATUS
+            || chunkStatus > (CHUNKED_STATUS | LAST_CHUNK_STATUS | FIRST_CHUNK_STATUS)) {
+            throw new IllegalArgumentException("Invalid metadata chunk status " + chunkStatus);
+        }
+        return new Metadata(new SerializedEntries(data, chunkStatus));
     }
 
     static boolean containsKey(
@@ -327,6 +339,14 @@ public class Metadata {
             return serializedEntries.data();
         }
         return new Data<>(MetadataBinaryCodec.encode(entries), DATA_TYPE, 0, DATA_FORMAT);
+    }
+
+    int chunkStatus() {
+        if (entries instanceof SerializedEntries serializedEntries) {
+            serializedEntries.data();
+            return serializedEntries.chunkStatus;
+        }
+        return UNKNOWN_CHUNK_STATUS;
     }
 
     /**
@@ -830,10 +850,16 @@ public class Metadata {
         private volatile Data<byte[]> data;
         private volatile Map<String, String> decoded;
         private volatile String[] compact;
+        private volatile int chunkStatus = UNKNOWN_CHUNK_STATUS;
         private final int compactSize;
 
         private SerializedEntries(Data<byte[]> data) {
+            this(data, UNKNOWN_CHUNK_STATUS);
+        }
+
+        private SerializedEntries(Data<byte[]> data, int chunkStatus) {
             this.data = data;
+            this.chunkStatus = chunkStatus;
             compactSize = -1;
         }
 
@@ -856,8 +882,8 @@ public class Metadata {
                         String[] compactEntries = compact;
                         current = new Data<>(
                                 compactEntries == null
-                                        ? MetadataBinaryCodec.encode(decoded())
-                                        : MetadataBinaryCodec.encode(compactEntries, compactSize),
+                                        ? MetadataBinaryCodec.encode(decoded(), this)
+                                        : MetadataBinaryCodec.encode(compactEntries, compactSize, this),
                                 DATA_TYPE, 0, DATA_FORMAT);
                         data = current;
                         compact = null;
@@ -1034,22 +1060,30 @@ public class Metadata {
         }
 
         private static byte[] encode(Map<String, String> entries) {
+            return encode(entries, null);
+        }
+
+        private static byte[] encode(Map<String, String> entries, SerializedEntries target) {
             BinaryWriter writer = new BinaryWriter(minimumEncodedSize(entries));
             writer.writeInt(entries.size());
             entries.forEach((key, value) ->
                                     writer.writeEntry(
                                             Objects.requireNonNull(key, "Metadata key"),
                                             Objects.requireNonNull(value, "Metadata value")));
+            if (target != null) {
+                target.chunkStatus = writer.chunkStatus();
+            }
             return writer.toByteArray();
         }
 
-        private static byte[] encode(String[] entries, int size) {
+        private static byte[] encode(String[] entries, int size, SerializedEntries target) {
             BinaryWriter writer = new BinaryWriter(minimumEncodedSize(entries, size));
             writer.writeInt(size);
             for (int index = 0; index < size; index++) {
                 int keyIndex = index * 2;
                 writer.writeEntry(entries[keyIndex], entries[keyIndex + 1]);
             }
+            target.chunkStatus = writer.chunkStatus();
             return writer.toByteArray();
         }
 
@@ -1528,6 +1562,7 @@ public class Metadata {
         private static final class BinaryWriter {
             private byte[] bytes;
             private int position;
+            private int chunkStatus = LAST_CHUNK_STATUS | FIRST_CHUNK_STATUS;
 
             private BinaryWriter(int initialSize) {
                 bytes = new byte[initialSize];
@@ -1540,8 +1575,22 @@ public class Metadata {
             }
 
             private void writeEntry(String key, String value) {
+                if (HasMetadata.FINAL_CHUNK.equals(key)) {
+                    chunkStatus |= CHUNKED_STATUS;
+                    chunkStatus = "true".equalsIgnoreCase(value)
+                            ? chunkStatus | LAST_CHUNK_STATUS
+                            : chunkStatus & ~LAST_CHUNK_STATUS;
+                } else if (HasMetadata.FIRST_CHUNK.equals(key)) {
+                    chunkStatus = "true".equalsIgnoreCase(value)
+                            ? chunkStatus | FIRST_CHUNK_STATUS
+                            : chunkStatus & ~FIRST_CHUNK_STATUS;
+                }
                 writeString(key);
                 writeString(value);
+            }
+
+            private int chunkStatus() {
+                return chunkStatus;
             }
 
             private void writeString(String value) {

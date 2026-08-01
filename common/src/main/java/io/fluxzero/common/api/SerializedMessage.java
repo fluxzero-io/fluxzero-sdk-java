@@ -62,6 +62,11 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     private static final int HAS_REQUEST_ID = 1 << 1;
     private static final int HAS_INDEX = 1 << 2;
     private static final int HAS_TIMESTAMP = 1 << 3;
+    private static final int UNCHUNKED = 1 << 5;
+    private static final int CHUNKED_NOT_LAST = 1 << 6;
+    private static final int CHUNKED_LAST = UNCHUNKED | CHUNKED_NOT_LAST;
+    private static final int CHUNK_STATE_MASK = CHUNKED_LAST;
+    private static final int IS_FIRST_CHUNK = 1 << 7;
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
     private static final int MATERIALIZED_STRING = Integer.MIN_VALUE;
     private static final int UNKNOWN_ENCODED_STRING = Integer.MIN_VALUE;
@@ -239,6 +244,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         Metadata messageMetadata = message.getMetadata();
         Metadata normalizedMetadata = messageMetadata == null ? Metadata.empty() : messageMetadata;
         byte[] metadata = normalizedMetadata.toData().getValue();
+        int chunkStatus = normalizedMetadata.chunkStatus();
         String type = data.getType();
         String format = data.getFormat();
         String source = message.getSource();
@@ -277,7 +283,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         byte[] result = new byte[length];
         writeInt(result, 0, MAGIC);
         result[4] = VERSION;
-        result[FLAGS_OFFSET] = flags(message);
+        result[FLAGS_OFFSET] = flags(message, chunkStatus);
         writeInt(result, TOTAL_LENGTH_OFFSET, length);
         writeInt(result, SEGMENT_OFFSET, valueOrZero(message.getSegment()));
         writeInt(result, REQUEST_ID_OFFSET, valueOrZero(message.getRequestId()));
@@ -493,7 +499,11 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             throw new IOException("Unsupported native message version " + version);
         }
         int flags = bytes[offset + FLAGS_OFFSET] & 0xff;
-        if ((flags & ~(HAS_SEGMENT | HAS_REQUEST_ID | HAS_INDEX | HAS_TIMESTAMP)) != 0) {
+        int supportedFlags = HAS_SEGMENT | HAS_REQUEST_ID | HAS_INDEX | HAS_TIMESTAMP
+                             | CHUNK_STATE_MASK | IS_FIRST_CHUNK;
+        int chunkState = flags & CHUNK_STATE_MASK;
+        if ((flags & ~supportedFlags) != 0
+            || chunkState == 0 && (flags & IS_FIRST_CHUNK) != 0) {
             throw new IOException("Unsupported native message flags " + flags);
         }
         int result = readInt(bytes, offset + TOTAL_LENGTH_OFFSET);
@@ -610,8 +620,8 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         synchronized (this) {
             if (metadataDeferred) {
                 metadata = Metadata.fromData(new Data<>(
-                        metadataSlice(),
-                        Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
+                        metadataSlice(), Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT),
+                        envelopeChunkStatus());
                 metadataDeferred = false;
             }
             return metadata;
@@ -640,17 +650,27 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
 
     @Override
     public boolean chunked() {
-        return metadataContainsKey(HasMetadata.FINAL_CHUNK);
+        int chunkState = envelopeChunkState();
+        return chunkState != 0
+                ? chunkState != UNCHUNKED
+                : metadataContainsKey(HasMetadata.FINAL_CHUNK);
     }
 
     @Override
     public boolean lastChunk() {
+        int chunkState = envelopeChunkState();
+        if (chunkState != 0) {
+            return chunkState != CHUNKED_NOT_LAST;
+        }
         String value = getMetadataValue(HasMetadata.FINAL_CHUNK);
         return value == null || "true".equalsIgnoreCase(value);
     }
 
     @Override
     public boolean firstChunk() {
+        if (envelopeChunkState() != 0) {
+            return hasEnvelopeFlag(IS_FIRST_CHUNK);
+        }
         String value = getMetadataValue(HasMetadata.FIRST_CHUNK);
         return value == null || "true".equalsIgnoreCase(value);
     }
@@ -968,16 +988,39 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         return envelope != null && (envelope[envelopeOffset + FLAGS_OFFSET] & flag) != 0;
     }
 
+    private int envelopeChunkStatus() {
+        int chunkState = envelopeChunkState();
+        if (chunkState == 0) {
+            return Metadata.UNKNOWN_CHUNK_STATUS;
+        }
+        int result = chunkState == UNCHUNKED ? 0 : Metadata.CHUNKED_STATUS;
+        result |= chunkState == CHUNKED_NOT_LAST ? 0 : Metadata.LAST_CHUNK_STATUS;
+        result |= hasEnvelopeFlag(IS_FIRST_CHUNK) ? Metadata.FIRST_CHUNK_STATUS : 0;
+        return result;
+    }
+
+    private int envelopeChunkState() {
+        return envelope == null ? 0
+                : envelope[envelopeOffset + FLAGS_OFFSET] & CHUNK_STATE_MASK;
+    }
+
     private void patchFlag(int flag, boolean present) {
         int offset = envelopeOffset + FLAGS_OFFSET;
         envelope[offset] = (byte) (present ? envelope[offset] | flag : envelope[offset] & ~flag);
     }
 
-    private static byte flags(SerializedMessage message) {
+    private static byte flags(SerializedMessage message, int chunkStatus) {
         int flags = message.getSegment() == null ? 0 : HAS_SEGMENT;
         flags |= message.getRequestId() == null ? 0 : HAS_REQUEST_ID;
         flags |= message.getIndex() == null ? 0 : HAS_INDEX;
         flags |= message.getTimestamp() == null ? 0 : HAS_TIMESTAMP;
+        if (chunkStatus != Metadata.UNKNOWN_CHUNK_STATUS) {
+            flags |= (chunkStatus & Metadata.CHUNKED_STATUS) == 0
+                    ? UNCHUNKED
+                    : (chunkStatus & Metadata.LAST_CHUNK_STATUS) == 0
+                            ? CHUNKED_NOT_LAST : CHUNKED_LAST;
+            flags |= (chunkStatus & Metadata.FIRST_CHUNK_STATUS) == 0 ? 0 : IS_FIRST_CHUNK;
+        }
         return (byte) flags;
     }
 

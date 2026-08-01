@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SerializedMessageEnvelopeTest {
@@ -225,6 +226,72 @@ class SerializedMessageEnvelopeTest {
         assertTrue(decoded.firstChunk());
         assertFalse(decoded.lastChunk());
         assertFalse(decoded.isMetadataMaterialized());
+    }
+
+    @Test
+    void readsAllChunkStatesFromFixedEnvelopeFlags() throws Exception {
+        SerializedMessage encoded = SerializedMessage.encode(
+                new SerializedMessage(
+                        new Data<>(new byte[]{1}, "type", 0),
+                        Metadata.of(
+                                HasMetadata.FIRST_CHUNK, "false",
+                                HasMetadata.FINAL_CHUNK, "false"),
+                        "message-id", 1L));
+        SerializedMessage decoded = SerializedMessage.decode(
+                encoded.copyEnvelope(), 0, encoded.envelopeSize());
+
+        assertTrue(decoded.chunked());
+        assertFalse(decoded.firstChunk());
+        assertFalse(decoded.lastChunk());
+        assertFalse(decoded.isMetadataMaterialized());
+    }
+
+    @Test
+    void oldEnvelopeWithoutFixedChunkStatusFallsBackToOpaqueMetadata() throws Exception {
+        SerializedMessage encoded = SerializedMessage.encode(
+                new SerializedMessage(
+                        new Data<>(new byte[]{1}, "type", 0),
+                        Metadata.of(
+                                HasMetadata.FIRST_CHUNK, "false",
+                                HasMetadata.FINAL_CHUNK, "true"),
+                        "message-id", 1L));
+        byte[] oldEnvelope = encoded.copyEnvelope();
+        oldEnvelope[5] &= 0x0f;
+
+        SerializedMessage decoded = SerializedMessage.decode(
+                oldEnvelope, 0, oldEnvelope.length);
+
+        assertTrue(decoded.chunked());
+        assertFalse(decoded.firstChunk());
+        assertTrue(decoded.lastChunk());
+        assertFalse(decoded.isMetadataMaterialized());
+    }
+
+    @Test
+    void rejectsTheRemainingReservedEnvelopeFlag() {
+        SerializedMessage encoded = SerializedMessage.encode(message());
+        byte[] envelope = encoded.copyEnvelope();
+        envelope[5] |= 1 << 4;
+
+        assertThrows(
+                java.io.IOException.class,
+                () -> SerializedMessage.decode(envelope, 0, envelope.length));
+    }
+
+    @Test
+    void metadataMutationRecomputesFixedChunkStatus() throws Exception {
+        SerializedMessage encoded = SerializedMessage.encode(
+                new SerializedMessage(
+                        new Data<>(new byte[]{1}, "type", 0),
+                        Metadata.of(HasMetadata.FINAL_CHUNK, "false"),
+                        "message-id", 1L));
+
+        encoded.setMetadata(Metadata.empty());
+        SerializedMessage replacement = SerializedMessage.encode(encoded);
+
+        assertFalse(replacement.chunked());
+        assertTrue(replacement.firstChunk());
+        assertTrue(replacement.lastChunk());
     }
 
     @Test

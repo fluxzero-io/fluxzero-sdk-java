@@ -923,6 +923,70 @@ The JFR and logs are `/private/tmp/sdk-model-routing-header-cache.jfr`, `.log`,
 `211e0600a110c62b8fba677cd9af05048a370709e4fb8f0cb58f5dcba138f491`; the benchmark driver remained
 `b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
 
+### Carry chunk lifecycle in the native fixed header
+
+The routing-header recording still contained twelve execution records in which
+`DefaultRequestHandler.ResponseCallback.process` walked opaque metadata through `findValue` and `utf8Equals` merely to
+decide whether the response was final. The metadata had already been visited by its binary writer before transport.
+The native envelope now uses three previously reserved flag bits: two encode the unchunked, non-final-chunk and
+final-chunk states, and one carries the first-chunk decision. One flag remains reserved for future use.
+`SerializedMessage.chunked()`, `firstChunk()` and `lastChunk()` read those fixed
+bits without touching metadata. Metadata encoding derives the bits while writing entries and retains the result beside
+the already cached binary data; it does not add a second entry scan or a per-message status object.
+
+The 72-byte layout, version and all existing field bytes remain unchanged. New readers fall back to the original
+opaque metadata lookup when the chunk-state bits are zero, so historical native envelopes remain readable. The reserved
+bits do change on newly encoded native messages. That native format is still unreleased on this branch, and clients
+which do not negotiate `BINARY_V2` continue to receive the existing runtime conversion. A previously built native-v1
+reader from an intermediate branch checkpoint rejects the new bits and is therefore not a supported mixed-version
+deployment; this distinction is recorded explicitly instead of calling the byte change invisible.
+
+The production-default gate retained 65,536 models, 65,536 warm-up updates, 1,048,576 measured updates, 65,536
+in-flight commands, sixteen command consumers, 32-byte payloads, two event-sourcing sessions, defaults version
+`2026.07.27`, adaptive caching and ordinary tracked results. The final three-bit implementation completed every result,
+membership and global-event check under JFR at 215,040 commands/s with 264.423 / 333.354 / 360.251 / 386.099-ms
+p50/p95/p99/max latency and 131 commit batches averaging 8,004.4 items. Its same-source non-JFR repetition reached
+216,923/s with 125 batches averaging 8,388.6 items. The preceding retained checkpoint reached 224,959/s under JFR and
+211,640/s and 225,726/s without JFR. There is therefore no throughput-delta claim for this checkpoint; the retained
+reason is the directly measured callback-work removal.
+
+An intermediate four-bit status encoding was also measured before the final adversarial review. It reached 247,504/s
+under JFR and 229,784/s and 249,952/s without JFR, but was superseded because chunked/final has only three semantic
+states and should not consume a separate presence bit. Those numbers are retained here solely to prevent their later
+misidentification as results from the committed three-bit implementation.
+
+The targeted attribution is exact and independent of that throughput spread. The preceding recording contained 52
+execution records with `ResponseCallback.process`, including twelve which also contained `MetadataBinaryCodec` and
+`findValue` and six whose sampled leaf was `utf8Equals`. The final recording contained 37 callback records and zero in
+all three callback/metadata intersections. Its remaining ten `utf8Equals` records belong to separately identified
+dataprotection and correlation paths, not response completion. No chunk-status allocation class or site appears in the
+new allocation profile.
+
+The focused metadata and envelope suites passed 41 tests, including new fixed-header, old-envelope fallback,
+reserved-flag rejection and metadata-mutation cases. Two parallel full-reactor attempts on the initial encoding each
+hit the same unrelated five-second timeout in
+`ProxyServerTest.Websocket.closeSocketExternally`; the exact test passed alone and the complete proxy subreactor then
+passed all 106 tests. After the compact-state review, a final serial SDK reactor passed all nine modules and Java/Kotlin
+downstream projects in 31.588 seconds, and the final runtime reactor passed all four modules against the installed
+artifact in 1:02. Their logs are `/private/tmp/sdk-chunk-state-final-full-build.log` and
+`/private/tmp/runtime-chunk-state-final-full-build.log`, with SHA-256
+`e4ae7bb6315d5b5f08219980c55451f08fea392d05b6d4fcdfd8e9e64028237f` and
+`b61e49152acec54f1d0d6f0e71a02f4df8dfb1bf73b1743d2c189744815534e3`.
+
+The final JFR and logs are `/private/tmp/sdk-model-chunk-state-final.jfr`, `.log` and `-run1.log`, with SHA-256
+`e094783839368cd080ffd89d2006be816ee0bb1e3e360288bfafa99a5631f9b2`,
+`3c38cb6e1d7670ce84fc8a0de3e4e69338d9d76ce873f632e6ff3f4f9ba4cd54` and
+`58c4d22fd492a851d1ddcfeacc374bbe987fb0ab94620f165d633ebf2e87e235`. Measured source identity was SDK base
+`b785e68ae4c114a1c12e199c84505b29bb1ca008` plus the three-file dirty-diff SHA-256
+`e3bb157685c8197c53586bbb1430404763ec82d9cbf8cd7f87e9cf79fbbcecee`, and clean runtime commit
+`d867f8e21203fabf67e485171924cb9ce58ab2b0`. The JFR used installed common, SDK and runtime artifacts
+`629b3cb8dd8681e15bc9af20e256bf4648e154514a6d1696f07705c633a16f51`,
+`9484296a7902f9923126c5943faea841272f21d74e5153fad7fde1ad2c3dfda7` and
+`1002314829520781c05f9d6e58b22522d2a8df1fc28cd10f0a4ce8b28c83129e`. The final runtime reactor reproduced
+bytewise runtime artifact hash `0689f4698443b1fcc884f1ba789f6ec918374fdaad7253133333d649dc35006d` from the same clean commit after the
+measurement; no runtime source changed. The benchmark driver remained
+`b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
+
 ## Measurement discipline
 
 Before accepting or rejecting another optimization:
