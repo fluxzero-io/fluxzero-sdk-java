@@ -637,6 +637,39 @@ The three preparation-smoke client/Runtime JFR pairs are respectively
 `1b0cc96038929ea2075e3e5e876dcb1b60ae122a0f17465ba7500ac874a15f17`/
 `9c36b12101d010c6af876c0ec37b53e8f4d8848e29574c5cd9e44dcd25032d0d`.
 
+### Rejected experiment E63 — result-only ordered front grouping
+
+The clean accepted production sources are restored exactly: SDK `common/` and `sdk/` match `e94188b5876`, and Runtime
+plus benchmark sources match `ed9cb3419e0b`. A first noisy non-JFR recovery observation reached 245,771/s while the
+host load was about 6 and WindowServer/Codex consumed visible CPU; it is an environment observation, not a replacement
+for E48's matched 330,222/s accepted geomean. No code difference exists to explain it.
+
+E59 provided the E63 hypothesis: 472 SDK result-publication batches became 447 result JDBC transactions. The existing
+`ReadWriteMessageStore` backlog is unordered-async. It drains each currently available block immediately and schedules
+every resulting JDBC job behind the store's single commit executor, producing 4.009 s cumulative result queue wait plus
+2.332 s JDBC service. E63 tested a result-only ordered front backlog: while one real result append was durable, later
+already-arrived result requests may form the next bounded group. It adds no collection timer, leaves non-result logs
+unchanged and must preserve request order, individual completion/failure, native envelopes and shutdown.
+
+The deterministic ordered-completion test and all six endpoint idempotency tests passed. A same-binary, alternating
+131,072-update JFR screen then rejected the candidate before an expensive canonical run. The candidate reduced result
+transactions from 69 to 58 (-15.94%) and packed model transactions from 28 to 26, but throughput fell from **177,524/s
+to 167,313/s (-5.75%)**. Candidate p50/p95/p99/max was 171.224/254.725/264.108/275.108 ms versus the control's
+151.716/261.858/270.997/291.501 ms. The mechanism performed some grouping, but most result requests still crossed the
+front backlog in separate waves and its extra completion boundary did not remove the real closed-loop cost. A local
+transaction-count win without E2E capacity is explicitly outside the checkpoint gate. All E63 Runtime code and its
+test were removed; accepted production source remains unchanged.
+
+The candidate benchmark/Runtime/client-JFR/Runtime-JFR SHA-256 values are respectively
+`038204b7e10216d9e1d5635bbb57fa574b6b95980a1c8e9d8d04b756593ae7ab`,
+`e6e1f9e763fdef2dbe3469357865bf7236ababd677ef3154bbfbdd06f02ddba1`,
+`c92901164a1539e6d64a9f01d5badf9aae5b44185bdb6373ad259eeb1e4f8848`, and
+`29620e1aae37b9da4e921d5c493d1855f25ff6c6aaf66dd0ee2f4e58ebae0f92`. The equivalent control values are
+`7ebdc3798b0d56ad6a4b52a09041a5d7aa2c70743990c56c16c02dc035f9abfd`,
+`64f0a62f905b5a869d18ddbd896b691cbc1f1b3389e562fbed012e2f901f5d00`,
+`78fd52619340fa9d8955a6810b687b7693db52bc89b92cb0234f4cf9ac60432c`, and
+`8f9fa7b8cd7048d00993a298559260ab3e57010342fc59df5733c477d28e1617`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
