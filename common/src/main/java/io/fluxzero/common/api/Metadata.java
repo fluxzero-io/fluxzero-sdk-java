@@ -1056,6 +1056,11 @@ public class Metadata {
     }
 
     private static final class MetadataBinaryCodec {
+        private static final int ENCODED_KEY_CACHE_SETS = 32;
+        private static final int MAX_CACHED_KEY_CHARS = 128;
+        private static final ThreadLocal<EncodedKeyCache> ENCODED_KEY_CACHE =
+                ThreadLocal.withInitial(EncodedKeyCache::new);
+
         private MetadataBinaryCodec() {
         }
 
@@ -1563,6 +1568,7 @@ public class Metadata {
             private byte[] bytes;
             private int position;
             private int chunkStatus = LAST_CHUNK_STATUS | FIRST_CHUNK_STATUS;
+            private EncodedKeyCache encodedKeyCache;
 
             private BinaryWriter(int initialSize) {
                 bytes = new byte[initialSize];
@@ -1585,12 +1591,28 @@ public class Metadata {
                             ? chunkStatus | FIRST_CHUNK_STATUS
                             : chunkStatus & ~FIRST_CHUNK_STATUS;
                 }
-                writeString(key);
+                writeKey(key);
                 writeString(value);
             }
 
             private int chunkStatus() {
                 return chunkStatus;
+            }
+
+            private void writeKey(String key) {
+                EncodedKeyCache cache = encodedKeyCache;
+                if (cache == null) {
+                    encodedKeyCache = cache = ENCODED_KEY_CACHE.get();
+                }
+                byte[] encoded = cache.encoded(key);
+                if (encoded == null) {
+                    writeString(key);
+                    return;
+                }
+                writeInt(encoded.length);
+                ensure(encoded.length);
+                System.arraycopy(encoded, 0, bytes, position, encoded.length);
+                position += encoded.length;
             }
 
             private void writeString(String value) {
@@ -1666,6 +1688,39 @@ public class Metadata {
 
             private byte[] toByteArray() {
                 return position == bytes.length ? bytes : Arrays.copyOf(bytes, position);
+            }
+        }
+
+        private static final class EncodedKeyCache {
+            private final String[] keys = new String[ENCODED_KEY_CACHE_SETS * 2];
+            private final byte[][] encoded = new byte[ENCODED_KEY_CACHE_SETS * 2][];
+            private final String[] candidates = new String[ENCODED_KEY_CACHE_SETS];
+            private final boolean[] replaceSecond = new boolean[ENCODED_KEY_CACHE_SETS];
+
+            private byte[] encoded(String key) {
+                if (key.length() > MAX_CACHED_KEY_CHARS) {
+                    return null;
+                }
+                int hash = System.identityHashCode(key);
+                int set = (hash ^ hash >>> 16) & (ENCODED_KEY_CACHE_SETS - 1);
+                int first = set * 2;
+                if (keys[first] == key) {
+                    return encoded[first];
+                }
+                if (keys[first + 1] == key) {
+                    return encoded[first + 1];
+                }
+                if (candidates[set] != key) {
+                    candidates[set] = key;
+                    return null;
+                }
+                int target = replaceSecond[set] ? first + 1 : first;
+                replaceSecond[set] = !replaceSecond[set];
+                byte[] result = key.getBytes(StandardCharsets.UTF_8);
+                keys[target] = key;
+                encoded[target] = result;
+                candidates[set] = null;
+                return result;
             }
         }
 

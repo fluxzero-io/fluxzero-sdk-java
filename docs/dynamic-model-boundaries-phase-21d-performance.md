@@ -987,6 +987,56 @@ bytewise runtime artifact hash `0689f4698443b1fcc884f1ba789f6ec918374fdaad725313
 measurement; no runtime source changed. The benchmark driver remained
 `b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
 
+### Reuse encoded metadata keys
+
+The final chunk-state JFR then split the metadata binary writer by the exact `writeEntry` line. Of 43
+`BinaryWriter.writeString` leaves, 24 encoded keys and 19 encoded values; 28 records belonged to command-result
+metadata and fifteen to outgoing command metadata. Values contain high-cardinality IDs and timestamps and remain on
+the original direct encoder. Keys are predominantly stable protocol and correlation literals, but were still counted
+and copied character by character for every message.
+
+The retained encoder has a bounded per-thread identity cache for keys only. A key is promoted only when the same
+object reaches the same set a second time; arbitrary one-off keys therefore keep the allocation-free direct path.
+Thirty-two two-way sets retain at most 64 encoded keys plus one candidate reference per set, keys longer than 128
+characters bypass the cache, and the maximum retained encoded-key payload is 32 KiB per active encoder thread. Raw
+metadata merge writers acquire no cache because lookup is lazy. No values are hashed, retained or encoded into the
+cache. Repeating the existing malformed-Unicode wire-format test three times covers direct encoding, promotion and
+reuse while continuing to assert byte-for-byte output.
+
+The final production-default JFR used the same 65,536 models, 65,536 warm-up updates, 1,048,576 measured updates,
+65,536 in-flight bound, sixteen command consumers, 32-byte payloads, two event-sourcing sessions, defaults version
+`2026.07.27`, adaptive caching and ordinary tracked results. It completed all exact result, membership and global-event
+checks at 197,502 commands/s with 288.055 / 356.333 / 376.445 / 401.582-ms p50/p95/p99/max latency and 91 commit
+batches averaging 11,522.8 items. A same-source non-JFR repetition reached 283,183/s with 143 batches averaging
+7,332.7 items. That very wide absolute spread is recorded as further evidence not to use either rate as the isolated
+acceptance signal.
+
+The stable attribution is the writer reduction. The adjacent control contained 43 writer leaves in 734 execution
+records, including 24 on the key line. The retained recording contained sixteen value-writer leaves plus seven
+`writeKey` copy records in 803 execution records; no key-cache internal appeared. Key work therefore fell from 24 to
+seven samples and the complete key/value writer cluster from 43 to 23 despite the candidate recording containing more
+total samples. Neither `EncodedKeyCache` nor its arrays appeared in the measured allocation profile; promotion had
+already completed during warm-up.
+
+The focused metadata/envelope suite passed 41 tests. A final serial SDK reactor passed all nine modules and Java/Kotlin
+downstream projects in 28.896 seconds, and the runtime reactor passed all four modules in 1:02. Their logs are
+`/private/tmp/sdk-metadata-key-cache-full-build.log` and `/private/tmp/runtime-metadata-key-cache-full-build.log`, with
+SHA-256 `fc1517d95b924866699db9807d3d44a440cf7c44c2e551d3e01a490a85b5d4ed` and
+`55613a9ba71cc88ef6bfe097fd388e1fc25b0a40f58662eb621f7c519dfa8ce2`.
+
+The final JFR and logs are `/private/tmp/sdk-model-metadata-key-cache-final.jfr`, `.log` and `-run1.log`, with SHA-256
+`c984b720cfb83d617fb710e157e2b7feaae26c7fc95a235fd5f048740053f265`,
+`e9f4e414956fbaa5efbc6be06b5a2d6a93165f4cd9a1ad434e7379ca1174183b` and
+`3743a8484dfbc2f7008bf996c5d417f60085a23ac2b907052ca6964ff50ead5f`. Measured source identity was SDK base
+`5d474529602be55cec1f8e3516a0c22a1f22a739` plus the two-file dirty-diff SHA-256
+`572579e45bdb0d882c0329e9ca9c67e544a55f1e1cb78a0fa927d25e0ec82bbf`, and clean runtime commit
+`d867f8e21203fabf67e485171924cb9ce58ab2b0`. Installed common, SDK and runtime artifact hashes during measurement were
+`e97b6469cbc4e32131b6c9bd5cb387249c8fd69d76ec7b5f0441962dde97ff09`,
+`e407aead852cb10997e5be1ed465e03aa708dadcb2a114812a15d5d073c3a66b` and
+`0689f4698443b1fcc884f1ba789f6ec918374fdaad7253133333d649dc35006d`. The final full runtime rebuild produced
+bytewise runtime artifact hash `d043947db3f5ddbc60bbd6d5510c1698736f7b2d855a3f69d33e6de83ffa652a` from the same clean source commit.
+The benchmark driver remained `b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
+
 ## Measurement discipline
 
 Before accepting or rejecting another optimization:

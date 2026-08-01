@@ -102,12 +102,13 @@ class MetadataTest {
                 .put(encodedValue)
                 .array();
 
-        Metadata metadata = Metadata.builder(1)
-                .put(key, value)
-                .build();
-        assertEquals(Map.of(key, value), metadata.getEntries());
-
-        assertArrayEquals(expected, metadata.toData().getValue());
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Metadata metadata = Metadata.builder(1)
+                    .put(key, value)
+                    .build();
+            assertEquals(Map.of(key, value), metadata.getEntries());
+            assertArrayEquals(expected, metadata.toData().getValue());
+        }
     }
 
     @Test
