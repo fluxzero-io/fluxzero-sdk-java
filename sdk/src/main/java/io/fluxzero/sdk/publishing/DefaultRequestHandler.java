@@ -356,7 +356,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
 
         synchronized void process(SerializedMessage response, Executor executor) {
             if (processingChain == null && response.lastChunk()) {
-                process(response);
+                process(response, true);
                 return;
             }
             if (processingChain == null) {
@@ -375,8 +375,12 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         }
 
         private void process(SerializedMessage response) {
+            process(response, response.lastChunk());
+        }
+
+        private void process(SerializedMessage response, boolean lastChunk) {
             try {
-                if (response.lastChunk()) {
+                if (lastChunk) {
                     finalCallback.complete(aggregate(response));
                 } else if (intermediateCallback == null) {
                     if (intermediates == null) {

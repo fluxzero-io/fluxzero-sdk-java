@@ -832,6 +832,48 @@ SHA-256 values were
 `2e16b310c105401b1af44edd4585dc0b1d804abc047e7ac44b66ccee2b8efd09` for the runtime and
 `b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18` for the benchmark driver class.
 
+### Scope webresponse diagnostics and reuse the final-chunk decision
+
+The following recording split the remaining opaque-metadata scans by complete call stack. Fifteen samples came from
+the runtime's opt-in webresponse benchmark-header instrumentation even though the measured endpoint delivered
+`COMMAND` batches. The runtime now exposes that instrumentation only from the `WEBRESPONSE` consumer endpoint; all
+other endpoint types return before inspecting a message. The ordinary synchronous request-result path also used to
+evaluate the same immutable response's `lastChunk()` twice. It now passes the already established `true` decision to
+the completion step. Queued/chunked responses retain their original deferred evaluation and ordering.
+
+Focused verification comprised one SDK response-callback test plus eight runtime websocket/tracking tests. The latter
+prove both sides of the endpoint gate: ordinary and command endpoints do not inspect `headers`, while a webresponse
+capable endpoint still does. Full `./mvnw -B install` reactors then passed for all nine SDK/downstream modules and all
+four runtime/benchmark modules.
+
+The production-default JFR used the same 65,536 models, 65,536 warm-up updates, 1,048,576 measured updates, 65,536
+in-flight bound, sixteen command consumers, 32-byte payloads, two event-sourcing sessions, defaults version
+`2026.07.27`, adaptive caching and ordinary tracked command results. It reached 258,782 fully verified
+commands/commits/events per second with 212.341 / 305.733 / 330.462 / 366.934-ms p50/p95/p99/max result latency and
+168 commit batches averaging 6,241.5 items (min 1, max 16,384). The immediately preceding JFR reached 216,372/s, but
+the 19.6% difference is not treated as an isolated throughput delta because batch shape and host activity varied.
+
+The call-stack attribution is exact: the fifteen runtime benchmark-header metadata samples fell to zero, as did the
+six samples from the second nested `ResponseCallback.lastChunk()` evaluation. Total execution samples whose stack
+contained `MetadataBinaryCodec` fell from 58 to 42 despite ordinary sampling variation in required boundary encoding.
+A same-binary non-JFR repetition reached 213,150/s with only 102 batches averaging 10,280.2 items, illustrating the
+ambient variability rather than contradicting the removed work. Every run completed the command-result,
+model-membership and global-event checks.
+
+The recording and logs are `/private/tmp/sdk-model-metadata-scan-final.jfr`, `.log` and
+`/private/tmp/sdk-model-metadata-scan-run1.log`, with SHA-256
+`8df17dea493bc0aabf7a8a1c4fceb0dd7a91ab77e3843db80dad45d509814a99`,
+`cff5028740d454beeea6e69bb0f792818c57f18b8fcf8a2e5816c16de8890299` and
+`bb56bab144e02a133be024e3a57f8be9ce14380a41feb920b8440c1eaefe2d2d`. Measured source identity was SDK base
+`45340e52ded2750e97479902284185d31a0842f4` plus the two-file manifest hash
+`cd40729e3e0568aa87b858eebaa8f6ebaeddfb6ea6e988e7bddbfb6a05dfd132`, and runtime base
+`49f76b92ddcf82bb0430c532c08143c672d84893` plus the four-file manifest hash
+`2361913d22b0c415c69849072621af2d9b83173da73bb1a9c120e99b8ca01c7c`. Installed `common`, SDK and runtime artifact
+hashes were `a75590ebb386705b5307ae50e6e18a0189b66df58dd6d2334433be6252daa430`,
+`c5b72e7e7a9a73c418b62ca3f649f53f91289adfe3e859f35d400c6d5dae3481` and
+`211e0600a110c62b8fba677cd9af05048a370709e4fb8f0cb58f5dcba138f491`; the benchmark driver remained
+`b6aacd128b916a37547dc28d21c2c5562648cf7bf7dcc7e25fd53c17f925da18`.
+
 ## Measurement discipline
 
 Before accepting or rejecting another optimization:
