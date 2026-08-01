@@ -571,6 +571,72 @@ JFR SHA-256 values are `78ff3ec43c8fb47921de7f7d119c741212ecc82b85ca3d4f42a457fb
 `3837c4beefc5e00c20d2c0122ba51cea963e481e99489c43d523840169f84ef0`. The experiment was fully reverted; no fused
 write API, property or production code remains.
 
+### Rejected experiment E62 — carrying ordinary results through model-commit durability
+
+E61 proved that removing ordinary results raises the adjacent complete-route JFR observation from 272,212/s to
+405,700/s. E62 therefore tested the strongest form of result fusion: SDK-side mapping, interception and envelope
+serialization; a newly negotiated transport revision carrying that envelope with `CommitModels`; and Runtime ownership
+of result durability with an explicit stored marker in `CommitModelsResult`. Unsupported peers and failed fused writes
+retained the established SDK result-gateway fallback. This entire experiment remained uncommitted.
+
+The first full run exposed a transport-shape correctness defect rather than a performance result. Single native
+`CommitModels` requests and single or mixed `CommitModelsResult` responses fell through generic encoding, losing the
+attached result or its stored bit. The route ran at 128,291/s and produced 10,326 duplicate late responses reported as
+unknown request IDs. Native single-item wrappers plus a generic V3 stored-bit fallback fixed the shape: focused
+common/SDK tests passed and every later run had exact result, event and model counts with no duplicate-response warning.
+
+Correctness did not make the architecture viable:
+
+| E62 variant | Complete-route JFR | Result transactions | Model transactions | Finding |
+| --- | ---: | ---: | ---: | --- |
+| Result append after each accepted model group | 126,347/s | 3,251 | 888 | A second result transaction held every model request future and destroyed upstream batching. |
+| Bounded 16,384-result / 1-ms Runtime result backlog | 146,604/s | 903 | 830 | Result queue wait fell from 25.522 s to 0.503 s, but model request slots still waited for a separate result transaction. |
+| Result rows staged in the event/model JDBC transaction | 149,611/s | 26 fallback appends / 3,688 results | 474 | Atomicity and ordering held, but result preparation and storage extended the model acknowledgement loop. The accepted clean route needed only 144 model transactions. |
+
+The co-located prototype reserved result indices and the result store's ordered commit lane before staging rows on the
+event store's JDBC connection. Deterministic tests proved caller-transaction visibility, rollback, repeated staging on
+transaction retry, ordering against later result appends, and setting `handlerResultStored` only after commit. In the
+canonical run, the result store staged the remaining 1,044,888 results in the same event/model transactions. This was
+not enough: result serialization plus SQL inside the acknowledgement boundary increased cumulative packed-model time
+from 3.160 s to 6.631 s and queue wait from 2.089 s to 5.712 s. Transactions grew from 144 × 7,281 to 474 × 2,212.
+
+Client JFR found another invalid prototype assumption. Per-message preparation used one
+`CompletableFuture.supplyAsync` per result. The client consumed roughly 25–30% machine-wide system CPU while the whole
+machine remained at 97–99%; `ThreadLocalContext.capture`, concurrent-map operations, metadata encoding and
+`SerializedMessage.encode` were prominent. Two boundedness alternatives were screened only as 131,072-command JFR
+smokes:
+
+| Preparation mechanism | Smoke throughput | Preparation/model shape | Rejection |
+| --- | ---: | --- | --- |
+| One async task per result | 114,492/s | 85 model transactions | One million fine-grained ForkJoin tasks; not resource-safe. |
+| One existing ordered result worker | 85,856/s | 15,044 preparation batches; 160 model transactions | Preparation shared a serial gate with publication and fragmented handlers further. |
+| Fire-and-schedule parallel preparation batches | 11,668/s | 349 SDK dispatch batches; p50 2.666 s | The common pool was flooded by nested preparation work; unbounded scheduling is categorically rejected. |
+
+E62 therefore rejects the complete pre-commit fusion shape, not only one tuning. A result carried inside the
+model-commit request must be prepared before send and acknowledged after its durability boundary. Both move result work
+onto the serial closed loop that P2 deliberately kept short. A future result redesign must preserve independent model
+commit progress while giving Runtime durable ownership—for example through a bounded durable outbox or a native
+multi-log write whose preparation is already complete—without claiming result storage before a recoverable handoff.
+It must also use a lifecycle-bounded batch executor; per-message ForkJoin tasks, a single shared preparation gate and
+unbounded parallel scheduling are closed. All E62 production and test code was removed after recording these results.
+
+Canonical artifact identities:
+
+| Variant | Client JFR | Runtime JFR | Benchmark log | Runtime log |
+| --- | --- | --- | --- | --- |
+| Initial shape defect | `b3a1460adbd03a1b1f201c09b44d2cbdebf26275d426b06300e754e292bef580` | `d1cb4ab575a09d606a77afbbaeca5f80ec0eaceed391596953318f49b39663e9` | `7643fcbc265b3862003ba83bf9ce9e3f964b884c78c7f5f93193c1606eeaedc6` | `43907215a8ce89c04dc2e9a9f13f2ba3351f8fa88cd7ebcd0e20c63601f19eec` |
+| Correct post-model append | `28d02ca43af86c19598996a5529651b134a5713cab183d5bde9e58ce4c7bdff2` | `6a97cdd5fba27db970ab2aaa2ccd263fda1721aa58f43970646f04148e7b0108` | `ab35b94e10a0b2a1d6ca067788ea36a222104f7adfaaa551f024b699c84904d6` | `3dffeae5cec7da0cc2355ff2665b1e11f7f5975e73e2a6e014ce6cdbd84a75e1` |
+| Bounded Runtime result backlog | `cdedd0594c18be5494bcc9b7a312f64e990785a5ab9d12187fa1961c8461a1f4` | `2a7b52fa34ac5da5fa63ef5d806e8b931c41111480bb1c6335183fc0a22e2419` | `b1bb44dcd40ae324dcda4391b95640947a3917c217e1d81ec2f34663890a1eb8` | `39caeb1cc6a42a8fed43b3db803ea5bc01f2e4fa52849d87d306a405c3bbfb5c` |
+| Atomic result rows | `6a32b045de2fa4d34099a708ad0abb3c7de9873b2e65051840477f48b7cc739f` | `1f0cf88fb0110dc15559160d6459ea02d100bbe9d937d73339d26bafcca0521a` | `876ad392ab8f43a33c5e2dff611a8d53e33b4ad9fa3db8785cc70fb83ba764f1` | `ca7979f2f3238576d71e125c7c3b85eb61473b6536a3998020d38d121d7da8da` |
+
+The three preparation-smoke client/Runtime JFR pairs are respectively
+`5c910d2b773817bbbbd16e36e109b0270b4b1d26097769cac63b1f9efab58aea`/
+`9572d078b7767f92b19f5e11c1c75c3a6f3035efb7a1f06ec5e5f6b2346a1d54`,
+`736b1871f0ce4ac6833a316624a62e41a4f536be3895aa8edb6d0f31fff4c92c`/
+`51806341cd0e981b85e89ffacd682bf7479734fc13549799ea311719dead4e34`, and
+`1b0cc96038929ea2075e3e5e876dcb1b60ae122a0f17465ba7500ac874a15f17`/
+`9c36b12101d010c6af876c0ec37b53e8f4d8848e29574c5cd9e44dcd25032d0d`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -588,11 +654,13 @@ write API, property or production code remains.
 6. E61 established the result-pipeline upper bound at 405,700/s, +49.04% over its adjacent complete-route control. It is
    diagnostic only because results were deliberately absent, but it proves the structural budget and records the E62
    negotiated/fallback contract in the linked report.
-7. Implement E62 narrowly: prepare only a known automatic handler result, carry its native envelope only on the newly
-   negotiated transport, append accepted results in original model-commit batch order, and fall back to the established
-   result gateway on unsupported peers or fused-storage failure. Verify context, interceptors, duplicate/conflict/error
-   behavior and actual durability before measuring.
-8. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
+7. E62 closes pre-commit result fusion. Do not put result preparation or result-log completion back inside the model
+   acknowledgement loop, and do not use per-message ForkJoin tasks, one shared ordered preparation worker or unbounded
+   scheduling. Reopen only with a recoverable Runtime ownership boundary that leaves model batching independent.
+8. Return to the immutable accepted P2 pair and rerank its complete route. Use JFR lifecycle counters plus async-profiler
+   CPU/wall/allocation profiles to separate useful CPU, scheduler/system overhead and blocked durability time before
+   selecting E63; no E62 implementation may remain in that control.
+9. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
