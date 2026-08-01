@@ -157,6 +157,16 @@ limiter from top allocation stacks alone.
 | E15 | 2026-08-01 | P1 adaptive tails | Force direct tails for command, event and result | Equivalent JFR `/private/tmp/model-e2e-force-direct-e15.jfr`, SHA-256 `ebc2bfb99af164b0da0f8c0c2110b3f72e202ed6131080e98bacac1339509366`; log SHA-256 `7a91ec60123d8897a52c30175add0a6f99f5ae3337c04cf1ab56e8b0851eeb05` | Reject. Event storage p95 improved 35.151 to 25.737 ms and staging deletes disappeared, but global row fragmentation displaced work into command/result and GC rose from 7/219 ms to 26/1,256 ms. Full E2E fell to 249,001/s. Do not generalize direct tails beyond the accepted adaptive rule. |
 | E16 | 2026-08-01 | Scalar B-tree locator | Same scalar locator without its index | Equivalent JFR `/private/tmp/model-e2e-unindexed-locator-e16.jfr`, SHA-256 `51cbd4ca22f6f488257ffc73c6088297925254afc07c5ee8317525045af31a46`; log SHA-256 `3c6b0cefa56069a5c46d93a78ecc3b49bce0592d4912149e140b0ed6e243f1e9` | Reject: 240,206/s. Removing index maintenance reduced locator shared-buffer hits but still required about 4.17 s aggregate COPY execution for 1.05M scalar rows. The index is not the dominant locator write cost, and removing it destroys the cold-read contract. |
 | E17/E18 | 2026-08-01 | Immediate locator wake-up | 10-ms then 100-ms locator coalescing | E17 JFR SHA-256 `03113c6f945df458e2700cf0fb6ecaf7d4643aaadc85e7811f2c09794cb26994`; [`model-e2e-e18-locator-coalescing-screening.csv`](performance-runs/model-e2e-e18-locator-coalescing-screening.csv) | Reject and revert. At 100 ms, per-partition COPY/commit rounds fell from about 116 to 30 while writing the same rows and ending with the durable cursor exactly at the authoritative stream head. Three alternating non-JFR pairs were +0.035%, -4.013% and +2.501%; geometric means 261,112/s control and 259,732/s candidate, delta -0.529%. Lower derived-index load did not improve the full boundary. |
+| E19 | 2026-08-01 | P1 | Nested foreground JDBC storage phases | JFR `/private/tmp/model-e2e-storage-phases-e19.jfr`, SHA-256 `ff4943b5f116b860d7172c9384a90c5822e505cadef4bf72b2084812eb8eead2`; log SHA-256 `5e7bc22732a6aaebb1491d45e3d492e30c40f234e1ac5a44206eafabc30cb931` | 233,355/s diagnostic run, exact checks passed. Result direct LTS insert was the largest foreground phase: 1,043,860 messages in 471 invocations, about 2.38 s total service and 0.439M/s capacity. Event staging, direct insert and co-located model work were about 1.21 s, 0.884 s and 0.753 s respectively. Optimize result direct insertion rather than the locator, cache or serialization format. |
+| E20 | 2026-08-01 | Immediate unordered message-store backlog | Opt-in 1-ms idle collection delay | JFR `/private/tmp/model-e2e-result-microbatch-e20.jfr`, SHA-256 `255997dfaff61a31552e3fcda73a793e82149f1ba77912974dd6ad52e56f6682`; log SHA-256 `c3b8cea306298e4d24d3e04e5b7a46f079e71666c5f69679ab5a8a5ab9c04509` | 233,023/s, exact checks passed. Result batches fell 471 to 409 and average direct insert size rose 2,216 to 2,552; direct-insert capacity rose 0.439M to 0.558M/s. Command direct-insert capacity rose 0.779M to 0.971M/s. Full E2E was unchanged and service shifted into other phases, so continue only through matched screening. |
+| E21 | 2026-08-01 | Immediate unordered message-store backlog | Opt-in 1-ms idle collection delay | Four balanced non-JFR pairs; [`model-e2e-e21-result-microbatch-screening.csv`](performance-runs/model-e2e-e21-result-microbatch-screening.csv) | Reject and revert. Paired deltas were +2.118%, +3.404%, -4.812% and +3.518%. Geometric means were 254,048/s control and 256,581/s candidate, only +0.997%, with one clear throughput and latency regression. The targeted JDBC phase improved, but a fixed delay does not remove enough full-route service demand and is not an acceptable low-rate latency trade. |
+| E22 | 2026-08-01 | P1 plus nested storage phases | Fresh PostgreSQL statement accounting | JFR `/private/tmp/model-e2e-pg-insert-e22.jfr`, SHA-256 `72c050b8440dfaaae11226a41e37934ab78d3810445a3527546a04517dfb2798`; log SHA-256 `e69cc49803e7469466f96c787da9feb9bcdc298112381eee2a4771966fbd93bb` | 224,235/s diagnostic run. Result direct inserts occupied 2,189 ms of client/JDBC time while all measured result inserts used only 224 ms PostgreSQL execution time. Command and event showed the same roughly 3–5-ms non-server cost per call. Per-call protocol/driver/VM round-trips dominate the direct-insert phase. |
+| E23/E24 | 2026-08-01 | Unbounded runtime storage attempts | Maximum four then two in-flight storage batches | JFR SHA-256 `c0f87f82eed2e4ffcb97d814d66a4f569e856518063bbd84e69c76b67ac60f90` and `924c32f1e80e5afb73ce08b8baea80f1b728dafe9533fb4ef284ba5568e4568e` | Reject and revert. A bound of four capped observed pending result jobs at three but left transaction count 460→465. A bound of two reduced it only to 435 and yielded 227,853/s with worse tail latency. Runtime backpressure starts after the SDK has already fragmented results. |
+| E25/E26 | 2026-08-01 | Default 1-ms SDK result collection | Diagnostic 5-ms then 20-ms collection | JFR SHA-256 `7e2e6deabff05e48f626933037c7bf303f113f51fabdb7d57b2963e1b6dbc2f1` and `7d455e0f8b325a78cb8eb8ffd98c365190aaeecf7b215d64e4f7afa0e036626a` | Causal diagnostic, not a candidate. At 20 ms, SDK result publishes fell 453→192, runtime result transactions 460→318 and result-store capacity rose 0.433M→0.731M/s, yet E2E remained 226,916/s and latency worsened. Result batching is no longer the foreground gate; the model/event durability boundary is. |
+| E27 | 2026-08-01 | P1 | Nested packed-model phases plus fresh PostgreSQL accounting | JFR `/private/tmp/model-e2e-model-phases-e27.jfr`, SHA-256 `1a0e9ef123a4ed9af58bd3d4f3330bed0dcae3effcd278115fbbeb7c2a32e5ba`; log SHA-256 `8b3729057e522a7a8aa96da2626d347b47b0184a7d493e07f2a6bf2790893d84` | 233,637/s, exact checks passed. Across 127 packed commits: stream-block COPY 363 ms client / 219 ms server, state lock 154 / 2.3 ms and state update 168 / 3.2 ms. The co-located event transaction additionally spent 1,027 ms staging tails. Small sequential protocol rounds, not server compute, dominate. |
+| E28/E29 | 2026-08-01 | COPY plus separate state lock/update | Multi-row INSERT, then conditional state reservation | JFR SHA-256 `74a1426bbef21fc8c6baae1f1bc5ae00c730b4f055722ac9a8569f266d876212` and `b540a83b20f209858d161f1d9e2902554a9578fd12b73cbd458f5e6510b5a18f` | Microphases improved but no full-route hit. INSERT reduced stream-block time 363→277 ms. Combining lock/update reduced those state calls to one 177-ms reservation, but model capacity remained about 0.291M/s because event staging and transaction service dominated. Continue only as part of a structural event/model candidate. |
+| E30/E31 | 2026-08-01 | Adaptive tails only under prior storage backlog | Direct underfilled tail for large co-located model transactions | JFR SHA-256 `c3f8b7e1a118e53ab11b37d2b33d3899213ddae1f0e50f07675b70f9e6e031ed` and `7f7da4ecd7b6f8019e97e33322ace750f8b204ccfca03e2f90244783316b7b8f` | The combined prototype cut event staging 1,235→63 ms and raised model capacity about 0.291M→0.323M/s. Tail-only E31 still delivered only 0.287M/s because faster drainage produced more, smaller model transactions and amplified COPY/lock overhead. Proceeded to matched screening only for the combined candidate. |
+| E32 | 2026-08-01 | P1 | Multi-row stream insert + state reservation + selective co-located direct tail | Two balanced non-JFR pairs; [`model-e2e-e32-packed-write-screening.csv`](performance-runs/model-e2e-e32-packed-write-screening.csv) | Reject early and revert. Pairs were +1.261% and -4.294%; geometric means 249,936/s control and 246,048/s candidate, delta -1.555%. The second pair also regressed every latency percentile. Faster per-transaction work caused smaller storage batches and more transactions, cancelling the local phase gains. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -279,13 +289,66 @@ E18 paired log identities, in execution order:
 | 2 | 259,456/s, SHA `3ae0aab52f9cc706949f438962fa536eae22965df32eb8a2421c01cacbf8b93b` | 249,044/s, SHA `3a096e6fcdb566818c6d88b89471a9e7c7eb9dd38408c93e2bb257cbbd6a3be5` | -4.013% |
 | 3 | 256,301/s, SHA `bad480e3ba900053c9a9cecbab5b53cdc1ca6ea8703e2245d52ad6be7f4c7a37` | 262,712/s, SHA `54cf8c176b38c9a0d9718260777fda74a72cb83d619e97832732618cd87956ca` | +2.501% |
 
+## Diagnostic checkpoint D3 — direct result-row insertion
+
+Nested JFR timing separates transaction work that E14 could only infer from wall stacks. E19 records the existing
+single storage attempt without changing its execution order: direct LTS insertion on the transaction connection,
+staging work, the optional co-located model task, durable commit and monitor publication. Field aggregation is guarded
+by the JFR batch enablement check; ordinary runs execute the original task directly.
+
+The foreground phase totals were:
+
+| Message / phase | Batches | Messages / average | Aggregate service | Capacity |
+| --- | ---: | ---: | ---: | ---: |
+| result direct LTS insert | 471 | 1,043,860 / 2,216 | about 2.38 s | **0.439M/s** |
+| event staging | 126 | 1,048,576 / 8,322 | about 1.21 s | 0.870M/s |
+| event direct LTS insert | 118 | 1,040,384 / 8,817 | about 0.884 s | 1.177M/s |
+| event co-located model task | 126 | 1,048,576 / 8,322 | about 0.753 s | 1.393M/s |
+| command direct LTS insert | existing safe 4,096 bound | measured batches averaged 3,177 | recorded service | 0.779M/s |
+
+E20 tested whether underfilled result rows, rather than row insertion itself, explain this demand. A bounded 1-ms wait
+filled more of the existing 4,096-message maximum and raised the isolated result-insert capacity 27%, but E21 found
+only +0.997% full-route geometric-mean throughput with a -4.812% pair. The public `Backlog` overload and runtime
+property were removed after screening; production behavior remains unchanged. Increasing the maximum batch is also
+closed: an earlier 4,096-to-32,768 tracking-backlog experiment yielded only 148,116/s.
+
+The next investigation therefore stays inside the direct-row insert boundary. It must distinguish client-side
+statement/preparation and connection serialization from PostgreSQL parse/execute/WAL work, then eliminate the largest
+component structurally. It must not reopen fixed sleeps, unbounded batches, the locator representation or generic
+serialization micro-optimizations without a new profile changing the rank.
+
+## Diagnostic checkpoint D4 — batch elasticity at the model durability boundary
+
+E22 through E26 establish that the result writer can be made substantially faster without moving full E2E throughput.
+At the strongest diagnostic setting, result capacity rose from 0.433M to 0.731M messages/s while the route remained
+near 0.227M/s. The packed model/event boundary is the foreground gate, not result serialization or result JDBC.
+
+E27 then decomposed one million packed updates into 127 ordered transactions averaging 8,256 commands. The three model
+operations performed almost no PostgreSQL compute beyond the stream-block write, but each paid a synchronous protocol
+round-trip. More importantly, the event store staged 7,680 underfilled tail messages over 126 transactions. The next
+transaction repeatedly selected, deleted, recompressed and reinserted that prior tail, consuming about 1.0–1.2 seconds
+of the measured route.
+
+E28–E31 removed these costs individually and together. Their local effects are real: multi-row INSERT was 24% faster
+than binary COPY for only eight or nine stream-block rows; conditional state reservation removed one state round-trip;
+and direct co-located tails removed roughly 95% of event staging time. The combined profiled run reached 245,269/s and
+0.323M/s model capacity. It did not survive matched E32 because faster completion emptied the model backlog sooner:
+batch count rose and the remaining fixed transaction costs were paid more often. This feedback is now an explicit
+constraint on future work.
+
+Therefore the next candidate must improve service while preserving or enlarging the natural model batch boundary. A
+standalone SQL or tail optimization is insufficient. The investigation should trace the 605 SDK command/model batches
+that become roughly 127 runtime transactions, identify an exact lifecycle boundary or bounded pipelining mechanism,
+and overlap preparation without publishing, committing or completing out of order. Fixed sleeps, larger unbounded
+queues and relaxed durability remain excluded.
+
 ## Immediate sequence
 
 1. Keep P1 as the accepted comparison point; locator and global-direct-tail experiments are closed unless a new profile
    changes their ranking.
-2. Split foreground JDBC direct-row insertion, staging, packed model mutation and durable commit with nested timings;
-   E14 proves that work spans both the ordered commit threads and shared insert workers.
-3. Remove the highest foreground service-demand component architecturally, confirm it through the matched protocol,
+2. Trace SDK command/model batch identity through model-commit enqueue and runtime storage, then preserve that boundary
+   while overlapping preparation; E32 proves that faster writes alone shrink batches and cancel their own gain.
+3. Remove fixed transaction work per model batch together with the batch-boundary fix, confirm through matched runs,
    checkpoint it and rerank the full path.
 4. Repeat until five consecutive qualifying full-E2E runs exceed 1M/s.
 
