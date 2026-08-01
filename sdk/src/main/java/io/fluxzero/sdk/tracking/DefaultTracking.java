@@ -36,6 +36,7 @@ import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.publishing.DefaultResultGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
@@ -1135,20 +1136,27 @@ public class DefaultTracking implements Tracking {
             if (postHandlerCompletion.isDone()) {
                 try {
                     postHandlerCompletion.join();
-                    sendResult(result, h, message, config);
+                    return resultPublicationCompletion(sendResult(result, h, message, config), config);
                 } catch (Throwable e) {
-                    sendResult(unwrapException(e), h, message, config);
+                    return resultPublicationCompletion(
+                            sendResult(unwrapException(e), h, message, config), config);
                 }
-                return completedReport;
             }
             CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
             Object response = result;
             var context = message.captureContext();
             postHandlerCompletion.whenComplete(context.wrap((ignored, error) -> {
                 try {
-                    sendResult(error == null ? response : unwrapException(error), h, message, config);
+                    CompletionStage<Void> publication = sendResult(
+                            error == null ? response : unwrapException(error), h, message, config);
                     if (completion != null) {
-                        completion.complete(null);
+                        publication.whenComplete((published, publicationError) -> {
+                            if (publicationError == null) {
+                                completion.complete(null);
+                            } else {
+                                completion.completeExceptionally(unwrapException(publicationError));
+                            }
+                        });
                     }
                 } catch (Throwable t) {
                     if (completion != null) {
@@ -1160,6 +1168,11 @@ public class DefaultTracking implements Tracking {
             }));
             return completion == null ? completedReport : completion;
         }
+    }
+
+    private static CompletionStage<Void> resultPublicationCompletion(
+            CompletionStage<Void> publication, ConsumerConfiguration config) {
+        return config.awaitAsyncResults() ? publication : completedReport;
     }
 
     private void finishAsyncResult(
@@ -1186,10 +1199,10 @@ public class DefaultTracking implements Tracking {
         }
     }
 
-    private void sendResult(Object result, HandlerDescriptor h, DeserializingMessage message,
-                            ConsumerConfiguration config) {
+    private CompletionStage<Void> sendResult(Object result, HandlerDescriptor h, DeserializingMessage message,
+                                             ConsumerConfiguration config) {
         if (!shouldSendResponse(h, message, result, config)) {
-            return;
+            return completedReport;
         }
         if (result instanceof Throwable) {
             result = unwrapException((Throwable) result);
@@ -1201,12 +1214,41 @@ public class DefaultTracking implements Tracking {
         SerializedMessage request = message.getSerializedObject();
         ResultGateway resultGateway = this.resultGateway.forNamespace(config.getNamespace());
         try {
-            resultGateway.respond(result, request.getSource(), request.getRequestId());
+            if (resultGateway instanceof DefaultResultGateway defaultResultGateway) {
+                return defaultResultGateway.respondBatched(
+                        result, request.getSource(), request.getRequestId(),
+                        (failure, retry) -> handleResultPublicationFailure(
+                                failure, retry, message, h, config));
+            }
+            return resultGateway.respond(result, request.getSource(), request.getRequestId());
         } catch (Throwable e) {
             Object response = result;
-            config.getErrorHandler().handleError(
-                    e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
-                    () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
+            Object retryResult = config.getErrorHandler().handleError(
+                e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
+                    () -> {
+                        if (resultGateway instanceof DefaultResultGateway defaultResultGateway) {
+                            return defaultResultGateway.respondBatched(
+                                    response, request.getSource(), request.getRequestId());
+                        }
+                        return resultGateway.respond(response, request.getSource(), request.getRequestId());
+                    });
+            return retryResult instanceof CompletionStage<?> stage
+                    ? stage.thenApply(ignored -> null) : completedReport;
+        }
+    }
+
+    private CompletionStage<Void> handleResultPublicationFailure(
+            Throwable failure, Supplier<CompletableFuture<Void>> retry,
+            DeserializingMessage message, HandlerDescriptor handler, ConsumerConfiguration config) {
+        try {
+            Object retryResult = config.getErrorHandler().handleError(
+                    unwrapException(failure),
+                    format("Failed to send result of a %s from handler %s", message, handler.getMethod()),
+                    retry::get);
+            return retryResult instanceof CompletionStage<?> stage
+                    ? stage.thenApply(ignored -> null) : completedReport;
+        } catch (Throwable e) {
+            return CompletableFuture.failedFuture(e);
         }
     }
 
