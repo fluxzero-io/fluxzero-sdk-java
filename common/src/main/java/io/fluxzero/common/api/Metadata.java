@@ -123,6 +123,99 @@ public class Metadata {
     }
 
     /**
+     * Creates a compact metadata builder for values that are already normalized to strings.
+     *
+     * <p>The builder avoids an intermediate hash table and encodes the metadata directly when {@link Builder#build()}
+     * is called. Repeated keys replace their earlier value, matching ordinary {@link Map#put(Object, Object)}
+     * semantics.</p>
+     *
+     * @param expectedEntries expected number of distinct metadata keys
+     * @return a new builder
+     */
+    public static Builder builder(int expectedEntries) {
+        return new Builder(expectedEntries);
+    }
+
+    /**
+     * Builder for compact metadata whose keys and values are already strings.
+     */
+    public static final class Builder {
+        private String[] entries;
+        private int size;
+
+        private Builder(int expectedEntries) {
+            if (expectedEntries < 0 || expectedEntries > MAX_ENTRY_COUNT) {
+                throw new IllegalArgumentException("Invalid expected metadata entry count " + expectedEntries);
+            }
+            entries = new String[Math.multiplyExact(expectedEntries, 2)];
+        }
+
+        /**
+         * Adds or replaces a metadata value. A {@code null} value removes the key, matching
+         * {@link Metadata#with(Object, Object)}.
+         *
+         * @return this builder
+         */
+        public Builder put(@NonNull String key, String value) {
+            for (int index = 0; index < size; index++) {
+                int keyIndex = index * 2;
+                if (entries[keyIndex].equals(key)) {
+                    if (value == null) {
+                        int nextIndex = keyIndex + 2;
+                        int remaining = size * 2 - nextIndex;
+                        if (remaining > 0) {
+                            System.arraycopy(entries, nextIndex, entries, keyIndex, remaining);
+                        }
+                        int clearedIndex = --size * 2;
+                        entries[clearedIndex] = null;
+                        entries[clearedIndex + 1] = null;
+                    } else {
+                        entries[keyIndex + 1] = value;
+                    }
+                    return this;
+                }
+            }
+            if (value == null) {
+                return this;
+            }
+            if (size == MAX_ENTRY_COUNT) {
+                throw new IllegalArgumentException("Metadata contains too many entries");
+            }
+            ensureCapacity(size + 1);
+            int keyIndex = size++ * 2;
+            entries[keyIndex] = key;
+            entries[keyIndex + 1] = value;
+            return this;
+        }
+
+        /**
+         * Adds or replaces normalized metadata values.
+         *
+         * @return this builder
+         */
+        public Builder putAll(Map<String, String> values) {
+            values.forEach(this::put);
+            return this;
+        }
+
+        /**
+         * Builds immutable metadata that is already in its compact serialized representation.
+         */
+        public Metadata build() {
+            return size == 0 ? empty() : fromData(new Data<>(
+                    MetadataBinaryCodec.encode(entries, size), DATA_TYPE, 0, DATA_FORMAT));
+        }
+
+        private void ensureCapacity(int requiredEntries) {
+            int requiredLength = Math.multiplyExact(requiredEntries, 2);
+            if (requiredLength > entries.length) {
+                int growth = Math.max(8, entries.length >>> 1);
+                entries = Arrays.copyOf(entries, Math.max(requiredLength, entries.length + growth));
+            }
+        }
+    }
+
+    /**
      * Creates a new {@code Metadata} instance with a single key-value pair.
      *
      * @param key   the key to be included in the metadata, not null
@@ -177,9 +270,19 @@ public class Metadata {
                 data, key);
     }
 
+    static boolean containsKey(
+            byte[] data, int offset, int length, String key) {
+        return MetadataBinaryCodec.containsKey(data, offset, length, key);
+    }
+
     static String get(
             Data.ByteArrayView data, String key) {
         return MetadataBinaryCodec.get(data, key);
+    }
+
+    static String get(
+            byte[] data, int offset, int length, String key) {
+        return MetadataBinaryCodec.get(data, offset, length, key);
     }
 
     /**
@@ -267,6 +370,12 @@ public class Metadata {
      * metadata
      */
     public Metadata with(Metadata metadata) {
+        if (metadata.entries.isEmpty()) {
+            return this;
+        }
+        if (entries.isEmpty()) {
+            return metadata;
+        }
         Map<String, String> map = new HashMap<>(entries);
         map.putAll(metadata.entries);
         return new Metadata(map);
@@ -757,20 +866,44 @@ public class Metadata {
         }
 
         private static byte[] encode(Map<String, String> entries) {
-            BinaryWriter writer = new BinaryWriter(encodedSize(entries));
+            BinaryWriter writer = new BinaryWriter(minimumEncodedSize(entries));
             writer.writeInt(entries.size());
-            entries.forEach((key, value) -> {
-                writer.writeString(Objects.requireNonNull(key, "Metadata key"));
-                writer.writeString(Objects.requireNonNull(value, "Metadata value"));
-            });
+            entries.forEach((key, value) ->
+                                    writer.writeEntry(
+                                            Objects.requireNonNull(key, "Metadata key"),
+                                            Objects.requireNonNull(value, "Metadata value")));
             return writer.toByteArray();
         }
 
-        private static int encodedSize(Map<String, String> entries) {
+        private static byte[] encode(String[] entries, int size) {
+            BinaryWriter writer = new BinaryWriter(minimumEncodedSize(entries, size));
+            writer.writeInt(size);
+            for (int index = 0; index < size; index++) {
+                int keyIndex = index * 2;
+                writer.writeEntry(entries[keyIndex], entries[keyIndex + 1]);
+            }
+            return writer.toByteArray();
+        }
+
+        private static int minimumEncodedSize(Map<String, String> entries) {
             int size = Integer.BYTES;
             for (Map.Entry<String, String> entry : entries.entrySet()) {
-                size = addSize(size, stringSize(Objects.requireNonNull(entry.getKey(), "Metadata key")));
-                size = addSize(size, stringSize(Objects.requireNonNull(entry.getValue(), "Metadata value")));
+                String key = Objects.requireNonNull(entry.getKey(), "Metadata key");
+                String value = Objects.requireNonNull(entry.getValue(), "Metadata value");
+                size = addSize(size, 2 * Integer.BYTES);
+                size = addSize(size, key.length());
+                size = addSize(size, value.length());
+            }
+            return size;
+        }
+
+        private static int minimumEncodedSize(String[] entries, int entryCount) {
+            int size = Integer.BYTES;
+            for (int index = 0; index < entryCount; index++) {
+                int keyIndex = index * 2;
+                size = addSize(size, 2 * Integer.BYTES);
+                size = addSize(size, entries[keyIndex].length());
+                size = addSize(size, entries[keyIndex + 1].length());
             }
             return size;
         }
@@ -845,6 +978,11 @@ public class Metadata {
         }
 
         private static boolean containsKey(
+                byte[] data, int offset, int length, String key) {
+            return findValue(data, offset, length, key) >= 0;
+        }
+
+        private static boolean containsKey(
                 BinaryReader reader, String key) {
             int size = reader.readSize();
             if (size == 0) {
@@ -873,15 +1011,27 @@ public class Metadata {
                     StandardCharsets.UTF_8);
         }
 
+        private static String get(
+                byte[] data, int offset, int length, String key) {
+            long value = findValue(data, offset, length, key);
+            return value < 0 ? null : new String(
+                    data, (int) (value >>> Integer.SIZE), (int) value,
+                    StandardCharsets.UTF_8);
+        }
+
         /**
          * Scans a byte-array view without allocating a stateful reader. The returned long packs the offset and length
          * of the last value for the requested key, or {@code -1} when the key is absent.
          */
         private static long findValue(Data.ByteArrayView data, String key) {
-            Objects.requireNonNull(key, "Metadata key");
             byte[] bytes = data == null ? null : data.array();
             int offset = data == null ? 0 : data.offset();
             int length = data == null ? 0 : data.length();
+            return findValue(bytes, offset, length, key);
+        }
+
+        private static long findValue(byte[] bytes, int offset, int length, String key) {
+            Objects.requireNonNull(key, "Metadata key");
             BinaryReader.validate(bytes, offset, length);
             int position = offset;
             int limit = offset + length;
@@ -1117,7 +1267,7 @@ public class Metadata {
         }
 
         private static final class BinaryWriter {
-            private final byte[] bytes;
+            private byte[] bytes;
             private int position;
 
             private BinaryWriter(int initialSize) {
@@ -1126,33 +1276,55 @@ public class Metadata {
 
             private void writeInt(int value) {
                 ensure(Integer.BYTES);
-                bytes[position++] = (byte) (value >>> 24);
-                bytes[position++] = (byte) (value >>> 16);
-                bytes[position++] = (byte) (value >>> 8);
-                bytes[position++] = (byte) value;
+                writeInt(position, value);
+                position += Integer.BYTES;
+            }
+
+            private void writeEntry(String key, String value) {
+                writeString(key);
+                writeString(value);
             }
 
             private void writeString(String value) {
-                int length = value.length();
-                for (int index = 0; index < length; index++) {
-                    if (value.charAt(index) > 0x7f) {
-                        byte[] encoded = value.getBytes(StandardCharsets.UTF_8);
-                        writeInt(encoded.length);
-                        write(encoded);
-                        return;
+                int lengthOffset = position;
+                writeInt(0);
+                int valueOffset = position;
+                for (int index = 0; index < value.length(); index++) {
+                    char current = value.charAt(index);
+                    if (current <= 0x7f) {
+                        writeByte(current);
+                    } else if (current <= 0x7ff) {
+                        writeByte(0xc0 | current >>> 6);
+                        writeByte(0x80 | current & 0x3f);
+                    } else if (Character.isHighSurrogate(current)
+                            && index + 1 < value.length()
+                            && Character.isLowSurrogate(value.charAt(index + 1))) {
+                        int codePoint = Character.toCodePoint(current, value.charAt(++index));
+                        writeByte(0xf0 | codePoint >>> 18);
+                        writeByte(0x80 | codePoint >>> 12 & 0x3f);
+                        writeByte(0x80 | codePoint >>> 6 & 0x3f);
+                        writeByte(0x80 | codePoint & 0x3f);
+                    } else if (Character.isSurrogate(current)) {
+                        writeByte('?');
+                    } else {
+                        writeByte(0xe0 | current >>> 12);
+                        writeByte(0x80 | current >>> 6 & 0x3f);
+                        writeByte(0x80 | current & 0x3f);
                     }
                 }
-                writeInt(length);
-                ensure(length);
-                for (int index = 0; index < length; index++) {
-                    bytes[position++] = (byte) value.charAt(index);
-                }
+                writeInt(lengthOffset, position - valueOffset);
             }
 
-            private void write(byte[] value) {
-                ensure(value.length);
-                System.arraycopy(value, 0, bytes, position, value.length);
-                position += value.length;
+            private void writeByte(int value) {
+                ensure(1);
+                bytes[position++] = (byte) value;
+            }
+
+            private void writeInt(int offset, int value) {
+                bytes[offset] = (byte) (value >>> 24);
+                bytes[offset + 1] = (byte) (value >>> 16);
+                bytes[offset + 2] = (byte) (value >>> 8);
+                bytes[offset + 3] = (byte) value;
             }
 
             private void write(byte[] value, int offset, int length) {
@@ -1167,17 +1339,14 @@ public class Metadata {
                     throw new IllegalArgumentException("Serialized metadata exceeds maximum size");
                 }
                 if (required > bytes.length) {
-                    throw new IllegalStateException(
-                            "Serialized metadata size estimate was too small: " + bytes.length + " < " + required);
+                    int growth = Math.max(16, bytes.length >>> 1);
+                    int newLength = Math.min(MAX_DATA_BYTES, Math.max(required, bytes.length + growth));
+                    bytes = Arrays.copyOf(bytes, newLength);
                 }
             }
 
             private byte[] toByteArray() {
-                if (position != bytes.length) {
-                    throw new IllegalStateException(
-                            "Serialized metadata size mismatch: expected " + bytes.length + ", wrote " + position);
-                }
-                return bytes;
+                return position == bytes.length ? bytes : Arrays.copyOf(bytes, position);
             }
         }
 

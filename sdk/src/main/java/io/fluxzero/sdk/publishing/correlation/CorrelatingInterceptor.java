@@ -83,7 +83,12 @@ public class CorrelatingInterceptor implements DispatchInterceptor {
         if (currentMessage != null) {
             metadata = metadata.without(DefaultCorrelationDataProvider.INSTANCE.getTriggerNamespaceKey());
         }
-        return message.withMetadata(metadata.with(currentCorrelationData()));
+        CorrelationDataProvider provider = Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
+                .orElse(DefaultCorrelationDataProvider.INSTANCE);
+        return message.withMetadata(provider == DefaultCorrelationDataProvider.INSTANCE
+                                            ? metadata.with(DefaultCorrelationDataProvider.INSTANCE
+                                                                    .getCorrelationMetadata(currentMessage))
+                                            : metadata.with(currentCorrelationData()));
     }
 
     @Override
@@ -103,9 +108,8 @@ public class CorrelatingInterceptor implements DispatchInterceptor {
                 if (correlationMetadata == null) {
                     synchronized (this) {
                         if (correlationMetadata == null) {
-                            correlationMetadata = Metadata.of(
-                                    DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
-                                            (DeserializingMessage) null));
+                            correlationMetadata = DefaultCorrelationDataProvider.INSTANCE
+                                    .getCorrelationMetadata(null);
                         }
                     }
                 }

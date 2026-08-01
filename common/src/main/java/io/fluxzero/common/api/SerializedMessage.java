@@ -75,21 +75,22 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     @NonNull
     private Data<byte[]> data;
     private Metadata metadata;
-    private Integer segment;
-    private Long index;
+    private volatile Integer segment;
+    private volatile Long index;
     private String source;
     private String target;
-    private Integer requestId;
-    private Long timestamp;
+    private volatile Integer requestId;
+    private volatile Long timestamp;
     private String messageId;
     private transient Integer originalRevision;
 
     private final byte[] envelope;
     private final int envelopeOffset;
     private final int envelopeLength;
+    private final int payloadOffset;
     private final int payloadLength;
-    private final ByteSlice payloadSlice;
-    private final ByteSlice metadataSlice;
+    private final int metadataOffset;
+    private final int metadataLength;
     private final int dataTypeOffset;
     private final int dataFormatOffset;
     private final int sourceOffset;
@@ -110,6 +111,8 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     private byte[] encodedMessageHeaders;
     private int encodedMessageIdOffset;
     private int encodedMessageIdLength = UNKNOWN_ENCODED_STRING;
+    private volatile ByteSlice payloadSlice;
+    private volatile ByteSlice metadataSlice;
     private volatile boolean metadataDeferred;
     private volatile boolean reusable;
 
@@ -126,7 +129,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             String messageId, Integer originalRevision) {
         this(null, 0, 0, Objects.requireNonNull(data, "data"), metadata,
              segment, index, source, target, requestId, timestamp, messageId,
-             originalRevision, data.getRevision(), -1, null, null,
+             originalRevision, data.getRevision(), -1, -1, -1, -1,
              0, MATERIALIZED_STRING, 0, MATERIALIZED_STRING,
              0, MATERIALIZED_STRING, 0, MATERIALIZED_STRING,
              0, MATERIALIZED_STRING);
@@ -167,8 +170,8 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             byte[] envelope, int envelopeOffset, int envelopeLength,
             Data<byte[]> data, Metadata metadata, Integer segment, Long index,
             String source, String target, Integer requestId, Long timestamp,
-            String messageId, Integer originalRevision, int dataRevision, int payloadLength,
-            ByteSlice payloadSlice, ByteSlice metadataSlice,
+            String messageId, Integer originalRevision, int dataRevision,
+            int payloadOffset, int payloadLength, int metadataOffset, int metadataLength,
             int dataTypeOffset, int dataTypeLength,
             int dataFormatOffset, int dataFormatLength,
             int sourceOffset, int sourceLength,
@@ -187,9 +190,10 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         this.envelope = envelope;
         this.envelopeOffset = envelopeOffset;
         this.envelopeLength = envelopeLength;
+        this.payloadOffset = payloadOffset;
         this.payloadLength = payloadLength;
-        this.payloadSlice = payloadSlice;
-        this.metadataSlice = metadataSlice;
+        this.metadataOffset = metadataOffset;
+        this.metadataLength = metadataLength;
         this.dataTypeOffset = dataTypeOffset;
         this.dataFormatOffset = dataFormatOffset;
         this.sourceOffset = sourceOffset;
@@ -211,7 +215,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             encodedMessageIdOffset = messageIdOffset;
             encodedMessageIdLength = messageIdLength;
         }
-        this.metadataDeferred = metadata == null && metadataSlice != null;
+        this.metadataDeferred = metadata == null && metadataOffset >= 0;
         this.reusable = envelope != null;
     }
 
@@ -309,7 +313,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
                 result, 0, result.length, data, normalizedMetadata,
                 message.getSegment(), message.getIndex(), message.getSource(), message.getTarget(),
                 message.getRequestId(), message.getTimestamp(), message.getMessageId(),
-                message.getOriginalRevision(), data.getRevision(), positiveLength(payloadLength), null, null,
+                message.getOriginalRevision(), data.getRevision(), -1, positiveLength(payloadLength), -1, -1,
                 0, MATERIALIZED_STRING, 0, MATERIALIZED_STRING,
                 0, MATERIALIZED_STRING, 0, MATERIALIZED_STRING, 0, MATERIALIZED_STRING);
         encoded.encodedDataHeaders = result;
@@ -397,19 +401,13 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         cursor += positiveLength(payloadLength);
         int metadataOffset = cursor;
 
-        ByteSlice payloadSlice = payloadLength < 0 ? null : new ByteSlice(bytes, payloadOffset, payloadLength);
-        ByteSlice metadataSlice = new ByteSlice(bytes, metadataOffset, metadataLength);
-        int flags = bytes[offset + FLAGS_OFFSET] & 0xff;
         return new SerializedMessage(
                 bytes, offset, length, DEFERRED_DATA, null,
-                (flags & HAS_SEGMENT) == 0 ? null : readInt(bytes, offset + SEGMENT_OFFSET),
-                (flags & HAS_INDEX) == 0 ? null : readLong(bytes, offset + INDEX_OFFSET),
-                null, null,
-                (flags & HAS_REQUEST_ID) == 0 ? null : readInt(bytes, offset + REQUEST_ID_OFFSET),
-                (flags & HAS_TIMESTAMP) == 0 ? null : readLong(bytes, offset + TIMESTAMP_OFFSET),
+                null, null, null, null, null, null,
                 null, readInt(bytes, offset + ORIGINAL_REVISION_OFFSET),
-                readInt(bytes, offset + REVISION_OFFSET), positiveLength(payloadLength),
-                payloadSlice, metadataSlice,
+                readInt(bytes, offset + REVISION_OFFSET),
+                payloadLength < 0 ? -1 : payloadOffset, positiveLength(payloadLength),
+                metadataOffset, metadataLength,
                 typeOffset, typeLength, formatOffset, formatLength,
                 sourceOffset, sourceLength, targetOffset, targetLength, messageIdOffset, messageIdLength);
     }
@@ -512,11 +510,13 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     }
 
     boolean isPayloadMaterialized() {
-        return payloadSlice == null || payloadSlice.isMaterialized();
+        ByteSlice current = payloadSlice;
+        return payloadOffset < 0 || current != null && current.isMaterialized();
     }
 
     boolean isMetadataMaterialized() {
-        return metadataSlice == null || metadataSlice.isMaterialized();
+        ByteSlice current = metadataSlice;
+        return metadataOffset < 0 || current != null && current.isMaterialized();
     }
 
     boolean areDataHeadersMaterialized() {
@@ -577,7 +577,8 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             if (dataTypeLength != MATERIALIZED_STRING || dataFormatLength != MATERIALIZED_STRING) {
                 String dataType = dataTypeLength == MATERIALIZED_STRING
                         ? deferredDataType : string(dataTypeOffset, dataTypeLength);
-                data = new Data<>(payloadSlice == null ? () -> null : payloadSlice,
+                ByteSlice payload = payloadSlice();
+                data = new Data<>(payload == null ? () -> null : payload,
                                   dataType, dataRevision,
                                   string(dataFormatOffset, dataFormatLength));
                 deferredDataType = null;
@@ -601,7 +602,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         synchronized (this) {
             if (metadataDeferred) {
                 metadata = Metadata.fromData(new Data<>(
-                        metadataSlice,
+                        metadataSlice(),
                         Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
                 metadataDeferred = false;
             }
@@ -615,7 +616,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     public boolean metadataContainsKey(String key) {
         Objects.requireNonNull(key, "key");
         return metadataDeferred
-                ? Metadata.containsKey(metadataSlice, key)
+                ? Metadata.containsKey(envelope, metadataOffset, metadataLength, key)
                 : metadata != null && metadata.containsKey(key);
     }
 
@@ -625,7 +626,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     public String getMetadataValue(String key) {
         Objects.requireNonNull(key, "key");
         return metadataDeferred
-                ? Metadata.get(metadataSlice, key)
+                ? Metadata.get(envelope, metadataOffset, metadataLength, key)
                 : metadata == null ? null : metadata.get(key);
     }
 
@@ -701,11 +702,16 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     }
 
     public Integer getSegment() {
-        return segment;
+        Integer current = segment;
+        if (current == null && hasEnvelopeFlag(HAS_SEGMENT)) {
+            current = readInt(envelope, envelopeOffset + SEGMENT_OFFSET);
+            segment = current;
+        }
+        return current;
     }
 
     public void setSegment(Integer segment) {
-        if (Objects.equals(this.segment, segment)) {
+        if (Objects.equals(getSegment(), segment)) {
             return;
         }
         this.segment = segment;
@@ -716,11 +722,16 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     }
 
     public Long getIndex() {
-        return index;
+        Long current = index;
+        if (current == null && hasEnvelopeFlag(HAS_INDEX)) {
+            current = readLong(envelope, envelopeOffset + INDEX_OFFSET);
+            index = current;
+        }
+        return current;
     }
 
     public void setIndex(Long index) {
-        if (Objects.equals(this.index, index)) {
+        if (Objects.equals(getIndex(), index)) {
             return;
         }
         this.index = index;
@@ -822,11 +833,16 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     }
 
     public Integer getRequestId() {
-        return requestId;
+        Integer current = requestId;
+        if (current == null && hasEnvelopeFlag(HAS_REQUEST_ID)) {
+            current = readInt(envelope, envelopeOffset + REQUEST_ID_OFFSET);
+            requestId = current;
+        }
+        return current;
     }
 
     public void setRequestId(Integer requestId) {
-        if (Objects.equals(this.requestId, requestId)) {
+        if (Objects.equals(getRequestId(), requestId)) {
             return;
         }
         this.requestId = requestId;
@@ -837,11 +853,16 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     }
 
     public Long getTimestamp() {
-        return timestamp;
+        Long current = timestamp;
+        if (current == null && hasEnvelopeFlag(HAS_TIMESTAMP)) {
+            current = readLong(envelope, envelopeOffset + TIMESTAMP_OFFSET);
+            timestamp = current;
+        }
+        return current;
     }
 
     public void setTimestamp(Long timestamp) {
-        if (Objects.equals(this.timestamp, timestamp)) {
+        if (Objects.equals(getTimestamp(), timestamp)) {
             return;
         }
         this.timestamp = timestamp;
@@ -933,6 +954,10 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
                + "requestId=%s, timestamp=%s, messageId=%s, originalRevision=%s)".formatted(
                 getData(), getMetadata(), getSegment(), getIndex(), getSource(), getTarget(),
                 getRequestId(), getTimestamp(), getMessageId(), getOriginalRevision());
+    }
+
+    private boolean hasEnvelopeFlag(int flag) {
+        return envelope != null && (envelope[envelopeOffset + FLAGS_OFFSET] & flag) != 0;
     }
 
     private void patchFlag(int flag, boolean present) {
@@ -1174,6 +1199,37 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             }
             return encodedFormat;
         }
+    }
+
+    private ByteSlice payloadSlice() {
+        if (payloadOffset < 0) {
+            return null;
+        }
+        ByteSlice current = payloadSlice;
+        if (current == null) {
+            synchronized (this) {
+                current = payloadSlice;
+                if (current == null) {
+                    current = new ByteSlice(envelope, payloadOffset, payloadLength);
+                    payloadSlice = current;
+                }
+            }
+        }
+        return current;
+    }
+
+    private ByteSlice metadataSlice() {
+        ByteSlice current = metadataSlice;
+        if (current == null) {
+            synchronized (this) {
+                current = metadataSlice;
+                if (current == null) {
+                    current = new ByteSlice(envelope, metadataOffset, metadataLength);
+                    metadataSlice = current;
+                }
+            }
+        }
+        return current;
     }
 
     private String string(int offset, int length) {

@@ -18,10 +18,13 @@ package io.fluxzero.common.api;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -31,6 +34,41 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetadataTest {
+
+    @Test
+    void compactBuilderReplacesValuesAndGrows() {
+        Metadata metadata = Metadata.builder(1)
+                .put("one", "old")
+                .put("two", "second")
+                .put("one", "new")
+                .putAll(Map.of("three", "third"))
+                .put("two", null)
+                .put("missing", null)
+                .build();
+
+        assertEquals(Map.of(
+                "one", "new",
+                "three", "third"), metadata.getEntries());
+        assertSame(metadata.toData(), metadata.toData());
+    }
+
+    @Test
+    void preservesCompactMetadataWireFormat() {
+        String key = "broken-\ud800-key-😀";
+        String value = "München-東京";
+        byte[] encodedKey = key.getBytes(StandardCharsets.UTF_8);
+        byte[] encodedValue = value.getBytes(StandardCharsets.UTF_8);
+        byte[] expected = ByteBuffer.allocate(
+                        3 * Integer.BYTES + encodedKey.length + encodedValue.length)
+                .putInt(1)
+                .putInt(encodedKey.length)
+                .put(encodedKey)
+                .putInt(encodedValue.length)
+                .put(encodedValue)
+                .array();
+
+        assertArrayEquals(expected, Metadata.of(key, value).toData().getValue());
+    }
 
     @Test
     void roundTripsCompactSerializedData() {
