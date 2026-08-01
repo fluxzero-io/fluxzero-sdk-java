@@ -179,6 +179,7 @@ limiter from top allocation stacks alone.
 | E55 | 2026-08-01 | Accepted P2 ready chunk 256 | SDK ready-commit chunks of 1,024 and 4,096 | Two same-binary configuration pairs; [`model-e2e-e55-ready-chunk-screening.csv`](performance-runs/model-e2e-e55-ready-chunk-screening.csv); [`model-e2e-e55-ready-chunk-screening.md`](performance-runs/model-e2e-e55-ready-chunk-screening.md) | Reject without code changes. Chunk 1,024 was 302,721/304,438/s (-0.56%); chunk 4,096 was 306,288/314,081/s (-2.48%) with worse p95/p99. Neither setting consistently increased SDK dispatch batches, so ready-chunk reservations are fragmented again by physical WebSocket intake and closed-loop completions before the Runtime durable queue. The 256 P2 default remains. |
 | E56 | 2026-08-01 | Accepted P2 clean control | Nested event-transaction attribution plus fresh PostgreSQL statement accounting | Equivalent dual JFR, fresh non-JFR PostgreSQL statistics and exact checks; [`model-e2e-e56-event-transaction-attribution.md`](performance-runs/model-e2e-e56-event-transaction-attribution.md) | Diagnostic hit. The packed model route spent 3.328 of 3.723 s inside its co-located event transaction and only 0.051 s waiting for that writer. Direct compact-row insertion, staging/prior-tail flush and model SQL consumed 0.969/0.948/0.828 s. A fresh 291,045/s control needed 472 event-LTS inserts, 166 staging inserts and 158 select/delete tail flushes, but only about 221 ms of aggregate PostgreSQL execution. Repeated client/protocol boundaries, not server compute or another queue delay, are the current limiter. |
 | E57 | 2026-08-01 | Accepted P2 128-message event blocks | Direct 1,024-message blocks for large co-located model transactions | Same-dirty-binary equivalent dual-JFR pair, 40 focused tests and exact full-E2E checks; [`model-e2e-e57-co-located-large-blocks.md`](performance-runs/model-e2e-e57-co-located-large-blocks.md) | Reject and revert. Compact output rows fell 9,131→1,752 and staging service 1.071→0.380 s, but packed transactions rose 148→192 and their average fell 7,528→5,803. Repeated model SQL and commit work made complete packed service worse. Candidate/control were 247,367/274,520/s (-9.89%) and every latency percentile regressed. This closes physical block/tail reduction as an isolated fix; transaction formation must admit already-arrived work before a safe seal point. |
+| E58 | 2026-08-01 | Accepted P2 ordered packed transaction | One non-blocking admission of compatible jobs already queued before a safe event/model seal | Equivalent dual-JFR mechanism pair, balanced four-pair non-JFR screen, 8 backlog tests, 41 message-store tests, 99 model-store tests and exact checks; [`model-e2e-e58-active-transaction-extension.csv`](performance-runs/model-e2e-e58-active-transaction-extension.csv); [`model-e2e-e58-active-transaction-extension.md`](performance-runs/model-e2e-e58-active-transaction-extension.md) | Reject and revert. The mechanism worked: packed transactions fell 155→119, average size rose 7,188→9,362, packed storage fell 3.711→3.044 s and staging nearly halved. Full screening was neutral: candidate/control geometric means 318,936/319,158/s (-0.07%), paired bootstrap 95% -3.41% to +3.38%. Tail latency improved, but p50 worsened and throughput had a -5.00% pair. Local transaction service is no longer the full-route throughput limiter under P2. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -571,12 +572,13 @@ write API, property or production code remains.
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
    transactions and an isolated repeat of fused SQL or direct tails remain closed.
-2. Use SDK `33e928c594a` plus Runtime `ed9cb3419e0b` as the immutable source pair for every next control.
-3. E57 closed larger compact blocks plus direct tails as an isolated fix despite an 81% row-count reduction. Do not
-   reopen physical block sizing without first changing transaction formation.
-4. Design transaction extension that admits compatible, already-arrived ordered jobs during productive preparation and
-   seals before final model/event state assignment. Preserve one atomic commit, result futures and visible order. Do not
-   substitute a timer or an `AFTER_BATCH` policy.
+2. Use SDK `e94188b5876` plus Runtime `ed9cb3419e0b` as the immutable E58 control pair; later documentation-only
+   commits do not change that production source identity.
+3. E57 and E58 close physical block sizing and active transaction extension as throughput checkpoints. E58 reduced
+   packed transaction service 18% and improved tail latency, but its full non-JFR throughput screen was neutral.
+4. Rerank the complete accepted route from equivalent client and Runtime profiles. Current samples point to Runtime
+   native-message decode/serialization and model intake plus SDK adaptive-cache maintenance, metadata encoding and
+   native tracking-wire writes; prove inclusive service demand before selecting the next architectural candidate.
 5. Confirm each positive candidate through matched non-JFR runs, checkpoint only a significant correct result, rerank
    the full path and repeat until five consecutive qualifying runs exceed 1M/s.
 
