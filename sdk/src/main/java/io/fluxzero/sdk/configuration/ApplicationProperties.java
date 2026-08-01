@@ -106,11 +106,13 @@ public class ApplicationProperties {
      *     </tr>
      *     <tr>
      *         <td>{@code >= 2026.06.09}</td>
-     *         <td>{@code fluxzero.aggregate.commitPolicy = async_after_handler_await_after_batch}</td>
-     *         <td>Aggregates using the default commit policy start their commits after each handler, keep active
-     *         thread-local aggregates visible until batch completion, and wait for all started commits together at the
-     *         end of the current message batch. Existing applications can keep the legacy behavior with
-     *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}.</td>
+     *         <td>{@code fluxzero.aggregate.commitPolicy = async_after_handler_await_after_batch}<br>
+     *         {@code fluxzero.model.commitPolicy = async_after_handler_await_after_batch}</td>
+     *         <td>Aggregates and independent models using their default commit policy start commits after their
+     *         handlers and wait for all started commits together at the end of the current message batch. Existing
+     *         aggregate applications can retain compatibility behavior with
+     *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}. Independent models use the new behavior
+     *         regardless of the defaults version and can opt out explicitly.</td>
      *     </tr>
      *     <tr>
      *         <td>{@code >= 2026.06.20}</td>

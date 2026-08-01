@@ -139,8 +139,12 @@ public @interface Model {
 
     /**
      * Controls when model changes are committed and whether completion-phase commits may run concurrently.
+     * <p>
+     * The default value resolves from {@code fluxzero.model.commitPolicy} when present and otherwise uses
+     * {@link ModelCommitPolicy#ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH}. Independent models were introduced with this
+     * default, so it does not depend on the active defaults version.
      */
-    AggregateCommitPolicy commitPolicy() default AggregateCommitPolicy.DEFAULT;
+    ModelCommitPolicy commitPolicy() default ModelCommitPolicy.DEFAULT;
 
     /**
      * Controls whether an applied update produces an event when the returned model is unchanged.

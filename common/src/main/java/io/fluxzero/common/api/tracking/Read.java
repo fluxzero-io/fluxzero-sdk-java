@@ -121,6 +121,25 @@ public class Read extends Request {
         this.purgeTimeout = purgeTimeout;
     }
 
+    Read(long requestId, MessageType messageType, String consumer, String trackerId, int maxSize, long maxBytes,
+         long maxTimeout, String typeFilter, boolean filterMessageTarget, boolean ignoreSegment,
+         boolean singleTracker, boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {
+        super(requestId);
+        this.messageType = messageType;
+        this.consumer = consumer;
+        this.trackerId = trackerId;
+        this.maxSize = maxSize;
+        this.maxBytes = maxBytes;
+        this.maxTimeout = maxTimeout;
+        this.typeFilter = typeFilter;
+        this.filterMessageTarget = filterMessageTarget;
+        this.ignoreSegment = ignoreSegment;
+        this.singleTracker = singleTracker;
+        this.clientControlledIndex = clientControlledIndex;
+        this.lastIndex = lastIndex;
+        this.purgeTimeout = purgeTimeout;
+    }
+
     public Read(MessageType messageType, String consumer, String trackerId, int maxSize, long maxTimeout,
                 String typeFilter, boolean filterMessageTarget, boolean ignoreSegment, boolean singleTracker,
                 boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {

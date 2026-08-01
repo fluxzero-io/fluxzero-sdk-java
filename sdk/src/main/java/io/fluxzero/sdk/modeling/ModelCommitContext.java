@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
+import java.lang.reflect.Executable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,6 +97,24 @@ public final class ModelCommitContext {
                             .formatted(remaining.keySet()));
         }
         return new ModelCommitContext(readStateIndex, entries, resolution.deferredWrites());
+    }
+
+    static ModelCommitContext createSingle(
+            long readStateIndex,
+            String modelId,
+            Class<?> modelType,
+            ModelTargetResolver.Access access,
+            List<String> sourceProperties,
+            Entity<?> entity) {
+        ModelTargetResolver.ResolvedModel target =
+                new ModelTargetResolver.ResolvedModel(
+                        modelId, modelType, access,
+                        sourceProperties);
+        validateLoadedEntity(target, entity);
+        return new ModelCommitContext(
+                readStateIndex,
+                List.of(new Entry(target, entity)),
+                List.of());
     }
 
     private static void validateLoadedEntity(ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
@@ -190,7 +209,7 @@ public final class ModelCommitContext {
         return null;
     }
 
-    boolean mayWrite(String modelId, Class<?> modelType, String handler) {
+    boolean mayWrite(String modelId, Class<?> modelType, Executable handler) {
         Entry entry = entry(modelId);
         if (entry == null) {
             return false;
@@ -198,9 +217,10 @@ public final class ModelCommitContext {
         if (entry.target().access().writes()) {
             return true;
         }
+        String handlerSignature = handler.toGenericString();
         for (int i = 0; i < deferredWrites.size(); i++) {
             ModelTargetResolver.DeferredWriteTarget deferred = deferredWrites.get(i);
-            if (deferred.handler().equals(handler)
+            if (deferred.handler().equals(handlerSignature)
                 && deferred.modelType().isAssignableFrom(modelType)
                 && deferred.candidateModelIds().contains(modelId)) {
                 return true;

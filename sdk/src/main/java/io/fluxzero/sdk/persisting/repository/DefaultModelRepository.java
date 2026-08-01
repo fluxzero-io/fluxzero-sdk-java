@@ -83,6 +83,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -99,6 +100,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
     private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
     private static final int MAX_PARALLEL_GRAPH_RECONSTRUCTIONS = 8;
+    private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
 
     private final Client client;
     private final DocumentStore documentStore;
@@ -932,6 +934,87 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 stagedValues);
     }
 
+    /**
+     * Returns independently proven current cache values for the requested direct models.
+     *
+     * <p>A missing or stale entry is omitted instead of invalidating unrelated hits. Callers can therefore batch-load
+     * only the misses while retaining the exact state boundary through which every returned value is known to be
+     * current.</p>
+     */
+    public Map<String, CurrentModel> currentModels(
+            Collection<ModelTargetResolver.ResolvedModel> targets) {
+        if (modelCacheTracker == null || targets.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, CurrentModel> result =
+                new LinkedHashMap<>(targets.size());
+        for (ModelTargetResolver.ResolvedModel target : targets) {
+            ModelCacheTracker.CurrentModel current =
+                    modelCacheTracker.currentVersion(
+                            target.modelId(), target.modelType());
+            if (current != null) {
+                result.put(
+                        target.modelId(),
+                        new CurrentModel(
+                                current.entity(),
+                                current.validThrough()));
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    /**
+     * Returns current cache values for a pre-resolved batch of direct model IDs.
+     *
+     * <p>This is the allocation-light equivalent of {@link #currentModels(Collection)} for automatic single-target
+     * command batches whose structural target plan has already proved the ID/type pairing.</p>
+     */
+    public Map<String, CurrentModel> currentModels(
+            Map<String, Class<?>> modelTypes) {
+        if (modelCacheTracker == null || modelTypes.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, CurrentModel> result =
+                new LinkedHashMap<>(modelTypes.size());
+        modelTypes.forEach((modelId, modelType) -> {
+            ModelCacheTracker.CurrentModel current =
+                    modelCacheTracker.currentVersion(
+                            modelId, modelType);
+            if (current != null) {
+                result.put(
+                        modelId,
+                        new CurrentModel(
+                                current.entity(),
+                                current.validThrough()));
+            }
+        });
+        return Collections.unmodifiableMap(result);
+    }
+
+    /**
+     * Supplies one independently proven current cache value without allocating an intermediate result object.
+     */
+    public boolean supplyCurrentModel(
+            String modelId,
+            Class<?> modelType,
+            CurrentModelSink sink) {
+        return modelCacheTracker != null
+               && modelCacheTracker.supplyCurrentVersion(
+                       modelId, modelType, sink);
+    }
+
+    /**
+     * Supplies independently proven current cache values for a pre-resolved group of direct model lookups.
+     * Cache access bookkeeping is amortized across the group without weakening the proof boundary of any model.
+     */
+    public void supplyCurrentModels(
+            Iterable<? extends CurrentModelLookup> lookups) {
+        if (modelCacheTracker != null) {
+            modelCacheTracker.supplyCurrentVersions(
+                    lookups);
+        }
+    }
+
     private ModelCommitContext loadContext(
             ModelTargetResolver.Resolution resolution,
             ModelEventBatchLoader.Boundary boundary,
@@ -1410,48 +1493,79 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
      */
     public void updateAfterCommit(
             List<CommittedModel> committedModels) {
-        for (CommittedModel committed : committedModels) {
-            ModelMetadata metadata = ModelMetadata.validate(committed.modelType());
-            Model model = metadata.model().orElseThrow();
-            if (!committed.historyComplete()) {
-                modelCache.<Entity<?>>compute(
-                        committed.modelId(),
-                        (ignored, current) ->
-                                current != null
-                                && stateIndex(current)
-                                   > committed.stateIndex()
-                                        ? current : null);
-                if (modelCacheTracker != null) {
-                    modelCacheTracker.forget(
-                            committed.modelId());
-                }
-                continue;
-            }
-            if (model.cached()) {
-                modelCache.<Entity<?>>compute(
-                        committed.modelId(),
-                        (ignored, current) -> {
-                            if (current != null
-                                && stateIndex(current)
-                                   >= committed.stateIndex()) {
-                                return current;
-                            }
-                            Entity<?> updated =
-                                    committedEntity(
-                                            committed, metadata,
-                                            model, current);
-                            return updated;
-                        });
-            } else {
-                modelCache.remove(committed.modelId());
-            }
-            if (model.cached()
-                && modelCacheTracker != null) {
-                modelCacheTracker.committed(
-                        committed.modelId(),
-                        committed.modelType(),
-                        committed.stateIndex());
-            }
+        if (committedModels.isEmpty()) {
+            return;
+        }
+        if (committedModels.size() == 1) {
+            updateAfterCommit(committedModels.getFirst());
+            return;
+        }
+        for (int offset = 0;
+             offset < committedModels.size();
+             offset += COMMITTED_CACHE_UPDATE_BATCH_SIZE) {
+            modelCache.<CommittedModel, Entity<?>>updateAll(
+                    committedModels.subList(
+                            offset,
+                            Math.min(
+                                    committedModels.size(),
+                                    offset
+                                    + COMMITTED_CACHE_UPDATE_BATCH_SIZE)),
+                    CommittedModel::modelId,
+                    (committed, current) ->
+                            applyCommittedModel(
+                                    current, committed));
+        }
+        if (modelCacheTracker == null) {
+            return;
+        }
+        committedModels.forEach(
+                this::updateTrackerAfterCommit);
+    }
+
+    private Entity<?> applyCommittedModel(
+            Entity<?> current,
+            CommittedModel committed) {
+        if (!committed.historyComplete()) {
+            return current != null
+                   && stateIndex(current)
+                      > committed.stateIndex()
+                    ? current : null;
+        }
+        if (!committed.model().cached()) {
+            return null;
+        }
+        if (current != null
+            && stateIndex(current)
+               >= committed.stateIndex()) {
+            return current;
+        }
+        return committedEntity(
+                committed, committed.entityId(),
+                committed.model(), current);
+    }
+
+    private void updateTrackerAfterCommit(
+            CommittedModel committed) {
+        if (!committed.historyComplete()) {
+            modelCacheTracker.forget(
+                    committed.modelId());
+        } else if (committed.model().cached()) {
+            modelCacheTracker.committed(
+                    committed.modelId(),
+                    committed.modelType(),
+                    committed.stateIndex());
+        }
+    }
+
+    private void updateAfterCommit(
+            CommittedModel committed) {
+        modelCache.<Entity<?>>compute(
+                committed.modelId(),
+                (ignored, current) ->
+                        applyCommittedModel(
+                                current, committed));
+        if (modelCacheTracker != null) {
+            updateTrackerAfterCommit(committed);
         }
     }
 
@@ -1485,28 +1599,30 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     @SuppressWarnings("unchecked")
     private Entity<?> committedEntity(
             CommittedModel committed,
-            ModelMetadata metadata,
-            Model model,
+            ModelMetadata.Property entityId,
+            ModelMetadata.RootConfiguration model,
             Entity<?> previous) {
         Entity<?> result = previous;
-        for (CommittedRevision revision : committed.revisions()) {
-            validateValueId(
-                    committed.modelId(), metadata, revision.value());
-            result = ImmutableModelRoot.<Object>builder()
-                    .id(committed.modelId())
-                    .type((Class<Object>) committed.modelType())
-                    .idProperty(metadata.entityId().orElseThrow().name())
-                    .value(revision.value())
-                    .entityHelper(entityHelper)
-                    .serializer(serializer)
-                    .sequenceNumber(revision.sequenceNumber())
-                    .stateIndex(revision.stateIndex())
-                    .lastEventId(revision.lastEventId())
-                    .lastEventIndex(revision.lastEventIndex())
-                    .timestamp(revision.timestamp())
-                    .previous(castPrevious(retainPrevious(
-                            result, model)))
-                    .build();
+        for (int index = 0;
+             index < committed.revisionCount(); index++) {
+            CommittedRevision revision =
+                    committed.revision(index);
+            if (!committed.valueIdsValidated()) {
+                validateValueId(
+                        committed.modelId(), entityId, revision.value());
+            }
+            result = ImmutableModelRoot.committed(
+                    committed.modelId(),
+                    (Class<Object>) committed.modelType(),
+                    entityId.name(), revision.value(),
+                    entityHelper, serializer,
+                    revision.lastEventId(),
+                    revision.lastEventIndex(),
+                    revision.timestamp(),
+                    revision.sequenceNumber(),
+                    revision.stateIndex(),
+                    castPrevious(retainPrevious(
+                            result, model)));
         }
         if (result == null) {
             throw new IllegalStateException(
@@ -1514,6 +1630,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     + committed.modelId());
         }
         return result;
+    }
+
+    private Entity<?> retainPrevious(
+            Entity<?> previous,
+            ModelMetadata.RootConfiguration model) {
+        if (previous == null || !model.cached()
+            || !model.eventSourced() || model.cachingDepth() == 0) {
+            return null;
+        }
+        if (model.cachingDepth() < 0) {
+            return previous;
+        }
+        return truncatePrevious(previous, model.cachingDepth() - 1);
     }
 
     private Entity<?> retainPrevious(
@@ -1538,7 +1667,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 ? null
                 : truncatePrevious(
                         root.previous(), remainingDepth - 1);
-        return root.withPrevious((Entity) previous);
+        return root.previous() == previous
+                ? root : root.withPrevious((Entity) previous);
     }
 
     @SuppressWarnings("unchecked")
@@ -1653,10 +1783,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
     private static void validateValueId(
             String modelId, ModelMetadata metadata, Object value) {
+        validateValueId(
+                modelId, metadata.entityId().orElseThrow(), value);
+    }
+
+    private static void validateValueId(
+            String modelId, ModelMetadata.Property entityId, Object value) {
         if (value == null) {
             return;
         }
-        Object storedId = metadata.entityId().orElseThrow().read(value);
+        Object storedId = entityId.read(value);
         if (storedId == null || !Objects.equals(modelId, storedId.toString())) {
             throw new EventSourcingException(
                     "Stored model document '%s' reports @EntityId '%s'"
@@ -3132,23 +3268,205 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     /**
+     * A cached model value and the inclusive global state boundary through which it is known to be current.
+     */
+    public record CurrentModel(Entity<?> entity, long stateIndex) {
+    }
+
+    /** Receives a cache value and the boundaries that prove it current. */
+    @FunctionalInterface
+    public interface CurrentModelSink {
+        void accept(
+                Entity<?> entity,
+                long validThrough,
+                long modelStateIndex);
+    }
+
+    /** A pre-resolved direct-model cache lookup that receives the proven current value when present. */
+    public interface CurrentModelLookup
+            extends CurrentModelSink {
+        String modelId();
+
+        Class<?> modelType();
+    }
+
+    /**
      * Final authoritative state and positions for a locally committed model.
      */
-    public record CommittedModel(
-            String modelId,
-            Class<?> modelType,
-            boolean historyComplete,
-            List<CommittedRevision> revisions) {
-        public CommittedModel {
-            revisions = List.copyOf(revisions);
-            if (revisions.isEmpty()) {
+    public static final class CommittedModel {
+        private final String modelId;
+        private final Class<?> modelType;
+        private final ModelMetadata.Property entityId;
+        private final ModelMetadata.RootConfiguration model;
+        private final boolean valueIdsValidated;
+        private final boolean historyComplete;
+        private final CommittedRevision singleRevision;
+        private final List<CommittedRevision> revisions;
+
+        public CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                boolean historyComplete,
+                CommittedRevision revision) {
+            this(
+                    modelId, modelType,
+                    ModelMetadata.validate(modelType),
+                    historyComplete, revision);
+        }
+
+        private CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                ModelMetadata metadata,
+                boolean historyComplete,
+                CommittedRevision revision) {
+            this(
+                    modelId, modelType,
+                    metadata.rootConfiguration().orElseThrow(),
+                    metadata.entityId().orElseThrow(),
+                    false, historyComplete, revision);
+        }
+
+        /**
+         * Creates a committed model using model descriptors already validated by the commit planner.
+         */
+        public CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                ModelMetadata.RootConfiguration model,
+                ModelMetadata.Property entityId,
+                boolean historyComplete,
+                CommittedRevision revision) {
+            this(
+                    modelId, modelType, model, entityId,
+                    true, historyComplete, revision);
+        }
+
+        public CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                boolean historyComplete,
+                List<CommittedRevision> revisions) {
+            this(
+                    modelId, modelType,
+                    ModelMetadata.validate(modelType),
+                    historyComplete, revisions);
+        }
+
+        private CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                ModelMetadata metadata,
+                boolean historyComplete,
+                List<CommittedRevision> revisions) {
+            this(
+                    modelId, modelType,
+                    metadata.rootConfiguration().orElseThrow(),
+                    metadata.entityId().orElseThrow(),
+                    false, historyComplete, revisions);
+        }
+
+        /**
+         * Creates a committed model using model descriptors already validated by the commit planner.
+         */
+        public CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                ModelMetadata.RootConfiguration model,
+                ModelMetadata.Property entityId,
+                boolean historyComplete,
+                List<CommittedRevision> revisions) {
+            this(
+                    modelId, modelType, model, entityId,
+                    true, historyComplete, revisions);
+        }
+
+        private CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                ModelMetadata.RootConfiguration model,
+                ModelMetadata.Property entityId,
+                boolean valueIdsValidated,
+                boolean historyComplete,
+                CommittedRevision revision) {
+            this.modelId = modelId;
+            this.modelType = modelType;
+            this.model = Objects.requireNonNull(model, "model");
+            this.entityId = Objects.requireNonNull(entityId, "entityId");
+            this.valueIdsValidated = valueIdsValidated;
+            this.historyComplete = historyComplete;
+            this.singleRevision = Objects.requireNonNull(
+                    revision, "revision");
+            this.revisions = null;
+        }
+
+        private CommittedModel(
+                String modelId,
+                Class<?> modelType,
+                ModelMetadata.RootConfiguration model,
+                ModelMetadata.Property entityId,
+                boolean valueIdsValidated,
+                boolean historyComplete,
+                List<CommittedRevision> revisions) {
+            List<CommittedRevision> copy =
+                    List.copyOf(revisions);
+            if (copy.isEmpty()) {
                 throw new IllegalArgumentException(
                         "A committed model must contain at least one revision");
             }
+            this.modelId = modelId;
+            this.modelType = modelType;
+            this.model = Objects.requireNonNull(model, "model");
+            this.entityId = Objects.requireNonNull(entityId, "entityId");
+            this.valueIdsValidated = valueIdsValidated;
+            this.historyComplete = historyComplete;
+            this.singleRevision = copy.size() == 1
+                    ? copy.getFirst() : null;
+            this.revisions = copy.size() == 1
+                    ? null : copy;
+        }
+
+        public String modelId() {
+            return modelId;
+        }
+
+        public Class<?> modelType() {
+            return modelType;
+        }
+
+        private ModelMetadata.Property entityId() {
+            return entityId;
+        }
+
+        private ModelMetadata.RootConfiguration model() {
+            return model;
+        }
+
+        private boolean valueIdsValidated() {
+            return valueIdsValidated;
+        }
+
+        public boolean historyComplete() {
+            return historyComplete;
+        }
+
+        public List<CommittedRevision> revisions() {
+            return revisions == null
+                    ? List.of(singleRevision) : revisions;
         }
 
         public long stateIndex() {
-            return revisions.getLast().stateIndex();
+            return revision(revisionCount() - 1)
+                    .stateIndex();
+        }
+
+        private int revisionCount() {
+            return revisions == null ? 1 : revisions.size();
+        }
+
+        private CommittedRevision revision(int index) {
+            return revisions == null
+                    ? singleRevision : revisions.get(index);
         }
     }
 

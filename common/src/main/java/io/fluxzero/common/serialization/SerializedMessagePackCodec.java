@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Decodes the compact MessagePack representation used by the Fluxzero event store.
+ * Decodes native or legacy MessagePack representations used by the Fluxzero event store.
  * <p>
  * This codec deliberately owns only the read contract needed by compact model-event responses. Event-store writes
  * remain owned by the runtime.
@@ -74,6 +74,13 @@ public final class SerializedMessagePackCodec {
 
     private static List<SerializedMessage> decode(
             byte[] bytes, int offset, int length) {
+        if (SerializedMessage.isEnvelope(bytes, offset, length)) {
+            try {
+                return SerializedMessage.decodeAllViews(bytes, offset, length);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Could not decode native event payloads", e);
+            }
+        }
         ReusableUnpacker reusable = UNPACKERS.get();
         try {
             MessageUnpacker unpacker =
@@ -97,7 +104,7 @@ public final class SerializedMessagePackCodec {
         if (version >= 0) {
             return decodeVersionZero(unpacker, version);
         }
-        if (version != -1) {
+        if (version != -1 && version != -2) {
             throw new UnsupportedOperationException("Unrecognized serialized-message version: " + -version);
         }
         return new SerializedMessage(
@@ -106,7 +113,7 @@ public final class SerializedMessagePackCodec {
                         unpackString(unpacker),
                         unpacker.unpackInt(),
                         unpackString(unpacker)),
-                unpackMetadata(unpacker),
+                version == -2 ? unpackSerializedMetadata(unpacker) : unpackMetadata(unpacker),
                 unpackInt(unpacker),
                 unpackLong(unpacker),
                 unpackString(unpacker),
@@ -115,6 +122,11 @@ public final class SerializedMessagePackCodec {
                 unpackLong(unpacker),
                 unpackString(unpacker),
                 null);
+    }
+
+    private static Metadata unpackSerializedMetadata(MessageUnpacker unpacker) throws IOException {
+        byte[] value = unpacker.readPayload(unpacker.unpackInt());
+        return Metadata.fromData(new Data<>(value, Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
     }
 
     private static SerializedMessage decodeVersionZero(

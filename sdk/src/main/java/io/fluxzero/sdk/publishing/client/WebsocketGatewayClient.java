@@ -112,7 +112,11 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
     @Override
     public CompletableFuture<Void> append(Guarantee guarantee, SerializedMessage... messages) {
         try {
-            return sendCommand(new Append(messageType, Arrays.asList(messages), guarantee));
+            SerializedMessage[] encoded = new SerializedMessage[messages.length];
+            for (int i = 0; i < messages.length; i++) {
+                encoded[i] = SerializedMessage.encode(messages[i]);
+            }
+            return sendCommand(new Append(messageType, Arrays.asList(encoded), guarantee));
         } finally {
             if (!monitors.isEmpty()) {
                 monitors.forEach(m -> m.accept(Arrays.asList(messages)));

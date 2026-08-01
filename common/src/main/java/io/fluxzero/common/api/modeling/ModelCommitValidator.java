@@ -48,7 +48,7 @@ public final class ModelCommitValidator {
             throw new IllegalArgumentException("Model commit guarantee is required");
         }
         requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
-        if (validateSimpleInitialCommit(commit)) {
+        if (validateSimpleCommit(commit)) {
             return;
         }
         Set<String> readIds = uniqueIds(commit.getReadModelIds(), "read model");
@@ -57,7 +57,12 @@ public final class ModelCommitValidator {
             if (substep == null) {
                 throw new IllegalArgumentException("Model commit substep %d is null".formatted(i));
             }
-            requireNonEmpty(substep.getTargets(), "Model commit substep %d has no targets".formatted(i));
+            if (substep.getTargets() == null
+                || substep.getTargets().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Model commit substep %d has no targets"
+                                .formatted(i));
+            }
             boolean requiresEvent = substep.isPublishEvent();
             if (!requiresEvent) {
                 for (ModelCommitTarget target : substep.getTargets()) {
@@ -435,7 +440,7 @@ public final class ModelCommitValidator {
         return result;
     }
 
-    private static boolean validateSimpleInitialCommit(CommitModels commit) {
+    private static boolean validateSimpleCommit(CommitModels commit) {
         if (commit.getSubsteps().size() != 1 || commit.getReadModelIds() == null
             || commit.getReadModelIds().size() != 1) {
             return false;
@@ -446,11 +451,13 @@ public final class ModelCommitValidator {
             return false;
         }
         ModelCommitTarget target = substep.getTargets().getFirst();
-        if (target == null || !target.isStoreEvent() || !target.isUpdateState()
+        if (target == null) {
+            return false;
+        }
+        if (!target.isStoreEvent() || !target.isUpdateState()
             || target.isDelete() || target.isUpdateRelationships()
             || target.getRelationships() == null || !target.getRelationships().isEmpty()
             || target.getDocument() != null || target.getSnapshot() != null
-            || !Long.valueOf(-1L).equals(target.getExpectedSequenceNumber())
             || !java.util.Objects.equals(
                     target.getModelId(), commit.getReadModelIds().getFirst())) {
             return false;
@@ -465,6 +472,12 @@ public final class ModelCommitValidator {
         if (target.getModelType() != null && target.getModelType().isBlank()) {
             throw new IllegalArgumentException(
                     "Model commit substep 0 has a blank target model type");
+        }
+        if (target.getExpectedSequenceNumber() != null
+            && target.getExpectedSequenceNumber() < -1L) {
+            throw new IllegalArgumentException(
+                    "Model commit substep 0 target %s has an invalid expected sequence number"
+                            .formatted(target.getModelId()));
         }
         return true;
     }

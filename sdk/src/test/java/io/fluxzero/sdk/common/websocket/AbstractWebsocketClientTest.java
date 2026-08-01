@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -113,7 +114,8 @@ class AbstractWebsocketClientTest {
                 .name("test-client")
                 .build();
 
-        assertEquals(List.of(WebSocketTransportFormat.CBOR, WebSocketTransportFormat.JSON),
+        assertEquals(List.of(WebSocketTransportFormat.BINARY_V2, WebSocketTransportFormat.BINARY,
+                             WebSocketTransportFormat.CBOR, WebSocketTransportFormat.JSON),
                      clientConfig.getSupportedTransportFormats());
         assertEquals(Duration.ofSeconds(30), clientConfig.getWebSocketSendTimeout());
     }
@@ -744,6 +746,26 @@ class AbstractWebsocketClientTest {
         }
     }
 
+    @Test
+    void synchronousResultPreparationFailureBecomesAFailedFuture() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ResultPreparationFailingClient client =
+                new ResultPreparationFailingClient(mock(WebsocketConnector.class), clientConfig);
+
+        try {
+            CompletionException failure = assertThrows(
+                    CompletionException.class,
+                    () -> client.prepareResultGroup(List.of(new VoidResult(42L))).join());
+
+            assertEquals("preparation failed", failure.getCause().getMessage());
+        } finally {
+            client.close();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Backlog<Request>> sessionBacklogs(AbstractWebsocketClient client) throws Exception {
         Field field = AbstractWebsocketClient.class.getDeclaredField("sessionBacklogs");
@@ -894,6 +916,17 @@ class AbstractWebsocketClientTest {
                                     WebsocketResultDiagnostics.ResultTiming clientResultTiming) {
             resultThread.set(Thread.currentThread().getName());
             resultHandled.countDown();
+        }
+    }
+
+    private static class ResultPreparationFailingClient extends TestClient {
+        ResultPreparationFailingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        @Override
+        protected CompletableFuture<Void> prepareResults(List<RequestResult> results) {
+            throw new IllegalStateException("preparation failed");
         }
     }
 

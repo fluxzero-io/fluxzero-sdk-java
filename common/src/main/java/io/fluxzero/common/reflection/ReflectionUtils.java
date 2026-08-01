@@ -445,7 +445,11 @@ public class ReflectionUtils {
     }
 
     public static Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
-        return getAnnotatedProperty(target, annotation).map(m -> getValue(m, target, false));
+        if (target == null) {
+            return Optional.empty();
+        }
+        Optional<MemberInvoker> invoker = getAnnotatedPropertyInvoker(asClass(target), annotation);
+        return invoker.isEmpty() ? Optional.empty() : Optional.ofNullable(invoker.get().invoke(target));
     }
 
     public static Collection<Object> getAnnotatedPropertyValues(Object target, Class<? extends Annotation> annotation) {
@@ -1102,7 +1106,13 @@ public class ReflectionUtils {
         }
 
         public List<? extends AccessibleObject> annotatedProperties(Class<? extends Annotation> annotation) {
-            return annotatedProperties.computeIfAbsent(annotation, this::computeAnnotatedProperties);
+            List<? extends AccessibleObject> cached = annotatedProperties.get(annotation);
+            if (cached != null) {
+                return cached;
+            }
+            List<? extends AccessibleObject> computed = computeAnnotatedProperties(annotation);
+            List<? extends AccessibleObject> existing = annotatedProperties.putIfAbsent(annotation, computed);
+            return existing == null ? computed : existing;
         }
 
         public Optional<? extends AccessibleObject> annotatedProperty(Class<? extends Annotation> annotation) {
@@ -1110,10 +1120,16 @@ public class ReflectionUtils {
         }
 
         public Optional<MemberInvoker> annotatedPropertyInvoker(Class<? extends Annotation> annotation) {
-            return annotatedPropertyInvokers.computeIfAbsent(annotation, a -> annotatedProperty(a)
+            Optional<MemberInvoker> cached = annotatedPropertyInvokers.get(annotation);
+            if (cached != null) {
+                return cached;
+            }
+            Optional<MemberInvoker> computed = annotatedProperty(annotation)
                     .filter(Member.class::isInstance)
                     .map(Member.class::cast)
-                    .map(DefaultMemberInvoker::asInvoker));
+                    .map(DefaultMemberInvoker::asInvoker);
+            Optional<MemberInvoker> existing = annotatedPropertyInvokers.putIfAbsent(annotation, computed);
+            return existing == null ? computed : existing;
         }
 
         public Function<Object, Object> getter(String propertyPath) {

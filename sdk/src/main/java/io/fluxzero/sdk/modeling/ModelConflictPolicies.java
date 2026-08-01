@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -36,28 +37,27 @@ final class ModelConflictPolicies {
         ModelConflictPolicy application =
                 ModelConflictPolicy.resolve(
                         applicationPolicy);
+        List<ModelCommitEngine.Transition> transitions =
+                evaluation.transitions();
+        if (transitions.size() == 1
+            && evaluation.readModelTypes().size() == 1
+            && evaluation.readModelTypes().containsKey(
+                    transitions.getFirst().modelId())) {
+            return transitionPolicy(
+                    transitions.getFirst(), application);
+        }
         ModelConflictPolicy result =
                 ModelConflictPolicy.ACCEPT;
         Set<String> writtenModelIds =
                 new HashSet<>();
         for (ModelCommitEngine.Transition transition :
-                evaluation.transitions()) {
+                transitions) {
             writtenModelIds.add(
                     transition.modelId());
-            Apply apply =
-                    transition.handler()
-                            .getAnnotation(Apply.class);
-            ModelConflictPolicy policy =
-                    apply == null
-                            ? ModelConflictPolicy.DEFAULT
-                            : apply.conflictPolicy();
-            if (policy == ModelConflictPolicy.DEFAULT) {
-                policy = modelPolicy(
-                        transition.modelType());
-            }
             result = strictest(
                     result,
-                    inherit(policy, application));
+                    transitionPolicy(
+                            transition, application));
         }
         for (var entry :
                 evaluation.readModelTypes()
@@ -74,6 +74,21 @@ final class ModelConflictPolicies {
                             application));
         }
         return result;
+    }
+
+    private static ModelConflictPolicy transitionPolicy(
+            ModelCommitEngine.Transition transition,
+            ModelConflictPolicy application) {
+        Apply apply = transition.handler()
+                .getAnnotation(Apply.class);
+        ModelConflictPolicy policy = apply == null
+                ? ModelConflictPolicy.DEFAULT
+                : apply.conflictPolicy();
+        if (policy == ModelConflictPolicy.DEFAULT) {
+            policy = modelPolicy(
+                    transition.modelType());
+        }
+        return inherit(policy, application);
     }
 
     private static ModelConflictPolicy modelPolicy(

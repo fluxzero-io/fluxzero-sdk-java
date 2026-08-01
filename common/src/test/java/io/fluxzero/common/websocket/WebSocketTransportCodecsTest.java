@@ -84,10 +84,12 @@ import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.constraints.MatchConstraint;
+import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.api.tracking.ReadFromIndex;
 import io.fluxzero.common.api.tracking.ReadResult;
+import io.fluxzero.common.api.tracking.TrackingWireCodec;
 import io.fluxzero.common.serialization.JsonUtils;
 import org.junit.jupiter.api.Test;
 
@@ -106,9 +108,10 @@ import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -122,6 +125,8 @@ class WebSocketTransportCodecsTest {
 
     private final WebSocketTransportCodec jsonCodec = WebSocketTransportCodecs.json(objectMapper);
     private final WebSocketTransportCodec cborCodec = WebSocketTransportCodecs.cbor(objectMapper);
+    private final WebSocketTransportCodec binaryCodec = WebSocketTransportCodecs.binary(objectMapper);
+    private final WebSocketTransportCodec nativeBinaryCodec = WebSocketTransportCodecs.binaryV2(objectMapper);
 
     @Test
     void forFormatDefaultsToJson() {
@@ -146,6 +151,105 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
+    void binaryCompactTrackingCodecRoundTripsUnicodeStrings() throws Exception {
+        SerializedMessage message = new SerializedMessage(
+                new Data<>(new byte[]{1, 2, 3}, "type-😀", 1, "application/json"),
+                Metadata.of("tenant", "München-東京"),
+                3, 99L, "brön", "doel-😀", 12, 1234L,
+                "bericht-東京", 1);
+        Append append = new Append(
+                MessageType.EVENT, List.of(message), Guarantee.STORED);
+
+        Append decoded = assertInstanceOf(
+                Append.class, roundTrip(binaryCodec, append));
+
+        assertSerializedMessage(
+                message, decoded.getMessages().getFirst());
+    }
+
+    @Test
+    void nativeBinaryTrackingCodecRetainsPatchableMessageEnvelopes() throws Exception {
+        Append append = new Append(MessageType.EVENT, List.of(serializedMessage()), Guarantee.STORED);
+
+        Append decoded = assertInstanceOf(Append.class, roundTrip(nativeBinaryCodec, append));
+
+        SerializedMessage message = decoded.getMessages().getFirst();
+        assertTrue(message.isReusable());
+        assertSerializedMessage(serializedMessage(), message);
+        message.setIndex(123L);
+        SerializedMessage roundTripped =
+                assertInstanceOf(Append.class, roundTrip(nativeBinaryCodec, decoded)).getMessages().getFirst();
+        assertTrue(roundTripped.isReusable());
+        assertEquals(123L, roundTripped.getIndex());
+    }
+
+    @Test
+    void legacyBinaryCodecConvertsNativeMessagesAtTheClientBoundary() throws Exception {
+        SerializedMessage expected = serializedMessage();
+        expected.setOriginalRevision(null);
+        Append append = new Append(
+                MessageType.EVENT, List.of(SerializedMessage.encode(expected)), Guarantee.STORED);
+
+        Append decoded = assertInstanceOf(Append.class, roundTrip(binaryCodec, append));
+
+        assertFalse(decoded.getMessages().getFirst().isReusable());
+        assertSerializedMessage(expected, decoded.getMessages().getFirst());
+    }
+
+    @Test
+    void binaryTrackingCodecPreservesSpecializedReadRequests() throws Exception {
+        ClaimSegment claim = new ClaimSegment(
+                MessageType.EVENT, "consumer", "tracker", 100L,
+                true, null, false, 42L, null);
+        RequestBatch<ClaimSegment> batch = new RequestBatch<>(List.of(claim));
+
+        for (WebSocketTransportCodec codec : List.of(binaryCodec, nativeBinaryCodec)) {
+            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class, roundTrip(codec, batch));
+            ClaimSegment decodedClaim = assertInstanceOf(
+                    ClaimSegment.class, decoded.getRequests().getFirst());
+            assertEquals(claim.getRequestId(), decodedClaim.getRequestId());
+            assertEquals(claim.getLastIndex(), decodedClaim.getLastIndex());
+        }
+
+        assertNull(TrackingWireCodec.tryEncode(batch),
+                   "legacy BINARY must retain its CBOR fallback for older runtimes");
+        byte[] nativeBytes = TrackingWireCodec.tryEncodeNative(batch);
+        assertNotNull(nativeBytes);
+        RequestBatch<?> nativeDecoded = assertInstanceOf(
+                RequestBatch.class, TrackingWireCodec.tryDecodeNative(nativeBytes));
+        ClaimSegment nativeClaim = assertInstanceOf(
+                ClaimSegment.class, nativeDecoded.getRequests().getFirst());
+        assertEquals(claim, nativeClaim);
+    }
+
+    @Test
+    void nativeBinaryModelCommitCodecRetainsEventEnvelope() throws Exception {
+        SerializedMessage event = serializedMessage();
+        CommitModels commit = new CommitModels(
+                "commit-native", 1L, List.of("order-1"),
+                List.of(ModelCommitStep.builder()
+                                .event(SerializedMessage.encode(event))
+                                .publishEvent(true)
+                                .targets(List.of(ModelCommitTarget.builder()
+                                                         .modelId("order-1")
+                                                         .modelType("example.Order")
+                                                         .storeEvent(true)
+                                                         .updateState(true)
+                                                         .relationships(List.of())
+                                                         .build()))
+                                .build()),
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, false);
+
+        RequestBatch<?> decodedBatch = assertInstanceOf(
+                RequestBatch.class,
+                roundTrip(nativeBinaryCodec, new RequestBatch<>(List.of(commit))));
+        CommitModels decoded = assertInstanceOf(
+                CommitModels.class, decodedBatch.getRequests().getFirst());
+        assertTrue(decoded.getSubsteps().getFirst().getEvent().isReusable());
+        assertSerializedMessage(event, decoded.getSubsteps().getFirst().getEvent());
+    }
+
+    @Test
     void cborRoundTripsReadResultAndMessageBatch() throws Exception {
         MessageBatch batch = new MessageBatch(new int[]{0, 7}, List.of(serializedMessage()), 99L, null, true);
         ReadResult result = new ReadResult(123L, batch);
@@ -160,6 +264,20 @@ class WebSocketTransportCodecsTest {
         assertEquals(batch.getLastIndex(), decoded.getMessageBatch().getLastIndex());
         assertEquals(batch.isCaughtUp(), decoded.getMessageBatch().isCaughtUp());
         assertSerializedMessage(serializedMessage(), decoded.getMessageBatch().getMessages().getFirst());
+    }
+
+    @Test
+    void cborRoundTripsReadResultBatch() throws Exception {
+        MessageBatch messageBatch = new MessageBatch(null, List.of(), 99L, null, true);
+        ReadResult result = new ReadResult(123L, messageBatch, 456L);
+        ResultBatch resultBatch = new ResultBatch(List.of(result));
+
+        ResultBatch decodedBatch = assertInstanceOf(ResultBatch.class, roundTrip(cborCodec, resultBatch));
+        ReadResult decoded = assertInstanceOf(ReadResult.class, decodedBatch.getResults().getFirst());
+        assertEquals(result.getRequestId(), decoded.getRequestId());
+        assertEquals(result.getTimestamp(), decoded.getTimestamp());
+        assertNull(decoded.getMessageBatch().getSegment());
+        assertTrue(decoded.getMessageBatch().isCaughtUp());
     }
 
     @Test

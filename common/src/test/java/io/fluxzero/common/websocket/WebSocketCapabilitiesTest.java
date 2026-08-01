@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY_V2;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class WebSocketCapabilitiesTest {
@@ -39,9 +40,9 @@ class WebSocketCapabilitiesTest {
     @Test
     void transportFormatParsingIgnoresUnknownValues() {
         Map<String, List<String>> headers = Map.of(
-                WebSocketCapabilities.SUPPORTED_TRANSPORT_FORMATS_HEADER, List.of("BINARY_V2, CBOR, JSON"));
+                WebSocketCapabilities.SUPPORTED_TRANSPORT_FORMATS_HEADER, List.of("BINARY_V3, BINARY_V2, CBOR, JSON"));
 
-        assertEquals(List.of(CBOR, JSON), WebSocketCapabilities.getSupportedTransportFormats(headers));
+        assertEquals(List.of(BINARY_V2, CBOR, JSON), WebSocketCapabilities.getSupportedTransportFormats(headers));
     }
 
     @Test

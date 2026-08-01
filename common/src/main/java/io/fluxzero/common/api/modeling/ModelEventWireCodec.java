@@ -28,9 +28,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Compact websocket representation for model-stream reads.
@@ -407,10 +405,6 @@ public final class ModelEventWireCodec {
                | bytes[offset + 3] & 0xff;
     }
 
-    private static int capacity(int size) {
-        return size < 3 ? size + 1 : (int) Math.ceil(size / 0.75d);
-    }
-
     private static int encodedResultSize(ResultBatch batch) {
         long size = Integer.BYTES + 1L + Integer.BYTES;
         for (RequestResult value : batch.getResults()) {
@@ -544,14 +538,8 @@ public final class ModelEventWireCodec {
                 + encodedStringSize(data.getType())
                 + Integer.BYTES
                 + encodedStringSize(data.getFormat());
-        Map<String, String> metadata =
-                message.getMetadata() == null
-                        ? Map.of() : message.getMetadata().getEntries();
-        size += Integer.BYTES;
-        for (Map.Entry<String, String> entry : metadata.entrySet()) {
-            size += encodedStringSize(entry.getKey())
-                    + encodedStringSize(entry.getValue());
-        }
+        size += (message.getMetadata() == null ? Metadata.empty() : message.getMetadata())
+                .toData().getValue().length;
         size += encodedNullableIntSize(message.getSegment())
                 + encodedNullableLongSize(message.getIndex())
                 + encodedStringSize(message.getSource())
@@ -651,6 +639,12 @@ public final class ModelEventWireCodec {
             position += value.length;
         }
 
+        private void writeRaw(byte[] value) {
+            ensure(value.length);
+            System.arraycopy(value, 0, bytes, position, value.length);
+            position += value.length;
+        }
+
         private void writeBytes(
                 byte[] value, int offset, int length) {
             writeInt(length);
@@ -678,15 +672,8 @@ public final class ModelEventWireCodec {
             writeString(data.getType());
             writeInt(data.getRevision());
             writeString(data.getFormat());
-            Map<String, String> metadata =
-                    message.getMetadata() == null
-                            ? Map.of()
-                            : message.getMetadata().getEntries();
-            writeInt(metadata.size());
-            metadata.forEach((key, value) -> {
-                writeString(key);
-                writeString(value);
-            });
+            writeRaw((message.getMetadata() == null ? Metadata.empty() : message.getMetadata())
+                             .toData().getValue());
             writeNullableInt(message.getSegment());
             writeNullableLong(message.getIndex());
             writeString(message.getSource());
@@ -869,15 +856,10 @@ public final class ModelEventWireCodec {
                             readString(),
                             readInt(),
                             readString());
-            int metadataSize = readSize(MAX_COLLECTION_SIZE, "metadata");
-            Map<String, String> metadata =
-                    new LinkedHashMap<>(capacity(metadataSize));
-            for (int i = 0; i < metadataSize; i++) {
-                metadata.put(readString(), readString());
-            }
+            Metadata metadata = readMetadata();
             return new SerializedMessage(
                     data,
-                    Metadata.of(metadata),
+                    metadata,
                     readNullableInt(),
                     readNullableLong(),
                     readString(),
@@ -886,6 +868,26 @@ public final class ModelEventWireCodec {
                     readNullableLong(),
                     readString(),
                     null);
+        }
+
+        private Metadata readMetadata() throws IOException {
+            int start = position;
+            int size = readSize(MAX_COLLECTION_SIZE, "metadata");
+            for (int i = 0; i < size; i++) {
+                skipMetadataString();
+                skipMetadataString();
+            }
+            return Metadata.fromData(new Data<>(java.util.Arrays.copyOfRange(bytes, start, position),
+                                                Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
+        }
+
+        private void skipMetadataString() throws IOException {
+            int size = readInt();
+            if (size < 0 || size > MAX_VALUE_BYTES) {
+                throw new IOException("Invalid compact model-event metadata string size " + size);
+            }
+            require(size);
+            position += size;
         }
 
         private void require(int count) throws EOFException {

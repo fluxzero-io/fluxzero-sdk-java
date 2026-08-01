@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.entryTooLarge;
 import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.expiry;
@@ -80,6 +81,28 @@ class MemoryAwareCacheSupportTest {
         assertEquals("C", cache.get("c"));
         assertEquals(List.of("b"), evictions.stream().map(MemoryAwareCacheSupportEviction::key).toList());
         assertEquals(size, evictions.getFirst().reason());
+    }
+
+    @Test
+    void bulkSupplyPreservesLookupOrderAndExactLruAccess() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                3, 1, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put("a", "A");
+        cache.put("b", "B");
+        cache.put("c", "C");
+        List<String> supplied = new ArrayList<>();
+
+        cache.supplyAll(
+                List.of("a", "missing", "b"),
+                Function.identity(),
+                (lookup, value) -> supplied.add(lookup + value));
+        cache.put("d", "D");
+
+        assertEquals(List.of("aA", "bB"), supplied);
+        assertNull(cache.get("c"));
+        assertEquals("A", cache.get("a"));
+        assertEquals("B", cache.get("b"));
+        assertEquals("D", cache.get("d"));
     }
 
     @Test
@@ -194,6 +217,90 @@ class MemoryAwareCacheSupportTest {
 
         assertEquals(1L, pressureChecks.get());
         assertEquals(3, cache.size());
+    }
+
+    @Test
+    void updateAllKeepsPerKeySemanticsAndChecksMemoryPressureOnce() {
+        AtomicLong pressureChecks = new AtomicLong();
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, (currentWeight, maxWeight) -> {
+            pressureChecks.incrementAndGet();
+            return false;
+        }, null);
+        cache.putAll(Map.of("replace", "old", "remove", "old"));
+        pressureChecks.set(0L);
+        Map<String, Function<String, String>> updates = new LinkedHashMap<>();
+        updates.put("replace", current -> current + "-new");
+        updates.put("add", current -> "added");
+        updates.put("remove", current -> null);
+
+        cache.updateAll(updates, Function::apply);
+
+        assertEquals("old-new", cache.get("replace"));
+        assertEquals("added", cache.get("add"));
+        assertNull(cache.get("remove"));
+        assertEquals(1L, pressureChecks.get());
+    }
+
+    @Test
+    void orderedUpdateAllAppliesDuplicateKeysAndChecksMemoryPressureOnce() {
+        AtomicLong pressureChecks = new AtomicLong();
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, (currentWeight, maxWeight) -> {
+            pressureChecks.incrementAndGet();
+            return false;
+        }, null);
+        List<Map.Entry<String, Function<String, String>>> updates = List.of(
+                Map.entry("same", current -> current == null ? "a" : current + "a"),
+                Map.entry("same", current -> current + "b"),
+                Map.entry("other", current -> "value"));
+
+        cache.updateAll(
+                updates,
+                Map.Entry::getKey,
+                (update, current) -> update.getValue().apply(current));
+
+        assertEquals("ab", cache.get("same"));
+        assertEquals("value", cache.get("other"));
+        assertEquals(1L, pressureChecks.get());
+    }
+
+    @Test
+    void orderedUpdateAllRetainsExactReplacementLruOrder() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                3, 1, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put("a", "A");
+        cache.put("b", "B");
+        cache.put("c", "C");
+
+        cache.updateAll(
+                List.of("a", "b"),
+                Function.identity(),
+                (key, current) -> current.toLowerCase());
+        cache.put("d", "D");
+
+        assertNull(cache.get("c"));
+        assertEquals("a", cache.get("a"));
+        assertEquals("b", cache.get("b"));
+        assertEquals("D", cache.get("d"));
+    }
+
+    @Test
+    void orderedUpdateAllPreservesReentrantReplacementSemantics() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> value.length(), null, MemoryPressureController.none(), null);
+        cache.put("same", "old");
+
+        cache.updateAll(
+                List.of("same"),
+                Function.identity(),
+                (key, current) -> {
+                    cache.put(key, "intermediate");
+                    return current + "-final";
+                });
+
+        assertEquals("old-final", cache.get("same"));
+        assertEquals(9L, cache.weight());
     }
 
     @Test

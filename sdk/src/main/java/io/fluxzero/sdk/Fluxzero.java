@@ -178,7 +178,12 @@ public interface Fluxzero extends AutoCloseable {
      * instance the system's UTC clock is returned.
      */
     static Clock currentClock() {
-        return getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC);
+        Fluxzero result = instance.get();
+        if (result == null) {
+            result = applicationInstance.get();
+        }
+        Clock clock = result == null ? null : result.clock();
+        return clock == null ? Clock.systemUTC() : clock;
     }
 
     /**

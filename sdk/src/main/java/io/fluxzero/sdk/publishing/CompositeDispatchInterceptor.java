@@ -27,10 +27,11 @@ import java.util.List;
 
 /** Ordered, flat dispatch chain that can compile the same order into a local policy. */
 final class CompositeDispatchInterceptor implements DispatchInterceptor {
-    private final List<DispatchInterceptor> interceptors;
+    private final DispatchInterceptor[] interceptors;
 
     private CompositeDispatchInterceptor(List<DispatchInterceptor> interceptors) {
-        this.interceptors = List.copyOf(interceptors);
+        this.interceptors = interceptors.toArray(
+                DispatchInterceptor[]::new);
     }
 
     static DispatchInterceptor combine(DispatchInterceptor first, DispatchInterceptor second) {
@@ -42,7 +43,10 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
 
     private static void add(List<DispatchInterceptor> target, DispatchInterceptor interceptor) {
         if (interceptor instanceof CompositeDispatchInterceptor composite) {
-            target.addAll(composite.interceptors);
+            for (DispatchInterceptor nested :
+                    composite.interceptors) {
+                target.add(nested);
+            }
         } else {
             target.add(interceptor);
         }
@@ -55,11 +59,15 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
 
     @Override
     public Message interceptDispatch(Message message, MessageType messageType, String topic, String namespace) {
-        for (DispatchInterceptor interceptor : interceptors) {
+        for (int index = 0;
+             index < interceptors.length;
+             index++) {
             if (message == null) {
                 return null;
             }
-            message = interceptor.interceptDispatch(message, messageType, topic, namespace);
+            message = interceptors[index].interceptDispatch(
+                    message, messageType, topic,
+                    namespace);
         }
         return message;
     }
@@ -67,28 +75,40 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
     @Override
     public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                 boolean request) {
-        for (DispatchInterceptor interceptor : interceptors) {
-            interceptor.monitorDispatch(message, messageType, topic, namespace, request);
+        for (int index = 0;
+             index < interceptors.length;
+             index++) {
+            interceptors[index].monitorDispatch(
+                    message, messageType, topic,
+                    namespace, request);
         }
     }
 
     @Override
     public SerializedMessage modifySerializedMessage(SerializedMessage serialized, Message message,
                                                      MessageType messageType, String topic) {
-        for (DispatchInterceptor interceptor : interceptors) {
+        for (int index = 0;
+             index < interceptors.length;
+             index++) {
             if (serialized == null) {
                 return null;
             }
-            serialized = interceptor.modifySerializedMessage(serialized, message, messageType, topic);
+            serialized = interceptors[index]
+                    .modifySerializedMessage(
+                            serialized, message,
+                            messageType, topic);
         }
         return serialized;
     }
 
     @Override
     public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
-        List<PreparedLocalDispatch> prepared = new ArrayList<>(interceptors.size());
-        for (DispatchInterceptor interceptor : interceptors) {
-            PreparedLocalDispatch policy = interceptor.prepareLocalDispatch(descriptor);
+        List<PreparedLocalDispatch> prepared = new ArrayList<>(interceptors.length);
+        for (int index = 0;
+             index < interceptors.length;
+             index++) {
+            PreparedLocalDispatch policy = interceptors[index]
+                    .prepareLocalDispatch(descriptor);
             if (policy == null) {
                 return null;
             }

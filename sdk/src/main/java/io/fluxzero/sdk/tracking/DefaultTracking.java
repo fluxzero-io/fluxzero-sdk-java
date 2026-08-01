@@ -836,7 +836,7 @@ public class DefaultTracking implements Tracking {
     private CompletionStage<Void> tryHandle(DeserializingMessage message, List<Handler<DeserializingMessage>> handlers,
                                             ConsumerConfiguration config, boolean reportResult) {
         if (config.getOnMissingProtectedData() != MissingProtectedDataPolicy.DEFAULT
-            && message.getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY)) {
+            && message.containsMetadata(DataProtectionInterceptor.METADATA_KEY)) {
             message.putContext(ConsumerConfiguration.class, config);
         }
         List<CompletableFuture<Void>> resultCompletions = null;

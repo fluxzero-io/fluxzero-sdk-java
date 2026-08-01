@@ -84,7 +84,8 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
      * @return An optional interceptor for the specified message type.
      */
     public static Optional<? extends DispatchInterceptor> getAdhocInterceptor(MessageType messageType) {
-        return Optional.ofNullable(delegates.get()).map(map -> map.get(messageType));
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        return Optional.ofNullable(current == null ? null : current.get(messageType));
     }
 
     private static boolean hasAdhocInterceptor(MessageType messageType) {
@@ -215,7 +216,10 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
     @Override
     public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                 boolean request) {
-        getAdhocInterceptor(messageType)
-                .ifPresent(i -> i.monitorDispatch(message, messageType, topic, namespace, request));
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        DispatchInterceptor interceptor = current == null ? null : current.get(messageType);
+        if (interceptor != null) {
+            interceptor.monitorDispatch(message, messageType, topic, namespace, request);
+        }
     }
 }

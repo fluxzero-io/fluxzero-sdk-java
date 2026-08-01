@@ -16,6 +16,9 @@
 
 package io.fluxzero.common.api.modeling;
 
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.Guarantee;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +28,25 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ModelCommitValidatorTest {
+
+    @Test
+    void acceptsSimplePublishedCreateAndUpdate() {
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(publishedCommit(-1L)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(publishedCommit(42L)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(publishedCommit(null)));
+    }
+
+    @Test
+    void rejectsMalformedSimplePublishedUpdate() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(publishedCommit(-2L)));
+        CommitModels indexedEvent = publishedCommit(42L);
+        indexedEvent.getSubsteps().getFirst().getEvent().setIndex(1L);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(indexedEvent));
+    }
 
     @Test
     void acceptsOneCompleteStateOnlyTransition() {
@@ -120,5 +142,27 @@ class ModelCommitValidatorTest {
                 .updateState(true)
                 .relationships(List.of())
                 .build();
+    }
+
+    private static CommitModels publishedCommit(Long expectedSequenceNumber) {
+        SerializedMessage event = new SerializedMessage(
+                new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "event-1", 1L);
+        ModelCommitTarget target = ModelCommitTarget.builder()
+                .modelId("order-1")
+                .modelType("order")
+                .expectedSequenceNumber(expectedSequenceNumber)
+                .storeEvent(true)
+                .updateState(true)
+                .relationships(List.of())
+                .build();
+        return new CommitModels(
+                "commit-1", 42L, List.of("order-1"),
+                List.of(ModelCommitStep.builder()
+                                .event(event)
+                                .publishEvent(true)
+                                .targets(List.of(target))
+                                .build()),
+                ModelConflictPolicy.ACCEPT,
+                Guarantee.STORED);
     }
 }

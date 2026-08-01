@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -120,6 +121,56 @@ final class RepositoryCache implements Cache {
     }
 
     @Override
+    public <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        if (updates.isEmpty()) {
+            return;
+        }
+        markWriteStarted();
+        LinkedHashMap<CacheKey, Function<? super T, ? extends T>> namespaced =
+                new LinkedHashMap<>(
+                        (int) Math.min(
+                                Integer.MAX_VALUE,
+                                (long) updates.size()
+                                * 4L / 3L + 1L));
+        updates.forEach(
+                (id, update) ->
+                        namespaced.put(
+                                key(id), update));
+        delegate.updateAll(namespaced);
+        for (CacheKey cacheKey : namespaced.keySet()) {
+            Object retained = delegate.get(cacheKey);
+            if (retained != null) {
+                markPopulated(retained);
+                break;
+            }
+        }
+    }
+
+    @Override
+    public <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> keyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        markWriteStarted();
+        Object[] populatedValue = new Object[1];
+        delegate.<U, T>updateAll(
+                updates,
+                update -> key(keyFunction.apply(update)),
+                (update, current) -> {
+                    T next = updateFunction.apply(update, current);
+                    if (next != null && populatedValue[0] == null) {
+                        populatedValue[0] = next;
+                    }
+                    return next;
+                });
+        markPopulated(populatedValue[0]);
+    }
+
+    @Override
     public <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         delegate.<T>modifyEach((id, value) -> isOwnKey(id)
                 ? modifierFunction.apply(((CacheKey) id).id(), value) : value);
@@ -128,6 +179,18 @@ final class RepositoryCache implements Cache {
     @Override
     public <T> T get(Object id) {
         return delegate.get(key(id));
+    }
+
+    @Override
+    public <U, T> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ?> keyFunction,
+            BiConsumer<? super U, ? super T> valueConsumer) {
+        delegate.supplyAll(
+                lookups,
+                lookup -> key(
+                        keyFunction.apply(lookup)),
+                valueConsumer);
     }
 
     @Override
@@ -242,6 +305,53 @@ final class RepositoryCache implements Cache {
         }
     }
 
-    private record CacheKey(String component, String namespace, Object id) {
+    private static final class CacheKey {
+        private final String component;
+        private final String namespace;
+        private final Object id;
+        private final int hashCode;
+
+        private CacheKey(String component, String namespace, Object id) {
+            this.component = component;
+            this.namespace = namespace;
+            this.id = id;
+            int hash = Objects.hashCode(component);
+            hash = 31 * hash + Objects.hashCode(namespace);
+            this.hashCode = 31 * hash + Objects.hashCode(id);
+        }
+
+        private String component() {
+            return component;
+        }
+
+        private String namespace() {
+            return namespace;
+        }
+
+        private Object id() {
+            return id;
+        }
+
+        @Override
+        public boolean equals(Object candidate) {
+            return candidate instanceof CacheKey other
+                   && hashCode == other.hashCode
+                   && same(component, other.component)
+                   && same(namespace, other.namespace)
+                   && same(id, other.id);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+
+        private static boolean same(
+                Object first,
+                Object second) {
+            return first == second
+                   || first != null
+                      && first.equals(second);
+        }
     }
 }

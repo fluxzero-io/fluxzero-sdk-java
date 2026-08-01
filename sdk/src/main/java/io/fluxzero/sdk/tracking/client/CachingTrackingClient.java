@@ -241,8 +241,8 @@ public class CachingTrackingClient implements TrackingClient {
     protected Predicate<SerializedMessage> filterPredicate(int[] segmentRange, Position position,
                                                            ConsumerConfiguration config) {
         Predicate<SerializedMessage> predicate
-                = m -> (config.getTypeFilter() == null || m.getData().getType() == null
-                || config.getTypeFilter().matches(m.getData().getType())) && position.isNewMessage(m);
+                = m -> (config.getTypeFilter() == null || m.getType() == null
+                || config.getTypeFilter().matches(m.getType())) && position.isNewMessage(m);
         if (!config.ignoreSegment()) {
             predicate = predicate.and(m -> segmentRange[1] != 0 && m.getSegment() >= segmentRange[0]
                     && m.getSegment() < segmentRange[1]);

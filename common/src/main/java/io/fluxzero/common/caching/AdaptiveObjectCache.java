@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -259,6 +260,57 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     @Override
+    public synchronized <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        Objects.requireNonNull(updates, "updates");
+        if (updates.isEmpty()) {
+            return;
+        }
+        if (expiry != null) {
+            purgeExpired();
+        }
+        delegate.updateAll(
+                updates,
+                (update, current) -> {
+                    T next = update.apply(unwrap(current));
+                    return next == null ? null : newEntry(next);
+                });
+        if (expiry == null) {
+            return;
+        }
+        Instant deadline = deadline();
+        updates.keySet().forEach(id -> {
+            if (delegate.containsKey(id)) {
+                deadlines.put(id, deadline);
+            } else {
+                deadlines.remove(id);
+            }
+        });
+    }
+
+    @Override
+    public synchronized <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> keyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        if (expiry != null) {
+            Cache.super.updateAll(
+                    updates, keyFunction, updateFunction);
+            return;
+        }
+        delegate.updateAll(
+                updates,
+                keyFunction,
+                (update, current) -> {
+                    T next = updateFunction.apply(update, unwrap(current));
+                    return next == null ? null : newEntry(next);
+                });
+    }
+
+    @Override
     public synchronized <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         purgeExpired();
         delegate.keys().forEach(key -> computeIfPresent(key, modifierFunction));
@@ -270,8 +322,29 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     @Override
+    public synchronized <U, T> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ?> keyFunction,
+            BiConsumer<? super U, ? super T> valueConsumer) {
+        Objects.requireNonNull(lookups, "lookups");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(valueConsumer, "valueConsumer");
+        if (expiry != null) {
+            Cache.super.supplyAll(
+                    lookups, keyFunction, valueConsumer);
+            return;
+        }
+        delegate.supplyAll(
+                lookups,
+                keyFunction,
+                (lookup, entry) ->
+                        valueConsumer.accept(
+                                lookup, unwrap(entry)));
+    }
+
+    @Override
     public synchronized boolean containsKey(Object id) {
-        return !expireIfNeeded(id) && delegate.containsKey(id);
+        return (expiry == null || !expireIfNeeded(id)) && delegate.containsKey(id);
     }
 
     @Override
@@ -344,7 +417,7 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     private CacheEntry currentEntry(Object id) {
-        if (expireIfNeeded(id)) {
+        if (expiry != null && expireIfNeeded(id)) {
             return null;
         }
         return delegate.get(id);

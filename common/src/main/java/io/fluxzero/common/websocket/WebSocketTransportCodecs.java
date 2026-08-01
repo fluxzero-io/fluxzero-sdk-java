@@ -20,10 +20,13 @@ import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.modeling.ModelCommitWireCodec;
 import io.fluxzero.common.api.modeling.ModelEventWireCodec;
+import io.fluxzero.common.api.tracking.TrackingWireCodec;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY_V2;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 
@@ -41,6 +44,8 @@ public final class WebSocketTransportCodecs {
         return switch (Objects.requireNonNullElse(format, JSON)) {
             case JSON -> json(objectMapper);
             case CBOR -> cbor(objectMapper);
+            case BINARY -> binary(objectMapper);
+            case BINARY_V2 -> binaryV2(objectMapper);
         };
     }
 
@@ -55,7 +60,21 @@ public final class WebSocketTransportCodecs {
      * Jackson CBOR codec. This keeps the JSON object model but writes {@code byte[]} fields as native binary.
      */
     public static WebSocketTransportCodec cbor(ObjectMapper objectMapper) {
-        return new CborWebSocketTransportCodec(new CborObjectMapper(objectMapper));
+        return new CborWebSocketTransportCodec(new CborObjectMapper(objectMapper), CBOR);
+    }
+
+    /**
+     * Negotiated binary codec. Protocol values without a compact representation retain the CBOR representation.
+     */
+    public static WebSocketTransportCodec binary(ObjectMapper objectMapper) {
+        return new CborWebSocketTransportCodec(new CborObjectMapper(objectMapper), BINARY);
+    }
+
+    /**
+     * Native binary codec. Messages use a patchable envelope while other compact protocols retain their binary form.
+     */
+    public static WebSocketTransportCodec binaryV2(ObjectMapper objectMapper) {
+        return new CborWebSocketTransportCodec(new CborObjectMapper(objectMapper), BINARY_V2);
     }
 
     private record JsonWebSocketTransportCodec(ObjectMapper objectMapper) implements WebSocketTransportCodec {
@@ -75,15 +94,23 @@ public final class WebSocketTransportCodecs {
         }
     }
 
-    private record CborWebSocketTransportCodec(ObjectMapper objectMapper) implements WebSocketTransportCodec {
+    private record CborWebSocketTransportCodec(ObjectMapper objectMapper, WebSocketTransportFormat format)
+            implements WebSocketTransportCodec {
         @Override
         public WebSocketTransportFormat format() {
-            return CBOR;
+            return format;
         }
 
         @Override
         public byte[] encode(JsonType value) throws IOException {
-            byte[] compact = ModelCommitWireCodec.tryEncode(value);
+            byte[] compact = format == BINARY_V2
+                    ? TrackingWireCodec.tryEncodeNative(value)
+                    : format == BINARY ? TrackingWireCodec.tryEncode(value) : null;
+            if (compact == null) {
+                compact = format == BINARY_V2
+                        ? ModelCommitWireCodec.tryEncodeNative(value)
+                        : ModelCommitWireCodec.tryEncode(value);
+            }
             if (compact == null) {
                 compact = ModelEventWireCodec.tryEncode(value);
             }
@@ -91,7 +118,14 @@ public final class WebSocketTransportCodecs {
         }
 
         public JsonType decode(byte[] bytes) throws IOException {
-            JsonType compact = ModelCommitWireCodec.tryDecode(bytes);
+            JsonType compact = format == BINARY_V2
+                    ? TrackingWireCodec.tryDecodeNative(bytes)
+                    : format == BINARY ? TrackingWireCodec.tryDecode(bytes) : null;
+            if (compact == null) {
+                compact = format == BINARY_V2
+                        ? ModelCommitWireCodec.tryDecodeNative(bytes)
+                        : ModelCommitWireCodec.tryDecode(bytes);
+            }
             if (compact == null) {
                 compact = ModelEventWireCodec.tryDecode(bytes);
             }

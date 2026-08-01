@@ -32,8 +32,33 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelCommitWireCodecTest {
+
+    @Test
+    void nativeCodecRetainsSelfContainedEventEnvelopesAndReadsLegacyBatches() throws Exception {
+        CommitModels original = commit("native-😀", false);
+        ModelCommitStep step = original.getSubsteps().getFirst();
+        SerializedMessage nativeEvent = SerializedMessage.encode(step.getEvent());
+        CommitModels commit = new CommitModels(
+                original.getCommitId(), original.getReadStateIndex(), original.getReadModelIds(),
+                List.of(step.toBuilder().event(nativeEvent).build()), original.getConflictPolicy(),
+                original.getGuarantee(), original.getPossibleDuplicate());
+
+        byte[] nativeBytes = ModelCommitWireCodec.tryEncodeNative(new RequestBatch<>(List.of(commit)));
+
+        assertThrows(IOException.class, () -> ModelCommitWireCodec.tryDecode(nativeBytes));
+        RequestBatch<?> decoded = assertInstanceOf(
+                RequestBatch.class, ModelCommitWireCodec.tryDecodeNative(nativeBytes));
+        SerializedMessage decodedEvent = assertInstanceOf(CommitModels.class, decoded.getRequests().getFirst())
+                .getSubsteps().getFirst().getEvent();
+        assertTrue(decodedEvent.isReusable());
+        assertArrayEquals(nativeEvent.copyEnvelope(), decodedEvent.copyEnvelope());
+
+        byte[] legacyBytes = ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(original)));
+        assertInstanceOf(RequestBatch.class, ModelCommitWireCodec.tryDecodeNative(legacyBytes));
+    }
 
     @Test
     void roundTripsSupportedRequestBatchWithoutChangingRequestIdentityOrMessageData() throws Exception {
@@ -105,8 +130,29 @@ class ModelCommitWireCodecTest {
     }
 
     @Test
+    void roundTripsBatchWhenEventMessageIdsEqualCommitIds() throws Exception {
+        CommitModels first = withEventMessageIdMatchingCommitId(commit("one", false));
+        CommitModels second = withEventMessageIdMatchingCommitId(commit("één-😀", false));
+
+        RequestBatch<?> decoded = assertInstanceOf(
+                RequestBatch.class,
+                ModelCommitWireCodec.tryDecode(
+                        ModelCommitWireCodec.tryEncode(
+                                new RequestBatch<>(List.of(first, second)))));
+
+        for (int index = 0; index < decoded.getRequests().size(); index++) {
+            CommitModels actual = assertInstanceOf(
+                    CommitModels.class, decoded.getRequests().get(index));
+            CommitModels expected = index == 0 ? first : second;
+            assertEquals(
+                    expected.getSubsteps().getFirst().getEvent().getMessageId(),
+                    actual.getSubsteps().getFirst().getEvent().getMessageId());
+        }
+    }
+
+    @Test
     void roundTripsSupportedAcceptedResultBatchIncludingTransportTimings() throws Exception {
-        CommitModelsResult first = result(11L, "one", 101L, 501L);
+        CommitModelsResult first = compactResult(11L, "one", 101L, 501L);
         first.setRequestReceivedTimestamp(10L);
         first.setResponseQueuedTimestamp(20L);
         first.setResponseSendStartTimestamp(30L);
@@ -119,16 +165,45 @@ class ModelCommitWireCodecTest {
 
         CommitModelsResult decodedFirst =
                 assertInstanceOf(CommitModelsResult.class, decoded.getResults().getFirst());
+        assertTrue(decodedFirst.hasSingleTargetResult());
+        assertEquals(101L, decodedFirst.getSingleTargetStateIndex());
+        assertEquals(501L, decodedFirst.getSingleTargetEventIndex());
+        assertEquals(7L, decodedFirst.getSingleTargetSequenceNumber());
+        assertTrue(decodedFirst.isSingleTargetHistoryComplete());
         assertEquals(first.getRequestId(), decodedFirst.getRequestId());
-        assertEquals(first.getCommitId(), decodedFirst.getCommitId());
-        assertEquals(first.getSubsteps(), decodedFirst.getSubsteps());
+        assertNull(decodedFirst.getCommitId());
+        assertNull(decodedFirst.getSubsteps().getFirst().getTargets().getFirst().getModelId());
+        assertEquals(
+                first.getSubsteps().getFirst().getStateIndex(),
+                decodedFirst.getSubsteps().getFirst().getStateIndex());
+        assertEquals(
+                first.getSubsteps().getFirst().getEventIndex(),
+                decodedFirst.getSubsteps().getFirst().getEventIndex());
+        assertEquals(
+                first.getSubsteps().getFirst().getTargets().getFirst().getSequenceNumber(),
+                decodedFirst.getSubsteps().getFirst().getTargets().getFirst().getSequenceNumber());
         assertEquals(10L, decodedFirst.getRequestReceivedTimestamp());
         assertEquals(20L, decodedFirst.getResponseQueuedTimestamp());
         assertEquals(30L, decodedFirst.getResponseSendStartTimestamp());
+        decodedFirst.restoreTransportIdentities(
+                first.getCommitId(),
+                first.getSubsteps().getFirst()
+                        .getTargets().getFirst().getModelId());
+        assertEquals(first.getCommitId(), decodedFirst.getCommitId());
         assertEquals(
-                second.getSubsteps(),
-                assertInstanceOf(CommitModelsResult.class, decoded.getResults().get(1))
-                        .getSubsteps());
+                first.getSubsteps().getFirst().getTargets().getFirst().getModelId(),
+                decodedFirst.getSubsteps().getFirst().getTargets().getFirst().getModelId());
+        assertThrows(
+                IllegalStateException.class,
+                () -> decodedFirst.restoreTransportIdentities(
+                        "another-commit", "another-model"));
+        CommitModelsResult decodedSecond = assertInstanceOf(
+                CommitModelsResult.class, decoded.getResults().get(1));
+        assertNull(decodedSecond.getCommitId());
+        assertNull(decodedSecond.getSubsteps().getFirst().getTargets().getFirst().getModelId());
+        assertEquals(
+                second.getSubsteps().getFirst().getStateIndex(),
+                decodedSecond.getSubsteps().getFirst().getStateIndex());
     }
 
     @Test
@@ -249,5 +324,29 @@ class ModelCommitWireCodecTest {
                                                 "model-" + id,
                                                 7L,
                                                 true)))));
+    }
+
+    private static CommitModelsResult compactResult(
+            long requestId, String id, long stateIndex, Long eventIndex) {
+        return CommitModelsResult.acceptedSingleTarget(
+                requestId, "commit-" + id, stateIndex, eventIndex,
+                "model-" + id, 7L, true);
+    }
+
+    private static CommitModels withEventMessageIdMatchingCommitId(
+            CommitModels commit) {
+        ModelCommitStep step = commit.getSubsteps().getFirst();
+        SerializedMessage event = step.getEvent();
+        SerializedMessage matchingEvent = new SerializedMessage(
+                event.getData(), event.getMetadata(), event.getSegment(),
+                event.getIndex(), event.getSource(), event.getTarget(),
+                event.getRequestId(), event.getTimestamp(), commit.getCommitId(),
+                event.getOriginalRevision());
+        return new CommitModels(
+                commit.getCommitId(), commit.getReadStateIndex(),
+                commit.getReadModelIds(),
+                List.of(step.toBuilder().event(matchingEvent).build()),
+                commit.getConflictPolicy(), commit.getGuarantee(),
+                commit.getPossibleDuplicate());
     }
 }

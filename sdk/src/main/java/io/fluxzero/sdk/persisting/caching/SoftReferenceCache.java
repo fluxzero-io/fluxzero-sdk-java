@@ -245,6 +245,30 @@ public class SoftReferenceCache implements Cache, AutoCloseable {
         }
     }
 
+    @Override
+    public <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        Objects.requireNonNull(updates, "updates");
+        synchronized (valueMap) {
+            updates.forEach(
+                    (id, update) -> {
+                        CacheReference previous = valueMap.get(id);
+                        CacheReference next = wrap(
+                                id,
+                                update.apply(unwrap(previous)));
+                        if (next == null) {
+                            valueMap.remove(id);
+                            if (previous != null
+                                && previous.get() != null) {
+                                registerEviction(previous, manual);
+                            }
+                        } else {
+                            valueMap.put(id, next);
+                        }
+                    });
+        }
+    }
+
     private static Object computeLock(Object id) {
         int hash = Objects.hashCode(id);
         hash ^= hash >>> 16;

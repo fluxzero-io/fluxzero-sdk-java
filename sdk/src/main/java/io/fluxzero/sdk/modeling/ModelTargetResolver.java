@@ -301,6 +301,7 @@ public final class ModelTargetResolver {
         private final List<SlotPlan> slots;
         private final List<DeferredWritePlan> deferredWrites;
         private final List<AncestorDependency> ancestorDependencies;
+        private final List<String> singleSourceProperties;
 
         private TargetPlan(
                 Class<?> payloadType,
@@ -312,6 +313,8 @@ public final class ModelTargetResolver {
             this.deferredWrites = List.copyOf(deferredWrites);
             this.ancestorDependencies =
                     List.copyOf(ancestorDependencies);
+            this.singleSourceProperties = this.slots.size() == 1
+                    ? List.of(this.slots.getFirst().property.name) : List.of();
         }
 
         /**
@@ -319,6 +322,44 @@ public final class ModelTargetResolver {
          */
         public Class<?> payloadType() {
             return payloadType;
+        }
+
+        boolean isDirectSingleTarget() {
+            return slots.size() == 1
+                   && deferredWrites.isEmpty()
+                   && ancestorDependencies.isEmpty();
+        }
+
+        String resolveSingleModelId(Object payload) {
+            if (!isDirectSingleTarget()) {
+                throw new IllegalStateException(
+                        "Target plan is not a direct single-target plan");
+            }
+            Object value = payloadValue(payload);
+            if (value == null || !payloadType.isInstance(value)) {
+                throw new IllegalArgumentException(
+                        "Expected payload of type %s but got %s".formatted(
+                                payloadType.getName(),
+                                value == null ? "null" : value.getClass().getName()));
+            }
+            SlotPlan slot = slots.getFirst();
+            Object idValue = slot.property.read(value);
+            if (idValue == null) {
+                throw nullId(slot);
+            }
+            return modelId(idValue, slot);
+        }
+
+        Class<?> singleModelType() {
+            return slots.getFirst().modelType;
+        }
+
+        Access singleAccess() {
+            return Access.from(slots.getFirst().access);
+        }
+
+        List<String> singleSourceProperties() {
+            return singleSourceProperties;
         }
 
         /**

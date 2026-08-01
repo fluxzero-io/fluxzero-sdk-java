@@ -17,6 +17,7 @@
 package io.fluxzero.common.api.modeling;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
 
@@ -27,6 +28,7 @@ import java.util.List;
  */
 @Value
 @Builder(toBuilder = true)
+@AllArgsConstructor
 public class ModelCommitTarget {
 
     /**

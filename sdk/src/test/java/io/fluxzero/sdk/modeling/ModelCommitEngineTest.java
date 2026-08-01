@@ -448,6 +448,38 @@ class ModelCommitEngineTest {
         assertSame(begin, message.getContext(ModelCommitContext.class).orElseThrow());
     }
 
+    @Test
+    void directlyInvokesSimpleSingleTargetModelReceiver() {
+        FastOrderId id = new FastOrderId("one");
+        RenameFastOrder command = new RenameFastOrder(id, "updated");
+        ModelMetadata.HandlerMethod handler = ModelMetadata.of(FastOrder.class)
+                .applyMethods().getFirst();
+        ModelCommitContext begin = context(
+                command, List.of(handler),
+                entity(id, new FastOrder(id, "initial")));
+        ModelCommitEngine.DirectSingleTargetApply direct =
+                ModelCommitEngine.directSingleTargetApply(
+                        handler, RenameFastOrder.class);
+
+        assertTrue(direct != null);
+        ModelCommitEngine.SingleTargetEvaluation result =
+                engine.evaluateSingleTarget(
+                        message(command), begin, handler,
+                        id.toString(), direct);
+
+        assertTrue(result.applied());
+        assertEquals(new FastOrder(id, "updated"), result.value());
+    }
+
+    @Test
+    void directInvocationRejectsModelInjectionParameters() {
+        ModelMetadata.HandlerMethod handler = ModelMetadata.of(Transfer.class)
+                .applyMethods().getFirst();
+
+        assertNull(ModelCommitEngine.directSingleTargetApply(
+                handler, Transfer.class));
+    }
+
     private static ModelCommitEngine.ResolvedSubstep resolveSubstep(
             DeserializingMessage message,
             long stateIndex,
@@ -730,6 +762,27 @@ class ModelCommitEngineTest {
 
     private record RenameReceiverOrder(
             ReceiverOrderId receiverOrderId, String name, List<String> observations) {
+    }
+
+    @Model
+    private record FastOrder(
+            @EntityId FastOrderId fastOrderId,
+            String name) {
+        @Apply
+        FastOrder rename(RenameFastOrder command) {
+            return new FastOrder(fastOrderId, command.name());
+        }
+    }
+
+    private static class FastOrderId extends Id<FastOrder> {
+        private FastOrderId(String id) {
+            super(id, "fast-order-");
+        }
+    }
+
+    private record RenameFastOrder(
+            FastOrderId fastOrderId,
+            String name) {
     }
 
     private static class MockFailure extends RuntimeException {

@@ -90,6 +90,7 @@ public class DefaultMemberInvoker implements MemberInvoker {
     @Getter
     private final Member member;
     private final InvokeFunctions invokeFunctions;
+    private final FieldGetter fieldGetter;
     private final FallbackFunction fallbackFunction;
     private final boolean staticMember;
     private final boolean returnsResult;
@@ -105,8 +106,12 @@ public class DefaultMemberInvoker implements MemberInvoker {
         parameterTypes = Collections.nCopies(lambdaParameterCount, Object.class).toArray(Class<?>[]::new);
         returnsResult = !(member instanceof Method && ((Method) member).getReturnType().equals(void.class));
         staticMember = Modifier.isStatic(member.getModifiers()) || member instanceof Constructor<?>;
-        invokeFunctions = computeInvokeFunctions();
-        fallbackFunction = invokeFunctions == null ? computeFallbackFunction() : null;
+        fieldGetter = member instanceof Field field
+                ? computeFieldGetter(field) : null;
+        invokeFunctions = member instanceof Field
+                ? null : computeInvokeFunctions();
+        fallbackFunction = invokeFunctions == null
+                ? computeFallbackFunction() : null;
     }
 
     @Override
@@ -114,6 +119,9 @@ public class DefaultMemberInvoker implements MemberInvoker {
     public Object invoke(Object target) {
         if (!staticMember && target == null) {
             return null;
+        }
+        if (fieldGetter != null) {
+            return fieldGetter.apply(target);
         }
         if (invokeFunctions != null && invokeFunctions.noParameterFunction() != null) {
             return invokeFunctions.noParameterFunction().apply(target);
@@ -157,7 +165,7 @@ public class DefaultMemberInvoker implements MemberInvoker {
         if (inNativeImage) {
             return null;
         }
-        if (member instanceof Field || Proxy.isProxyClass(member.getDeclaringClass())) {
+        if (Proxy.isProxyClass(member.getDeclaringClass())) {
             return null;
         }
         if (member instanceof Executable e && Arrays.stream(e.getParameterTypes()).anyMatch(Class::isPrimitive)) {
@@ -407,6 +415,27 @@ public class DefaultMemberInvoker implements MemberInvoker {
         throw new UnsupportedOperationException("Member type not supported: " + member.getClass());
     }
 
+    private FieldGetter computeFieldGetter(Field field) {
+        if (inNativeImage) {
+            return null;
+        }
+        try {
+            MethodHandle getter = privateLookupIn(
+                    field.getDeclaringClass(), lookup)
+                    .unreflectGetter(field);
+            if (Modifier.isStatic(field.getModifiers())) {
+                MethodHandle typed = getter.asType(
+                        methodType(Object.class));
+                return ignored -> (Object) typed.invokeExact();
+            }
+            MethodHandle typed = getter.asType(
+                    methodType(Object.class, Object.class));
+            return target -> (Object) typed.invokeExact(target);
+        } catch (IllegalAccessException e) {
+            return null;
+        }
+    }
+
     private FallbackFunction computeFallbackFunction() {
         if (member instanceof Method method) {
             return (target, paramCount, paramSupplier) -> method.invoke(target, asArray(paramCount, paramSupplier));
@@ -457,6 +486,11 @@ public class DefaultMemberInvoker implements MemberInvoker {
     @FunctionalInterface
     private interface SingleParameterFunction {
         Object apply(Object target, Object param);
+    }
+
+    @FunctionalInterface
+    private interface FieldGetter {
+        Object apply(Object target) throws Throwable;
     }
 
     @FunctionalInterface

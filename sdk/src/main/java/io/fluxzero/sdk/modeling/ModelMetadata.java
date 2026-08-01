@@ -83,7 +83,13 @@ public final class ModelMetadata {
      */
     public static ModelMetadata validate(Class<?> type) {
         ModelMetadata result = of(type);
-        result.validateParentGraph();
+        ReflectionUtils.getTypeMetadata(type)
+                .specializedMetadata(
+                        ParentGraphValidation.class,
+                        ignored -> {
+                            result.validateParentGraph();
+                            return ParentGraphValidation.INSTANCE;
+                        });
         return result;
     }
 
@@ -718,7 +724,7 @@ public final class ModelMetadata {
             boolean cached,
             int cachingDepth,
             int checkpointPeriod,
-            AggregateCommitPolicy commitPolicy,
+            CommitPolicy commitPolicy,
             EventPublication eventPublication,
             EventPublicationStrategy publicationStrategy,
             AggregateEventRouting eventRouting,
@@ -760,6 +766,14 @@ public final class ModelMetadata {
     }
 
     private record ParameterType(Class<?> modelType, boolean entityWrapped) {
+    }
+
+    private static final class ParentGraphValidation {
+        private static final ParentGraphValidation INSTANCE =
+                new ParentGraphValidation();
+
+        private ParentGraphValidation() {
+        }
     }
 
     private enum VisitState {

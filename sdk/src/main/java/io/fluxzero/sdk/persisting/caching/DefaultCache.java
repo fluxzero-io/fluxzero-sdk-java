@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -168,6 +169,21 @@ public final class DefaultCache implements Cache, AutoCloseable {
     }
 
     @Override
+    public <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        delegate.updateAll(updates);
+    }
+
+    @Override
+    public <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> keyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        delegate.updateAll(
+                updates, keyFunction, updateFunction);
+    }
+
+    @Override
     public <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         delegate.modifyEach(modifierFunction);
     }
@@ -175,6 +191,15 @@ public final class DefaultCache implements Cache, AutoCloseable {
     @Override
     public <T> T get(Object id) {
         return delegate.get(id);
+    }
+
+    @Override
+    public <U, T> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ?> keyFunction,
+            BiConsumer<? super U, ? super T> valueConsumer) {
+        delegate.supplyAll(
+                lookups, keyFunction, valueConsumer);
     }
 
     @Override

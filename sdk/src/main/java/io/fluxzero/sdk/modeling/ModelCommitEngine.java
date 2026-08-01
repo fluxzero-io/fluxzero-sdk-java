@@ -20,6 +20,8 @@ import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.reflection.MemberInvoker;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -28,7 +30,9 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -255,7 +259,7 @@ final class ModelCommitEngine {
             String targetId = resolveWriteTarget(handler, targetType, result, beginState);
             ModelCommitContext.Entry target = beginState.entry(targetId);
             if (target == null || !beginState.mayWrite(
-                    targetId, targetType, handler.executable().toGenericString())) {
+                    targetId, targetType, handler.executable())) {
                 throw new IllegalStateException(
                         "Apply %s returned model '%s', which is not a resolved write target"
                                 .formatted(handler.executable().toGenericString(), targetId));
@@ -302,10 +306,111 @@ final class ModelCommitEngine {
             ModelCommitContext beginState,
             ModelMetadata.HandlerMethod handler,
             String expectedTargetId) {
+        return evaluateSingleTarget(
+                message, beginState, handler, expectedTargetId, null);
+    }
+
+    SingleTargetEvaluation evaluateSingleTarget(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId,
+            DirectSingleTargetApply directApply) {
         beginState.attachTo(message);
         return message.apply(
-                ignored -> evaluateSingleTargetInContext(
-                        message, beginState, handler, expectedTargetId));
+                ignored -> directApply == null
+                        ? evaluateSingleTargetInContext(
+                                message, beginState, handler, expectedTargetId)
+                        : evaluateDirectSingleTargetInContext(
+                                message, beginState, handler,
+                                expectedTargetId, directApply));
+    }
+
+    SingleTargetEvaluation evaluateDirectSingleTarget(
+            DeserializingMessage message,
+            Entity<?> entity,
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId,
+            DirectSingleTargetApply directApply) {
+        Objects.requireNonNull(entity, "entity");
+        Objects.requireNonNull(directApply, "directApply");
+        Object current = entity.get();
+        if (directApply.receiver() && current == null) {
+            return new SingleTargetEvaluation(false, null);
+        }
+        return message.apply(ignored -> {
+            Object result = directApply.invoker().invoke(
+                    directApply.receiver() ? current : null,
+                    (Object) message.getPayload());
+            if (result == null) {
+                return new SingleTargetEvaluation(true, null);
+            }
+            Class<?> targetType = handler.targetModelTypes().getFirst();
+            if (!targetType.isInstance(result)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of %s"
+                                .formatted(
+                                        handler.executable().toGenericString(),
+                                        result.getClass().getName(),
+                                        targetType.getName()));
+            }
+            Object resultId = ModelMetadata.of(result.getClass())
+                    .entityId().orElseThrow().read(result);
+            if (resultId == null
+                || !expectedTargetId.equals(resultId.toString())) {
+                throw new IllegalStateException(
+                        "Apply %s returned model '%s', which is not replay target '%s'"
+                                .formatted(
+                                        handler.executable().toGenericString(),
+                                        resultId,
+                                        expectedTargetId));
+            }
+            return new SingleTargetEvaluation(true, result);
+        });
+    }
+
+    static DirectSingleTargetApply directSingleTargetApply(
+            ModelMetadata.HandlerMethod handler,
+            Class<?> payloadType) {
+        if (handler.kind() != ModelMetadata.HandlerKind.APPLY
+            || handler.targetModelTypes().size() != 1
+            || !handler.modelParameters().isEmpty()
+            || !(handler.executable() instanceof Method method)
+            || method.getParameterCount() != 1) {
+            return null;
+        }
+        Parameter parameter = method.getParameters()[0];
+        if (parameter.getAnnotations().length != 0
+            || !parameter.getType().isAssignableFrom(payloadType)) {
+            return null;
+        }
+        boolean receiver = !Modifier.isStatic(method.getModifiers());
+        if (receiver && handler.receiverModelType() == null) {
+            return null;
+        }
+        MemberInvoker invoker = ReflectionUtils.getTypeMetadata(
+                        method.getDeclaringClass())
+                .invoker(method, true);
+        return new DirectSingleTargetApply(invoker, receiver);
+    }
+
+    private SingleTargetEvaluation evaluateDirectSingleTargetInContext(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId,
+            DirectSingleTargetApply directApply) {
+        ModelCommitContext.Entry expected = beginState.entry(expectedTargetId);
+        if (expected == null
+            || directApply.receiver() && expected.entity().get() == null) {
+            return new SingleTargetEvaluation(
+                    false, expected == null ? null : expected.entity().get());
+        }
+        Object result = directApply.invoker().invoke(
+                directApply.receiver() ? expected.entity().get() : null,
+                (Object) message.getPayload());
+        return validateSingleTargetResult(
+                beginState, handler, expectedTargetId, result);
     }
 
     private SingleTargetEvaluation evaluateSingleTargetInContext(
@@ -326,6 +431,16 @@ final class ModelCommitEngine {
         }
         Class<?> targetType = handler.targetModelTypes().getFirst();
         Object result = invoker.invoke();
+        return validateSingleTargetResult(
+                beginState, handler, expectedTargetId, result);
+    }
+
+    private SingleTargetEvaluation validateSingleTargetResult(
+            ModelCommitContext beginState,
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId,
+            Object result) {
+        Class<?> targetType = handler.targetModelTypes().getFirst();
         String targetId =
                 resolveWriteTarget(
                         handler, targetType, result, beginState);
@@ -335,7 +450,7 @@ final class ModelCommitEngine {
             || !beginState.mayWrite(
                     targetId,
                     targetType,
-                    handler.executable().toGenericString())) {
+                    handler.executable())) {
             throw new IllegalStateException(
                     "Apply %s returned model '%s', which is not replay target '%s'"
                             .formatted(
@@ -581,17 +696,33 @@ final class ModelCommitEngine {
             Map<String, Object> finalValues) {
         CommitEvaluation {
             readModelIds = List.copyOf(readModelIds);
-            readModelTypes =
-                    Collections.unmodifiableMap(
-                            new LinkedHashMap<>(
-                                    readModelTypes));
+            readModelTypes = Map.copyOf(readModelTypes);
             substeps = List.copyOf(substeps);
-            finalValues = Collections.unmodifiableMap(new LinkedHashMap<>(finalValues));
+            if (finalValues.isEmpty()) {
+                finalValues = Map.of();
+            } else if (finalValues.size() == 1) {
+                Map.Entry<String, Object> entry =
+                        finalValues.entrySet().iterator().next();
+                finalValues = Collections.singletonMap(
+                        entry.getKey(), entry.getValue());
+            } else {
+                finalValues = Collections.unmodifiableMap(
+                        new LinkedHashMap<>(finalValues));
+            }
         }
 
         List<Transition> transitions() {
-            return substeps.stream().map(AppliedSubstep::transitions)
-                    .flatMap(Collection::stream).toList();
+            if (substeps.isEmpty()) {
+                return List.of();
+            }
+            if (substeps.size() == 1) {
+                return substeps.getFirst().transitions();
+            }
+            List<Transition> result = new ArrayList<>();
+            for (AppliedSubstep substep : substeps) {
+                result.addAll(substep.transitions());
+            }
+            return List.copyOf(result);
         }
     }
 
@@ -612,6 +743,11 @@ final class ModelCommitEngine {
     }
 
     record SingleTargetEvaluation(boolean applied, Object value) {
+    }
+
+    record DirectSingleTargetApply(
+            MemberInvoker invoker,
+            boolean receiver) {
     }
 
     record Transition(

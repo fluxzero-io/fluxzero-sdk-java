@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static io.fluxzero.sdk.modeling.AggregateCommitPolicy.ASYNC_AFTER_BATCH;
+import static io.fluxzero.sdk.modeling.ModelCommitPolicy.ASYNC_AFTER_BATCH;
 import static io.fluxzero.sdk.modeling.AggregateEventRouting.AGGREGATE_ID;
 import static io.fluxzero.sdk.modeling.EventPublication.IF_MODIFIED;
 import static io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_ONLY;
@@ -50,7 +50,7 @@ class ModelTest {
         assertTrue(model.cached());
         assertEquals(1, model.cachingDepth());
         assertEquals(100, model.checkpointPeriod());
-        assertEquals(AggregateCommitPolicy.DEFAULT, model.commitPolicy());
+        assertEquals(ModelCommitPolicy.DEFAULT, model.commitPolicy());
         assertEquals(EventPublication.DEFAULT, model.eventPublication());
         assertEquals(EventPublicationStrategy.DEFAULT, model.publicationStrategy());
         assertEquals(AggregateEventRouting.MESSAGE_ROUTING_KEY, model.eventRouting());

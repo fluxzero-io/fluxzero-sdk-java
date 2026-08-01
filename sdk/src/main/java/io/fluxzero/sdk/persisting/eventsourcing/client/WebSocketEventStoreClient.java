@@ -15,6 +15,9 @@
 package io.fluxzero.sdk.persisting.eventsourcing.client;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.eventsourcing.AppendEvents;
 import io.fluxzero.common.api.eventsourcing.DeleteEvents;
@@ -66,6 +69,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -95,9 +100,13 @@ import static io.fluxzero.common.ObjectUtils.iterate;
  * @see io.fluxzero.sdk.persisting.eventsourcing.EventStore
  * @see io.fluxzero.sdk.persisting.repository.AggregateRepository
  */
-public class WebSocketEventStoreClient extends AbstractWebsocketClient implements EventStoreClient {
+public class WebSocketEventStoreClient extends AbstractWebsocketClient
+        implements EventStoreClient, ModelCommitResultBatchSource,
+        ModelCommitBatchingClient {
 
     private final int fetchBatchSize;
+    private final List<Function<List<CommitModelsResult>, CompletableFuture<Void>>>
+            modelCommitResultProcessors = new CopyOnWriteArrayList<>();
 
     /**
      * Creates a new {@code WebSocketEventStoreClient} with a default batch size of 8192.
@@ -149,6 +158,144 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         return send(commit);
+    }
+
+    @Override
+    public ModelCommitBatch beginModelCommitBatch(int capacity) {
+        return new WebSocketModelCommitBatch(capacity);
+    }
+
+    private final class WebSocketModelCommitBatch
+            implements ModelCommitBatch {
+        private final Object[] requests;
+        private final AtomicBoolean completed = new AtomicBoolean();
+
+        private WebSocketModelCommitBatch(int capacity) {
+            if (capacity < 0) {
+                throw new IllegalArgumentException(
+                        "Model commit batch capacity must not be negative");
+            }
+            requests = new Object[capacity];
+        }
+
+        @Override
+        public CompletableFuture<CommitModelsResult> add(
+                int slot, CommitModels commit) {
+            if (completed.get()) {
+                return commitModels(commit);
+            }
+            if (slot < 0 || slot >= requests.length) {
+                throw new IllegalArgumentException(
+                        "Model commit batch slot %d is outside capacity %d"
+                                .formatted(slot, requests.length));
+            }
+            PreparedRequest<CommitModelsResult> request =
+                    prepareRequest(commit);
+            requests[slot] = request;
+            return request.result();
+        }
+
+        @Override
+        public void flush() {
+            List<PreparedRequest<CommitModelsResult>> batch = finish();
+            if (batch != null) {
+                sendPreparedRequests(batch);
+            }
+        }
+
+        @Override
+        public void fail(Throwable failure) {
+            List<PreparedRequest<CommitModelsResult>> batch = finish();
+            if (batch != null) {
+                batch.forEach(request ->
+                        request.fail(failure));
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<PreparedRequest<CommitModelsResult>> finish() {
+            if (!completed.compareAndSet(false, true)) {
+                return null;
+            }
+            List<PreparedRequest<CommitModelsResult>> result =
+                    new ArrayList<>(requests.length);
+            for (Object candidate : requests) {
+                if (candidate != null) {
+                    result.add(
+                            (PreparedRequest<CommitModelsResult>) candidate);
+                }
+            }
+            return List.copyOf(result);
+        }
+    }
+
+    @Override
+    public Registration registerModelCommitResultProcessor(
+            Function<List<CommitModelsResult>, CompletableFuture<Void>> processor) {
+        modelCommitResultProcessors.add(processor);
+        return () -> modelCommitResultProcessors.remove(processor);
+    }
+
+    @Override
+    protected void restoreResultContext(
+            RequestResult candidate, Request request) {
+        if (!(candidate instanceof CommitModelsResult result)
+                || result.getCommitId() != null
+                || !(request instanceof CommitModels commit)
+                || !result.hasSingleTargetResult()
+                || commit.getSubsteps().size() != 1
+                || commit.getSubsteps().getFirst().getTargets().size() != 1) {
+            return;
+        }
+        result.restoreTransportIdentities(
+                commit.getCommitId(),
+                commit.getSubsteps().getFirst()
+                        .getTargets().getFirst()
+                        .getModelId());
+    }
+
+    @Override
+    protected CompletableFuture<Void> prepareResults(
+            List<io.fluxzero.common.api.RequestResult> results) {
+        if (modelCommitResultProcessors.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        List<CommitModelsResult> commits = commitResults(results);
+        if (commits.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return CompletableFuture.allOf(
+                modelCommitResultProcessors.stream()
+                        .map(processor -> processor.apply(commits))
+                        .toArray(CompletableFuture[]::new));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<CommitModelsResult> commitResults(
+            List<io.fluxzero.common.api.RequestResult> results) {
+        if (results.isEmpty()) {
+            return List.of();
+        }
+        boolean onlyCommits = true;
+        for (int i = 0; i < results.size(); i++) {
+            if (!(results.get(i)
+                    instanceof CommitModelsResult)) {
+                onlyCommits = false;
+                break;
+            }
+        }
+        if (onlyCommits) {
+            return (List<CommitModelsResult>) (List<?>) results;
+        }
+        List<CommitModelsResult> commits =
+                new ArrayList<>();
+        for (io.fluxzero.common.api.RequestResult result :
+                results) {
+            if (result instanceof CommitModelsResult commit) {
+                commits.add(commit);
+            }
+        }
+        return commits;
     }
 
     @Override

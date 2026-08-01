@@ -18,6 +18,7 @@ import io.fluxzero.common.Registration;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -105,12 +106,58 @@ public interface Cache {
             BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
         values.forEach(
                 (id, candidate) ->
-                        compute(
+                        this.<T>compute(
                                 id,
                                 (ignored, current) ->
                                         mergeFunction.apply(
                                                 (T) current,
-                                                (T) candidate)));
+                                        (T) candidate)));
+    }
+
+    /**
+     * Applies independent per-key update functions as one bounded cache operation.
+     * <p>
+     * The default implementation preserves the ordinary per-key {@link #compute(Object, BiFunction)} contract.
+     * Implementations may override this method to amortize shared bookkeeping or lock transitions. The group as a
+     * whole is not an atomic transaction.
+     *
+     * @param updates update function by cache key
+     * @param <T>     value type
+     */
+    default <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        updates.forEach(
+                (id, update) ->
+                        this.<T>compute(
+                                id,
+                                (ignored, current) ->
+                                        update.apply(current)));
+    }
+
+    /**
+     * Applies an ordered group of updates while deriving each cache key from the update value.
+     * <p>
+     * Unlike the map-shaped overload, this form permits repeated keys and applies them in iteration order. The default
+     * implementation preserves the ordinary per-key {@link #compute(Object, BiFunction)} contract; implementations
+     * may override it to amortize locking and pressure bookkeeping.
+     *
+     * @param updates        ordered update values
+     * @param keyFunction    derives the cache key for an update
+     * @param updateFunction applies an update to the current cached value
+     * @param <U>            update value type
+     * @param <T>            cache value type
+     */
+    default <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> keyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        updates.forEach(update -> {
+            Object key = keyFunction.apply(update);
+            this.<T>compute(
+                    key,
+                    (ignored, current) ->
+                            updateFunction.apply(update, current));
+        });
     }
 
     /**
@@ -131,6 +178,31 @@ public interface Cache {
      * @return the cached value, or {@code null} if absent
      */
     <T> T get(Object id);
+
+    /**
+     * Supplies every present value from an ordered group of lookups.
+     * <p>
+     * The default implementation preserves the ordinary per-key {@link #get(Object)} contract. Implementations may
+     * override this method to amortize shared bookkeeping or lock transitions, but must retain the same per-key access
+     * and eviction semantics in iteration order.
+     *
+     * @param lookups       lookup values
+     * @param keyFunction   derives the cache key for a lookup
+     * @param valueConsumer receives a lookup and its cached value when present
+     * @param <U>           lookup value type
+     * @param <T>           cache value type
+     */
+    default <U, T> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ?> keyFunction,
+            BiConsumer<? super U, ? super T> valueConsumer) {
+        lookups.forEach(lookup -> {
+            T value = get(keyFunction.apply(lookup));
+            if (value != null) {
+                valueConsumer.accept(lookup, value);
+            }
+        });
+    }
 
     /**
      * Retrieves the value associated with the given {@code id}, or returns the specified default if not present.

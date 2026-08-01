@@ -101,6 +101,40 @@ class JacksonSerializerTest {
     }
 
     @Test
+    void deserializesAByteRangeWithoutMaterializingItsSupplier() throws Exception {
+        byte[] json = objectMapper.writeValueAsBytes(new RevisedObject("range", 42));
+        byte[] source = new byte[json.length + 4];
+        System.arraycopy(json, 0, source, 2, json.length);
+        Data.ByteArrayView view = new Data.ByteArrayView() {
+            @Override
+            public byte[] array() {
+                return source;
+            }
+
+            @Override
+            public int offset() {
+                return 2;
+            }
+
+            @Override
+            public int length() {
+                return json.length;
+            }
+
+            @Override
+            public byte[] get() {
+                throw new AssertionError("Byte range was materialized");
+            }
+        };
+        JacksonSerializer subject = new JacksonSerializer();
+
+        RevisedObject result = subject.deserialize(
+                new Data<>(view, TYPE, 3, Data.JSON_FORMAT));
+
+        assertEquals(new RevisedObject("range", 42), result);
+    }
+
+    @Test
     void testDeserializeWithUpcasting() throws JsonProcessingException {
         RevisedObject expected = new RevisedObject("test", 5);
         assertEquals(expected, serializer.deserialize(createRev0Data("test")));

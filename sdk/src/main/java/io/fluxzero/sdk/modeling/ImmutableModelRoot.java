@@ -67,20 +67,105 @@ public class ImmutableModelRoot<T> extends ImmutableEntity<T>
     @JsonIgnore
     transient Entity<T> previous;
 
+    private ImmutableModelRoot(
+            ImmutableModelRootBuilder<T, ?, ?> builder,
+            String lastEventId,
+            Long lastEventIndex,
+            Instant timestamp,
+            long sequenceNumber,
+            long stateIndex,
+            Entity<T> previous) {
+        super(builder);
+        this.lastEventId = lastEventId;
+        this.lastEventIndex = lastEventIndex;
+        this.timestamp = timestamp;
+        this.sequenceNumber = sequenceNumber;
+        this.stateIndex = stateIndex;
+        this.previous = previous;
+    }
+
+    private ImmutableModelRoot(
+            Object id,
+            Class<T> type,
+            String idProperty,
+            T value,
+            EntityHelper entityHelper,
+            io.fluxzero.sdk.common.serialization.Serializer serializer,
+            String lastEventId,
+            Long lastEventIndex,
+            Instant timestamp,
+            long sequenceNumber,
+            long stateIndex,
+            Entity<T> previous) {
+        super(
+                id, type, value, idProperty,
+                null, null, entityHelper, serializer);
+        this.lastEventId = lastEventId;
+        this.lastEventIndex = lastEventIndex;
+        this.timestamp = timestamp;
+        this.sequenceNumber = sequenceNumber;
+        this.stateIndex = stateIndex;
+        this.previous = previous;
+    }
+
+    private ImmutableModelRoot(
+            ImmutableModelRoot<T> source,
+            String lastEventId,
+            Long lastEventIndex,
+            long sequenceNumber,
+            Entity<T> previous) {
+        super(source);
+        this.lastEventId = lastEventId;
+        this.lastEventIndex = lastEventIndex;
+        this.timestamp = source.timestamp;
+        this.sequenceNumber = sequenceNumber;
+        this.stateIndex = source.stateIndex;
+        this.previous = previous;
+    }
+
+    /**
+     * Creates a model root from an authoritative committed revision without consulting the ambient clock.
+     */
+    public static <T> ImmutableModelRoot<T> committed(
+            Object id,
+            Class<T> type,
+            String idProperty,
+            T value,
+            EntityHelper entityHelper,
+            io.fluxzero.sdk.common.serialization.Serializer serializer,
+            String lastEventId,
+            Long lastEventIndex,
+            Instant timestamp,
+            long sequenceNumber,
+            long stateIndex,
+            Entity<T> previous) {
+        return new ImmutableModelRoot<>(
+                id, type, idProperty, value,
+                entityHelper, serializer,
+                lastEventId, lastEventIndex,
+                timestamp, sequenceNumber, stateIndex, previous);
+    }
+
     @Override
     public Entity<T> withEventIndex(Long index, String messageId) {
-        return toBuilder().lastEventIndex(index).lastEventId(messageId).build();
+        return new ImmutableModelRoot<>(
+                this, messageId, index,
+                sequenceNumber, previous);
     }
 
     @Override
     public Entity<T> withSequenceNumber(long sequenceNumber) {
-        return toBuilder().sequenceNumber(sequenceNumber).build();
+        return new ImmutableModelRoot<>(
+                this, lastEventId, lastEventIndex,
+                sequenceNumber, previous);
     }
 
     /**
      * Returns this revision with the supplied in-memory predecessor.
      */
     public ImmutableModelRoot<T> withPrevious(Entity<T> previous) {
-        return toBuilder().previous(previous).build();
+        return new ImmutableModelRoot<>(
+                this, lastEventId, lastEventIndex,
+                sequenceNumber, previous);
     }
 }

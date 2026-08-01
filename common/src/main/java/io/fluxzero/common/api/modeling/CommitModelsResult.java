@@ -18,9 +18,11 @@ package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.beans.ConstructorProperties;
 import java.beans.Transient;
+import java.util.AbstractList;
 import java.util.List;
 
 /**
@@ -42,6 +44,7 @@ public class CommitModelsResult extends AbstractRequestResult {
     /**
      * Durable commit idempotency key.
      */
+    @NonFinal
     String commitId;
 
     /**
@@ -111,6 +114,50 @@ public class CommitModelsResult extends AbstractRequestResult {
     }
 
     /**
+     * Creates the common one-substep, one-target accepted result without eagerly allocating its
+     * nested public list representation.
+     *
+     * <p>The ordinary {@link #getSubsteps()} contract is unchanged. Its immutable value is
+     * materialized only when a caller actually requests the nested representation; compact
+     * transports can read the positions directly.</p>
+     */
+    public static CommitModelsResult acceptedSingleTarget(
+            long requestId,
+            String commitId,
+            long stateIndex,
+            Long eventIndex,
+            String modelId,
+            long sequenceNumber,
+            boolean historyComplete) {
+        return new CommitModelsResult(
+                requestId,
+                commitId,
+                new CompactStepResults(
+                        stateIndex, eventIndex, modelId,
+                        sequenceNumber, historyComplete),
+                List.of(), false, false, null, true);
+    }
+
+    private CommitModelsResult(
+            long requestId,
+            String commitId,
+            List<ModelCommitStepResult> substeps,
+            List<ModelCommitConflict> conflicts,
+            boolean retryAllowed,
+            boolean duplicate,
+            Long rebaseStateIndex,
+            boolean trustedSubsteps) {
+        this.requestId = requestId;
+        this.commitId = commitId;
+        this.substeps = substeps == null
+                ? List.of() : trustedSubsteps ? substeps : List.copyOf(substeps);
+        this.conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
+        this.retryAllowed = retryAllowed;
+        this.duplicate = duplicate;
+        this.rebaseStateIndex = rebaseStateIndex;
+    }
+
+    /**
      * Creates a rejected conflict result. Rejected results are not retained under the commit idempotency key.
      */
     public static CommitModelsResult conflict(
@@ -158,6 +205,80 @@ public class CommitModelsResult extends AbstractRequestResult {
     }
 
     /**
+     * Restores request-owned identities omitted by the compact transport representation.
+     *
+     * <p>This is an internal transport lifecycle operation. It may only fill missing identities before the decoded
+     * result is published to request callbacks; existing, conflicting identities are rejected.</p>
+     */
+    public void restoreTransportIdentities(
+            String commitId, String modelId) {
+        if (this.commitId != null
+            && !this.commitId.equals(commitId)) {
+            throw new IllegalStateException(
+                    "Cannot replace model commit identity %s with %s"
+                            .formatted(this.commitId, commitId));
+        }
+        if (!hasSingleTargetResult()) {
+            throw new IllegalStateException(
+                    "Compact model commit identity restoration requires one substep and one target");
+        }
+        if (substeps instanceof CompactStepResults compact) {
+            compact.restoreModelId(modelId);
+        } else {
+            substeps.getFirst().getTargets().getFirst()
+                    .restoreTransportIdentity(modelId);
+        }
+        this.commitId = commitId;
+    }
+
+    /** Returns whether this result contains exactly one committed target position. */
+    @Transient
+    public boolean hasSingleTargetResult() {
+        return substeps instanceof CompactStepResults
+                || substeps.size() == 1
+                && substeps.getFirst().getTargets().size() == 1;
+    }
+
+    /** Returns the state index of a {@link #hasSingleTargetResult() single-target result}. */
+    @Transient
+    public long getSingleTargetStateIndex() {
+        return substeps instanceof CompactStepResults compact
+                ? compact.stateIndex : singleStep().getStateIndex();
+    }
+
+    /** Returns the event index of a {@link #hasSingleTargetResult() single-target result}. */
+    @Transient
+    public Long getSingleTargetEventIndex() {
+        return substeps instanceof CompactStepResults compact
+                ? compact.eventIndex : singleStep().getEventIndex();
+    }
+
+    /** Returns the sequence number of a {@link #hasSingleTargetResult() single-target result}. */
+    @Transient
+    public long getSingleTargetSequenceNumber() {
+        if (substeps instanceof CompactStepResults compact) {
+            return compact.sequenceNumber;
+        }
+        return singleStep().getTargets().getFirst().getSequenceNumber();
+    }
+
+    /** Returns the history flag of a {@link #hasSingleTargetResult() single-target result}. */
+    @Transient
+    public boolean isSingleTargetHistoryComplete() {
+        if (substeps instanceof CompactStepResults compact) {
+            return compact.historyComplete;
+        }
+        return singleStep().getTargets().getFirst().isHistoryComplete();
+    }
+
+    private ModelCommitStepResult singleStep() {
+        if (!hasSingleTargetResult()) {
+            throw new IllegalStateException("Model commit result does not contain exactly one target");
+        }
+        return substeps.getFirst();
+    }
+
+    /**
      * Requests an internal apply-only rebase at the supplied current boundary.
      */
     public static CommitModelsResult rebase(
@@ -196,5 +317,62 @@ public class CommitModelsResult extends AbstractRequestResult {
         boolean duplicate;
         boolean rebaseRequired;
         long timestamp;
+    }
+
+    private static final class CompactStepResults extends AbstractList<ModelCommitStepResult> {
+        private final long stateIndex;
+        private final Long eventIndex;
+        private volatile String modelId;
+        private final long sequenceNumber;
+        private final boolean historyComplete;
+        private volatile ModelCommitStepResult materialized;
+
+        private CompactStepResults(
+                long stateIndex,
+                Long eventIndex,
+                String modelId,
+                long sequenceNumber,
+                boolean historyComplete) {
+            this.stateIndex = stateIndex;
+            this.eventIndex = eventIndex;
+            this.modelId = modelId;
+            this.sequenceNumber = sequenceNumber;
+            this.historyComplete = historyComplete;
+        }
+
+        @Override
+        public ModelCommitStepResult get(int index) {
+            if (index != 0) {
+                throw new IndexOutOfBoundsException(index);
+            }
+            ModelCommitStepResult result = materialized;
+            if (result == null) {
+                result = new ModelCommitStepResult(
+                        stateIndex,
+                        eventIndex,
+                        List.of(new ModelCommitTargetResult(
+                                modelId, sequenceNumber, historyComplete)));
+                materialized = result;
+            }
+            return result;
+        }
+
+        @Override
+        public int size() {
+            return 1;
+        }
+
+        private void restoreModelId(String modelId) {
+            if (this.modelId != null && !this.modelId.equals(modelId)) {
+                throw new IllegalStateException(
+                        "Cannot replace model target identity %s with %s"
+                                .formatted(this.modelId, modelId));
+            }
+            if (materialized != null) {
+                materialized.getTargets().getFirst()
+                        .restoreTransportIdentity(modelId);
+            }
+            this.modelId = modelId;
+        }
     }
 }

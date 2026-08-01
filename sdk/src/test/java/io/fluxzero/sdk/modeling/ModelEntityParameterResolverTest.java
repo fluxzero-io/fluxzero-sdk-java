@@ -23,7 +23,6 @@ import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -607,14 +606,14 @@ class ModelEntityParameterResolverTest {
                         new CreateAccount(accountId, 10),
                         new ChangeAccount(accountId, 20))
                 .whenApplying(fluxzero -> {
-                    Message event = fluxzero.eventStore()
+                    DeserializingMessage event = fluxzero.eventStore()
                             .getEvents(accountId)
-                            .findFirst().orElseThrow()
-                            .toMessage();
+                            .findFirst().orElseThrow();
                     DeserializingMessage notification =
                             new DeserializingMessage(
-                                    event,
-                                    MessageType.NOTIFICATION,
+                                    event.getSerializedObject(),
+                                    ignored -> event.getPayload(),
+                                    MessageType.NOTIFICATION, null,
                                     fluxzero.serializer());
                     return notification.apply(message -> resolve(
                             message, handler, parameter));
@@ -711,15 +710,10 @@ class ModelEntityParameterResolverTest {
                                             List.of(ModelCommitStep.builder()
                                                     .event(new Message(
                                                             new CreateAccount(
-                                                                    accountId, 20),
-                                                            Metadata.of(
-                                                                    ModelEventMetadata.COMMIT_ID,
-                                                                    "customer-create",
-                                                                    ModelEventMetadata.SUBSTEP,
-                                                                    0))
+                                                                    accountId, 20))
                                                             .serialize(
                                                                     fluxzero.serializer()))
-                                                    .publishEvent(false)
+                                                    .publishEvent(true)
                                                     .targets(List.of(
                                                             ModelCommitTarget.builder()
                                                                     .modelId(accountId.toString())

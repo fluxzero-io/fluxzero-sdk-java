@@ -114,4 +114,30 @@ class RepositoryCacheTest {
             delegate.close();
         }
     }
+
+    @Test
+    void equivalentScopeStringsShareTheSameDelegateEntry() {
+        AdaptiveObjectCache delegate =
+                new AdaptiveObjectCache();
+        try {
+            RepositoryCache writer =
+                    new RepositoryCache(
+                            delegate,
+                            new String("model"),
+                            new String("tenant"));
+            RepositoryCache reader =
+                    new RepositoryCache(
+                            delegate,
+                            new String("model"),
+                            new String("tenant"));
+
+            writer.put("same", "value");
+
+            assertEquals(
+                    "value",
+                    reader.get("same"));
+        } finally {
+            delegate.close();
+        }
+    }
 }

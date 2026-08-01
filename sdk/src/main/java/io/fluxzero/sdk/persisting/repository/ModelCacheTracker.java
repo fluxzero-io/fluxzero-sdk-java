@@ -29,6 +29,7 @@ import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
@@ -55,12 +57,24 @@ import java.util.concurrent.locks.LockSupport;
 @Slf4j
 final class ModelCacheTracker implements AutoCloseable {
 
+    private static final Runnable NO_OP = () -> {
+    };
+
     private static final boolean CACHE_DIAGNOSTICS =
             Boolean.getBoolean("fluxzero.modelCacheDiagnostics");
     private static final ConcurrentHashMap<String, LongAdder> CACHE_OUTCOMES =
             new ConcurrentHashMap<>();
     private static final AtomicLong CACHE_LOOKUPS = new AtomicLong();
-    private static final int TRACK_BATCH_SIZE = 2_048;
+    private static final AtomicLong TRACKED_TARGETS = new AtomicLong();
+    private static final ConcurrentHashMap<String, LongAdder> TRACKED_OUTCOMES =
+            new ConcurrentHashMap<>();
+    private static final LongAdder REFRESHED_TARGETS = new LongAdder();
+    private static final AtomicInteger REFRESH_SAMPLES = new AtomicInteger();
+    private static final int TRACK_BATCH_SIZE = Math.max(
+            1,
+            Integer.getInteger(
+                    "fluxzero.modelCacheTrackBatchSize",
+                    65_536));
     private static final long TRACK_WAIT_MILLIS = 30_000L;
     private static final int REFRESH_BATCH_SIZE = 1_024;
 
@@ -71,9 +85,6 @@ final class ModelCacheTracker implements AutoCloseable {
             new ConcurrentHashMap<>();
     private final Set<String> staleModelIds =
             ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<String, Integer>
-            pendingLocalCommits =
-            new ConcurrentHashMap<>();
     private final ExecutorService refreshExecutor =
             Executors.newSingleThreadExecutor(
                     Thread.ofVirtual()
@@ -99,6 +110,7 @@ final class ModelCacheTracker implements AutoCloseable {
             pendingBootstrap;
     private volatile CompletableFuture<TrackModelUpdatesResult>
             pendingTrack;
+    private volatile CompletableFuture<Void> processingPage;
     private volatile Thread trackerThread;
 
     ModelCacheTracker(
@@ -144,6 +156,107 @@ final class ModelCacheTracker implements AutoCloseable {
     CurrentModel currentVersion(
             String modelId,
             Class<?> modelType) {
+        return currentVersion(modelId, modelType, null);
+    }
+
+    boolean supplyCurrentVersion(
+            String modelId,
+            Class<?> modelType,
+            DefaultModelRepository.CurrentModelSink sink) {
+        return currentVersion(modelId, modelType, sink) == SUPPLIED;
+    }
+
+    void supplyCurrentVersions(
+            Iterable<? extends DefaultModelRepository.CurrentModelLookup> lookups) {
+        if (!healthy || unsupported || closed.get()) {
+            cacheOutcome("unhealthy");
+            return;
+        }
+        List<BatchCandidate> candidates =
+                new ArrayList<>();
+        for (DefaultModelRepository.CurrentModelLookup lookup :
+                lookups) {
+            String modelId = lookup.modelId();
+            Entry entry = entries.get(modelId);
+            if (entry == null) {
+                cacheOutcome("no-entry");
+                continue;
+            }
+            if (entry.stale) {
+                currentVersion(
+                        modelId, lookup.modelType(),
+                        lookup);
+                continue;
+            }
+            long validThrough;
+            boolean stale;
+            synchronized (entry) {
+                stale = entry.stale;
+                validThrough = Math.max(
+                        entry.validThrough, cursor);
+            }
+            if (stale) {
+                currentVersion(
+                        modelId, lookup.modelType(),
+                        lookup);
+            } else {
+                candidates.add(
+                        new BatchCandidate(
+                                entry, lookup,
+                                validThrough));
+            }
+        }
+        cache.supplyAll(
+                candidates,
+                candidate ->
+                        candidate.lookup.modelId(),
+                (candidate, cached) ->
+                        candidate.cached =
+                                (Entity<?>) cached);
+        for (BatchCandidate candidate :
+                candidates) {
+            String modelId =
+                    candidate.lookup.modelId();
+            Entry entry = candidate.entry;
+            synchronized (entry) {
+                if (entry.stale) {
+                    continue;
+                }
+                Entity<?> cached = candidate.cached;
+                if (cached == null) {
+                    cacheOutcome("cache-missing");
+                    entries.remove(modelId, entry);
+                    continue;
+                }
+                if (!candidate.lookup.modelType()
+                        .equals(cached.type())) {
+                    cacheOutcome("type-mismatch");
+                    continue;
+                }
+                long modelStateIndex =
+                        cached instanceof ModelRoot<?> model
+                                ? model.stateIndex() : -1L;
+                if (modelStateIndex
+                    > candidate.validThrough) {
+                    cacheOutcome("ahead-of-proof");
+                    continue;
+                }
+                entry.validThrough = Math.max(
+                        entry.validThrough,
+                        candidate.validThrough);
+                cacheOutcome("hit");
+                candidate.lookup.accept(
+                        cached,
+                        candidate.validThrough,
+                        modelStateIndex);
+            }
+        }
+    }
+
+    private CurrentModel currentVersion(
+            String modelId,
+            Class<?> modelType,
+            DefaultModelRepository.CurrentModelSink sink) {
         if (!healthy || unsupported || closed.get()) {
             cacheOutcome("unhealthy");
             return null;
@@ -202,7 +315,23 @@ final class ModelCacheTracker implements AutoCloseable {
                  */
                 return null;
             }
+            /*
+             * A healthy tracker has examined every model update through its global cursor. If none of those updates
+             * invalidated this entry, the cached value is valid through that cursor even when this particular model
+             * last changed much earlier. Returning only the model's own last state index makes otherwise homogeneous
+             * commit batches carry thousands of needlessly old read boundaries and forces the runtime to recheck
+             * already observed history.
+             */
+            entry.validThrough = Math.max(
+                    entry.validThrough, cursor);
             cacheOutcome("hit");
+            if (sink != null) {
+                sink.accept(
+                        cached,
+                        entry.validThrough,
+                        modelStateIndex);
+                return SUPPLIED;
+            }
             return new CurrentModel(
                     cached,
                     entry.validThrough,
@@ -237,43 +366,49 @@ final class ModelCacheTracker implements AutoCloseable {
                 readStateIndex, true);
     }
 
-    private void publish(
+    private Entry publish(
             String modelId,
             Class<?> modelType,
             long readStateIndex,
             boolean requireGlobalBoundary) {
         if (closed.get() || unsupported) {
-            return;
+            return null;
         }
-        if (!start()) {
+        if (!started.get()) {
+            start();
+        }
+        if (!started.get()) {
             /*
              * Loading can complete on a websocket result callback. Blocking that callback on another request routed
              * to the same session deadlocks response delivery. Finish publication after the asynchronous bootstrap;
              * until then current() deliberately bypasses this cache entry.
              */
-            if (!started.get()) {
-                CompletableFuture<Boolean> readiness =
-                        bootstrap;
-                if (readiness != null) {
-                    readiness.thenAccept(ready -> {
-                        if (ready) {
-                            publish(
-                                    modelId,
-                                    modelType,
-                                    readStateIndex,
-                                    requireGlobalBoundary);
-                        }
-                    });
-                }
-            }
-            return;
-        }
-        AtomicBoolean created = new AtomicBoolean();
-        Entry entry = entries.computeIfAbsent(
-                modelId, ignored -> {
-                    created.set(true);
-                    return new Entry();
+            CompletableFuture<Boolean> readiness =
+                    bootstrap;
+            if (readiness != null) {
+                readiness.thenAccept(ready -> {
+                    if (ready) {
+                        publish(
+                                modelId,
+                                modelType,
+                                readStateIndex,
+                                requireGlobalBoundary);
+                    }
                 });
+            }
+            return null;
+        }
+        boolean created = false;
+        Entry entry = entries.get(modelId);
+        if (entry == null) {
+            Entry candidate = new Entry();
+            Entry existing = entries.putIfAbsent(
+                    modelId, candidate);
+            entry = existing == null ? candidate : existing;
+            created = existing == null;
+        }
+        CompletableFuture<Void> completedRefresh = null;
+        boolean refreshNeeded = false;
         synchronized (entry) {
             entry.modelType = modelType;
             entry.loaded = true;
@@ -285,20 +420,23 @@ final class ModelCacheTracker implements AutoCloseable {
                     entry.latestUpdate
                     > entry.validThrough
                     || (requireGlobalBoundary
-                        || created.get())
+                        || created)
                        && started.get()
                        && readStateIndex
                           < cursor;
             if (entry.stale
-                && !pendingLocalCommits
-                        .containsKey(modelId)) {
+                && entry.pendingLocalCommits.get() == 0) {
                 staleModelIds.add(modelId);
+                refreshNeeded = true;
             } else if (!entry.stale) {
                 staleModelIds.remove(modelId);
+            } else {
+                refreshNeeded = staleModelIds.contains(modelId);
             }
             if (!entry.stale
                 && entry.refresh != null) {
-                entry.refresh.complete(null);
+                completedRefresh = entry.refresh;
+                entry.refresh = null;
             } else if (entry.stale
                        && (entry.refresh == null
                            || entry.refresh.isDone())) {
@@ -306,9 +444,13 @@ final class ModelCacheTracker implements AutoCloseable {
                         new CompletableFuture<>();
             }
         }
-        if (staleModelIds.contains(modelId)) {
+        if (completedRefresh != null) {
+            completedRefresh.complete(null);
+        }
+        if (refreshNeeded) {
             scheduleRefresh();
         }
+        return entry;
     }
 
     /**
@@ -324,9 +466,28 @@ final class ModelCacheTracker implements AutoCloseable {
          * load after this authoritative local commit. A newly created entry keeps the global-boundary fence because
          * it may have missed an update for this model before it was registered.
          */
-        publish(
+        if (!closed.get() && !unsupported) {
+            Entry current = entries.get(modelId);
+            if (current != null) {
+                synchronized (current) {
+                    if (current.loaded && !current.stale) {
+                        current.modelType = modelType;
+                        current.validThrough = Math.max(
+                                current.validThrough, stateIndex);
+                        current.latestLocalCommit = Math.max(
+                                current.latestLocalCommit, stateIndex);
+                        return;
+                    }
+                }
+            }
+        }
+        Entry entry = publish(
                 modelId, modelType,
                 stateIndex, false);
+        if (entry != null) {
+            entry.latestLocalCommit = Math.max(
+                    entry.latestLocalCommit, stateIndex);
+        }
     }
 
     /**
@@ -336,30 +497,39 @@ final class ModelCacheTracker implements AutoCloseable {
     Runnable beginLocalCommit(
             Collection<String> modelIds) {
         List<String> targets =
-                modelIds.stream()
-                        .distinct()
-                        .toList();
+                modelIds.size() == 1
+                        ? List.of(modelIds.iterator().next())
+                        : modelIds.stream()
+                                .distinct()
+                                .toList();
+        start();
+        /*
+         * A tracker page is applied with healthy=false so readers cannot observe half a page. Local commits still
+         * need to register during that short catch-up window; otherwise their own durable update can be mistaken for
+         * a remote update and trigger a redundant event-store refresh after the commit succeeds.
+         */
         boolean tracking =
-                start();
-        targets.forEach(
-                modelId -> {
-                    if (tracking) {
-                        /*
-                         * Register the target before its request reaches the runtime. This lets the tracker remember
-                         * updates for a model that is being created and therefore has no cache entry yet. Without the
-                         * placeholder, a concurrent tracker page can advance the global cursor past the local commit;
-                         * the accepted revision is then needlessly treated as stale even when every intervening update
-                         * was unrelated.
-                         */
-                        entries.computeIfAbsent(
-                                modelId,
-                                ignored ->
-                                        new Entry());
-                    }
-                    pendingLocalCommits.merge(
-                            modelId, 1,
-                            Integer::sum);
-                });
+                started.get()
+                && !unsupported
+                && !closed.get();
+        if (!tracking || targets.isEmpty()) {
+            return NO_OP;
+        }
+        if (targets.size() == 1) {
+            String modelId = targets.getFirst();
+            LocalCommit commit = beginLocalCommit(modelId);
+            AtomicBoolean completed = new AtomicBoolean();
+            return () -> {
+                if (completed.compareAndSet(false, true)
+                    && completeLocalCommit(commit)) {
+                    scheduleRefresh();
+                }
+            };
+        }
+        List<LocalCommit> commits =
+                new java.util.ArrayList<>(targets.size());
+        targets.forEach(modelId ->
+                commits.add(beginLocalCommit(modelId)));
         AtomicBoolean completed =
                 new AtomicBoolean();
         return () -> {
@@ -367,41 +537,54 @@ final class ModelCacheTracker implements AutoCloseable {
                     false, true)) {
                 return;
             }
-            AtomicBoolean refreshNeeded =
-                    new AtomicBoolean();
-            targets.forEach(
-                    modelId -> {
-                        pendingLocalCommits.computeIfPresent(
-                                    modelId,
-                                    (ignored, count) ->
-                                            count == 1
-                                                    ? null
-                                                    : count
-                                                      - 1);
-                        Entry entry =
-                                entries.get(modelId);
-                        if (entry != null
-                            && !entry.loaded
-                            && !pendingLocalCommits
-                                    .containsKey(modelId)
-                            && cache.get(modelId)
-                               == null) {
-                            entries.remove(
-                                    modelId, entry);
-                            staleModelIds.remove(
-                                    modelId);
-                            return;
-                        }
-                        if (entry != null
-                            && entry.stale) {
-                            staleModelIds.add(modelId);
-                            refreshNeeded.set(true);
-                        }
-                    });
-            if (refreshNeeded.get()) {
+            boolean refreshNeeded = false;
+            for (LocalCommit commit : commits) {
+                refreshNeeded |= completeLocalCommit(commit);
+            }
+            if (refreshNeeded) {
                 scheduleRefresh();
             }
         };
+    }
+
+    private LocalCommit beginLocalCommit(
+            String modelId) {
+        /*
+         * Register the target before its request reaches the runtime. This lets the tracker remember
+         * updates for a model that is being created and therefore has no cache entry yet. Without the
+         * placeholder, a concurrent tracker page can advance the global cursor past the local commit;
+         * the accepted revision is then needlessly treated as stale even when every intervening update
+         * was unrelated.
+         */
+        Entry entry = entries.get(modelId);
+        if (entry == null) {
+            entry = entries.computeIfAbsent(
+                    modelId, ignored -> new Entry());
+        }
+        entry.pendingLocalCommits.incrementAndGet();
+        return new LocalCommit(modelId, entry);
+    }
+
+    private boolean completeLocalCommit(
+            LocalCommit commit) {
+        String modelId = commit.modelId();
+        Entry entry = commit.entry();
+        int pending = entry.pendingLocalCommits.decrementAndGet();
+        if (entries.get(modelId) != entry) {
+            return false;
+        }
+        if (!entry.loaded
+            && pending == 0
+            && cache.get(modelId) == null) {
+            entries.remove(modelId, entry);
+            staleModelIds.remove(modelId);
+            return false;
+        }
+        if (!entry.stale) {
+            return false;
+        }
+        staleModelIds.add(modelId);
+        return true;
     }
 
     void forget(String modelId) {
@@ -530,16 +713,48 @@ final class ModelCacheTracker implements AutoCloseable {
                 TrackModelUpdatesResult result =
                         request.join();
                 pendingTrack = null;
-                healthy = false;
+                CompletableFuture<Void> catchUp =
+                        processingPage;
+                if (healthy
+                    || catchUp == null
+                    || catchUp.isDone()) {
+                    catchUp = new CompletableFuture<>();
+                    processingPage = catchUp;
+                }
+                boolean globallyInvalidating =
+                        result.getUpdates().stream()
+                                .anyMatch(update ->
+                                        update.getKind()
+                                        == ModelUpdateKind.HARD_DELETE);
+                if (globallyInvalidating) {
+                    /*
+                     * Erasure updates deliberately clear every cache entry because their target IDs may no longer be
+                     * retained. Keep document loads fenced until both that clear and the page cursors are visible.
+                     */
+                    healthy = false;
+                }
                 process(result);
-                healthy =
-                        cursor
-                        >= result.getCurrentStateIndex();
+                /*
+                 * The previous cursor remains a valid proof boundary while this page is applied. Entries affected by
+                 * the page are fenced before the cursor advances, while unrelated entries remain usable at that
+                 * previous boundary. A commit started there still carries the older cursor and is checked by the
+                 * runtime against every intervening model update. Only an actual tracking failure makes the cache
+                 * globally unhealthy.
+                 */
+                if (globallyInvalidating) {
+                    healthy = true;
+                }
+                catchUp.complete(null);
                 backoffMillis = 25L;
             } catch (Throwable failure) {
                 pendingTrack = null;
                 Throwable cause = unwrap(failure);
                 healthy = false;
+                CompletableFuture<Void> catchUp =
+                        processingPage;
+                if (catchUp != null) {
+                    catchUp.complete(null);
+                }
                 if (cause
                     instanceof UnsupportedOperationException) {
                     unsupported = true;
@@ -624,6 +839,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 entries.get(
                         modelId);
         if (entry == null) {
+            trackedOutcome("no-entry");
             return false;
         }
         if (!target.isHistoryComplete()
@@ -638,6 +854,20 @@ final class ModelCacheTracker implements AutoCloseable {
                     modelId,
                     entry);
             staleModelIds.remove(modelId);
+            trackedOutcome("history-incomplete");
+            return false;
+        }
+        if (entry.loaded
+            && !entry.stale
+            && stateIndex
+               <= entry.latestLocalCommit) {
+            /*
+             * The accepted local revision already contains this tracked update. The tracker is
+             * the sole writer of latestUpdate, so advancing it here needs neither the entry
+             * monitor nor another pending-local lookup.
+             */
+            entry.latestUpdate = stateIndex;
+            trackedOutcome("local-current");
             return false;
         }
         boolean stale;
@@ -659,12 +889,35 @@ final class ModelCacheTracker implements AutoCloseable {
             stale = entry.stale;
         }
         if (!stale
-            || pendingLocalCommits
-                    .containsKey(modelId)) {
+            || entry.pendingLocalCommits.get() > 0) {
+            trackedOutcome(!stale ? "current" : "pending-local");
             return false;
         }
         staleModelIds.add(modelId);
+        if (CACHE_DIAGNOSTICS
+            && REFRESH_SAMPLES.getAndIncrement() < 20) {
+            System.out.printf(
+                    "Model cache refresh race model=%s update=%d validThrough=%d latest=%d local=%d loaded=%s pending=%s%n",
+                    modelId, stateIndex, entry.validThrough,
+                    entry.latestUpdate, entry.latestLocalCommit,
+                    entry.loaded,
+                    entry.pendingLocalCommits.get());
+        }
+        trackedOutcome("refresh-needed");
         return true;
+    }
+
+    private static void trackedOutcome(String outcome) {
+        if (!CACHE_DIAGNOSTICS) {
+            return;
+        }
+        TRACKED_OUTCOMES.computeIfAbsent(outcome, ignored -> new LongAdder()).increment();
+        long tracked = TRACKED_TARGETS.incrementAndGet();
+        if ((tracked & 65_535L) == 0L) {
+            System.out.printf(
+                    "Model cache tracked outcomes after %,d targets: %s, refreshed=%,d%n",
+                    tracked, TRACKED_OUTCOMES, REFRESHED_TARGETS.sum());
+        }
     }
 
     private void scheduleRefresh() {
@@ -708,9 +961,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 if (entry.stale
                     && entry.latestUpdate
                        <= refreshBoundary
-                    && !pendingLocalCommits
-                            .containsKey(
-                                    modelId)
+                    && entry.pendingLocalCommits.get() == 0
                     && entry.modelType != null) {
                     targets.put(
                             modelId,
@@ -728,6 +979,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 }
             }
             if (!targets.isEmpty()) {
+                REFRESHED_TARGETS.add(targets.size());
                 RefreshedBatch refreshed =
                         refresher.refresh(
                                 Map.copyOf(
@@ -818,7 +1070,6 @@ final class ModelCacheTracker implements AutoCloseable {
                             closedFailure);
                 }
             });
-            pendingLocalCommits.clear();
             staleModelIds.clear();
             evictionRegistration.cancel();
             refreshExecutor.shutdownNow();
@@ -871,12 +1122,40 @@ final class ModelCacheTracker implements AutoCloseable {
             long modelStateIndex) {
     }
 
+    private static final CurrentModel SUPPLIED =
+            new CurrentModel(null, -1L, -1L);
+
+    private static final class BatchCandidate {
+        private final Entry entry;
+        private final DefaultModelRepository.CurrentModelLookup lookup;
+        private final long validThrough;
+        private Entity<?> cached;
+
+        private BatchCandidate(
+                Entry entry,
+                DefaultModelRepository.CurrentModelLookup lookup,
+                long validThrough) {
+            this.entry = entry;
+            this.lookup = lookup;
+            this.validThrough = validThrough;
+        }
+    }
+
     private static final class Entry {
         private volatile Class<?> modelType;
         private volatile boolean loaded;
         private volatile boolean stale;
         private volatile long validThrough = -1L;
         private volatile long latestUpdate = -1L;
+        private volatile long latestLocalCommit = -1L;
         private volatile CompletableFuture<Void> refresh;
+        private final AtomicInteger pendingLocalCommits =
+                new AtomicInteger();
     }
+
+    private record LocalCommit(
+            String modelId,
+            Entry entry) {
+    }
+
 }

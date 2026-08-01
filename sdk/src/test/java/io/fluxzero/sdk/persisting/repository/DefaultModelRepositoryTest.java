@@ -24,7 +24,6 @@ import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
-import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -32,6 +31,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
@@ -46,6 +46,7 @@ import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelGraph;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -82,6 +83,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -781,6 +783,68 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void validatesValueIdsFromExistingCommittedModelConstructors() {
+        JacksonSerializer serializer =
+                new JacksonSerializer();
+        Cache cache = new DefaultCache();
+        DefaultModelRepository repository =
+                new DefaultModelRepository(
+                        client, documentStore, serializer,
+                        mock(EntityHelper.class), null,
+                        cache, List.of());
+        AccountId expected = new AccountId("expected");
+
+        EventSourcingException exception = assertThrows(
+                EventSourcingException.class,
+                () -> repository.updateAfterCommit(List.of(
+                        committed(
+                                expected,
+                                new Account(
+                                        new AccountId("other"), 1)))));
+
+        assertEquals(
+                "Stored model document 'account-expected' reports @EntityId 'account-other'",
+                exception.getMessage());
+        cache.close();
+    }
+
+    @Test
+    void doesNotRereadValueIdsValidatedByCommitPlanner() {
+        JacksonSerializer serializer =
+                new JacksonSerializer();
+        Cache cache = new DefaultCache();
+        DefaultModelRepository repository =
+                new DefaultModelRepository(
+                        client, documentStore, serializer,
+                        mock(EntityHelper.class), null,
+                        cache, List.of());
+        AccountId id = new AccountId("prevalidated");
+        ModelMetadata metadata =
+                ModelMetadata.validate(Account.class);
+        ModelMetadata.Property actualEntityId =
+                metadata.entityId().orElseThrow();
+        MemberInvoker unreadReader =
+                mock(MemberInvoker.class);
+        ModelMetadata.Property unreadEntityId =
+                new ModelMetadata.Property(
+                        actualEntityId.name(),
+                        actualEntityId.member(),
+                        actualEntityId.type(),
+                        actualEntityId.genericType(),
+                        unreadReader);
+
+        repository.updateAfterCommit(List.of(
+                new DefaultModelRepository.CommittedModel(
+                        id.toString(), Account.class,
+                        metadata.rootConfiguration().orElseThrow(),
+                        unreadEntityId, true,
+                        revision(new Account(id, 1)))));
+
+        verifyNoInteractions(unreadReader);
+        cache.close();
+    }
+
+    @Test
     void olderReconstructionCompletionCannotOverwriteANewerCachedModel()
             throws InterruptedException {
         AccountId id = new AccountId("reconstruction-fence");
@@ -869,6 +933,20 @@ class DefaultModelRepositoryTest {
                                 stateIndex,
                                 Instant.ofEpochMilli(
                                         stateIndex))));
+    }
+
+    private static DefaultModelRepository.CommittedModel committed(
+            AccountId id, Account account) {
+        return new DefaultModelRepository.CommittedModel(
+                id.toString(), Account.class, true,
+                revision(account));
+    }
+
+    private static DefaultModelRepository.CommittedRevision revision(
+            Account account) {
+        return new DefaultModelRepository.CommittedRevision(
+                account, 1L, 1L, "event-1", 1L,
+                Instant.EPOCH);
     }
 
     @Test
@@ -1170,10 +1248,7 @@ class DefaultModelRepositoryTest {
             var handledEvent = eventStoreClient
                     .getEvents(accountId.toString())
                     .findFirst().orElseThrow();
-            assertEquals(
-                    handledEvent.getMessageId(),
-                    handledEvent.getMetadata().get(
-                            ModelEventMetadata.COMMIT_ID));
+            assertNotNull(handledEvent.getIndex());
 
             fluxzero.commandGateway().send(
                     new ChangeInventory(inventoryId, 95)).join();
@@ -1183,9 +1258,9 @@ class DefaultModelRepositoryTest {
                     eventStoreClient.getModelEvents(
                                     new GetModelEvents(
                                             List.of(), null,
-                                            handledEvent.getMetadata().get(
-                                                    ModelEventMetadata.COMMIT_ID),
-                                            0, 0L))
+                                            null, null,
+                                            handledEvent.getIndex(),
+                                            0L))
                             .getStateIndex();
             clearInvocations(eventStoreClient);
 

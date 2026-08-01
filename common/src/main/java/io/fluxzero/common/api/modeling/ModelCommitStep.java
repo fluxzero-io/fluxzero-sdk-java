@@ -17,6 +17,7 @@
 package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.api.SerializedMessage;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
 
@@ -31,6 +32,7 @@ import java.util.List;
  */
 @Value
 @Builder(toBuilder = true)
+@AllArgsConstructor
 public class ModelCommitStep {
 
     /**

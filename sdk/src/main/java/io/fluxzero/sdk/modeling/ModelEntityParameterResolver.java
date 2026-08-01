@@ -234,7 +234,8 @@ public class ModelEntityParameterResolver
                != MessageType.NOTIFICATION) {
             return true;
         }
-        return message.getMetadata() != null
+        return message.getIndex() != null
+               || message.getMetadata() != null
                && message.getMetadata().containsKey(
                 ModelEventMetadata.COMMIT_ID)
                && message.getMetadata().containsKey(

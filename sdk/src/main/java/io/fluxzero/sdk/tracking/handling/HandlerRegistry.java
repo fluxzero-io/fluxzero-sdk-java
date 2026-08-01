@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -88,6 +89,20 @@ public interface HandlerRegistry extends HasLocalHandlers {
      * @return an optional future containing the result, or empty if no handler was found
      */
     Optional<CompletableFuture<Object>> handle(DeserializingMessage message);
+
+    /**
+     * Conservatively reports whether local handling can be skipped without first materializing a message.
+     *
+     * <p>Custom registries default to {@code false}. Returning {@code true} is an explicit promise that invoking this
+     * registry cannot produce a local result for the supplied message shape.</p>
+     *
+     * @param messageType the message type
+     * @param payloadType the runtime payload type
+     * @return {@code true} only when local handling can safely be skipped
+     */
+    default boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+        return false;
+    }
 
     /**
      * Attempts to handle the message locally while preserving a synchronously returned value as a direct value.
@@ -197,6 +212,12 @@ public interface HandlerRegistry extends HasLocalHandlers {
         }
 
         @Override
+        public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+            return first.canSkipLocalHandling(messageType, payloadType)
+                   && second.canSkipLocalHandling(messageType, payloadType);
+        }
+
+        @Override
         public Registration registerHandler(Object target) {
             return first.registerHandler(target).merge(second.registerHandler(target));
         }
@@ -232,6 +253,11 @@ public interface HandlerRegistry extends HasLocalHandlers {
         @Override
         public boolean hasLocalHandlers() {
             return false;
+        }
+
+        @Override
+        public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+            return true;
         }
 
         @Override

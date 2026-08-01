@@ -507,6 +507,57 @@ class ModelCommitterTest {
     }
 
     @Test
+    void alwaysPublishedStoredTransitionDoesNotCompareModelState()
+            throws Exception {
+        EqualsProbeModel.equalsCalls.set(0);
+        EqualsProbeId id = new EqualsProbeId("always");
+        EqualsProbeModel before =
+                new EqualsProbeModel(id, "before");
+        EqualsProbeModel after =
+                new EqualsProbeModel(id, "after");
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(new UpdateEqualsProbe(id), transition(
+                        id, EqualsProbeModel.class,
+                        before, after,
+                        UpdateEqualsProbe.class, "apply",
+                        EqualsProbeModel.class)),
+                Map.of(id.toString(), after));
+        when(eventStoreClient.commitModels(any()))
+                .thenAnswer(invocation ->
+                                    CompletableFuture.completedFuture(
+                                            result(invocation.getArgument(0))));
+
+        assertTrue(committer.commit("always", evaluation)
+                           .join().isPresent());
+        assertEquals(0, EqualsProbeModel.equalsCalls.get());
+    }
+
+    @Test
+    void conditionalPublicationStillComparesModelState()
+            throws Exception {
+        EqualsProbeModel.equalsCalls.set(0);
+        EqualsProbeId id = new EqualsProbeId("conditional");
+        EqualsProbeModel before =
+                new EqualsProbeModel(id, "same");
+        EqualsProbeModel after =
+                new EqualsProbeModel(id, "same");
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(new TouchEqualsProbe(id), transition(
+                        id, EqualsProbeModel.class,
+                        before, after,
+                        TouchEqualsProbe.class, "apply",
+                        EqualsProbeModel.class)),
+                Map.of(id.toString(), after));
+
+        assertTrue(committer.commit("conditional", evaluation)
+                           .join().isEmpty());
+        assertEquals(1, EqualsProbeModel.equalsCalls.get());
+        verify(eventStoreClient, never()).commitModels(any());
+    }
+
+    @Test
     void acceptKeepsTheOriginalEventAndRebasesItsDerivedDocument() throws Exception {
         OrderId id = new OrderId("rebase");
         Order stale = new Order(
@@ -1013,6 +1064,56 @@ class ModelCommitterTest {
     private record TouchConditional(ConditionalId conditionalId) {
         @Apply
         ConditionalModel apply(ConditionalModel current) {
+            return current;
+        }
+    }
+
+    @Model
+    private static final class EqualsProbeModel {
+        private static final AtomicInteger equalsCalls =
+                new AtomicInteger();
+
+        @EntityId
+        private final EqualsProbeId id;
+        private final String value;
+
+        private EqualsProbeModel(
+                EqualsProbeId id, String value) {
+            this.id = id;
+            this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            equalsCalls.incrementAndGet();
+            return other instanceof EqualsProbeModel that
+                   && id.equals(that.id)
+                   && value.equals(that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * id.hashCode() + value.hashCode();
+        }
+    }
+
+    private static class EqualsProbeId
+            extends Id<EqualsProbeModel> {
+        EqualsProbeId(String id) {
+            super(id, "equals-probe-");
+        }
+    }
+
+    private record UpdateEqualsProbe(EqualsProbeId id) {
+        @Apply
+        EqualsProbeModel apply(EqualsProbeModel current) {
+            return current;
+        }
+    }
+
+    private record TouchEqualsProbe(EqualsProbeId id) {
+        @Apply(eventPublication = EventPublication.IF_MODIFIED)
+        EqualsProbeModel apply(EqualsProbeModel current) {
             return current;
         }
     }

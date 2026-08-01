@@ -28,9 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -46,13 +44,16 @@ public final class ModelCommitWireCodec {
 
     private static final int REQUEST_MAGIC = 0x465A4D43; // FZMC
     private static final int RESULT_MAGIC = 0x465A4D52; // FZMR
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
+    private static final int NATIVE_VERSION = 4;
+    private static final int IDENTIFIED_RESULT_VERSION = 2;
     private static final int SHARED_DATA_TYPE = 1;
     private static final int SHARED_DATA_FORMAT = 1 << 1;
     private static final int SHARED_MODEL_TYPE = 1 << 2;
     private static final int SHARED_SOURCE = 1 << 3;
     private static final int SHARED_TARGET = 1 << 4;
     private static final int READ_TARGET_ONLY = 1 << 5;
+    private static final int EVENT_ID_IS_COMMIT_ID = 1 << 6;
     private static final int MAX_BATCH_SIZE = 1_000_000;
     private static final int MAX_COLLECTION_SIZE = 1_000_000;
     private static final int MAX_VALUE_BYTES = 256 * 1024 * 1024;
@@ -68,7 +69,7 @@ public final class ModelCommitWireCodec {
      */
     public static byte[] tryEncode(JsonType value) throws IOException {
         if (value instanceof RequestBatch<?> batch && isSupportedRequestBatch(batch)) {
-            return encodeRequests(batch);
+            return encodeRequests(batch, false);
         }
         if (value instanceof ResultBatch batch && isSupportedResultBatch(batch)) {
             return encodeResults(batch);
@@ -77,10 +78,32 @@ public final class ModelCommitWireCodec {
     }
 
     /**
+     * Encodes supported model commits with self-contained native event envelopes.
+     * Results and unsupported shapes retain their existing representation.
+     */
+    public static byte[] tryEncodeNative(JsonType value) throws IOException {
+        if (value instanceof RequestBatch<?> batch && isSupportedRequestBatch(batch)) {
+            return encodeRequests(batch, true);
+        }
+        return tryEncode(value);
+    }
+
+    /**
      * Decodes a compact batch, returning {@code null} when the payload uses the ordinary transport
      * representation.
      */
     public static JsonType tryDecode(byte[] bytes) throws IOException {
+        return tryDecode(bytes, false);
+    }
+
+    /**
+     * Decodes both native and legacy compact model commit representations.
+     */
+    public static JsonType tryDecodeNative(byte[] bytes) throws IOException {
+        return tryDecode(bytes, true);
+    }
+
+    private static JsonType tryDecode(byte[] bytes, boolean nativeVersionAllowed) throws IOException {
         if (bytes.length < Integer.BYTES + 1) {
             return null;
         }
@@ -92,10 +115,12 @@ public final class ModelCommitWireCodec {
             BinaryReader input = new BinaryReader(bytes);
             input.readInt();
             int version = input.readUnsignedByte();
-            if (version != VERSION) {
+            if (version < IDENTIFIED_RESULT_VERSION
+                    || version > VERSION && (!nativeVersionAllowed || version != NATIVE_VERSION)) {
                 throw new IOException("Unsupported compact model commit wire version " + version);
             }
-            JsonType result = magic == REQUEST_MAGIC ? decodeRequests(input) : decodeResults(input);
+            JsonType result = magic == REQUEST_MAGIC
+                    ? decodeRequests(input, version) : decodeResults(input, version);
             if (input.available() != 0) {
                 throw new IOException("Unexpected trailing compact model commit bytes");
             }
@@ -138,31 +163,33 @@ public final class ModelCommitWireCodec {
             if (!(value instanceof CommitModelsResult result)
                     || !result.isAccepted()
                     || result.isDuplicate()
-                    || result.getSubsteps().size() != 1
-                    || result.getSubsteps().getFirst().getTargets().size() != 1) {
+                    || !result.hasSingleTargetResult()) {
                 return false;
             }
         }
         return true;
     }
 
-    private static byte[] encodeRequests(RequestBatch<?> batch) throws IOException {
-        RequestBatchDescriptor descriptor = RequestBatchDescriptor.of(batch);
-        BinaryWriter output =
-                new BinaryWriter(Math.max(256, batch.getRequests().size() * 192));
+    private static byte[] encodeRequests(RequestBatch<?> batch, boolean nativeMessages) throws IOException {
+        RequestEncodingPlan plan = RequestEncodingPlan.of(batch, nativeMessages);
+        RequestBatchDescriptor descriptor = plan.descriptor();
+        BinaryWriter output = new BinaryWriter(plan.encodedSize());
         output.writeInt(REQUEST_MAGIC);
-        output.writeByte(VERSION);
+        output.writeByte(nativeMessages ? NATIVE_VERSION : VERSION);
         output.writeInt(batch.getRequests().size());
         output.writeByte(descriptor.flags());
         descriptor.writeSharedValues(output);
-        for (JsonType value : batch.getRequests()) {
-            writeCommit(output, (CommitModels) value, descriptor);
+        for (int index = 0; index < batch.getRequests().size(); index++) {
+            writeCommit(output, (CommitModels) batch.getRequests().get(index), descriptor,
+                        nativeMessages ? plan.nativeMessages()[index] : null,
+                        nativeMessages ? null : plan.metadataBytes()[index]);
         }
         return output.toByteArray();
     }
 
     private static void writeCommit(
-            BinaryWriter output, CommitModels commit, RequestBatchDescriptor descriptor) {
+            BinaryWriter output, CommitModels commit, RequestBatchDescriptor descriptor,
+            SerializedMessage nativeMessage, byte[] metadataBytes) {
         output.writeLong(commit.getRequestId());
         writeString(output, commit.getCommitId());
         output.writeLong(commit.getReadStateIndex());
@@ -174,7 +201,11 @@ public final class ModelCommitWireCodec {
         output.writeBoolean(Boolean.FALSE.equals(commit.getPossibleDuplicate()));
 
         ModelCommitStep step = commit.getSubsteps().getFirst();
-        writeMessage(output, step.getEvent(), descriptor);
+        if (nativeMessage != null) {
+            writeNativeMessage(output, nativeMessage);
+        } else {
+            writeMessage(output, step.getEvent(), commit.getCommitId(), descriptor, metadataBytes);
+        }
 
         ModelCommitTarget target = step.getTargets().getFirst();
         writeString(output, target.getModelId());
@@ -188,7 +219,11 @@ public final class ModelCommitWireCodec {
     }
 
     private static void writeMessage(
-            BinaryWriter output, SerializedMessage message, RequestBatchDescriptor descriptor) {
+            BinaryWriter output,
+            SerializedMessage message,
+            String commitId,
+            RequestBatchDescriptor descriptor,
+            byte[] metadataBytes) {
         Data<byte[]> data = message.getData();
         writeBytes(output, data.getValue());
         if (!descriptor.sharedDataType()) {
@@ -199,13 +234,7 @@ public final class ModelCommitWireCodec {
             writeString(output, data.getFormat());
         }
 
-        Map<String, String> metadata =
-                message.getMetadata() == null ? Map.of() : message.getMetadata().getEntries();
-        output.writeInt(metadata.size());
-        for (Map.Entry<String, String> entry : metadata.entrySet()) {
-            writeString(output, entry.getKey());
-            writeString(output, entry.getValue());
-        }
+        output.write(metadataBytes);
         writeNullableInt(output, message.getSegment());
         writeNullableLong(output, message.getIndex());
         if (!descriptor.sharedSource()) {
@@ -216,12 +245,22 @@ public final class ModelCommitWireCodec {
         }
         writeNullableInt(output, message.getRequestId());
         writeNullableLong(output, message.getTimestamp());
-        writeString(output, message.getMessageId());
+        if (!descriptor.eventIdIsCommitId()) {
+            writeString(output, message.getMessageId());
+        }
     }
 
-    private static RequestBatch<CommitModels> decodeRequests(BinaryReader input) throws IOException {
+    private static void writeNativeMessage(BinaryWriter output, SerializedMessage nativeMessage) {
+        output.writeInt(nativeMessage.envelopeSize());
+        output.ensureCapacity(nativeMessage.envelopeSize());
+        nativeMessage.copyEnvelopeTo(output.bytes, output.position);
+        output.position += nativeMessage.envelopeSize();
+    }
+
+    private static RequestBatch<CommitModels> decodeRequests(
+            BinaryReader input, int version) throws IOException {
         int size = readSize(input, MAX_BATCH_SIZE, "batch");
-        RequestBatchDescriptor descriptor = RequestBatchDescriptor.read(input);
+        RequestBatchDescriptor descriptor = RequestBatchDescriptor.read(input, version);
         List<CommitModels> commits = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long requestId = input.readLong();
@@ -237,7 +276,8 @@ public final class ModelCommitWireCodec {
             Guarantee guarantee =
                     enumValue(GUARANTEES, input.readUnsignedByte(), "guarantee");
             Boolean possibleDuplicate = input.readBoolean() ? false : null;
-            SerializedMessage event = readMessage(input, descriptor);
+            SerializedMessage event = version == NATIVE_VERSION
+                    ? input.readNativeMessage() : readMessage(input, commitId, descriptor);
             String modelId = readString(input);
             ModelCommitTarget target =
                     ModelCommitTarget.builder()
@@ -272,7 +312,9 @@ public final class ModelCommitWireCodec {
     }
 
     private static SerializedMessage readMessage(
-            BinaryReader input, RequestBatchDescriptor descriptor) throws IOException {
+            BinaryReader input,
+            String commitId,
+            RequestBatchDescriptor descriptor) throws IOException {
         Data<byte[]> data =
                 new Data<>(
                         readBytes(input),
@@ -283,41 +325,39 @@ public final class ModelCommitWireCodec {
                         descriptor.sharedDataFormat()
                                 ? descriptor.dataFormat()
                                 : readString(input));
-        int metadataSize = readSize(input, MAX_COLLECTION_SIZE, "metadata");
-        Map<String, String> metadata = new LinkedHashMap<>(capacity(metadataSize));
-        for (int i = 0; i < metadataSize; i++) {
-            metadata.put(readString(input), readString(input));
-        }
+        Metadata metadata = input.readMetadata();
         return new SerializedMessage(
                 data,
-                Metadata.of(metadata),
+                metadata,
                 readNullableInt(input),
                 readNullableLong(input),
                 descriptor.sharedSource() ? descriptor.source() : readString(input),
                 descriptor.sharedTarget() ? descriptor.target() : readString(input),
                 readNullableInt(input),
                 readNullableLong(input),
-                readString(input),
+                descriptor.eventIdIsCommitId()
+                        ? commitId : readString(input),
                 null);
     }
 
     private static byte[] encodeResults(ResultBatch batch) throws IOException {
-        BinaryWriter output =
-                new BinaryWriter(Math.max(128, batch.getResults().size() * 128));
+        int encodedSize = Integer.BYTES + 1 + Integer.BYTES;
+        for (var value : batch.getResults()) {
+            CommitModelsResult result = (CommitModelsResult) value;
+            encodedSize = addSize(encodedSize, Long.BYTES * 6 + 1 + nullableLongSize(
+                    result.getSingleTargetEventIndex()));
+        }
+        BinaryWriter output = new BinaryWriter(encodedSize);
         output.writeInt(RESULT_MAGIC);
         output.writeByte(VERSION);
         output.writeInt(batch.getResults().size());
         for (var value : batch.getResults()) {
             CommitModelsResult result = (CommitModelsResult) value;
-            ModelCommitStepResult step = result.getSubsteps().getFirst();
-            ModelCommitTargetResult target = step.getTargets().getFirst();
             output.writeLong(result.getRequestId());
-            writeString(output, result.getCommitId());
-            output.writeLong(step.getStateIndex());
-            writeNullableLong(output, step.getEventIndex());
-            writeString(output, target.getModelId());
-            output.writeLong(target.getSequenceNumber());
-            output.writeBoolean(target.isHistoryComplete());
+            output.writeLong(result.getSingleTargetStateIndex());
+            writeNullableLong(output, result.getSingleTargetEventIndex());
+            output.writeLong(result.getSingleTargetSequenceNumber());
+            output.writeBoolean(result.isSingleTargetHistoryComplete());
             output.writeLong(result.getRequestReceivedTimestamp());
             output.writeLong(result.getResponseQueuedTimestamp());
             output.writeLong(result.getResponseSendStartTimestamp());
@@ -325,30 +365,29 @@ public final class ModelCommitWireCodec {
         return output.toByteArray();
     }
 
-    private static ResultBatch decodeResults(BinaryReader input) throws IOException {
+    private static ResultBatch decodeResults(
+            BinaryReader input, int version) throws IOException {
         int size = readSize(input, MAX_BATCH_SIZE, "batch");
         List<CommitModelsResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long requestId = input.readLong();
-            String commitId = readString(input);
+            String commitId = version <= IDENTIFIED_RESULT_VERSION
+                    ? readString(input) : null;
             long stateIndex = input.readLong();
             Long eventIndex = readNullableLong(input);
-            String modelId = readString(input);
+            String modelId = version <= IDENTIFIED_RESULT_VERSION
+                    ? readString(input) : null;
             long sequenceNumber = input.readLong();
             boolean historyComplete = input.readBoolean();
             CommitModelsResult result =
-                    CommitModelsResult.accepted(
+                    CommitModelsResult.acceptedSingleTarget(
                             requestId,
                             commitId,
-                            List.of(
-                                    new ModelCommitStepResult(
-                                            stateIndex,
-                                            eventIndex,
-                                            List.of(
-                                                    new ModelCommitTargetResult(
-                                                            modelId,
-                                                            sequenceNumber,
-                                                            historyComplete)))));
+                            stateIndex,
+                            eventIndex,
+                            modelId,
+                            sequenceNumber,
+                            historyComplete);
             result.setRequestReceivedTimestamp(input.readLong());
             result.setResponseQueuedTimestamp(input.readLong());
             result.setResponseSendStartTimestamp(input.readLong());
@@ -394,11 +433,7 @@ public final class ModelCommitWireCodec {
     }
 
     private static void writeString(BinaryWriter output, String value) {
-        if (value == null) {
-            output.writeInt(-1);
-            return;
-        }
-        writeBytes(output, value.getBytes(StandardCharsets.UTF_8));
+        output.writeString(value);
     }
 
     private static String readString(BinaryReader input) throws IOException {
@@ -442,15 +477,166 @@ public final class ModelCommitWireCodec {
         return values[ordinal];
     }
 
-    private static int capacity(int size) {
-        return size < 3 ? size + 1 : (int) Math.ceil(size / 0.75d);
-    }
-
     private static int readInt(byte[] bytes, int offset) {
         return (bytes[offset] & 0xff) << 24
                 | (bytes[offset + 1] & 0xff) << 16
                 | (bytes[offset + 2] & 0xff) << 8
                 | bytes[offset + 3] & 0xff;
+    }
+
+    private static int commitSize(
+            CommitModels commit,
+            RequestBatchDescriptor descriptor,
+            SerializedMessage nativeMessage,
+            byte[] metadataBytes) {
+        int size = Long.BYTES;
+        size = addSize(size, stringSize(commit.getCommitId()));
+        size = addSize(size, Long.BYTES);
+        if (!descriptor.readTargetOnly()) {
+            size = addSize(size, stringsSize(commit.getReadModelIds()));
+        }
+        size = addSize(size, 3); // conflict policy, guarantee and possible-duplicate marker
+        ModelCommitStep step = commit.getSubsteps().getFirst();
+        size = addSize(size, nativeMessage == null
+                ? messageSize(step.getEvent(), commit.getCommitId(), descriptor, metadataBytes)
+                : addSize(Integer.BYTES, nativeMessage.envelopeSize()));
+        ModelCommitTarget target = step.getTargets().getFirst();
+        size = addSize(size, stringSize(target.getModelId()));
+        if (!descriptor.sharedModelType()) {
+            size = addSize(size, stringSize(target.getModelType()));
+        }
+        size = addSize(size, nullableLongSize(target.getExpectedSequenceNumber()));
+        return addSize(size, 3); // store event, update state and delete
+    }
+
+    private static int messageSize(
+            SerializedMessage message,
+            String commitId,
+            RequestBatchDescriptor descriptor,
+            byte[] metadataBytes) {
+        Data<byte[]> data = message.getData();
+        byte[] payload = data.getValue();
+        int size = Integer.BYTES + (payload == null ? 0 : payload.length);
+        if (!descriptor.sharedDataType()) {
+            size = addSize(size, stringSize(data.getType()));
+        }
+        size = addSize(size, Integer.BYTES);
+        if (!descriptor.sharedDataFormat()) {
+            size = addSize(size, stringSize(data.getFormat()));
+        }
+        size = addSize(size, metadataBytes.length);
+        size = addSize(size, nullableIntSize(message.getSegment()));
+        size = addSize(size, nullableLongSize(message.getIndex()));
+        if (!descriptor.sharedSource()) {
+            size = addSize(size, stringSize(message.getSource()));
+        }
+        if (!descriptor.sharedTarget()) {
+            size = addSize(size, stringSize(message.getTarget()));
+        }
+        size = addSize(size, nullableIntSize(message.getRequestId()));
+        size = addSize(size, nullableLongSize(message.getTimestamp()));
+        if (!descriptor.eventIdIsCommitId()) {
+            size = addSize(size, stringSize(message.getMessageId()));
+        }
+        return size;
+    }
+
+    private static int stringsSize(List<String> values) {
+        int size = Integer.BYTES;
+        for (String value : values) {
+            size = addSize(size, stringSize(value));
+        }
+        return size;
+    }
+
+    private static int stringSize(String value) {
+        return addSize(Integer.BYTES, value == null ? 0 : utf8Size(value));
+    }
+
+    private static int utf8Size(String value) {
+        int size = 0;
+        int index = 0;
+        while (index <= value.length() - Integer.BYTES) {
+            char first = value.charAt(index);
+            char second = value.charAt(index + 1);
+            char third = value.charAt(index + 2);
+            char fourth = value.charAt(index + 3);
+            if ((first | second | third | fourth) > 0x7f) {
+                break;
+            }
+            size = addSize(size, Integer.BYTES);
+            index += Integer.BYTES;
+        }
+        for (; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current <= 0x7f) {
+                size = addSize(size, 1);
+            } else if (current <= 0x7ff) {
+                size = addSize(size, 2);
+            } else if (Character.isHighSurrogate(current)
+                    && index + 1 < value.length()
+                    && Character.isLowSurrogate(value.charAt(index + 1))) {
+                size = addSize(size, 4);
+                index++;
+            } else if (Character.isSurrogate(current)) {
+                size = addSize(size, 1); // Standard UTF-8 replacement byte ('?')
+            } else {
+                size = addSize(size, 3);
+            }
+        }
+        return size;
+    }
+
+    private static int nullableLongSize(Long value) {
+        return 1 + (value == null ? 0 : Long.BYTES);
+    }
+
+    private static int nullableIntSize(Integer value) {
+        return 1 + (value == null ? 0 : Integer.BYTES);
+    }
+
+    private static int addSize(int current, int addition) {
+        try {
+            return Math.addExact(current, addition);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Compact model commit batch exceeds maximum byte array size", e);
+        }
+    }
+
+    private record RequestEncodingPlan(
+            RequestBatchDescriptor descriptor,
+            SerializedMessage[] nativeMessages,
+            byte[][] metadataBytes,
+            int encodedSize) {
+
+        private static RequestEncodingPlan of(RequestBatch<?> batch, boolean nativeEncoding) {
+            RequestBatchDescriptor descriptor = nativeEncoding
+                    ? RequestBatchDescriptor.nativeOf(batch) : RequestBatchDescriptor.of(batch);
+            SerializedMessage[] nativeMessages = nativeEncoding
+                    ? new SerializedMessage[batch.getRequests().size()] : null;
+            byte[][] metadataBytes = nativeEncoding
+                    ? null : new byte[batch.getRequests().size()][];
+            int size = Integer.BYTES + 1 + Integer.BYTES + 1;
+            size = addSize(size, descriptor.sharedValuesSize());
+            for (int index = 0; index < batch.getRequests().size(); index++) {
+                CommitModels commit = (CommitModels) batch.getRequests().get(index);
+                SerializedMessage nativeMessage = nativeEncoding
+                        ? SerializedMessage.encode(commit.getSubsteps().getFirst().getEvent()) : null;
+                byte[] messageMetadata = nativeEncoding ? null
+                        : (commit.getSubsteps().getFirst().getEvent().getMetadata() == null
+                                ? Metadata.empty()
+                                : commit.getSubsteps().getFirst().getEvent().getMetadata())
+                        .toData().getValue();
+                if (nativeEncoding) {
+                    nativeMessages[index] = nativeMessage;
+                } else {
+                    metadataBytes[index] = messageMetadata;
+                }
+                size = addSize(size, commitSize(
+                        commit, descriptor, nativeMessage, messageMetadata));
+            }
+            return new RequestEncodingPlan(descriptor, nativeMessages, metadataBytes, size);
+        }
     }
 
     private record RequestBatchDescriptor(
@@ -475,7 +661,8 @@ public final class ModelCommitWireCodec {
                     | SHARED_MODEL_TYPE
                     | SHARED_SOURCE
                     | SHARED_TARGET
-                    | READ_TARGET_ONLY;
+                    | READ_TARGET_ONLY
+                    | EVENT_ID_IS_COMMIT_ID;
             for (JsonType value : batch.getRequests()) {
                 CommitModels commit = (CommitModels) value;
                 SerializedMessage message = commit.getSubsteps().getFirst().getEvent();
@@ -501,19 +688,47 @@ public final class ModelCommitWireCodec {
                                 commit.getReadModelIds().getFirst(), commitTarget.getModelId())) {
                     flags &= ~READ_TARGET_ONLY;
                 }
+                if (!Objects.equals(
+                        commit.getCommitId(), message.getMessageId())) {
+                    flags &= ~EVENT_ID_IS_COMMIT_ID;
+                }
             }
             return new RequestBatchDescriptor(
                     flags, dataType, dataFormat, modelType, source, target);
         }
 
-        private static RequestBatchDescriptor read(BinaryReader input) throws IOException {
+        private static RequestBatchDescriptor nativeOf(RequestBatch<?> batch) {
+            CommitModels first = (CommitModels) batch.getRequests().getFirst();
+            ModelCommitTarget firstTarget = first.getSubsteps().getFirst().getTargets().getFirst();
+            String modelType = firstTarget.getModelType();
+            int flags = SHARED_MODEL_TYPE | READ_TARGET_ONLY;
+            for (JsonType value : batch.getRequests()) {
+                CommitModels commit = (CommitModels) value;
+                ModelCommitTarget target = commit.getSubsteps().getFirst().getTargets().getFirst();
+                if (!Objects.equals(modelType, target.getModelType())) {
+                    flags &= ~SHARED_MODEL_TYPE;
+                }
+                if (commit.getReadModelIds().size() != 1
+                        || !Objects.equals(commit.getReadModelIds().getFirst(), target.getModelId())) {
+                    flags &= ~READ_TARGET_ONLY;
+                }
+            }
+            return new RequestBatchDescriptor(flags, null, null, modelType, null, null);
+        }
+
+        private static RequestBatchDescriptor read(
+                BinaryReader input, int version) throws IOException {
             int flags = input.readUnsignedByte();
-            if ((flags & ~(SHARED_DATA_TYPE
+            int supportedFlags = SHARED_DATA_TYPE
                     | SHARED_DATA_FORMAT
                     | SHARED_MODEL_TYPE
                     | SHARED_SOURCE
                     | SHARED_TARGET
-                    | READ_TARGET_ONLY)) != 0) {
+                    | READ_TARGET_ONLY;
+            if (version >= VERSION) {
+                supportedFlags |= EVENT_ID_IS_COMMIT_ID;
+            }
+            if ((flags & ~supportedFlags) != 0) {
                 throw new IOException("Invalid compact model commit request descriptor " + flags);
             }
             return new RequestBatchDescriptor(
@@ -543,6 +758,26 @@ public final class ModelCommitWireCodec {
             }
         }
 
+        private int sharedValuesSize() {
+            int size = 0;
+            if (sharedDataType()) {
+                size = addSize(size, stringSize(dataType));
+            }
+            if (sharedDataFormat()) {
+                size = addSize(size, stringSize(dataFormat));
+            }
+            if (sharedModelType()) {
+                size = addSize(size, stringSize(modelType));
+            }
+            if (sharedSource()) {
+                size = addSize(size, stringSize(source));
+            }
+            if (sharedTarget()) {
+                size = addSize(size, stringSize(target));
+            }
+            return size;
+        }
+
         private boolean sharedDataType() {
             return has(flags, SHARED_DATA_TYPE);
         }
@@ -566,6 +801,11 @@ public final class ModelCommitWireCodec {
         private boolean readTargetOnly() {
             return has(flags, READ_TARGET_ONLY);
         }
+
+        private boolean eventIdIsCommitId() {
+            return has(flags, EVENT_ID_IS_COMMIT_ID);
+        }
+
 
         private static boolean has(int flags, int flag) {
             return (flags & flag) != 0;
@@ -615,8 +855,32 @@ public final class ModelCommitWireCodec {
             position += value.length;
         }
 
+        private void writeString(String value) {
+            if (value == null) {
+                writeInt(-1);
+                return;
+            }
+            int length = value.length();
+            int start = position;
+            writeInt(length);
+            ensureCapacity(length);
+            for (int index = 0; index < length; index++) {
+                char current = value.charAt(index);
+                if (current > 0x7f) {
+                    position = start;
+                    writeBytes(this, value.getBytes(StandardCharsets.UTF_8));
+                    return;
+                }
+                bytes[position++] = (byte) current;
+            }
+        }
+
         private byte[] toByteArray() {
-            return position == bytes.length ? bytes : Arrays.copyOf(bytes, position);
+            if (position != bytes.length) {
+                throw new IllegalStateException(
+                        "Compact model commit size mismatch: expected " + bytes.length + ", wrote " + position);
+            }
+            return bytes;
         }
 
         private void ensureCapacity(int additionalBytes) {
@@ -625,11 +889,8 @@ public final class ModelCommitWireCodec {
                 throw new IllegalArgumentException("Compact model commit batch exceeds maximum byte array size");
             }
             if (required > bytes.length) {
-                int grown = Math.max(required, Math.min(Integer.MAX_VALUE - 8, bytes.length << 1));
-                if (grown < required) {
-                    grown = required;
-                }
-                bytes = Arrays.copyOf(bytes, grown);
+                throw new IllegalStateException(
+                        "Compact model commit size estimate was too small: " + bytes.length + " < " + required);
             }
         }
     }
@@ -685,6 +946,17 @@ public final class ModelCommitWireCodec {
             return result;
         }
 
+        private SerializedMessage readNativeMessage() throws IOException {
+            int size = readInt();
+            if (size < SerializedMessage.HEADER_SIZE || size > MAX_VALUE_BYTES) {
+                throw new IOException("Invalid native model commit message size " + size);
+            }
+            require(size);
+            SerializedMessage result = SerializedMessage.decodeView(bytes, position, size);
+            position += size;
+            return result;
+        }
+
         private String readString() throws IOException {
             int size = readInt();
             if (size == -1) {
@@ -697,6 +969,29 @@ public final class ModelCommitWireCodec {
             String result = new String(bytes, position, size, StandardCharsets.UTF_8);
             position += size;
             return result;
+        }
+
+        private Metadata readMetadata() throws IOException {
+            int start = position;
+            int size = readInt();
+            if (size < 0 || size > MAX_COLLECTION_SIZE) {
+                throw new IOException("Invalid compact model commit metadata size " + size);
+            }
+            for (int i = 0; i < size; i++) {
+                skipMetadataString();
+                skipMetadataString();
+            }
+            return Metadata.fromData(new Data<>(Arrays.copyOfRange(bytes, start, position),
+                                                Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
+        }
+
+        private void skipMetadataString() throws IOException {
+            int size = readInt();
+            if (size < 0 || size > MAX_VALUE_BYTES) {
+                throw new IOException("Invalid compact model commit metadata string size " + size);
+            }
+            require(size);
+            position += size;
         }
 
         private int available() {

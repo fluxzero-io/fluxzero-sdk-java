@@ -17,6 +17,8 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.common.Message;
@@ -35,11 +37,19 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -134,6 +144,224 @@ class ModelCommitHandlerRegistryTest {
 
         assertFalse(subject.canHandle(
                 message(new MixedCommand("enabled", "disabled"))));
+    }
+
+    @Test
+    void defaultModelPolicyStartsAfterHandlerAndAwaitsAtBatchCompletion() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+        subject.registerHandler(
+                StaticApplyModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+
+        assertEquals(
+                ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH,
+                subject.commitPolicyFor(StaticCreateCommand.class));
+    }
+
+    @Test
+    void atomicMultiModelCommitUsesTheEarliestStartAndStrongestHandlerGuarantee() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+        subject.registerHandler(
+                HandlerPolicyModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+        subject.registerHandler(
+                BatchPolicyModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+
+        assertEquals(
+                ModelCommitPolicy.SYNC_AFTER_HANDLER,
+                subject.commitPolicyFor(MixedPolicyCommand.class));
+    }
+
+    @Test
+    void directSingleTargetUsesProvenCurrentCacheWithoutGenericContextLoad() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        ImmutableModelRoot<ReceiverModel> cached = ImmutableModelRoot.<ReceiverModel>builder()
+                .id("cached")
+                .type(ReceiverModel.class)
+                .idProperty("id")
+                .value(new ReceiverModel("cached"))
+                .sequenceNumber(3L)
+                .stateIndex(7L)
+                .build();
+        when(repository.supplyCurrentModel(any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    assertEquals("cached", invocation.getArgument(0));
+                    assertEquals(ReceiverModel.class, invocation.getArgument(1));
+                    DefaultModelRepository.CurrentModelSink sink = invocation.getArgument(2);
+                    sink.accept(cached, 9L, 7L);
+                    return true;
+                });
+        when(repository.beginLocalCommit(any())).thenReturn(() -> {
+        });
+        CompletableFuture<List<DefaultModelRepository.CommittedModel>> updatedModels =
+                new CompletableFuture<>();
+        doAnswer(invocation -> {
+            updatedModels.complete(invocation.getArgument(0));
+            return null;
+        }).when(repository).updateAfterCommit(any());
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<String> committedEventId = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            committedEventId.complete(commit.getSubsteps().getFirst().getEvent().getMessageId());
+            return CompletableFuture.completedFuture(
+                    CommitModelsResult.acceptedSingleTarget(
+                            commit.getRequestId(), commit.getCommitId(),
+                            10L, 4L, "cached", 1L, true));
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        subject.registerHandler(ReceiverModel.class, HandlerFilter.ALWAYS_HANDLE);
+
+        try {
+            subject.handle(message(new ReceiverCommand("cached")))
+                    .orElseThrow()
+                    .join();
+
+            verify(repository, times(0)).loadContext(
+                    any(ModelTargetResolver.Resolution.class),
+                    nullable(Long.class), anyMap());
+            assertEquals(
+                    committedEventId.join(),
+                    updatedModels.join().getFirst().revisions().getFirst().lastEventId());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void defaultPolicyStartsCommitBeforeBatchCompletionAndBatchAwaitsIt()
+            throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            commitStarted.complete(commit);
+            return commitResponse;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        CompletableFuture<CompletableFuture<Object>> handlingStarted = new CompletableFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(message(new TimingCreateCommand("timed"))),
+                            current -> handlingStarted.complete(
+                                    subject.handle(current).orElseThrow())), executor);
+
+            CompletableFuture.anyOf(commitStarted, batch).get(5, TimeUnit.SECONDS);
+            if (!commitStarted.isDone()) {
+                batch.join();
+            }
+            CommitModels commit = commitStarted.join();
+            CompletableFuture<Object> handlingResult = handlingStarted.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+            assertFalse(handlingResult.isDone());
+
+            commitResponse.complete(CommitModelsResult.acceptedSingleTarget(
+                    commit.getRequestId(), commit.getCommitId(), 1L, 1L,
+                    "timed", 0L, true));
+            batch.get(5, TimeUnit.SECONDS);
+            handlingResult.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void explicitAfterBatchPolicyDefersCommitUntilBatchCompletion()
+            throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            commitStarted.complete(commit);
+            return commitResponse;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        CompletableFuture<CompletableFuture<Object>> handlingStarted = new CompletableFuture<>();
+        CountDownLatch finishHandlerIteration = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(message(new BatchTimingCreateCommand("deferred"))),
+                            current -> {
+                                handlingStarted.complete(subject.handle(current).orElseThrow());
+                                try {
+                                    finishHandlerIteration.await();
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(e);
+                                }
+                            }), executor);
+
+            CompletableFuture<Object> handlingResult = handlingStarted.get(5, TimeUnit.SECONDS);
+            assertFalse(commitStarted.isDone());
+            assertFalse(handlingResult.isDone());
+
+            finishHandlerIteration.countDown();
+            CommitModels commit = commitStarted.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+            commitResponse.complete(CommitModelsResult.acceptedSingleTarget(
+                    commit.getRequestId(), commit.getCommitId(), 1L, 1L,
+                    "deferred", 0L, true));
+            batch.get(5, TimeUnit.SECONDS);
+            handlingResult.get(5, TimeUnit.SECONDS);
+        } finally {
+            finishHandlerIteration.countDown();
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void synchronousAfterBatchPolicyCommitsSequentially()
+            throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            PendingResponse response = new PendingResponse(invocation.getArgument(0));
+            started.add(response);
+            return response.result();
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    message(new SyncBatchTimingCreateCommand("first")),
+                                    message(new SyncBatchTimingCreateCommand("second"))),
+                            current -> subject.handle(current).orElseThrow()), executor);
+
+            PendingResponse first = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(first != null);
+            assertTrue(started.isEmpty());
+            first.accept();
+
+            PendingResponse second = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(second != null);
+            second.accept();
+            batch.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+        }
     }
 
     @Test
@@ -312,9 +540,33 @@ class ModelCommitHandlerRegistryTest {
             GraphProjectionCompletion graphProjectionCompletion) {
         JacksonSerializer serializer =
                 new JacksonSerializer();
-        return new ModelCommitHandlerRegistry(
+        return subject(
                 mock(DefaultModelRepository.class),
                 mock(EventStoreClient.class),
+                serializer,
+                automaticHandling,
+                graphProjectionCompletion);
+    }
+
+    private static ModelCommitHandlerRegistry subject(
+            DefaultModelRepository repository,
+            EventStoreClient eventStoreClient) {
+        return subject(
+                repository, eventStoreClient,
+                new JacksonSerializer(),
+                AutomaticModelHandling.ENABLED,
+                GraphProjectionCompletion.ASYNC);
+    }
+
+    private static ModelCommitHandlerRegistry subject(
+            DefaultModelRepository repository,
+            EventStoreClient eventStoreClient,
+            JacksonSerializer serializer,
+            AutomaticModelHandling automaticHandling,
+            GraphProjectionCompletion graphProjectionCompletion) {
+        return new ModelCommitHandlerRegistry(
+                repository,
+                eventStoreClient,
                 serializer,
                 serializer,
                 mock(DocumentSerializer.class),
@@ -327,6 +579,31 @@ class ModelCommitHandlerRegistryTest {
                 0,
                 automaticHandling,
                 graphProjectionCompletion);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void stubModelLoads(DefaultModelRepository repository) {
+        when(repository.loadContext(
+                any(ModelTargetResolver.Resolution.class),
+                nullable(Long.class), anyMap()))
+                .thenAnswer(invocation -> {
+                    ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
+                    Map<String, Entity<?>> loaded = resolution.models().stream()
+                            .collect(java.util.stream.Collectors.toMap(
+                                    ModelTargetResolver.ResolvedModel::modelId,
+                                    target -> ImmutableModelRoot.<Object>builder()
+                                            .id(target.modelId())
+                                            .type((Class<Object>) target.modelType())
+                                            .idProperty(ModelMetadata.of(target.modelType())
+                                                    .entityId().orElseThrow().name())
+                                            .value(null)
+                                            .sequenceNumber(-1L)
+                                            .stateIndex(0L)
+                                            .build()));
+                    return ModelCommitContext.create(0L, resolution, loaded);
+                });
+        when(repository.beginLocalCommit(any())).thenReturn(() -> {
+        });
     }
 
     private static DeserializingMessage message(Object payload) {
@@ -412,6 +689,58 @@ class ModelCommitHandlerRegistryTest {
             String id) {
     }
 
+    @Model
+    private record TimingModel(
+            @EntityId String id) {
+    }
+
+    private record TimingCreateCommand(String id) {
+        @Apply
+        TimingModel apply() {
+            return new TimingModel(id);
+        }
+    }
+
+    @Model(commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
+    private record BatchTimingModel(
+            @EntityId String id) {
+    }
+
+    private record BatchTimingCreateCommand(String id) {
+        @Apply
+        BatchTimingModel apply() {
+            return new BatchTimingModel(id);
+        }
+    }
+
+    @Model(commitPolicy = ModelCommitPolicy.SYNC_AFTER_BATCH)
+    private record SyncBatchTimingModel(
+            @EntityId String id) {
+    }
+
+    private record SyncBatchTimingCreateCommand(String id) {
+        @Apply
+        SyncBatchTimingModel apply() {
+            return new SyncBatchTimingModel(id);
+        }
+    }
+
+    private record PendingResponse(
+            CommitModels commit,
+            CompletableFuture<CommitModelsResult> result) {
+        private PendingResponse(CommitModels commit) {
+            this(commit, new CompletableFuture<>());
+        }
+
+        private void accept() {
+            String modelId = commit.getSubsteps().getFirst()
+                    .getTargets().getFirst().getModelId();
+            result.complete(CommitModelsResult.acceptedSingleTarget(
+                    commit.getRequestId(), commit.getCommitId(),
+                    1L, 1L, modelId, 0L, true));
+        }
+    }
+
     @Model(automaticHandling = AutomaticModelHandling.ENABLED)
     private record ExplicitlyEnabledModel(
             @EntityId String id) {
@@ -472,6 +801,29 @@ class ModelCommitHandlerRegistryTest {
     private record MixedCommand(
             String enabledId,
             String disabledId) {
+    }
+
+    @Model(commitPolicy = ModelCommitPolicy.SYNC_AFTER_HANDLER)
+    private record HandlerPolicyModel(
+            @EntityId String id) {
+        @Apply
+        HandlerPolicyModel apply(MixedPolicyCommand command) {
+            return new HandlerPolicyModel(command.handlerId());
+        }
+    }
+
+    @Model(commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
+    private record BatchPolicyModel(
+            @EntityId String id) {
+        @Apply
+        BatchPolicyModel apply(MixedPolicyCommand command) {
+            return new BatchPolicyModel(command.batchId());
+        }
+    }
+
+    private record MixedPolicyCommand(
+            String handlerId,
+            String batchId) {
     }
 
     @Model(

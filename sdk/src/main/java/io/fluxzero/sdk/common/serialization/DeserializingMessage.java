@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
@@ -81,6 +82,7 @@ import java.util.stream.StreamSupport;
 @AllArgsConstructor(access = AccessLevel.NONE)
 @NonFinal
 public class DeserializingMessage implements HasMessage {
+    private static final int INITIAL_CONTEXT_CAPACITY = 2;
     /**
      * The formatter used to produce a human-readable representation of this message, primarily for logging or
      * debugging. By default, this uses {@link MessageFormatter#DEFAULT}.
@@ -244,6 +246,31 @@ public class DeserializingMessage implements HasMessage {
         return message == null ? null : message.getMetadata();
     }
 
+    /**
+     * Checks one metadata key without forcing an opaque serialized message to materialize its metadata wrapper.
+     */
+    public boolean containsMetadata(String key) {
+        if (delegate != null) {
+            return delegate.getSerializedObject()
+                    .metadataContainsKey(key);
+        }
+        return message != null
+               && message.getMetadata() != null
+               && message.getMetadata().containsKey(key);
+    }
+
+    /**
+     * Reads one metadata value without forcing an opaque serialized message to materialize its metadata wrapper.
+     */
+    public String getMetadataValue(String key) {
+        if (delegate != null) {
+            return delegate.getSerializedObject()
+                    .getMetadataValue(key);
+        }
+        return message == null || message.getMetadata() == null
+                ? null : message.getMetadata().get(key);
+    }
+
     public DeserializingMessage withMetadata(Metadata metadata) {
         if (delegate != null) {
             return withSameContext(new DeserializingMessage(
@@ -326,11 +353,22 @@ public class DeserializingMessage implements HasMessage {
     }
 
     public SerializedMessage getSerializedObject() {
+        return getSerializedObject(serializer);
+    }
+
+    /**
+     * Returns the existing serialized representation or lazily creates one using the supplied fallback serializer.
+     * The fallback is only used for programmatically created messages that were not constructed with a serializer.
+     */
+    public SerializedMessage getSerializedObject(Serializer fallbackSerializer) {
         if (delegate != null) {
             return delegate.getSerializedObject();
         }
         if (serializedMessage == null) {
-            serializedMessage = message.serialize(serializer);
+            serializedMessage = message.serialize(
+                    serializer == null
+                            ? Objects.requireNonNull(fallbackSerializer, "serializer")
+                            : serializer);
         }
         return serializedMessage;
     }
@@ -356,7 +394,7 @@ public class DeserializingMessage implements HasMessage {
     @Synchronized
     public <T> T computeContextIfAbsent(Class<T> contextKey, Function<DeserializingMessage, ? extends T> provider) {
         if (context == null) {
-            context = new ConcurrentHashMap<>();
+            context = new ConcurrentHashMap<>(INITIAL_CONTEXT_CAPACITY);
         }
         return (T) context.computeIfAbsent(contextKey, k -> provider.apply(this));
     }
@@ -383,7 +421,7 @@ public class DeserializingMessage implements HasMessage {
     @Synchronized
     public <T> DeserializingMessage putContext(Class<T> contextKey, T value) {
         if (context == null) {
-            context = new ConcurrentHashMap<>();
+            context = new ConcurrentHashMap<>(INITIAL_CONTEXT_CAPACITY);
         }
         context.put(contextKey, value);
         return this;

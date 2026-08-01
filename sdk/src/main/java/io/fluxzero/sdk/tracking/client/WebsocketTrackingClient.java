@@ -82,11 +82,32 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
         return this.<ReadResult>send(new Read(messageType,
                         configuration.getName(), trackerId, configuration.getMaxFetchSize(),
                         configuration.effectiveMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
-                        configuration.getTypeFilter(),
-                        configuration.filterMessageTarget(), configuration.ignoreSegment(),
-                        configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
-                        Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
-                .thenApply(ReadResult::getMessageBatch);
+                configuration.getTypeFilter(),
+                configuration.filterMessageTarget(), configuration.ignoreSegment(),
+                configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
+                Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
+                .thenApply(result -> {
+                    if (Boolean.getBoolean("fluxzero.trackingReadDiagnostics")
+                        && !result.getMessageBatch().getMessages().isEmpty()) {
+                        long received = result.getRequestReceivedTimestamp();
+                        long created = result.getTimestamp();
+                        long queued = result.getResponseQueuedTimestamp();
+                        long sendStarted = result.getResponseSendStartTimestamp();
+                        System.out.printf(
+                                "Tracking %s read %,d messages segment=%s last=%s position=%s caughtUp=%s: store=%dms queue=%dms send=%dms wire+decode=%dms%n",
+                                messageType,
+                                result.getMessageBatch().getMessages().size(),
+                                java.util.Arrays.toString(result.getMessageBatch().getSegment()),
+                                result.getMessageBatch().getLastIndex(),
+                                result.getMessageBatch().getPosition(),
+                                result.getMessageBatch().isCaughtUp(),
+                                created - received,
+                                queued - created,
+                                sendStarted - queued,
+                                System.currentTimeMillis() - sendStarted);
+                    }
+                    return result.getMessageBatch();
+                });
     }
 
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,

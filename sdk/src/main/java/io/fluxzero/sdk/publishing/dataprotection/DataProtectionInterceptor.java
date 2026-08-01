@@ -231,7 +231,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
             @Override
             public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
-                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                if (!message.containsMetadata(METADATA_KEY)) {
                     return handler.getInvokerOrNull(message);
                 }
                 HandlerInvoker invoker = handler.getInvokerOrNull(message);
@@ -269,7 +269,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
             @Override
             public HandlerMethod<DeserializingMessage> getHandlerMethodOrNull(DeserializingMessage message) {
-                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                if (!message.containsMetadata(METADATA_KEY)) {
                     return handler.getHandlerMethodOrNull(message);
                 }
                 return null;
@@ -278,7 +278,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             @Override
             public HandlerMethodPlan<DeserializingMessage> getHandlerMethodPlanOrNull(
                     DeserializingMessage message) {
-                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                if (!message.containsMetadata(METADATA_KEY)) {
                     return handler.getHandlerMethodPlanOrNull(message);
                 }
                 return null;
@@ -295,7 +295,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                     public Object getCacheKey(DeserializingMessage message) {
                         Object key = planner.getCacheKey(message);
                         return key == null ? null : new DataProtectionPlanKey(
-                                key, message.getMetadata().containsKey(METADATA_KEY));
+                                key, message.containsMetadata(METADATA_KEY));
                     }
 
                     @Override
@@ -303,13 +303,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                         Object key = planner.getCacheKey(input);
                         boolean protectedData = input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
                                 ? local.containsMetadata(METADATA_KEY)
-                                : input.getMessage().getMetadata().containsKey(METADATA_KEY);
+                                : input.getMessage().containsMetadata(METADATA_KEY);
                         return key == null ? null : new DataProtectionPlanKey(key, protectedData);
                     }
 
                     @Override
                     public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
-                        return message.getMetadata().containsKey(METADATA_KEY)
+                        return message.containsMetadata(METADATA_KEY)
                                 ? HandlerMethodPreparation.unsupported() : planner.prepare(message);
                     }
 
@@ -318,7 +318,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                             HandlerInput<DeserializingMessage> input) {
                         boolean protectedData = input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
                                 ? local.containsMetadata(METADATA_KEY)
-                                : input.getMessage().getMetadata().containsKey(METADATA_KEY);
+                                : input.getMessage().containsMetadata(METADATA_KEY);
                         return protectedData ? HandlerMethodPreparation.unsupported() : planner.prepare(input);
                     }
 
@@ -381,7 +381,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     @SuppressWarnings("unchecked")
     private RestoredMessage restoreProtectedData(DeserializingMessage m, HandlerDescriptor invoker) {
-        if (!m.getMetadata().containsKey(METADATA_KEY)) {
+        if (!m.containsMetadata(METADATA_KEY)) {
             return new RestoredMessage(m, false);
         }
         Object payload = m.getPayload();
@@ -429,7 +429,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private String getProtectedDataNamespace(DeserializingMessage message) {
-        String namespace = message.getMetadata().get(NAMESPACE_METADATA_KEY);
+        String namespace = message.getMetadataValue(NAMESPACE_METADATA_KEY);
         return namespace == null ? getConsumerNamespace(message) : namespace.isEmpty() ? null : namespace;
     }
 

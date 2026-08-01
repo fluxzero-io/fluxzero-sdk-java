@@ -147,6 +147,16 @@ public interface Tracker extends Comparable<Tracker> {
     }
 
     /**
+     * Indicates whether {@link #getTypeFilter()} imposes an actual constraint.
+     * <p>
+     * Existing custom trackers default to filtering so their predicate keeps being evaluated. Transport trackers can
+     * override this when no filter was configured, allowing native messages to retain their encoded type bytes.
+     */
+    default boolean hasTypeFilter() {
+        return true;
+    }
+
+    /**
      * Returns a copy of this tracker with its last index updated.
      *
      * @param lastTrackerIndex the new index value
@@ -177,12 +187,12 @@ public interface Tracker extends Comparable<Tracker> {
      * tracker's segment range.
      */
     private boolean isValidTarget(SerializedMessage message, int[] segmentRange) {
-        String target = message.getTarget();
-        if (isFilterMessageTarget() && target != null) {
-            if (target.equals(getTrackerId())) {
+        if (isFilterMessageTarget()
+            && !message.targetEquals(null)) {
+            if (message.targetEquals(getTrackerId())) {
                 return true;
             }
-            if (!target.equals(getClientId())) {
+            if (!message.targetEquals(getClientId())) {
                 return false;
             }
         }
@@ -206,7 +216,11 @@ public interface Tracker extends Comparable<Tracker> {
      * Internal helper to check type filter.
      */
     private boolean isValidType(SerializedMessage message) {
-        return message.getData().getType() == null || getTypeFilter().test(message.getData().getType());
+        if (!hasTypeFilter()) {
+            return true;
+        }
+        String type = message.getType();
+        return type == null || getTypeFilter().test(type);
     }
 
     /**

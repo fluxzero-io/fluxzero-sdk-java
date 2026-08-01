@@ -31,6 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
 import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
@@ -217,6 +218,40 @@ class AdaptiveObjectCacheTest {
                         candidate);
 
         assertEquals(2, cache.size());
+    }
+
+    @Test
+    void bulkUpdateReplacesAddsAndRemovesValues() {
+        Cache cache = new AdaptiveObjectCache(10, MemoryPressureController.none());
+        cache.put("replace", "old");
+        cache.put("remove", "old");
+        Map<String, Function<String, String>> updates = new LinkedHashMap<>();
+        updates.put("replace", current -> current + "-new");
+        updates.put("add", current -> "added");
+        updates.put("remove", current -> null);
+
+        cache.updateAll(updates);
+
+        assertEquals("old-new", cache.get("replace"));
+        assertEquals("added", cache.get("add"));
+        assertFalse(cache.containsKey("remove"));
+    }
+
+    @Test
+    void orderedBulkUpdateSupportsRepeatedKeys() {
+        Cache cache = new AdaptiveObjectCache(10, MemoryPressureController.none());
+        List<Map.Entry<String, Function<String, String>>> updates = List.of(
+                Map.entry("same", current -> current == null ? "a" : current + "a"),
+                Map.entry("same", current -> current + "b"),
+                Map.entry("removed", current -> null));
+
+        cache.<Map.Entry<String, Function<String, String>>, String>updateAll(
+                updates,
+                Map.Entry::getKey,
+                (update, current) -> update.getValue().apply(current));
+
+        assertEquals("ab", cache.get("same"));
+        assertFalse(cache.containsKey("removed"));
     }
 
     @Test

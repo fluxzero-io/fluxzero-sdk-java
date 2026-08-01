@@ -81,9 +81,9 @@ public class TrackModelUpdates extends Request {
             throw new IllegalArgumentException(
                     "Last model state index must be at least -1");
         }
-        if (maxSize <= 0 || maxSize > 10_000) {
+        if (maxSize <= 0 || maxSize > 65_536) {
             throw new IllegalArgumentException(
-                    "Model update batch size must be between 1 and 10000");
+                    "Model update batch size must be between 1 and 65536");
         }
         if (maxWaitMillis < 0L || maxWaitMillis > 60_000L) {
             throw new IllegalArgumentException(

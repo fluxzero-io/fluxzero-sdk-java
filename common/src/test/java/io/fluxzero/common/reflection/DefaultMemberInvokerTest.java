@@ -71,6 +71,19 @@ class DefaultMemberInvokerTest {
     }
 
     @Test
+    void readsAndWritesPrivateInstanceField() throws Exception {
+        var target = new InvokerTarget("initial");
+        var invoker = DefaultMemberInvoker.asInvoker(
+                InvokerTarget.class.getDeclaredField("name"));
+
+        assertEquals("initial", invoker.invoke(target));
+
+        invoker.invoke(target, "changed");
+
+        assertEquals("changed", invoker.invoke(target));
+    }
+
+    @Test
     void invokesPrimitiveParameterViaFallback() throws Exception {
         var target = new InvokerTarget("initial");
         var invoker = DefaultMemberInvoker.asInvoker(InvokerTarget.class.getDeclaredMethod("addOne", int.class));

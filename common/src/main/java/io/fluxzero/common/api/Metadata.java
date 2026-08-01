@@ -26,6 +26,8 @@ import lombok.SneakyThrows;
 import lombok.Value;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -40,7 +42,6 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKN
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * Represents immutable metadata associated with a Message in the Fluxzero Runtime.
@@ -68,6 +69,18 @@ import static java.util.stream.Collectors.toMap;
  */
 @Value
 public class Metadata {
+    /**
+     * Type stored in the {@link Data} envelope returned by {@link #toData()}.
+     */
+    public static final String DATA_TYPE = Metadata.class.getName();
+
+    /**
+     * Compact binary format used to carry metadata opaquely through the runtime.
+     */
+    public static final String DATA_FORMAT = "application/vnd.fluxzero.metadata.v1";
+
+    private static final int MAX_ENTRY_COUNT = 2_000_000;
+    private static final int MAX_DATA_BYTES = 512 * 1024 * 1024;
     public static JsonMapper objectMapper = JsonMapper.builder()
             .findAndAddModules().addModule(new NullCollectionsAsEmptyModule())
             .disable(FAIL_ON_EMPTY_BEANS).disable(FAIL_ON_UNKNOWN_PROPERTIES)
@@ -145,6 +158,45 @@ public class Metadata {
     }
 
     /**
+     * Restores metadata from its compact serialized representation without eagerly constructing keys, values or a
+     * backing map. The metadata is decoded only when an entry is inspected or changed.
+     *
+     * <p>The supplied data remains opaque while a message is routed, stored or forwarded. This lets infrastructure
+     * preserve application metadata without repeatedly serializing and deserializing it.</p>
+     */
+    public static Metadata fromData(@NonNull Data<byte[]> data) {
+        if (!DATA_TYPE.equals(data.getType()) || !DATA_FORMAT.equals(data.getFormat()) || data.getRevision() != 0) {
+            throw new IllegalArgumentException("Unsupported serialized metadata descriptor: " + data);
+        }
+        return new Metadata(new SerializedEntries(data));
+    }
+
+    static boolean containsKey(
+            Data.ByteArrayView data, String key) {
+        return MetadataBinaryCodec.containsKey(
+                data, key);
+    }
+
+    static String get(
+            Data.ByteArrayView data, String key) {
+        return MetadataBinaryCodec.get(data, key);
+    }
+
+    /**
+     * Returns the compact serialized representation of this metadata.
+     *
+     * <p>Metadata that originated in serialized form returns that same {@link Data} instance until it is changed.
+     * Metadata constructed from entries is encoded at most once per metadata instance.</p>
+     */
+    @JsonIgnore
+    public Data<byte[]> toData() {
+        if (entries instanceof SerializedEntries serializedEntries) {
+            return serializedEntries.data();
+        }
+        return new Data<>(MetadataBinaryCodec.encode(entries), DATA_TYPE, 0, DATA_FORMAT);
+    }
+
+    /**
      * Constructs a new Metadata instance with the specified map of entries. The entries map defines the key-value pairs
      * for this Metadata object.
      *
@@ -153,7 +205,8 @@ public class Metadata {
      */
     @JsonCreator
     private Metadata(Map<String, String> entries) {
-        this.entries = entries;
+        this.entries = entries instanceof SerializedEntries
+                ? entries : new SerializedEntries(entries);
     }
 
     /**
@@ -179,9 +232,31 @@ public class Metadata {
      * @return a new Metadata instance with the updated entries
      */
     public Metadata with(Map<?, ?> values) {
+        if (values.isEmpty()) {
+            return this;
+        }
+        if (hasOpaqueEntries() && hasOnlyStringEntries(values)) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> stringValues = (Map<String, String>) values;
+            return withSerializedChanges(stringValues);
+        }
         Map<String, String> map = new HashMap<>(entries);
         values.forEach((key, value) -> with(key, value, map));
         return new Metadata(map);
+    }
+
+    private static boolean hasOnlyStringEntries(Map<?, ?> values) {
+        for (Map.Entry<?, ?> entry : values.entrySet()) {
+            if (!(entry.getKey() instanceof String) || !(entry.getValue() instanceof String)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Metadata withSerializedChanges(Map<String, String> values) {
+        byte[] merged = MetadataBinaryCodec.merge(toData(), values);
+        return fromData(new Data<>(merged, DATA_TYPE, 0, DATA_FORMAT));
     }
 
     /**
@@ -233,7 +308,24 @@ public class Metadata {
      */
     @SneakyThrows
     public Metadata with(Object key, Object value) {
+        String keyString = Objects.requireNonNull(key, "Metadata key").toString();
+        if (hasOpaqueEntries() && value instanceof String stringValue) {
+            return withSerializedChange(keyString, stringValue);
+        }
+        if (hasOpaqueEntries() && value instanceof Enum<?> enumValue) {
+            return withSerializedChange(keyString, enumValue.name());
+        }
         return new Metadata(with(key, value, new HashMap<>(entries)));
+    }
+
+    private boolean hasOpaqueEntries() {
+        return entries instanceof SerializedEntries serializedEntries
+               && serializedEntries.isOpaque();
+    }
+
+    private Metadata withSerializedChange(String key, String value) {
+        byte[] merged = MetadataBinaryCodec.merge(toData(), key, value);
+        return fromData(new Data<>(merged, DATA_TYPE, 0, DATA_FORMAT));
     }
 
     /**
@@ -497,8 +589,19 @@ public class Metadata {
      */
     @JsonIgnore
     public Map<String, String> getTraceEntries() {
-        return entrySet().stream().filter(e -> e.getKey().startsWith("$trace."))
-                .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return entries instanceof SerializedEntries serializedEntries
+                ? serializedEntries.traceEntries()
+                : traceEntries(entries);
+    }
+
+    private static Map<String, String> traceEntries(Map<String, String> source) {
+        Map<String, String> result = new HashMap<>();
+        source.forEach((key, value) -> {
+            if (key.startsWith("$trace.")) {
+                result.put(key, value);
+            }
+        });
+        return result;
     }
 
     /**
@@ -564,5 +667,648 @@ public class Metadata {
      */
     public Set<Map.Entry<String, String>> entrySet() {
         return entries.entrySet();
+    }
+
+    private static final class SerializedEntries extends AbstractMap<String, String> {
+        private volatile Data<byte[]> data;
+        private volatile Map<String, String> decoded;
+
+        private SerializedEntries(Data<byte[]> data) {
+            this.data = data;
+        }
+
+        private SerializedEntries(Map<String, String> decoded) {
+            this.decoded = Objects.requireNonNull(decoded, "entries");
+        }
+
+        private Data<byte[]> data() {
+            Data<byte[]> current = data;
+            if (current == null) {
+                synchronized (this) {
+                    current = data;
+                    if (current == null) {
+                        current = new Data<>(MetadataBinaryCodec.encode(decoded()), DATA_TYPE, 0, DATA_FORMAT);
+                        data = current;
+                    }
+                }
+            }
+            return current;
+        }
+
+        @Override
+        public Set<Entry<String, String>> entrySet() {
+            return decoded().entrySet();
+        }
+
+        @Override
+        public String get(Object key) {
+            Map<String, String> current = decoded;
+            if (current != null) {
+                return current.get(key);
+            }
+            return key instanceof String string
+                    ? MetadataBinaryCodec.get(data(), string) : null;
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            Map<String, String> current = decoded;
+            if (current != null) {
+                return current.containsKey(key);
+            }
+            return key instanceof String string
+                    && MetadataBinaryCodec.containsKey(data(), string);
+        }
+
+        @Override
+        public int size() {
+            Map<String, String> current = decoded;
+            return current == null ? MetadataBinaryCodec.size(data()) : current.size();
+        }
+
+        private Map<String, String> decoded() {
+            Map<String, String> current = decoded;
+            if (current == null) {
+                synchronized (this) {
+                    current = decoded;
+                    if (current == null) {
+                        current = MetadataBinaryCodec.decode(data);
+                        decoded = current;
+                    }
+                }
+            }
+            return current;
+        }
+
+        private boolean isOpaque() {
+            return decoded == null;
+        }
+
+        private Map<String, String> traceEntries() {
+            Map<String, String> current = decoded;
+            return current == null
+                    ? MetadataBinaryCodec.traceEntries(data())
+                    : Metadata.traceEntries(current);
+        }
+    }
+
+    private static final class MetadataBinaryCodec {
+        private MetadataBinaryCodec() {
+        }
+
+        private static byte[] encode(Map<String, String> entries) {
+            BinaryWriter writer = new BinaryWriter(encodedSize(entries));
+            writer.writeInt(entries.size());
+            entries.forEach((key, value) -> {
+                writer.writeString(Objects.requireNonNull(key, "Metadata key"));
+                writer.writeString(Objects.requireNonNull(value, "Metadata value"));
+            });
+            return writer.toByteArray();
+        }
+
+        private static int encodedSize(Map<String, String> entries) {
+            int size = Integer.BYTES;
+            for (Map.Entry<String, String> entry : entries.entrySet()) {
+                size = addSize(size, stringSize(Objects.requireNonNull(entry.getKey(), "Metadata key")));
+                size = addSize(size, stringSize(Objects.requireNonNull(entry.getValue(), "Metadata value")));
+            }
+            return size;
+        }
+
+        private static int stringSize(String value) {
+            int size = Integer.BYTES;
+            for (int index = 0; index < value.length(); index++) {
+                char current = value.charAt(index);
+                if (current <= 0x7f) {
+                    size = addSize(size, 1);
+                } else if (current <= 0x7ff) {
+                    size = addSize(size, 2);
+                } else if (Character.isHighSurrogate(current)
+                        && index + 1 < value.length()
+                        && Character.isLowSurrogate(value.charAt(index + 1))) {
+                    size = addSize(size, 4);
+                    index++;
+                } else if (Character.isSurrogate(current)) {
+                    size = addSize(size, 1); // Standard UTF-8 replacement byte ('?')
+                } else {
+                    size = addSize(size, 3);
+                }
+            }
+            return size;
+        }
+
+        private static int addSize(int current, int addition) {
+            int result;
+            try {
+                result = Math.addExact(current, addition);
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("Serialized metadata exceeds maximum size", e);
+            }
+            if (result > MAX_DATA_BYTES) {
+                throw new IllegalArgumentException("Serialized metadata exceeds maximum size");
+            }
+            return result;
+        }
+
+        private static int size(Data<byte[]> data) {
+            BinaryReader reader = new BinaryReader(data);
+            int result = reader.readInt();
+            if (result < 0 || result > MAX_ENTRY_COUNT) {
+                throw new IllegalArgumentException("Invalid serialized metadata entry count " + result);
+            }
+            return result;
+        }
+
+        private static Map<String, String> decode(Data<byte[]> data) {
+            BinaryReader reader = new BinaryReader(data);
+            int size = reader.readSize();
+            if (size == 0) {
+                reader.requireComplete();
+                return emptyMap();
+            }
+            Map<String, String> result = new HashMap<>(Math.max(16, (int) (size / 0.75f) + 1));
+            for (int i = 0; i < size; i++) {
+                result.put(reader.readString(), reader.readString());
+            }
+            reader.requireComplete();
+            return java.util.Collections.unmodifiableMap(result);
+        }
+
+        private static boolean containsKey(Data<byte[]> data, String key) {
+            BinaryReader reader = new BinaryReader(data);
+            return containsKey(reader, key);
+        }
+
+        private static boolean containsKey(
+                Data.ByteArrayView data, String key) {
+            return findValue(data, key) >= 0;
+        }
+
+        private static boolean containsKey(
+                BinaryReader reader, String key) {
+            int size = reader.readSize();
+            if (size == 0) {
+                reader.requireComplete();
+                return false;
+            }
+            boolean found = false;
+            for (int i = 0; i < size; i++) {
+                found |= reader.readStringEquals(key);
+                reader.skipString();
+            }
+            reader.requireComplete();
+            return found;
+        }
+
+        private static String get(Data<byte[]> data, String key) {
+            BinaryReader reader = new BinaryReader(data);
+            return get(reader, key);
+        }
+
+        private static String get(
+                Data.ByteArrayView data, String key) {
+            long value = findValue(data, key);
+            return value < 0 ? null : new String(
+                    data.array(), (int) (value >>> Integer.SIZE), (int) value,
+                    StandardCharsets.UTF_8);
+        }
+
+        /**
+         * Scans a byte-array view without allocating a stateful reader. The returned long packs the offset and length
+         * of the last value for the requested key, or {@code -1} when the key is absent.
+         */
+        private static long findValue(Data.ByteArrayView data, String key) {
+            Objects.requireNonNull(key, "Metadata key");
+            byte[] bytes = data == null ? null : data.array();
+            int offset = data == null ? 0 : data.offset();
+            int length = data == null ? 0 : data.length();
+            BinaryReader.validate(bytes, offset, length);
+            int position = offset;
+            int limit = offset + length;
+            if (limit - position < Integer.BYTES) {
+                throw new IllegalArgumentException("Truncated serialized metadata");
+            }
+            int size = readInt(bytes, position);
+            position += Integer.BYTES;
+            if (size < 0 || size > MAX_ENTRY_COUNT) {
+                throw new IllegalArgumentException("Invalid serialized metadata entry count " + size);
+            }
+
+            long result = -1;
+            for (int index = 0; index < size; index++) {
+                if (limit - position < Integer.BYTES) {
+                    throw new IllegalArgumentException("Truncated serialized metadata");
+                }
+                int keyLength = readInt(bytes, position);
+                position += Integer.BYTES;
+                if (keyLength < 0 || keyLength > MAX_DATA_BYTES || keyLength > limit - position) {
+                    throw new IllegalArgumentException("Invalid serialized metadata string size " + keyLength);
+                }
+                boolean matches = utf8Equals(bytes, position, keyLength, key);
+                position += keyLength;
+
+                if (limit - position < Integer.BYTES) {
+                    throw new IllegalArgumentException("Truncated serialized metadata");
+                }
+                int valueLength = readInt(bytes, position);
+                position += Integer.BYTES;
+                if (valueLength < 0 || valueLength > MAX_DATA_BYTES || valueLength > limit - position) {
+                    throw new IllegalArgumentException("Invalid serialized metadata string size " + valueLength);
+                }
+                if (matches) {
+                    result = ((long) position << Integer.SIZE) | (valueLength & 0xffffffffL);
+                }
+                position += valueLength;
+            }
+            if (position != limit) {
+                throw new IllegalArgumentException("Unexpected trailing serialized metadata bytes");
+            }
+            return result;
+        }
+
+        private static boolean utf8Equals(byte[] bytes, int position, int byteLength, String value) {
+            int byteIndex = 0;
+            for (int charIndex = 0; charIndex < value.length(); charIndex++) {
+                char current = value.charAt(charIndex);
+                if (current <= 0x7f) {
+                    if (!matchesByte(bytes, position, byteIndex++, byteLength, current)) {
+                        return false;
+                    }
+                } else if (current <= 0x7ff) {
+                    if (!matchesByte(bytes, position, byteIndex++, byteLength, 0xc0 | current >>> 6)
+                            || !matchesByte(bytes, position, byteIndex++, byteLength, 0x80 | current & 0x3f)) {
+                        return false;
+                    }
+                } else if (Character.isHighSurrogate(current)
+                        && charIndex + 1 < value.length()
+                        && Character.isLowSurrogate(value.charAt(charIndex + 1))) {
+                    int codePoint = Character.toCodePoint(current, value.charAt(++charIndex));
+                    if (!matchesByte(bytes, position, byteIndex++, byteLength, 0xf0 | codePoint >>> 18)
+                            || !matchesByte(bytes, position, byteIndex++, byteLength, 0x80 | codePoint >>> 12 & 0x3f)
+                            || !matchesByte(bytes, position, byteIndex++, byteLength, 0x80 | codePoint >>> 6 & 0x3f)
+                            || !matchesByte(bytes, position, byteIndex++, byteLength, 0x80 | codePoint & 0x3f)) {
+                        return false;
+                    }
+                } else if (Character.isSurrogate(current)) {
+                    if (!matchesByte(bytes, position, byteIndex++, byteLength, '?')) {
+                        return false;
+                    }
+                } else if (!matchesByte(bytes, position, byteIndex++, byteLength, 0xe0 | current >>> 12)
+                        || !matchesByte(bytes, position, byteIndex++, byteLength, 0x80 | current >>> 6 & 0x3f)
+                        || !matchesByte(bytes, position, byteIndex++, byteLength, 0x80 | current & 0x3f)) {
+                    return false;
+                }
+            }
+            return byteIndex == byteLength;
+        }
+
+        private static boolean matchesByte(
+                byte[] bytes, int position, int byteIndex, int byteLength, int expected) {
+            return byteIndex < byteLength
+                    && (bytes[position + byteIndex] & 0xff) == expected;
+        }
+
+        private static String get(
+                BinaryReader reader, String key) {
+            int size = reader.readSize();
+            if (size == 0) {
+                reader.requireComplete();
+                return null;
+            }
+            String result = null;
+            for (int i = 0; i < size; i++) {
+                boolean matches = reader.readStringEquals(key);
+                if (matches) {
+                    result = reader.readString();
+                } else {
+                    reader.skipString();
+                }
+            }
+            reader.requireComplete();
+            return result;
+        }
+
+        private static Map<String, String> traceEntries(Data<byte[]> data) {
+            BinaryReader reader = new BinaryReader(data);
+            int size = reader.readSize();
+            Map<String, String> result = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                String key = reader.readStringIfStartsWith("$trace.");
+                if (key == null) {
+                    reader.skipString();
+                } else {
+                    result.put(key, reader.readString());
+                }
+            }
+            reader.requireComplete();
+            return result;
+        }
+
+        private static byte[] merge(Data<byte[]> data, Map<String, String> changes) {
+            String[] keys = new String[changes.size()];
+            String[] values = new String[changes.size()];
+            byte[][] encodedKeys = new byte[changes.size()][];
+            int changeSize = 0;
+            int changeIndex = 0;
+            for (Map.Entry<String, String> entry : changes.entrySet()) {
+                String key = Objects.requireNonNull(entry.getKey(), "Metadata key");
+                String value = Objects.requireNonNull(entry.getValue(), "Metadata value");
+                keys[changeIndex] = key;
+                values[changeIndex] = value;
+                encodedKeys[changeIndex] = encodedLookupKey(key);
+                changeSize = addSize(changeSize, stringSize(key));
+                changeSize = addSize(changeSize, stringSize(value));
+                changeIndex++;
+            }
+
+            BinaryReader reader = new BinaryReader(data);
+            int baseSize = reader.readSize();
+            boolean[] retained = new boolean[baseSize];
+            int retainedBytes = 0;
+            int replaced = 0;
+            for (int index = 0; index < baseSize; index++) {
+                int start = reader.position;
+                boolean keep = reader.readStringIndex(keys, encodedKeys) < 0;
+                reader.skipString();
+                retained[index] = keep;
+                if (keep) {
+                    retainedBytes = addSize(retainedBytes, reader.position - start);
+                } else {
+                    replaced++;
+                }
+            }
+            reader.requireComplete();
+
+            int encodedSize = addSize(Integer.BYTES, retainedBytes);
+            encodedSize = addSize(encodedSize, changeSize);
+            BinaryWriter writer = new BinaryWriter(encodedSize);
+            writer.writeInt(Math.addExact(baseSize - replaced, changes.size()));
+            reader = new BinaryReader(data);
+            reader.readSize();
+            for (int index = 0; index < baseSize; index++) {
+                int start = reader.position;
+                reader.skipString();
+                reader.skipString();
+                if (retained[index]) {
+                    writer.write(reader.bytes, start, reader.position - start);
+                }
+            }
+            for (int index = 0; index < keys.length; index++) {
+                writer.writeString(keys[index]);
+                writer.writeString(values[index]);
+            }
+            return writer.toByteArray();
+        }
+
+        private static byte[] merge(Data<byte[]> data, String key, String value) {
+            Objects.requireNonNull(key, "Metadata key");
+            Objects.requireNonNull(value, "Metadata value");
+            BinaryReader reader = new BinaryReader(data);
+            int baseSize = reader.readSize();
+            int retainedBytes = 0;
+            int replaced = 0;
+            for (int index = 0; index < baseSize; index++) {
+                int start = reader.position;
+                boolean matches = reader.readStringEquals(key);
+                reader.skipString();
+                if (matches) {
+                    replaced++;
+                } else {
+                    retainedBytes = addSize(retainedBytes, reader.position - start);
+                }
+            }
+            reader.requireComplete();
+
+            int encodedSize = addSize(Integer.BYTES, retainedBytes);
+            encodedSize = addSize(encodedSize, stringSize(key));
+            encodedSize = addSize(encodedSize, stringSize(value));
+            BinaryWriter writer = new BinaryWriter(encodedSize);
+            writer.writeInt(Math.addExact(baseSize - replaced, 1));
+            reader = new BinaryReader(data);
+            reader.readSize();
+            for (int index = 0; index < baseSize; index++) {
+                int start = reader.position;
+                boolean matches = reader.readStringEquals(key);
+                reader.skipString();
+                if (!matches) {
+                    writer.write(reader.bytes, start, reader.position - start);
+                }
+            }
+            reader.requireComplete();
+            writer.writeString(key);
+            writer.writeString(value);
+            return writer.toByteArray();
+        }
+
+        private static byte[] encodedLookupKey(String key) {
+            for (int index = 0; index < key.length(); index++) {
+                if (key.charAt(index) > 0x7f) {
+                    return key.getBytes(StandardCharsets.UTF_8);
+                }
+            }
+            return null;
+        }
+
+        private static int readInt(byte[] bytes, int offset) {
+            return (bytes[offset] & 0xff) << 24
+                   | (bytes[offset + 1] & 0xff) << 16
+                   | (bytes[offset + 2] & 0xff) << 8
+                   | bytes[offset + 3] & 0xff;
+        }
+
+        private static final class BinaryWriter {
+            private final byte[] bytes;
+            private int position;
+
+            private BinaryWriter(int initialSize) {
+                bytes = new byte[initialSize];
+            }
+
+            private void writeInt(int value) {
+                ensure(Integer.BYTES);
+                bytes[position++] = (byte) (value >>> 24);
+                bytes[position++] = (byte) (value >>> 16);
+                bytes[position++] = (byte) (value >>> 8);
+                bytes[position++] = (byte) value;
+            }
+
+            private void writeString(String value) {
+                int length = value.length();
+                for (int index = 0; index < length; index++) {
+                    if (value.charAt(index) > 0x7f) {
+                        byte[] encoded = value.getBytes(StandardCharsets.UTF_8);
+                        writeInt(encoded.length);
+                        write(encoded);
+                        return;
+                    }
+                }
+                writeInt(length);
+                ensure(length);
+                for (int index = 0; index < length; index++) {
+                    bytes[position++] = (byte) value.charAt(index);
+                }
+            }
+
+            private void write(byte[] value) {
+                ensure(value.length);
+                System.arraycopy(value, 0, bytes, position, value.length);
+                position += value.length;
+            }
+
+            private void write(byte[] value, int offset, int length) {
+                ensure(length);
+                System.arraycopy(value, offset, bytes, position, length);
+                position += length;
+            }
+
+            private void ensure(int additional) {
+                int required = Math.addExact(position, additional);
+                if (required > MAX_DATA_BYTES) {
+                    throw new IllegalArgumentException("Serialized metadata exceeds maximum size");
+                }
+                if (required > bytes.length) {
+                    throw new IllegalStateException(
+                            "Serialized metadata size estimate was too small: " + bytes.length + " < " + required);
+                }
+            }
+
+            private byte[] toByteArray() {
+                if (position != bytes.length) {
+                    throw new IllegalStateException(
+                            "Serialized metadata size mismatch: expected " + bytes.length + ", wrote " + position);
+                }
+                return bytes;
+            }
+        }
+
+        private static final class BinaryReader {
+            private final byte[] bytes;
+            private final int limit;
+            private int position;
+
+            private BinaryReader(Data<byte[]> data) {
+                Data.ByteArrayView view = data.byteArrayView();
+                byte[] bytes = view == null ? data.getValue() : view.array();
+                int offset = view == null ? 0 : view.offset();
+                int length = view == null ? (bytes == null ? 0 : bytes.length) : view.length();
+                validate(bytes, offset, length);
+                this.bytes = bytes;
+                this.position = offset;
+                this.limit = offset + length;
+            }
+
+            private BinaryReader(Data.ByteArrayView view) {
+                byte[] bytes = view == null ? null : view.array();
+                int offset = view == null ? 0 : view.offset();
+                int length = view == null ? 0 : view.length();
+                validate(bytes, offset, length);
+                this.bytes = bytes;
+                this.position = offset;
+                this.limit = offset + length;
+            }
+
+            private static void validate(
+                    byte[] bytes, int offset,
+                    int length) {
+                if (bytes == null || offset < 0 || length < 0
+                        || offset > bytes.length - length || length > MAX_DATA_BYTES) {
+                    throw new IllegalArgumentException("Invalid serialized metadata size");
+                }
+            }
+
+            private int readSize() {
+                int result = readInt();
+                if (result < 0 || result > MAX_ENTRY_COUNT) {
+                    throw new IllegalArgumentException("Invalid serialized metadata entry count " + result);
+                }
+                return result;
+            }
+
+            private String readString() {
+                int length = readInt();
+                if (length < 0 || length > MAX_DATA_BYTES || length > limit - position) {
+                    throw new IllegalArgumentException("Invalid serialized metadata string size " + length);
+                }
+                String result = new String(bytes, position, length, StandardCharsets.UTF_8);
+                position += length;
+                return result;
+            }
+
+            private boolean readStringEquals(String value) {
+                int length = readStringLength();
+                boolean result = utf8Equals(value, length);
+                position += length;
+                return result;
+            }
+
+            private boolean utf8Equals(String value, int byteLength) {
+                return MetadataBinaryCodec.utf8Equals(bytes, position, byteLength, value);
+            }
+
+            private String readStringIfStartsWith(String prefix) {
+                int length = readStringLength();
+                boolean matches = length >= prefix.length();
+                for (int index = 0; matches && index < prefix.length(); index++) {
+                    matches = (bytes[position + index] & 0xff) == prefix.charAt(index);
+                }
+                String result = matches
+                        ? new String(bytes, position, length, StandardCharsets.UTF_8) : null;
+                position += length;
+                return result;
+            }
+
+            private int readStringIndex(String[] values, byte[][] encodedValues) {
+                int length = readStringLength();
+                int result = -1;
+                for (int valueIndex = 0; valueIndex < values.length; valueIndex++) {
+                    String value = values[valueIndex];
+                    byte[] encodedValue = encodedValues[valueIndex];
+                    int expectedLength = encodedValue == null ? value.length() : encodedValue.length;
+                    if (length != expectedLength) {
+                        continue;
+                    }
+                    boolean matches = true;
+                    for (int index = 0; matches && index < length; index++) {
+                        int expected = encodedValue == null
+                                ? value.charAt(index) : encodedValue[index] & 0xff;
+                        matches = (bytes[position + index] & 0xff) == expected;
+                    }
+                    if (matches) {
+                        result = valueIndex;
+                        break;
+                    }
+                }
+                position += length;
+                return result;
+            }
+
+            private void skipString() {
+                int length = readStringLength();
+                position += length;
+            }
+
+            private int readStringLength() {
+                int length = readInt();
+                if (length < 0 || length > MAX_DATA_BYTES || length > limit - position) {
+                    throw new IllegalArgumentException("Invalid serialized metadata string size " + length);
+                }
+                return length;
+            }
+
+            private int readInt() {
+                if (limit - position < Integer.BYTES) {
+                    throw new IllegalArgumentException("Truncated serialized metadata");
+                }
+                int result = MetadataBinaryCodec.readInt(bytes, position);
+                position += Integer.BYTES;
+                return result;
+            }
+
+            private void requireComplete() {
+                if (position != limit) {
+                    throw new IllegalArgumentException("Unexpected trailing serialized metadata bytes");
+                }
+            }
+        }
     }
 }

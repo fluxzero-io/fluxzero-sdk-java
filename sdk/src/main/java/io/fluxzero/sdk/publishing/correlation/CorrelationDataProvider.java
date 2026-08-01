@@ -27,11 +27,9 @@ import jakarta.annotation.Nullable;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static io.fluxzero.sdk.Fluxzero.currentTime;
 import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
-import static java.util.Optional.ofNullable;
 
 /**
  * Strategy interface for extracting correlation metadata from the current context.
@@ -98,19 +96,23 @@ public interface CorrelationDataProvider {
     default Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
         Client applicationClient = Fluxzero.getOptionally().map(Fluxzero::client).orElse(null);
         Map<String, String> result = getBasicCorrelationData(applicationClient);
-        ofNullable(currentMessage).ifPresent(m -> {
-            String correlationId = ofNullable(m.getIndex()).map(Object::toString).orElse(m.getMessageId());
+        if (currentMessage != null) {
+            Long index = currentMessage.getIndex();
+            String correlationId = index == null ? currentMessage.getMessageId() : index.toString();
             result.put(getCorrelationIdKey(), correlationId);
             result.put(getTraceIdKey(), currentMessage.getMetadata().getOrDefault(getTraceIdKey(), correlationId));
-            result.put(getTriggerKey(), m.getType());
-            result.put(getTriggerTypeKey(), m.getMessageType().name());
-            String consumerNamespace = getConsumerNamespace(m);
-            ofNullable(consumerNamespace == null && applicationClient != null
-                               ? applicationClient.namespace() : consumerNamespace).ifPresent(
-                    namespace -> result.put(getTriggerNamespaceKey(), namespace));
+            result.put(getTriggerKey(), currentMessage.getType());
+            result.put(getTriggerTypeKey(), currentMessage.getMessageType().name());
+            String consumerNamespace = getConsumerNamespace(currentMessage);
+            String triggerNamespace = consumerNamespace == null && applicationClient != null
+                    ? applicationClient.namespace() : consumerNamespace;
+            if (triggerNamespace != null) {
+                result.put(getTriggerNamespaceKey(), triggerNamespace);
+            }
             result.putAll(currentMessage.getMetadata().getTraceEntries());
-            result.put(getDelayKey(), Long.toString(Duration.between(m.getTimestamp(), currentTime()).toMillis()));
-        });
+            result.put(getDelayKey(), Long.toString(
+                    Duration.between(currentMessage.getTimestamp(), currentTime()).toMillis()));
+        }
         return result;
     }
 
@@ -129,23 +131,26 @@ public interface CorrelationDataProvider {
                                                    @Nullable SerializedMessage currentMessage,
                                                    @Nullable MessageType messageType) {
         Map<String, String> result = getBasicCorrelationData(client);
-        ofNullable(currentMessage).ifPresent(m -> {
-            String correlationId = ofNullable(m.getIndex()).map(Object::toString).orElse(m.getMessageId());
+        if (currentMessage != null) {
+            Long index = currentMessage.getIndex();
+            String correlationId = index == null ? currentMessage.getMessageId() : index.toString();
             result.put(getCorrelationIdKey(), correlationId);
             result.put(getTraceIdKey(), currentMessage.getMetadata().getOrDefault(getTraceIdKey(), correlationId));
-            result.put(getTriggerKey(), m.getType());
+            result.put(getTriggerKey(), currentMessage.getType());
             if (messageType != null) {
                 result.put(getTriggerTypeKey(), messageType.name());
             }
-            ofNullable(client).map(Client::namespace).ifPresent(
-                    namespace -> result.put(getTriggerNamespaceKey(), namespace));
+            String namespace = client == null ? null : client.namespace();
+            if (namespace != null) {
+                result.put(getTriggerNamespaceKey(), namespace);
+            }
             result.putAll(currentMessage.getMetadata().getTraceEntries());
-        });
+        }
         return result;
     }
 
     private HashMap<String, String> getBasicCorrelationData(@Nullable Client client) {
-        var result = new HashMap<String, String>(8);
+        var result = new HashMap<String, String>(24);
         if (client != null) {
             String applicationId = client.applicationId();
             if (applicationId != null) {

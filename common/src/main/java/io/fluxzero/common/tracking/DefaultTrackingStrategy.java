@@ -151,10 +151,20 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             if (batch.messages().isEmpty()) {
                 MessageBatch messageBatch =
                         new MessageBatch(newSegment, batch.messages(), batch.lastScannedIndex(), position, true);
-                waitForMessages(tracker, messageBatch, request);
+                /*
+                 * A new consumer starts shortly before the current wall clock. Pin that boundary while this
+                 * long-poll request waits. Recomputing it after every update would make the boundary move forward and
+                 * could skip messages that arrived during a long or high-volume first publication.
+                 */
+                Tracker waitingTracker = tracker.getLastTrackerIndex() == null
+                        ? position.lowestIndexForSegment(newSegment)
+                                .map(tracker::withLastTrackerIndex)
+                                .orElse(tracker)
+                        : tracker;
+                waitForMessages(waitingTracker, messageBatch, request);
                 if (updateVersion < updateNotificationVersion.get()) {
-                    var task = waitingTrackers.get(tracker);
-                    if (task != null && task.tracker == tracker && task.request == request) {
+                    var task = waitingTrackers.get(waitingTracker);
+                    if (task != null && task.tracker == waitingTracker && task.request == request) {
                         task.run();
                     }
                 }

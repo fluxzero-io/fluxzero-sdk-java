@@ -25,21 +25,48 @@ import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultGenericGatewayTest {
+
+    @Test
+    void parallelSendAndForgetRetainsChunkBoundariesAndOrder() {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        when(gatewayClient.append(eq(Guarantee.STORED), any(SerializedMessage[].class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        DefaultGenericGateway gateway = gateway(gatewayClient);
+        Message[] messages = IntStream.range(0, 8_193)
+                .mapToObj(index -> new Message("command-" + index))
+                .toArray(Message[]::new);
+
+        gateway.sendAndForget(Guarantee.STORED, messages).join();
+
+        ArgumentCaptor<SerializedMessage[]> chunks = ArgumentCaptor.forClass(SerializedMessage[].class);
+        verify(gatewayClient, times(2)).append(eq(Guarantee.STORED), chunks.capture());
+        assertEquals(8_192, chunks.getAllValues().getFirst().length);
+        assertEquals(1, chunks.getAllValues().get(1).length);
+        assertEquals("\"command-0\"", new String(
+                chunks.getAllValues().getFirst()[0].getData().getValue(), StandardCharsets.UTF_8));
+        assertEquals("\"command-8192\"", new String(
+                chunks.getAllValues().get(1)[0].getData().getValue(), StandardCharsets.UTF_8));
+    }
 
     @Test
     void sendAndForgetRegistersAppendFutureWithActiveCompletionScope() throws Exception {

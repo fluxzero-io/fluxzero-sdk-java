@@ -52,6 +52,8 @@ import java.util.function.Function;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY_V2;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.eventSourcingUrl;
@@ -224,7 +226,7 @@ public class WebSocketClient extends AbstractClient {
          * {@link WebSocketTransportFormat#JSON} remains the compatibility fallback for older runtimes.
          */
         @Default
-        List<WebSocketTransportFormat> supportedTransportFormats = List.of(CBOR, JSON);
+        List<WebSocketTransportFormat> supportedTransportFormats = List.of(BINARY_V2, BINARY, CBOR, JSON);
 
         /**
          * Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.

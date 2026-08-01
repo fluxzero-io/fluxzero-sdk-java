@@ -1080,9 +1080,10 @@ public class DefaultFluxzero implements Fluxzero {
                         .forEach(type -> handlerChains.compute(type, (t, i) -> interceptor.andThen(i)));
             }
 
-            ResultGateway resultGateway = new DefaultResultGateway(client,
-                                                                   serializer, dispatchChains.get(RESULT),
-                                                                   defaultResponseMapper);
+            ResultGateway resultGateway = new DefaultResultGateway(
+                    client, serializer, dispatchChains.get(RESULT),
+                    defaultResponseMapper);
+
             CommandGateway commandGateway =
                     new DefaultCommandGateway(createRequestGateway(client, COMMAND, null, defaultRequestHandler,
                                                                    dispatchChains, handlerChains,
@@ -1180,6 +1181,7 @@ public class DefaultFluxzero implements Fluxzero {
                                     t.close();
                                     return null;
                                 }).collect(toList()));
+                modelCommitHandlerRegistry.close();
                 shutdownPool.invokeAll(
                         Stream.<Runnable>of(commandGateway::close, queryGateway::close, webRequestGateway::close)
                                 .map(t -> (Callable<?>) () -> {
@@ -1188,6 +1190,9 @@ public class DefaultFluxzero implements Fluxzero {
                                 }).collect(toList()));
                 defaultRequestHandler.close();
                 webRequestHandler.close();
+                if (resultGateway instanceof AutoCloseable closeable) {
+                    closeable.close();
+                }
                 cache.close();
                 if (modelCache != cache) {
                     modelCache.close();

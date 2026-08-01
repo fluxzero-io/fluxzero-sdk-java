@@ -94,6 +94,27 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void pinsInitialReadBoundaryWhileWaitingForFirstMessages() throws Exception {
+        TestScheduler scheduler = new TestScheduler();
+        SerializedMessage fetched = message(150L, 1, "accepted");
+        SlidingInitialPositionStrategy subject =
+                new SlidingInitialPositionStrategy(mockSource(), scheduler);
+        subject.withBatches(List.of(), List.of(fetched));
+        try (subject) {
+            CompletableFuture<MessageBatch> result =
+                    subject.getBatch(tracker("consumer", "tracker").withLastTrackerIndex(null));
+            assertFalse(result.isDone());
+
+            subject.onUpdate(List.of(fetched));
+
+            MessageBatch batch = result.get(5, TimeUnit.SECONDS);
+            scheduler.awaitIdle();
+            assertEqualMessages(List.of(fetched), batch.getMessages());
+            assertEquals(List.of(100L, 100L), subject.readBoundaries);
+        }
+    }
+
+    @Test
     void fetchesWaitingTrackerWhenEmptyUpdateArrives() throws Exception {
         TestScheduler scheduler = new TestScheduler();
         SerializedMessage fetched = message(2L, 1, "accepted");
@@ -525,6 +546,24 @@ class DefaultTrackingStrategyTest {
 
         @Override
         protected void purgeCeasedTrackers(Duration delay) {
+        }
+    }
+
+    private static class SlidingInitialPositionStrategy extends TestStrategy {
+        private final AtomicInteger initialPositions = new AtomicInteger();
+        private final List<Long> readBoundaries = new CopyOnWriteArrayList<>();
+
+        SlidingInitialPositionStrategy(MessageStore source, TaskScheduler scheduler) {
+            super(source, scheduler);
+        }
+
+        @Override
+        protected Position position(Tracker tracker, int[] segment) {
+            long boundary = tracker.getLastTrackerIndex() == null
+                    ? 100L + 100L * initialPositions.getAndIncrement()
+                    : tracker.getLastTrackerIndex();
+            readBoundaries.add(boundary);
+            return new Position(segment, boundary);
         }
     }
 

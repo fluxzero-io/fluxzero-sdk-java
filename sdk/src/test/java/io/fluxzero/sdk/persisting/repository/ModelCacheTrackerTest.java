@@ -21,6 +21,7 @@ import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
@@ -29,6 +30,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.AbstractList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -37,6 +39,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -48,6 +52,76 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
+
+    @Test
+    void bulkLookupRejectsARevisionAheadOfItsCapturedProof() {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        polls(eventStore);
+        AtomicReference<Runnable> beforeSupply =
+                new AtomicReference<>();
+        AdaptiveObjectCache cache =
+                new AdaptiveObjectCache() {
+                    @Override
+                    public <U, T> void supplyAll(
+                            Iterable<? extends U> lookups,
+                            Function<? super U, ?> keyFunction,
+                            BiConsumer<? super U, ? super T> valueConsumer) {
+                        Runnable callback = beforeSupply.get();
+                        if (callback != null) {
+                            callback.run();
+                        }
+                        super.supplyAll(
+                                lookups, keyFunction,
+                                valueConsumer);
+                    }
+                };
+        Entity<?> initial = modelEntity(10L);
+        Entity<?> committed = modelEntity(20L);
+        cache.put("sample-1", initial);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            awaitCurrent(
+                    tracker, "sample-1",
+                    SampleModel.class);
+            TestLookup lookup =
+                    new TestLookup(
+                            "sample-1",
+                            SampleModel.class);
+            beforeSupply.set(() ->
+                    cache.put(
+                            "sample-1", committed));
+
+            tracker.supplyCurrentVersions(
+                    List.of(lookup));
+
+            assertNull(lookup.entity.get());
+            beforeSupply.set(null);
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    20L);
+            tracker.supplyCurrentVersions(
+                    List.of(lookup));
+            assertSame(
+                    committed,
+                    lookup.entity.get());
+            assertEquals(
+                    20L,
+                    lookup.validThrough);
+        } finally {
+            cache.close();
+        }
+    }
 
     @Test
     void bootstrapDoesNotBlockTheLoadingCallback() throws Exception {
@@ -423,11 +497,12 @@ class ModelCacheTrackerTest {
                     SampleModel.class,
                     10L);
 
-            assertSame(
-                    committed,
-                    tracker.current(
+            ModelCacheTracker.CurrentModel current =
+                    tracker.currentVersion(
                             "sample-1",
-                            SampleModel.class));
+                            SampleModel.class);
+            assertSame(committed, current.entity());
+            assertEquals(11L, current.validThrough());
             assertEquals(0, refreshCount.get());
         } finally {
             cache.close();
@@ -495,6 +570,189 @@ class ModelCacheTrackerTest {
             assertEquals(
                     0, refreshCount.get());
         } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void localCommitAdvancesItsBoundaryWhileATrackedPageIsBeingProcessed()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls =
+                polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> initial = modelEntity(10L);
+        Entity<?> committed = modelEntity(20L);
+        cache.put("sample-1", initial);
+        AtomicInteger refreshCount = new AtomicInteger();
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch continueProcessing = new CountDownLatch(1);
+        List<ModelCommitTargetResult> blockingTargets =
+                new AbstractList<>() {
+                    @Override
+                    public ModelCommitTargetResult get(int index) {
+                        processing.countDown();
+                        try {
+                            assertTrue(continueProcessing.await(5, TimeUnit.SECONDS));
+                        } catch (InterruptedException failure) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(failure);
+                        }
+                        return new ModelCommitTargetResult("sample-1", 1L, true);
+                    }
+
+                    @Override
+                    public int size() {
+                        return 1;
+                    }
+                };
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshCount.incrementAndGet();
+                                 return new ModelCacheTracker.RefreshedBatch(safeStateIndex);
+                             })) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> poll = awaitNext(polls);
+            poll.complete(
+                    new TrackModelUpdatesResult(
+                            1L, 20L, 20L, 20L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "local-commit", 0, 20L, null,
+                                            blockingTargets))));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+
+            Runnable localCommitComplete =
+                    tracker.beginLocalCommit(
+                            List.of("sample-1"));
+
+            cache.put("sample-1", committed);
+            continueProcessing.countDown();
+            awaitNext(polls);
+
+            tracker.committed("sample-1", SampleModel.class, 20L);
+            localCommitComplete.run();
+
+            ModelCacheTracker.CurrentModel current =
+                    tracker.currentVersion("sample-1", SampleModel.class);
+            assertSame(committed, current.entity());
+            assertEquals(20L, current.validThrough());
+            assertEquals(20L, current.modelStateIndex());
+            assertEquals(0, refreshCount.get());
+        } finally {
+            continueProcessing.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void currentCacheRemainsUsableAtTheProcessedCursorWhileTheRuntimeHeadAdvances()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls =
+                polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> cached = modelEntity(10L);
+        cache.put("sample-1", cached);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker.RefreshedBatch(
+                                             safeStateIndex))) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 20L, 20L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "unrelated", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelCommitTargetResult(
+                                                            "other-1",
+                                                            0L,
+                                                            true))))));
+            awaitNext(polls);
+
+            ModelCacheTracker.CurrentModel current =
+                    assertTimeoutPreemptively(
+                            Duration.ofSeconds(1L),
+                            () -> tracker.currentVersion(
+                                    "sample-1",
+                                    SampleModel.class));
+
+            assertSame(cached, current.entity());
+            assertEquals(11L, current.validThrough());
+            assertEquals(10L, current.modelStateIndex());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void currentCacheRemainsUsableAtThePreviousCursorWhileANewPageIsProcessed()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls =
+                polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> cached = modelEntity(10L);
+        cache.put("sample-1", cached);
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch continueProcessing = new CountDownLatch(1);
+        List<ModelCommitTargetResult> blockingTargets =
+                new AbstractList<>() {
+                    @Override
+                    public ModelCommitTargetResult get(int index) {
+                        processing.countDown();
+                        try {
+                            assertTrue(continueProcessing.await(5, TimeUnit.SECONDS));
+                        } catch (InterruptedException failure) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(failure);
+                        }
+                        return new ModelCommitTargetResult("other-1", 0L, true);
+                    }
+
+                    @Override
+                    public int size() {
+                        return 1;
+                    }
+                };
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker.RefreshedBatch(safeStateIndex))) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> poll = awaitNext(polls);
+            poll.complete(
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "unrelated", 0, 11L, null,
+                                            blockingTargets))));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+
+            ModelCacheTracker.CurrentModel current =
+                    assertTimeoutPreemptively(
+                            Duration.ofSeconds(1L),
+                            () -> tracker.currentVersion(
+                                    "sample-1", SampleModel.class));
+
+            assertSame(cached, current.entity());
+            assertEquals(10L, current.validThrough());
+            assertEquals(10L, current.modelStateIndex());
+        } finally {
+            continueProcessing.countDown();
             cache.close();
         }
     }
@@ -893,6 +1151,58 @@ class ModelCacheTrackerTest {
                     return poll;
                 });
         return result;
+    }
+
+    private static Entity<?> awaitCurrent(
+            ModelCacheTracker tracker,
+            String modelId,
+            Class<?> modelType) {
+        long deadline =
+                System.nanoTime()
+                + TimeUnit.SECONDS.toNanos(5L);
+        Entity<?> current;
+        while ((current = tracker.current(
+                modelId, modelType)) == null
+               && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertTrue(current != null);
+        return current;
+    }
+
+    private static final class TestLookup
+            implements DefaultModelRepository.CurrentModelLookup {
+        private final String modelId;
+        private final Class<?> modelType;
+        private final AtomicReference<Entity<?>> entity =
+                new AtomicReference<>();
+        private volatile long validThrough = -1L;
+
+        private TestLookup(
+                String modelId,
+                Class<?> modelType) {
+            this.modelId = modelId;
+            this.modelType = modelType;
+        }
+
+        @Override
+        public String modelId() {
+            return modelId;
+        }
+
+        @Override
+        public Class<?> modelType() {
+            return modelType;
+        }
+
+        @Override
+        public void accept(
+                Entity<?> entity,
+                long validThrough,
+                long modelStateIndex) {
+            this.entity.set(entity);
+            this.validThrough = validThrough;
+        }
     }
 
     private static void completeNext(
