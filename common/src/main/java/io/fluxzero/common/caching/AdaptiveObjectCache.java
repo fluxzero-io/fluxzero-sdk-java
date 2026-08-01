@@ -311,18 +311,49 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     @Override
+    public synchronized <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> lookupKeyFunction,
+            Function<? super U, ?> retainedKeyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(lookupKeyFunction, "lookupKeyFunction");
+        Objects.requireNonNull(retainedKeyFunction, "retainedKeyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        if (expiry != null) {
+            Cache.super.updateAll(
+                    updates, retainedKeyFunction,
+                    updateFunction);
+            return;
+        }
+        delegate.updateAll(
+                updates,
+                lookupKeyFunction,
+                retainedKeyFunction,
+                (update, current) -> {
+                    T next = updateFunction.apply(update, unwrap(current));
+                    return next == null ? null : newEntry(next);
+                });
+    }
+
+    @Override
     public synchronized <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         purgeExpired();
         delegate.keys().forEach(key -> computeIfPresent(key, modifierFunction));
     }
 
     @Override
-    public synchronized <T> T get(Object id) {
-        return unwrap(currentEntry(id));
+    public <T> T get(Object id) {
+        if (expiry == null) {
+            return unwrap(delegate.get(id));
+        }
+        synchronized (this) {
+            return unwrap(currentEntry(id));
+        }
     }
 
     @Override
-    public synchronized <U, T> void supplyAll(
+    public <U, T> void supplyAll(
             Iterable<? extends U> lookups,
             Function<? super U, ?> keyFunction,
             BiConsumer<? super U, ? super T> valueConsumer) {
@@ -330,8 +361,11 @@ public class AdaptiveObjectCache implements Cache {
         Objects.requireNonNull(keyFunction, "keyFunction");
         Objects.requireNonNull(valueConsumer, "valueConsumer");
         if (expiry != null) {
-            Cache.super.supplyAll(
-                    lookups, keyFunction, valueConsumer);
+            synchronized (this) {
+                Cache.super.supplyAll(
+                        lookups, keyFunction,
+                        valueConsumer);
+            }
             return;
         }
         delegate.supplyAll(
@@ -343,8 +377,14 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     @Override
-    public synchronized boolean containsKey(Object id) {
-        return (expiry == null || !expireIfNeeded(id)) && delegate.containsKey(id);
+    public boolean containsKey(Object id) {
+        if (expiry == null) {
+            return delegate.containsKey(id);
+        }
+        synchronized (this) {
+            return !expireIfNeeded(id)
+                   && delegate.containsKey(id);
+        }
     }
 
     @Override

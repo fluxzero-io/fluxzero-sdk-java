@@ -237,8 +237,35 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             Iterable<? extends U> updates,
             Function<? super U, ? extends K> keyFunction,
             BiFunction<? super U, ? super V, ? extends V> updateFunction) {
+        updateAll(
+                updates, keyFunction, keyFunction,
+                updateFunction, false);
+    }
+
+    /**
+     * Applies ordered updates while retaining a stable key only when an update inserts a new mapping.
+     * Repeated keys are applied in iteration order.
+     */
+    public <U> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ? extends K> lookupKeyFunction,
+            Function<? super U, ? extends K> retainedKeyFunction,
+            BiFunction<? super U, ? super V, ? extends V> updateFunction) {
+        updateAll(
+                updates, lookupKeyFunction,
+                retainedKeyFunction, updateFunction,
+                true);
+    }
+
+    private <U> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ? extends K> lookupKeyFunction,
+            Function<? super U, ? extends K> retainedKeyFunction,
+            BiFunction<? super U, ? super V, ? extends V> updateFunction,
+            boolean transientLookupKey) {
         Objects.requireNonNull(updates, "updates");
-        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(lookupKeyFunction, "lookupKeyFunction");
+        Objects.requireNonNull(retainedKeyFunction, "retainedKeyFunction");
         Objects.requireNonNull(updateFunction, "updateFunction");
         boolean updated = false;
         synchronized (this) {
@@ -247,7 +274,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             }
             for (U update : updates) {
                 updated = true;
-                K key = keyFunction.apply(update);
+                K key = lookupKeyFunction.apply(update);
                 Entry<V> current = entries.get(key);
                 long expectedMappingVersion = mappingVersion;
                 V next;
@@ -260,12 +287,28 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
                     }
                     throw e;
                 }
+                if (transientLookupKey) {
+                    key = lookupKeyFunction.apply(update);
+                }
                 if (next == null) {
-                    removeEntry(key, manual, true);
+                    removeEntry(
+                            current == null
+                            || !transientLookupKey ? key
+                                    : retainedKeyFunction.apply(update),
+                            manual, true);
+                } else if (current == null
+                           || mappingVersion
+                              != expectedMappingVersion) {
+                    putEntry(
+                            transientLookupKey
+                                    ? retainedKeyFunction.apply(update)
+                                    : key,
+                            next);
                 } else {
                     updateEntry(
-                            key, current,
-                            expectedMappingVersion, next);
+                            key, current, next, update,
+                            retainedKeyFunction,
+                            transientLookupKey);
                 }
             }
         }
@@ -644,23 +687,24 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return true;
     }
 
-    private boolean updateEntry(
-            K key, Entry<V> current,
-            long expectedMappingVersion, V value) {
+    private <U> boolean updateEntry(
+            K key, Entry<V> current, V value,
+            U update,
+            Function<? super U, ? extends K> retainedKeyFunction,
+            boolean transientLookupKey) {
         long entryWeight = Math.max(
                 1L, weigher.applyAsLong(key, value));
         if (maxWeight == 0
             || entryWeight > maxEntryWeight
             || entryWeight > maxWeight) {
-            removeEntry(key, manual, false);
+            K retainedKey = transientLookupKey
+                    ? retainedKeyFunction.apply(update)
+                    : key;
+            removeEntry(retainedKey, manual, false);
             notifyEviction(
-                    key, value, entryWeight,
+                    retainedKey, value, entryWeight,
                     entryTooLarge);
             return false;
-        }
-        if (current == null
-            || mappingVersion != expectedMappingVersion) {
-            return putEntry(key, value);
         }
         long previousWeight = current.weight();
         current.replace(
@@ -669,7 +713,10 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         mappingVersion++;
         weight += entryWeight - previousWeight;
         if (orderedKeys != null) {
-            orderedKeys.put(key, key);
+            K retainedKey = transientLookupKey
+                    ? retainedKeyFunction.apply(update)
+                    : key;
+            orderedKeys.put(retainedKey, retainedKey);
         }
         trimToWeight(maxWeight, size);
         return true;

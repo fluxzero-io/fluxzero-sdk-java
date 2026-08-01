@@ -266,6 +266,26 @@ class MemoryAwareCacheSupportTest {
     }
 
     @Test
+    void orderedUpdateAllDerivesEachStableKeyOnce() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put("same", "old");
+        AtomicLong keyCalls = new AtomicLong();
+
+        cache.updateAll(
+                List.of("same", "added"),
+                key -> {
+                    keyCalls.incrementAndGet();
+                    return key;
+                },
+                (key, current) -> key);
+
+        assertEquals(2L, keyCalls.get());
+        assertEquals("same", cache.get("same"));
+        assertEquals("added", cache.get("added"));
+    }
+
+    @Test
     void orderedUpdateAllRetainsExactReplacementLruOrder() {
         MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
                 3, 1, (key, value) -> 1, null, MemoryPressureController.none(), null);
@@ -301,6 +321,58 @@ class MemoryAwareCacheSupportTest {
 
         assertEquals("old-final", cache.get("same"));
         assertEquals(9L, cache.weight());
+    }
+
+    @Test
+    void orderedUpdateAllNeverRetainsTransientLookupKeys() {
+        MemoryAwareCacheSupport<ReusableKey, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put(new ReusableKey("replace"), "old");
+        cache.put(new ReusableKey("remove"), "old");
+        ReusableKey lookup = new ReusableKey(null);
+        List<ReusableKey> removedKeys = new ArrayList<>();
+        cache.registerEvictionListener(event -> {
+            if (event.reason() == manual) {
+                removedKeys.add(event.key());
+            }
+        });
+
+        cache.updateAll(
+                List.of("replace", "add", "remove"),
+                lookup::use,
+                ReusableKey::new,
+                (id, current) -> switch (id) {
+                    case "replace" -> current + "-new";
+                    case "add" -> "added";
+                    default -> null;
+                });
+        lookup.use("mutated-after-batch");
+
+        assertEquals("old-new", cache.get(new ReusableKey("replace")));
+        assertEquals("added", cache.get(new ReusableKey("add")));
+        assertNull(cache.get(new ReusableKey("remove")));
+        assertEquals(List.of(new ReusableKey("remove")), removedKeys);
+    }
+
+    @Test
+    void rejectedTransientUpdatePublishesAStableKey() {
+        MemoryAwareCacheSupport<ReusableKey, String> cache = new MemoryAwareCacheSupport<>(
+                100, 3, (key, value) -> value.length(), null, MemoryPressureController.none(), null);
+        cache.put(new ReusableKey("reject"), "old");
+        ReusableKey lookup = new ReusableKey(null);
+        List<MemoryAwareCacheSupportEviction<ReusableKey, String>> evictions = new ArrayList<>();
+        cache.registerEvictionListener(evictions::add);
+
+        cache.updateAll(
+                List.of("reject"),
+                lookup::use,
+                ReusableKey::new,
+                (id, current) -> "too-large");
+        lookup.use("mutated-after-batch");
+
+        assertNull(cache.get(new ReusableKey("reject")));
+        assertEquals(new ReusableKey("reject"), evictions.getFirst().key());
+        assertEquals(entryTooLarge, evictions.getFirst().reason());
     }
 
     @Test
@@ -945,6 +1017,30 @@ class MemoryAwareCacheSupportTest {
     private static void fill(MemoryAwareCacheSupport<String, String> cache, String prefix, int count) {
         for (int i = 0; i < count; i++) {
             assertTrue(cache.put(prefix + i, "value"));
+        }
+    }
+
+    private static final class ReusableKey {
+        private String value;
+
+        private ReusableKey(String value) {
+            this.value = value;
+        }
+
+        private ReusableKey use(String value) {
+            this.value = value;
+            return this;
+        }
+
+        @Override
+        public boolean equals(Object candidate) {
+            return candidate instanceof ReusableKey other
+                   && java.util.Objects.equals(value, other.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hashCode(value);
         }
     }
 }

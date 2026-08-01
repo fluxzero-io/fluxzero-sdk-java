@@ -161,6 +161,29 @@ public interface Cache {
     }
 
     /**
+     * Applies an ordered group of updates using a possibly transient lookup key and a stable key for new entries.
+     *
+     * <p>The default implementation uses only {@code retainedKeyFunction}, preserving the ordinary cache contract for
+     * custom implementations. Caches that can distinguish lookup from insertion may override this method to avoid
+     * allocating a stable key when an existing entry is merely replaced. A lookup key must compare equal to its
+     * retained counterpart for the duration of the lookup and must never be retained by an implementation.</p>
+     *
+     * @param updates             ordered update values
+     * @param lookupKeyFunction   derives a key that may be reused after each lookup
+     * @param retainedKeyFunction derives the stable key to retain when an entry must be inserted
+     * @param updateFunction      applies an update to the current cached value
+     * @param <U>                 update value type
+     * @param <T>                 cache value type
+     */
+    default <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> lookupKeyFunction,
+            Function<? super U, ?> retainedKeyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        updateAll(updates, retainedKeyFunction, updateFunction);
+    }
+
+    /**
      * Applies the given modifier function to all values currently in the cache.
      * <p>
      * This is useful for bulk modifications, e.g. adjusting internal state after a system-wide change.

@@ -17,11 +17,13 @@ package io.fluxzero.sdk.persisting.repository;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class RepositoryCacheTest {
 
@@ -136,6 +138,35 @@ class RepositoryCacheTest {
             assertEquals(
                     "value",
                     reader.get("same"));
+        } finally {
+            delegate.close();
+        }
+    }
+
+    @Test
+    void orderedBulkUpdateDoesNotRetainItsReusableLookupKey() {
+        AdaptiveObjectCache delegate =
+                new AdaptiveObjectCache();
+        try {
+            RepositoryCache cache =
+                    new RepositoryCache(
+                            delegate, "model", "tenant");
+            cache.put("replace", "old");
+            cache.put("remove", "old");
+
+            cache.<Map.Entry<String, String>, String>updateAll(
+                    List.of(
+                            Map.entry("replace", "old-new"),
+                            Map.entry("add", "added"),
+                            Map.entry("remove", "removed")),
+                    Map.Entry::getKey,
+                    (update, current) ->
+                            "remove".equals(update.getKey())
+                                    ? null : update.getValue());
+
+            assertEquals("old-new", cache.get("replace"));
+            assertEquals("added", cache.get("add"));
+            assertNull(cache.get("remove"));
         } finally {
             delegate.close();
         }

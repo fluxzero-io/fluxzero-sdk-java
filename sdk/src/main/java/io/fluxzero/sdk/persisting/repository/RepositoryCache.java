@@ -156,10 +156,16 @@ final class RepositoryCache implements Cache {
         Objects.requireNonNull(keyFunction, "keyFunction");
         Objects.requireNonNull(updateFunction, "updateFunction");
         markWriteStarted();
+        CacheKey lookupKey =
+                new CacheKey(
+                        component, namespace, null);
         Object[] populatedValue = new Object[1];
         delegate.<U, T>updateAll(
                 updates,
-                update -> key(keyFunction.apply(update)),
+                update -> lookupKey.forId(
+                        keyFunction.apply(update)),
+                update -> key(
+                        keyFunction.apply(update)),
                 (update, current) -> {
                     T next = updateFunction.apply(update, current);
                     if (next != null && populatedValue[0] == null) {
@@ -308,16 +314,21 @@ final class RepositoryCache implements Cache {
     private static final class CacheKey {
         private final String component;
         private final String namespace;
-        private final Object id;
-        private final int hashCode;
+        private Object id;
+        private int hashCode;
 
         private CacheKey(String component, String namespace, Object id) {
             this.component = component;
             this.namespace = namespace;
+            forId(id);
+        }
+
+        private CacheKey forId(Object id) {
             this.id = id;
             int hash = Objects.hashCode(component);
             hash = 31 * hash + Objects.hashCode(namespace);
             this.hashCode = 31 * hash + Objects.hashCode(id);
+            return this;
         }
 
         private String component() {

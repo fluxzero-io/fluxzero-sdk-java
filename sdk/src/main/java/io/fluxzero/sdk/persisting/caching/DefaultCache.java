@@ -184,6 +184,17 @@ public final class DefaultCache implements Cache, AutoCloseable {
     }
 
     @Override
+    public <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> lookupKeyFunction,
+            Function<? super U, ?> retainedKeyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        delegate.updateAll(
+                updates, lookupKeyFunction,
+                retainedKeyFunction, updateFunction);
+    }
+
+    @Override
     public <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         delegate.modifyEach(modifierFunction);
     }
