@@ -542,6 +542,19 @@ fuse the SQL, removing the useful overlap. The changed feedback then produced mo
 Boundary count alone was therefore the wrong objective; future candidates must retain parallel physical inserts before
 the ordered atomic publication/commit boundary. The candidate was archived and fully reverted.
 
+### E572: PostgreSQL planning is not the missing event-insert time
+
+E572 ran the unchanged complete P4 route with batch JFR and PostgreSQL
+`pg_stat_statements.track_planning=on`. It verified all 4,194,304 results, stored model events and global events at
+412,297/s. Planning tracking makes this a diagnostic rather than a progress comparison.
+
+The run produced 988 global-event insert calls across 150 distinct multi-value statement shapes. Their weighted mean
+planning time was only **0.040 ms per call** and their mean PostgreSQL execution time was 0.514 ms. The corresponding
+Java/JDBC direct-insert boundary averaged **4.060 ms**. P4's fixed-shape state/stream CTE likewise used only 0.021 ms
+planning and 0.429 ms execution per call versus a 2.620 ms Java/JDBC boundary. Caching or normalizing query shapes can
+therefore recover at most a few hundredths of a millisecond; it cannot explain the measured client-side gap. The
+database setting was restored to `track_planning=off` immediately after collection.
+
 ## Current decision
 
 1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
@@ -567,6 +580,8 @@ the ordered atomic publication/commit boundary. The candidate was archived and f
 12. Do not fuse the direct global-event insert into the ordered P4 model statement. E570/E571 causally rejects it at
     -2.31% E2E because it removes existing insert parallelism, produces 26.3% more jobs and reduces mean job size by
     20.8%.
+13. Do not select statement-shape caching as P5: E572 measures only 0.040 ms mean planning against a 4.060 ms direct
+    event-insert boundary. Investigate measured SDK/model CPU and allocation pressure around the JDBC scheduling gap.
 
 ## Evidence
 
@@ -732,3 +747,8 @@ the ordered atomic publication/commit boundary. The candidate was archived and f
   `1c50427f81aefc51651533e08d583267589c14045cdba6e9b585d34d7f2ee96f`.
 - Reverted E570 candidate patch SHA-256:
   `087ff111abe919abc30dfda0c5e87b6cde18066803e0f90a4711e881a87891e1`.
+- E572 PostgreSQL-planning diagnostic log/JFR/summary/statement-output SHA-256:
+  `a8ef7fa6977f08af8730ea3a9cc1aaf0b3e70e983788c449a260be150b137de2`,
+  `82029cd6b0537ba37b6a42bf5fd4a950e263cf0f5f199d7600ade4cc80e29f03`,
+  `ddc0c2781af5e27127e65701900f75ba0623be45fbd6a2ddd407ac7e4478ce6a`,
+  `f0846d943d45866250924011516609c859e4adbb5ad384212a4cf6dc86273bba`.
