@@ -294,3 +294,57 @@ even the control turns 131,072 conflict-free updates into 37 serial atomic commi
 four to eight full commits would have radically more capacity than 37 partially filled commits. The next experiment
 must explain which ordered dependency releases each partial commit and whether the existing atomic lane can consume a
 larger already-arrived window without timers, reordered results or weakened durability.
+
+### E86 correction: publisher chunks do not define durable transaction windows
+
+E86 raised the existing SDK serialization chunk from its default to 65,536 while retaining the complete result route.
+It did not create the hypothesized two publisher waves because the canonical benchmark is a conflict-free streaming
+dispatcher: it initially fills distinct model slots and then releases each slot only when that command's ordinary
+result completes. Handler batches changed from 167 to 148 and model transactions remained exactly 37, while Runtime
+model-intake fragments increased from 2,103 to 2,909. Complete E2E fell from the adjacent E85 control's 150,339/s to
+136,377/s. Upstream serialization grouping therefore neither owns nor cheaply enlarges the atomic durability window.
+
+### E87-E91 correction: same-transaction preinsert still prolongs database residency
+
+E87 moved model-stream insertion onto the existing message-log insert executor. It used the same JDBC connection and
+transaction as event insertion, validation, state-head publication and commit. The existing single commit executor
+still finalized transactions in reservation order; rejection rolled back preinserted model rows and event rows
+together. At most two transactions could prepare concurrently. This removed the separate table, second copy and extra
+prewrite transaction tested by E84.
+
+Ungated E87 nevertheless drained partially filled model batches and changed 37 transactions into 123. E88 added an
+arrival-driven gate: a second batch could start only after 4,096 model jobs had arrived, or after the active transaction
+completed at low volume. E89 used the identical source with the feature disabled.
+
+| Atomic measurement | E89 P3 control | E88 gated preinsert | Change |
+| --- | ---: | ---: | ---: |
+| Complete dual-JFR smoke E2E | 141,923/s | **147,546/s** | **+3.96%** |
+| Packed transactions | 47 | 46 | comparable shape |
+| Mean packed transaction size | 2,789 | 2,849 | +2.2% |
+| Packed model-store lifetime | **16.397 ms** | 20.054 ms | **+22.30%** |
+| Event co-located final task | 7.463 ms | **4.161 ms** | -44.24% |
+| Model-stream insertion | 3.902 ms | 5.074 ms preinsert | +30.04% |
+| State lock | 2.032 ms | 2.250 ms | +10.73% |
+| State-head update | 1.226 ms | 1.769 ms | +44.29% |
+| Event direct insert | 3.163 ms | 4.126 ms | +30.45% |
+| Event transaction commit | 2.147 ms | 2.819 ms | +31.30% |
+
+The short profile therefore contained a plausible 3.96% route gain despite worse individual transaction residency. It
+was not discarded mechanically. E90/E91 immediately tested the complete fixed 1,048,576-command workload without a
+Runtime profiler. The apparent gain reversed decisively:
+
+| Qualifying full-route pair | P3 control | Gated preinsert | Delta |
+| --- | ---: | ---: | ---: |
+| E91 / E90 | **278,144/s** | 238,000/s | **-14.43%** |
+
+All exact command/result/event/model checks passed. Focused tests also proved overlapping preparation with ordered final
+tasks, atomic rollback of preinserted rows, packed idempotency and ordered public backlog completions. Those contracts
+do not rescue the capacity result: holding two write transactions open simultaneously increases lock, insert, state
+update and commit cost, and the longer canonical workload amplifies the damage. The full-route result rejects the
+candidate; the JDBC hook and bounded concurrent-backlog primitive were fully reverted.
+
+This closes parallelism implemented as multiple simultaneous PostgreSQL transactions, whether they hold complete model
+commits, separate invisible prewrites or same-transaction preinsert work. The next structural investigation must stay
+inside one accepted P3 transaction and explain how to remove physical work—particularly duplicate global-event and
+model-stream writes—before proposing production code. It must not infer capacity from shorter isolated latency or from
+another depth/timer variation.

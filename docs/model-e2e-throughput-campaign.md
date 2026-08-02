@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E84/E85: an invisible unlogged model prewrite cut the final model write section, but its extra transaction contended with event insertion; packed service rose **17.234 -> 21.859 ms** and complete E2E fell **150,339 -> 144,221/s** |
-| Next evidence target | move model-stream insertion into the existing message-log transaction's parallel pre-commit phase, then overlap only that immutable work at bounded depth while the existing commit executor retains strict atomic visibility order |
+| Latest causal diagnosis | E87-E91: preparing model-stream rows in a second still-uncommitted event transaction reduced its serial final task, but prolonged two simultaneous PostgreSQL transactions. A short dual-JFR smoke suggested +3.96%; the qualifying full route reversed that to **238,000 vs 278,144/s (-14.43%)**. Same-transaction atomicity does not make concurrent database residency free. |
+| Next evidence target | explain and reduce the work inside one accepted P3 model/event transaction—especially the duplicate event/model-stream physical writes—without a second transaction, weakened visibility, smaller durable batches or another queue/timer |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after the E84/E85 invisible-prewrite rejection on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after the E87-E91 same-transaction preinsert rejection on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -283,6 +283,7 @@ wall, allocation and lock profiles remain explanatory only and are never mixed n
 | E80-E83 | 2026-08-02 | Accepted P3 ordered model/event boundary | Bounded depth-2 packed pipeline, followed by arrival-driven minimum batch admission | Three 131,072-command candidate smokes and one adjacent dual-JFR depth-1 control; machine-readable hashes in [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv); detailed stage comparison in [`model-e2e-p3-route-anatomy.md`](performance-runs/model-e2e-p3-route-anatomy.md) | Reject and revert. Naive depth 2 proved real overlap (`max_active=2`) but fragmented 38 control transactions into 51 and ran 1.55% slower. A 4,096-job arrival gate preserved transaction shape (40 transactions, 3,277 average versus 38/3,449), yet model wall span changed only 0.872 -> 0.864 s while summed storage service rose 0.753 -> 0.935 s; complete E2E remained 1.31% lower. Parallel transaction submission merely contends on the same PostgreSQL write resources. Future parallelism must prewrite logically invisible immutable rows and retain one atomic ordered visibility boundary. All candidate code was reverted. |
 | E84/E85 | 2026-08-02 | Accepted P3 ordered model/event boundary | Copy model-stream blocks into an invisible unlogged table concurrently with event insertion, then atomically promote rows and advance the state head in the event transaction | Adjacent 131,072-command dual-JFR candidate/control smokes; exact complete-route checks and machine-readable hashes in [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv); stage distributions in [`model-e2e-p3-route-anatomy.md`](performance-runs/model-e2e-p3-route-anatomy.md) | Reject and revert. Final model insertion plus state update fell from 5.785 to **2.655 ms**, but the prewrite cost 9.994 ms and concurrent event work rose 7.934 -> 11.839 ms. Packed service increased 17.234 -> **21.859 ms** and complete E2E fell 150,339 -> **144,221/s**. Separate durable prewrite adds rather than removes PostgreSQL work; no production hardening is justified. |
 | E86 | 2026-08-02 | Accepted P3 canonical conflict-free producer | Preserve a 65,536-command publisher wave by raising the existing SDK serialization chunk | Adjacent E85 control and 131,072-command dual-JFR candidate; exact checks and hashes in [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) | Reject without code changes. The canonical producer replenishes model slots from completed ordinary results; it is not a two-wave publisher. Handler batches changed only 167 -> 148, model transactions stayed exactly 37, Runtime model-intake fragments rose 2,103 -> 2,909 and E2E fell 150,339 -> 136,377/s. Upstream serialization grouping does not own the durable boundary. |
+| E87-E91 | 2026-08-02 | Accepted P3 ordered model/event boundary | Preinsert model-stream blocks on the existing message-log insert executor using the same connection/transaction, allow at most two preparations, then run validation/state publication/commit in original reservation order | E87/E88/E89 adjacent 131,072-command dual-JFR smokes plus E90/E91 adjacent qualifying 1,048,576-command full-route candidate/control; focused transaction rollback, final-order, backlog completion-order and packed idempotency tests passed; hashes in [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) | Reject and revert. Ungated overlap fragmented 37 transactions into 123. A 4,096-job arrival gate restored 46 candidate versus 47 control transactions. It cut the serial co-located task 7.463 -> 4.161 ms but raised packed lifetime 16.397 -> 20.054 ms. The smoke showed +3.96%, yet the full canonical pair showed **238,000 vs 278,144/s (-14.43%)**. Longer simultaneous transactions damage the complete route; neither the bounded-backlog primitive nor the storage hook remains in production. |
 
 ## Diagnostic checkpoint D1 — result writer saturation
 
@@ -1019,10 +1020,16 @@ Runtime-collapsed/client-collapsed SHA-256 values are
     unprofiled capacity mechanism.
 13. E69 is retained as explanatory allocation evidence only. Before another candidate, instrument repeated canonical
     full-result runs into the route-wide stage timing and critical-path model defined above.
-14. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+14. E70-E79 establish the full-route anatomy, accept P3 and reclassify command tracking residence as downstream
+    backpressure rather than scan or notification service. P3 remains the immutable accepted base.
+15. E80-E83 close overlapping complete model transactions; E84-E85 close a separate invisible durable prewrite;
+    E87-E91 close preparing model rows in a second open transaction of the same ordered store. All three forms increase
+    PostgreSQL contention or transaction residence, even when ordering, atomicity and batching are preserved. E86 also
+    proves publisher serialization chunks do not control durable model transaction grouping.
+16. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-15. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+17. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
