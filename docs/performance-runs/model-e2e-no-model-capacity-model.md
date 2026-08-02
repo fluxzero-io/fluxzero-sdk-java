@@ -231,3 +231,28 @@ consume the entire gain. E344-E346 therefore reject **64 rows**, not row-based f
 causal screen: cap at 32 rows so fusion can fill underfull logical jobs without ever making a normal physical insert
 larger than the existing 4,096-message maximum. All three runs persisted exactly 1,048,576 results and zero
 model/global events. Persistent host load still makes their absolute throughput non-qualifying.
+
+## E347-E350: row-limit boundary screen and fusion rejection
+
+E347 tested the conservative 32-row boundary. It left the normal 4,096-message physical ceiling intact, but 469
+logical result jobs became 465 transactions: only four commits disappeared because two average ~19-row jobs do not
+fit together. Its 554,725/s E2E result is host-loaded and non-qualifying; the structural transaction count already
+rejects 32 rows as incapable of exposing material headroom on this route.
+
+The 48-row bracket did fuse a useful number of logical jobs while limiting ordinary physical transactions to 6,144
+messages:
+
+| Run | Candidate | E2E | Logical result jobs | Physical result transactions | Result writer | Commit capacity | Insert capacity |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| E348 | 48 rows, 8 MiB | 588,137/s | 417 | 380 | 0.642M/s | 0.728M/s | 0.373M/s |
+| E349 | Legacy reverse control | 644,235/s | 425 | 425 | 0.680M/s | 0.712M/s | 0.432M/s |
+| E350 | 48 rows, 8 MiB | 649,223/s | 433 | 386 | 0.708M/s | 0.780M/s | 0.541M/s |
+
+The candidate geometric mean is 617,926/s, **4.084% below** the bracketed control. Together with neutral row64 and
+structurally ineffective row32, this rejects transaction fusion as a production candidate on the current complete
+route. The mechanism is correct and does reduce commits, but a fused physical transaction performs its larger insert
+on one connection. Commit amortization does not compensate for the insert parallelism and feedback it sacrifices.
+The uncommitted Runtime prototype must therefore be reverted rather than checkpointed. A next writer design must
+retain parallel inserts and attack ordered commit/publication without merely coalescing those inserts onto fewer
+connections. Every E347-E350 run persisted exactly 1,048,576 results and zero model/global events; persistent host load
+still makes absolute throughput non-qualifying.
