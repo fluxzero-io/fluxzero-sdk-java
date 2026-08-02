@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E179-E193 exclude eager derived model-stream locator maintenance as the current E2E limiter. E181 measured **3,917.617 ms** aggregate locator service running beside the measured route. The strongest bounded candidate cut locator batches **27 -> 6**, locator write service **710.184 -> 361.417 ms** and cursor service **134.758 -> 35.299 ms**, yet its matched full-route geometric mean was **249,059/s** versus **255,905/s** control: **-2.68%**. The saved work was parallel; changed feedback also fragmented model commits. |
-| Next evidence target | use the E179-E181 fundamental service split to rerank the still-serial event/model durability boundary; require a mechanism that improves natural transaction formation as well as local SQL service before changing production code |
+| Latest causal diagnosis | E194-E200 explain and close SDK ready-commit transport sizing. At 256 the SDK supplied 5,363 unsplit reservations to 211 Runtime model transactions while the Runtime queue was empty after 95% of drains. Raising the chunk to 8,192 reduced reservations to 1,329 and transactions to 190, but delayed registration-to-send **1.80 -> 6.75 ms** and lost **16.09%** geometrically on the matched full route. Lowering to 128 raised reservations to 8,798 and packed service **3.882 -> 4.009 s**. The current 256 boundary is the balance between early handler/commit overlap and storage fixed cost. |
+| Next evidence target | retain early 256-commit preparation/transport and the accepted P3 transaction shape; select a storage representation or visibility mechanism that removes serial event/model service without holding competing write transactions open or delaying the SDK batch |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E193 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E200 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1410,6 +1410,46 @@ back into natural model transaction formation. Removing roughly three quarters o
 capacity. The entire coalescing candidate is reverted and receives no checkpoint. Retain locator segmentation as an
 observer, but do not optimize this cluster again without new evidence that it has moved onto the critical path.
 
+### Diagnostics E194-E200 — ready-commit chunk 256 owns useful overlap
+
+E194 added JFR-only reservation-shape fields to the immutable P3 route. Across exactly 1,048,576 commits, 5,363
+unsplit SDK transport reservations arrived in 211 Runtime model transactions. A transaction contained 4,970 jobs and
+25.4 reservations on average. No reservation was split. Runtime queue depth after taking the next transaction was zero
+at p95 (maximum 375 in only the tail), proving that ordinary Runtime drains already consume essentially all arrived
+work. The 14.086-ms mean model queue is residence behind the active transaction, not a hidden waiting backlog that the
+Runtime can simply merge.
+
+E195 raised the existing ready-commit transport chunk from 256 to 8,192 without removing any stage or changing
+durability, results or correctness. It reduced SDK reservations 5,363 -> 1,329, Runtime transactions 211 -> 190 and
+raised average transaction size 4,970 -> 5,519. Event-store service improved only 3,374.089 -> 3,339.252 ms; complete
+packed service improved 3,881.734 -> 3,821.431 ms. Correlated fundamental intervals expose the counter-cost:
+
+| Fundamental interval | 256 (E194) | 8,192 (E195) | Change |
+| --- | ---: | ---: | ---: |
+| handler registration -> transport send | **1.804 ms** | **6.754 ms** | +274.4% |
+| transport send -> Runtime intake | 0.981 ms | 1.872 ms | +90.9% |
+| Runtime intake -> model enqueue | 0.350 ms | 0.569 ms | +62.5% |
+| Runtime model queue | 8.565 ms | 8.086 ms | -5.6% |
+| Runtime model durability | 17.644 ms | 19.206 ms | +8.9% |
+| registration -> durable model commit | **29.344 ms** | **36.488 ms** | +24.3% |
+| registration -> result barrier | **41.081 ms** | **49.062 ms** | +19.4% |
+
+The balanced non-JFR full-route screen rejects the apparently positive profiled result:
+
+| Pair | 256 control | 8,192 candidate | Change |
+| --- | ---: | ---: | ---: |
+| E197 / E196 | **280,250/s** | 225,993/s | **-19.36%** |
+| E198 / E199 | **274,276/s** | 239,478/s | **-12.69%** |
+| geometric mean | **277,247/s** | 232,638/s | **-16.09%** |
+
+E200 tested the symmetric 128 boundary under dual JFR. It raised reservations 5,363 -> 8,798 and complete packed
+service 3,881.734 -> 4,008.779 ms. Its 225,416/s versus E194's 219,898/s is profile variation contradicted by the
+mechanism, not acceptance evidence. Together with the earlier E55 1,024/4,096 screen, these runs causally close chunk
+sizing: larger chunks delay the early commit overlap promised by `ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH`; smaller
+chunks spend more on fixed transport/storage work. Keep 256. A future structural design may transmit explicit batch
+boundaries while retaining early chunks, but E58 and E87-E91 already reject merely extending or overlapping ordinary
+open PostgreSQL transactions. It must use a different physical visibility mechanism, not another timer or chunk size.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1509,10 +1549,13 @@ observer, but do not optimize this cluster again without new evidence that it ha
 33. E179-E193 rerank P3, split the model store and derived locator, and exclude the locator as the current limiter.
     Pinned bounded catch-up cuts locator batches 77.78% and its largest service components 49-74%, but loses 2.68%
     geometrically on the matched full route while fragmenting model transactions. Production source is reverted.
-34. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+34. E194-E200 prove the Runtime normally has no arrived work left to merge and close SDK ready-commit chunk sizing.
+    Raising 256 to 8,192 reduces transport reservations and Runtime transactions, but loses 16.09% full-route E2E by
+    delaying handler-to-commit overlap; 128 increases reservations and storage service. Keep 256.
+35. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-35. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+36. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
