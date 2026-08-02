@@ -10,8 +10,8 @@ mistaken for a production regression again.
 | --- | --- |
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
 | Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
-| Current production candidate | None; transaction fusion and independent per-log parallel-commit budgets are rejected |
-| Current focus | Test whether one shared commit budget can retain E351's result-writer queue removal without E353's eight-lane PostgreSQL contention; require a durable ordered publication design before production acceptance |
+| Current production candidate | None; transaction fusion and both independent and shared parallel-commit budgets are rejected |
+| Current focus | Prototype a no-delay two-stage storage wave: bounded parallel serialization first, then drain all ready work into large parallel-insert transactions whose commits finish before the next wave is formed |
 | Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
 
 ## Route and immutable behavior
@@ -129,3 +129,8 @@ commit lanes behind an ordered visibility frontier remove most writer queue resi
 shape, but E2E stays flat. Enabling four independent lanes on both command and result logs in E353 permits eight
 concurrent commits, increases commit duration and loses E2E. The diagnostic frontier remains uncommitted; a continuation
 must share one global commit budget and add durable recovery rather than tune independent per-log lane counts.
+
+E354-E356 close that continuation. One shared four-worker pool still loses 15.15% to its immediate legacy control as
+both commit and insert duration rise; the trailing candidate is invalidated by a host/handler collapse and cannot rescue
+an already negative mechanism. The publication-frontier source is rejected. The next candidate returns backpressure to
+transaction-wave formation while allowing only serialization—not already-open transactions—to run ahead.

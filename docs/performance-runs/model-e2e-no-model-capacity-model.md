@@ -287,3 +287,27 @@ E271-E272 already exercised that exact no-delay shape with two durable-completio
 and local writer capacity to 1.095M/s, while intact E2E was neutral-lower. The healthy E275-E279 bracket subsequently
 showed that a hard N=2 cap loses useful insert overlap. Do not rebuild that cap merely to recreate natural batching;
 the unresolved design problem is retaining insert overlap while reducing or parallelizing the ordered commit cost.
+
+## E354-E356: one commit budget shared by command and result
+
+E354 replaced E353's independent four-lane pools with one four-worker pool shared only by command and result; metrics,
+schedules and every other store kept the legacy path. The mechanism worked as wired: mean command/result writer queue
+residence fell to 4.507/4.815 ms. The immediate same-binary E355 control nevertheless won 620,962/s to 526,859/s
+(**-15.15%**). Shared concurrency lengthened command/result commits from 3.382/3.292 to 3.818/4.109 ms and direct
+inserts from 4.554/4.486 to 5.127/5.971 ms. Removing queue residence therefore moved more work into PostgreSQL
+contention and lengthened the command consumer cycle.
+
+E356 attempted the reverse candidate but is excluded from comparison: its measured phase collapsed to 286,220/s while
+the command tracker spent 125.855 ms mean in handler/storage completion, despite faster local writer operations. The
+machine still had sustained `kernelmanager_helper`, ColorSync and virtualization load and was not qualifying for any
+absolute claim. The clean adjacent E354/E355 mechanism comparison is already negative; the shared-pool continuation is
+rejected and its in-memory-frontier source must be reverted. Do not tune lane count: legacy already permits one command
+and one result commit concurrently, while four total workers add database contention.
+
+The next design target is an ordered two-stage storage wave, not another commit-lane setting. Parallel bounded CPU
+serialization may run ahead into ordered slots. Once the current storage wave has fully committed, the writer drains
+everything already ready, divides that wave over a bounded number of large transactions, inserts those transactions
+in parallel and commits them in log order. The writer never sleeps and never forms the next transaction wave while the
+current one is incomplete. PostgreSQL cannot commit inserts from multiple connections as one ordinary transaction, so
+the wave necessarily has one commit per insert transaction; the experiment must report both insert parallelism and
+physical commit count.
