@@ -125,3 +125,10 @@ Before implementing a storage protocol, measure on a fresh healthy intact E2E pr
 
 Only if that measurement shows a useful multi-job publication opportunity should a high-water or equivalent prototype
 be built. The prototype must then win on the complete durable no-model route before it can become a checkpoint.
+
+E336 validates the readiness instrumentation itself on a short isolated result-appender smoke. At commit start, 104
+snapshots contained 14.019 contiguous ready jobs on average (p50 15, p95/max 17); at commit completion the mean was
+14.865 (p50 16, p95/max 18). All 524,288 warm-up plus measured messages were durable with zero ordering or overlap
+violations. The host was heavily loaded and the isolated route lacks complete E2E feedback, so its 2.213M/s throughput
+is explicitly non-qualifying. E336 proves only that the event semantics work and that multi-job readiness can exist;
+the intact route must still establish its relevant distribution.
