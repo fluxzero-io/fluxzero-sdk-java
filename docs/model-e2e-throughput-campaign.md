@@ -1483,6 +1483,20 @@ measure the exact share of full reusable rows versus partial boundary rows on th
 large may a version-negotiated fast path bypass the redundant Runtime decode/copy/re-encode cycle; filters, byte limits,
 positions, ordering, legacy clients and partial rows must retain their current behavior.
 
+E203 performs that reachability check by re-aggregating E194's intact-route store and tracking observers. Command
+tracking scanned exactly 16,777,216 source messages to deliver 1,048,576 commands; result tracking scanned and delivered
+1,048,576. The underlying JDBC store was invoked only 189 times and scanned 156,181 messages, while the in-memory
+`CachingMessageStore` served the rest. JDBC produced only 78,268 of the 2,097,152 delivered command/result messages
+(3.7%); approximately 99.1% of all source scan visits were cache-backed. The persisted-block protocol is therefore
+rejected for this canonical limiter before implementation. It may still matter operationally for cold consumers, but
+cannot materially establish progress toward this campaign's full-route target.
+
+The same profile keeps the active capacity ranking unambiguous: the one ordered packed model/event lane spent 3.882 s
+on exactly 1,048,576 commits (about 270k/s service capacity). Command/result cache scanning consumed 1.031 s and 0.928 s
+in aggregate but overlapped across trackers; the 40-ms command interval remains downstream residence, not that service.
+The next production hypothesis must structurally relieve the ordered model/event durability lane while retaining the
+natural complete coordinator batches that E100-E106 showed must not be split.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1588,10 +1602,12 @@ positions, ordering, legacy clients and partial rows must retain their current b
 35. E201-E202 close persisted compression removal and level tuning. NONE grows stored blocks 18-35x and loses 56.99%
     profiled E2E; level -1 merely exchanges compression CPU for 14-25% more stored bytes and 7-14% more insert service.
     Keep ZSTD level 1. Measure whether complete stored blocks can instead be reused across native tracking transport.
-36. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+36. E203 rejects that block-transport idea for the canonical route before implementation: RAM cache serves about 99.1%
+    of source scans and JDBC supplies only 3.7% of delivered command/results. Retain it as a cold-consumer idea only.
+37. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-37. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+38. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
