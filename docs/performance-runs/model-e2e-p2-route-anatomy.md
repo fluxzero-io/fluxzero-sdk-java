@@ -47,6 +47,38 @@ E72 log/JFR/summary SHA-256 values are respectively
 `4fb75d5ec951590cad895be8298c77e9ff75674b78173cbf1badd2bce0beaa74`. E71 remains the full-workload distribution
 table; E72 validates its boundaries and direction with the lower-allocation observer.
 
+### E73 correction: C06 is predominantly demand residence
+
+E73 retained the complete 1,048,576-command route and split C06 without removing or bypassing any stage. Exact model,
+event and ordinary-result checks passed, as did all 375 fully staged processing traces. Its profiled throughput was
+263,353/s; this is diagnostic-only and does not replace P2's canonical throughput anchor. The log, JFR and summary
+SHA-256 values are respectively `575dc911850168afc03c04301bd0f8bfd117903864a473ddab6694867c486ecf`,
+`ff1701f38150aaeb1726456a68f369a4dc5b74aa8c0d223af70056e8cff07e3a` and
+`85229f5b46472014fdb7b01a9b27f754bc2ff9a2998a8c756cad1cf68b51628a`.
+
+| Atomic C06 measurement | n | mean ms | p50 ms | p95 ms | p99 ms | max ms | Exact meaning |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Correlated command update -> batch resolved | 374 | **41.621** | 38.448 | **86.780** | 129.027 | 177.187 | Residence from the command's store update until some concrete tracking batch contains it. This can include waiting for new SDK demand and is not local Runtime service. |
+| Notification -> drain worker queue | 370 | 0.077 | 0.018 | 0.263 | 1.021 | 4.198 | Time from the first pending store notification until the notification-drain worker starts. |
+| Notification-drain callback service | 370 | 0.017 | 0.001 | 0.004 | 0.038 | 5.231 | Time to snapshot waiting trackers and synchronously visit the notification-selected subset. Most snapshots contain no waiting tracker. |
+| Selected tracker serial wait | 26 | 5.758 | 2.757 | 20.971 | 22.217 | 22.217 | Time a notification-selected tracker waits behind trackers visited earlier by the same drain. This is real, but rare. |
+| Selected tracker resolution service | 26 | 1.159 | 0.379 | 3.953 | 8.008 | 8.008 | Position resolution, scan, filter, batch assembly and future completion for a notification-selected tracker. |
+| All command message scans | 852 | 0.480 | 0.235 | 2.057 | 4.677 | 19.067 | Every command `scanBatch`, including the dominant immediate read-demand path; average source scan was 19,691 messages. |
+| Command delegate-store scans | 76 | 2.876 | 2.108 | 8.668 | 19.037 | 19.037 | Cache misses that reached `JdbcMessageStore`; fetch-executor queue was only 0.017 ms mean / 0.048 ms p95. |
+
+Only 26 notification-selected tracker resolutions were observed beside 852 total command scans. `DefaultTracker`
+deliberately completes one ordered batch before issuing the next read; therefore most commands arrive while their
+segment tracker is still processing the preceding batch. Their C06 clock continues until that tracker asks for and
+receives its next batch. The 41.621-ms residence is primarily downstream backpressure reflected at the command log,
+not 41.621 ms of notification, JDBC, filtering or batch-assembly service.
+
+The scan work is amplified by segmented tracking—16,776,972 source-message visits for 1,048,576 commands—but consumed
+about 0.409 seconds of aggregate measured scan service and supplied 41.034M source-message tests/s. It is useful future
+headroom evidence, not the present 0.263M/s route boundary. Parallel notification fan-out could reduce the 26 selected
+trackers' tail, but E73 rejects it as the next throughput candidate because it cannot plausibly explain the full-route
+gap. The correct way to reduce C06 residence is to raise the capacity of the ordered downstream model pipeline that
+delays new read demand.
+
 ## How to read this report
 
 - Every time is milliseconds and describes one sampled command, not CPU service summed across the workload.
@@ -288,9 +320,10 @@ prove that PostgreSQL locks, conflict resolution and atomic model/event visibili
 
 ## Current route-wide reading
 
-1. **Command tracking resolution is the largest newly isolated wait.** C06 averages 40.641 ms and owns most of the
-   corrected 44.728-ms durable-command-to-tracker interval. Its next trace must split scheduler handoff, pending-request
-   wake-up, store read/scan, filtering and batch assembly before production code is selected.
+1. **Command tracking residence is a backpressure symptom, not the largest local service cost.** E73 split C06's
+   41.621 ms into a 0.077-ms notification-worker queue, a 0.480-ms average command scan and a rare 26-event
+   notification-selected path. Most commands wait until their SDK tracker completes its preceding ordered batch and
+   asks for more work. Do not optimize the broad C06 number independently of complete-route capacity.
 2. **The model/event boundary is the clearest capacity smoking gun.** It has one durability lane, 0.295M/s service
    capacity at 0.250M/s observed load, a 130-job queue and 41.168-ms queue p95. Parallel preparation/insertion with an
    ordered commit baton is now the leading structural hypothesis, subject to an intact-route proof that batch sizes do
@@ -311,14 +344,8 @@ prove that PostgreSQL locks, conflict resolution and atomic model/event visibili
 
 ## Next evidence, before implementation
 
-The next intact-route profile should add atomic markers inside C06:
-
-- `onUpdate` entry -> notification-drain executor start;
-- drain start -> pending request selected/woken;
-- request evaluation -> store read/scan start and completion;
-- scan completion -> filtering/byte limiting/batch assembly completion.
-
-In parallel at the design level, the model-store experiment must be specified as a batch-preserving pipeline, with
+E73 completed the requested C06 split and excluded notification scheduling, scan service and delegate-read queueing as
+the primary route limiter. The model-store experiment must now be specified as a batch-preserving pipeline, with
 explicit measurements for transaction count/size, number of prepared transactions, insert overlap, commit order,
 conflict/retry/idempotency outcomes, queue bytes and result publication order. The first implementation is justified
 only when the trace or a minimal intact-route mechanism shows available E2E capacity without repeating E42's batch
