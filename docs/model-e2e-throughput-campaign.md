@@ -13,15 +13,16 @@ experiments were rejected.
 | `route` | stored/tracked command -> automatic `@Apply` -> atomic independent-model event/state commit -> globally published event -> durable ordinary result -> tracked caller completion |
 | `accepted_base` | P3: SDK production source `e94188b5876` with JFR-only observer source `9f14c8c25d9`, Runtime `9d0bed30b643` |
 | Accepted matched throughput | 341,679/s candidate geometric mean versus 328,161/s P2 control; **+4.12%**, exact paired-bootstrap 95% CI **+2.49% to +6.02%** |
+| Fresh accepted-base pin | E205-E207 reran exact P3 in the original embedded, genuinely profiler-free Java 25 topology at 346,152 / 345,935 / 331,432 commands/s; geometric mean **341,103/s** |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
-| Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
+| Best non-qualifying ceiling | E238 observed **973,617/s** and E238/E240/E241 geometrically sustain **935,683/s** with two independent SDK sender clients on the durable command/result no-apply route. This preserves ordinary results but deliberately performs zero model applies and publishes zero model/global events. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E194-E200 explain and close SDK ready-commit transport sizing. At 256 the SDK supplied 5,363 unsplit reservations to 211 Runtime model transactions while the Runtime queue was empty after 95% of drains. Raising the chunk to 8,192 reduced reservations to 1,329 and transactions to 190, but delayed registration-to-send **1.80 -> 6.75 ms** and lost **16.09%** geometrically on the matched full route. Lowering to 128 raised reservations to 8,798 and packed service **3.882 -> 4.009 s**. The current 256 boundary is the balance between early handler/commit overlap and storage fixed cost. |
-| Next evidence target | retain early 256-commit preparation/transport and the accepted P3 transaction shape; select a storage representation or visibility mechanism that removes serial event/model service without holding competing write transactions open or delaying the SDK batch |
+| Latest causal diagnosis | E208 partitions the qualifying full-route consumer cycle. E209-E242 then correct an under-warmed no-apply ceiling and remove the unfair one-client driver constraint. At 942,391/s with two real SDK clients, the shared serial result JDBC writer provides 1.018M/s active service, is **92.6% utilized**, has p95 queue residence **20.754 ms** and reaches 15 queued batches. This is the strongest current supporting limiter evidence, not a qualifying model-route result. |
+| Next evidence target | reproduce the shared result-writer saturation on the complete model/event/result route with a fair multi-client driver; partition its preparation, parallel inserts and ordered commit costs before selecting production code, while retaining the accepted P3 transaction shape |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E200 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E242 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -64,8 +65,10 @@ Unless an experiment explicitly investigates one of these variables, both sides 
 | Event-sourcing sessions | 2 |
 | Model-load measurement | false |
 | JVM heap | `-Xms8g -Xmx8g` |
+| Canonical process topology | SDK client and embedded Runtime in one JVM; external two-JVM runs are diagnostics unless a new baseline is explicitly established |
+| Runtime Java | OpenJDK 25 for the benchmark and Runtime (`sdk`/`common` retain Java 21 bytecode compatibility but execute on Java 25) |
 | Database | PostgreSQL 18.3, Docker container `fluxzero-codex-s1-postgres`; record the current Docker host port per run |
-| Benchmark driver SHA-256 | `1b85bb6ec7ce53d3e4565bf3f8dc07edef57228c2a41e1344bf7c97e3ea22feb` |
+| Benchmark driver SHA-256 | `a0976b25a6de68812776b8c9dad02c5e519198a22a008efa36bcdbeb2f01f442` |
 
 Each run prints the complete configuration, uses a newly created benchmark schema and retains its log hash. The run
 record also captures source commits, dirty-diff hashes, artifact hashes, Java version, host load, thermal/power state and
@@ -109,7 +112,9 @@ from canonical non-profiled acceptance throughput. The report must contain:
 
 P2's first complete instance is
 [`model-e2e-p2-route-anatomy.md`](performance-runs/model-e2e-p2-route-anatomy.md). The machine-readable registry remains
-the operational source for every individual invocation.
+the operational source for every individual invocation. The later diagnostic ceiling that preserves the durable
+command/result route while replacing model apply with a typed no-op handler is documented separately in
+[`model-e2e-no-apply-ceiling-anatomy.md`](performance-runs/model-e2e-no-apply-ceiling-anatomy.md).
 
 ## Acceptance protocol
 
@@ -126,7 +131,8 @@ Functional and throughput evidence are separate gates:
 5. p95/p99 latency, allocation, retained memory, queue growth, database work and batch shape are checked for a displaced
    bottleneck or resource regression. A local hotspot reduction alone is not an E2E throughput win.
 6. JFR and async-profiler runs are compared only with equivalently profiled controls. Their absolute throughput is not
-   mixed with non-profiled runs.
+   mixed with non-profiled runs. Process topology is equally strict: embedded and external-Runtime runs never share a
+   throughput baseline.
 7. Only a confirmed improvement advances the accepted baseline and earns a performance checkpoint commit. Neutral or
    slower candidates are reverted or left uncommitted, and their lesson is recorded below.
 
@@ -1497,6 +1503,59 @@ in aggregate but overlapped across trackers; the 40-ms command interval remains 
 The next production hypothesis must structurally relieve the ordered model/event durability lane while retaining the
 natural complete coordinator batches that E100-E106 showed must not be split.
 
+### Diagnostics E205-E242 — hot no-apply ceiling and fair client topology
+
+E204 was reserved during an artifact-identity audit that failed before measurement; it produced no throughput result
+and is not represented as a run. E205-E207 first pinned the immutable accepted P3 production route in the original
+embedded, genuinely profiler-free Java 25 topology at 346,152/s, 345,935/s and 331,432/s: geometric mean 341,103/s.
+This confirms that P3 itself still occupies the accepted 340k/s band.
+
+E208 then split the complete command-consumer cycle rather than inferring service from the earlier 40-ms broad
+tracking interval. Its mean 60.433-ms residence consists of 16.420 ms durability, 12.376 ms post-commit, 11.683 ms
+synchronous position persistence, 8.510 ms commit transport/queue, 8.147 ms sibling/batch tail, 2.847 ms handler
+compute and only 0.080 ms next-read scheduling. The old 40-ms command tracking figure was downstream residence created
+by consumer backpressure, not tracking scan service.
+
+E209-E242 answer a separate supporting question: the maximum intact command/result route capacity when a typed explicit
+handler still deserializes each command but returns `void`, performing zero model applies and publishing zero model or
+global events. Every observation verifies the exact durable result count and zero event counts. The first 65,536-warmup
+measurements averaged only about 0.612M/s; they were not a real ceiling. Without a production change, 1M warm-up reached
+0.729M/s, 10M warm-up reached 0.768M/s, and two long single-client controls reached 0.775M/s and 0.780M/s.
+
+The benchmark's one sender thread was then treated as client-local load generation rather than shared Runtime capacity.
+Two independent SDK clients—each with its own command/result WebSockets, request map, tracker and completion chain, but
+sharing exactly the same global 65,536 in-flight limit—ran three 10M/10M observations at 973,617/s, 930,168/s and
+904,559/s. Their geometric mean is **935,683/s**. The 7.63% spread means 973,617/s is retained as a real observation,
+not a stable pin. Three clients reached 905,716/s; extra clients are not assumed to scale indefinitely.
+
+E242's corrected batch-only JFR explicitly disables all per-request trace events and lands inside that control band at
+942,391/s. It exposes the first shared stage that converges on route throughput:
+
+| No-apply shared stage | Active service capacity | Route utilization | Queue evidence | Interpretation |
+| --- | ---: | ---: | --- | --- |
+| serial command JDBC store | 1.342M/s | 70.2% | p95 10.672 ms; max depth 6 | meaningful headroom |
+| **serial result JDBC store** | **1.018M/s** | **92.6%** | **mean 10.784 ms; p95 20.754 ms; max depth 15** | **strongest current shared limiter evidence** |
+| result JDBC commit phase | 1.280M/s | 73.6% | contained by the writer | commit is substantial but does not explain all writer service |
+| SDK result gateway | 2.507M/s | 37.6% | p95 queue 2.502 ms | not limiting |
+| result tracking scan | 1.494M/s summed service with two active trackers | concurrent | each client scans/filters the global result log | overhead, but not the first saturated serial lane |
+
+The single-client active sender chain is remeasured hot at 0.954M commands/s, while its result completion chain is
+1.691M results/s. Both are per-client service facts, not aggregate Runtime ceilings. Independent non-chunked request
+callbacks have no global completion-order contract: only chunks and intermediate responses within one request require
+ordering, which `ResponseCallback` already enforces per request. The existing global SDK response chain is therefore a
+legitimate later candidate, but its hot service capacity and the two-client topology show that it is not the present
+shared limiter.
+
+E213-E221 also reject making the SDK result worker await the real `STORED` acknowledgement. Although that diagnostic
+formed larger result batches and raised local result-store service, four balanced unprofiled pairs were about 1.3%
+slower geometrically and p50 latency worsened from roughly 50-52 ms to 67-73 ms. The candidate changed feedback rather
+than increasing intact-route capacity and was fully reverted.
+
+The complete tables, exact segment semantics, artifacts and corrections are in
+[`model-e2e-no-apply-ceiling-anatomy.md`](performance-runs/model-e2e-no-apply-ceiling-anatomy.md). No production
+optimization follows directly from this ablation. First reproduce and partition the result-writer pressure on the
+complete model/event/result route with the fair multi-client driver; that qualifying route remains the truth.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1604,10 +1663,19 @@ natural complete coordinator batches that E100-E106 showed must not be split.
     Keep ZSTD level 1. Measure whether complete stored blocks can instead be reused across native tracking transport.
 36. E203 rejects that block-transport idea for the canonical route before implementation: RAM cache serves about 99.1%
     of source scans and JDBC supplies only 3.7% of delivered command/results. Retain it as a cold-consumer idea only.
-37. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+37. E205-E208 re-pin P3 at 341,103/s and replace the old broad command-tracking interpretation with a complete consumer
+    cycle split. Keep tracking residence as a feedback gauge; preserve detailed fundamental timing throughout the
+    campaign.
+38. E209-E242 correct the no-apply ceiling from an under-warmed 0.612M/s to 0.768-0.780M/s for one hot client and a
+    0.936M/s geometric mean for two. The complete model route remains qualifying truth; the incomplete route only
+    establishes base-route headroom and candidate evidence.
+39. Reproduce E242's 92.6%-utilized serial result JDBC writer on the complete multi-client model route. Partition
+    writer preparation, parallel insert work, ordered commit and queue feedback before implementing anything; do not
+    retry the rejected SDK `STORED`-await mechanism.
+40. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-38. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+41. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
