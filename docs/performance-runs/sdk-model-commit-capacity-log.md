@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run | `commit-packed-update` | **0.539M/s** in the P5 profile versus 0.502M/s same-binary control | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh E633/E635 P5 replication **424,357/s** | `commit-packed-update` | **0.539M/s** in the P5 profile versus 0.502M/s same-binary control | Sole acceptance gate for the 500k target |
 | Synthetic tracked SDK apply -> model + event durability | **834,806/s** without JFR; **846,441/s** with batch JFR | `commit-packed-update` | **0.995M/s** in E589 | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
@@ -817,6 +817,48 @@ not raise full-route capacity. The delay apparently earns back its latency by im
 formation; it must not be characterized as one millisecond of pure serial waste. No production code changed and the
 zero-delay setting is rejected as P6.
 
+### E626-E635: split model result codecs and reject streaming update CBOR
+
+E626 first corrected a trace ambiguity without changing the route. SDK WebSocket decode events now distinguish
+ordinary results, `CommitModelsResult` and `TrackModelUpdatesResult`. The SDK-inclusive synthetic tracked-model route
+then showed that commit acknowledgements were already cheap, while the large model-cache update pages still used
+generic Jackson CBOR:
+
+| Synthetic profile | Throughput | Update pages | Runtime update-page encode | SDK update-page decode | Active model-store capacity |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| E626 generic CBOR control | 796,999/s | 504 | 2.177 ms | 3.191 ms | 0.934M/s |
+| E627 streaming CBOR diagnostic | **824,814/s** | 582 | **1.628 ms** | **2.335 ms** | **0.946M/s** |
+
+The candidate remained on the ordinary CBOR object contract: old generic decoders could read its bytes and its
+decoder could read old generic bytes. It manually streamed the nested update and target fields instead of asking
+Jackson to construct the same shape reflectively for every update. Local encode/decode means improved by 25-27%, and
+the synthetic route improved 3.49%. However, it also produced 15% more update pages with fewer updates per page. That
+is a route-feedback change, not a free CPU removal.
+
+The first full-route alternating sequence looked positive but was not accepted on that preliminary evidence:
+
+| Preliminary sequence | Generic control | Streaming candidate | Effect |
+| --- | ---: | ---: | ---: |
+| E628 / E629 | 413,064/s | 420,390/s | +1.77% |
+| E631 / E630, reverse order | 420,535/s | 423,782/s | +0.77% |
+| Geometric mean | 416,783/s | **422,083/s** | **+1.27% apparent** |
+
+Adversarial wire review then found that the hand-written decoder needed to preserve the response timestamp and any
+configured Jackson string/enum behavior. Those contracts were restored, with a direct fast path for the standard
+mapper. The fully compatible implementation was recompiled and tested in a new candidate/control/candidate/control
+sequence:
+
+| Final sequence | Generic P5 control | Compatible streaming candidate | Effect |
+| --- | ---: | ---: | ---: |
+| E633 / E632 | 423,796/s | 414,600/s | -2.17% |
+| E635 / E634, reverse order | 424,918/s | 414,950/s | -2.35% |
+| Geometric mean | **424,357/s** | 414,775/s | **-2.26%** |
+
+Every run verified exactly 4,194,304 ordinary results, model events and global events. The final full route therefore
+overrules the faster codec and synthetic diagnostic. Both streaming implementations were removed, the wire format and
+production CBOR path remain unchanged, and this is not P6. The retained improvement is only the JFR result-type
+classification, which makes future SDK-inclusive traces causally clearer.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -867,6 +909,9 @@ zero-delay setting is rejected as P6.
     but reject the change at -3.95% full E2E and +4.7% active model-store time.
 21. Preserve the one-millisecond ordered model-backlog collection delay. E622-E625 reject `PT0S` at -0.85% matched
     full E2E. It is a batching input, not one millisecond that can simply be subtracted from store service time.
+22. Do not replace `TrackModelUpdatesResult` generic CBOR with the tested manual streaming codec. E626/E627 prove the
+    local codec and synthetic route can improve, but the fully compatible final E632-E635 sequence rejects it at
+    -2.26% full E2E. Faster per-page work changed tracking feedback and page formation; canonical E2E remains truth.
 
 ## Evidence
 
@@ -1156,3 +1201,21 @@ zero-delay setting is rejected as P6.
   `2fd9f4f32e2aaf50120ca0bb30c35f39fe9d18d9286b27158f9fe2c1a0981397`,
   `2c5f189f3e70e4fcfe0143eccbf486b5c068d8dc38b76bd61361d971d99f62be`,
   `d3023231e0a16321b3f84538c5f5060bc14a0765f74cdb24d0bb32d852b853b6`.
+- E626 generic model-result codec profile log/JFR/summary SHA-256:
+  `557acb9b3dba8933f9bac8b8be092a1513347076e2d2a35bb495ce6d632e0e77`,
+  `6a1ec6097191fb066a5ab229df3f7b8276316336e15036dd8ca91b38460a486a`,
+  `207a03a98a8dad621a832adc7501a1704616894c2af1ef5a61b89f8c05d8f9bd`.
+- E627 streaming model-update CBOR profile log/JFR/summary SHA-256:
+  `3ba2c35d17db78d60cc9a1cc7d1bd50708e55346b48f331ae3a43814b31dc93b`,
+  `8fd4bffd3c38818e0ce446dd2538a9167142a00e16fe694c025bbff190ab156f`,
+  `9b1aabe20f2c89c3c135b588d6f40c17c57695625cfd22319cd9110bbb71afea`.
+- E628-E631 preliminary generic/candidate/candidate/generic log SHA-256:
+  `714d693c5993cf109b7f37f517c70b4e08edde68bf7e112357aaf39a88a46ca2`,
+  `b2437c667f7151c502f29675e8e4f59cd216970ab04d5122e6d4b565f40b363e`,
+  `de912aeefc8afe9ca7fb50925d33b16b1ad1b8f9c7f4969b2a2d774bee922470`,
+  `53c2e2c0d64de4c816eaa421532f6f2095be634ca35cff05deac242175f1e318`.
+- E632-E635 final compatible-candidate/control/candidate/control log SHA-256:
+  `d4df0c102736537329e70bb39de9148d6511dcc59a3cf74005e040548d15a091`,
+  `b724a354a17ae12d51e63f8e95225a05990945d94cd1a2d0b885f8ea41f770e9`,
+  `c39c693fe2f233627612650ee7a00cbe9a1e5b6a7838d51bf62950630fc3a685`,
+  `a903e1424c39156dc9a73a05b6fa31047a975de8159b5215a6be47d17ddbe548`.
