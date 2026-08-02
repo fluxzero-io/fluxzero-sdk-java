@@ -215,34 +215,70 @@ It transactionally truncates and rebuilds only this unlogged derived locator; it
 The existing stream-tail fallback remains available while the locator catches up. Focused migration tests and the
 complete Runtime reactor (681 Runtime tests plus benchmark module) pass.
 
-### E531 fundamental active store phases
+### E531 composite and fundamental active store phases
 
-All values are milliseconds per packed model/event transaction. The store total is composite; the rows below it are
-fundamental non-queue phases inside that transaction. Percentiles are per transaction and therefore must not be added
+All values are milliseconds per packed model/event transaction. `Co-located model task` is a composite of the model
+rows below it; it is not the global-event insert. Percentiles are per transaction and therefore must not be added
 across columns.
 
-| Segment | Exact meaning | Mean | p50 | p95 | p99 | max |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Packed model-store total | Ordered active transaction work after queue admission | **16.891** | 15.835 | **29.817** | 53.159 | 63.595 |
-| Co-located global-event write | Insert and commit the globally visible event rows in the same durability operation | **6.952** | 5.168 | **15.685** | 46.749 | 57.410 |
-| Insert model stream blocks | Persist per-model event-stream blocks/envelopes | **4.018** | 2.843 | **9.004** | 43.048 | 51.315 |
-| Lock current model state | Read and lock the durable state heads used for conflict validation | 1.692 | 1.019 | 4.360 | 9.563 | 25.969 |
-| Advance model state | Persist new state indexes, sequences and current heads | 1.143 | 0.766 | 3.782 | 6.376 | 8.061 |
-| Ensure model types | Validate/cache the model-type registry rows | 0.005 | 0.005 | 0.009 | 0.026 | 0.031 |
-| Unattributed active residual | Locator plus remaining transaction administration not separately instrumented in E531 | **3.081** | n/a | n/a | n/a | n/a |
+| Kind | Segment | Exact meaning | Mean | p50 | p95 | p99 | max |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Composite | Packed model-store total | Ordered active work from accepted batch through durable publication | **16.891** | 15.835 | **29.817** | 53.159 | 63.595 |
+| Composite | Co-located model task | Model callback inside the eventlog transaction; contains the model rows below | **6.952** | 5.168 | **15.685** | 46.749 | 57.410 |
+| Fundamental | Global-event direct insert | Insert the globally visible event rows | **5.184** | 4.110 | **12.141** | 17.496 | 20.458 |
+| Fundamental | Database commit | Commit the joint event/model transaction | 1.760 | 1.087 | 4.788 | 23.984 | 27.413 |
+| Fundamental | Insert model stream blocks | Persist per-model event-stream blocks/envelopes | **4.018** | 2.843 | **9.004** | 43.048 | 51.315 |
+| Fundamental | Lock current model state | Read and lock the durable state head used for conflict validation | 1.692 | 1.019 | 4.360 | 9.563 | 25.969 |
+| Fundamental | Advance model state | Persist the new durable state index/current head | 1.143 | 0.766 | 3.782 | 6.376 | 8.061 |
+| Fundamental | Stage event rows | Move any staged event rows into the transaction | 0.056 | 0.001 | 0.026 | 2.146 | 2.647 |
+| Fundamental | Ensure model types | Validate/cache the model-type registry rows | 0.005 | 0.005 | 0.009 | 0.026 | 0.031 |
+| Residual | Not separately named in E531 | Preparation, publication and transaction administration | **3.026** | n/a | n/a | n/a | n/a |
 
 The separate admission queue wait averaged 12.178 ms (p95 26.733 ms); it is not active service time and is excluded
-from the 16.891 ms total. The next profile must split the 3.081 ms residual before choosing production code. The two
-largest already named model-specific phases are the co-located global-event write and model stream-block insert, but
-their size alone does not yet prove the next mechanism.
+from the 16.891 ms total.
+
+### E532: split preparation, completion and the asynchronous locator
+
+E532 uses the accepted compact-locator code plus diagnostic batch observers. It completed the exact full route at
+351,947/s and measured 0.432M/s active store capacity. This is 1.8% below E531 and is treated as a profile, not a new
+throughput pin.
+
+| Segment | Execution relation | Mean | p50 | p95 | p99 | max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Validate packed fast path | Before durable store starts | 0.840 | 0.574 | 2.234 | 3.289 | 3.968 |
+| Collect event references | Before durable store starts | 0.111 | 0.047 | 0.379 | 0.609 | 0.927 |
+| Encode packed model stream | Runs concurrently with event-store admission/preparation | **1.502** | 0.767 | 4.267 | 7.299 | 22.084 |
+| Publish packed boundary | After durable commit, before next ordered batch | 0.328 | 0.227 | 0.869 | 1.119 | 2.143 |
+| Cache packed heads | Async completion work | 0.900 | 0.688 | 2.317 | 3.477 | 6.746 |
+| Complete packed results | Seven-way async completion chunks | 0.530 | 0.226 | 1.472 | 2.839 | 49.507 |
+
+These means cannot all be added to store time because stream preparation deliberately overlaps the event transaction.
+They explain most of E531's formerly unnamed residual without selecting a production change.
+
+The derived locator is a separate background pipeline that competes for the same PostgreSQL resources:
+
+| Locator segment | Mean | p50 | p95 | p99 | max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Read authoritative source blocks | 2.189 | 1.479 | 5.095 | 7.306 | 51.262 |
+| Decode source blocks/model hashes | 0.454 | 0.364 | 1.149 | 2.562 | 3.134 |
+| Write locator partitions | **9.650** | 8.337 | **19.029** | 36.746 | 39.019 |
+| Advance and commit locator cursor | **2.545** | 1.930 | **6.729** | 9.971 | 12.818 |
+
+There were 147 write rounds for 1,093 compact source blocks: only 7.4 blocks per round on average. Each non-empty
+round currently creates up to eight parallel partition transactions and, only after they all commit, one additional
+cursor transaction. This is the next concrete mechanism to test: reduce commit amplification while preserving the
+complete locator and immediate no-timer behavior. Parallel inserts are not assumed to be dispensable; the full E2E
+route must decide whether fewer commits outweigh less insert parallelism for these very small locator batches.
 
 ## Current decision
 
 1. Runtime `87327b71` is the new accepted production checkpoint; full E2E matched gain is +5.28%.
-2. Use E531 and its 0.431M/s active store capacity as the new model-route profile baseline.
+2. Use E531 as the throughput profile baseline and E532 as its detailed phase split; active store capacity is
+   0.431-0.432M/s.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
-5. Split the E531 residual and remeasure the named fundamental phases before implementing the next model-store change.
+5. Test locator commit amplification with the full functionality intact and no collection timer; do not assume that
+   serial locator inserts beat the current parallel writes.
 6. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 
@@ -322,3 +358,6 @@ their size alone does not yet prove the next mechanism.
 - E531 log/JFR/summary SHA-256: `5a863492fc6f322accbec758d659f10fda264580f1783aeaca1cf318a6441946`,
   `f1a0a910b8e58c853257633fbdc1a5e2d7bce69f68c0abb38c50b33cdf94aee7`,
   `0980b2ec6d59d446c5e948304d14b97c8317005c09c9a3e7a32914277acb0f61`.
+- E532 log/JFR/summary SHA-256: `9f6d176b6e7340d7d6b441eafd008bcad77f4105528a6b85d5d1db38ae2cb0e2`,
+  `196ba3afd02f9397e54c26901d048cfe46b07c76c767e91966a45223cf7ade20`,
+  `d4edfdf304e7dab91e326bf4b1e81e4611ff7ce837f738a62a0ca91290d2275b`.
