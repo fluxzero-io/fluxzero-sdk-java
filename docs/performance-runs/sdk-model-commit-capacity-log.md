@@ -285,6 +285,38 @@ The candidate is **-5.88%** against its adjacent control. Commit amplification a
 optimization target: for the current rows and PostgreSQL topology, partition insert parallelism is worth more than the
 eight saved commits. The production implementation remains unchanged.
 
+### E535-E540: atomic state advance is real but too small for its complexity
+
+E532 measured two fundamental state-table roundtrips inside every ordered packed model/event transaction: a
+`select ... for update`, followed after the stream-block insert by an `update`. The E535 candidate replaced those with
+one conditional `update ... returning`. It still acquired the state-row lock, required the reserved first state index
+to match the durable head and time index, required every read state to be durable, returned the erasure and graph
+flags, and remained in the same transaction so later failures rolled the early advance back. The full
+`JdbcModelCommitStoreTest` passed 101/101 before performance qualification.
+
+| Variant | Non-JFR runs | Geometric mean | Matched effect |
+| --- | --- | ---: | ---: |
+| Separate lock + update control | E536 353,849; E539 365,074/s | **359,418/s** | control |
+| Atomic advance candidate | E535 358,021; E540 366,849/s | **362,408/s** | **+0.83%** |
+
+The profile pair proved that the intended work disappeared rather than merely moving observer labels:
+
+| Fundamental segment | E538 control mean | E537 candidate mean | Effect |
+| --- | ---: | ---: | ---: |
+| State lock/read | 1.362 ms | - | removed |
+| State head update | 1.062 ms | - | removed |
+| Atomic state advance + lock | - | 1.841 ms | replacement |
+| Total state-row work | **2.424 ms** | **1.841 ms** | **-24.1% / -0.583 ms** |
+| Stream-block insert | 3.394 ms | 3.362 ms | effectively unchanged |
+| Co-located model task | 5.923 ms | 5.237 ms | -11.6% |
+| Profile E2E | 344,755/s | 352,313/s | +2.19% |
+
+This is a causally valid local improvement, but the full qualifying route gained only 0.83% across the balanced
+non-JFR pairs. The candidate also needs a more complicated conditional SQL predicate and a fallback read solely to
+preserve existing conflict diagnostics. That trade is not checkpoint-worthy at this effect size. It remains reverted;
+production still uses the simpler separate lock and update. The next selected fundamental cost is the approximately
+3.4 ms packed stream-block insert, followed by the remainder of the co-located model callback.
+
 ## Current decision
 
 1. Runtime `87327b71` is the new accepted production checkpoint; full E2E matched gain is +5.28%.
@@ -293,8 +325,10 @@ eight saved commits. The production implementation remains unchanged.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
-   Return to the active ordered model/event transaction and validate its largest fundamental roundtrips.
-6. Accept production work only through matched full command -> model -> event + result runs with correctness and read
+6. Preserve the separate state lock/update for now. Their atomic replacement saved 24.1% locally but only 0.83% in
+   balanced full-route runs, which does not justify the added SQL and failure-path complexity.
+7. Split and optimize the packed stream-block insert next; it remains approximately 3.4 ms in both matched profiles.
+8. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 
 ## Evidence
@@ -378,3 +412,13 @@ eight saved commits. The production implementation remains unchanged.
   `d4edfdf304e7dab91e326bf4b1e81e4611ff7ce837f738a62a0ca91290d2275b`.
 - E533/E534 log SHA-256: `c76451ed6fb4935a963601e7a2ba659149ad10306de7099fd7a7f5e5d5133d95`,
   `70be14ca9b61a8f6e32dd08e09e59a32ca255e0cffa57b47db2718da840e3ff1`.
+- E535/E536 log SHA-256: `f9d17a0e65cc250c561cf640e575982a11f8fb9ebe0fb2456fa386b048f6d222`,
+  `a3c71258ab838952c161b442ab366d35288428dfa33f81957f1051ad3332b721`.
+- E537 log/JFR/summary SHA-256: `419dad97523a29cf960ccc59696d94e1ce2771912c2df38ecc8646680d5f438a`,
+  `7c6ee0e6ed36013941ee7b1af706310ec6d5a380793afaf431499395377e0a56`,
+  `e4dd36c100499df8efa9fda76e1814f678d6af21d9654fc342259bf3930fe380`.
+- E538 log/JFR/summary SHA-256: `31d442be518f41a5502094a17d4b48350b9a4f4ad5a31dcd09881cd11953a7c9`,
+  `afd7913bee41cd5dfd38214ed533a7e60542b999bd73b5e483c883c8ef78bbbb`,
+  `ae705c61b7e21c3abe2252f287874356f4693e56d6e11031e174bea4813c3ce7`.
+- E539/E540 log SHA-256: `97cd9e25b0363fb2c916a5077a82b64f9f5f65e341e06bfb832255ed0fd45ccb`,
+  `c5c4f90d908c8dc487dc6b069fc3d068574c915d665a6a6ad27e62f0ff55b742`.
