@@ -348,3 +348,35 @@ commits, separate invisible prewrites or same-transaction preinsert work. The ne
 inside one accepted P3 transaction and explain how to remove physical work—particularly duplicate global-event and
 model-stream writes—before proposing production code. It must not infer capacity from shorter isolated latency or from
 another depth/timer variation.
+
+### E92 correction: accepted P3 has no replacement Java smoking gun
+
+E92 reran the exact fixed 1,048,576-command, ordinary-result route after every E87-E91 production change had been
+reverted. Simultaneous measured-phase async-profiler CPU recordings observed both JVMs. Throughput was 237,458/s under
+profiling and every command, model update, global event and durable ordinary result was verified; this is a profile,
+not a canonical comparison.
+
+Inclusive clusters overlap because one sample can belong to transport, tracking and storage at once:
+
+| Inclusive CPU cluster | SDK | Runtime |
+| --- | ---: | ---: |
+| WebSocket route | 27.49% | 24.73% |
+| tracking route | 21.82% | 21.62% |
+| message store | n/a | 19.42% |
+| modeling / model store | 19.86% | 10.57% |
+| ordinary-result route | 16.41% | n/a |
+| compression | 4.48% | 13.99% |
+| PostgreSQL driver/COPY | n/a | 5.81% |
+| GC | 5.08% | 8.34% |
+| waits | 20.50% | 24.77% |
+| metadata plus trace observer | 8.93% | 0.10% |
+
+The metadata cluster on the SDK is predominantly the enabled sampled-route observer and is therefore excluded from
+production candidate selection. Compression remains real CPU demand, but E60 and E66 already rejected the credible
+codec and level changes on canonical E2E. The remaining CPU is broad and overlapping rather than one removable Java
+hotspot. E92 therefore reinforces—not replaces—the route timeline: one accepted P3 model/event transaction still
+performs the duplicate global-event and model-stream physical representation before the visibility head can advance.
+The next candidate must remove or share that physical work inside the same atomic transaction.
+
+Artifact identities are recorded in
+[`model-e2e-run-registry.csv`](model-e2e-run-registry.csv) under `E92-PROFILE`.
