@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **421,981/s** best run | `commit-packed-update` | **0.497M/s** active ordered-store capacity in long P4 profile E566 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **421,981/s** best run | `commit-packed-update` | **0.497-0.509M/s** active ordered-store capacity in long P4 profiles E566/E571 | Sole acceptance gate for the 500k target |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
@@ -513,12 +513,42 @@ about 49 compressed physical rows per event job. Its slower insertion induces la
 damage, but does not improve E2E. The candidate patch was archived as diagnostic evidence and fully reverted; P4
 remains the clean production state.
 
+### E570-E571: model/event SQL fusion removes useful insert parallelism
+
+E570 tested whether the already compressed global-event rows could join P4's state advance and model-stream insert in
+one data-modifying CTE. The candidate preserved one JDBC transaction, conditionally inserted neither event nor stream
+rows when the state predicate rejected, retained the checked erasure fallback, and completed the existing future only
+after the real commit. Its direct-row ownership and rollback contract plus the model retry/erasure contracts passed
+146/146 focused `JdbcMessageStoreTest` and `JdbcModelCommitStoreTest` cases with the feature enabled.
+
+The immediate same-binary long profile pair nevertheless rejected the mechanism:
+
+| Measurement | E570 fused model + event | E571 P4 control | Fusion effect |
+| --- | ---: | ---: | ---: |
+| Full SDK E2E | 403,544/s | **413,086/s** | **-2.31%** |
+| Active ordered-store capacity | 0.487M/s | **0.509M/s** | **-4.3%** |
+| Model/event jobs | 888 | **703** | **+26.3%** |
+| Commands per job | 4,723 | **5,966** | **-20.8%** |
+| Combined model/event CTE | 4.828 ms | n/a | Candidate-only boundary |
+| Parallel direct event insert | n/a | **4.507 ms** | Control-only, overlaps before commit lane |
+| P4 state/stream CTE | n/a | **2.517 ms** | Control-only, ordered callback |
+| Complete co-located callback | 4.921 ms | **2.527 ms** | **+94.7%** |
+| PostgreSQL commit | 2.527 ms | **2.102 ms** | **+20.2%** |
+
+The apparently separate 4.507 ms event insert and 2.517 ms P4 statement in the control are not additive serial costs.
+`JdbcMessageStore` starts direct event inserts on its insert executor before each job reaches the ordered commit lane,
+so inserts for several storage jobs can overlap. E570 deferred that work into the one ordered callback in order to
+fuse the SQL, removing the useful overlap. The changed feedback then produced more, smaller jobs and more commits.
+Boundary count alone was therefore the wrong objective; future candidates must retain parallel physical inserts before
+the ordered atomic publication/commit boundary. The candidate was archived and fully reverted.
+
 ## Current decision
 
 1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
    with a best complete-route observation of 421,981/s.
-2. Use E566 as the current long storage profile. The ordered model/event store shows 0.497M/s active capacity, with
-   5.649 ms event preparation, 2.720 ms fused state/stream work and 2.075 ms commit per job.
+2. Use E566 and its fresh same-behavior control E571 as the current long storage profiles. The ordered model/event
+   store shows 0.497-0.509M/s active capacity; these derived rates vary with natural transaction shape and are not E2E
+   ceilings.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
@@ -534,6 +564,9 @@ remains the clean production state.
    validation proportional to the affected path.
 11. Do not replace the conditional event-block multi-value insert with binary COPY at the current physical row shape;
     E568/E569 causally rejects it at -2.29% E2E and +50.9% direct-insert time.
+12. Do not fuse the direct global-event insert into the ordered P4 model statement. E570/E571 causally rejects it at
+    -2.31% E2E because it removes existing insert parallelism, produces 26.3% more jobs and reduces mean job size by
+    20.8%.
 
 ## Evidence
 
@@ -689,3 +722,13 @@ remains the clean production state.
   `f0c0e7add1de4681a856a84e898297e43eef6f3b61efc7ce00a6747a9aa2b5fe`.
 - Reverted E568 candidate patch SHA-256:
   `43ffe626f2131c08c84a79021b23741921abfea851a3e45d55769945d70ffce0`.
+- E570 model/event SQL-fusion candidate log/JFR/summary SHA-256:
+  `9c5964243062d06cfde00aed7d0fdc6eed3e20d28103489754a011a73c3c81d3`,
+  `6961479b41c5e1d967fe076f5f12894e119bf6ada2c7a67e5d184f788256e9c4`,
+  `91349c863c65640d02f294387be353851ce14cd8f1c3596e45e9732ad71e2f00`.
+- E571 same-binary P4 control log/JFR/summary SHA-256:
+  `607f33a063bd7930507f8e52c9751a4088a6dc5202056d3159e3d5f9d67156fc`,
+  `9bf7b26aaa094a624385ac002d61a42d18d63b3c67d4b97c43b17420f1b11c67`,
+  `1c50427f81aefc51651533e08d583267589c14045cdba6e9b585d34d7f2ee96f`.
+- Reverted E570 candidate patch SHA-256:
+  `087ff111abe919abc30dfda0c5e87b6cde18066803e0f90a4711e881a87891e1`.
