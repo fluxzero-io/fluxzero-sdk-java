@@ -105,6 +105,42 @@ candidates reported `possible-duplicate`; no shape, policy, read-set, cache-head
 Forcing `possibleDuplicate=false` would change retry/idempotency correctness and is forbidden. Improving the direct API
 would require a separately designed idempotency mechanism and is not selected ahead of the canonical 500k target.
 
+## E493-E507: transaction-count cap rejected after clean BAAB
+
+E459 showed that canonical E2E occasionally formed packed model transactions above 30,000 jobs and that their
+transaction cost grew nonlinearly. E493-E503 therefore screened the Runtime's existing, no-delay
+`fluxzero.maxModelCommitBatchSize` override. This cap only limits how many already available jobs one backlog drain
+takes; it introduces no timer or deliberate wait. The independent 512-MiB byte cap remained unchanged.
+
+The first, chronologically separated comparisons looked promising:
+
+| Setting | Non-JFR runs | Geometric mean | Apparent effect versus nearby 65k controls |
+| --- | --- | ---: | ---: |
+| 65,536 control | E497 344,128; E503 342,911/s | 343,519/s | control |
+| 16,384 | E500 357,110; E502 351,765/s | 354,427/s | +3.18% |
+| 8,192 | E495 356,989; E496 356,949/s | 356,969/s | +3.73% versus E494/E497 |
+| 4,096 | E499 330,368/s | n/a | clearly worse |
+
+The profiles confirmed that the cap worked mechanically. E501 at 16,384 had no transaction above 16,384 jobs,
+mean 6,722 jobs, 16.872 ms mean active storage, 0.398M/s active store capacity and a 32.860 ms p95 queue wait.
+E498 at 8,192 had mean 6,394 jobs, 17.935 ms active storage, 0.357M/s active store capacity and a 66.685 ms p95
+queue wait. Neither profile reported durability or correctness failures. These measurements support the transaction
+shape hypothesis, but do not by themselves prove E2E gain.
+
+Before checkpointing, the proposed 16,384 default was rebuilt from Runtime `7ac06794` in a clean worktree with no
+observer or benchmark-source changes. `JdbcModelCommitStoreTest` passed 99/99 and `./mvnw -B install` passed, after
+which the exact full route was run as a tightly adjacent BAAB comparison on one binary:
+
+| Setting | Clean runs | Geometric mean | Matched effect |
+| --- | --- | ---: | ---: |
+| 16,384 candidate | E504 343,323; E507 354,537/s | **348,885/s** | **-0.12%** |
+| 65,536 property control | E505 355,395; E506 343,304/s | **349,297/s** | control |
+
+This clean BAAB result explains the earlier apparent improvement as time/host correlation rather than a causal
+production gain. The default change was reverted and is not a checkpoint. The useful retained result is methodological:
+transaction count materially changes store shape, but 16,384 does not raise canonical E2E on the clean production
+binary. Future work must target the measured model-store work itself rather than tune this cap further.
+
 ## Current decision
 
 1. Use the low-level SDK update route as a fast secondary check for physical Runtime/wire changes.
@@ -137,3 +173,22 @@ would require a separately designed idempotency mechanism and is not selected ah
   `1aa6ca48d0aae84169c4933c24ec3e2827cbf412703acf011355c90a2336a9f5`.
 - E492 log: `/private/tmp/model-e2e-e492-sdk-assert-apply-packed-diagnostic.log`, SHA-256
   `d0657567d0bd4226a246e56dbdc36be266d786e1c83de34e6895b6f1612e77d5`.
+- E493-E497 log SHA-256: `4e4fc7b19387844eaca026095a5a4735b5e0c0be2b8604e4ee32ed73eda4c601`,
+  `cf1b1596b5f884090e0c948636205a95bc03fc289b60b01f87424343325c117a`,
+  `3f289ac9ce8e0f3b6d79c2f067ca1020d089d6805bfc35e4bda8553528ad3ee3`,
+  `a019e7b5dbd307cc16c9df16ee3d0d57a782dcc108d2f933ca03e9f2cf43f6f6`,
+  `37d6cfae23fa2483ae0372b8c8139c1db142c8636dd4444ac28f8abbc6a2633d`.
+- E498 log/JFR/summary SHA-256: `6429526f0b4736e88aba77ad424678ad6a8c2265d730965ddc09229c2482aa73`,
+  `3d41384c8f1178643d237d9c6e32cd151aba58ae48616be4902822302a14db07`,
+  `8a0e0073d1c8a4f88b20e21c6a71e4ac3280bfe0a4a8c564be7b89972f55c8d5`.
+- E499/E500 log SHA-256: `35f21e414a8bcdf59224fdb17383ef0b4b470debd64ff71f17f4a4b6a681e57c`,
+  `166f570d55bea5896a83a2ed3052de5c028318b1005be1d22fc490292c0e1eea`.
+- E501 log/JFR/summary SHA-256: `a5d59d5839c9407b79c69af5562fd781a5c62dcdcb1a086062e8e2d14f28347e`,
+  `ca2a2922a6af1629fd00af9d4f0417c3fe322e148b39ae3fc4998923a6a5beed`,
+  `116b22dd17596f57fdd9004a0e4d287cbaeb48024325bea160b6e7f60f7c5882`.
+- E502/E503 log SHA-256: `a90a8940a1b18d06091582c63f366ba8ccd3530eb88b3d6566686acafa655f0e`,
+  `5c91a28e855d63871461836843c4cf29d3048bfd54ecbf27f00d18998067039b`.
+- E504-E507 clean log SHA-256: `0295b2d23e694976059ea05e42f62b220eaaecdfede24601a49cab1f473db592`,
+  `65fdd781ff5bb9c6ac328e5cd29f9c6634859095b331f359069bf87e2c3d6d6c`,
+  `d9e8d4f1971314405f8cb2ccfa4890c141f592599bf3898c2809c21ddc6dd266`,
+  `dda0ea3421eff57f9e09191d69b12bf11859fd74207df3d6891dce90b3fdf62c`.
