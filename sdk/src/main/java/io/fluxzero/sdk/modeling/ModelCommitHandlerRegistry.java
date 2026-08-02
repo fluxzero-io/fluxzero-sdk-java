@@ -205,11 +205,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         ModelCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY,
                         true);
         this.decoratedHandler = handlerDecorator.wrap(new CommitHandler(null));
-        this.commitBacklog = Backlog.forOrderedAsyncConsumer(
+        this.commitBacklog = Backlog.forAsyncConsumer(
                 this::startBatch,
                 MAX_COMMIT_BATCH_SIZE,
                 ignored -> 1L,
                 MAX_COMMIT_BATCH_SIZE,
+                1,
                 Duration.ofNanos(COMMIT_BATCH_COLLECTION_NANOS));
     }
 

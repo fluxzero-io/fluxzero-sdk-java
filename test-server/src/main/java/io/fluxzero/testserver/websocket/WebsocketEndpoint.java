@@ -213,8 +213,8 @@ public abstract class WebsocketEndpoint {
         activeSessionIds.add(sessionId);
         commandIdempotencyStore.registerSession(getClientId(session), sessionId);
         sessionBacklogs.put(sessionId, new SessionBacklog(
-                Backlog.forOrderedAsyncConsumer(results -> sendResultBatchAsync(session, results),
-                                                WEBSOCKET_RESULT_BATCH_SIZE), session));
+                Backlog.forAsyncConsumer(results -> sendResultBatchAsync(session, results),
+                                         WEBSOCKET_RESULT_BATCH_SIZE, 1), session));
 
         registerMetrics(new ConnectEvent(
                                 getClientName(session), getClientId(session), sessionId,

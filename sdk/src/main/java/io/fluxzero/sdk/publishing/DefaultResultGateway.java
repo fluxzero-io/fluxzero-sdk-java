@@ -88,11 +88,12 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     @Getter(lazy = true)
     private final GatewayClient gatewayClient = client.getGatewayClient(RESULT);
     @Getter(lazy = true)
-    private final Backlog<PreparedResponse> responseBacklog = Backlog.forOrderedAsyncConsumer(
+    private final Backlog<PreparedResponse> responseBacklog = Backlog.forAsyncConsumer(
             this::publishBatch,
             RESULT_BATCH_SIZE,
             response -> 1L,
             RESULT_BATCH_SIZE,
+            1,
             Duration.ofNanos(RESULT_BATCH_COLLECTION_NANOS));
 
     @Override

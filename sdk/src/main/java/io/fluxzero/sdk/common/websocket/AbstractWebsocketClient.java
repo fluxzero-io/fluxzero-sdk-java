@@ -438,11 +438,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private Backlog<Request> requestBacklog(String sessionId, WebsocketSession session) {
         return sessionBacklogs.computeIfAbsent(
                 sessionId,
-                id -> Backlog.forOrderedAsyncConsumer(
+                id -> Backlog.forAsyncConsumer(
                         batch -> sendBatchAsync(batch, session),
                         WEBSOCKET_REQUEST_BATCH_SIZE,
                         ignored -> 1L,
                         Long.MAX_VALUE,
+                        1,
                         WEBSOCKET_REQUEST_COLLECTION_DELAY));
     }
 
