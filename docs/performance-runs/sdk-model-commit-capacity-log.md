@@ -270,6 +270,21 @@ cursor transaction. This is the next concrete mechanism to test: reduce commit a
 complete locator and immediate no-timer behavior. Parallel inserts are not assumed to be dispensable; the full E2E
 route must decide whether fewer commits outweigh less insert parallelism for these very small locator batches.
 
+### E533-E534: one locator transaction loses to parallel partition inserts
+
+E533 wrote the same compact locator rows to the same eight tables and advanced the same cursor, without a timer or
+functional ablation. The only change was executing all eight COPY operations plus the cursor update on one connection
+and one transaction. E534 immediately restored the accepted parallel-partition implementation.
+
+| Run | Locator write mode | Full E2E | Mean model dispatch batch | Decision |
+| --- | --- | ---: | ---: | --- |
+| E533 | One connection/transaction, eight serial COPY operations | 336,696/s | 8,322 | reject |
+| E534 | Eight parallel partition transactions plus cursor transaction | **357,728/s** | 8,525 | control |
+
+The candidate is **-5.88%** against its adjacent control. Commit amplification alone is therefore not a sufficient
+optimization target: for the current rows and PostgreSQL topology, partition insert parallelism is worth more than the
+eight saved commits. The production implementation remains unchanged.
+
 ## Current decision
 
 1. Runtime `87327b71` is the new accepted production checkpoint; full E2E matched gain is +5.28%.
@@ -277,8 +292,8 @@ route must decide whether fewer commits outweigh less insert parallelism for the
    0.431-0.432M/s.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
-5. Test locator commit amplification with the full functionality intact and no collection timer; do not assume that
-   serial locator inserts beat the current parallel writes.
+5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
+   Return to the active ordered model/event transaction and validate its largest fundamental roundtrips.
 6. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 
@@ -361,3 +376,5 @@ route must decide whether fewer commits outweigh less insert parallelism for the
 - E532 log/JFR/summary SHA-256: `9f6d176b6e7340d7d6b441eafd008bcad77f4105528a6b85d5d1db38ae2cb0e2`,
   `196ba3afd02f9397e54c26901d048cfe46b07c76c767e91966a45223cf7ade20`,
   `d4edfdf304e7dab91e326bf4b1e81e4611ff7ce837f738a62a0ca91290d2275b`.
+- E533/E534 log SHA-256: `c76451ed6fb4935a963601e7a2ba659149ad10306de7099fd7a7f5e5d5133d95`,
+  `70be14ca9b61a8f6e32dd08e09e59a32ca255e0cffa57b47db2718da840e3ff1`.
