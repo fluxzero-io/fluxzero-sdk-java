@@ -766,6 +766,41 @@ counterexample to selecting production work from an allocation sample alone: eli
 move work from the parallel locator lanes into the earlier preparation stage and alter route feedback without raising
 the full-route ceiling. The candidate was fully reverted and is not P6.
 
+### E615-E621: P5 CPU/allocation trace and rejected larger event rows
+
+E615 is a fresh full-JFR P5 observation of the complete route. Full sampling lowers throughput to 309,679/s and makes
+it non-canonical, but it adds CPU and allocation evidence to E606's batch-stage timings. Within the model route, the
+largest new correlated SDK interval is accepted-result post-processing: `model-result-matched` through
+`model-post-commit-complete` averaged 2.673 ms, of which `afterCommitBatch` averaged 2.202 ms. Runtime encoding of a
+`TrackModelUpdatesResult` page averaged 1.681 ms. Sampled model allocations were led by locator binary-COPY buffers,
+recent `ModelUpdate` materialization and packed-stream preparation; those samples remain supporting evidence rather
+than acceptance criteria.
+
+E616 then measured the SDK callback with its narrow existing timers and no JFR. It completed the fully verified route
+at 418,703/s. Across the measured 4,194,304 commands, committed-model assembly consumed 714.131 ms
+(0.170 microseconds/command) and repository/cache plus tracker publication 4,140.632 ms
+(0.987 microseconds/command), for 1.157 microseconds/command together. This is material CPU work, but its isolated
+single-lane service capacity is about 0.864M/s; it is not the first 500k boundary.
+
+The direct event insert remained E606's largest synchronous database stage. P5 stores a measured 4.19M events in
+roughly 33,000 compressed rows because the legacy row group is 128 events. A table-specific diagnostic tested 256
+events per row while leaving command and result stores untouched. E617-E619 initially did not reach the shared-
+executor Runtime construction path; physical row counts proved that the setting had not changed. They are retained as
+invalid diagnostics, not evidence against the mechanism.
+
+After correcting only the diagnostic wiring, E621 halved physical event rows versus the E620 control but made the
+complete route worse:
+
+| Matched profile | Event rows | Direct event insert | Event commit | Model-store active | Full E2E |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| E620, 128 events/row | 33,059 | 4.323 ms | 2.106 ms | 11.446 ms | **413,395/s** |
+| E621, 256 events/row | **16,648** | 4.275 ms | 2.205 ms | 11.988 ms | 397,088/s |
+| Effect | **-49.6%** | -1.1% | +4.7% | +4.7% | **-3.95%** |
+
+The row count was therefore not the cost driver. Larger compressed rows saved almost no insert time and worsened
+commit/database feedback. The diagnostic property and wiring were fully reverted; 256 is not P6 and 512 was not tried
+after the mechanism had already failed.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -809,6 +844,11 @@ the full-route ceiling. The candidate was fully reverted and is not P6.
 18. Do not eagerly retain all eight partitioned locator-hash arrays per source row. E611-E614 reject that allocation
     optimization at -2.28% matched E2E. Allocation profiles remain supporting evidence, not a production acceptance
     criterion.
+19. Treat SDK accepted-result post-processing as material secondary model work: E616 measures 1.157 microseconds per
+    command, dominated by repository/cache and tracker publication, but about 0.864M/s isolated headroom means it is
+    not the first 500k limiter.
+20. Do not increase global-event compressed row groups from 128 to 256 for the measured payload. E620/E621 halve rows
+    but reject the change at -3.95% full E2E and +4.7% active model-store time.
 
 ## Evidence
 
@@ -1073,3 +1113,23 @@ the full-route ceiling. The candidate was fully reverted and is not P6.
   `2c3a1830dc7b8d897786e3a6f71c469eac688cb0af57246c58430a00283a42b9`,
   `c60a95d000be320020be1f7efcf8a17c422011689a25fae8fa9837c777f15862`,
   `ac770e32fa7fbdad902823673df58c6e4e138eaddb81036cc9a706abf5d06e2c`.
+- E615 P5 full-JFR log/JFR/summary SHA-256:
+  `62df895a2105bb0205dbe83d0f0a7125b5f9cf76a38670bf9f5d64bf058eccb1`,
+  `9d788946c6e5bcf23855cf3f1d769fe3e895d14a1c528db5e0202fb1c32011ca`,
+  `0d805d56af65e2ac1bac87851c8e5b50fcfa916bfe4fd69b9a076612096f588a`.
+- E616 SDK post-commit diagnostic log SHA-256:
+  `e9be16476cd71883497b0c334f703deba470f73343c576f4092bc32ce254aa83`.
+- E617-E619 unwired event-group diagnostic log/log/log/JFR/summary SHA-256:
+  `f4037d57f17aba043adf692a38e52d4e3090e11b736b023e43b5d0f151ca9704`,
+  `499052a1cc563a783b9b2111ce5ca1d4f0593f47b10a5863f3bc643266a73211`,
+  `ad33338591edbb08731fee0b392a437aa9827c5214f536fcdbb6a5d2860f9474`,
+  `6d9dee584f8b4912122be4b206af2806e80e651197feaf297b69c10692a2d533`,
+  `8d7d483df1aac169246c70e2be45eb5049ee2c685a4f8920bcf9aa9affcdead8`.
+- E620 128-row control log/JFR/summary SHA-256:
+  `c4fef568350b68f9f80684b215614eaade3020c54ddb3260de5616221cb586f3`,
+  `af6d3b4ef465fe5e9227dc821b22d17480cf4104dabc8b6176864aeaab88e98f`,
+  `d67fbb5ad95988eb8a561f87589d5bd20407f774cf1162ffa74a6396f4aac30c`.
+- E621 wired 256-row candidate log/JFR/summary SHA-256:
+  `a75f877a9333bf77f6313b7faa2578c1811a182d154654a6ec89af5c063400ef`,
+  `3fa31602903f8091fcf1459224b60f8682d5cdcc0da48318e611e603ac970813`,
+  `a11c348bab2889c4ff9b2ad3ffcf2e699a30e47c6007bddc268b6fd8dd3dad9d`.
