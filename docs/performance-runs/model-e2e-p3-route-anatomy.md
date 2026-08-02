@@ -234,7 +234,30 @@ values are `7b7189f96f2d60751656cf7dd95205c9da62863346b0c0d5a6d36116e8fbd768`,
 
 The remaining hard capacity signal is the same one the user selected: one active model/event durability lane. P3
 reduced its queue p95 but did not materially raise its item service ceiling because smaller natural transactions moved
-work into model SQL and commit. The next experiment must therefore preserve natural batches while allowing preparation
-and direct inserts to overlap across bounded jobs, with state/index conflicts and final commits remaining strictly
-ordered. It requires a causal prototype and complete-route proof; a sleep-based collection window or globally
-unordered commit is already rejected by prior experiments.
+work into model SQL and commit.
+
+### E80-E83 correction: concurrent transactions do not remove the write boundary
+
+E80-E83 implemented the narrow causal prototype before changing any stored format or default. Only conflict-free packed
+updates with disjoint model ids could overlap; initial/general/conflicting batches were barriers, state ranges were
+pre-reserved, PostgreSQL still checked the exact predecessor under the state lock, the event commit executor retained
+commit order and pending bytes remained bounded. The complete route retained ordinary durable results and all exact
+checks passed.
+
+| Run | Model transactions | Mean items | Summed model lifetime | Model wall span | Max active | Complete E2E |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| E81 naive depth 2 | 51 | 2,570 | 1.200 s | 0.902 s | **2** | 136,899/s |
+| E82 depth-1 control | 38 | 3,449 | 0.753 s | 0.872 s | 1 | 139,059/s |
+| E83 depth 2, arrival minimum 4,096 | 40 | 3,277 | 0.935 s | 0.864 s | **2** | 137,234/s |
+
+The naive pipeline drained the tail immediately and reproduced the known batching-feedback failure. E83 then waited
+without a timer until either 4,096 jobs had arrived or the oldest commit completed. This preserved low-load latency and
+nearly matched the control transaction shape. It still improved model wall span by only 0.9%, increased aggregate
+storage service through contention and lost 1.31% complete-route throughput. The candidate and generic pipeline
+primitive were therefore reverted rather than promoted to a canonical screen.
+
+This closes concurrent submission of ordinary transactions. The next structural hypothesis is different: write
+immutable event-log and model-stream rows durably on bounded independent lanes while they remain logically invisible,
+then use one small ordered transaction to atomically advance both authoritative visibility heads. A crash may leave
+bounded orphan prewrites that recovery can identify, but readers must never observe them and a retry must never publish
+an incomplete boundary. That design—not another timer, transaction queue or SQL microtweak—is the next evidence target.
