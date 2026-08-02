@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E125 accounts for the complete physical P3 transaction. E137-E141 then show that combining the singleton lock and head update cuts state service **40%** but not E2E, while E142-E145 show that denser model-stream blocks reduce physical rows but yield only +0.94% with conflicting pair signs. Query and row-size tuning are below the route gate; the remaining structural target is the separate durable model-stream write itself. |
-| Next evidence target | prototype an intact-route co-located event/model representation that removes a complete model-stream COPY boundary, while retaining atomic event publication, exact historical/direct reads, bounded recovery, hard-delete unlinking and the ordinary durable-result route; do not retry lane count, timers or block-size tuning |
+| Latest causal diagnosis | E146-E150 combine stream insertion and state advancement into one SQL statement. Local state/stream service falls **43.6%**, but the route creates 243 instead of 188 event/model transactions, doubles commit service and loses 1.47–16.03% E2E. E151-E152 exclude PostgreSQL buffer sizing (+0.31%). Together with E73/E79's prior C06 split, this identifies closed-loop transaction/batch fragmentation behind the tracking-residence gauge—not scan, notification or buffer shortage. |
+| Next evidence target | design and prototype an intact-route co-located event/model representation that removes a complete model-stream COPY boundary inside the same atomic transaction; preserve natural transaction formation, exact historical/direct reads, bounded recovery, hard-delete unlinking and ordinary durable results |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E145 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E152 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1223,6 +1223,40 @@ were 264,680/262,222 commands/s, only **+0.94%**, with conflicting signs and pos
 amplification. No source or default changed. Block-size tuning is closed; a subsequent candidate must eliminate a
 physical write boundary rather than merely pack its rows more densely.
 
+### Rejected experiments E146-E150 — one faster SQL statement fragments the full route
+
+E146-E150 tested the strongest remaining query-fusion hypothesis without changing the physical model history. On the
+packed conflict-free path only, one data-modifying CTE inserted the exact same model-stream blocks and advanced the
+same singleton state row in one statement. Initial creation, general/conflicting updates, deletion, erasure and graph
+updates stayed on their existing paths. Seven focused PostgreSQL model-store tests passed, including direct/history
+reads, packed ordering and deletion behavior.
+
+The local mechanism worked: E148's fused statement processed 1,048,576 measured memberships in 811.667 ms
+(774.1 ns/item). E149's separate stream insert, state lock and state update used 848.263 + 337.559 + 253.216 =
+1,439.038 ms (1,372.4 ns/item). That is a **43.6% local service reduction**. The intact full route nevertheless lost:
+
+| Exact full-result comparison | P3 control | Fused candidate | Change |
+| --- | ---: | ---: | ---: |
+| E147/E146, same machine window | **295,763/s** | 248,363/s | **-16.03%** |
+| E149/E148, dual-JFR differential | **244,218/s** | 240,624/s | **-1.47%** |
+| E147/E150, candidate bracket | **295,763/s** | 272,256/s | **-7.95%** |
+
+The route-wide counters explain the contradiction. The candidate produced 243 event/model transactions rather than
+188. Its global-event insert used 1,051.183 ms versus 990.437 ms, co-located model work fell from 1,459.333 to
+828.246 ms, but event/model commit service doubled from 335.801 to **670.852 ms**. A locally faster completion releases
+and regroups the closed command/result pipeline differently; smaller natural waves erase the query saving through
+more transactions, commits and surrounding work. This is direct evidence that the earlier
+`DefaultTrackingStrategy.onUpdate -> resolved MessageBatch` residence must be studied as feedback and batching, not
+as a slow scan in isolation. The entire Runtime candidate was reverted and accepted P3 source/artifacts were rebuilt.
+
+### Diagnostic E151-E152 — PostgreSQL buffer sizing is not the missing capacity
+
+The container used PostgreSQL defaults `shared_buffers=128MB` and `wal_buffers=4MB`, with `fsync=on` and
+`synchronous_commit=on`. E151 changed only the first two values to 1GB and 64MB. It reached 254,948/s; after restoring
+the defaults and restarting PostgreSQL, adjacent E152 reached 254,161/s: **+0.31%**, operationally neutral. Durability
+was never disabled, and the original settings are restored. Buffer shortage is excluded as the cause of the observed
+transaction feedback; it cannot select a production change.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1305,10 +1339,17 @@ physical write boundary rather than merely pack its rows more densely.
     but two complete-route candidates bracketed around one control are negative and production source is reverted.
 27. E142-E145 reject denser model-stream blocks as a checkpoint. The first +2.76% pair was correctly retained, but the
     second reversed and the two-pair geometric mean was only +0.94%; keep 1,024 and avoid extra read amplification.
-28. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+28. E146-E150 reject single-statement stream/state fusion despite **43.6%** lower local database service: the candidate
+    forms 243 instead of 188 event/model transactions and doubles commit service. Never infer route capacity from a
+    locally faster database statement without measuring the closed-loop batch feedback.
+29. E151-E152 exclude PostgreSQL shared/WAL buffer sizing at +0.31%; defaults and full durability are restored.
+30. Retain E73/E79's completed split of command tracking residence: 98.4% resolves on a later client request, scans
+    average 0.682 ms and notification work averages 0.216 ms. Use C06 as a downstream backpressure gauge, not as an
+    independent 40-ms tracking service target.
+31. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-29. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+32. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
