@@ -746,6 +746,26 @@ The matched geometric means are **423,903/s control versus 416,708/s candidate (
 commit per locator round is therefore not sufficient: this implementation damages the complete-route batching
 feedback by more than its local PostgreSQL saving. The candidate was fully reverted and is not P6.
 
+### E611-E614: rejected eager locator-hash prepartitioning
+
+The E567 allocation profile showed `partitionModelHashes` among the larger sampled model-store allocation sites. The
+production P5 locator first assigns each source row to its physical partitions and later derives each partition's
+sorted hash array in the four parallel write lanes. The candidate instead calculated and retained all eight arrays
+once while assigning the source row, then reused them during COPY. It changed neither physical rows, transactions,
+write lanes nor cursor publication. The complete `JdbcModelCommitStoreTest` suite passed 104/104 with the candidate.
+
+The complete route nevertheless rejected it in both run orders:
+
+| Matched pair | P5 control | Eager hash prepartitioning | Effect |
+| --- | ---: | ---: | ---: |
+| E611 / E612 | 410,489/s | 399,332/s | **-2.72%** |
+| E614 / E613, reverse order | 414,650/s | 407,035/s | **-1.84%** |
+
+The matched geometric means are **412,564/s control versus 403,165/s candidate (-2.28%)**. This is an important
+counterexample to selecting production work from an allocation sample alone: eliminating repeated allocation can
+move work from the parallel locator lanes into the earlier preparation stage and alter route feedback without raising
+the full-route ceiling. The candidate was fully reverted and is not P6.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -786,6 +806,9 @@ feedback by more than its local PostgreSQL saving. The candidate was fully rever
     resource consumer, but its intervals overlap canonical work and cannot be added to model transaction latency.
 17. Do not fuse a locator write lane into the cursor transaction using the tested coordinator-lane implementation.
     E607-E610 reject it at -1.70% matched E2E because natural model dispatches shrink by roughly 5-14%.
+18. Do not eagerly retain all eight partitioned locator-hash arrays per source row. E611-E614 reject that allocation
+    optimization at -2.28% matched E2E. Allocation profiles remain supporting evidence, not a production acceptance
+    criterion.
 
 ## Evidence
 
@@ -1045,3 +1068,8 @@ feedback by more than its local PostgreSQL saving. The candidate was fully rever
   `92a38900e326329af5f61e51942952ec3cca9f1d67f40340a8f3c324004a8b68`,
   `51771be36b5ceaa3261ee450c15df788500b9f530dad3435af149be33ab0510b`,
   `f450fff6cb142878d436580e3e19c6e53dab67d76e5dfc0f3e686e79579b616a`.
+- E611-E614 eager-hash-prepartition control/candidate/candidate/control log SHA-256:
+  `1568f58d0b724bc42e1710739dcb64420ab97f100bb30d4ca1f5d8001a8a13b9`,
+  `2c3a1830dc7b8d897786e3a6f71c469eac688cb0af57246c58430a00283a42b9`,
+  `c60a95d000be320020be1f7efcf8a17c422011689a25fae8fa9837c777f15862`,
+  `ac770e32fa7fbdad902823673df58c6e4e138eaddb81036cc9a706abf5d06e2c`.
