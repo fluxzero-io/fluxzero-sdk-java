@@ -17,8 +17,8 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E146-E150 combine stream insertion and state advancement into one SQL statement. Local state/stream service falls **43.6%**, but the route creates 243 instead of 188 event/model transactions, doubles commit service and loses 1.47–16.03% E2E. E151-E152 exclude PostgreSQL buffer sizing (+0.31%). Together with E73/E79's prior C06 split, this identifies closed-loop transaction/batch fragmentation behind the tracking-residence gauge—not scan, notification or buffer shortage. |
-| Next evidence target | design and prototype an intact-route co-located event/model representation that removes a complete model-stream COPY boundary inside the same atomic transaction; preserve natural transaction formation, exact historical/direct reads, bounded recovery, hard-delete unlinking and ordinary durable results |
+| Latest causal diagnosis | E146-E150 identify closed-loop transaction fragmentation behind the tracking-residence gauge, not scan/query/buffer shortage. E153-E156 then hold P3 physical bytes, rows and 128 transactions fixed: attaching the compact model blocks to the existing event multi-row insert removes the model-stream COPY/table boundary and raises one-lane ordered physical capacity from 1.056M to **1.232M/s (+16.61%)** across two matched pairs. This is supporting storage evidence, not E2E acceptance. |
+| Next evidence target | implement the event/model sidecar on the complete exact route behind a diagnostic gate; preserve natural transaction formation, old rows, exact historical/direct reads, bounded locator recovery, hard-delete unlinking, event retention and ordinary durable results, then compare same-binary E2E before any production decision |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
 Last updated after E152 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
@@ -1257,6 +1257,31 @@ the defaults and restarting PostgreSQL, adjacent E152 reached 254,161/s: **+0.31
 was never disabled, and the original settings are restored. Buffer shortage is excluded as the cause of the observed
 transaction feedback; it cannot select a production change.
 
+### Diagnostics E153-E156 — one physical event/model COPY has reproducible capacity
+
+The existing physical storage probe was extended without changing its accepted-P3 volumes: every measured invocation
+wrote 1,048,576 items in 128 transactions, 8,192 event rows of 2,178 bytes and 1,024 compact model rows of 6,624 bytes.
+Control matched the production mechanisms: one multi-row prepared insert for event rows followed by binary COPY into
+the model-stream table. Candidate placed those exact model bytes in nullable sidecar columns on every eighth event row,
+using the same event insert and no model COPY. Durable markers, ordered visibility commits and exact row/head
+verification were identical. The reverse-order pairs produced:
+
+| Physical ordered capacity | Separate COPYs geometric mean | Event-row sidecar geometric mean | Change |
+| --- | ---: | ---: | ---: |
+| one lane, closest to accepted P3 | 1,056,451/s | **1,231,964/s** | **+16.61%** |
+| two lanes | 1,842,828/s | **2,123,937/s** | **+15.25%** |
+| four lanes | 3,180,083/s | **3,623,411/s** | **+13.94%** |
+| eight lanes, PostgreSQL near saturation | 4,245,853/s | 4,500,526/s | +6.00% |
+
+This validates the physical premise that E146 did not test: a model sidecar can remove a complete COPY/table boundary,
+not merely fuse SQL around an unchanged stream write. It still excludes SDK evaluation, reads, hard deletion, transport
+and ordinary results, so it cannot accept production code. The full-route prototype must keep old standalone stream
+rows readable, prevent event retention from dropping live model history, make hard-delete remove sidecar membership
+bytes while retaining globally published event payloads, and preserve the derived locator's recovery contract. Raw
+values are in
+[`model-e2e-e153-e156-event-sidecar-screening.csv`](performance-runs/model-e2e-e153-e156-event-sidecar-screening.csv);
+the benchmark-only Runtime checkpoint is `edb40774`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1346,10 +1371,13 @@ transaction feedback; it cannot select a production change.
 30. Retain E73/E79's completed split of command tracking residence: 98.4% resolves on a later client request, scans
     average 0.682 ms and notification work averages 0.216 ms. Use C06 as a downstream backpressure gauge, not as an
     independent 40-ms tracking service target.
-31. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+31. E153-E156 validate one structural premise with fixed physical output: event-row model sidecars improve one-lane
+    ordered capacity **16.61%** across two pairs by removing a complete COPY/table boundary. Keep this diagnostic-only
+    until old rows, reads, locator recovery, retention and hard-delete pass on the full exact route.
+32. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-32. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+33. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
