@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E159-E162 now validate the same event/model sidecar on the intact exact command/result route: two matched same-binary pairs improve **+8.48%** and **+15.43%**, or **+11.90% geometric mean**. E163/E164 dual JFR attributes the gain to co-located model work falling 1,376 -> **742 ms total (-46.08%)** and event-store storage 1,763 -> **1,339 ms (-24.07%)**. Profiler feedback creates more/smaller transactions, so batching is the next coupled limiter. This remains diagnostic-only until all historical reads, locator recovery, partition rollover, retention and hard-delete semantics are complete. |
-| Next evidence target | complete the event/model sidecar as a backward-readable storage representation: schema-owned partition columns, unioned old/new initial-stream reads, bounded locator recovery, commit/event boundaries, safe hard-delete sidecar rewrite and retention ownership; then run focused correctness and matched canonical E2E before any production checkpoint |
+| Latest causal diagnosis | E165-E178 complete and reject the event/model-sidecar family. After old/new reads, derived-locator rebuild, partition rollover, hard-delete rewrite and retention migration all passed, the cheapest zero-byte tagged locator produced **253,045/s** versus **254,313/s** control across balanced E175-E178: **-0.50%**. A btree lost 13.44%; a repeated locator pointer lost 1.90% geometrically. The earlier local **-46.08%** model-task result is real, but lifecycle support plus closed-loop transaction fragmentation consumes its route gain. |
+| Next evidence target | fully revert sidecars, rerun the immutable exact P3 route under dual JFR/stage tracing, and rerank fundamental route segments and active service capacity before selecting another production mechanism |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E164 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E178 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1320,6 +1320,38 @@ captures only part of the unprofiled gain. The causal model is now stronger: the
 and natural transaction formation is the coupled next constraint. No production checkpoint is allowed until the new
 representation preserves every read/lifecycle contract and then wins matched canonical runs.
 
+### Diagnostics E165-E178 — complete sidecar lifecycle support consumes the local gain
+
+The prototype was completed before its final throughput decision. The event table schema owns the nullable columns so
+new partitions inherit them. Reads union old standalone model-stream rows with packed event sidecars. The unlogged
+membership locator rebuilds from either representation. Hard deletion rewrites or clears only the model sidecar while
+retaining the globally published event, including deletion of the first membership in a packed block. Enabling event
+retention first migrates all sidecars back to ordinary model-stream rows in the same transaction and then disables new
+sidecar writes. The sidecar mode passed **101/101** `JdbcModelCommitStoreTest` tests; the classic mode passed its 100
+applicable tests with only the sidecar-specific retention test skipped.
+
+Three locator mechanisms were then measured on the unchanged exact result route:
+
+| Runs | Locator mechanism | Control geometric mean | Candidate geometric mean | Result |
+| --- | --- | ---: | ---: | ---: |
+| E165/E166 | btree over sidecar first-state rows | 273,051/s | 236,350/s | **-13.44%**; rejected immediately |
+| E167-E170 | no sidecar index; recovery scan only | 251,304/s | 256,454/s | +2.05%, but pair signs conflict |
+| E171-E174 | event-row pointer repeated in every locator membership | 256,022/s | 251,214/s | **-1.88%** |
+| E175-E178 | zero-byte tagged union in existing locator fields | 254,313/s | 253,045/s | **-0.50%** |
+
+The tagged representation encodes classic rows as non-negative stream segments and event-sidecar rows as a negative
+segment tag, reusing `block_state_index` for the event-row index. It adds no locator column, index or bytes per model
+membership and is therefore the cheapest complete design tested. E175/E176 was -4.47%; the reversed E177/E178 pair was
++3.63%. Their geometric result is still negative. All runs retained 1,048,576 exact commands, model memberships,
+events, durable results and tracked completions. Absolute values are marked smoke because `mediaanalysisd` and
+`mds_stores` were active, but each decision uses adjacent same-binary controls in both orders.
+
+This closes the family rather than invalidating E153-E164: removing the physical model COPY really does improve the
+isolated store and incomplete route, but a deployable representation needs read/lifecycle machinery and alters natural
+transaction formation enough that no full-route capacity remains. The production candidate is fully reverted; no
+performance checkpoint is created. Reopening requires a new mechanism that both removes the boundary and preserves
+or improves transaction grouping on the complete route.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1412,10 +1444,10 @@ representation preserves every read/lifecycle contract and then wins matched can
 31. E153-E156 validate one structural premise with fixed physical output: event-row model sidecars improve one-lane
     ordered capacity **16.61%** across two pairs by removing a complete COPY/table boundary. Keep this diagnostic-only
     until old rows, reads, locator recovery, retention and hard-delete pass on the full exact route.
-32. E157-E164 validate that sidecars also improve the intact exact command/result route: two same-binary pairs gain
-    **11.90% geometric mean**, and dual JFR attributes this to 46.08% less co-located model work. Retain the candidate
-    as diagnostic-only while completing reads, locator recovery, partition rollover, retention and hard deletion;
-    transaction fragmentation is the explicitly measured coupled follow-up.
+32. E157-E164 validate that incomplete sidecars improve the intact exact command/result route by **11.90% geometric
+    mean** and cut co-located model work 46.08%, but E165-E178 close the production family: all lifecycle contracts pass,
+    yet the cheapest zero-byte locator is -0.50% across balanced pairs. The physical saving is real; lifecycle support
+    and closed-loop transaction fragmentation consume it. Production source is reverted.
 33. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
