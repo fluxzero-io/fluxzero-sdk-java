@@ -11,8 +11,8 @@ mistaken for a production regression again.
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
 | Fresh current-production repin | **905,605 commands/s** (E365, profiler-free; 10,485,760 exact results, p50/p95 63.305/85.260 ms) |
 | Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
-| Current production candidate | None; transaction fusion, parallel-commit budgets and the ordered storage-wave prototype are rejected |
-| Current focus | Preserve the legacy insert-ahead pipeline and rerank the intact no-model route from E365; do not infer that ordered backlog semantics alone improve E2E |
+| Current production candidate | SDK `5f4d2c76`: exact per-submission Backlog completion plus optional `maxInFlightBatches`; Runtime remains intentionally unbounded for the checkpoint pin |
+| Current focus | Screen Runtime message-store `maxInFlightBatches=4/8/16/32` with command/result transaction shape and cliff diagnostics recorded for every profile |
 | Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
 
 ## Route and immutable behavior
@@ -194,3 +194,63 @@ Therefore neither the rejected wave prototype nor disabled JFR observer code cau
 E365 is a valid recovery pin, but it does not replace E315's **962,888/s** campaign high and is not yet the requested
 stable 1.5-2.0M/s no-model state. Absolute comparisons remain host-qualified: a run overlapping kernel cache rebuilding,
 Spotlight/FileProvider work or sustained post-run virtualization writeback is diagnostic-only.
+
+## E366-E375: exact Backlog completion is checkpointed before bounding the Runtime
+
+The legacy asynchronous Backlog completed every producer future up to a batch's end position. That was only correct
+while consumer futures happened to complete in dispatch order. A later fast future could otherwise release an earlier
+unrelated producer before its own consumer batch completed. The SDK checkpoint `5f4d2c76` replaces that prefix
+assumption with one completion record per submitted collection and adds an explicit `maxInFlightBatches` overload.
+One slot means the former ordered behavior. The old two-argument async factory deliberately remains unbounded, so none
+of E366-E375 tests message-store backpressure yet.
+
+Untracked values remain direct queue entries, avoiding a wrapper or completion future on the result/WebSocket hot path.
+A completed consumer future releases its in-flight slot and schedules queued work before producer-future dependants
+run, so an arbitrary user callback cannot retain Backlog capacity. Existing ordered call sites use
+`forAsyncConsumer(..., 1)`; the old factory name remains a deprecated forwarding alias while Runtime callers migrate.
+
+### Profiler-free route observations
+
+All long runs use Java 25, embedded Runtime `d5abe0a7`, PostgreSQL 18.3, two sender clients, 16,384-command producer
+batches, 65,536 caller requests in flight, 10,485,760 warm-up commands and 10,485,760 measured commands. Every run
+verifies exactly 10,485,760 ordinary durable results.
+
+| Run | Backlog implementation | `maxInFlightBatches` | Warm-up | Measured | p50 / p95 / p99 / max ms | Interpretation |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| E368 | legacy control | unbounded | 743,646/s | 912,243/s | 61.915 / 83.247 / 95.912 / 246.136 | healthy control |
+| E369 | exact completion | unbounded | 653,941/s | 913,695/s | 62.260 / 82.219 / 90.508 / 115.074 | normal candidate state, neutral |
+| E370 | exact completion | unbounded | **833,412/s** | **640,635/s** | 65.470 / 260.596 / 331.654 / 777.693 | measured phase crosses the route's bistable slow-state cliff; no profile captured |
+| E371 | legacy control | unbounded | 768,642/s | 899,404/s | 63.258 / 85.456 / 98.831 / 119.208 | immediate reverse-control recovery |
+| E372 | exact completion | unbounded | 785,402/s | **931,383/s** | **61.193 / 81.620 / 91.010 / 112.071** | candidate recovers; second healthy normal state |
+| E375 | committed `5f4d2c76` | unbounded | 607,915/s | 885,307/s | 63.430 / 90.850 / 110.179 / 172.102 | post-verification checkpoint pin |
+
+E370 cannot be discarded, but it also does not establish a Backlog mechanism: both adjacent candidate runs are healthy,
+the reverse control recovers, and the route was already known to have a cache/database feedback cliff. A later bounded
+screen must record the complete writer/read/cache shape so a recurrence can be attributed rather than inferred from
+throughput alone.
+
+### Matched command/result batch profile
+
+E373/E374 use batch-only JFR over the same long measured workload. They compare the legacy data structure with the
+pre-checkpoint exact-completion implementation; both retain unbounded message-store admission.
+
+| Measure | E373 legacy control | E374 exact completion | Reading |
+| --- | ---: | ---: | --- |
+| E2E throughput | 912,362/s | 882,302/s | candidate profile is 3.30% lower |
+| command transactions | 2,560 | 2,560 | identical |
+| commands / transaction | 4,096.0 | 4,096.0 | identical full batches |
+| command writer service | 1.226M/s | 1.199M/s | broad 2.2% service drift |
+| result transactions | 4,330 | **4,217** | candidate makes 2.61% fewer commits |
+| results / transaction | 2,421.7 | **2,486.5** | candidate batches are 2.68% larger |
+| result commit mean | 2.161 ms | **2.101 ms** | commit amortization improves |
+| result direct-insert mean | **2.840 ms** | 2.972 ms | candidate insert service is 4.65% slower in this profile |
+| result writer service | 0.969M/s | 0.959M/s | effectively similar; no new hard writer collapse |
+| result jobs ready at commit start | 4.45 mean / 16 max | 4.24 mean / 16 max | legacy insert-ahead shape retained |
+| physical command scan | 436 calls / 827,392 messages | 409 / 860,160 | no material cache cliff |
+| physical result scan | 1,442 calls / 3,293,989 messages | 1,542 / 3,229,406 | comparable physical-read volume |
+
+The profile rejects transaction fragmentation as a consequence of exact completion: result transactions become larger,
+not smaller, and commit cost falls. The final SDK reactor is green across common, SDK, test-server, proxy, annotation
+processor, Java downstream and Kotlin downstream modules. This earns a correctness checkpoint, not a throughput
+checkpoint. The next experiment changes only Runtime message-store admission and always records
+`maxInFlightBatches`, logical batch size, physical transactions, insert/commit service, ready jobs and physical reads.

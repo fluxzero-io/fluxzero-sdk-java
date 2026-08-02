@@ -19,11 +19,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | E315 remains the unchanged-production high at **962,888/s**. E365 repins the current production classes at **905,605/s** after pausing a runaway kernel-extension cache builder and waiting for Docker/PostgreSQL writeback to settle; E363/E364 prove the intervening 707-783k readings were host-state, not a code regression. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E357-E362 reject ordered storage waves. Wave 8 halves result transactions and improves local writer service 6.9%, but loses 4.1% complete E2E because only 1.3 jobs remain insert-ready at commit start versus 6.1-7.3 in legacy. E363-E365 then exclude both this reverted source and the JFR-only writer observer as causes of the later low absolute readings. |
-| Next evidence target | Profile and rerank the intact no-model route from the recovered E365 production state with legacy insert-ahead preserved. Any next writer candidate must reduce ordered publication cost without freezing work into durability waves or opening unbounded transactions. |
+| Latest causal diagnosis | E366-E375 checkpoint exact per-submission Backlog completion without fragmenting transactions: healthy candidate runs reach 914-931k/s and the matched profile grows the mean result transaction from 2,422 to 2,487 messages. One 641k slow-state recurrence remains unattributed and must be captured rather than ignored. |
+| Next evidence target | Keep legacy parallel insert-ahead but bound unfinished Runtime storage batches via `maxInFlightBatches=4/8/16/32`; record command/result transaction size, commit/insert service, ready jobs, physical reads and every slow-state transition. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E365 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E375 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
