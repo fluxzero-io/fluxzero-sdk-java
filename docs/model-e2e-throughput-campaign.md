@@ -987,6 +987,73 @@ Runtime-collapsed/client-collapsed SHA-256 values are
 `d8df1d0260927bd20e2d6094b1e0ea399116a369554090fe09e746cd8decc485`, and
 `8939bd8074b719d6ca9ddc7484fe3c21c4ee9ee40cf011daf39edf1aa006bac3`.
 
+### Diagnostics E112-E114 — result completion is downstream future work, not lookup or worker type
+
+E112-E113 switched every generic SDK worker pool between eight bounded platform threads and the accepted Java 25
+virtual-thread implementation from identical class files. The exact full-result route measured 256,164/s on platform
+workers and 268,764/s on virtual workers: **-4.69%**. Latency was respectively
+200.777/323.031/419.730/455.931 ms and 187.758/326.568/388.944/466.452 ms. Bounded platform workers therefore do not
+relieve the route and the temporary switch was removed.
+
+E114 then split the already measured single ordered request-result completion lane without removing any route stage.
+After warm-up, 267 result batches contained exactly 1,048,576 results. Their 2,797.420 ms accumulated active service
+time decomposed as follows:
+
+| Fundamental operation inside the ordered completion loop | Active time | Share |
+| --- | ---: | ---: |
+| callback lookup by request id | 133.837 ms | 4.78% |
+| request/trace observer recording | 199.712 ms | 7.14% |
+| `ResponseCallback.process`, including synchronous dependent-future work | **2,374.669 ms** | **84.89%** |
+| loop and timing remainder | 89.202 ms | 3.19% |
+
+The full route measured 252,289/s with 199.982/351.653/390.013/421.995 ms latency. The bold interval is not merely
+the `CompletableFuture.complete` primitive: completing the raw response future synchronously runs gateway response
+deserialization, message mapping, callback tracking, the caller's completion action and ensuing bounded-inflight
+dispatch. It is therefore a serial route boundary whose active capacity is roughly 441,565 results/s in this run.
+Lookup and numeric trace parsing are explicitly too small to select another micro-optimization.
+
+The accepted E59 allocation recording independently attributed 2,980 of 16,830 weighted client allocation samples
+(17.71%) to stacks containing `CompletableFuture`. This supports investigating the future graph, but it does not by
+itself prove that removing any individual stage raises E2E capacity.
+
+E112 benchmark/Runtime/client-JFR hashes are
+`5d36896cbb26e077d3f894ffd13c14b2c90c7d951749e4323d29291804784736`,
+`3626f317d815d2cf9f66f142862b1c3d573b908008dadbbe0aafc0f736b3840b`, and
+`639d456c46de9aa83b3e4e3c86f1aaa350bb5358efcef3781a7a064537af6f7f`; E113 values are
+`d5d15b59149f56d7cd3a37c1ecbfa46d257d90e001f0d27425fbb9f243891202`,
+`1856a0e0485600d62cc3c9f6f6544c1dd06e3dc3afc30f53f9dfb8e81cbd1899`, and
+`40883fe0e12de57a0227a0f4430a63d1b9d64114da9ad396596a6e88c7ffa99b`. E114 values are
+`872992008cddea2f0a6f63c690e843491dec8eb936a852ce79b8c93f627482db`,
+`9eb8b41a37f0a5592ec2ee591008a27ecd8bc90bdaa925114e9f69e135b335cc`, and
+`246b876ed6adad49f271fd74235e769ca979e36b7523b61f75d2467445b71c58`.
+
+### Rejected experiment E115-E117 — deleting two completion stages does not accelerate the route
+
+The narrowest future-graph candidate replaced two ignored `whenComplete` dependents per request with direct
+completion hooks: callback/timeout cleanup and the shared batch-timeout countdown. It preserved the same public
+`CompletableFuture`, synchronous downstream completion, timeout cancellation, exceptional completion, external
+cancellation, callback removal, result ordering and JFR stages. Fourteen focused timeout/chunk/callback tests passed,
+including new cancellation and shared-batch-timeout checks.
+
+E115 screened the candidate at 264,482/s. Because that fell inside the recent machine band, E116-E117 used one binary
+with an internal diagnostic switch so only the completion mechanism changed. Legacy dependent stages measured
+273,335/s; direct hooks measured 268,184/s, **-1.88%**. Latency moved from
+191.947/300.629/347.043/405.746 ms to 189.576/321.741/359.149/399.881 ms. Removing allocations locally did not
+increase full-route capacity; the custom future and direct bookkeeping were not cheaper than the JDK completion stack.
+The entire production/test/diagnostic diff was reverted. This closes individual cleanup-stage removal, not a future
+graph redesign that can eliminate mapping layers or move downstream work off the ordered result loop.
+
+E115 benchmark/Runtime/client-JFR hashes are
+`a1119e05422f2f68962aa742b164e828ec9b0d2a0f5e001dcb34d51a833bbaec`,
+`d9182fa6e0eb0058890eb144a4ed0bcc345a9d7e228463410d1b5069ea6acd03`, and
+`35a21bbbda85180f71fa68b348643412bb16d0a30f54b864570ffa98426201df`; E116 values are
+`b0af847ec5dbde8cd8f53325b159b9a107c496eeb790386f8efc7143e6773c62`,
+`3d413859eb99f05a33e9ab4badcb07bc48ce881d315d9f80650f6480e12fc3d8`, and
+`dd1152f50488f62a8b05ae07bac0d4f5580957598aec774bab0415e906e26c5e`; E117 values are
+`814e54beeb0c63f056240e9843da6e5ab1853d775f790b9b697b4633912ad743`,
+`15032704b49518637fa62987b72c0c7300d9f079747dd021d7ab279a9362f445`, and
+`06706abc3dc21a746ef9440fae61f28d31b0dc4e28c7f76186edd11abac239a8`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1047,10 +1114,14 @@ Runtime-collapsed/client-collapsed SHA-256 values are
     are not the answer: they lose 8.22% and fragment result publication. E110-E111 also reject caching the largest
     trace-only metadata leaf at -4.25% against bracketed controls. Both candidates are fully reverted; retain the
     serial-lane capacity fact, but do not equate parallel CPU demand with free E2E capacity.
-21. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+21. E112-E114 reject bounded platform workers and attribute 84.89% of the ordered completion lane to
+    `ResponseCallback.process` plus its synchronous dependent-future graph. E115-E117 then reject replacing only its
+    two ignored cleanup dependents at -1.88%. The next candidate must change the downstream mapping/completion
+    structure, not lookup, trace parsing, worker type or isolated cleanup nodes.
+22. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-22. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+23. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
