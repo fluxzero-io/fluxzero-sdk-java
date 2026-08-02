@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | **359,508/s** canonical matched geometric mean; sustained long control **408,185/s** in E550 | `commit-packed-update` | **0.431M/s** in E531 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | **359,508/s** canonical matched geometric mean; sustained long control **408,185/s** in E550 | `commit-packed-update` | **0.509M/s** in sustained E552 | Sole acceptance gate for the 500k target |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
@@ -364,6 +364,49 @@ command -> automatic `@Apply` -> durable model/global-event commit -> stored res
 **0.408M/s**. Canonical progress still uses the fixed one-million-command matched protocol; E550 is a non-canonical
 stability diagnostic, not a silently substituted acceptance baseline.
 
+### E552-E554: sustained route split identifies two equal storage costs and GC pressure
+
+E552 re-profiled the unchanged accepted binary-COPY implementation with the longer E550 protocol. The complete route
+processed 4,194,304 commands at 395,492/s under batch JFR, in 340 SDK model-dispatch batches averaging 12,336
+commands. The resulting event/message-store event is a fundamental sequential boundary: its preparation and storage
+fields do not overlap and sum to its active duration.
+
+| Fundamental part of one durable global-event + model job | Mean | p50 | p95 | p99 | Max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Event preparation and remaining global-event insert | **5.501 ms** | 4.550 ms | 12.000 ms | 25.500 ms | 40.800 ms |
+| Co-located model-table update | **5.748 ms** | 4.614 ms | 10.643 ms | 32.897 ms | 35.619 ms |
+| PostgreSQL commit | 1.454 ms | 1.006 ms | 3.679 ms | 6.604 ms | 28.402 ms |
+| Staging and monitor administration | about 0.050 ms | - | - | - | - |
+| Complete active event-store job | **12.781 ms** | 11.900 ms | 20.800 ms | 42.500 ms | 52.100 ms |
+
+The first row still contains one nested measured SQL segment: the global event-log insert itself averaged 4.686 ms
+(p50 3.699, p95 10.521, p99 25.417, max 40.099 ms). The second row is the complete co-located model callback; inside
+it the packed stream-block insert averaged 3.311 ms, state locking 1.438 ms and the state update 0.917 ms. Those three
+model phases are sequential and account for nearly all of the callback.
+
+This resolves two previously conflated capacities. E552 calculated 0.509M/s for the model-store observation that
+includes its admission/queue interval, while the actual co-located model callback performs 1.282M commands/s of active
+work. The enclosing global event store reaches only 0.577M/s because it must first finish event preparation/insertion,
+then the model callback, then the ordered commit. The full E2E route at 0.395M/s therefore still has too little margin
+for a stable 0.500M/s guarantee.
+
+E553 recorded the same accepted long route with normal CPU/allocation sampling and request-stage events disabled to
+avoid profiling instrumentation dominating the sample. It completed at 364,943/s under JFR. The recording contained
+2,912 execution samples, 3,396 allocation samples and 61 stop-the-world pauses totalling about 1.09 seconds
+(17.8 ms mean, 38.4 ms p95, 51.1 ms max); several collections were triggered by G1 humongous allocations. The largest
+flat allocation sites were Zstd compression (12.00%), tracking-wire output (7.91%), Zstd decompression (7.64%), Runtime
+native message serialization (5.34%), `SerializedMessage.encode` (4.68%) and model-commit wire output (1.86%). The
+model-specific sampled allocation groups represented about 12.9 GiB in SDK evaluation/preparation, 7.3 GiB in the
+Runtime model store and 5.0 GiB in model-commit wire encoding. These are allocation-pressure estimates from sampled
+weights, not retained-heap sizes.
+
+The apparent `MemoryAwareCacheSupport.updateAll` monitor hotspot was not an independent cache lock: every wait burst
+aligned with a garbage-collection pause. E554's non-JFR detailed counters still show real post-commit cache work of
+about 0.95 microseconds per model, but no evidence that replacing or weakening `AdaptiveCache` is warranted. E554
+completed the unchanged full route at 401,677/s. The next candidate must therefore target one of the two measured
+5.5-5.7 ms storage blocks or demonstrably remove model-specific allocation/GC from the full route; it must not infer a
+cache-contention mechanism from stop-the-world attribution.
+
 ## Current decision
 
 1. Runtime `87327b71` is the new accepted production checkpoint; full E2E matched gain is +5.28%.
@@ -378,8 +421,9 @@ stability diagnostic, not a silently substituted acceptance baseline.
    +0.47% on the longer complete E2E route and is not a production checkpoint.
 8. Use E550's 408,185/s only as evidence that the accepted route can sustain the old 0.407M service-capacity estimate;
    keep the fixed canonical protocol as the progress baseline.
-9. Re-profile the accepted long-running route before choosing the next model-store mechanism; do not extrapolate the
-   next target from the older short-run phase proportions.
+9. Use E552's sustained split for candidate selection: event preparation/global insertion is 5.501 ms and the
+   co-located model callback is 5.748 ms before the 1.454 ms commit. Do not optimize a smaller nested phase without a
+   mechanism that materially changes one of these complete blocks.
 10. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 
@@ -489,3 +533,10 @@ stability diagnostic, not a silently substituted acceptance baseline.
   `5c850ced03e6f21d4880b5f5c1c9c82862802d0308df5772899c015a764a7b77`.
 - E550/E551 long-run log SHA-256: `7ad9f5c92ba39dd679447daa469f48e1f7d45116b916f7025d0f49b519c77321`,
   `bb62e87f3819459887d3bc95be062fab3115f02a57802fce8ce134131bfed068`.
+- E552 log/JFR/summary SHA-256: `d6e62512b3ba58c47107b3c7d46599720a1e5c097dc00fd64854453aa1795931`,
+  `47221eb724a44994423c946cd2d5bb469f2a151945148fc96d897a71e40b2ca8`,
+  `46258fb88029334351f506477e4f75a19d380720bbcfaca2f61dfaab016365c0`.
+- E553 log/JFR/summary SHA-256: `666e2516d0fb15226406e70ef70767b6a0a59db4534d14e3f91f2b0cdfb556df`,
+  `5e598e5f7087b6f633e409b76d907029a0babd600eb73d12cf9e426ee95abd8f`,
+  `da2ba2f9ffe6f0f4c4dd5310c347a214d87695278201dc5a587706f2937efe0e`.
+- E554 detailed-timing log SHA-256: `edc8875c4b11fc3fe28deeb8eaf97fbfe0ea3a665da729575d18146c1116916c`.
