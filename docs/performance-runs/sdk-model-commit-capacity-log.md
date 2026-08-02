@@ -4,11 +4,13 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **423,424/s** best run | `commit-packed-update` | **0.497-0.509M/s** active ordered-store capacity in long P4 profiles E566/E571 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run | `commit-packed-update` | **0.539M/s** in the P5 profile versus 0.502M/s same-binary control | Sole acceptance gate for the 500k target |
+| Synthetic tracked SDK apply -> model + event durability | **834,806/s** without JFR; **846,441/s** with batch JFR | `commit-packed-update` | **0.995M/s** in E589 | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
-Production is Runtime `c98f47e6` (`perf(modeling): fuse packed state and stream writes`). The full model campaign remains
+Production is Runtime `0c23c91f` (`perf(modeling): reduce stream locator commit pressure`) on top of P4
+`c98f47e6`. The full model campaign remains
 scoped to model work. Command and ordinary result paths remain present only in the canonical E2E acceptance route and
 are not optimization targets.
 
@@ -41,6 +43,18 @@ This direct API does **not** have a tracked source message index. `ModelCommitte
 `possibleDuplicate` unknown so a transport retry can still be recognized through durable commit receipts. Runtime
 correctly routes these commits through the general idempotent path. The route is valuable, but it is not the packed
 automatic-command route minus two cheap stages.
+
+### Synthetic tracked SDK model apply
+
+This diagnostic begins with serialized command envelopes whose source indexes are valid, monotonic Fluxzero command
+indexes. It then performs normal lazy command deserialization, SDK handler resolution, assertions, interceptors,
+automatic `@Apply`, event serialization, SDK model-commit batching, WebSocket transport and durable Runtime model plus
+global-event storage. Sixteen virtual workers use the same conflict-free model set as canonical E2E.
+
+It excludes command append/tracking and ordinary result publication/completion. Unlike the public direct-call route,
+the synthetic source index gives the automatic handler the same tracked idempotency evidence as a real consumed
+command, so Runtime can correctly use `commit-packed-update`. It is diagnostic-only: the complete command/model/result
+route remains the acceptance gate.
 
 ## E483-E488: qualify the low-level SDK boundary
 
@@ -617,13 +631,84 @@ screen moved in the same direction. The candidate patch was archived and fully r
 idea is rejected at this SDK backlog layer; the remaining target is the fixed per-job work inside the ordered
 model/event-store boundary, not another feedback cap.
 
+### E584-E592: isolate the full SDK model handler and identify database contention
+
+The literal public `assertAndApply` route cannot safely claim a tracked source index and therefore measures the slower
+general idempotent store path. E584-E589 added a diagnostic-only synthetic tracked route to the benchmark. Commands
+are serialized before timing and receive valid monotonic indexes in the same epoch-based range as real Fluxzero
+messages; the normal SDK handler pipeline then performs deserialization through durable model and global-event
+storage. Command and ordinary result logs are the only omitted stages.
+
+E584-E586 initially used indexes around 10^12, below current Fluxzero epoch indexes around 10^17. Runtime correctly
+classified every update as a possible duplicate and used `commit-general`; these runs are invalid as packed-route
+capacity measurements. After fixing only the benchmark index source, all 131,072 diagnostic updates selected the
+packed path and exact durable verification passed. The sustained measurements were:
+
+| Route | Run | E2E | Model-store jobs / mean | Mean active store | Active store capacity |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Synthetic tracked SDK apply -> model + event | E588 none | **834,806/s** | not profiled | not profiled | not profiled |
+| Synthetic tracked SDK apply -> model + event | E589 batch JFR | **846,441/s** | 637 / 6,585 | 6.619 ms | **0.995M/s** |
+| Command + tracking + model + event, no ordinary result | E590 none | **561,987/s** | not profiled | not profiled | not profiled |
+| Command + tracking + model + event, no ordinary result | E591 batch JFR | **564,370/s** | 722 / 5,809 | 8.965 ms | **0.648M/s** |
+| Full command + model + event + result | E571 batch JFR | 413,086/s | 703 / 5,966 | 11.728 ms | **0.509M/s** |
+
+The model-only diagnostic includes the SDK side the user wanted: handler resolution, assertions, interceptors,
+automatic `@Apply`, model loading/cache access, transition planning, event serialization, model batching and the
+WebSocket round trip. Its 0.835-0.846M/s result proves that neither SDK model handling nor one abstract 0.407M/s lane
+is a fixed current ceiling. Adding the command route lowers active model-store capacity by about 35%; adding ordinary
+results lowers it by another 21%. Model batch sizes stay in the same order of magnitude, while event insert, state/
+stream and commit times all rise. That makes shared PostgreSQL/WAL pressure the route-wide causal model rather than a
+missing SDK compute optimization.
+
+E592 retained the full canonical route and reset PostgreSQL statistics exactly at measured-phase start. It completed
+at 418,035/s. The 64-connection application pool was not saturated: samples normally found roughly 24-28 idle
+backends and almost never caught an active wait. PostgreSQL reported 14,597 commits, 346.9 MB WAL, 5,862 client WAL
+fsyncs and no WAL-buffer exhaustion. The derived locator performed roughly 600 rounds; each round issued eight
+parallel partition COPY transactions plus its cursor transaction. The COPY execution itself remained parallel and
+fast, but those small partition transactions were a measured source of avoidable commit pressure.
+
+### E593-E605: P5 halves locator partition transactions while retaining parallel inserts
+
+P5 does not delay, coalesce by timer or serialize the locator into one large insert. Every ready locator round still
+starts immediately. Its eight physical hash partitions are assigned to four parallel write lanes; each lane writes
+two partitions sequentially on one connection and commits once. The cursor still advances in its separate ordered
+transaction only after every lane completes. The existing cleanup still waits for all lane futures and removes rows
+from every affected partition after any partial failure.
+
+Four versus eight lanes was positive in every matched comparison:
+
+| Pair | Four lanes | Eight-lane same-binary control | Effect |
+| --- | ---: | ---: | ---: |
+| E593 / E594, no JFR | 425,104/s | 422,254/s | **+0.68%** |
+| E596 / E595, reverse order, no JFR | **426,108/s** | 418,143/s | **+1.90%** |
+| E597 / E598, batch JFR | 413,567/s | 408,101/s | **+1.34%** |
+| E599 / E600, measured PostgreSQL stats | 418,179/s | 406,711/s | **+2.82%** |
+
+The unprofiled matched geometric means are **425,606/s versus 420,193/s (+1.29%)**. Across all four matched pairs the
+effect is +1.68%. E597 also raised active model-store capacity from 0.502M/s to **0.539M/s (+7.4%)** and increased
+mean natural model batches from 5,615 to 6,141. The PostgreSQL pair proves the intended mechanism: total measured
+transactions fell from 13,698 to **11,696 (-14.6%)** and total active PostgreSQL time from 22.94 to **18.73 seconds
+(-18.3%)**. WAL volume stayed comparable and neither run exhausted WAL buffers.
+
+Two lanes were screened because the already rejected one-transaction E533 implementation established the lower end.
+Across E601/E602 and clean reverse-order E605/E604, two lanes gained only 0.31% geometric mean over four. That is below
+the campaign's noise floor and sacrifices useful insert parallelism for heavier real-world locator rows, so four is
+the selected default. E603 is explicitly excluded: `mediaanalysisd` consumed 96% CPU during the run and inflated p99
+latency to 335 ms. The process was paused for E604/E605 and immediately resumed afterwards.
+
+Runtime commit `0c23c91f` is the accepted P5 checkpoint. The new focused test deterministically covers all eight
+physical locator partitions through the grouped lanes; the complete `JdbcModelCommitStoreTest` suite passes 104/104.
+Authoritative model/event storage, physical locator layout, cursor-gated visibility, failure cleanup and wire formats
+are unchanged.
+
 ## Current decision
 
-1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
-   with a best complete-route observation of 421,981/s.
-2. Use E566 and its fresh same-behavior control E571 as the current long storage profiles. The ordered model/event
-   store shows 0.497-0.509M/s active capacity; these derived rates vary with natural transaction shape and are not E2E
-   ceilings.
+1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
+   inserts while reducing total transaction pressure; matched no-JFR E2E improves +1.29%, with a best observation of
+   426,108/s.
+2. Use E597/E598 as the current matched long storage profiles. The ordered model/event store shows 0.539M/s active
+   capacity at P5 versus 0.502M/s in the same-binary eight-lane control; these derived rates vary with natural
+   transaction shape and are not E2E ceilings.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
@@ -631,10 +716,11 @@ model/event-store boundary, not another feedback cap.
    no-type-registration path and is accepted because it removes state boundaries as one atomic unit.
 7. Treat E550's 408,185/s and E562's 421,981/s as demonstrated high states, not standalone stable pins. Matched
    comparisons remain the progress evidence.
-8. Continue from the post-P4 profile rather than the old 0.407M active-lane estimate. That estimate was never an E2E
-   ceiling and has now been superseded by complete-route measurements.
-9. Use E555's server/client split when selecting P5: repeated JDBC boundaries contain more headroom than the raw
-   PostgreSQL executor time. Validate the next complete block before changing production code.
+8. Do not use the old 0.407M active-lane estimate as an E2E ceiling. E589 proves 0.995M/s active model-store capacity
+   and 0.846M/s SDK-inclusive model throughput when command/result logs are absent.
+9. Use the E589/E591/E571 route split and E592/E599/E600 PostgreSQL statistics when selecting P6. The current loss is
+   shared database/WAL contention that slows every model boundary, not a saturated connection pool or fixed SDK
+   handler ceiling. Validate one complete mechanism before changing production code.
 10. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 11. Do not replace the conditional event-block multi-value insert with binary COPY at the current physical row shape;
@@ -847,3 +933,55 @@ model/event-store boundary, not another feedback cap.
   `be3d9cb1a2034dc74a7334387c9090dd1c36dd0e15eaa9be0f52840a3cb6f2c1`.
 - Reverted E577-E583 SDK durable-backpressure candidate patch SHA-256:
   `8558c3959c7b716f0ebc583f64248804630ed46f5d886e5c0c1618adf2b89a6c`.
+- E584 invalid-index synthetic-route log SHA-256:
+  `af308c2d37bbc200e62014f3e6621ce8a1c77a43cc27c33e64eabb3ab0ed058e`.
+- E585 invalid-index profile log/JFR/summary SHA-256:
+  `83265fa293ca7bb1fc32c3341803da726efe079e487aa74e8ac61b5d73862854`,
+  `c5f16a93239cd69096f6f0a2c99272fc306216dc6d1e20b7921f60d136baa546`,
+  `d9c23b3a9a075136111ac790104d011ff603631ef578e7590c070421bcfafeac`.
+- E586/E587 packed-outcome diagnostic log SHA-256:
+  `bb3832b08661a1e3a047027df23e554b28f58684a318a91a4d619f6e8f77f2b1`,
+  `65f5a6b21c429f414f76b1d287e1be8219632fd7d676dbe28b84a17b940a379a`.
+- E588 synthetic tracked SDK handler long-run log SHA-256:
+  `fd3f4a8744ac80d2b8d32ed2218eab94e42e494f1893611844348a4dc73b775c`.
+- E589 synthetic tracked SDK handler profile log/JFR/summary SHA-256:
+  `7a3db91e543e06338bc55ee2b35a77c222879d771edebc809226d6587d6dee06`,
+  `4df829b0c1a80dd65b958c2aa957e909e6438ecd6d873f30b2a77111c278ee4b`,
+  `6a75182483516a18a603cd5a1891b031095eb099811464173d36b6f50825c93a`.
+- E590 command/model-without-result long-run log SHA-256:
+  `bc5ca8fdaea7049551b6538b9e726af9354a9847bd043f72e177aac04eb23a38`.
+- E591 command/model-without-result profile log/JFR/summary SHA-256:
+  `53f7ae6f6e8e85010249b1e101ae3336f732e5fef726e29ed56675938047628d`,
+  `6fb5f592b74c4b7f5687ae4b30bf6e774d4b4e8d570b9413916a4c55b057b644`,
+  `197e25e1197219048897b5416e7fe54c5d0af7800f8852a063241706212aff7d`.
+- E592 full-route PostgreSQL diagnostic log/activity/stats SHA-256:
+  `a5a281e33bc799c062bb2409cccd6134136452369e010d404409112356cbc445`,
+  `0c0d11dd526ce6c1840a70e7b2ee6cdf1afbefd23dc18a225ff4bd8d41e1d5c1`,
+  `f56a92c2ba43802d736de76cb23326301fdbcbe9b8d20b29903b7f4c42d8cfb8`.
+- E593-E596 four/eight-lane matched log SHA-256:
+  `f67c9a4d277d861a15f17dca1c1205ddd7f350b9586e8e632d8e3da591a5523f`,
+  `3c965f72dd804a3bee3102e1ee95762628c9d7239ebf2ab7fd57dd0c68ab6b0c`,
+  `74fc8e5a1b089901f73da67f3f5d8964f152b3e363dae18d4c07196d8fa290d5`,
+  `4a48d31536971e3afee5e242ea116beb0d1967e3fb7edf3f1c83d24ab0da1744`.
+- E597 four-lane profile log/JFR/summary SHA-256:
+  `dac5580f761fc668e0324b6431589cd29fec760f3cd6a28619ea6de9e20f739e`,
+  `da7aa64acff670273055e05a433b2eb4f23adccbdb174957c60ea3ec828a4c5a`,
+  `70401118415a900662a97fcd702873116748f1baa47348dd6803ef15491daa48`.
+- E598 eight-lane control profile log/JFR/summary SHA-256:
+  `93d05b6fe1120db29ff740354e828902a975c5b16200f3c7bc64fa899248a22e`,
+  `97c9bd507f446b4d0dcf6b4baed00eee3048c16f7755515e057ccd8a06e33196`,
+  `c162af3a852a237908389908da186bf99b86f70227155140a6002e3ffc7ab0d0`.
+- E599 four-lane PostgreSQL diagnostic log/stats SHA-256:
+  `ee4cc6d84903ad914a0e5e188190e66463f460de07351a0bac86218aec5cfbd8`,
+  `b73c34bbcc7143b4091653f7b59295f90dcc1bb6ff0bdad2a612629ed1007ed3`.
+- E600 eight-lane PostgreSQL control log/stats SHA-256:
+  `ff9ce90c48f6915cf1b3f46792253c00deaf163bbdcd26028d7ff242caf1026d`,
+  `101e9465923c35d205800f2072bd89d814d1b32aabe769a51a570a74440e95c8`.
+- E601/E602 two/four-lane first-pair log SHA-256:
+  `86df235d6d7a86ee4093a5ac9471bba9ae6836dd50a5ed00f9284b9bc5c96a2d`,
+  `0952c8cdff3b95836797eb286cbd8fd89dd30aafe920d0bc366e7dea0174db82`.
+- Excluded E603 host-contaminated log SHA-256:
+  `aa99eaeff3bd332bee072a8ff2493bde9f73b64377e59ea0be5a46759bad2e03`.
+- E604/E605 clean four/two-lane reverse-pair log SHA-256:
+  `949595fa77b472a8d9e5c7b5241162bf00fb70a5b05c5dab33bdd194e3f1d1e3`,
+  `c68e424bdae7d88c92bc8e30bf945fb0fb7885c1f594f0a22d375a62fea66d4d`.
