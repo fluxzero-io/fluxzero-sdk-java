@@ -1,7 +1,8 @@
 # No-apply durable-result route anatomy
 
-Measured on 2026-08-02. This report records E209-E265, the intact command/result route with model application and event
-publication deliberately absent. It is a diagnostic ceiling and **not** a qualifying model-throughput checkpoint.
+Measured on 2026-08-02. This report explains the E209-E265 base anatomy and links the continuing E266-E315 audit of
+the intact command/result route with model application and event publication deliberately absent. It is a diagnostic
+ceiling and **not** a qualifying model-throughput checkpoint.
 
 ## Question and exact route
 
@@ -356,7 +357,7 @@ Current evidence says:
 
 ## Immutable evidence
 
-Every invocation is recorded as E209-E299 in
+Every invocation is recorded as E209-E315 in
 [`model-e2e-run-registry.csv`](model-e2e-run-registry.csv). Principal artifacts are:
 
 - E224 async-profiler log/collapsed stacks: `0bcf2161...` / `8467cf40...`;
@@ -367,5 +368,6 @@ Every invocation is recorded as E209-E299 in
 - E280/E281/E282 completion isolation logs: `682471ee...` / `96b18f84...` / `0e4a3674...`.
 - E283-E289 offering diagnostics and clean default verification are registered with full hashes below.
 - E290-E299 heap/cache/database regression audit: [`model-e2e-no-model-change-log.md`](model-e2e-no-model-change-log.md).
+- E300-E315 generic appender and payload audit: [`model-e2e-message-appender-anatomy.md`](model-e2e-message-appender-anatomy.md).
 
 Full SHA-256 values and all paired/rejected run artifacts remain in the registry.

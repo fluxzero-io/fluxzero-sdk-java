@@ -16,14 +16,14 @@ experiments were rejected.
 | Fresh accepted-base pin | E205-E207 reran exact P3 in the original embedded, genuinely profiler-free Java 25 topology at 346,152 / 345,935 / 331,432 commands/s; geometric mean **341,103/s** |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Active campaign stage | Raise the intact durable no-model command/result route well above **1M/s** before adding one durable event per command and only then returning to model commits. Measure single-client offering/completion separately from multi-client Runtime capacity. |
-| Best non-qualifying ceiling | E293 restores the current production binary to **948,988/s** by reinstating the missing initial-heap pin. Clean E295/E297 16,384-producer controls geometrically sustain **952,719/s** and E296 reaches 950,653/s with the 8,192 producer. E295 is the current high at **967,037/s**. |
+| Best non-qualifying ceiling | E315 freshly restores the unchanged production route to **962,888/s** after eliminating machine interference. E295 remains the high at **967,037/s**; clean E295/E297 controls geometrically sustain **952,719/s**. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E290-E299 explain the apparent 948k -> 769k regression. The later launcher omitted E279's fixed initial heap: restoring `-Xms8g` returns the fully reverted production binary to 949-967k/s, while `-Xmx8g` alone remains at 759k/s. A larger command-cache count improves the amplified low state but is not the root or a production candidate. The clean 8,192/16,384 driver comparison is neutral (-0.22%). |
-| Next evidence target | Keep the fixed-heap 0.953M/s no-model route as E2E truth. Isolate the shared ordered message appender across command/result metadata and a payload-size matrix, then select a mechanism that raises intact durable E2E well above 1M/s without weakening gapless publication or payload generality. |
+| Latest causal diagnosis | E300-E310 show that the shared appender exceeds 1.79M/s for fragmented 32-byte messages and 4.65M/s with full batches, while incompressible payloads converge on 0.095-0.117 GiB/s. E311-E313 reject count-only backlog 8,192 at -0.53% E2E. E315 restores 962,888/s after Spotlight/autovacuum interference; production hashes never changed. |
+| Next evidence target | Capture a clean high-state intact-route batch profile and compare result batch formation, commit, direct insert and concurrent read pressure with E279. A production mechanism must emerge from that E2E limiter and enforce both count and heap-derived byte budgets. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E299 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E315 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -118,6 +118,8 @@ command/result route while replacing model apply with a typed no-op handler is d
 [`model-e2e-no-apply-ceiling-anatomy.md`](performance-runs/model-e2e-no-apply-ceiling-anatomy.md).
 The exact no-model environment and change-by-change regression audit is maintained in
 [`model-e2e-no-model-change-log.md`](performance-runs/model-e2e-no-model-change-log.md).
+The generic command/result appender, payload curve and E2E backlog ablation are documented in
+[`model-e2e-message-appender-anatomy.md`](performance-runs/model-e2e-message-appender-anatomy.md).
 
 ## Acceptance protocol
 

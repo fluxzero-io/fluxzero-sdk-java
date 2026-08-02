@@ -90,9 +90,10 @@ to adaptive memory-pressure trimming. A count cap may remain only as a defensive
 messages.
 
 Command and result stores share the same ordered writer mechanics. Future message-appender work must therefore use a
-payload-size matrix and validate both log types. Parallel serialization and inserts are allowed, but index reservation
-and visible durable commit/publication must remain ordered and gapless so trackers cannot advance past an invisible
-index range.
+payload-size matrix and validate both log types. Parallel serialization and inserts are allowed, but index ranges and
+visible durable commit/publication must remain monotonically ordered and non-overlapping so trackers cannot advance
+past a transaction that may later publish at a lower index. Numeric gaps are valid: indices also encode time, and a
+rejected conditional reservation may deliberately leave unused positions.
 
 ## Process corrections and next experiment
 
@@ -106,3 +107,8 @@ index range.
   or accepted after E293 proved the production binary itself still reaches the high state.
 - Next: isolate the generic ordered message appender with command/result-shaped metadata and small, normal and large
   payloads, then validate any mechanism on the intact durable no-model E2E route before production code is accepted.
+
+E300-E315 execute that next step in
+[`model-e2e-message-appender-anatomy.md`](model-e2e-message-appender-anatomy.md). They establish a fresh 962,888/s
+clean-system pin, reject a count-only 8,192 backlog, and quantify both small-message transaction headroom and the
+0.095-0.117 GiB/s incompressible payload boundary. No production candidate was accepted.
