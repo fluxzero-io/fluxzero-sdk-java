@@ -4,6 +4,16 @@ This log isolates the durable command/result route used before event and model w
 exact changes between the E279 high state and the later low state so a benchmark-environment regression cannot be
 mistaken for a production regression again.
 
+## Live scoreboard
+
+| Campaign state | Current evidence |
+| --- | --- |
+| Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
+| Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
+| Current production candidate | None; time-window coalescing and separate-`SET LOCAL` async commit are rejected |
+| Current focus | Remove the extra round trip from the position-only async diagnostic, then require full E2E gain |
+| Exit criterion before events/models return | Stable profiler-free no-model throughput **well above 1M/s** |
+
 ## Route and immutable behavior
 
 Every E2E row below executes:

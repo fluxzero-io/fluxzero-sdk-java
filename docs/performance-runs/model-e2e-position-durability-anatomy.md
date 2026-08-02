@@ -106,19 +106,50 @@ setting.
 | E327 | 0 | 929,190 | 64.631 / 86.955 / 96.459 / 115.473 | Leading control |
 | E328 | 2 ms | 821,209 | 68.261 / 106.046 / 140.395 / 649.744 | Candidate |
 | E329 | 0 | 771,645 | 71.169 / 119.176 / 189.116 / 614.578 | Trailing control after sustained host heating |
+| E330 | 0.250 ms | 477,224 | 83.061 / 358.426 / 444.239 / 878.209 | Cooled repeat still enters the cache cliff; time-window mechanism rejected |
 
 The controls' geometric mean is 846,761/s; E328 is 3.02% lower. The laptop was visibly hot after repeated 20M-command
-runs, while macOS had not yet registered a formal thermal-warning level. The pair therefore rejects 2 ms as a current
-checkpoint but is not clean enough to infer a precise penalty. The production default remains zero. The 250-microsecond
-point still needs a thermally bracketed profiler-free pair because it offers a smaller transaction reduction with much
-less added residence.
+runs, while macOS had not yet registered a formal thermal-warning level. E330 then repeated the smaller 250-microsecond
+candidate after cooling and collapsed to 477,224/s with severe tail latency. The exact penalty is state-dependent, but
+both non-zero windows can push the route into the same cache/backpressure cliff. No time-based collection window is
+retained and the complete candidate was reverted.
+
+## Position-only asynchronous commit
+
+E331-E333 test an opt-in diagnostic that keeps ordinary message/model/event/result commits synchronous while setting
+`synchronous_commit=off` only for monotone tracking-position transactions. Position futures still complete after
+PostgreSQL reports the transaction committed. A database or operating-system crash may therefore replay a recent
+position window, but cannot acknowledge a position that PostgreSQL has not logically committed; explicit position
+resets remain synchronous. This is diagnostic-only because changing the durability represented by `STORED` requires an
+explicit compatibility decision.
+
+The first candidate uses the existing Runtime helper, which executes `SET LOCAL synchronous_commit=off` as a separate
+statement before each position transaction. E331 and its reverse sync control E332 both entered the command-cache
+fall-through state, requesting 142.3M and 117.2M physical command records respectively. Those throughput values cannot
+attribute the cliff to async commit. E333 repeated async commit in the healthy route state and is directly comparable
+to healthy sync anatomy E321:
+
+| Run | Position commit | Throughput/s | Command position DB mean | Result position DB mean | SDK command barrier mean | Physical command reads |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| E321 | synchronous control | 898,056 | 3.153 ms | 3.106 ms | 7.144 ms | 733,184 |
+| E333 | async via separate `SET LOCAL` | 900,736 | 4.526 ms | 4.608 ms | 9.029 ms | 430,080 |
+
+Throughput is neutral (+0.30%), while each position database transaction becomes roughly 1.4-1.5 ms slower. The extra
+`SET LOCAL` protocol round trip costs more than the avoided WAL flush wait. This concrete implementation is therefore
+not checkpoint-worthy. PostgreSQL 18.3 locally confirms that a transaction-local `set_config` invoked from the first
+position update stays `off` through commit and returns to `on` after rollback/transaction completion. That supplies the
+next narrow diagnostic: embed the setting into the first position statement so the async mechanism is tested without
+an additional client/server round trip, then return to the full E2E route for the decision.
 
 ## Current decision and next evidence
 
 - Retain the JFR position instrumentation: it exposed a real, previously aggregated synchronous boundary.
-- Do not accept the generic per-batch collection delay or any non-zero production default from E322-E329.
-- After cooling, compare 0 and 250 microseconds in alternating profiler-free long runs with a stable host. A candidate
-  must improve complete-route throughput without increasing cache fall-through or materially worsening latency.
+- Do not accept the generic per-batch collection delay or any non-zero production default from E322-E330.
+- Do not accept the separate-`SET LOCAL` async implementation from E331-E333; it adds more position service time than
+  it removes and has no complete-route throughput gain.
+- Test transaction-local async position commit without an extra round trip, while keeping every position future behind
+  the real PostgreSQL commit response. A candidate must improve complete-route throughput without increasing cache
+  fall-through or materially worsening latency.
 - If bounded waiting remains neutral or negative, investigate a shared arrival-driven transaction owner for command
   and result positions. That mechanism should combine already-arrived cross-log work without sleeping and must complete
   each existing future only after the shared commit.

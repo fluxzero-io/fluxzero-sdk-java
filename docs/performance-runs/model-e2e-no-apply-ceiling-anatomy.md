@@ -357,7 +357,7 @@ Current evidence says:
 
 ## Immutable evidence
 
-Every invocation is recorded as E209-E329 in
+Every invocation is recorded as E209-E333 in
 [`model-e2e-run-registry.csv`](model-e2e-run-registry.csv). Principal artifacts are:
 
 - E224 async-profiler log/collapsed stacks: `0bcf2161...` / `8467cf40...`;
@@ -369,7 +369,7 @@ Every invocation is recorded as E209-E329 in
 - E283-E289 offering diagnostics and clean default verification are registered with full hashes below.
 - E290-E299 heap/cache/database regression audit: [`model-e2e-no-model-change-log.md`](model-e2e-no-model-change-log.md).
 - E300-E315 generic appender and payload audit: [`model-e2e-message-appender-anatomy.md`](model-e2e-message-appender-anatomy.md).
-- E316-E329 PostgreSQL and position durability audit:
+- E316-E333 PostgreSQL and position durability audit:
   [`model-e2e-position-durability-anatomy.md`](model-e2e-position-durability-anatomy.md).
 
 Full SHA-256 values and all paired/rejected run artifacts remain in the registry.
