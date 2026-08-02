@@ -79,6 +79,22 @@ trackers' tail, but E73 rejects it as the next throughput candidate because it c
 gap. The correct way to reduce C06 residence is to raise the capacity of the ordered downstream model pipeline that
 delays new read demand.
 
+### E74 direct-tail causal profile
+
+E74 used the existing `fluxzero.messageStoreDirectTailRows=true` switch without removing any E2E work. All exact
+checks and 332/332 fully staged traces passed. Relative to adjacent E73, event-log staging fell from 8.382 to 0.001 ms
+mean and packed-model service from 24.555 to 19.431 ms. Profiled E2E moved from 263,353 to 269,039/s (+2.16%). The
+benefit was partly offset because natural model batches became smaller (7,944 to 6,679), co-located model storage rose
+from 5.376 to 8.248 ms and commit rose from 1.285 to 2.277 ms. This confirms a real avoidable stage cost, but also
+confirms that eliminating one local phase is not enough to select the global forced mode as production behavior.
+
+The next candidate is deliberately narrower: a sufficiently large co-located model/event transaction may persist its
+underfilled tail directly in that same atomic transaction, while low-rate and ordinary isolated appends retain staged
+tail coalescing. E74 log/JFR/summary SHA-256 values are
+`11f9352cd027ff535d6f69dd1070848c11852d3f1f4b15e4cfdd82a2a6f04ea2`,
+`b187a8710512a84cd58291dc4bed71f43949cf7a0461688a413064d61f2522d0` and
+`71d02f9308eb37d592099dfb1a3daa226a656b5dd929551b7236ce0a34f34a72`.
+
 ## How to read this report
 
 - Every time is milliseconds and describes one sampled command, not CPU service summed across the workload.
