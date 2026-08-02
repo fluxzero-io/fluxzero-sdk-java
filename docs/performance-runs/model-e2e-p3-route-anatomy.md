@@ -85,7 +85,9 @@ staging/coalescing behavior.
 
 ## Fundamental route intervals
 
-These are direct adjacent marker-to-marker boundaries. Async branches can overlap, so they are not additive.
+These are direct adjacent marker-to-marker boundaries. Async branches can overlap, so they are not additive. Marker
+adjacency does not by itself imply active service: an interval may still represent residence behind earlier work on
+the same ordered lane. E79 proves that this distinction matters for command tracking.
 Definitions and inclusions are unchanged from the
 [P2 route anatomy](model-e2e-p2-route-anatomy.md); this table supplies the P3 distributions. Rows whose mean exceeds
 5 ms are bold because they are the first candidates to relate to capacity, not because latency alone proves a limiter.
@@ -214,6 +216,21 @@ old, already durable staging rows before the single commit executor advances. Re
 
 P3 is accepted and committed. It is a simple bounded storage-shape rule with a reproducible complete-route gain and no
 wire, stored-format, ordering, atomicity, durability, retry, policy or SDK-default change.
+
+### E79 correction: the 40-ms command-tracking interval is downstream residence
+
+E79 added a JFR-only origin marker to every sampled resolved batch. Of 365 fully correlated command routes, **359
+(98.4%)** were resolved by a later client request after that consumer finished its preceding ordered batch; only **6
+(1.6%)** were resolved by the storage notification that first announced the command. C06 averaged **43.147 ms**, while
+the 910 actual command scans averaged only **0.682 ms**. The notification worker itself averaged 0.216 ms and normally
+had no tracker to wake because all 16 consumer lanes were busy.
+
+Consequently C06 is not an independently optimizable 43-ms tracking service stage. It is a residence gauge for
+downstream consumer capacity. Scan SQL or parallel notification fan-out would attack at most the 1.6% notification
+minority; increasing handler/model/result capacity should reduce C06 automatically. The E79 log/JFR/summary SHA-256
+values are `7b7189f96f2d60751656cf7dd95205c9da62863346b0c0d5a6d36116e8fbd768`,
+`39735991b3ab60385101e37fe4a6c85c256b3c35e84f560c98575625f4656c44` and
+`47eefd265968a18e3f80f2655eafcd91a4a5f1db84fda4e8fd8d557425b96d02`.
 
 The remaining hard capacity signal is the same one the user selected: one active model/event durability lane. P3
 reduced its queue p95 but did not materially raise its item service ceiling because smaller natural transactions moved
