@@ -380,3 +380,42 @@ The next candidate must remove or share that physical work inside the same atomi
 
 Artifact identities are recorded in
 [`model-e2e-run-registry.csv`](model-e2e-run-registry.csv) under `E92-PROFILE`.
+
+### E93-E99: immutable rows scale when visibility is separated from data preparation
+
+The next diagnostic reproduced accepted P3's physical output rather than deleting a route stage. Per 1,048,576 items
+it wrote 8,192 logged event rows of 2,178 bytes and 1,024 logged model-stream rows of 6,624 bytes, matching E75's
+observed compressed totals. Each batch used two binary COPY operations, a durable batch marker and a real synchronous
+commit. A separate ordered publisher advanced event and state indices and verified every row, marker and final head.
+
+Without a shared mutable state row, ordinary committed data transactions scale almost linearly:
+
+| Batch items | Lanes 1 | Lanes 2 | Lanes 4 | Lanes 8 |
+| ---: | ---: | ---: | ---: | ---: |
+| 8,192 | 1.007M/s | 1.829M/s | 3.320M/s | **4.849M/s** |
+| 4,096 | 0.623M/s | 1.100M/s | 1.965M/s | **2.929M/s** |
+
+Committed rows would be observable before the ordered head in a real message store. E95-E99 therefore retested the
+same workload using PostgreSQL prepared transactions. Each data transaction inserted its event rows, model-stream
+rows, durable marker and append-only state advance, then executed `PREPARE TRANSACTION`. Only an ordered
+`COMMIT PREPARED` made the complete batch visible. The first 4,096-item run allowed workers to start a new transaction
+immediately after prepare and correctly hit PostgreSQL's 128-prepared-transaction bound. The probe was fixed so one
+lane permit is held through ordered commit; exactly ten remaining diagnostic transactions were rolled back and zero
+remain.
+
+| Bounded 2PC batch items | Lanes 1 | Lanes 2 | Lanes 4 | Lanes 8 |
+| ---: | ---: | ---: | ---: | ---: |
+| 8,192 | 0.718M/s | 1.295M/s | **1.774M/s** | 1.765M/s |
+| 4,096 | 0.391M/s | 0.733M/s | 0.902M/s | **0.984M/s** |
+
+This is not an E2E result: it excludes SDK evaluation, transport, compression and ordinary results. It does prove the
+mechanism that E80 could not. E80 still updated/ordered a shared transaction boundary and gained no physical overlap;
+the probe uses immutable parallel data plus an independently ordered visibility event. Four lanes are the selected
+prototype depth because they saturate the representative 8,192-item curve without the resource cost of eight.
+
+The full-route candidate must preserve these additional contracts before it can be accepted: prepared transactions
+are globally bounded; general, conflicting, deletion and erasure operations are barriers; original reservation order
+owns visibility and result completion; a crash rolls back any unacknowledged Fluxzero prepared transaction before new
+work; a committed-but-unacknowledged retry remains idempotent; and deployments must explicitly support at least the
+configured prepared-transaction depth. Exact invocation and source identities are in
+[`model-e2e-run-registry.csv`](model-e2e-run-registry.csv), E93 through E99.
