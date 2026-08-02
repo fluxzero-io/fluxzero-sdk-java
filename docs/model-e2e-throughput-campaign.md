@@ -1118,6 +1118,82 @@ E122 benchmark/Runtime/client-JFR hashes are
 `e1d0e00159793063b95e9226391a26f38f1c99f14b30f91deea239e81d3f8b2d`, and
 `5a518cd7b779a80e8790648ac468f723696579c4e62f769fb829af8c6d5c7fde`.
 
+### Diagnostics E124-E125 — the packed model/event transaction has a physical cost ledger
+
+E124 enabled the existing exact batch timers on the intact 1,048,576-command route. Across 375 durable packed batches,
+the model stream encoded 1,179,183 warm-up-plus-measured memberships in 228.376 ms (**193.7 ns/item**) and copied them
+in 976.853 ms (**828.4 ns/item**). The complete durable coordinator used 4,302.780 ms (**3,649.0 ns/item**). Codec plus
+stream COPY therefore accounted for only 28% of that service; rewriting the model codec alone could not explain or
+remove the remaining 72%.
+
+E125 recorded only the measured interval with Runtime JFR, so every row below covers exactly 1,048,576 commands and
+ordinary results. Operations in different stores can overlap; values are accumulated active service and must not be
+added into a latency. Inside the single model/event transaction they are sequential and nearly exhaust its active
+database work.
+
+| Fundamental measured storage operation | Calls | Output rows | Active time | ns/item | Meaning |
+| --- | ---: | ---: | ---: | ---: | --- |
+| command log direct block insert | 336 | 8,249 | **1,459.524 ms** | 1,392.2 | Compressed command-log rows prepared on insert workers. |
+| command database commit | 342 | n/a | 878.963 ms | 838.2 | Ordered durable command transaction completion. |
+| event log direct block insert | 174 | 8,270 | **973.332 ms** | 928.4 | Compressed global-event rows written before the co-located model task. |
+| model state lock/read | 176 | 176 | **418.288 ms** | 398.9 | Lock and read the singleton durable model visibility state. |
+| model stream block insert | 176 | 1,109 | **832.558 ms** | 794.0 | Copy compact membership/history blocks that reference the global event payloads. |
+| model state-head update | 176 | 176 | **281.953 ms** | 268.9 | Advance durable model visibility to the last state index. |
+| event/model database commit | 176 | n/a | **363.056 ms** | 346.2 | Atomically make the event rows, stream rows and state head durable. |
+| result log direct block insert | 541 | 8,353 | **2,423.432 ms** | 2,319.0 | Compressed ordinary-result rows prepared ahead of ordered commit. |
+| result tail staging | 544 | 3,537 | 556.895 ms | 531.1 | Underfilled result tails retained as scalar staging rows. |
+| result database commit | 544 | n/a | **1,518.045 ms** | 1,447.7 | Ordered durable ordinary-result transaction completion. |
+
+The model co-located task totals 1,556.893 ms: lock, stream insert and state update explain 98.4% of it. Event insert,
+that co-located task and commit together explain the physical model/event boundary. The model stream is already a
+membership/reference representation rather than a duplicate event payload, but it remains a second physical write.
+The result store is not the current standalone limiter (E64), yet its 544 commits and 8,353 rows are a mandatory later
+budget for any route approaching 1M/s.
+
+### Rejected experiments E126-E132 — larger message blocks improve SQL but lose complete-route capacity
+
+E126 raised the generic message-log group from 128 to 1,024 messages. It measured 243,112/s against E127's adjacent
+277,727/s control, **-12.46%**. E128 explained the apparently counterintuitive loss: the intended physical operations
+did become cheaper, but natural partial waves no longer filled a 1,024-message row.
+
+| Fundamental operation | 128-message E125 | 1,024-message E128 | Change |
+| --- | ---: | ---: | ---: |
+| event direct rows | 8,270 | **1,061** | -87.2% |
+| event direct insert | 973.332 ms | **779.687 ms** | **-19.90%** |
+| model stream insert | 832.558 ms | **671.594 ms** | **-19.33%** |
+| model state lock | 418.288 ms | **347.099 ms** | **-17.02%** |
+| model state update | 281.953 ms | **214.140 ms** | **-24.05%** |
+| result direct insert | 2,423.432 ms | **2,002.688 ms** | **-17.36%** |
+| event staging rows | **130** | 23,279 | +17,806.9% |
+| event staging work | **8.287 ms** | 705.995 ms | +8,419.5% |
+| result staging rows | **3,537** | 27,136 | +667.2% |
+| result staging work | **556.895 ms** | 1,353.925 ms | +143.12% |
+
+Forcing direct tails recovered 1,024-message throughput only to 258,185/s, still 7.04% below E127. A 256-message
+direct-tail compromise first produced a plausible 288,125/s versus 277,727/s (+3.74%), so it was retained for a second
+pair rather than rejected by a 5% threshold. The second pair reversed: 281,899/s versus 285,885/s (-1.39%). Across the
+two pairs its geometric mean was only +1.14% and inconsistent. No default or production source changed. Physical row
+reduction is real, but generic row-size tuning cannot be selected as an E2E checkpoint on this workload.
+
+### Rejected experiments E133-E136 — result fusion needs no-wait grouping, not timers or unbounded submission
+
+E133 and E134 lengthened the result backlog's idle collection window from the accepted 1 ms to 4 ms and 2 ms. The 4-ms
+run reduced SDK result publication batches from 648 to 361 and mean batch size rose from 1,618 to 2,905. Summed result
+preparation and append lifetime fell, proving that larger result transactions contain real service savings. The added
+residence still reduced complete E2E from E131's 285,885/s to 270,018/s (-5.55%); 2 ms reached only 272,987/s (-4.51%).
+Timer-based result grouping is therefore closed.
+
+E135 then let the ordered result worker submit later append calls without waiting for the previous durable future.
+Every response retained its actual append future, and the handler batch still awaited every response. Removing the
+natural ack collector fragmented publication from 648 to **1,686 batches**, cut mean batch size from 1,618 to 622 and
+raised active result preparation from 684.905 to 1,171.015 ms. Against E136's identical-binary ordered control it fell
+from 254,038/s to 244,497/s (**-3.76%**). The diagnostic switch was fully reverted.
+
+The positive premise and rejected mechanisms are now separate: fusing already ordered logical result appends can save
+physical rows and commits, but neither waiting longer nor unbounded SDK submission performs that fusion. Any future
+candidate must group at a Runtime ownership boundary without fragmenting SDK waves, reordering responses, weakening
+per-append failure completion or allowing an unbounded downstream queue.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1186,10 +1262,20 @@ E122 benchmark/Runtime/client-JFR hashes are
     then reject parallel deserialization with ordered public completion at -7.20%. Stop optimizing the result
     completion graph until a route-wide architecture changes its caller feedback or CPU budget; return to the larger
     model/event durability and downstream tracking constraints.
-23. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+23. E124-E125 split the physical model/event transaction into measured operations. Packed stream encoding plus COPY is
+    only 28% of coordinator service; the singleton state lock, stream insert and state-head update explain 98.4% of the
+    co-located task. Do not rewrite the model codec before eliminating or combining the larger database round trips.
+24. E126-E132 reject generic message-group and direct-tail sizing. Larger blocks save 17-24% inside the intended SQL
+    operations but create underfilled staging work; the only positive 256-message pair did not reproduce and its
+    two-pair geometric mean was just +1.14%. Keep the accepted 128-message format/default.
+25. E133-E136 prove that larger result transactions contain local service savings, while rejecting both longer
+    collection timers and unbounded SDK append submission. The latter fragments natural waves and loses 3.76% against
+    an identical-binary control. Reopen result fusion only at an ownership boundary that preserves boundedness,
+    ordering, per-append failure completion and natural SDK batch formation.
+26. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-24. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+27. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
