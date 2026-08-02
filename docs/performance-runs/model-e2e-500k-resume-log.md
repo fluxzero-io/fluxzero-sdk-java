@@ -10,7 +10,7 @@
 | Three-run clean control geometric mean | E454/E456/E458: **347,691 commands/s** |
 | Target | At least **500,000 commands/s** on the same complete model/event/result route |
 | First measured model limiter | One ordered packed model/event transaction: **0.407M models/s** active service in E459 |
-| Current code status | Production remains Runtime `7ac06794`; fused state advance is rejected and reverted; detailed model JFR instrumentation is diagnostic-only and uncommitted |
+| Current code status | Production remains Runtime `7ac06794`; state fusion, index omission and combined event/model insertion are rejected and reverted; detailed model JFR instrumentation is diagnostic-only and uncommitted |
 
 ## Canonical identity after the no-model transition gate
 
@@ -160,3 +160,58 @@ Artifacts:
   `e005222adac4cf9409815a6a7b340a8bcaa99fcd6375488cfa01b4052b7e8804`;
 - E469/E470 profiler-free logs SHA-256: `9c7237204a3229201c1e1b65508732a566279105137fc072625f2096492fdaa9`,
   `6d5a92f0e3518f5fc71b98232222fc2ac1e0a0769d56044319db4991673d2888`.
+
+## E471-E482: combined event/model SQL boundary rejected
+
+This candidate retained the canonical global-event table and canonical compact `model_stream` rows, but inserted both
+row families through one PostgreSQL CTE statement. It therefore tested removal of one JDBC/COPY boundary without the
+lifecycle and read-contract changes of the earlier persistent-sidecar experiments.
+
+The physical AB/BA probe was promising. At the production-relevant single ordered lane, separate event and model
+inserts had a geometric capacity of 1.094M items/s; the combined statement reached 1.218M items/s: **+11.27%**. Two and
+four lanes also improved, while eight lanes was approximately saturated and mixed. The first full-route smoke E475
+correctly rolled back after PostgreSQL inferred a timestamp parameter as text. Replacing that redundant parameter with
+`clock_timestamp()` yielded exact smoke E476: 131,072 results, stored model events and global events.
+
+| Run | Path | Profiling | Throughput | p50 / p95 / p99 / max |
+| --- | --- | --- | ---: | --- |
+| E477 | control A1: separate event/model inserts | none | 350,340/s | 154.192 / 219.889 / 252.229 / 282.822 ms |
+| E478 | candidate B1: combined SQL statement | none | 344,606/s | 156.078 / 215.021 / 241.169 / 281.232 ms |
+| E479 | candidate B2: combined SQL statement | none | 357,185/s | 149.612 / 214.807 / 242.746 / 296.320 ms |
+| E480 | control A2: separate event/model inserts | none | 363,465/s | 146.008 / 207.892 / 227.680 / 265.488 ms |
+| E481 | control profile | batch JFR | 313,755/s | 172.814 / 245.458 / 311.396 / 343.335 ms |
+| E482 | candidate profile | batch JFR | 344,769/s | 156.900 / 227.718 / 281.446 / 302.990 ms |
+
+All qualifying E477-E482 runs retained exactly 1,048,576 results, model events and global events. The profiler-free ABBA
+geometric means are 356,842/s control and 350,839/s candidate: **-1.68%**. Both positional pairs independently show the
+same approximately 1.7% loss, so the candidate is rejected despite its local physical win.
+
+The diagnostic profile confirms the intended local mechanism: ordered packed model-store time falls 19.683 ->
+16.939 ms (**-13.9%**), and its service capacity rises 0.404M -> 0.449M models/s. The combined statement eliminates
+nearly all separate stream-block insert calls. It also changes complete-route feedback: event/model transaction count
+rises 132 -> 138, mean transaction membership falls 7,944 -> 7,598 and combined direct event insertion itself rises
+6.254 -> 7.811 ms. The candidate consequently produces smaller natural batches and loses canonical throughput even
+though its isolated SQL service is faster. JFR E481/E482 also contains broad host/scheduler movement and is therefore
+diagnostic only; it cannot override the two matched profiler-free pairs.
+
+The generic message-store insertion hook, combined SQL path and physical-probe mode are fully removed. Runtime
+production behavior remains `7ac06794`; only the pre-existing uncommitted JFR observer remains in the worktree.
+
+Artifacts:
+
+- E471-E474 physical probe logs SHA-256: `38c32f5f2efc435be4848e7350e7d7b432eb666f2b0b60b356ec3435608edce6`,
+  `aab7a485278dd8394b2a0aa39714fb8464b9152c1ef2fddd41091bff8fe3a774`,
+  `94ca80fcfd99939777e23354eaf8bf1c995b22570ed69786d177a702934aab84`,
+  `28d95b9667ecca77ff48195131ff3659b549530e260abd77c075cb9a29b79e59`;
+- E475 failed-smoke log SHA-256: `c40ac8541d9615270199d0a58d9f255702e1c1e0f43c29452394f2fd1f09d454`;
+- E476 exact-smoke log SHA-256: `8190f1f581761fc2da0dfc640c8af2cc8f9d83cbab592429f4c24486f2663b8c`;
+- E477-E480 profiler-free logs SHA-256: `79ca4a3f92a481327b1bf02f22dbe70e3119cc893ac8c975017bffddf7bb2bba`,
+  `8d705cbf17fe0ff0342ffa7a6e4f0d90caf437245297e4264293baa64f423e21`,
+  `25edb7c9652a8a5ea946d74d12b6cb143d8130212baf44deb20a9b3059521e47`,
+  `f8d89488e9d57b37e1945aa84d67f23fcd50336c4d6f9e9ccc90c3da955ccc1c`;
+- E481 control log/JFR/summary SHA-256: `a70a08913581fb5b5d9f502c3a44d73451ad30f7df695f514ff17d5534c367ed`,
+  `52c82e931deb78d3565f0e5e8c61d330138ebd4c8e53d205c13d0928836a56c5`,
+  `f6f81a103e63761cbdfeed8124b4b333503b73bbb61dddf586d0c0efebc3f26b`;
+- E482 candidate log/JFR/summary SHA-256: `bca5060de3d67d4b2c5e7bfcfc1e52c67380f209623e9305d6cebdcc2b238a1c`,
+  `bb1d4e8dccfe702a98f4d944c2d9ce36232abc5e5e5bad2a126e34b240f3944d`,
+  `b92a574451837f3e78eb0d0323e03f206502ba4b24198f2a991555a43331eef6`.
