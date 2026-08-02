@@ -15,14 +15,15 @@ experiments were rejected.
 | Accepted matched throughput | 341,679/s candidate geometric mean versus 328,161/s P2 control; **+4.12%**, exact paired-bootstrap 95% CI **+2.49% to +6.02%** |
 | Fresh accepted-base pin | E205-E207 reran exact P3 in the original embedded, genuinely profiler-free Java 25 topology at 346,152 / 345,935 / 331,432 commands/s; geometric mean **341,103/s** |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
-| Best non-qualifying ceiling | E238 observed **973,617/s** and E238/E240/E241 geometrically sustain **935,683/s** with two independent SDK sender clients on the durable command/result no-apply route. This preserves ordinary results but deliberately performs zero model applies and publishes zero model/global events. |
+| Active campaign stage | Raise the intact durable no-model command/result route well above **1M/s** before adding one durable event per command and only then returning to model commits. Measure single-client offering/completion separately from multi-client Runtime capacity. |
+| Best non-qualifying ceiling | E238 observed **973,617/s** and E238/E240/E241 geometrically sustain **935,683/s** with two independent SDK sender clients on the durable command/result no-apply route. E259-E262 use the new caller-neutral driver and identify backlog fragmentation as a live causal lead; their absolute band is not compared with the earlier driver. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E208 partitions the qualifying full-route consumer cycle. E209-E242 then correct an under-warmed no-apply ceiling and remove the unfair one-client driver constraint. At 942,391/s with two real SDK clients, the shared serial result JDBC writer provides 1.018M/s active service, is **92.6% utilized**, has p95 queue residence **20.754 ms** and reaches 15 queued batches. This is the strongest current supporting limiter evidence, not a qualifying model-route result. |
-| Next evidence target | reproduce the shared result-writer saturation on the complete model/event/result route with a fair multi-client driver; partition its preparation, parallel inserts and ordered commit costs before selecting production code, while retaining the accepted P3 transaction shape |
+| Latest causal diagnosis | E283-E289 split no-model command offering. Driver batch construction and callback attachment are negligible; a 131,072-request global window collapses E2E to 275,124/s and p50 to 440 ms. Replenishing the real 65,536 window in 8,192-command chunks beats 16,384 in two matched pairs by **+2.53% geometrically**. The benchmark-only default is accepted at 8,192; E289 verifies the clean exact route at 769,494/s in the current low state. |
+| Next evidence target | Keep E279's 948,289/s high legacy profile as the shared E2E truth and E289's 8,192-command producer as the cleaner load generator. Rerank the remaining shared command-consumer/tracking/transport/result-writer stages; production work starts only after a full-route limiter is causally selected. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E242 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E289 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1553,8 +1554,224 @@ than increasing intact-route capacity and was fully reverted.
 
 The complete tables, exact segment semantics, artifacts and corrections are in
 [`model-e2e-no-apply-ceiling-anatomy.md`](performance-runs/model-e2e-no-apply-ceiling-anatomy.md). No production
-optimization follows directly from this ablation. First reproduce and partition the result-writer pressure on the
-complete model/event/result route with the fair multi-client driver; that qualifying route remains the truth.
+optimization follows directly from the route deletion. The current campaign stage deliberately remains on this intact
+durable command/result route until its shared Runtime capacity and client-local offering/completion paths are well above
+1M/s. One durable event per command is added next; model commits return only after that lower-bound route has ample
+headroom. The complete model/event/result route remains the final qualification truth.
+
+### Diagnostics E243-E248 — multi-client does not relieve the complete P3 route
+
+E243 first proves the multi-client driver against the complete route at smoke scale: two independent SDK request/result
+clients share one global 65,536-command window and one conflict-free model scheduler. Exactly 131,072 ordinary results,
+model-stream events and globally published events completed, with never more than one in-flight command per model.
+
+E244-E247 then compare the one-client accepted dispatch path with two sender clients on the fixed 1,048,576-command
+route, without a profiler or production change:
+
+| Pair | One-client P3 control | Two-client diagnostic | Change | Dispatch batches control -> diagnostic |
+| --- | ---: | ---: | ---: | ---: |
+| E244 / E245 | **341,996/s** | 327,416/s | **-4.26%** | 134 -> 150 |
+| E247 / E246 | **337,459/s** | 329,424/s | **-2.38%** | 140 -> 134 |
+| geometric mean | **339,720/s** | **328,418/s** | **-3.33%** | — |
+
+All four runs pass exactly 1,048,576 caller results, stored model events and global events. The conclusion is narrower
+than “multiple clients are bad”: no-apply proves they remove a real SDK sender constraint, but on P3 the route meets
+the ordered model/event lane first. Independent offering changes closed-loop batch timing and gives no free aggregate
+capacity. Keep one client as the canonical local topology unless a later production change moves the limiter.
+
+E248 returns to that accepted topology and records only low-overhead batch events. At 333,987/s it remains close to the
+unprofiled control band and exposes the actual current capacity order:
+
+| Complete-route serial stage | Batches / avg items | Active service | Route utilization | Queue mean / p95 / max depth |
+| --- | ---: | ---: | ---: | --- |
+| **packed model/event commit** | **126 / 8,322.0** | **0.411M/s** | **81.3%** | **13.507 / 29.796 ms / 254** |
+| event JDBC store inside that commit | 126 / 8,322.0 | 0.470M/s | 71.1% | 0.302 / 1.050 ms / 0 |
+| result JDBC store | 452 / 2,319.9 | 0.470M/s | 71.1% | 12.491 / 36.794 ms / 12 |
+| command JDBC store | 338 / 3,102.3 | 0.720M/s | 46.4% | 7.724 / 25.220 ms / 15 |
+
+The packed lane's 20.249-ms mean active service has a now-measured critical-path shape rather than one broad hotspot:
+
+```text
+validate/collect bookend                           about 1.5 ms
+event preparation/direct insert                    7.023 ms (SQL phase 6.035 ms)
+    || packed-stream preparation                   1.443 ms
+co-located model task                              8.267 ms
+    = stream insert 4.532 + state lock 2.004 + state update 1.559 ms
+durable commit                                     2.372 ms
+publish bookend                                    0.423 ms
+```
+
+The global-event insert and co-located model task are sequential on the same transaction connection. `doStore` starts
+serialization asynchronously, but the ordered commit worker joins the serialized/direct-insert future before
+`stageAndCommit` invokes the model task; only then does it commit. Event-store preparation is 7.023 ms mean and contains
+the 6.035-ms direct insert phase. Event-store storage is 10.686 ms, closely matching 8.267-ms co-located model work plus
+2.372-ms commit. Packed-stream preparation starts immediately after the asynchronous event-store operation and overlaps
+its longer preparation/insert path. The 0.956-ms cache and 0.383-ms result-completion phases run after the ordered
+`readyForNextBatch` future and are not part of its serial service. This reconciles the complete 17.718-ms event-store
+lifetime and 20.249-ms packed-lane service.
+
+This profile supersedes the no-apply result writer as candidate selector for the qualifying route. It also prevents
+reopening already excluded mechanisms blindly: E93-E106 rejected simultaneous write transactions, E137-E150 rejected
+state/stream SQL fusions despite local savings, E153-E178 rejected sidecars after full lifecycle cost, and E179-E193
+rejected derived-locator coalescing. The next measurement must determine what the 7.023-ms event preparation actually
+does and which part can be accelerated without changing transaction formation or persistent/wire formats.
+
+E249-E252 causally screen the most direct interpretation of that event phase before touching production code. The
+existing physical storage probe was made production-shaped for this comparison: each event row has the same six
+columns as the tracking table (`firstIndex`, `lastIndex`, `batchSize`, insertion timestamp, compressed data and the
+compressed flag), the accepted 2,178-byte event block, 128 messages per row, 8,192 commands per transaction and the
+unchanged subsequent model-stream COPY, durable marker, transaction commit and ordered visibility update. Only the
+event-row write mechanism changes between a multi-row prepared INSERT and PostgreSQL binary COPY.
+
+| One-lane physical pair | Multi-row INSERT | Event binary COPY | Change |
+| --- | ---: | ---: | ---: |
+| E249 / E250 | **1,039,534/s** | 996,010/s | **-4.19%** |
+| E252 / E251 | **1,064,238/s** | 994,065/s | **-6.59%** |
+| geometric mean | **1,051,813/s** | 995,037/s | **-5.40%** |
+
+COPY begins to help only with several simultaneous physical writers; at eight probe lanes E250 beat E249, but the
+qualifying P3 boundary has exactly one ordered transaction lane and prior complete-route experiments reject concurrent
+writers. For roughly 64 compact event rows per natural P3 batch, COPY setup costs more than the prepared INSERT saves.
+The candidate is therefore rejected before production implementation and the probe switch is reverted. The measured
+6.035-ms phase remains important, but binary COPY is closed unless a future accepted architecture supplies genuinely
+parallel event writers or materially larger row counts per transaction.
+
+### Diagnostics E253-E262 — no-model-first campaign and backlog fragmentation
+
+E253-E258 replace the benchmark's model-oriented conflict-free scheduler on the no-apply route with a simple parallel
+command feeder. E253 and E254 used different driver paths and are explicitly not compared. With the same simple path,
+one versus two caller threads sharing one SDK client changed the hot 10M/10M route from 700,322/s to 746,524/s
+(**+6.60%**). The benchmark caller is therefore a real client-local cost, but two callers sharing one SDK client do
+not remove the SDK client's own queues, transports and completion structures. Multiple independent clients remain the
+fair way to expose aggregate Runtime capacity; one-client runs separately measure client quality.
+
+E259-E262 then keep two independent clients, two caller threads, one global 65,536-request window and the complete
+durable no-model command/result lifecycle. Only the existing `fluxzero.messageStoreBacklogSize` changes:
+
+| Pair | Backlog 4,096 | Backlog 8,192 | Change | p50 latency control -> candidate |
+| --- | ---: | ---: | ---: | ---: |
+| E259 / E260 | 691,001/s | **808,488/s** | **+17.00%** | 84.786 -> 70.231 ms |
+| E261 / E262 | 669,318/s | **805,019/s** | **+20.27%** | 87.776 -> 71.105 ms |
+| geometric mean | 680,073/s | **806,752/s** | **+18.63%** | — |
+
+Every run completes exactly 10,485,760 durable ordinary results and verifies zero model/global events. The absolute
+band cannot be mixed with E238-E242 because the benchmark driver changed; the matched within-driver result is the
+evidence. The property is global and may change both command and result stores, so it is not accepted as “increase the
+default.” It causally validates that premature batch/transaction fragmentation materially constrains this route. The
+next step is a matched low-overhead batch profile that names which store, transaction count, batch shape and queue
+changed before any production implementation.
+
+E263/E264 provide that profile attribution:
+
+| Result-writer evidence | Backlog 4,096 | Backlog 8,192 | Change |
+| --- | ---: | ---: | ---: |
+| Transactions | 13,671 | **9,565** | **-30.03%** |
+| Average messages/transaction | 767.0 | **1,096.3** | **+42.93%** |
+| Active writer capacity | 0.671M/s | **0.786M/s** | **+17.14%** |
+| Profiled E2E | 0.664M/s | **0.771M/s** | **+16.12%** |
+| p95 writer queue | 67.987 ms | **55.104 ms** | **-18.95%** |
+| Concurrent outer result jobs | 65 | 64 | unchanged and excessive |
+
+At 8,192 the profiled route still consumes about 98% of active result-writer capacity. The outer asynchronous backlog
+has already formed up to 64-65 jobs, including transaction-local inserts, before the single commit executor reaches
+them. Later arrivals can no longer join those queued mini-transactions. E265 then rejects the simple next knob value:
+global backlog 16,384 collapses to 437,704/s with p95 latency 313.994 ms. Larger global buffering is closed. The next
+mechanism must bound result transaction admission while retaining useful preparation/insert overlap.
+
+E266-E269 causally screen that mechanism without removing any route stage:
+
+| Maximum pending result jobs | Throughput | p50 / p95 latency | Interpretation |
+| ---: | ---: | ---: | --- |
+| 1 | 862,259/s | 67.635 / 84.549 ms | Maximum batching but loses cross-transaction insert overlap |
+| **2** | **962,092/s** | **58.811 / 79.273 ms** | **Best initial balance: one prepares while one commits** |
+| 4 | 950,291/s | 58.777 / 80.158 ms | Strong, but more jobs become fixed early |
+| 8 | 904,578/s | 62.653 / 85.252 ms | Fragmentation rises again |
+| unbounded recent pin | 806,752/s geom. | about 70-71 ms p50 | Up to 64-65 preformed result transactions |
+
+Every point completes exactly 10,485,760 durable results. The coherent curve validates the mechanism rather than a
+generic “more buffering” effect: one job is too little overlap, many jobs fragment arrivals, and two jobs best combine
+one ordered commit with one transaction's asynchronous preparation/direct insert. E267 is still a diagnostic screen,
+not accepted code; its batch shape and service capacity must be profiled and the policy must pass failure/order tests.
+
+E270 confirms the narrow N=2 probe under batch-only JFR: result transactions are 3,551, average 2,952.9 messages,
+writer service is 1.003M/s, p95 queue is 7.372 ms and profiled E2E is 955,648/s. Only two direct inserts overlap.
+E271/E272 then move the admission permit before Backlog batch construction. That broader Common change further grows
+batches to 4,723 and writer capacity to 1.095M/s, but E2E is neutral-lower at 937,677/s unprofiled and 949,030/s
+profiled. It is therefore reverted rather than retained for a local metric. E273 also rejects two caller threads per
+client: E2E falls to 917,758/s. One caller per independent client remains the fair topology; command offering is not
+the limiter after N=2.
+
+E274 isolates N=2 while restoring the 4,096 production batch cap. Throughput is 693,426/s versus the adjacent 691,001/s
+unbounded control, while p95 latency degrades to 236.642 ms. Admission alone is therefore not the candidate. The causal
+mechanism is a pair: 8,192 preserves the SDK's natural command chunks and produces sufficiently large consumer/result
+waves; N=2 then prevents those waves from becoming dozens of already-open result transactions. Production design must
+apply both narrowly to command/result tracking stores, not raise the global default for unrelated message stores.
+
+E275-E278 then implement that narrow pair with focused admission/failure/configuration tests and compare it to legacy
+settings in the same binary. The control unexpectedly and repeatedly returns to the favorable natural batching state:
+
+| Side | Runs | Geometric mean |
+| --- | --- | ---: |
+| Legacy 4,096 / unbounded control | 960,003; 958,405/s | **959,204/s** |
+| Narrow 8,192 / N=2 candidate | 957,002; 911,763/s | 934,109/s |
+| Change | — | **-2.62%** |
+
+The bounded candidate improves a bad feedback state but caps a good one and therefore fails production acceptance.
+E279 profiles the high control at 948,289/s. Its result writer naturally forms 4,235 transactions averaging 2,476
+messages, supplies 1.063M/s active capacity at 89.5% route utilization and has p95 queue 19.843 ms. N=2 forms fewer
+transactions but reduces useful insert overlap enough that writer capacity falls to 1.003M/s. The complete candidate,
+including its tests and defaults, is reverted. The lesson remains diagnostic: result batching explains low-state
+collapse, but hard admission limits are not the production fix.
+
+### Diagnostics E280-E282 — caller completion has multi-million headroom
+
+A standalone Java 25 benchmark now exercises the real `DefaultRequestHandler` result entry point with ten million
+fresh request IDs, `ConcurrentHashMap` callbacks and futures in bounded 65,536-request windows. Every incoming result
+is a fresh native envelope containing `Void` JSON and the 13 default application/client/tracker/invocation/correlation
+metadata fields. Results are offered through ordinary batches; no database, tracker or WebSocket work is included.
+The scenarios run in separate JVMs and distinguish SDK completion from benchmark overhead:
+
+| Result batch | Request-handler only | Full SDK caller chain | SDK chain + E2E driver callback | Full SDK registration + completion loop |
+| ---: | ---: | ---: | ---: | ---: |
+| 2,048 | **13.399M/s** | **5.306M/s** | **4.793M/s** | 2.821M/s |
+| 2,560 | **12.513M/s** | **5.276M/s** | **4.285M/s** | 2.990M/s |
+| 8,192 | **12.716M/s** | **5.370M/s** | **4.797M/s** | 3.045M/s |
+
+The full SDK chain adds the production `Void` deserialization, response `Message` mapping, gateway callback cleanup
+and public payload future. The last column for the E2E driver additionally writes a timestamp and releases its
+in-flight semaphore and completion latch. Batch size around E279's observed 2,476-result average does not change the
+conclusion. E234's old 1.691M/s summed result was collected inside a verbose live route and must not be treated as the
+pure completion service ceiling. Completion remains material for an eventual several-million-command target, but even
+the lowest complete measurement has more than four times the current no-model E2E capacity and does not select a
+production change now.
+
+### Diagnostics E283-E289 — command offering and closed-loop replenishment
+
+Low-overhead counters around the no-model producer split time spent waiting for the global in-flight window from batch
+array construction, the real `CommandGateway.send` call and attachment of the benchmark's result callbacks. Every run
+still includes command mapping/serialization, request registration, physical WebSocket publication, both durable logs,
+tracking, result deserialization and caller completion.
+
+| Run | In-flight / producer batch | E2E | Permit wait | SDK send summed / union capacity | p50 / p95 | Decision |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| E283 | 65,536 / 16,384 | 753,180/s | 11.440 s | 0.654 / 0.857M/s | 75.640 / 103.377 ms | Control 1 |
+| E284 | 131,072 / 16,384 | 275,124/s | 63.809 s | 0.911 / 0.921M/s | 440.030 / 783.046 ms | Reject larger global window |
+| E285 | 65,536 / 8,192 | **777,305/s** | **10.225 s** | 0.641 / **0.946M/s** | 76.647 / 106.512 ms | Candidate 1: +3.20% |
+| E286 | 65,536 / 16,384 | 740,005/s | 11.584 s | 0.640 / 0.840M/s | 76.551 / 108.437 ms | Control 2 |
+| E287 | 65,536 / 8,192 | **753,736/s** | **10.879 s** | 0.633 / **0.899M/s** | 79.356 / 112.253 ms | Candidate 2: +1.86% |
+| E288 | 65,536 / 4,096 | 777,235/s | 8.121 s | 0.568 / 0.932M/s | 76.800 / 109.377 ms | No clear gain over 8,192; twice the gateway calls |
+| E289 | 65,536 / **8,192 default** | 769,494/s | disabled | disabled | 77.181 / 107.848 ms | Clean exact-route verification |
+
+The two 8,192/16,384 pairs have a **+2.53%** geometric throughput change. Smaller replenishment avoids holding up to
+16,383 newly available permits before a caller can submit its next wave, and improves union time with at least one SDK
+send active. Batch construction and callback registration together consume only about 0.2-0.3 seconds summed across
+ten million commands; they are not the ceiling. The slight p50/p95 increase means 8,192 is accepted specifically as a
+more effective throughput-ceiling driver, not as a production SDK latency improvement.
+
+Doubling the global request window is a qualitatively different and losing mechanism. Although active SDK send
+capacity rises, the changed consumer/result feedback creates 440-ms median residence and prolonged permit starvation.
+Many independent clients must not be emulated as one oversized synchronized wave. Keep the real 65,536 closed-loop
+window until the underlying route latency and shared service constraints are improved.
 
 ## Immediate sequence
 
@@ -1667,15 +1884,42 @@ complete model/event/result route with the fair multi-client driver; that qualif
     cycle split. Keep tracking residence as a feedback gauge; preserve detailed fundamental timing throughout the
     campaign.
 38. E209-E242 correct the no-apply ceiling from an under-warmed 0.612M/s to 0.768-0.780M/s for one hot client and a
-    0.936M/s geometric mean for two. The complete model route remains qualifying truth; the incomplete route only
-    establishes base-route headroom and candidate evidence.
-39. Reproduce E242's 92.6%-utilized serial result JDBC writer on the complete multi-client model route. Partition
-    writer preparation, parallel insert work, ordered commit and queue feedback before implementing anything; do not
-    retry the rejected SDK `STORED`-await mechanism.
-40. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
-    complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
-    mechanisms, and never as acceptance evidence.
-41. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+    0.936M/s geometric mean for two. This durable command/result route is now the active lower-bound campaign stage:
+    raise it well above 1M/s, then add one real event per command, before returning to model commits.
+39. E243-E247 reject multiple sender clients as a free full-route improvement: the exact two-client topology loses
+    3.33% geometrically. E248 restores the one-client truth and identifies the packed model/event lane at 0.411M/s
+    service with a growing queue; result storage is not yet saturated on the qualifying route.
+40. E249-E252 close event binary COPY for the current one-lane route at -5.40% physical capacity. Preserve E248's 8.3k
+    natural transactions and atomic sequential event-insert/model-task/commit order; do not retry closed parallel-
+    transaction, SQL-fusion, sidecar, locator-coalescing or event-COPY families without a new mechanism.
+41. E253-E258 separate load generation from shared capacity. Two callers sharing one client add 6.60%, proving caller
+    work matters but not eliminating client-local infrastructure. Retain one-client offering/completion diagnostics and
+    multi-client Runtime-ceiling runs as distinct measurements.
+42. E259-E264 causally identify and attribute batching fragmentation. Backlog 8,192 beats 4,096 by 18.63% unprofiled;
+    matched profiles show 30.03% fewer result transactions and 17.14% more writer capacity. E265 closes 16,384 after a
+    throughput/latency collapse. Do not change the global default; bound result transaction admission instead.
+43. E266-E269 validate that bounded admission works: two pending result jobs reach 962,092/s and outperform one/four/
+    eight and unbounded. Profile N=2, then harden the narrow result-store policy and confirm it matched before commit.
+44. E270 confirms N=2 raises result-writer service to 1.003M/s. E271-E272 reject a broader Common Backlog cap despite
+    1.095M/s local writer capacity because E2E does not improve; E273 rejects extra caller threads. Revert the broader
+    change and isolate N=2 on the actual 4,096 production backlog.
+45. E274 proves N=2 alone is neutral at the 4,096 production cap. Build the narrow combined policy: 8,192 for command/
+    result tracking batches plus N=2 for result transaction admission; preserve overrides and unrelated stores.
+46. E275-E279 reject that combined production policy at -2.62%. Legacy naturally sustains a 959,204/s geometric mean
+    and its profiled result writer has 1.063M/s service. Revert all candidate code; retain the high legacy route and
+    rerank completion/offering/shared capacity from E279.
+47. E280-E282 replace the verbose live-route completion estimate with a bounded ten-million-request isolation. Bare
+    request handling sustains 12.51-13.40M/s and the complete SDK caller chain 5.276-5.370M/s across representative
+    result-batch sizes. The E2E driver's own callback retains 4.285-4.797M/s. Do not change completion while
+    the intact no-model route remains around 0.95M/s; quantify command offering next.
+48. On the no-model route, measure and improve in this order: caller completion, benchmark command offering, remaining
+    shared inefficiencies, then one durable event publication per command. Return to models only once this route is
+    structurally well above 1M/s.
+49. E283-E289 close command offering as a benchmark concern. A 131,072 global request window collapses throughput and
+    latency; do not use one oversized wave to mimic many clients. An 8,192 producer batch improves two matched pairs by
+    2.53% geometrically and becomes the no-model benchmark default. Its clean E289 route passes every exact count.
+    Driver array/callback administration is negligible; rerank shared E2E stages next.
+50. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
