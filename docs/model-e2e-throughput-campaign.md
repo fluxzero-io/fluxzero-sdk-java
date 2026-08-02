@@ -1450,6 +1450,39 @@ chunks spend more on fixed transport/storage work. Keep 256. A future structural
 boundaries while retaining early chunks, but E58 and E87-E91 already reject merely extending or overlapping ordinary
 open PostgreSQL transactions. It must use a different physical visibility mechanism, not another timer or chunk size.
 
+### Diagnostics E201-E202 — persisted compression is necessary; level tuning is not route capacity
+
+E194's shared CPU/allocation profile ranked persisted and transport compression among the few route-wide clusters:
+Runtime ZSTD compression and decompression held 5.04% and 4.32% of CPU samples, while persisted native-list
+serialization and ZSTD compression/decompression held 13.46%, 20.50% and 14.18% of allocation samples. The same
+codec family also appeared in the client. Source inspection established that fixed-width index mutation already patches
+the envelope in place and that native tracking encoding exact-sizes its destination when all messages are reusable.
+The remaining apparent duplication is therefore persisted block compression plus later tracking decode/re-encode, not
+payload or metadata rematerialization.
+
+E201 disabled only persisted LTS compression while retaining the existing framed storage representation, full command,
+model-event and result durability, and all exact counters. It is a causal intact-route rejection rather than a codec
+microbenchmark:
+
+| Persisted phase | E194 ZSTD level 1 | E201 NONE | Byte growth | Direct insert service growth |
+| --- | ---: | ---: | ---: | ---: |
+| command blocks | 20 MB / 1.589 s | **379 MB / 13.791 s** | **about 18.9x** | **about 8.7x** |
+| event blocks | 18 MB / 0.999 s | **379 MB / 8.266 s** | **about 21.1x** | **about 8.3x** |
+| result blocks | 20.6 MB / 2.582 s | **711 MB / 29.907 s** | **about 34.6x** | **about 11.6x** |
+| full profiled E2E | **219,898/s** | **94,566/s** | — | **-56.99% throughput** |
+
+E202 then retained ZSTD but changed its persisted compression level from `1` to `-1`. Runtime compression CPU samples
+fell from 5.04% to 3.20%, yet command and event blocks grew 24.4-24.5%, result blocks 13.5%, and their direct insert
+service grew 6.7-14.1%. Profile throughput moved only 219,898 -> 221,270/s (+0.62%), far below a production claim and
+with a worse storage trade-off. Keep persisted ZSTD at level 1; fully revert both benchmark switches.
+
+The next structurally different hypothesis keeps those compact durable bytes and asks whether complete, unfiltered LTS
+rows can cross the tracking boundary in their existing compressed form. Today Runtime expands stored blocks, scans
+envelope views, builds another tracking buffer and compresses it again; the SDK then decompresses that buffer. First
+measure the exact share of full reusable rows versus partial boundary rows on the canonical route. Only if that share is
+large may a version-negotiated fast path bypass the redundant Runtime decode/copy/re-encode cycle; filters, byte limits,
+positions, ordering, legacy clients and partial rows must retain their current behavior.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1552,10 +1585,13 @@ open PostgreSQL transactions. It must use a different physical visibility mechan
 34. E194-E200 prove the Runtime normally has no arrived work left to merge and close SDK ready-commit chunk sizing.
     Raising 256 to 8,192 reduces transport reservations and Runtime transactions, but loses 16.09% full-route E2E by
     delaying handler-to-commit overlap; 128 increases reservations and storage service. Keep 256.
-35. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+35. E201-E202 close persisted compression removal and level tuning. NONE grows stored blocks 18-35x and loses 56.99%
+    profiled E2E; level -1 merely exchanges compression CPU for 14-25% more stored bytes and 7-14% more insert service.
+    Keep ZSTD level 1. Measure whether complete stored blocks can instead be reused across native tracking transport.
+36. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-36. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+37. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
