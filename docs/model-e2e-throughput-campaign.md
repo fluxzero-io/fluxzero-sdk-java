@@ -1054,6 +1054,70 @@ E115 benchmark/Runtime/client-JFR hashes are
 `15032704b49518637fa62987b72c0c7300d9f079747dd021d7ab279a9362f445`, and
 `06706abc3dc21a746ef9440fae61f28d31b0dc4e28c7f76186edd11abac239a8`.
 
+### Diagnostics E118-E121 — exact attribution inside synchronous caller completion
+
+E118 fused serialized-response mapping into the default request handler so it could complete one mapped response
+future directly. This removed the raw-response future, `thenCompose` node and per-response completed/failed future while
+retaining response deserialization, Throwable propagation, metadata, web wrapping, callback tracking, chunk aggregation,
+timeouts and public completion behavior. Forty-five publishing tests passed. The first screen measured 266,754/s.
+
+E119-E120 then compared the legacy and fused paths from identical class files. Legacy measured 275,192/s and fusion
+272,888/s: **-0.84%**. Latency was respectively 185.944/304.945/347.431/397.630 ms and
+183.505/297.136/364.861/403.264 ms. Three fewer future objects per response did not raise E2E capacity.
+
+E121 retained the exact legacy graph and timed nested fundamental work only while the measured request-stage JFR was
+active. Exactly 1,048,576 result completions produced this decomposition:
+
+| Fundamental work nested inside raw future completion | Active time | Share of 2,176.625 ms |
+| --- | ---: | ---: |
+| response deserialization, metadata/message construction and trace stages | **562.976 ms** | **25.86%** |
+| gateway callback removal and command-future trace stage | **274.437 ms** | **12.61%** |
+| final `Message.getPayload()` mapping | 21.374 ms | 0.98% |
+| future propagation, benchmark completion/semaphore release and request/batch cleanup remainder | **1,317.838 ms** | **60.55%** |
+
+The identity mapping before raw future completion added 33.196 ms outside that total. E121 ran at 282,685/s with
+178.765/274.216/319.638/372.533 ms latency; throughput is diagnostic because `nanoTime` observers were active. The
+table closes payload extraction and future allocation as large targets. Deserialization is the only independently
+parallelizable quarter; most remaining service belongs to completion propagation and the caller's bounded-inflight
+feedback rather than an SDK mapper.
+
+E118 benchmark/Runtime/client-JFR hashes are
+`04b9eb904384d9b912ee2b729183ece94ae6424d3b4ff6b3dc2a6a8e5af9e74b`,
+`7753d6a5b985a9c520ebf5ba66e9c1c80c6bf8e2b3c9b2ee146df9b2eae3cfbf`, and
+`387d1e8ad4bfa1bdb7ac9ba55cee3708753989a195558bb1c6c720ad87b0ea22`; E119 values are
+`03730270bb6d554e65ea48005e4c44a3ec388546e564a1a1ee798d30c06b3f97`,
+`1ffed4347dfb962ddff3269d9906f0181c64acfb28ad92ba01a0cb8e7c9e0bb6`, and
+`bbf0ab018abdc913478542b561a5ec4e3dd08c75b86462b5621e59d95bcc9125`; E120 values are
+`83082e500edf08b8dd78e3fcc21a295fc830a0f767a18fe75e6609c067b4e2ba`,
+`450fa700ebba80b6db0235add0777889a1d80f97233eb39bba0e17a04efae797`, and
+`db060b33cdd6e61140319a2cf35c2bba6f05c5e4d379220d06e4267994f418b2`. E121 values are
+`61cd81a8bc9aa1233b7fc9b951219181b762017aeffeb2bf679a3d9f935da725`,
+`a7832cbe71c199211004bd6edb8155c35718d4ee43dc42f17ca8a4599f4a73f7`, and
+`0da46cc3a12b4ede4a15b0e57ac8f308df0dffc5929b91dd1ddc8cef171046d9`.
+
+### Rejected experiment E122-E123 — parallel preparation still loses with ordered completion
+
+E122 parallelized only the 25.86% deserialization/mapping component in bounded batch chunks. It captured and restored
+the SDK thread-local context, waited for all preparation, and then completed public futures in original response order.
+Chunked responses retained their existing ordered chain. This intentionally avoided E108's independent public
+completion lanes and their dispatch-feedback fragmentation. The normal and forced-parallel timeout/chunk suites both
+passed all 14 focused tests.
+
+Despite that narrower execution model, the same-binary full route measured 262,152/s candidate versus 282,483/s legacy
+control: **-7.20%**. Candidate latency was 192.072/339.321/405.155/446.759 ms; control was
+181.924/302.543/410.552/452.502 ms. Array allocation, task scheduling, context activation, the preparation barrier and
+added CPU cost more route capacity than parallelizing 563 ms of serial service returned. The production, API, test and
+diagnostic diff was fully reverted. Together E108 and E122 close both full parallel completion and
+parallel-prepare/ordered-complete on the current result path.
+
+E122 benchmark/Runtime/client-JFR hashes are
+`106381eb856ce843a9fb8f6b936e73fb988de62d1bf60ec2c064226eab3a1da8`,
+`58e580da9e762badea890354680ccaeabe9c91fbbd000eec64ec17d3feb82678`, and
+`92603ef63d6a299a54339c35502341ce7a9d2abe2a3ad402064f3e81cb96d8b7`; E123 values are
+`0de5d90d638182dfb54c73be8cec4d98b4aa5608c53928b8a71693b5781582ae`,
+`e1d0e00159793063b95e9226391a26f38f1c99f14b30f91deea239e81d3f8b2d`, and
+`5a518cd7b779a80e8790648ac468f723696579c4e62f769fb829af8c6d5c7fde`.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1118,10 +1182,14 @@ E115 benchmark/Runtime/client-JFR hashes are
     `ResponseCallback.process` plus its synchronous dependent-future graph. E115-E117 then reject replacing only its
     two ignored cleanup dependents at -1.88%. The next candidate must change the downstream mapping/completion
     structure, not lookup, trace parsing, worker type or isolated cleanup nodes.
-22. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+22. E118-E121 show that future-object fusion is neutral-negative and split the actual synchronous cascade. E122-E123
+    then reject parallel deserialization with ordered public completion at -7.20%. Stop optimizing the result
+    completion graph until a route-wide architecture changes its caller feedback or CPU budget; return to the larger
+    model/event durability and downstream tracking constraints.
+23. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-23. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+24. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
