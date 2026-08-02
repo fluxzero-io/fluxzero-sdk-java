@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E93-E99 isolate the exact physical P3 row volumes and prove that PostgreSQL can scale immutable event+model writes once the singleton state lock is removed. With bounded prepared transactions and ordered `COMMIT PREPARED`, 8,192-item batches reach **1.774M/s at four lanes** versus 0.718M/s at one; 4,096-item batches reach 0.902M/s at four and 0.984M/s at eight. This is the first measured mechanism with enough durable data-plane capacity for the target while retaining atomic visibility. |
-| Next evidence target | implement a four-lane, packed-conflict-free full-route prototype whose event rows, model-stream rows and append-only state advance are prepared independently and committed in reservation order; keep general/conflicting operations as barriers, cap prepared transactions, recover/rollback crash leftovers and preserve exact ordinary results |
+| Latest causal diagnosis | E125 accounts for the complete physical P3 transaction. E137-E141 then show that combining the singleton lock and head update cuts state service **40%** but not E2E, while E142-E145 show that denser model-stream blocks reduce physical rows but yield only +0.94% with conflicting pair signs. Query and row-size tuning are below the route gate; the remaining structural target is the separate durable model-stream write itself. |
+| Next evidence target | prototype an intact-route co-located event/model representation that removes a complete model-stream COPY boundary, while retaining atomic event publication, exact historical/direct reads, bounded recovery, hard-delete unlinking and the ordinary durable-result route; do not retry lane count, timers or block-size tuning |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after the E93-E99 parallel durability probes on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E145 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1194,6 +1194,35 @@ physical rows and commits, but neither waiting longer nor unbounded SDK submissi
 candidate must group at a Runtime ownership boundary without fragmenting SDK waves, reordering responses, weakening
 per-append failure completion or allowing an unbounded downstream queue.
 
+### Rejected experiments E137-E141 — combining the state lock and head update is locally real but too small
+
+E137 replaced the packed update path's `SELECT ... FOR UPDATE` plus later `UPDATE` with one conditional
+`UPDATE ... RETURNING`. The statement acquired the same singleton-row lock, returned the same erasure and graph flags,
+advanced the state inside the same event/model transaction and rolled back with every later write. Seven focused
+PostgreSQL tests passed, including packed idempotency, erasure, clock/index jumps, concurrent submit order and a second
+Runtime.
+
+The first complete-route pair was negative: 238,056/s candidate versus 278,851/s control (-14.63%). E139-E140 then
+measured the physical mechanism from identical class files. The combined statement used 398.860 ms
+(**380.4 ns/item**) versus 363.860 ms lock plus 304.775 ms update (**637.7 ns/item**) in control, a real 40.4% state
+service reduction. Candidate stream COPY simultaneously used 1,016.742 ms across 207 batches versus 770.612 ms across
+181 control batches, so total co-located work changed only 1,439.247 to 1,415.602 ms (-1.64%). E141's bracket candidate
+reached 275,028/s, still 1.37% below the same 278,851/s control; the two candidate observations' geometric mean was
+8.24% lower. The source was fully reverted. One saved state round trip cannot pay for the route's batch feedback.
+
+### Rejected experiments E142-E145 — denser model-stream blocks do not reproduce route capacity
+
+E142-E145 changed only the existing `fluxzero.modelStreamMembershipsPerBlock` setting from 1,024 to 4,096. The stored
+format, membership bytes, transaction, visibility, event/result route and bounded block-cache budget remained intact.
+The final candidate database contained exactly 1,179,648 seed-plus-warm-up-plus-measured memberships in 550 blocks,
+with an observed maximum of 4,096 entries per block; the intended physical densification therefore happened.
+
+The first full pair measured 272,232/s candidate versus 264,921/s control (+2.76%), so it was retained despite being
+below 5%. The reverse-order second pair measured 257,338/s versus 259,550/s (-0.85%). Candidate/control geometric means
+were 264,680/262,222 commands/s, only **+0.94%**, with conflicting signs and possible fourfold single-model read
+amplification. No source or default changed. Block-size tuning is closed; a subsequent candidate must eliminate a
+physical write boundary rather than merely pack its rows more densely.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1272,10 +1301,14 @@ per-append failure completion or allowing an unbounded downstream queue.
     collection timers and unbounded SDK append submission. The latter fragments natural waves and loses 3.76% against
     an identical-binary control. Reopen result fusion only at an ownership boundary that preserves boundedness,
     ordering, per-append failure completion and natural SDK batch formation.
-26. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+26. E137-E141 reject combining the packed state lock and head update. The SQL mechanism cuts state service about 40%,
+    but two complete-route candidates bracketed around one control are negative and production source is reverted.
+27. E142-E145 reject denser model-stream blocks as a checkpoint. The first +2.76% pair was correctly retained, but the
+    second reversed and the two-pair geometric mean was only +0.94%; keep 1,024 and avoid extra read amplification.
+28. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-27. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+29. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
