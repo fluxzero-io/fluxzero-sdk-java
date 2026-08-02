@@ -10,7 +10,7 @@
 | Three-run clean control geometric mean | E454/E456/E458: **347,691 commands/s** |
 | Target | At least **500,000 commands/s** on the same complete model/event/result route |
 | First measured model limiter | One ordered packed model/event transaction: **0.407M models/s** active service in E459 |
-| Current code status | Production remains Runtime `7ac06794`; detailed model JFR instrumentation is diagnostic-only and uncommitted |
+| Current code status | Production remains Runtime `7ac06794`; fused state advance is rejected and reverted; detailed model JFR instrumentation is diagnostic-only and uncommitted |
 
 ## Canonical identity after the no-model transition gate
 
@@ -82,3 +82,40 @@ Artifacts:
 - E459 log/JFR/summary SHA-256: `b0f7e9ecaa3226ac21ecec678c9c53f1f538a1cd86e6b1eff2d1546885833e70`,
   `178b4233729570a9af4a3ea9e24cf8656eab1ac4a0e2183e4e18012d0ed68c7d`,
   `5dc0b0787746dced2a9601b74c2b80b6ec471e30ababc28bc8390b2de9e6b443`.
+
+## E460-E464: fused state validation/advance rejected
+
+The first candidate replaced the state-row `SELECT FOR UPDATE` plus later `UPDATE` with one conditional
+`UPDATE ... RETURNING` inside the existing packed model/event transaction. A same-binary property selected the old or
+new path, so the ABBA comparison changed neither the observer nor any other route component. All five runs retained the
+exact 1,048,576 results, model events and global events.
+
+| Run | Path | Profiling | Throughput | p50 / p95 / p99 / max |
+| --- | --- | --- | ---: | --- |
+| E460 | control A1: separate lock/read + update | none | 353,281/s | 153.625 / 226.068 / 250.816 / 287.798 ms |
+| E461 | candidate B1: conditional state advance | none | 357,320/s | 147.860 / 213.802 / 238.665 / 268.949 ms |
+| E462 | candidate B2: conditional state advance | none | 341,129/s | 156.607 / 243.887 / 268.310 / 325.450 ms |
+| E463 | control A2: separate lock/read + update | none | 342,779/s | 152.405 / 235.174 / 286.017 / 304.202 ms |
+| E464 | candidate profile | batch JFR | 338,626/s | 160.657 / 227.408 / 260.223 / 317.078 ms |
+
+The control geometric mean is 347,990/s and the candidate geometric mean is 349,131/s: only **+0.33%**. The profile
+does prove the local mechanism. Conditional advance takes 2.070 ms versus 2.870 ms for the former lock/read plus update,
+a 28% local reduction, and measured ordered-store capacity rises from 0.407M/s to 0.429M/s. PostgreSQL work shifts,
+however: stream insertion rises 3.744 -> 4.184 ms and direct global-event insertion 4.967 -> 5.843 ms. The complete
+transaction consequently rises 17.019 -> 17.425 ms despite fewer and larger transactions.
+
+That is insufficient route benefit for a higher-risk authoritative-state protocol change. The candidate is rejected
+and fully removed; Runtime production source remains `7ac06794`. The next investigation must target physical work in
+the already ordered model/event transaction and must first account for prior exclusions: denser 4,096-membership
+stream blocks were already rejected in E142-E145, and earlier preinsert/multilane variants damaged complete-route
+batching and PostgreSQL contention.
+
+Artifacts:
+
+- E460 control log SHA-256: `b6f571edf4905754d1198bb33f346b066dac16a7b5e51db80d9cab4f20cbecdc`;
+- E461 candidate log SHA-256: `a12466af16073285b49d0f04d7ebb5d6c9a239338468617693a412a3978228c2`;
+- E462 candidate log SHA-256: `d49b6375651fd836ac6775cd606822c912a33cf580026d409541e781010d3ded`;
+- E463 control log SHA-256: `c2d44cac75650be86455b77185501020b45c78c3d34a68907ffbf4410293f2cf`;
+- E464 profile log/JFR/summary SHA-256: `16ace38d54bc5ffb6723cf59e9c76cb3cee6ef57f2e1bac72032adc0037f5c02`,
+  `8a6a7975b3f7a6ae0805c81fccafef2d240603469c696716cb700eb4160fdbc8`,
+  `84ff077763e2c713d17e35175a085a2cf98a0513bf4412252277fa4cb98ac9a7`.
