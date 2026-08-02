@@ -36,6 +36,7 @@ import io.fluxzero.common.api.RetryAwareRequest;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.jfr.FluxzeroJfr;
@@ -703,6 +704,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         List<RequestResult> decodedResults = value instanceof ResultBatch batch
                 ? batch.getResults() : List.of((RequestResult) value);
         if (decodeEvent != null) {
+            decodeEvent.messageType = jfrResultType(decodedResults);
             decodeEvent.itemCount = decodedResults.size();
             decodeEvent.outputItemCount = decodedResults.size();
             decodeEvent.preparationNanos = System.nanoTime() - decodeStarted;
@@ -809,6 +811,32 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 }
             });
         }
+    }
+
+    static String jfrResultType(List<RequestResult> results) {
+        if (results.isEmpty()) {
+            return "RESULT";
+        }
+        RequestResult firstResult = results.getFirst();
+        if (firstResult == null) {
+            return "RESULT";
+        }
+        Class<?> resultType = firstResult.getClass();
+        String resultLabel;
+        if (resultType == CommitModelsResult.class) {
+            resultLabel = "MODEL_COMMIT";
+        } else if (resultType == TrackModelUpdatesResult.class) {
+            resultLabel = "MODEL_UPDATE";
+        } else {
+            return "RESULT";
+        }
+        for (int index = 1; index < results.size(); index++) {
+            RequestResult result = results.get(index);
+            if (result == null || result.getClass() != resultType) {
+                return "RESULT";
+            }
+        }
+        return resultLabel;
     }
 
     private static void recordPreparationCompletion(

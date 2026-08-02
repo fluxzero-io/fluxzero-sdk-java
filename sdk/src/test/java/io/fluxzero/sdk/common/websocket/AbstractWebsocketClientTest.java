@@ -27,6 +27,8 @@ import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
@@ -43,6 +45,7 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -81,6 +84,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AbstractWebsocketClientTest {
+
+    @Test
+    void classifiesModelResultDecodeDiagnosticsWithoutChangingMixedBatches() {
+        assertEquals("MODEL_COMMIT", AbstractWebsocketClient.jfrResultType(
+                List.of(mock(CommitModelsResult.class), mock(CommitModelsResult.class))));
+        assertEquals("MODEL_UPDATE", AbstractWebsocketClient.jfrResultType(
+                List.of(mock(TrackModelUpdatesResult.class))));
+        assertEquals("RESULT", AbstractWebsocketClient.jfrResultType(
+                List.of(mock(CommitModelsResult.class), mock(TrackModelUpdatesResult.class))));
+        assertEquals("RESULT", AbstractWebsocketClient.jfrResultType(List.of()));
+        assertEquals("RESULT", AbstractWebsocketClient.jfrResultType(Arrays.asList((RequestResult) null)));
+    }
 
     @Test
     void appliesCompactAndCustomCorrelationDataWithExistingSemantics() {
