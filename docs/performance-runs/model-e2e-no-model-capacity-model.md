@@ -304,10 +304,60 @@ absolute claim. The clean adjacent E354/E355 mechanism comparison is already neg
 rejected and its in-memory-frontier source must be reverted. Do not tune lane count: legacy already permits one command
 and one result commit concurrently, while four total workers add database contention.
 
-The next design target is an ordered two-stage storage wave, not another commit-lane setting. Parallel bounded CPU
-serialization may run ahead into ordered slots. Once the current storage wave has fully committed, the writer drains
-everything already ready, divides that wave over a bounded number of large transactions, inserts those transactions
-in parallel and commits them in log order. The writer never sleeps and never forms the next transaction wave while the
-current one is incomplete. PostgreSQL cannot commit inserts from multiple connections as one ordinary transaction, so
-the wave necessarily has one commit per insert transaction; the experiment must report both insert parallelism and
-physical commit count.
+E357-E362 below test the proposed ordered two-stage storage wave rather than leaving it as a design assumption. The
+result is negative: it improves commit amortization but removes too much insert-ahead feedback. The next design must
+retain legacy preparation residency instead of merely tuning a wave size or commit-lane count.
+
+## E357-E362: ordered storage waves preserve order but lose insert-ahead feedback
+
+E357-E362 implement and close the proposed two-stage storage wave. The diagnostic path is result-log only; command
+storage and every other route stage retain the same binary's legacy behavior. Logical append jobs are fully serialized
+before entering a second `Backlog.forOrderedAsyncConsumer`. That backlog has zero collection delay: it drains only work
+already present, coalesces contiguous jobs up to 64 physical rows or 8 MiB per transaction, starts the resulting JDBC
+inserts concurrently, queues their commits on the existing single ordered commit executor, and waits for every future
+before draining the next storage wave.
+
+The first E357 screen was deliberately invalidated rather than measured. An additive normalized row/byte weight admitted
+nine logical jobs that fragmented into five contiguous transactions for a nominal four-lane wave. A scalar sum cannot
+exactly bound ordered two-dimensional packing with indivisible logical appends. The runtime guard stopped the run after
+warmup; E357 has no candidate throughput. Subsequent runs safely divided an admitted drain into exact sequential
+physical subwaves.
+
+| Run | Storage-wave lanes | E2E | Result tx | Results/tx | Writer svc | Commit svc | Insert svc / max active | Commit-start ready jobs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| E358 | 4 | 489,236/s | **208** | **5,041** | 0.600M/s | **1.455M/s** | 0.569M/s / 4 | 1.3 mean / 4 max |
+| E359 | legacy control | 662,166/s | 430 | 2,439 | 0.710M/s | 0.778M/s | 0.486M/s / 8 | 7.3 mean / 14 max |
+| E360 | 8 | 617,198/s | **191** | **5,490** | **0.730M/s** | **1.901M/s** | **0.657M/s** / 5 | 1.3 mean / 4 max |
+| E361 | legacy control | 626,000/s | 428 | 2,450 | 0.657M/s | 0.727M/s | 0.463M/s / 11 | 6.1 mean / 14 max |
+| E362 | 16 | 517,878/s | **200** | **5,243** | 0.609M/s | **1.680M/s** | 0.613M/s / 4 | 1.3 mean / 3 max |
+
+The transaction and commit columns prove the intended local mechanism. Wave 8 reduces physical result transactions
+55.5%, grows them 124.1% and improves result-writer service 6.9% over the geometric 0.683M/s of E359/E361. It still
+loses 4.1% complete E2E against their 643,829/s geometric mean. Wave 4 loses 26.1% to its adjacent E359 control. Wave
+16 does not cause more natural insert overlap and falls to 517,878/s.
+
+The causal distinction is preparation residency. In legacy E359/E361, the single commit executor reaches a result job
+with respectively 7.3/6.1 contiguous jobs already insert-ready on average and up to fourteen. In every ordered-wave
+candidate that mean falls to 1.3. Larger commits are cheaper per result, but the commit lane now waits for current-wave
+inserts instead of consuming work prepared while earlier commits ran. More configured lanes cannot manufacture more
+ready work once the durability wave changes the closed-loop producer/consumer feedback.
+
+Decision: reject and fully revert the diagnostic wave. `forOrderedAsyncConsumer` remains the correct primitive when a
+consumer truly requires “one async batch durable before the next drain,” but imposing that boundary on this writer
+removes valuable insert-ahead overlap. `forAsyncConsumer` is effectively a concurrent dispatcher and is unsafe without
+an explicit downstream resource bound; changing that API contract is separate from finding a faster complete message
+writer. Any next design must preserve legacy insert readiness while reducing the cost of the ordered visibility boundary.
+
+## E363-E365: absolute recovery pin and code-regression exclusion
+
+Exact profiler-free E315-shape reruns then separate the loaded host from current production bytecode. E363 ran the
+current message store while `kernelmanager_helper` consumed most of a core rebuilding a kernel/driver cache and reached
+782,755/s. E364 substituted the exact historical E315/P3 `JdbcMessageStore` bytecode after pausing that helper, but
+overlapped continuing Docker/PostgreSQL writeback and fell to 707,257/s with a 468.584 ms maximum result latency.
+After writeback settled, E365 returned the current classes to **905,605/s**, with p50/p95/p99/max
+**63.305/85.260/94.195/113.422 ms** and exactly 10,485,760 results.
+
+This A/B excludes the disabled contiguous-readiness JFR observer as the source of the low state: exact old bytecode did
+not recover it, while current bytecode recovered when the host did. The 600-700k E357-E364 absolute numbers therefore
+do not replace E315's 962,888/s production high. E365 is the fresh current-source pin from which the next route-wide
+profile must be ranked.

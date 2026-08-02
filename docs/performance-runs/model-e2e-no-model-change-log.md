@@ -9,9 +9,10 @@ mistaken for a production regression again.
 | Campaign state | Current evidence |
 | --- | --- |
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
+| Fresh current-production repin | **905,605 commands/s** (E365, profiler-free; 10,485,760 exact results, p50/p95 63.305/85.260 ms) |
 | Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
-| Current production candidate | None; transaction fusion and both independent and shared parallel-commit budgets are rejected |
-| Current focus | Prototype a no-delay two-stage storage wave: bounded parallel serialization first, then drain all ready work into large parallel-insert transactions whose commits finish before the next wave is formed |
+| Current production candidate | None; transaction fusion, parallel-commit budgets and the ordered storage-wave prototype are rejected |
+| Current focus | Preserve the legacy insert-ahead pipeline and rerank the intact no-model route from E365; do not infer that ordered backlog semantics alone improve E2E |
 | Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
 
 ## Route and immutable behavior
@@ -134,3 +135,62 @@ E354-E356 close that continuation. One shared four-worker pool still loses 15.15
 both commit and insert duration rise; the trailing candidate is invalidated by a host/handler collapse and cannot rescue
 an already negative mechanism. The publication-frontier source is rejected. The next candidate returns backpressure to
 transaction-wave formation while allowing only serialization—not already-open transactions—to run ahead.
+
+E357-E362 test that exact ordered storage-wave design and reject it. The implementation first serializes each logical
+append, then gives an ordered asynchronous backlog every prepared append that is already ready. One backlog drain
+coalesces only contiguous jobs up to 64 physical rows or 8 MiB per transaction, starts a bounded wave of those
+transactions so their inserts overlap, retains the existing single ordered commit executor, and does not form the next
+wave until every current transaction is durable. There is no collection delay or timer. A focused PostgreSQL test
+delayed the first real commit, proved later append futures remained incomplete, then verified exact coalescing, order
+and visibility after release; all 43 `JdbcMessageStoreTest` tests remained green.
+
+E357 invalidated the first scalar admission approximation before it produced a measured result: nine prepared jobs
+could fragment into five contiguous transactions despite a four-lane normalized row/byte budget. The guard fired and
+the run was aborted. E358-E362 replaced that unsafe assumption with exact sequential subwaves. The mechanism then
+worked, but complete E2E rejected it:
+
+| Run | Shape | E2E | Result tx | Results/tx | Writer service | Commit service | Insert max | Ready at commit start |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| E358 | ordered wave, 4 lanes | 489,236/s | 208 | 5,041 | 0.600M/s | **1.455M/s** | 4 | 1.3 mean / 4 max |
+| E359 | adjacent legacy control | 662,166/s | 430 | 2,439 | 0.710M/s | 0.778M/s | 8 | 7.3 mean / 14 max |
+| E360 | ordered wave, 8 lanes | 617,198/s | 191 | 5,490 | **0.730M/s** | **1.901M/s** | 5 | 1.3 mean / 4 max |
+| E361 | reverse legacy control | 626,000/s | 428 | 2,450 | 0.657M/s | 0.727M/s | 11 | 6.1 mean / 14 max |
+| E362 | ordered wave, 16 lanes | 517,878/s | 200 | 5,243 | 0.609M/s | 1.680M/s | 4 | 1.3 mean / 3 max |
+
+Wave 8 improves local writer service 6.9% over the geometric 0.683M/s of its two controls, but its complete-route
+617,198/s is 4.1% below the controls' geometric 643,829/s. Four lanes lose much more; allowing sixteen lanes does not
+create additional natural overlap and also loses. The writer demonstrably halves transaction count and nearly doubles
+commit-only capacity, yet freezing work into durability waves removes the legacy pipeline's six-to-eight already
+insert-ready jobs at the ordered commit boundary. That feedback loss matters more to the intact route than the commit
+amortization saves. The entire diagnostic prototype is reverted; no Runtime production checkpoint is created.
+
+This result corrects the broad API intuition. `Backlog.forOrderedAsyncConsumer` has the desired standalone semantics:
+drain a batch, wait for its returned future, and only then drain what accumulated. `forAsyncConsumer` keeps draining
+while earlier futures remain open and therefore needs an explicit downstream concurrency/byte bound; its current
+prefix-based completion bookkeeping also assumes async batches complete in submission order. Nevertheless, replacing
+the message writer with an ordered wave is not sufficient because PostgreSQL inserts on different connections imply
+different transactions. Preserving their valuable insert-ahead overlap while reducing ordered publication cost remains
+the architectural problem.
+
+## E363-E365: current production is repinned after host interference
+
+The low absolute E357-E362 controls did not become a new production baseline. Three exact 10,485,760-command,
+profiler-free runs separated source identity from host state while retaining the E315 launch identity: Java 25,
+`-Xms8g -Xmx8g`, two senders, 16,384-command producer batches, 65,536 maximum in flight and the complete durable
+command/result route.
+
+| Run | Runtime message-store bytecode | Host state | Throughput | p50 / p95 / p99 / max ms | Interpretation |
+| --- | --- | --- | ---: | ---: | --- |
+| E363 | current `d5abe0a7`, JFR observer disabled | `kernelmanager_helper` actively rebuilding kernel/driver cache | 782,755/s | 70.627 / 105.979 / 144.886 / 255.817 | excluded host-loaded repin |
+| E364 | exact E315/P3 `JdbcMessageStore` bytecode | helper paused, but Docker/PostgreSQL writeback still elevated | 707,257/s | 66.713 / 205.375 / 335.419 / 468.584 | old bytecode does not restore high state |
+| E365 | current `d5abe0a7`, JFR observer disabled | helper paused; writeback settled; thermal pressure nominal | **905,605/s** | **63.305 / 85.260 / 94.195 / 113.422** | fresh clean production repin |
+
+The current and historical `FluxzeroRuntime` and `ReadWriteMessageStore` class hashes are identical. The only relevant
+message-store bytecode difference is the later contiguous-writer-readiness JFR observer, which short-circuits when batch
+JFR is disabled. E364 nevertheless ran the exact historical E315/P3 `JdbcMessageStore` class and was slower than both
+adjacent current-class runs. E365 then recovered after the remaining virtualization/database writeback fell away.
+Therefore neither the rejected wave prototype nor disabled JFR observer code caused the 600-700k readings.
+
+E365 is a valid recovery pin, but it does not replace E315's **962,888/s** campaign high and is not yet the requested
+stable 1.5-2.0M/s no-model state. Absolute comparisons remain host-qualified: a run overlapping kernel cache rebuilding,
+Spotlight/FileProvider work or sustained post-run virtualization writeback is diagnostic-only.

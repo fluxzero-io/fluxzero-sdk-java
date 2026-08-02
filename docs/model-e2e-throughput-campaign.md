@@ -16,14 +16,14 @@ experiments were rejected.
 | Fresh accepted-base pin | E205-E207 reran exact P3 in the original embedded, genuinely profiler-free Java 25 topology at 346,152 / 345,935 / 331,432 commands/s; geometric mean **341,103/s** |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Active campaign stage | Raise the intact durable no-model command/result route well above **1M/s** before adding one durable event per command and only then returning to model commits. Measure single-client offering/completion separately from multi-client Runtime capacity. |
-| Best non-qualifying ceiling | E315 freshly restores the unchanged production route to **962,888/s** after eliminating machine interference. E295 remains the high at **967,037/s**; clean E295/E297 controls geometrically sustain **952,719/s**. Later E316-E329 position diagnostics do not replace this pin. |
+| Best non-qualifying ceiling | E315 remains the unchanged-production high at **962,888/s**. E365 repins the current production classes at **905,605/s** after pausing a runaway kernel-extension cache builder and waiting for Docker/PostgreSQL writeback to settle; E363/E364 prove the intervening 707-783k readings were host-state, not a code regression. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E351 removes result queue residence locally, but E353's independent pools lose 14.6%. E354 then gives command/result one shared four-worker budget and still loses 15.15% to adjacent E355: commit and insert durations both rise. Parallel physical commit is rejected; the in-memory frontier will be reverted. |
-| Next evidence target | Restore intended no-delay backlog backpressure with two stages: bounded parallel serialization into ordered ready slots, followed by one storage wave that drains everything ready, preserves bounded parallel inserts and completes all ordered durable commits before the next wave is formed. |
+| Latest causal diagnosis | E357-E362 reject ordered storage waves. Wave 8 halves result transactions and improves local writer service 6.9%, but loses 4.1% complete E2E because only 1.3 jobs remain insert-ready at commit start versus 6.1-7.3 in legacy. E363-E365 then exclude both this reverted source and the JFR-only writer observer as causes of the later low absolute readings. |
+| Next evidence target | Profile and rerank the intact no-model route from the recovered E365 production state with legacy insert-ahead preserved. Any next writer candidate must reduce ordered publication cost without freezing work into durability waves or opening unbounded transactions. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E356 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E365 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1926,6 +1926,11 @@ window until the underlying route latency and shared service constraints are imp
 50. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
+51. E351-E362 close both parallel-publication and ordered-wave continuations. Parallel commits remove queue residence
+    but create PostgreSQL contention; ordered waves halve result transaction count and nearly double commit-only
+    capacity, yet remove the legacy six-to-eight already insert-ready jobs and lose complete E2E. Preserve insert-ahead
+    feedback; neither local writer improvement nor the standalone semantics of `forOrderedAsyncConsumer` override the
+    intact route result.
 
 Every new experiment appends to this ledger before the next implementation begins. Superseded candidates remain in the
 history with their rejection reason; measurements are never silently relabeled or discarded.
