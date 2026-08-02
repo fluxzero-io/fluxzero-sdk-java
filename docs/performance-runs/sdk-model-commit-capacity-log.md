@@ -905,6 +905,30 @@ serialization, model batching, WebSocket transport and real model/global-event d
 therefore shared command/result database and feedback pressure, not omitted SDK model handling. The literal direct
 `Fluxzero.assertAndApply(command)` result remains the separate E489-E492 general-idempotency observation.
 
+### E637: locator COPY and commit are no longer conflated
+
+E637 retained the complete canonical route and added nested JFR phases inside the already asynchronous derived
+model-stream locator. It verified all 4,194,304 ordinary results, model events and global events at **415,962/s**.
+The active canonical model store measured 0.510M/s in this natural batch shape. The locator split is:
+
+| Derived locator work | Samples | Parallelism | Mean | p50 | p95 | p99 | Max |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Whole four-lane write round | 514 | one coordinator awaiting four lanes | 11.877 ms | 9.747 ms | 28.603 ms | 52.008 ms | 84.096 ms |
+| **Per-lane two-partition COPY** | 2,056 | up to four | **9.289 ms** | 7.614 ms | **18.349 ms** | 40.925 ms | 82.916 ms |
+| Per-lane commit | 2,056 | up to four | 1.409 ms | 0.979 ms | 3.890 ms | 6.916 ms | 28.707 ms |
+| Cursor row update | 513 | one, after all lanes | 1.753 ms | 1.207 ms | 4.318 ms | 7.813 ms | 25.930 ms |
+| Cursor commit | 513 | one, after the update | 1.258 ms | 0.781 ms | 3.379 ms | 5.189 ms | 45.787 ms |
+
+Each P5 lane writes two disjoint physical locator tables in one transaction, so it starts two binary COPY operations.
+The lane handled only 17.2 physical compressed rows on average. Commit is therefore not the dominant 11.877 ms stage:
+COPY startup and execution consume about 78% of the coordinator's wall interval. The proposed asynchronous lane-commit
+experiment is not selected from this evidence. Its theoretical local saving is too small, and it would leave the
+measured two-COPY cost intact.
+
+The next bounded hypothesis is one COPY stream per lane while retaining four disjoint parallel lanes, immediate
+processing, one transaction per lane and the later ordered cursor. It requires a safe way to route the two physical
+partitions from one COPY; no production implementation is accepted by E637 itself.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -962,6 +986,9 @@ therefore shared command/result database and feedback pressure, not omitted SDK 
     large batch, while direct global-event insert, atomic state/stream work and the shared commit form about 79% of
     the active ordered-store interval. Keep the complete SDK handler in all isolated model measurements, but select
     the next production candidate from this measured database boundary.
+24. Do not test asynchronous locator lane commits merely because commit latency is visible. E637 splits the locator
+    and shows 9.289 ms mean per-lane COPY versus 1.409 ms commit. Preserve commit semantics and first investigate
+    eliminating the second COPY startup per lane without reducing parallelism or adding a wait.
 
 ## Evidence
 
@@ -1273,3 +1300,7 @@ therefore shared command/result database and feedback pressure, not omitted SDK 
   `4370f2432ae76de862796adf4ef5bbf96e80de050269bd598d08656d7ff469d1`,
   `b78e9c2072bb7e509fc3b5348f15eea45dad540383bdedae19d55d2e04cf0da2`,
   `f322fdaf995d8ab63ab1c53c5504db226ef35ae0176054a435a3721c42b12c71`.
+- E637 locator COPY/commit split log/JFR/summary SHA-256:
+  `3e5c935dc68a25c58e5113144873fc4fd7944ec044c34569ba6bca2784140491`,
+  `2c8a0230181a1673b8aa7af8857ccad59f139d045a4b860c3f04f83c7f6d0cb4`,
+  `827756cba597fcd1116b7b33ac21184ca38b593d630ce3904fb353fa7735210f`.
