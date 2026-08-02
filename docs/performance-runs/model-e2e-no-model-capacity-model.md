@@ -96,25 +96,22 @@ ordered executor waits only 0.374 ms on preparation on average, with a zero p50.
 flight or complete before their turn. This makes the physical-commit-versus-logical-publication boundary a stronger
 structural research target than adding another timed backlog window.
 
-## Backlog and downstream admission semantics
+## Backlog and downstream preparation semantics
 
-`fluxzero.messageStoreBacklogSize` is currently a maximum *batch* size, not a maximum queue or pending-work size.
-`ReadWriteMessageStore` uses `Backlog.forAsyncConsumer`: one backlog thread constructs batches serially, but it starts
-the next batch as soon as `storeBatch` returns its future instead of awaiting durable completion. JDBC inserts are
-bounded by the shared 32-thread insert executor and commits are ordered on one executor per log, but the number of
-already constructed storage jobs and their retained futures, messages and transaction state has no explicit admission
-bound. Callers that await their append futures provide feedback at a higher layer; the generic store itself does not
-provide a bounded overload contract. The configuration name and constructor documentation therefore overstate what
-is bounded today.
+`fluxzero.messageStoreBacklogSize` controls the maximum message batch passed to the asynchronous store consumer.
+`ReadWriteMessageStore` uses `Backlog.forAsyncConsumer`: one backlog thread constructs those batches serially, starts
+the consumer and associates append completion with its returned future, but deliberately does not await that future
+before forming the next batch. End-to-end pressure is carried by those append futures and the caller's in-flight
+limit. `JdbcMessageStore` intentionally uses the resulting overlap to serialize and insert later jobs while the
+per-log commit executor durably commits earlier jobs. The backlog therefore behaves as designed; the relevant
+optimization question is how JDBC maps its logical jobs to physical transactions.
 
-This is a real resource-safety concern, but it is not an untested throughput hypothesis. E266-E269 screened pending
-result-job limits 1, 2, 4 and 8. N=2 initially reached 962,092/s, but the qualifying same-binary E275-E278 comparison
-put the narrow production candidate at 934,109/s geometric mean versus 959,204/s for the legacy control
-(**-2.62%**). A small hard cap loses useful insert overlap and is rejected as the capacity fix. Future work must keep
-two separate requirements explicit:
-
-1. add a generous count-and-byte overload bound so sustained producer overload cannot retain work indefinitely;
-2. improve ordered durability/publication without treating that safety bound as the batching or throughput mechanism.
+E266-E269 screened pending result-job limits 1, 2, 4 and 8. N=2 initially reached 962,092/s, but the qualifying
+same-binary E275-E278 comparison put the narrow production candidate at 934,109/s geometric mean versus 959,204/s for
+the legacy control (**-2.62%**). A small admission cap loses useful insert overlap and is rejected. The distinct new
+hypothesis is transaction fusion: retain the current asynchronous preparation and parallel inserts, but coalesce
+multiple contiguous ordinary logical jobs into fewer byte-bounded physical transactions before insertion. Those
+physical transactions can still insert in parallel and commit on the existing ordered per-log executor.
 
 ## Candidate classes and evidence gates
 
@@ -173,3 +170,39 @@ of the cache: 1,141 physical command scans read 85,889,024 messages, about 8.2 t
 measured 365,471/s, 2,135-result transaction average and readiness distribution describe that backpressured failure
 state, not the healthy E279/E315 route. They must not select or size a production mechanism; a clean intact repeat is
 still required.
+
+## E338-E343: logical-job transaction fusion
+
+The first diagnostic prototype implements the narrower transaction-fusion mechanism suggested by the readiness
+evidence. A second asynchronous stage may combine up to N contiguous direct-only logical jobs into one byte-bounded
+physical transaction before connection acquisition and insertion. Physical transactions still insert concurrently and
+are submitted to the unchanged single-thread per-log commit executor in index order. Conditional/co-located work,
+staging tails and staging flushes are barriers on the legacy one-job transaction path. Append futures and original
+monitor batches remain attached to their logical jobs. The feature is disabled by default (`maxJobs=1`).
+
+The isolated E338/E339 pair proves both the mechanism and a feedback hazard:
+
+| Run | Shape | Logical jobs | Physical transactions | Messages/transaction | Throughput | Interpretation |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| E338 | Legacy control | 105 | 105 | 2,496.6 | 2.189M/s | Healthy isolated reference under the loaded host |
+| E339 | Result fusion N=3 | 710 | 253 | 1,036.1 | 1.114M/s | 2.81 logical jobs/transaction, but faster callback dispatch fragments the upstream 256-message offer shape |
+
+All 524,288 warm-up plus measured messages were durable with zero ordering/overlap violations in both runs. E339
+therefore rejects the isolated producer shape as a representative selector for this mechanism; it does not reject
+fusion on the actual SDK result-wave topology.
+
+The intact, short, batch-profiled E340-E343 screen is materially different:
+
+| Run | Candidate | E2E | Logical result jobs | Physical result transactions | Messages/transaction | Active result-writer capacity |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| E340 | Control | 596,503/s | 397 | 397 | 2,641.2 | 0.699M/s |
+| **E341** | **Result fusion N=3** | **768,363/s** | **405** | **359** | **2,920.8** | **0.837M/s** |
+| E342 | Reverse control | 709,996/s | 423 | 423 | 2,478.9 | 0.781M/s |
+| E343 | Result fusion N=4 | 722,659/s | 409 | 367 | 2,857.2 | 0.789M/s |
+
+E341 is 18.1% above the 650,780/s geometric control, reduces physical result transactions without fragmenting the
+405 logical SDK result jobs, and improves the targeted writer boundary. Fusion N=4 does not improve natural
+coalescing or writer capacity further. Every run produced exactly 1,048,576 durable results and zero model/global
+events. These are still diagnostic-only: the short warm-up and persistent `kernelmanager_helper` load make absolute
+throughput and the full-route delta non-qualifying. N=3 has earned a long matched clean-host qualification; it is not
+yet an accepted production default or checkpoint.
