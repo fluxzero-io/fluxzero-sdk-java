@@ -419,3 +419,24 @@ owns visibility and result completion; a crash rolls back any unacknowledged Flu
 work; a committed-but-unacknowledged retry remains idempotent; and deployments must explicitly support at least the
 configured prepared-transaction depth. Exact invocation and source identities are in
 [`model-e2e-run-registry.csv`](model-e2e-run-registry.csv), E93 through E99.
+
+### E100-E101: splitting one accepted batch into four open transactions loses E2E
+
+The first intact-route prototype retained ordinary results and every exact correctness check. It split each sufficiently
+large packed P3 batch into four contiguous state/event ranges, prepared four ordinary invisible JDBC transactions in
+parallel, committed them strictly in reservation order, published each model boundary only after its event transaction
+committed, and then consolidated the append-only state markers. The feature default remained one lane.
+
+The matched 131,072-command non-profiled smoke pair was decisively negative:
+
+| Route | Throughput | p50 | p95 | p99 | max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| one-lane P3 control | **196,681/s** | 212.675 ms | 356.138 ms | 364.523 ms | 375.988 ms |
+| four in-batch transactions | 160,342/s | 280.450 ms | 449.783 ms | 482.082 ms | 511.473 ms |
+
+The four-lane candidate is **18.48% slower** and worsens every latency percentile. E100 is therefore rejected before a
+canonical run or checkpoint. This narrows the E93-E99 interpretation: PostgreSQL has ample parallel immutable-write
+capacity, but merely partitioning an already accepted coordinator batch changes row/block granularity, connection and
+commit count, and full-route batching feedback enough to lose capacity. A measured E2E differential profile must
+attribute that loss before choosing between a cross-batch visibility pipeline and a denser write layout. Source remains
+uncommitted diagnostic code while attribution runs; it is not an accepted production state.

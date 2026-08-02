@@ -1036,10 +1036,13 @@ Runtime-collapsed/client-collapsed SHA-256 values are
     the singleton head, and bounded prepared transactions retain invisible atomic data until ordered publication.
     Four lanes saturate the 8,192-item curve at 1.774M/s; prepared depth must remain bounded and crash leftovers must
     be resolved before this can become production behavior.
-18. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+18. E100-E101 reject naive in-batch four-transaction preparation: the exact full-result smoke route falls from
+    196,681/s to 160,342/s (−18.48%) and all latency percentiles worsen. Attribute the intact-route loss before changing
+    the visibility pipeline or physical grouping; the storageprobe alone does not select production architecture.
+19. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-19. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+20. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
