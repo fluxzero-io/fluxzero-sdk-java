@@ -555,6 +555,28 @@ planning and 0.429 ms execution per call versus a 2.620 ms Java/JDBC boundary. C
 therefore recover at most a few hundredths of a millisecond; it cannot explain the measured client-side gap. The
 database setting was restored to `track_planning=off` immediately after collection.
 
+### E573-E576: direct SDK event-envelope encoding is real but too small
+
+E567 attributed substantial sampled model-stack allocation to the SDK first building a reusable native event envelope
+and then copying that envelope into the native model-commit batch. E573 tested a byte-identical direct writer from the
+materialized `SerializedMessage` into the final commit-batch buffer. The existing encoder remained unchanged for the
+same-binary control. The candidate covered materialized, reusable and dirty/lazy representations and passed 37 focused
+envelope/codec tests in both feature modes plus 75 model-commit and handler tests with direct encoding active.
+
+The complete-route measurements were consistently positive but small:
+
+| Pair | Direct encoding | Existing encoding | Effect |
+| --- | ---: | ---: | ---: |
+| E573/E574 batch-JFR | 411,416/s | 408,598/s | **+0.69%** |
+| E576/E575 non-JFR | 419,912/s | 417,353/s | **+0.61%** |
+
+Every run verified exactly 4,194,304 ordinary results, stored model events and global events. E573 formed 645 model
+store jobs averaging 6,503 commands and measured 0.540M/s active ordered-store capacity; E574 formed 741 jobs averaging
+5,660 commands and measured 0.516M/s. That feedback difference is larger than the E2E effect and is another reason not
+to overstate the local allocation removal. A stable gain of about 0.65% does not justify a new public direct-write API,
+duplicated envelope implementation and permanent feature path. The patch was archived and fully reverted. The result
+causally excludes temporary SDK event-envelope allocation/copying as the current primary limiter.
+
 ## Current decision
 
 1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
@@ -582,6 +604,9 @@ database setting was restored to `track_planning=off` immediately after collecti
     20.8%.
 13. Do not select statement-shape caching as P5: E572 measures only 0.040 ms mean planning against a 4.060 ms direct
     event-insert boundary. Investigate measured SDK/model CPU and allocation pressure around the JDBC scheduling gap.
+14. Do not retain direct SDK event-envelope encoding: E573-E576 measure only +0.61% to +0.69% complete-route gain for
+    materially duplicated envelope code. Treat the envelope allocation as secondary and return to the ordered
+    model/event-store boundary.
 
 ## Evidence
 
@@ -752,3 +777,16 @@ database setting was restored to `track_planning=off` immediately after collecti
   `82029cd6b0537ba37b6a42bf5fd4a950e263cf0f5f199d7600ade4cc80e29f03`,
   `ddc0c2781af5e27127e65701900f75ba0623be45fbd6a2ddd407ac7e4478ce6a`,
   `f0846d943d45866250924011516609c859e4adbb5ad384212a4cf6dc86273bba`.
+- E573 direct-envelope candidate log/JFR/summary SHA-256:
+  `7d8cce90fa524f88fceb40636838c2af8901a85e97666fff502a754299ce91ad`,
+  `96492e22bb02b9d9bffa1749aa22a8242557c47db6d360bf3e43238fc3ad2763`,
+  `132d90a80c3bd5981953a839450128df792c8d9d1f0aaee10e751587cf2fd95f`.
+- E574 same-binary envelope control log/JFR/summary SHA-256:
+  `20b1081c3c580084fe043e527c8d3ac41a383e7830296a9d6816a712fddf5324`,
+  `6d24c75a9a88d81fc359527998b949069104fbd4fefc70e0d0c27918eb0a0629`,
+  `265249dfbf781f1a243eda228cbb8dd44d225e25d90b301f9cb8f1d4343fbb0d`.
+- E575/E576 non-JFR envelope control/candidate log SHA-256:
+  `98d8362de3671ac9dd49e3ed638c98d2160915a447fb750c21b799da64158071`,
+  `09ae56cb28c9d2853302e0034dbc666a1a8434cf89df25627657b2920974a9a5`.
+- Reverted E573-E576 direct-envelope candidate patch SHA-256:
+  `708173925cc3c7ad4711fef4cea0f444e0164f28df9e3e0e9dcdc8b89ffe5e75`.
