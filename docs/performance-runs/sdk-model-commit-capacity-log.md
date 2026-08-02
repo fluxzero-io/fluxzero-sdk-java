@@ -4,11 +4,11 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | **359,508/s** canonical matched geometric mean; sustained long control **408,185/s** in E550 | `commit-packed-update` | **0.509M/s** in sustained E552 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **421,981/s** best run | `commit-packed-update` | **0.445M/s** observed admission-inclusive rate under P4 profile E556 | Sole acceptance gate for the 500k target |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
-Production is Runtime `87327b71` (`perf(modeling): compact derived stream locators`). The full model campaign remains
+Production is Runtime `c98f47e6` (`perf(modeling): fuse packed state and stream writes`). The full model campaign remains
 scoped to model work. Command and ordinary result paths remain present only in the canonical E2E acceptance route and
 are not optimization targets.
 
@@ -407,23 +407,83 @@ completed the unchanged full route at 401,677/s. The next candidate must therefo
 5.5-5.7 ms storage blocks or demonstrably remove model-specific allocation/GC from the full route; it must not infer a
 cache-contention mechanism from stop-the-world attribution.
 
+### E555: PostgreSQL execution is not the dominant part of the model boundaries
+
+E555 repeated the unchanged long route at 398,896/s after resetting `pg_stat_statements`. Java/JFR boundary time was
+then compared with PostgreSQL's server-side execution time for the same operation counts:
+
+| Operation | Java boundary mean in E552 | PostgreSQL execution mean in E555 | Approximate time outside server execution |
+| --- | ---: | ---: | ---: |
+| Global event insert | **4.686 ms** | 0.614 ms | **4.07 ms** |
+| Packed model stream COPY | **3.311 ms** | 1.679 ms | **1.63 ms** |
+| State lock/read | **1.438 ms** | 0.013 ms | **1.43 ms** |
+| State-head update | 0.917 ms | 0.019 ms | **0.90 ms** |
+
+These values are correlated aggregates rather than one transaction trace, and PostgreSQL planning was not separately
+enabled. They nevertheless reject “make the SQL executor faster” as the primary hypothesis. JDBC protocol, result
+handling and repeated client/server boundaries dominate three of the four operations. This justified testing a
+boundary-removal mechanism rather than another isolated SQL micro-optimization.
+
+### E556-E565: P4 fuses the packed state and stream boundaries
+
+P4 applies only to fresh packed updates (`possibleDuplicate=false`) with no new model-type registration. One
+PostgreSQL data-modifying CTE now validates and advances the singleton state row and inserts the prepared initial-stream
+blocks from typed arrays. It retains all surrounding work: SDK handling, automatic `@Apply`, global event insertion,
+the same PostgreSQL transaction and commit, durable ordinary result storage and complete route verification.
+
+If the state predicate cannot advance because of an erasure fence or a changed state boundary, the CTE inserts no
+rows and the existing lock/check/COPY/update path runs unchanged. An insert failure rolls the state advance back in
+the same SQL transaction. The previously rejected stand-alone typed-array candidate is not being resurrected: its
+0.47% sustained effect retained all state round trips. P4's mechanism is the removal of those round trips together.
+
+The matched batch profiles show the local mechanism and its full-route effect:
+
+| Segment | E557 parent control | E556 P4 | Effect |
+| --- | ---: | ---: | ---: |
+| Full E2E under batch JFR | 349,024/s | **356,884/s** | **+2.25%** |
+| Complete active event-store job | 15.939 ms | **11.585 ms** | **-27.3%** |
+| Co-located model callback | 6.907 ms | **3.196 ms** | **-53.7%** |
+| Stream/state SQL work | COPY 3.870 + lock 1.806 + update 1.124 ms | **one fused statement 3.181 ms** | **-53.2%** |
+| PostgreSQL commit | **1.812 ms** | 2.611 ms | +44.1%; batch feedback changed |
+| Admission-inclusive model observation | 0.437M/s | **0.445M/s** | +1.8% |
+
+Because the short route remains sensitive to natural batch feedback, E558-E561 used a balanced BAAB sequence. The
+candidate geometric mean was 368,604/s versus 361,320/s for the parent, or +2.02%. The decisive sustained comparison
+then used 262,144 warm-up and 4,194,304 measured commands per run:
+
+| Sustained pair | P4 | Parent control | Effect |
+| --- | ---: | ---: | ---: |
+| E562 / E563, before checkpoint | **421,981/s** | 401,055/s | **+5.22%** |
+| E564 / E565, committed P4 then immediate parent | **410,455/s** | 398,547/s | **+2.99%** |
+| Geometric mean | **416,178/s** | 399,799/s | **+4.10%** |
+
+Every sustained candidate and control run verified exactly 4,194,304 ordinary results, stored model events and global
+events. E564 proves the committed Runtime tree, not just the exploratory worktree. The 421,981/s result remains the
+best complete-route observation but is not treated as the stable pin by itself; P4 is accepted on the two matched
+long pairs and their +4.10% geometric-mean effect.
+
+Correctness verification added two focused contracts. A transient trigger failure inside the fused stream insert must
+retry with exactly one state-index advance and one copy of each model/global event. After an actual erasure of another
+model, a fresh packed update of a live model must still pass through the checked fallback. The complete
+`JdbcModelCommitStoreTest` passed 103/103 and `./mvnw -B install` passed all 683 Runtime tests plus the benchmark test.
+
 ## Current decision
 
-1. Runtime `87327b71` is the new accepted production checkpoint; full E2E matched gain is +5.28%.
-2. Use E531 as the throughput profile baseline and E532 as its detailed phase split; active store capacity is
-   0.431-0.432M/s.
+1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
+   with a best complete-route observation of 421,981/s.
+2. Use E556/E557 as the current matched storage profile. P4 cuts the co-located model callback by 53.7% and the
+   enclosing active event-store job by 27.3% without removing any route stage.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
-6. Preserve the separate state lock/update for now. Their atomic replacement saved 24.1% locally but only 0.83% in
-   balanced full-route runs, which does not justify the added SQL and failure-path complexity.
-7. Preserve binary COPY for initial stream blocks. Typed-array insert reduced that phase by 37.1%, but delivered only
-   +0.47% on the longer complete E2E route and is not a production checkpoint.
-8. Use E550's 408,185/s only as evidence that the accepted route can sustain the old 0.407M service-capacity estimate;
-   keep the fixed canonical protocol as the progress baseline.
-9. Use E552's sustained split for candidate selection: event preparation/global insertion is 5.501 ms and the
-   co-located model callback is 5.748 ms before the 1.454 ms commit. Do not optimize a smaller nested phase without a
-   mechanism that materially changes one of these complete blocks.
+6. Preserve binary COPY as the general and checked fallback. The P4 typed-array statement is restricted to the packed
+   no-type-registration path and is accepted because it removes state boundaries as one atomic unit.
+7. Treat E550's 408,185/s and E562's 421,981/s as demonstrated high states, not standalone stable pins. Matched
+   comparisons remain the progress evidence.
+8. Continue from the post-P4 profile rather than the old 0.407M active-lane estimate. That estimate was never an E2E
+   ceiling and has now been superseded by complete-route measurements.
+9. Use E555's server/client split when selecting P5: repeated JDBC boundaries contain more headroom than the raw
+   PostgreSQL executor time. Validate the next complete block before changing production code.
 10. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 
@@ -540,3 +600,27 @@ cache-contention mechanism from stop-the-world attribution.
   `5e598e5f7087b6f633e409b76d907029a0babd600eb73d12cf9e426ee95abd8f`,
   `da2ba2f9ffe6f0f4c4dd5310c347a214d87695278201dc5a587706f2937efe0e`.
 - E554 detailed-timing log SHA-256: `edc8875c4b11fc3fe28deeb8eaf97fbfe0ea3a665da729575d18146c1116916c`.
+- E555 log/model-stat/top-stat/aggregate SHA-256:
+  `5dcebdbb3c313937b79c07e2dc1f40a925943c19c90e8de7d0cc17b06a792fbb`,
+  `c1194a3875b5d08728ab1be7e8e6faef587ceb2bb544e9c734a7507248a0e104`,
+  `8818d0122d11a8a9ed6de138d37b270806347555a724fb634894ce80dd84be0b`,
+  `05a91abcffa4348de13843e02211d558581096e2919fb90eecc8aee8d68a8281`.
+- E556 P4 profile log/JFR/summary SHA-256:
+  `b6cee888a9cd9a85133eebe58d386787c4b873d8218f21f94bac9b9a53407c7d`,
+  `200d17777946520a0236781235aa8c7508e88fd9efd9b30655b77e292d7b1665`,
+  `8c8f15ed074073ff8b6e7168cb615cd06aa0e9bee12fa25004780fef092fe8e2`.
+- E557 parent profile log/JFR/summary SHA-256:
+  `13f215b41907292a67cf5c644d16ab72c0f7c427f575c8bab791e73129305b6d`,
+  `f74a1d073de1efc36af9362cf24b6d427622f386a4151f2062268798e2626178`,
+  `c4080f0aad2656e59543c2cff7ccfeb27cafa86d20517065cce51f2a7ae7a1d2`.
+- E558-E561 short matched log SHA-256:
+  `ec68fc34d47a9e823e4b07d092604dbf8c26d3783a5de198e98321133dce6cb4`,
+  `61ceb01257a0bc327acb98eaadef25f0b4a1aa484baf61c2c13333b5c174add4`,
+  `66c2cf7058b9af71b4f31c5d99037156d438e6ea45ec07208b672c30e34bc8fb`,
+  `b717a7d31e8d08fe7dc641fb60729a107373163f00f8c55426ef1130e8b10fd7`.
+- E562/E563 first sustained pair log SHA-256:
+  `bc6283275441423583e0d1b8b8f17720c0c5f666373363afb4e3b2c0300f8ddc`,
+  `dd17a8e5278e82dc6fdfb42628e0160c4d15434a90ab03a23021ab5accdd4f20`.
+- E564/E565 committed P4/parent sustained pair log SHA-256:
+  `d70c28fd5ae21786e22c2474a5295b9ccc0ce5dada1fc31e3e4deb23a2b1c299`,
+  `94ef4f11eda6c4f77aa474d0bbc1f325217d7f66d0753a577a33cf975b3c2804`.
