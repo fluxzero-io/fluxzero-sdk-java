@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **421,981/s** best run | `commit-packed-update` | **0.445M/s** observed admission-inclusive rate under P4 profile E556 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **421,981/s** best run | `commit-packed-update` | **0.497M/s** active ordered-store capacity in long P4 profile E566 | Sole acceptance gate for the 500k target |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
@@ -467,12 +467,58 @@ retry with exactly one state-index advance and one copy of each model/global eve
 model, a fresh packed update of a live model must still pass through the checked fallback. The complete
 `JdbcModelCommitStoreTest` passed 103/103 and `./mvnw -B install` passed all 683 Runtime tests plus the benchmark test.
 
+### E566-E569: direct event-block COPY is slower and rejected
+
+E566 established the next long, full-route P4 profile before changing production code. It completed at 404,282/s and
+verified exactly 4,194,304 ordinary results, stored model events and global events. Its 692 ordered model/event jobs
+contained 6,061 commands on average. The fundamental service segments were:
+
+| Segment | E566 mean | Meaning |
+| --- | ---: | --- |
+| Event-job preparation | **5.649 ms** | Wait for serialization/compression and the direct global-event block insert |
+| Direct global-event block insert | **4.855 ms** | Insert the already compressed physical event-log rows before model work |
+| Fused state advance + model-stream insert | 2.720 ms | P4's single state/stream SQL boundary |
+| PostgreSQL commit | 2.075 ms | Durable commit of global events and model changes together |
+| Model-store admission wait | **9.503 ms** | Queue pressure before the single ordered model/event store; not active service time |
+
+The active ordered model-store capacity was 0.497M commands/s. This supersedes the older E459 0.407M/s estimate: both
+are derived active-service rates under their particular full-route profiles, not E2E throughput or fixed ceilings.
+
+The same E566 execution was correlated with `pg_stat_statements`. Its global event inserts produced 35,653 physical
+rows from 4.19M logical events. PostgreSQL executed 936 insert statements in 541.436 ms, about 0.78 ms of server
+execution per event job, versus 4.855 ms at the Java boundary. E567 then used full CPU/allocation JFR on the unchanged
+route. Its 310,259/s throughput is profiling-distorted and not a progress number. Allocation sampling estimated only
+244 MB in the defensive `JdbcBinder.setBytes` copy over all 4.19M events, or roughly 58 bytes per logical event, so
+removing that copy could not explain the multi-millisecond boundary gap. Thresholded DataSourcePool socket reads did
+show 2.487 ms mean latency, supporting a JDBC/protocol wait rather than a byte-copy hotspot.
+
+E568 therefore tested one narrowly scoped mechanism: binary COPY only for the already compressed global-event rows of
+an atomic model/event transaction. It retained the same connection, transaction, state/model work, commit, rollback,
+index order and completion future; command and result stores remained on their accepted paths. The candidate passed
+145 focused `JdbcMessageStoreTest` and `JdbcModelCommitStoreTest` cases with the feature enabled.
+
+The immediate same-binary profile pair rejected it:
+
+| Measurement | E568 binary COPY | E569 multi-value control | COPY effect |
+| --- | ---: | ---: | ---: |
+| Full SDK E2E | 404,326/s | **413,792/s** | **-2.29%** |
+| Direct event-block insert | 6.649 ms | **4.407 ms** | **+50.9% slower** |
+| Commands per model/event job | **7,037** | 6,205 | Larger COPY feedback batch |
+| Complete active event-store job | 11.905 ms | **10.032 ms** | **+18.7% slower** |
+| Fused state/stream statement | **2.484 ms** | 2.715 ms | Secondary feedback change |
+| Commit | **1.848 ms** | 2.046 ms | Secondary feedback change |
+
+Both runs verified the complete 4,194,304-command route. COPY's startup/streaming protocol is too expensive for only
+about 49 compressed physical rows per event job. Its slower insertion induces larger batches and partially masks the
+damage, but does not improve E2E. The candidate patch was archived as diagnostic evidence and fully reverted; P4
+remains the clean production state.
+
 ## Current decision
 
 1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
    with a best complete-route observation of 421,981/s.
-2. Use E556/E557 as the current matched storage profile. P4 cuts the co-located model callback by 53.7% and the
-   enclosing active event-store job by 27.3% without removing any route stage.
+2. Use E566 as the current long storage profile. The ordered model/event store shows 0.497M/s active capacity, with
+   5.649 ms event preparation, 2.720 ms fused state/stream work and 2.075 ms commit per job.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
 4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
@@ -486,6 +532,8 @@ model, a fresh packed update of a live model must still pass through the checked
    PostgreSQL executor time. Validate the next complete block before changing production code.
 10. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
+11. Do not replace the conditional event-block multi-value insert with binary COPY at the current physical row shape;
+    E568/E569 causally rejects it at -2.29% E2E and +50.9% direct-insert time.
 
 ## Evidence
 
@@ -624,3 +672,20 @@ model, a fresh packed update of a live model must still pass through the checked
 - E564/E565 committed P4/parent sustained pair log SHA-256:
   `d70c28fd5ae21786e22c2474a5295b9ccc0ce5dada1fc31e3e4deb23a2b1c299`,
   `94ef4f11eda6c4f77aa474d0bbc1f325217d7f66d0753a577a33cf975b3c2804`.
+- E566 P4 long profile log/JFR/summary SHA-256:
+  `490cf88e833a6f49c70073334a8e1355ce4fabb80a37e06877dffd29615043c1`,
+  `5b51c01cd6252b3dd7bda87b47d51b99123fceb314574802970776b7334b8438`,
+  `1e754a4b65cab7236538aacb210574c6919fbdb95b2259e339fb9a82b6341551`.
+- E567 full CPU/allocation profile log/JFR SHA-256:
+  `f1054ea6377fadf66b450c2ad68604ecaa98cf775cc05418b008d22993c64968`,
+  `024f0df86e4eb64bddec5f4c8e076dfc74e00dc7c053e6b2b2eb5da999ab428d`.
+- E568 binary-COPY candidate log/JFR/summary SHA-256:
+  `ed987016c9ea5ac2474d34bd01f859c66fe53896ca0d434066156c98b556c408`,
+  `eaf3260ff4cb8e4db7eb4bcae75ec6566335a78fd832f36d9244cd9152525d00`,
+  `1be914eebaf45506a87da16d4bf5cb6ad222aa3d5ac42a2e0be77eed850029c4`.
+- E569 same-binary multi-value control log/JFR/summary SHA-256:
+  `f79282e79fd05ae7faee90c52562e5b18291bfd8a6b955d272c7af85e9bad218`,
+  `11459fbc7f1fbc73fbc14886f5207a078133182bdb5b1caeb51ba5d5c705b782`,
+  `f0c0e7add1de4681a856a84e898297e43eef6f3b61efc7ce00a6747a9aa2b5fe`.
+- Reverted E568 candidate patch SHA-256:
+  `43ffe626f2131c08c84a79021b23741921abfea851a3e45d55769945d70ffce0`.
