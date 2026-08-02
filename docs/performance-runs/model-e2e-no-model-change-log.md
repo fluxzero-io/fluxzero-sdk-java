@@ -254,3 +254,82 @@ not smaller, and commit cost falls. The final SDK reactor is green across common
 processor, Java downstream and Kotlin downstream modules. This earns a correctness checkpoint, not a throughput
 checkpoint. The next experiment changes only Runtime message-store admission and always records
 `maxInFlightBatches`, logical batch size, physical transactions, insert/commit service, ready jobs and physical reads.
+
+## E376-E381: first bounded Runtime admission curve
+
+The Runtime candidate wires `ReadWriteMessageStore` to the checkpointed Backlog overload while preserving the old
+default exactly: absent a property, `maxInFlightBatches` remains `Integer.MAX_VALUE`. The diagnostic property
+`fluxzero.messageStoreMaxInFlightBatches` applies globally; appending `.command` or `.result` overrides one physical
+message log. A separate `fluxzero.messageStoreMaxBatchWeight` property and per-log form use payload bytes as generic
+Backlog weight, but every run in this section leaves that cap at `Long.MAX_VALUE`. The count-only path therefore does
+not execute an extra `getBytes()` per message.
+
+The production candidate diff is based on SDK `2e3128b983c` and Runtime `d5abe0a788a5`; its two tracked production-file
+diff has SHA-256 `4448ff04a7bc3c587f18892b42a78ea2bed25f6f9f8ee3435c9261b4968b656c`.
+`ReadWriteMessageStore.class` is `4c26216de6478ddbda9276e12fbd1bafbff686bf8e3d741405db5695552595eb`,
+`JdbcMessageStore.class` is `733db7ac904b33ca8b018119d04344d75e35081b90fa89b25c0bae3ade820016`
+and the benchmark class is `04c0c7d7c85fd344cbe46e8652ab3a39c022a01aa49d463d66f2d2ddfe8888d9`.
+Java is OpenJDK 25 `25+36-3489`; PostgreSQL remains synchronous-commit 18.3 with `fdatasync`, 16 GiB WAL and a
+30-minute checkpoint timeout. Every invocation uses batch-only JFR, 10,485,760 warm-up and measured commands, and
+verifies exactly 10,485,760 durable ordinary results with zero model and global events.
+
+### Full route and physical writer shape
+
+Rates are million messages/s of active JDBC message-store service. Commit and insert values are mean milliseconds per
+physical transaction. `ready` is the number of contiguous already-insert-ready storage jobs observed when the ordered
+commit starts. The profile ceiling is diagnostic; it is not mixed with profiler-free acceptance throughput.
+
+| Run | `maxInFlightBatches` | E2E/s | p50 / p95 ms | Command tx × rows/tx | Command writer | Result tx × rows/tx | Result writer | Result commit / insert ms | Result ready mean / max |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| E376 | **unbounded** | 874,434 | 63.483 / 89.175 | 2,560 × 4,096.0 | 1.166M | 4,278 × 2,451.1 | 0.936M | 2.243 / 3.256 | 4.47 / 20 |
+| E377 | **32** | 858,130 | 66.327 / 90.945 | 2,560 × 4,096.0 | 1.206M | 4,343 × 2,414.4 | 0.935M | 2.088 / 3.043 | 4.70 / 20 |
+| E378 | **16** | **902,873** | **63.041 / 83.218** | 2,560 × 4,096.0 | 1.218M | 4,268 × 2,456.8 | 0.976M | 2.104 / **2.763** | 3.92 / 14 |
+| E379 | **8** | 883,170 | 65.391 / 85.372 | 2,560 × 4,096.0 | **1.248M** | **3,970 × 2,641.2** | **0.999M** | **2.010** / 3.009 | 3.67 / 7 |
+| E380 | **4** | 680,892 | 83.696 / 111.026 | 2,560 × 4,096.0 | 0.898M | **3,732 × 2,809.7** | 0.734M | 3.110 / 3.688 | 1.84 / 3 |
+| E381 | **12** | 725,814 | 78.718 / 105.250 | 2,560 × 4,096.0 | 0.975M | 4,397 × 2,384.8 | 0.780M | 2.611 / 3.467 | 4.35 / 10 |
+| E382 | **12** | 890,091 | 63.643 / 88.529 | 2,560 × 4,096.0 | **1.275M** | 4,209 × 2,491.3 | **0.997M** | **1.974** / 2.949 | 4.22 / 11 |
+
+The JFR-observed concurrent append futures confirm when the setting actually binds:
+
+| Run | `maxInFlightBatches` | Command max active | Result max active | Command commit / insert mean ms |
+| --- | ---: | ---: | ---: | ---: |
+| E376 | unbounded | 9 | 22 | 2.355 / 3.366 |
+| E377 | 32 | 8 | 23 | 2.220 / 2.956 |
+| E378 | 16 | 8 | **16** | 2.155 / 2.808 |
+| E379 | 8 | **8** | **8** | 2.174 / 2.834 |
+| E380 | 4 | **4** | **4** | 3.105 / 3.702 |
+| E381 | 12 | 8 | **12** | 2.728 / 3.596 |
+| E382 | 12 | 8 | **12** | **2.088 / 2.825** |
+
+E377 is effectively another unbounded observation because neither log reaches 32. E378 is the first informative bound:
+it trims the result peak while retaining the command writer and most useful result insert-ahead. E379 makes 7.5% larger
+result transactions than E377 and reaches the best local result-writer rate, but its lower overlap gives less complete
+route throughput than 16. E380 is below the safe parallelism floor: it binds commands as well as results, slows both
+their fixed-shape transactions and loses 24.6% versus E378.
+
+### Tracking reads and position writes
+
+These counters guard against mistaking a cache or position-feedback transition for message-writer improvement.
+
+| Run | `maxInFlightBatches` | Physical command scans: calls / messages | Physical result scans: calls / messages | Command-position calls / updates | Result-position calls / updates |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| E376 | unbounded | 436 / 716,800 | 1,479 / 3,294,992 | 2,957 / 16,000 | 3,229 / 4,779 |
+| E377 | 32 | 405 / 765,952 | 1,545 / 3,156,086 | 2,887 / 14,941 | 3,340 / 4,744 |
+| E378 | 16 | 389 / 774,144 | 1,475 / 3,164,649 | 3,119 / 15,804 | 3,326 / 4,823 |
+| E379 | 8 | 357 / 712,704 | 1,518 / 2,757,550 | 2,708 / 14,229 | 3,174 / 4,367 |
+| E380 | 4 | 350 / 585,728 | 1,409 / 3,059,845 | 3,125 / 15,741 | 3,122 / 4,417 |
+| E381 | 12 | 423 / 864,256 | 1,512 / 3,333,494 | 3,123 / 16,143 | 3,360 / 4,956 |
+| E382 | 12 | 433 / 749,568 | 1,566 / 2,980,409 | 2,861 / 14,875 | 3,326 / 4,634 |
+
+E381 is explicitly excluded from the parameter curve. Although 12 cannot bind the command store's observed eight-batch
+peak, command commit and insert service both degraded about 25% with the same 2,560 full transactions. After the run the
+Docker VM still consumed roughly 39-65% host CPU while its individual containers reported idle, matching the previously
+observed post-run virtualization/writeback state. Result production slowed and the mean result transaction consequently
+shrunk instead of growing. The run is retained because it detects the collapse; it does not establish that 12 is worse
+than 8 or 16. E382 repeats 12 after the VM settled: the unchanged command writer recovers from 0.975M to 1.275M/s,
+the result writer from 0.780M to 0.997M/s and full E2E from 725,814/s to 890,091/s. That causally confirms E381 as a
+host-state failure. The valid 12 observation falls between 8 and 16, so 16 remains the next acceptance candidate.
+
+The current evidence selects 16 for a profiler-free matched bracket, not for a checkpoint yet. The host must first
+return to its clean state. If the profiler-free bracket confirms a simple low-risk 3-4% gain, the campaign protocol
+permits accepting it even below 5%; otherwise the property-gated Runtime candidate remains diagnostic and is reverted.

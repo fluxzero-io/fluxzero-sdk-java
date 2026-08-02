@@ -17,13 +17,13 @@ experiments were rejected.
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Active campaign stage | Raise the intact durable no-model command/result route well above **1M/s** before adding one durable event per command and only then returning to model commits. Measure single-client offering/completion separately from multi-client Runtime capacity. |
 | Best non-qualifying ceiling | E315 remains the unchanged-production high at **962,888/s**. E365 repins the current production classes at **905,605/s** after pausing a runaway kernel-extension cache builder and waiting for Docker/PostgreSQL writeback to settle; E363/E364 prove the intervening 707-783k readings were host-state, not a code regression. |
-| Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
-| Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E366-E375 checkpoint exact per-submission Backlog completion without fragmenting transactions: healthy candidate runs reach 914-931k/s and the matched profile grows the mean result transaction from 2,422 to 2,487 messages. One 641k slow-state recurrence remains unattributed and must be captured rather than ignored. |
-| Next evidence target | Keep legacy parallel insert-ahead but bound unfinished Runtime storage batches via `maxInFlightBatches=4/8/16/32`; record command/result transaction size, commit/insert service, ready jobs, physical reads and every slow-state transition. |
+| Latest accepted checkpoint | SDK `5f4d2c76` gives Backlog exact per-submission completion and safely configurable `maxInFlightBatches` while retaining the legacy unbounded default; Runtime performance base remains P3. |
+| Current production code | accepted P3 Runtime plus SDK Backlog checkpoint `5f4d2c76`; the property-gated Runtime admission candidate is uncommitted while its E2E gain is validated. |
+| Latest causal diagnosis | E376-E382 map the first full-route admission curve: 32 does not bind, **16 leads at 902,873/s**, 12 repeats healthily at 890,091/s, 8 makes larger result transactions and the best local writer rate but loses some insert-ahead, and 4 binds commands too and collapses. E382 restores fixed-shape command service from 0.975M to 1.275M/s and proves E381 was host writeback, not a 12-batch mechanism. |
+| Next evidence target | Run a profiler-free balanced unbounded-versus-16 bracket, waiting for Docker/virtualization writeback between invocations. Accept only if full-route gain and latency/resource shape reproduce; then continue beyond the still sub-1M message-writer ceiling. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E375 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E382 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
