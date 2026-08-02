@@ -261,3 +261,36 @@ immutable event-log and model-stream rows durably on bounded independent lanes w
 then use one small ordered transaction to atomically advance both authoritative visibility heads. A crash may leave
 bounded orphan prewrites that recovery can identify, but readers must never observe them and a retry must never publish
 an incomplete boundary. That design—not another timer, transaction queue or SQL microtweak—is the next evidence target.
+
+### E84-E85 correction: separate invisible prewrite adds PostgreSQL work
+
+E84 implemented that structural hypothesis narrowly for packed conflict-free model updates. Model-stream blocks were
+binary-copied into a separate unlogged table while the existing event insert ran. The rows were invisible to every
+reader. The original event transaction then validated the same state/read/erasure contracts, inserted those rows into
+the authoritative partitioned stream, deleted staging rows and advanced the state head in one statement. E85 ran the
+identical binary with the property disabled, preserving the accepted P3 transaction.
+
+| Atomic measurement | E85 P3 control | E84 invisible prewrite | Change |
+| --- | ---: | ---: | ---: |
+| Complete E2E | **150,339/s** | 144,221/s | **-4.07%** |
+| Packed transactions | 37 | 29 | fewer/larger in candidate |
+| Mean packed transaction size | 3,542 | 4,520 | +27.6% |
+| Packed model-store service | **17.234 ms** | **21.859 ms** | **+26.84%** |
+| Event co-located task | 7.934 ms | **11.839 ms** | +49.22% |
+| Existing stream-block insert | 3.752 ms | n/a | moved to prewrite/promotion |
+| Existing state update | 2.033 ms | n/a | folded into promotion |
+| Invisible stream-block prewrite | n/a | **9.994 ms** | new durable transaction |
+| Atomic prewrite promotion + state update | n/a | **2.655 ms** | 54.1% below old insert + update |
+| State lock | 1.945 ms | 2.228 ms | +14.5% |
+
+The candidate achieved the intended logical shape and made the final visibility mutation small. It still lost because
+the prewrite is not free: it introduces another transaction and another copy of every model row, while concurrent
+event insertion competes for the same PostgreSQL CPU, WAL-adjacent and table/index resources. The transaction-size
+improvement makes the negative result stronger rather than weaker; despite 27.6% larger batches, service and E2E both
+regressed. The complete route remained exact, but the candidate was fully reverted.
+
+This closes separate durable model prewrite on the current schema. The next route-level question is batching feedback:
+even the control turns 131,072 conflict-free updates into 37 serial atomic commits. At its measured 17.234 ms service,
+four to eight full commits would have radically more capacity than 37 partially filled commits. The next experiment
+must explain which ordered dependency releases each partial commit and whether the existing atomic lane can consume a
+larger already-arrived window without timers, reordered results or weakened durability.
