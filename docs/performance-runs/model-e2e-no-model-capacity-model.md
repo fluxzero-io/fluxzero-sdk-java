@@ -256,3 +256,34 @@ The uncommitted Runtime prototype must therefore be reverted rather than checkpo
 retain parallel inserts and attack ordered commit/publication without merely coalescing those inserts onto fewer
 connections. Every E347-E350 run persisted exactly 1,048,576 results and zero model/global events; persistent host load
 still makes absolute throughput non-qualifying.
+
+## E351-E353: parallel durable commits behind an ordered publication frontier
+
+The next diagnostic kept every logical transaction and its parallel insert intact. Instead of fusing jobs, it allowed
+multiple PostgreSQL transactions to commit durably and held ordinary message-store reads, monitor notification and
+append-future completion behind an in-memory per-log publication frontier. A focused integration test delayed the
+first transaction until the second had committed, proved that the ordinary reader could not cross the unpublished
+gap, and then verified exact ordered visibility and future completion after the first commit was released. This is a
+causal prototype only: a production design would need a durable frontier, restart/failover recovery and equivalent
+filtering on every read path.
+
+| Run | Commit lanes | E2E | Result transactions | Result append mean | Result queue mean / p95 | Result commit concurrency | Result commit wall capacity |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| E351 | result=4, command=1 | 709,624/s | 396 | **11.202 ms** | **2.022 / 10.748 ms** | **4** | 0.730M/s |
+| E352 | legacy reverse control | 711,879/s | 419 | 29.510 ms | 26.100 / 51.353 ms | 1 | 0.732M/s |
+| E353 | result=4, command=4 | 608,161/s | 422 | 10.610 ms | profile below | 4 | 0.633M/s |
+
+E351 is a local causal success but not an E2E candidate: it removes 92.3% of mean result-writer queue residence and
+cuts outer result append lifetime 62.0% without fragmenting transactions, yet the complete route remains flat because
+another boundary immediately becomes limiting on this loaded host. E353 is the necessary negative control on resource
+ownership. Four independent lanes per command and result log permit eight concurrent commits; individual command and
+result commits lengthen to 3.495/3.373 ms mean and full E2E loses 14.6% versus E352. Per-log commit budgets are therefore
+rejected. Any continuation must use one bounded commit budget shared across the active logs and must still prove a
+durable, crash-recoverable publication protocol. The host remained non-qualifying throughout, so these runs establish
+mechanism and contention only; they do not replace the clean E315 production pin.
+
+The proposed alternative of holding transaction admission before Backlog batch construction is not new evidence.
+E271-E272 already exercised that exact no-delay shape with two durable-completion permits: mean batches grew to 4,723
+and local writer capacity to 1.095M/s, while intact E2E was neutral-lower. The healthy E275-E279 bracket subsequently
+showed that a hard N=2 cap loses useful insert overlap. Do not rebuild that cap merely to recreate natural batching;
+the unresolved design problem is retaining insert overlap while reducing or parallelizing the ordered commit cost.

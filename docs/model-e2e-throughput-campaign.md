@@ -19,11 +19,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | E315 freshly restores the unchanged production route to **962,888/s** after eliminating machine interference. E295 remains the high at **967,037/s**; clean E295/E297 controls geometrically sustain **952,719/s**. Later E316-E329 position diagnostics do not replace this pin. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E318/E321 split position durability from the intact no-apply route. The clean command cycle spends 7.144 ms mean in its synchronous position barrier versus 0.868 ms in handler callback; the actual row UPDATE is only about 0.139 ms active SQL, while two separate command/result position writers add thousands of durable commits. A 250-us collection window removes about 9% of command-position transactions; 2 ms removes roughly 42-49%, but the first profiler-free 2-ms bracket is -3.02% with worse latency. |
-| Next evidence target | After a thermal cool-down, finish alternating profiler-free 0/250-us position-coalescing pairs. Accept only complete-route E2E evidence. If waiting remains neutral-negative, causally validate arrival-driven cross-log position transaction sharing without added sleep or early future completion. |
+| Latest causal diagnosis | E338-E350 reject transaction fusion because fewer commits sacrifice parallel inserts. E351's four result-only durable commit lanes cut mean result queue residence 26.100 -> 2.022 ms and outer append 29.510 -> 11.202 ms without changing E2E; E353 then shows that independent four-lane command and result pools overdrive PostgreSQL and lose 14.6%. |
+| Next evidence target | Preserve E351's ordered-visibility mechanism but replace independent per-log concurrency with one shared commit budget. Treat the in-memory frontier as diagnostic-only until every read path, restart/failover recovery, retention, conditional append, retries and durable publication are designed and tested. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E329 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E353 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary

@@ -10,8 +10,8 @@ mistaken for a production regression again.
 | --- | --- |
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
 | Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
-| Current production candidate | None; time-window coalescing and both position-only async variants are rejected |
-| Current focus | Quantify and remove the generic ordered message-writer ceiling in [`model-e2e-no-model-capacity-model.md`](model-e2e-no-model-capacity-model.md) |
+| Current production candidate | None; transaction fusion and independent per-log parallel-commit budgets are rejected |
+| Current focus | Test whether one shared commit budget can retain E351's result-writer queue removal without E353's eight-lane PostgreSQL contention; require a durable ordered publication design before production acceptance |
 | Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
 
 ## Route and immutable behavior
@@ -122,3 +122,10 @@ E300-E315 execute that next step in
 [`model-e2e-message-appender-anatomy.md`](model-e2e-message-appender-anatomy.md). They establish a fresh 962,888/s
 clean-system pin, reject a count-only 8,192 backlog, and quantify both small-message transaction headroom and the
 0.095-0.117 GiB/s incompressible payload boundary. No production candidate was accepted.
+
+E338-E350 subsequently reject logical-job and row/byte-bounded transaction fusion: fewer commits do not compensate
+for moving formerly parallel inserts onto larger single-connection transactions. E351 then proves that four result-log
+commit lanes behind an ordered visibility frontier remove most writer queue residence without changing transaction
+shape, but E2E stays flat. Enabling four independent lanes on both command and result logs in E353 permits eight
+concurrent commits, increases commit duration and loses E2E. The diagnostic frontier remains uncommitted; a continuation
+must share one global commit budget and add durable recovery rather than tune independent per-log lane counts.
