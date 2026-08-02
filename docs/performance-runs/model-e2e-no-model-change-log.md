@@ -255,7 +255,7 @@ processor, Java downstream and Kotlin downstream modules. This earns a correctne
 checkpoint. The next experiment changes only Runtime message-store admission and always records
 `maxInFlightBatches`, logical batch size, physical transactions, insert/commit service, ready jobs and physical reads.
 
-## E376-E381: first bounded Runtime admission curve
+## E376-E383: first bounded Runtime admission curve and captured cache cliff
 
 The Runtime candidate wires `ReadWriteMessageStore` to the checkpointed Backlog overload while preserving the old
 default exactly: absent a property, `maxInFlightBatches` remains `Integer.MAX_VALUE`. The diagnostic property
@@ -288,6 +288,7 @@ commit starts. The profile ceiling is diagnostic; it is not mixed with profiler-
 | E380 | **4** | 680,892 | 83.696 / 111.026 | 2,560 × 4,096.0 | 0.898M | **3,732 × 2,809.7** | 0.734M | 3.110 / 3.688 | 1.84 / 3 |
 | E381 | **12** | 725,814 | 78.718 / 105.250 | 2,560 × 4,096.0 | 0.975M | 4,397 × 2,384.8 | 0.780M | 2.611 / 3.467 | 4.35 / 10 |
 | E382 | **12** | 890,091 | 63.643 / 88.529 | 2,560 × 4,096.0 | **1.275M** | 4,209 × 2,491.3 | **0.997M** | **1.974** / 2.949 | 4.22 / 11 |
+| E383 | **20** | 622,010 | 70.374 / 257.983 | 2,560 × 4,096.0 | **1.328M** | 4,339 × 2,416.6 | 0.927M | 1.767 / 2.704 | 4.06 / 16 |
 
 The JFR-observed concurrent append futures confirm when the setting actually binds:
 
@@ -300,6 +301,7 @@ The JFR-observed concurrent append futures confirm when the setting actually bin
 | E380 | 4 | **4** | **4** | 3.105 / 3.702 |
 | E381 | 12 | 8 | **12** | 2.728 / 3.596 |
 | E382 | 12 | 8 | **12** | **2.088 / 2.825** |
+| E383 | 20 | 9 | 18 | **1.955 / 2.692** |
 
 E377 is effectively another unbounded observation because neither log reaches 32. E378 is the first informative bound:
 it trims the result peak while retaining the command writer and most useful result insert-ahead. E379 makes 7.5% larger
@@ -320,6 +322,7 @@ These counters guard against mistaking a cache or position-feedback transition f
 | E380 | 4 | 350 / 585,728 | 1,409 / 3,059,845 | 3,125 / 15,741 | 3,122 / 4,417 |
 | E381 | 12 | 423 / 864,256 | 1,512 / 3,333,494 | 3,123 / 16,143 | 3,360 / 4,956 |
 | E382 | 12 | 433 / 749,568 | 1,566 / 2,980,409 | 2,861 / 14,875 | 3,326 / 4,634 |
+| E383 | 20 | 708 / **33,386,496** | 2,760 / 2,744,467 | 2,363 / 12,054 | 4,186 / 5,506 |
 
 E381 is explicitly excluded from the parameter curve. Although 12 cannot bind the command store's observed eight-batch
 peak, command commit and insert service both degraded about 25% with the same 2,560 full transactions. After the run the
@@ -333,3 +336,36 @@ host-state failure. The valid 12 observation falls between 8 and 16, so 16 remai
 The current evidence selects 16 for a profiler-free matched bracket, not for a checkpoint yet. The host must first
 return to its clean state. If the profiler-free bracket confirms a simple low-risk 3-4% gain, the campaign protocol
 permits accepting it even below 5%; otherwise the property-gated Runtime candidate remains diagnostic and is reverted.
+
+E383 is not a valid point on the admission curve. The configured limit of 20 did not bind: command and result append
+peaks were only nine and eighteen. Both physical writers remained healthy and the fixed-shape command writer reached
+1.328M/s, yet the complete route changed state about ten seconds into the measured phase. Physical command scan input
+then rose from roughly 50-70 thousand messages per second to approximately five million per second and remained there.
+The exact transition was:
+
+| Wall-clock second | Command rows appended | Command rows delivered | Physical command rows scanned |
+| --- | ---: | ---: | ---: |
+| 17:04:31 | 905,216 | 907,923 | 65,536 |
+| 17:04:32 | 933,888 | 932,980 | 61,440 |
+| 17:04:33 | 356,352 | 313,888 | 1,224,704 |
+| 17:04:34 | 294,912 | 307,592 | **4,931,584** |
+| 17:04:35 | 319,488 | 308,344 | **4,931,584** |
+| 17:04:36 | 307,200 | 310,915 | **4,976,640** |
+
+All sixteen command trackers remained balanced before and after the transition. In the final healthy subsecond window,
+short producer/consumer jitter created enough separation for tracker reads to leave the fixed 65,536-entry cached
+range. The current event does not distinguish which edge was crossed: a tracker position can be older than the first
+cached message, or the asynchronous cache monitor can temporarily trail the last durable message. At 17:04:33.406 the
+first large delegate scan visited 65,536 JDBC rows to return 4,102 segment-matching commands. Later scans visited up to
+131,072 rows each. Because every tracker scans the same ordered log and selects roughly one of sixteen segments, this
+fallback multiplies physical database reads and makes the miss self-sustaining. E383 therefore captures the previously
+inferred cache/database feedback mechanism directly, while the exact initiating cache edge remains to be instrumented;
+its 622,010/s is neither a max-20 result nor evidence of writer regression.
+
+The artifacts are `/private/tmp/model-e2e-e383-backlog-inflight20-profile.log` (SHA-256
+`f4ab4bee6b80109a526ac7ccfb6c9ebd14d97a10717aaa51a5968fb39e86e333`), the JFR with SHA-256
+`c80af301e9000a61928b4048a54bbe973f46adf4f734b5f9f6b93f5e1ef661e0`, and summary SHA-256
+`12c8436a3c4cd242f6f80d81b6cf5481ae16a2a81aa07f3f27e8b5035d1593b0`. Exactly 10,485,760 durable ordinary
+results were verified, with zero model and global events. The next comparison must keep the complete route intact but
+give the command cache enough byte-bounded headroom to prevent a transient scheduling wobble from changing the storage
+path. Only after that guardrail is stable is a profiler-free 16-versus-unbounded bracket meaningful.
