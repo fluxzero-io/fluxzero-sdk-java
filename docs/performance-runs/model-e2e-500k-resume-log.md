@@ -119,3 +119,44 @@ Artifacts:
 - E464 profile log/JFR/summary SHA-256: `16ace38d54bc5ffb6723cf59e9c76cb3cee6ef57f2e1bac72032adc0037f5c02`,
   `8a6a7975b3f7a6ae0805c81fccafef2d240603469c696716cb700eb4160fdbc8`,
   `84ff077763e2c713d17e35175a085a2cf98a0513bf4412252277fa4cb98ac9a7`.
+
+## E465-E470: model-stream secondary-index upper bound rejected
+
+Physical inspection after the complete run showed that every compact `model_stream` row updates its partition primary
+key plus the state-range and event-boundary B-tree families. The current dataset had roughly 1,400 stream rows spread
+over eight partitions. The event-boundary indexes had no reads in this workload; the state indexes mainly support the
+asynchronous locator and cold update scans. A diagnostic property omitted both secondary index families only for newly
+created benchmark schemas. This was an upper bound, not a proposed production layout.
+
+| Run | Path | Profiling | Throughput | p50 / p95 / p99 / max |
+| --- | --- | --- | ---: | --- |
+| E465 | control A1: all model-stream indexes | none | 341,271/s | 159.704 / 235.522 / 263.631 / 282.225 ms |
+| E466 | candidate B1: secondary indexes omitted | none | 336,886/s | 159.319 / 229.913 / 266.915 / 312.920 ms |
+| E467 | candidate profile | batch JFR | 333,186/s | 160.657 / 230.287 / 260.028 / 285.543 ms |
+| E468 | control profile | batch JFR | 324,113/s | 166.478 / 255.329 / 290.178 / 305.822 ms |
+| E469 | candidate B2: secondary indexes omitted | none | 346,443/s | 154.315 / 218.564 / 248.120 / 280.711 ms |
+| E470 | control A2: all model-stream indexes | none | 340,213/s | 155.401 / 218.189 / 256.417 / 318.210 ms |
+
+The profiler-free ABBA geometric means are 340,742/s control and 341,631/s candidate: **+0.26%**. The matched profile
+confirms why the route signal is tiny. Stream insertion falls only 4.416 -> 3.996 ms, a 0.420-ms saving within a
+roughly 18-20-ms ordered transaction, while event insertion, commit and natural transaction sizes continue to vary by
+more than that between adjacent runs. Removing query-critical indexes for a non-reproducible quarter-percent write
+gain is not viable. The property and code change are fully removed.
+
+The next structural investigation returns to physical representation rather than index tuning. E153-E164 previously
+proved that co-locating compact model membership with event rows can save a complete table/COPY boundary and improve
+the intact route materially. E165-E178 then lost that gain while adding lifecycle completeness. The next step is to
+identify the precise lifecycle/fragmentation mechanism before implementing another sidecar candidate.
+
+Artifacts:
+
+- E465/E466 profiler-free logs SHA-256: `c8c28eb5d042762961985e8ca24af8e7ab027c36763a8d93e321fbc86368dd17`,
+  `d28f362faa402735044027c90907b6a1c4d3022197f1e93f35c9d5de713f65ba`;
+- E467 log/JFR/summary SHA-256: `1f4715f891c725e5b8fb6ef698d73288476ff622212bbb85298a38bc1013acb9`,
+  `5300f9e48684deacddf152fd9beb4e3232db423815b5dc35154fd3c35fecde5f`,
+  `4174074a4d989cc09c6097da8c513960170a70d696c57915994ab357c959da83`;
+- E468 log/JFR/summary SHA-256: `97b55e6e5ee69a594845edf6749fd4ceb98deca8f9eed96d6762933b5299e614`,
+  `d81916fa38ed51d215d2ccadf9f091e131c06dfba324266a89babf4379b49986`,
+  `e005222adac4cf9409815a6a7b340a8bcaa99fcd6375488cfa01b4052b7e8804`;
+- E469/E470 profiler-free logs SHA-256: `9c7237204a3229201c1e1b65508732a566279105137fc072625f2096492fdaa9`,
+  `6d5a92f0e3518f5fc71b98232222fc2ac1e0a0769d56044319db4991673d2888`.
