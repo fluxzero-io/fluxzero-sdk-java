@@ -75,6 +75,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private final AtomicBoolean updateNotificationPending = new AtomicBoolean();
     private final AtomicBoolean updateNotificationRunning = new AtomicBoolean();
     private final AtomicLong updateNotificationVersion = new AtomicLong();
+    private final AtomicLong updateNotificationPendingSinceNanos = new AtomicLong();
 
     private final Registration sourceRegistration;
 
@@ -244,8 +245,25 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
                                           Predicate<? super SerializedMessage> filter) {
-        return source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes,
-                                filter);
+        FluxzeroJfr.Batch event = startTrackingBatch("message-scan", 0);
+        if (event == null) {
+            return source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes,
+                                    filter);
+        }
+        long started = System.nanoTime();
+        try {
+            MessageStoreBatch result = source.scanBatch(
+                    position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes, filter);
+            event.itemCount = result.scannedSize();
+            event.outputItemCount = result.messages().size();
+            event.storageNanos = System.nanoTime() - started;
+            FluxzeroJfr.finish(event, null);
+            return result;
+        } catch (RuntimeException | Error failure) {
+            event.storageNanos = System.nanoTime() - started;
+            FluxzeroJfr.finish(event, failure);
+            throw failure;
+        }
     }
 
     protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch) {
@@ -360,7 +378,9 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         }
         recordRequestStages(messages, "update-received");
         updateNotificationVersion.incrementAndGet();
-        updateNotificationPending.set(true);
+        if (!updateNotificationPending.getAndSet(true) && FluxzeroJfr.batchEnabled()) {
+            updateNotificationPendingSinceNanos.compareAndSet(0L, System.nanoTime());
+        }
         if (updateNotificationRunning.compareAndSet(false, true)) {
             scheduler.submit(this::drainUpdateNotifications);
         }
@@ -431,18 +451,42 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         try {
             while (!stopped) {
                 updateNotificationPending.set(false);
-                long currentUpdateNotificationVersion;
-                List<WaitingTracker> trackers;
-                currentUpdateNotificationVersion = updateNotificationVersion.get();
-                trackers = new ArrayList<>(waitingTrackers.values());
-                trackers.forEach(t -> t.runIfBehind(currentUpdateNotificationVersion));
-
-                if (!updateNotificationPending.get()) {
-                    updateNotificationRunning.set(false);
-                    if (!updateNotificationPending.get()
-                        || !updateNotificationRunning.compareAndSet(false, true)) {
-                        return;
+                long pendingSinceNanos = updateNotificationPendingSinceNanos.getAndSet(0L);
+                long notificationReadyNanos = FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L;
+                FluxzeroJfr.Batch event = startTrackingBatch("notification-drain", 0);
+                Throwable failure = null;
+                try {
+                    long currentUpdateNotificationVersion = updateNotificationVersion.get();
+                    List<WaitingTracker> trackers = new ArrayList<>(waitingTrackers.values());
+                    if (event != null) {
+                        event.itemCount = trackers.size();
+                        event.queueDepth = trackers.size();
+                        event.queueWaitNanos = pendingSinceNanos == 0L
+                                ? 0L : Math.max(0L, notificationReadyNanos - pendingSinceNanos);
                     }
+                    int resolved = 0;
+                    for (WaitingTracker tracker : trackers) {
+                        if (tracker.runIfBehind(currentUpdateNotificationVersion, notificationReadyNanos)) {
+                            resolved++;
+                        }
+                    }
+                    if (event != null) {
+                        event.outputItemCount = resolved;
+                        event.callbackNanos = System.nanoTime() - notificationReadyNanos;
+                    }
+
+                    if (!updateNotificationPending.get()) {
+                        updateNotificationRunning.set(false);
+                        if (!updateNotificationPending.get()
+                            || !updateNotificationRunning.compareAndSet(false, true)) {
+                            return;
+                        }
+                    }
+                } catch (Throwable e) {
+                    failure = e;
+                    throw e;
+                } finally {
+                    FluxzeroJfr.finish(event, failure);
                 }
             }
         } catch (Throwable e) {
@@ -510,6 +554,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                         boxedIndex == null ? -1L : boxedIndex);
             }
         }
+    }
+
+    private FluxzeroJfr.Batch startTrackingBatch(String operation, int itemCount) {
+        return traceComponent == null ? null : FluxzeroJfr.startBatch(
+                traceComponent, operation, traceMessageType, itemCount, 0L,
+                waitingTrackers.size(), 0L);
     }
 
     private void cancelRequest(Tracker tracker, TrackerRequest<?> result) {
@@ -594,20 +644,45 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
         @Override
         public void run() {
+            run(0L);
+        }
+
+        private boolean run(long notificationReadyNanos) {
+            FluxzeroJfr.Batch event = notificationReadyNanos == 0L
+                    ? null : startTrackingBatch("notification-tracker-resolution", 1);
+            long started = event == null ? 0L : System.nanoTime();
+            if (event != null) {
+                event.queueWaitNanos = Math.max(0L, started - notificationReadyNanos);
+            }
+            Throwable failure = null;
             try {
                 scheduleToken.cancel();
                 if (waitingTrackers.remove(tracker, this) && !request.isDone()) {
+                    long followUpStarted = event == null ? 0L : System.nanoTime();
+                    if (event != null) {
+                        event.preparationNanos = followUpStarted - started;
+                        event.outputItemCount = 1;
+                    }
                     followUp.run();
+                    if (event != null) {
+                        event.storageNanos = System.nanoTime() - followUpStarted;
+                    }
+                    return true;
                 }
             } catch (Throwable e) {
+                failure = e;
                 log.error("Failed to execute tracker fetch / follow up", e);
+            } finally {
+                FluxzeroJfr.finish(event, failure);
             }
+            return false;
         }
 
-        void runIfBehind(long currentUpdateNotificationVersion) {
+        boolean runIfBehind(long currentUpdateNotificationVersion, long notificationReadyNanos) {
             if (waitingFromUpdateNotificationVersion < currentUpdateNotificationVersion) {
-                run();
+                return run(notificationReadyNanos);
             }
+            return false;
         }
     }
 }
