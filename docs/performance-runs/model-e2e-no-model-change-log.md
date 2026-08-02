@@ -10,10 +10,12 @@ mistaken for a production regression again.
 | --- | --- |
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
 | Fresh exact-weight pin | E386/E389 unbounded: **964,390 / 963,072 commands/s**; geometric mean **963,731/s** |
+| Accepted cache-tail checkpoint | E449 old Runtime **830,972/s** -> E450 parked tail **912,280/s** on the same post-checkpoint host: **+9.78%** |
+| Current no-model status | **912,280 commands/s** measured; projected healthy-host result is not a pin and stable >1M remains open |
 | Best recent healthy batch-profile | E391: 943,926/s with 8,192-message capacity; local result writer improves 11.0%, but matched E2E is neutral |
-| Current production checkpoint | SDK `bb8e1db2`: exact complete-envelope byte accounting plus Backlog `maxInFlightBatches`; Runtime remains intentionally unbounded and at the legacy 4,096-message backlog for the pin |
-| Current focus | E397 isolates physical WAL write/sync; next classify PostgreSQL commit wait events before changing any mechanism |
-| Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
+| Current production checkpoint | SDK `bb8e1db2`: exact complete-envelope byte accounting plus Backlog `maxInFlightBatches`; Runtime remains intentionally unbounded and at the legacy 4,096-message backlog. The pin also requires command-cache count ceiling 1,048,576 with the unchanged 64-MiB byte ceiling |
+| Current focus | E421-E424 reject target-aware cache indexing at −0.84% on the correct full canonical route. Production candidate code is removed; return to the measured result-writer/commit limiter on the clean pinned identity |
+| Exit criterion before events/models return | Stable profiler-free no-model throughput **materially above 1.0M/s**; 1.5-2.0M/s remains the desired structural headroom before models return |
 
 ## Route and immutable behavior
 
@@ -526,3 +528,449 @@ batching or durability candidate is built.
 
 Artifacts: log SHA-256 `6006a6e7924352a126c168524e3d905d77fbd93d476fe0aa8be371da4b62af81`; measured-phase
 PostgreSQL snapshot SHA-256 `c4d228993680d952b7e06707925b2d48e3afc89c1dffba1d6e42c5b106373347`.
+
+## E398: wait sampling confirms insert-ahead residency rather than long physical writes
+
+E398 keeps the E397 route and measurement barrier but samples `pg_stat_activity` from a separate PostgreSQL session
+approximately every 3.65 ms. The sampler itself and a pulsing Docker VM reduce the complete route to 839,540/s, so the
+throughput is diagnostic-only; all 10,485,760 results and zero model/global events still verify. PostgreSQL's independent
+I/O counters remain close to E397: client WAL writes average 0.056 ms and 9,968 physical syncs average 0.704 ms.
+
+The 4,105 wait samples reveal the state between parallel inserts and ordered commits:
+
+| Observed last SQL / state / wait | Mean backends | Active-backend sample share | Meaning |
+| --- | ---: | ---: | --- |
+| result insert / idle in transaction / `ClientRead` | **6.509** | **54.24%** | result insert is complete; server waits for Java to issue its ordered commit |
+| command insert / idle in transaction / `ClientRead` | **1.846** | **15.38%** | same insert-ahead residency for commands |
+| result position / active / `ClientRead` | 0.958 | 7.99% | connection is predominantly waiting on client/protocol progress, not storage I/O |
+| autovacuum / `VacuumDelay` | 0.883 | 7.36% | throttled maintenance observed during this loaded diagnostic |
+| all sampled `IO:WalSync` states | about 0.234 | about 1.95% | short sync events are undersampled at this cadence but are not the dominant residency |
+
+`pg_stat_activity.query` retains the last insert text while these transactions await client work, so this sampler cannot
+label the later protocol commit as a separate SQL kind. That limitation does not affect the main result: parallel inserts
+are already prepared well ahead of ordered publication, and most retained connection time is deliberate Java-side
+insert-ahead feedback rather than PostgreSQL actively writing. E398 therefore does not select fewer insert lanes,
+another transaction-fusion attempt or an asynchronous durability policy.
+
+The intact route now points back to its closed-loop driver as the next causal check. With a global 65,536 request window,
+E397's 901,089/s implies 72.7-ms average residence and E398's 839,540/s implies 78.1 ms, both inside their measured latency
+distributions. E399 enables the existing low-overhead offering counters without changing the route to quantify how much
+of the measured interval is spent waiting for that global window before modeling independent real clients.
+
+Artifacts: log/wait samples/PostgreSQL snapshot SHA-256
+`1291e03b375395fb2f4b3517f7607ab5e66e896ae5f3e720dc9f2fea3c8a0888`,
+`2d4e801bdb82a56faf8a53deeb8526f40e9ba5919b969f0f2f1f4fd4a5cb8a52`,
+`b9e969d672f8e851a6da7739c04a155f0402d71fa52da809c53f9eb68ac3cc4d`.
+
+## E399: the global request window and two-caller offering capacity both bind
+
+E399 enables only the benchmark's existing low-overhead `offeringDiagnostics` counters on the intact no-model route.
+The Docker VM is already near one host core before the run, so its 909,339/s is not used as a baseline; every exact
+result/event count still verifies. The measured 10,485,760-command phase lasts about 11.53 seconds and reports:
+
+| Driver segment | Summed time / capacity | Interpretation |
+| --- | ---: | --- |
+| two complete producer workers | 22.923 s | approximately two workers times route wall duration |
+| wait for one global 65,536 permit window | **9.383 s** | **40.9% of summed worker lifetime** cannot offer more work |
+| construct command arrays | 0.129 s | negligible |
+| SDK send calls | 13.305 s; 0.788M/s summed service | real mapping/serialization/registration/WebSocket offering path |
+| union with at least one SDK send active | capacity **1.107M/s** | two callers provide only 21.7% offering headroom over E2E |
+| attach driver completion callbacks | 0.105 s | negligible |
+
+This is not evidence for one larger synchronized global wave: E284 already showed that a single 131,072-request wave
+destroys feedback and latency. It does prove the current multi-client benchmark is not modeling independent clients:
+both SDK clients share one semaphore, so their combined open requests can never exceed 65,536. It also proves merely
+removing that semaphore is insufficient for a 1.5-2M target because two callerthreads themselves offer only 1.107M/s.
+
+The next benchmark-only diagnostic therefore preserves the complete durable route and adds an opt-in per-client window.
+It first uses four independent callers whose windows still sum to 65,536, separating caller parallelism from queue depth;
+only then may it raise total open requests. The existing canonical global-window mode remains unchanged, and any larger
+window must retain exact byte-bounded cache/fallback evidence rather than tune a count cap to this workload.
+
+Artifacts: log/host snapshot SHA-256 `b887a2bdb5aeabf445614c20c82c8becf0c2d324b450e76ca5567cfce6f0ded1`,
+`6f000fbc9f702d560379b683176a5bda4f74717e2f5e348c0af203cc03aa6349`.
+
+## E400-E403: independent-client diagnostics expose target-filter scan amplification
+
+An opt-in benchmark-only mode gives every actual sender client its own request semaphore while preserving the canonical
+global-window default. Threads belonging to one client share that client's semaphore. E400 first keeps total admission
+fixed at 65,536 by running four clients with 16,384 permits each. This is deliberately not a larger-window candidate:
+it separates client ownership from total queue depth.
+
+| Run | Clients / callerthreads | Request window | Warm-up | Measured E2E | Offering union | Reading |
+| --- | ---: | --- | ---: | ---: | ---: | --- |
+| E399 | 2 / 2 | 65,536 global | 771,535/s | 909,339/s | 1.107M/s | prior intact diagnostic |
+| E400 | 4 / 4 | 16,384 per client; 65,536 total | 590,822/s | 504,442/s | 1.133M/s | hard partitions cannot lend temporarily unused permits; p99 grows to 357 ms |
+| E401 | 4 / 4 | 65,536 global | 309,237/s | 716,435/s | 0.945M/s | four clients remain substantially slower even without partitioned admission |
+| E402 | 2 / 4 | 65,536 global | 316,550/s | 804,287/s | 1.049M/s | concurrent calls on the same two gateways add contention instead of transport capacity |
+
+All three new runs verify exactly 10,485,760 ordinary durable results and zero model/global events. Their changing and
+thermally loaded host state prevents a throughput ranking against E399, but the mechanism conclusions do not depend on
+that ranking: splitting one fixed window is harmful, adding clients adds route work, and adding callerthreads does not
+create another independent gateway transport lane. The per-client benchmark switch remains diagnostic-only and the
+canonical benchmark default remains unchanged.
+
+E403 then adds JFR-only accounting around every cache scan. The host is explicitly non-qualifying: even its profiler-free
+warm-up reaches only 318,907/s, Java receives about 3.5 cores while Docker's backend/VM use another 3.5, and the measured
+batch-JFR phase reaches 294,390/s. Its scan counts are nevertheless exact and internally correlated:
+
+| Result-store source | Scanned envelopes | Returned target matches | Scan/return ratio |
+| --- | ---: | ---: | ---: |
+| Runtime result cache | **20,203,902** | **10,097,278** | **2.001×** |
+| JDBC result fallback | 767,618 | 388,482 | 1.976× |
+| Combined | **20,971,520** | **10,485,760** | **2.000×** |
+
+The two SDK result trackers jointly receive exactly the expected 10,485,760 results, but target filtering examines
+20,971,520 envelopes to do so. This is not an inference from CPU samples: it is the `MessageStoreBatch.scannedSize()`
+versus returned-message count of every cache and fallback scan. `DefaultTrackingStrategy` currently gives an opaque
+predicate to the store, so each target-filtered tracker advances through the shared global log and tests every result.
+Adding real clients therefore multiplies Runtime target-filter scan work linearly even though each result belongs to
+only one client. That explains why four clients are not a fair way to remove the benchmark driver's two-caller ceiling
+and selects target-aware result scanning/routing as the next production mechanism to design. Any implementation must
+preserve global scan progress, null/tracker/client target semantics, byte limits, filtering, ordering and long-poll
+behavior; a target-only happy-path cache is insufficient.
+
+Post-analysis found an additional benchmark-identity error: E403 omitted
+`fluxzero.messageStoreCacheSize.command=1048576`, which was part of the E386/E389 exact-weight pin. Its command cache
+fallback events contain exactly 65,536 entries, proving the legacy count ceiling—not the 64-MiB byte ceiling—was active.
+The result target-amplification counts remain exact and useful, but E403 cannot select a production optimization for the
+healthy pinned route. This omission continues through E416 and is corrected at E417.
+
+Artifacts:
+
+- E400 log SHA-256: `d5ff5c17ecd9cdffb89d6e02ea811681344c500ee0446fa58d2855eb62178422`;
+- E401 log SHA-256: `8bb4dfcdb386ee932f534a0a592bf31a8aca2b9c6e0e52ec683afea8ab83807d`;
+- E402 log SHA-256: `a4a33410a755c988ffa741e65f517cb958104c587fc1e357c0b5809b6912fe27`;
+- excluded E403 log/JFR/summary SHA-256:
+  `eb80bd769c48d93f81b9df041c788904518b9c6dde3a03970d2e33bbaeee7dcf`,
+  `e298cfa5315814e3d5d59cb84e078a049977b5b2c07bec2c2f79639372d5e26e`,
+  `609877e7539d1910380f1b5d1d59703378f04e1b28c4fddc181cb00ee4c536f0`.
+
+## E404-E412: target-aware cache indexing under the wrong command-cache baseline
+
+E403 selects a cache-level target hint because two result trackers examine almost exactly two envelopes for every
+result delivered. The candidate wraps the unchanged tracking predicate with the eligible tracker/client targets. A
+supporting cache may use those targets to preselect candidates, but the original predicate remains the final authority;
+global `scannedSize`, last scanned index, byte boundaries, order, untargeted-message behavior and cache fallback all
+remain unchanged. Tests compare the hinted and generic scans over multiple cache batches, inclusive/exclusive starts,
+row and byte limits, null targets and deliberate hash collisions.
+
+E404 is an old-predicate control on an already loaded host. Like E403, it and every run through E416 accidentally use
+the legacy 65,536 command-cache count ceiling instead of the pinned 1,048,576 defensive ceiling plus 64-MiB byte bound.
+E405 indexed materialized `String` targets and was stopped
+during warm-up: it eagerly materialized envelope-backed targets across the cache and is rejected by construction. The
+next version hashes encoded target bytes without materialization and stores sorted hash/position pairs. Its internally
+matched, still non-qualifying bracket is directionally positive:
+
+| Run | Variant | Warm-up | Measured E2E | p50 / p95 / p99 / max ms |
+| --- | --- | ---: | ---: | ---: |
+| E406 | full target hash + sorted positions | 314,799/s | **877,975/s** | 68.449 / 92.114 / 117.274 / 187.733 |
+| E407 | exact old generic predicate | 319,881/s | 764,503/s | 76.039 / 109.422 / 183.101 / 342.133 |
+| E408 | full target hash + sorted positions | 316,975/s | **855,971/s** | 69.674 / 98.630 / 118.021 / 153.234 |
+| E409 | exact old generic predicate | 794,372/s | 716,749/s | 83.817 / 111.277 / 125.563 / 163.290 |
+
+The candidate geometric mean is 866,903/s versus 740,247/s for the control, a 17.11% relative difference. That is not
+accepted as a production claim: all four runs are below the fresh 963,731/s pin, use the wrong command-cache count
+ceiling and show the host/route changing state. E410's batch profile also shows that the full-hash/sort implementation consumes *more* cache service
+than the generic scan: approximately 3.87 versus 3.12 aggregate result-cache seconds per 10M measured results.
+
+E411 therefore replaces the full hash with encoded length plus the first eight UTF-8 bytes and replaces sorting with a
+primitive hash-to-linked-position index. Exact target equality still resolves collisions. The uninterrupted full run
+remains in its slow warm-up state and reaches only 319,790/s after a 345,271/s warm-up. E412 repeats the same binary with
+a full 10M warm-up, then starts batch JFR before a short 2M measured phase. That barrier allows the route to recover and
+the measured phase reaches 791,940/s. It is diagnostic-only: the barrier means it cannot contradict E411 or establish
+stable uninterrupted throughput.
+
+The E412 profile does show that the cheaper index is the best local implementation so far:
+
+| Cache service, normalized to 10M results | Generic E403 | Full hash/sort E410 | Prefix/linked E412 |
+| --- | ---: | ---: | ---: |
+| result-cache scan service | ~3.12 s | ~3.87 s | **~2.69 s** |
+| command-cache scan service | ~0.46 s | ~2.37 s | ~0.49 s |
+
+This is only about 0.4 aggregate CPU-seconds of result-cache headroom per 10M results, so it cannot by itself justify a
+large E2E throughput claim. Before any production checkpoint, the prefix/linked version requires an uninterrupted clean
+host bracket against the exact old predicate. During E411/E412 Docker's VM retained roughly 50-85% host CPU after the
+benchmark database had accumulated about 147 GB of block writes, so another qualifying run is deferred until that
+external work is idle. The candidate also underwent an adversarial contract review: the cache hint must never replace
+`Tracker.canHandle`, because a message explicitly targeting `trackerId` intentionally bypasses normal segment
+filtering. A focused regression test now fixes that invariant before further measurement.
+
+Artifacts:
+
+- E404/E405 log SHA-256: `ae8a581349dacd536e302681b2f9c6aaeb6d40daeee299182a0ef4a05054a732`,
+  `70b604e19aabdd2d3bbdd641b03dc37aff3448935e32b486aa70cf7ab41d4030`;
+- E406-E409 log SHA-256: `296eb469418e9daf869681a8f322a328a391797107fc35ca080f30f3e46e3ef9`,
+  `1620aafc2eece8d22ee8e8c2f126c8e789105eca5b589caa112f408ee2891e30`,
+  `cddbbd0bda9513968dafe3a943dce99d7d39ce357d9b8fb4817a0f30e14177ee`,
+  `4c73da85f1bce7eae3ab41d01ebe3d3fccbd6ec47da35f45306ed9c73351d368`;
+- E410 log/JFR/summary SHA-256: `a8359f6c44ecf2eb1a8493c18fc06b8f529330f9a6d3b1a7ad193397b266c71f`,
+  `73f4b5c129b39c8f21098058a5eb0b8d32030f657d6c871fe20444be82c9d2b8`,
+  `b481ef8e15d501efccfac8d5eb96761f994cb04ff120f3442e6444441888f750`;
+- E411 log SHA-256: `0c9b51dd60882ba7d82f544ac97648463893c560124b39d0f917d53e42737719`;
+- E412 log/JFR/summary SHA-256: `7b97153aad7138ca3401c76fbe911b07706ab14cb9b718bf75a56532d2c37eef`,
+  `c35f584c458b19c1ad57f5671f440cdce3f4920ecb1340a0b0cef196eeef7378`,
+  `dac13aa210c5776b019edb573052f1d5813ec34752097b47e12ac6ee3a28f3da`.
+
+## E413-E420: four-client screens expose the baseline error and leave a +6.09% clean-host hypothesis
+
+E413-E416 use four real sender clients and a shared global 65,536 request window. They are full durable command/result
+E2E runs but deliberately short: 2,097,152 warm-up and measured commands. They still omit the pinned command-cache
+count property. The target-aware candidate strongly mitigates that unhealthy cache feedback:
+
+| Wrong-baseline pair | Generic control | Target-aware candidate | Relative |
+| --- | ---: | ---: | ---: |
+| E413/E414 | 508,628/s | 688,753/s | +35.42% |
+| E416/E415 | 613,439/s | 670,386/s | +9.28% |
+| geometric mean | 558,581/s | 679,507/s | **+21.65%** |
+
+This is not the desired claim. It says the target index can soften a command-cache cliff while serving four result
+trackers; the accepted byte-bounded command-cache policy is specifically meant to prevent that cliff. E417 therefore
+restores only `fluxzero.messageStoreCacheSize.command=1048576`; the 64-MiB byte ceiling remains unchanged. The pulsing
+Docker VM still excludes absolute throughput, and the corrected ABBA screen is mixed:
+
+| Correct-baseline pair | Generic control | Target-aware candidate | Relative |
+| --- | ---: | ---: | ---: |
+| E417/E418 | 811,492/s | 782,150/s | −3.62% |
+| E420/E419 | 705,183/s | 823,452/s | +16.77% |
+| geometric mean | 756,472/s | 802,535/s | **+6.09%** |
+
+Every run verifies exactly 2,097,152 durable ordinary results and zero model/global events. The changing pair signs
+mean +6.09% is a hypothesis, not a checkpoint. No further target-index implementation work is selected before the
+full-size canonical bracket in E421-E424.
+
+Artifacts:
+
+- E413-E416 logs: `bbe98b79f2a94318a600cc5985297166bd10b65a5b129a36f34b0b1ccfb308b2`,
+  `f388abef5f837f5950a8fc040384b45dc9956afb63430fbf5ae532db0b69c701`,
+  `330974fa39f0289a625d06bc8d36e6001cabb0ce832b613ef4dbbc7c93a65995`,
+  `d6aee9fc2e3ea6c69fbfaa84c8773495b42817246e8f9a092508a19bd8591d4d`;
+- E417-E420 logs: `6508ccc7a751f6f5910a0fec2874de866587723356bc8cde3de14e736f584b99`,
+  `850ac8870c9c7a45beeada2858a786e41a7fc3d463350fbf99ebbacb736e810e`,
+  `5598bf057dd2d7ea5e4bc84412f10a5762f8a3d12e2c2c9fc53327714e0d20cd`,
+  `e1b18e943f3c596da398af0bff13ad843a7a174c54895d99082d499eb5c392dd`.
+
+## E421-E424: correct canonical bracket rejects target-aware cache indexing
+
+The benchmark now prints its effective message-store identity before startup, including backlog size, command/result
+cache count and byte ceilings, and per-store `maxInFlightBatches`. This makes the E403-E416 omission directly visible
+in every future log. E421-E424 then use the exact pinned identity: two sender clients, global 65,536 request window,
+10,485,760 warm-up and measured commands, command-cache count ceiling 1,048,576, unchanged 64-MiB byte ceiling,
+4,096-message backlog and unbounded in-flight storage batches.
+
+| Full canonical run | Variant | Warm-up | Measured E2E | p50 / p95 / p99 / max ms |
+| --- | --- | ---: | ---: | ---: |
+| E421 | generic control A1 | 787,986/s | **921,689/s** | 64.083 / 83.961 / 156.396 / 242.664 |
+| E422 | target index B1 | 833,535/s | 899,919/s | 66.326 / 90.598 / 106.453 / 148.042 |
+| E423 | target index B2 | 826,071/s | 908,906/s | 66.433 / 86.726 / 96.401 / 131.451 |
+| E424 | generic control A2 | 831,005/s | **902,459/s** | 65.781 / 88.873 / 111.266 / 224.445 |
+
+The generic-control geometric mean is **912,023/s** versus 904,401/s for the target index: **−0.84%**. Every run
+verifies exactly 10,485,760 durable ordinary results and zero model/global events. The lower absolute level than the
+963,731/s pin is consistent across the bracket and coincides with the already recorded pulsing Docker VM; it does not
+change the matched decision.
+
+The target-amplification observation remains architecturally valid for very large tracker counts, but the tested
+cache index adds complexity and a target-mutation/ownership assumption without improving the current qualifying route.
+All target-aware production/API code and its feature-toggle properties are therefore removed. JFR cache-scan/fallback
+accounting remains because it diagnosed both the amplification and the wrong cache baseline without changing normal
+behavior. The next optimization returns to the correct pinned route's measured hard limiter: durable result-store
+service and its commit amortization.
+
+Artifacts: E421-E424 log SHA-256
+`baa8a60c26b3d3dc55abe5ab3c1eed856948e75243cbff727822c0721a26a641`,
+`e69d472c7b9d6e731592d58921bb6f6de176d11042beb4dc2b8d052f8135b565`,
+`4b225a3f1f37c5e066c46686dcffe9dbb98def993a9dc6490a36167330deafde`,
+`7064d46ecd49bb4547fc74c2de9424055bba457f7c2990ba5f3025b88a9c3089`.
+
+## E425-E430: direct cache-monitor delivery is locally cheaper but not an E2E checkpoint
+
+E425 profiles the restored generic-cache control on the exact canonical identity. It reaches 804,923/s under batch
+JFR. The durable result writer is again the limiting storage service: 0.855M messages/s over 4,077 transactions with
+2,571.9 results per transaction. Its mean store/commit times are 3.010/2.712 ms. The command writer reaches 1.028M/s
+over 2,560 full 4,096-message transactions. Result tracking performs 1,219 cache-tail fallbacks; those JDBC reads scan
+3,108,330 rows to return 1,535,762 results and consume about 10.9 aggregate thread-seconds.
+
+The narrow E426 diagnostic invokes `CachingMessageStore.onUpdate` directly from the already ordered delegate monitor,
+instead of putting the same update through the cache's additional notification backlog. It preserves the full durable
+route and exact result count. E426 reaches 906,795/s under JFR and reduces result JDBC input by 8.3% to 2,851,494 rows,
+but every writer service also becomes roughly 10% faster. That broad shift indicates a changing host/PostgreSQL state,
+not a cache-hop effect of that magnitude. A full profiler-free ABBA bracket therefore decides the candidate:
+
+| Run | Cache monitor delivery | Warm-up | Measured E2E | p50 / p95 / p99 / max ms |
+| --- | --- | ---: | ---: | ---: |
+| E427 | direct A1 | 831,621/s | 851,172/s | 69.215 / 93.146 / 185.805 / 262.920 |
+| E428 | backlog B1 | 731,564/s | 807,744/s | 73.095 / 97.447 / 205.526 / 284.099 |
+| E429 | backlog B2 | 776,920/s | 904,466/s | 65.237 / 86.453 / 200.158 / 254.987 |
+| E430 | direct A2 | 805,377/s | 871,861/s | 68.523 / 90.944 / 132.746 / 188.511 |
+
+The direct geometric mean is 861,454/s versus 854,738/s for the backlog control: **+0.79%**. All four runs verify
+exactly 10,485,760 durable ordinary results and zero model/global events. The change removes an asynchronous boundary
+whose independent ordering and failure behavior would require a broader contract proof, while the observed E2E delta
+is smaller than the within-bracket host variation. It is therefore rejected and fully removed. The useful causal
+finding is narrower: cache notification lag contributes some fallback work, but it is not the >1M/s breakthrough. The
+next experiment stays anchored on E425's result writer and transaction-size measurements.
+
+Artifacts:
+
+- E425 log/JFR/summary SHA-256: `70d5fae689cb32dc77c97a3e9ab5d3d44dce4d497e369deaa16df1c447b3bf86`,
+  `f4b0a1a6f83c7ff2cad808e0de50158dd5432ac71707ccd490e6c0f1ec09e070`,
+  `93cfb366ca156687e37804b9bd533d3db97710003a3b4a0a7e1ee722f429e3b5`;
+- E426 log/JFR/summary SHA-256: `411cb829833a34cf380fd1192752d56412cc4126e97c565e9b9f508b906978cc`,
+  `718ddbbf7c6185a6a94e8c85f5e2e7f4e44e41c625ee3c2634ec68c08f9cecab`,
+  `9201b3d1ac7e22194faf42de9d47598342001e257a241c2899156c58f0096ce7`;
+- E427-E430 log SHA-256: `ce83d47db8c8ab4d671127276366ba9f242819c448361331525e17132f2a77f9`,
+  `6f9899a10d5528e6b511cdf8330275dd3f961f40604f90949c0a01c6af8b798f`,
+  `7eb7f1c870508db544899f7704496047a26a84d35b03e406de7a2956b3b78807`,
+  `eeb0a572b88f31b76d621f194622958b455bf3f25aab49dd3ebe1b0f9d3491ed`.
+
+## E431-E435: result-only 8,192-message batches isolate and reject transaction sizing
+
+E431 adds a diagnostic table-specific maximum batch size so only the result store uses 8,192 messages; commands remain
+at 4,096. There is still no timer or artificial wait. Under batch JFR the local mechanism is unambiguous:
+
+| Profile measure | E425 control 4,096 | E431 result-only 8,192 | Change |
+| --- | ---: | ---: | ---: |
+| command transactions / mean rows | 2,560 / 4,096.0 | 2,560 / 4,096.0 | unchanged |
+| result transactions | 4,077 | **3,106** | −23.8% |
+| results/transaction | 2,571.9 | **3,376.0** | +31.3% |
+| result writer | 0.855M/s | **0.932M/s** | +9.0% |
+| result commit capacity | 0.949M/s | **1.329M/s** | +40.0% |
+| profiled E2E | 804,923/s | **834,686/s** | +3.70% |
+
+This removes the command-side confounder from E390/E391, but the full profiler-free route remains the decision maker:
+
+| Run | Result max batch | Warm-up | Measured E2E | p50 / p95 / p99 / max ms |
+| --- | ---: | ---: | ---: | ---: |
+| E432 | 4,096 A1 | 721,512/s | **838,912/s** | 71.511 / 95.266 / 115.211 / 152.347 |
+| E433 | 8,192 B1 | 680,641/s | 785,588/s | 74.634 / 109.098 / 164.540 / 270.777 |
+| E434 | 8,192 B2 | 697,682/s | 803,073/s | 73.237 / 106.068 / 171.496 / 242.404 |
+| E435 | 4,096 A2 | 698,475/s | 758,522/s | 79.201 / 105.008 / 125.243 / 169.015 |
+
+The control geometric mean is 797,705/s versus 794,282/s for result-only 8,192: **−0.43%**. Every run verifies
+exactly 10,485,760 durable ordinary results and zero model/global events. Thus larger result transactions improve local
+writer service but do not raise the closed-loop route; transaction sizing is not the currently selected E2E lever. The
+temporary per-table batch-size property and code are removed. Existing independently justified per-table weight and
+in-flight limits remain unaffected.
+
+Artifacts:
+
+- E431 log/JFR/summary SHA-256: `a49de1eb55f815e291cf23d78bee66b588c93da9eb6bab67467b9df9a2aba13a`,
+  `787f845697f92899749c255110032077b15cbc16b210ccd37946458add034218`,
+  `521127bed6f444769f2fa6c0d11debb7fa4fe2f5a2b2ab4c10da3fe7984ebbe5`;
+- E432-E435 log SHA-256: `d80992579a52b7471755a4b7f04cc7b5c61c3701f4c7aad508af506e0b724d0e`,
+  `b3e946075e38fe50f4cf28ccab6441e8b484e9e981cf1642978a896c97338229`,
+  `4635eab47f840235a553390505973f228764ef929d24dde6ca8d44782ad400bf`,
+  `f01a55fec0ee71fbf9475a82b3fd9846dbb3e22ae7eda51c976b940965043ef4`.
+
+## E436-E439: exact cache-tail parking removes physical polling reads
+
+E436 revisits the benchmark request window after exact envelope weights removed the old count-cache cliff. Both cache
+count ceilings are raised defensively to 1,048,576 while their exact 64-MiB byte bounds remain unchanged; the request
+window increases from 65,536 to 98,304. Against the immediately preceding E435 low-state control it is throughput
+neutral (760,184 versus 758,522/s), while p50 rises from 79.201 to 111.460 ms. The extra requests only add queueing and
+are rejected as a service-capacity mechanism.
+
+The E425 profile showed 1,219 result-cache tail fallbacks and 3.11M physically scanned result rows. A cache miss at the
+tail was ambiguous: it could mean either that no newer durable row exists or that the asynchronous cache monitor has
+not processed it yet. E437 adds an exact committed-index bound to `JdbcMessageStore`, materializes cache updates on the
+commit thread and treats a covered empty tail as authoritative. This cuts result fallbacks to 96 and physical result
+rows to 0.40M, but moves cache work onto the commit lane and creates more eager tracker scans. Profile E2E reaches
+818,066/s versus E425's 804,923/s; this direct form is diagnostic-only.
+
+E439 keeps the original asynchronous cache worker. At an empty cached tail, a JDBC-backed delegate with an exact
+committed bound now parks the existing long-poll request until that same worker publishes its monitor update. It neither
+polls JDBC nor sends an empty response. The resulting profile is the clean mechanism proof:
+
+| Profile measure | E425 control | E439 parked cache tail | Change |
+| --- | ---: | ---: | ---: |
+| physical command scans | 297 / 585,728 rows | **0 / 0** | eliminated |
+| physical result scans | 1,219 / 3,108,330 rows | **0 / 0** | eliminated |
+| result tracking scan service | 1.340M scanned/s | **3.684M/s** | +174.9% |
+| result writer | 0.855M/s | **0.893M/s** | +4.4% |
+| profiled E2E | 804,923/s | **842,745/s** | **+4.70%** |
+
+E438 combines the first direct-cache form with a global 8,192-message backlog but starts in a new system slow state:
+warm-up is only 534,138/s, command preparation becomes 2–4× slower and measured E2E is 406,959/s. It is excluded from
+all candidate comparisons. E440-E443 then run a full candidate-control-control-candidate bracket through the same low
+host state. Absolute values do not replace the 963,731/s healthy pin, but both adjacent causal comparisons have the
+same large sign:
+
+| Pair | Legacy tail JDBC fallback | Parked cache tail | Delta |
+| --- | ---: | ---: | ---: |
+| E440/E441 | 498,424/s | **664,270/s** | **+33.27%** |
+| E442/E443 | 664,030/s | **815,156/s** | **+22.76%** |
+| geometric mean | 575,299/s | **735,856/s** | **+27.91%** |
+
+Every run verifies exactly 10,485,760 durable ordinary results and zero model/global events. The result is supported by
+the exact profile mechanism rather than absolute host throughput: parked tail reads eliminate all physical tracking
+polls and preserve the asynchronous cache worker. Tail parking therefore becomes the default for delegates that expose
+an exact committed bound; `fluxzero.cachingMessageStoreAuthoritativeTail=false` retains the legacy fallback as an
+operational escape hatch. Stores without that bound remain unchanged.
+
+Artifacts:
+
+- E436 log SHA-256: `fd7833563907a9181d4f733b62415d2cbf4498e0a265db0004c427891618238f`;
+- E437 log/JFR/summary SHA-256: `6c72126d02bf142f160691403f7212d3f7e6c9175859f8632af89a703c8df019`,
+  `1bd100329b66d11e21766a8f027cb232ed5061c16bdc573a5caab906eb000385`,
+  `8e39b8ea54f1ca34c6a0e8db9a1eb57e77b9f44e637c41ce4eba844c82361ca8`;
+- excluded E438 log/JFR/summary SHA-256:
+  `76e1abd9a4e0b3b41f3c4e8ccb4f62cbfacd6faacd7aa313a115b79c3eb59222`,
+  `0c0c908d480503cf6f950b30c1cecbdac2c595cde82a11a978d0e87a59265db5`,
+  `300c7bfa3f66337f255c18d865dc749bf1e2ee3fa21c6e603a0288724b7d452c`;
+- E439 log/JFR/summary SHA-256: `32edcb942b67ec47d2b9e54a8088e156c914cd7817a4f1061f4a4a813c43ac6e`,
+  `70f2288de7aa8766793c05d70cd8d83a6339cf392b65f6fb5fd12e276417e6ec`,
+  `4bdb2f9144911e4bf511ebc4d62a0c8ba4c29adb0241e813f860c4c3bea7cc9e`;
+- low-host E440-E443 log SHA-256:
+  `ff93add96ece33db085dd50e6c9f650fd5d81cd0a1f01f633d2c6f37590b22f9`,
+  `7f317d84e831199c0dc08fad4edcc32955c85e2d71aa33032ae61bff7ea246cc`,
+  `88d8c1f131c84a69d86c5705c67b0fa49e67c092a68159f56826ab65760c33ea`,
+  `c3542f0d3c9fbd1202e193e0afc16ba8563bb94ed8bbb43d8c1bebf1b25238c5`.
+
+## E444-E450: historical replay separates host loss from production behavior
+
+The low absolute E440-E443 band could not establish whether the machine had slowed down or later diagnostic code had
+regressed the E386/E389 control. E444-E450 therefore keep the exact E386 identity: Java 25, embedded Runtime, two
+sender clients, an 8-GiB fixed heap, a global 65,536-request window, 32-byte payloads, a 4,096-message backlog,
+unbounded in-flight storage batches, a 64-MiB command-cache byte cap and 10,485,760 warm-up plus measured commands.
+Every run again verifies exactly 10,485,760 durable ordinary results and zero model/global events.
+
+The host first changes materially without a code change. E444's current legacy-tail control reaches only 591,429/s;
+after the machine settles, E446 reaches 835,372/s with the same binary and configuration. E445 and E447 bracket that
+moving state and are retained as diagnostic-only rather than used as a precise candidate estimate:
+
+| Run | Runtime / tail mode | Warm-up | Measured E2E | p50 / p95 / p99 / max |
+| --- | --- | ---: | ---: | --- |
+| E444 | current, legacy JDBC tail fallback | 637,337/s | 591,429/s | 88.231 / 180.325 / 254.477 / 516.033 ms |
+| E445 | current, parked tail | 747,012/s | 875,064/s | 68.572 / 91.590 / 104.659 / 135.500 ms |
+| E446 | current, legacy JDBC tail fallback | 756,437/s | 835,372/s | 70.685 / 102.135 / 125.138 / 177.704 ms |
+| E447 | current, parked tail | 806,866/s | 783,368/s | 75.115 / 105.578 / 137.827 / 286.960 ms |
+
+To distinguish host loss from a Runtime regression, E448/E449 compile committed Runtime `d5abe0a7` in an isolated
+worktree while keeping the current SDK and benchmark driver. This is the pre-candidate implementation used by the
+E386/E389 route. It also falls to 621,899/s before a forced checkpoint. After the dedicated benchmark PostgreSQL
+container finishes that checkpoint, E449's old Runtime reaches 830,972/s, only **0.53% below** E446's 835,372/s
+current legacy control. There is therefore no material Runtime-code regression hidden between the historical pin and
+the current control; the old implementation itself loses about 13.8% versus its 963,731/s healthy-host geometric mean.
+
+E450 immediately follows E449 in the same post-checkpoint state with only cache-tail parking enabled:
+
+| Matched replay | Old committed Runtime | Current parked tail | Change |
+| --- | ---: | ---: | ---: |
+| E449 -> E450 | 830,972/s | **912,280/s** | **+9.78%** |
+
+E450 records p50/p95/p99/max latency of 65.914/86.404/98.003/121.042 ms. It is 1.02% below the earlier E421
+400-series high of 921,689/s despite the replay control being well below E386/E389. Applying the measured factor to
+the healthy control would imply about 1.058M/s, but that value is explicitly a projection, not a qualifying result.
+The stable measured >1M no-model gate remains open.
+
+Artifacts:
+
+- E444-E447 log SHA-256: `8f074ac0eeed72d6b046728ba17c9f9d564f98d1df83f2b4833716cf9aeefc38`,
+  `a23a9ca819047f4e794cd24899f026c04850c84ce19892d0be727e4ffeecf85e`,
+  `75b8b80c8fa516c2a24d06cfa21c5c13bcc097aa5a0911c5d6bcea26751fa6a2`,
+  `daa7be3b649ded2deb89b0f3863d781d22b5bb878aa639a56c09c50fa4cdac56`;
+- E448/E449 old-Runtime replay log SHA-256:
+  `2710bcbe5dcda1ecd6502bd02f5fd1dad9c90b43ad8a607045bde474667d81f2`,
+  `543311d87122010755e4d1df4a37f7197a59cb2e3b37bb2ef54782571438cbd5`;
+- E450 log SHA-256: `24ef4cf6678498ddbbb871453910438a148aec1837428364a5df916179313493`.
