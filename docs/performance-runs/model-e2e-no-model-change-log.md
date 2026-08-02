@@ -10,8 +10,8 @@ mistaken for a production regression again.
 | --- | --- |
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
 | Fresh exact-weight pin | E386/E389 unbounded: **964,390 / 963,072 commands/s**; geometric mean **963,731/s** |
-| Accepted cache-tail checkpoint | E449 old Runtime **830,972/s** -> E450 parked tail **912,280/s** on the same post-checkpoint host: **+9.78%** |
-| Current no-model status | **912,280 commands/s** measured; projected healthy-host result is not a pin and stable >1M remains open |
+| Accepted cache-tail checkpoint | Eliminates physical polling reads; healthy-host E451/E452 is throughput-neutral at **1,011,357 / 1,012,685 commands/s** |
+| Current no-model status | E452/E453 current production: **1,012,685 / 1,010,338 commands/s**; geometric mean **1,011,511/s** |
 | Best recent healthy batch-profile | E391: 943,926/s with 8,192-message capacity; local result writer improves 11.0%, but matched E2E is neutral |
 | Current production checkpoint | SDK `bb8e1db2`: exact complete-envelope byte accounting plus Backlog `maxInFlightBatches`; Runtime remains intentionally unbounded and at the legacy 4,096-message backlog. The pin also requires command-cache count ceiling 1,048,576 with the unchanged 64-MiB byte ceiling |
 | Current focus | E421-E424 reject target-aware cache indexing at −0.84% on the correct full canonical route. Production candidate code is removed; return to the measured result-writer/commit limiter on the clean pinned identity |
@@ -974,3 +974,32 @@ Artifacts:
   `2710bcbe5dcda1ecd6502bd02f5fd1dad9c90b43ad8a607045bde474667d81f2`,
   `543311d87122010755e4d1df4a37f7197a59cb2e3b37bb2ef54782571438cbd5`;
 - E450 log SHA-256: `24ef4cf6678498ddbbb871453910438a148aec1837428364a5df916179313493`.
+
+## E451-E453: clean Docker restart establishes the stable >1M pin
+
+The E449/E450 projection above is superseded by a healthy-host replay. Docker Desktop is fully restarted, only the
+dedicated `fluxzero-codex-s1-postgres` container is brought back, and VictoriaLogs plus the unrelated PostgreSQL
+container remain stopped. The host changes from roughly 14 GiB compressed and 5-6 GiB free memory to 2.2 GiB
+compressed and 18 GiB free; the Docker VM falls from 24-64% of one core and 16 GiB resident to about 1% and 1.2 GiB.
+
+E451 again compiles committed Runtime `d5abe0a7` and keeps the same current SDK/driver and canonical route. E452/E453
+use the committed current Runtime with authoritative cache-tail parking. All runs verify exactly 10,485,760 durable
+ordinary results and zero model/global events:
+
+| Run | Runtime | Warm-up | Measured E2E | p50 / p95 / p99 / max |
+| --- | --- | ---: | ---: | --- |
+| E451 | old E386/E389 implementation | 889,374/s | **1,011,357/s** | 59.329 / 77.192 / 89.828 / 210.070 ms |
+| E452 | current committed tail parking | 903,307/s | **1,012,685/s** | 59.845 / 74.644 / 79.987 / 91.381 ms |
+| E453 | current committed repeat | 903,964/s | **1,010,338/s** | 59.680 / 74.785 / 81.797 / 97.132 ms |
+
+The current E452/E453 geometric mean is **1,011,511/s**. This satisfies the campaign's stable >1M transition gate,
+although it is deliberately described as narrow rather than “well above” 1M. The healthy old/current delta is only
++0.13% in E451/E452, so the +9.78% E449/E450 figure was host-confounded and must not be projected. Tail parking remains
+accepted for its exact elimination of physical polling reads and much stronger degraded-host behavior, not as a
+healthy-host peak-throughput claim. Work now returns to the complete model/event/result route and its 500k/s target.
+
+Artifacts:
+
+- E451 old-Runtime log SHA-256: `da619ea76921fe380e3737ff6edfda413aee1d784bfdbfdb011f2ebcdedf8a80`;
+- E452 current log SHA-256: `5edc146e1cc011f4df929cefc1ab515961abf56ca18c91bf76bff85752395d96`;
+- E453 current-repeat log SHA-256: `6b13c51ae67f9093e57daa7078d6da1b88f97ddb75c1625654253057324edbee`.
