@@ -801,6 +801,22 @@ The row count was therefore not the cost driver. Larger compressed rows saved al
 commit/database feedback. The diagnostic property and wiring were fully reverted; 256 is not P6 and 512 was not tried
 after the mechanism had already failed.
 
+### E622-E625: preserve the one-millisecond model-backlog collection delay
+
+The ordered model-commit backlog normally collects ready jobs for one millisecond before it drains a batch. Because
+this is an explicit pause on the canonical model path, E622-E625 tested `PT0S` without changing batch-size, byte,
+ordering, durability or command/result behavior. Two alternating full-route no-JFR pairs remained completely verified:
+
+| Matched pair | P5, 1 ms | Zero-delay diagnostic | Effect |
+| --- | ---: | ---: | ---: |
+| E622 / E623 | 413,239/s | 408,676/s | **-1.10%** |
+| E625 / E624, reverse order | 411,864/s | 409,406/s | **-0.60%** |
+
+The matched geometric means are **412,551/s control versus 409,041/s candidate (-0.85%)**. Removing the pause did
+not raise full-route capacity. The delay apparently earns back its latency by improving natural downstream model-batch
+formation; it must not be characterized as one millisecond of pure serial waste. No production code changed and the
+zero-delay setting is rejected as P6.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -849,6 +865,8 @@ after the mechanism had already failed.
     not the first 500k limiter.
 20. Do not increase global-event compressed row groups from 128 to 256 for the measured payload. E620/E621 halve rows
     but reject the change at -3.95% full E2E and +4.7% active model-store time.
+21. Preserve the one-millisecond ordered model-backlog collection delay. E622-E625 reject `PT0S` at -0.85% matched
+    full E2E. It is a batching input, not one millisecond that can simply be subtracted from store service time.
 
 ## Evidence
 
@@ -1133,3 +1151,8 @@ after the mechanism had already failed.
   `a75f877a9333bf77f6313b7faa2578c1811a182d154654a6ec89af5c063400ef`,
   `3fa31602903f8091fcf1459224b60f8682d5cdcc0da48318e611e603ac970813`,
   `a11c348bab2889c4ff9b2ad3ffcf2e699a30e47c6007bddc268b6fd8dd3dad9d`.
+- E622-E625 model-backlog-delay control/candidate/candidate/control log SHA-256:
+  `efa5ae28834d85f0146612ac4031af89e55facc2ead7ae68241aebebffd678fc`,
+  `2fd9f4f32e2aaf50120ca0bb30c35f39fe9d18d9286b27158f9fe2c1a0981397`,
+  `2c5f189f3e70e4fcfe0143eccbf486b5c068d8dc38b76bd61361d971d99f62be`,
+  `d3023231e0a16321b3f84538c5f5060bc14a0765f74cdb24d0bb32d852b853b6`.
