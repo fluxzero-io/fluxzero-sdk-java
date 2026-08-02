@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **421,981/s** best run | `commit-packed-update` | **0.497-0.509M/s** active ordered-store capacity in long P4 profiles E566/E571 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P4 short matched **368,604/s**; sustained P4 **416,178/s** matched geometric mean, **423,424/s** best run | `commit-packed-update` | **0.497-0.509M/s** active ordered-store capacity in long P4 profiles E566/E571 | Sole acceptance gate for the 500k target |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
@@ -577,6 +577,46 @@ to overstate the local allocation removal. A stable gain of about 0.65% does not
 duplicated envelope implementation and permanent feature path. The patch was archived and fully reverted. The result
 causally excludes temporary SDK event-envelope allocation/copying as the current primary limiter.
 
+### E577-E583: SDK durability backpressure shifts rather than removes small store jobs
+
+The E574 store profile showed a highly nonlinear job-size distribution: jobs of at most 4,096 updates carried only
+13.69% of the commands but consumed 38.70% of active ordered-store time. The candidate therefore kept SDK
+model-commit backlog slots occupied until their real durable futures completed, rather than releasing a slot once the
+evaluations and dispatches had merely started. It introduced no delay and removed no route stage. A value of zero
+preserved the existing behavior exactly; positive values bounded the number of durable SDK commit batches in flight.
+
+The initial 1,048,576-command screens used only 65,536 warm-up commands. They measured 367,308/s at one batch,
+381,483/s at four, 368,976/s at eight and 363,593/s for the same-binary zero control. Because the control itself was
+far below the P4 pin, these screens were retained only as diagnostics. Process, memory and thermal checks found no
+active host interference. The actual cause was insufficient run length: E581 restored the exact 262,144 warm-up and
+4,194,304-command route and established a fresh P4 high state of **423,424/s**.
+
+The long matched candidate did not improve that pin:
+
+| Run | Durable SDK batches in flight | Profiling | E2E | SDK dispatches / mean size | Decision |
+| --- | ---: | --- | ---: | ---: | --- |
+| E581 | existing behavior (`0`) | none | **423,424/s** | 344 / 12,193 | accepted control |
+| E582 | 4 | none | 420,315/s | 357 / 11,749 | **-0.73%; reject** |
+| E583 | 4 | batch JFR | 418,447/s | 347 / 12,087 | mechanism profile |
+
+E583 proved that the limit changed the intended physical distribution, but not in the useful direction. Percentages
+below are shares of all 4,194,304 model updates and of total active ordered-store time:
+
+| Runtime model-store job size | E574 control jobs | E574 items / active time | E583 limited jobs | E583 items / active time |
+| --- | ---: | ---: | ---: | ---: |
+| <=4,096 | 387 | 13.69% / **38.70%** | 326 | 11.79% / **34.62%** |
+| 4,097-8,192 | 143 | 20.26% / 20.45% | 160 | 23.00% / 24.11% |
+| 8,193-16,384 | 169 | 45.85% / 30.92% | 174 | 48.20% / 32.82% |
+| >16,384 | 42 | 20.21% / 9.93% | 37 | 17.00% / 8.46% |
+| Total | 741 | 8.129 s / **515,956/s** | 697 | 8.221 s / **510,204/s** |
+
+The candidate removed some tiny jobs, but also reduced the share of the largest jobs that already serve above one
+million updates per active second. Medium jobs absorbed the work, total active store time increased by 1.13%, and
+complete-route throughput did not improve. Testing still looser limits has no causal basis after the eight-batch
+screen moved in the same direction. The candidate patch was archived and fully reverted. The durable-backpressure
+idea is rejected at this SDK backlog layer; the remaining target is the fixed per-job work inside the ordered
+model/event-store boundary, not another feedback cap.
+
 ## Current decision
 
 1. Runtime `c98f47e6` is the accepted P4 checkpoint. Across two sustained matched pairs its full E2E gain is +4.10%,
@@ -607,6 +647,9 @@ causally excludes temporary SDK event-envelope allocation/copying as the current
 14. Do not retain direct SDK event-envelope encoding: E573-E576 measure only +0.61% to +0.69% complete-route gain for
     materially duplicated envelope code. Treat the envelope allocation as secondary and return to the ordered
     model/event-store boundary.
+15. Do not hold SDK model-commit backlog slots until durable completion. E581-E583 show -0.73% complete-route effect
+    and slightly lower active store capacity because the limit shifts work from both the smallest and the largest jobs
+    into medium jobs. Preserve the existing overlap and optimize measured fixed store work instead.
 
 ## Evidence
 
@@ -790,3 +833,17 @@ causally excludes temporary SDK event-envelope allocation/copying as the current
   `09ae56cb28c9d2853302e0034dbc666a1a8434cf89df25627657b2920974a9a5`.
 - Reverted E573-E576 direct-envelope candidate patch SHA-256:
   `708173925cc3c7ad4711fef4cea0f444e0164f28df9e3e0e9dcdc8b89ffe5e75`.
+- E577-E580 short-screen log SHA-256:
+  `9637f34dd1cc5a52caf07e2812e96f0601c51c8df23019edfde8574ebf500677`,
+  `375517b72a12280a7b4ccf040b4eb137cd845fc7be0ddec00779c4ee321194a3`,
+  `2cd14a42e3a1dc04d8d77afd3a20af5efd83ed0c37d159cdf9473cd5c3344048`,
+  `8e287a558cbe2dadea391edb850eaac6b30de26b63e5ddb80b286c9f5bd22be0`.
+- E581/E582 long control/candidate log SHA-256:
+  `c8757aa2ff968d4219e701a1cab9430ccbb3e03c9c6ccc229af92fb49dffa9ec`,
+  `d799d31ebde1dcabf233955acaaf6407daf450d41c42e4f8c849b71c679e5592`.
+- E583 limited-backpressure profile log/JFR/summary SHA-256:
+  `27761b74393820e8b029898635daff72985bcd8470213fd3a9502b380b7682c6`,
+  `99b05a4a715bbdef99c629d075fef5710aa6c861cde35fef0347aa5d93729fc5`,
+  `be3d9cb1a2034dc74a7334387c9090dd1c36dd0e15eaa9be0f52840a3cb6f2c1`.
+- Reverted E577-E583 SDK durable-backpressure candidate patch SHA-256:
+  `8558c3959c7b716f0ebc583f64248804630ed46f5d886e5c0c1618adf2b89a6c`.
