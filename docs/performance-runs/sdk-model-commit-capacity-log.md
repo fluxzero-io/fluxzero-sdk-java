@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh E633/E635 P5 replication **424,357/s** | `commit-packed-update` | **0.539M/s** in the P5 profile versus 0.502M/s same-binary control | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh E633/E635 P5 replication **424,357/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Sole acceptance gate for the 500k target |
 | Synthetic tracked SDK apply -> model + event durability | **834,806/s** without JFR; **846,441/s** with batch JFR | `commit-packed-update` | **0.995M/s** in E589 | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
@@ -859,6 +859,52 @@ overrules the faster codec and synthetic diagnostic. Both streaming implementati
 production CBOR path remain unchanged, and this is not P6. The retained improvement is only the JFR result-type
 classification, which makes future SDK-inclusive traces causally clearer.
 
+### E636: fresh P5 route split with classified SDK results
+
+E636 reran the unchanged full command -> automatic `@Apply` -> durable model/global-event -> ordinary durable result
+route with batch JFR after the result-classification change. It verified exactly 4,194,304 ordinary results, model
+events and global events at **413,737/s**. The new labels show that neither model acknowledgement encoding nor SDK
+decoding is the current limiter:
+
+| Route component | Batches / mean items | Mean | p50 | p95 | p99 | Max | Interpretation |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| SDK `commit-models` request send | 18,796 / 218.7 | 0.209 ms | 0.107 ms | 0.554 ms | 1.465 ms | 32.859 ms | Request encode plus WebSocket send; overlaps across two sessions. |
+| Runtime `CommitModelsResult` encode | 2,866 / 1,449.3 | 0.155 ms | 0.084 ms | 0.510 ms | 0.944 ms | 7.570 ms | Packed model acknowledgement preparation. |
+| SDK `CommitModelsResult` decode | 2,866 / 1,449.3 | 0.117 ms | 0.058 ms | 0.370 ms | 0.936 ms | 7.201 ms | Typed acknowledgement decoding after WebSocket receipt. |
+| Runtime model-update page encode | 543 pages | 1.978 ms | 1.584 ms | 5.162 ms | 6.171 ms | 23.908 ms | Cache/tracker update page; asynchronous route-wide supporting work. |
+| SDK model-update page decode | 543 pages | 2.511 ms | 2.023 ms | 6.431 ms | 7.898 ms | 32.788 ms | Same asynchronous pages at the SDK. |
+| SDK handler commit interval | 2,671 / 1,570.3 | **48.960 ms** | 49.243 ms | 80.664 ms | 98.359 ms | 124.198 ms | Composite wait from handler completion through its batched durable commit; not SDK CPU and not additive. |
+
+The active ordered model/event store remained the closest full-route capacity boundary: 725 transactions averaging
+5,785 updates, 11.145 ms active storage and **0.519M updates/s** service capacity. Its fundamental synchronous work is:
+
+| Fundamental work in one packed model/event transaction | Mean | p50 | p95 | p99 | Max | Relation to transaction |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Packed fast-path validation | 0.746 ms | 0.471 ms | 1.968 ms | 2.644 ms | 28.371 ms | Before global-event storage is launched. |
+| Collect packed event envelopes | 0.067 ms | 0.028 ms | 0.234 ms | 0.344 ms | 1.826 ms | Before event-store submission. |
+| **Direct global-event insert** | **4.187 ms** | 3.138 ms | **9.725 ms** | 19.389 ms | 44.189 ms | Largest measured synchronous database stage; runs before the shared commit. |
+| **Atomic state advance + model-stream insert** | **2.576 ms** | 1.965 ms | **5.567 ms** | 25.455 ms | 30.489 ms | Co-located on the event transaction's connection. |
+| **Shared event/model transaction commit** | **2.044 ms** | 1.466 ms | **4.661 ms** | 11.369 ms | 27.792 ms | Makes global event and model state/stream visible together. |
+| Publish in-memory packed boundary | 0.279 ms | 0.202 ms | 0.851 ms | 1.104 ms | 1.562 ms | Runs after durable commit. |
+
+`prepare-packed-stream` averaged 0.999 ms but deliberately overlaps the event-store insert, so it must not be added to
+the critical-path rows. Direct event insert, state/stream work and commit account for about **79%** of the measured
+11.145 ms active store interval. The derived model-stream locator also writes asynchronously and adds PostgreSQL
+pressure (four parallel write lanes average 11.696 ms, followed by a 2.670 ms cursor transaction), but those intervals
+overlap canonical work and are not part of the transaction latency sum.
+
+The current same-code route split is therefore:
+
+| Route | Full throughput under batch JFR | Active model-store capacity | What is omitted |
+| --- | ---: | ---: | --- |
+| E626 synthetic tracked SDK handler | **796,999/s** | **0.934M/s** | Command append/tracking and ordinary result publication/storage/completion |
+| E636 full canonical route | **413,737/s** | **0.519M/s** | Nothing |
+
+Both include lazy SDK command decoding, handler resolution, assertions/interceptors, automatic `@Apply`, model-event
+serialization, model batching, WebSocket transport and real model/global-event durability. The large difference is
+therefore shared command/result database and feedback pressure, not omitted SDK model handling. The literal direct
+`Fluxzero.assertAndApply(command)` result remains the separate E489-E492 general-idempotency observation.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -912,6 +958,10 @@ classification, which makes future SDK-inclusive traces causally clearer.
 22. Do not replace `TrackModelUpdatesResult` generic CBOR with the tested manual streaming codec. E626/E627 prove the
     local codec and synthetic route can improve, but the fully compatible final E632-E635 sequence rejects it at
     -2.26% full E2E. Faster per-page work changed tracking feedback and page formation; canonical E2E remains truth.
+23. Use E636 as the fresh classified full-route trace. Model acknowledgement encode/decode is sub-millisecond per
+    large batch, while direct global-event insert, atomic state/stream work and the shared commit form about 79% of
+    the active ordered-store interval. Keep the complete SDK handler in all isolated model measurements, but select
+    the next production candidate from this measured database boundary.
 
 ## Evidence
 
@@ -1219,3 +1269,7 @@ classification, which makes future SDK-inclusive traces causally clearer.
   `b724a354a17ae12d51e63f8e95225a05990945d94cd1a2d0b885f8ea41f770e9`,
   `c39c693fe2f233627612650ee7a00cbe9a1e5b6a7838d51bf62950630fc3a685`,
   `a903e1424c39156dc9a73a05b6fa31047a975de8159b5215a6be47d17ddbe548`.
+- E636 fresh classified P5 log/JFR/summary SHA-256:
+  `4370f2432ae76de862796adf4ef5bbf96e80de050269bd598d08656d7ff469d1`,
+  `b78e9c2072bb7e509fc3b5348f15eea45dad540383bdedae19d55d2e04cf0da2`,
+  `f322fdaf995d8ab63ab1c53c5504db226ef35ae0176054a435a3721c42b12c71`.
