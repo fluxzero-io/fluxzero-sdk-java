@@ -58,6 +58,14 @@ At E279's mean 2,476-result transaction, the target budgets are:
 | 1.5M/s | 1.651 ms | **29.2%** | 1.069 ms | **38.9%** |
 | 2.0M/s | 1.238 ms | **46.9%** | 0.656 ms | **62.5%** |
 
+The result writer is slower in messages/s even though a no-op result has a smaller payload. A result transaction is
+slightly cheaper than a command transaction, but E279 needed 4,235 result transactions versus 2,560 command
+transactions for the same 10,485,760 messages. The nearly fixed commit cost is consequently spread across 2,476
+results instead of 4,096 commands: about 0.706 microseconds of commit residence per result versus 0.451 microseconds
+per command. Result envelopes also contain request/correlation metadata; in the controlled E300/E301 shapes they are
+222 versus 206 native bytes and produce somewhat larger compressed LTS data. Payload size is therefore secondary here;
+transaction amortization is the primary difference.
+
 The target need not preserve the current batch shape. This calculation instead quantifies the minimum scale of a
 useful mechanism: a small local optimization cannot close the gap. E302 proves that full 4,096-result transactions can
 drive the isolated appender at 4.653M/s, but E311-E315 prove that simply enlarging a backlog does not create that gain
@@ -87,6 +95,26 @@ E279 also shows that the result writer is not starved for prepared work. Its mea
 ordered executor waits only 0.374 ms on preparation on average, with a zero p50. Later inserts are commonly already in
 flight or complete before their turn. This makes the physical-commit-versus-logical-publication boundary a stronger
 structural research target than adding another timed backlog window.
+
+## Backlog and downstream admission semantics
+
+`fluxzero.messageStoreBacklogSize` is currently a maximum *batch* size, not a maximum queue or pending-work size.
+`ReadWriteMessageStore` uses `Backlog.forAsyncConsumer`: one backlog thread constructs batches serially, but it starts
+the next batch as soon as `storeBatch` returns its future instead of awaiting durable completion. JDBC inserts are
+bounded by the shared 32-thread insert executor and commits are ordered on one executor per log, but the number of
+already constructed storage jobs and their retained futures, messages and transaction state has no explicit admission
+bound. Callers that await their append futures provide feedback at a higher layer; the generic store itself does not
+provide a bounded overload contract. The configuration name and constructor documentation therefore overstate what
+is bounded today.
+
+This is a real resource-safety concern, but it is not an untested throughput hypothesis. E266-E269 screened pending
+result-job limits 1, 2, 4 and 8. N=2 initially reached 962,092/s, but the qualifying same-binary E275-E278 comparison
+put the narrow production candidate at 934,109/s geometric mean versus 959,204/s for the legacy control
+(**-2.62%**). A small hard cap loses useful insert overlap and is rejected as the capacity fix. Future work must keep
+two separate requirements explicit:
+
+1. add a generous count-and-byte overload bound so sustained producer overload cannot retain work indefinitely;
+2. improve ordered durability/publication without treating that safety bound as the batching or throughput mechanism.
 
 ## Candidate classes and evidence gates
 
@@ -132,3 +160,16 @@ snapshots contained 14.019 contiguous ready jobs on average (p50 15, p95/max 17)
 violations. The host was heavily loaded and the isolated route lacks complete E2E feedback, so its 2.213M/s throughput
 is explicitly non-qualifying. E336 proves only that the event semantics work and that multi-job readiness can exist;
 the intact route must still establish its relevant distribution.
+
+E337 exercised the same instrumentation on the intact 10,485,760-command no-apply route and again completed with
+exactly 10,485,760 durable results and no model/global events. At result commit start it observed 4.261 contiguous
+ready jobs on average (p50 3, p95 12, p99 18, max 25), representing 8,712 ready messages per snapshot on average.
+Commit completion raised this to 4.597 jobs (p50 3, p95 13, p99 18, max 25) and 9,499 messages. Command readiness was
+lower: 1.446 jobs at commit start and 1.847 at completion. This confirms that a multi-job publication opportunity can
+exist in the complete route.
+
+E337 is nevertheless diagnostic-only. `kernelmanager_helper` consumed most of a core and command consumers fell out
+of the cache: 1,141 physical command scans read 85,889,024 messages, about 8.2 times the logical command count. The
+measured 365,471/s, 2,135-result transaction average and readiness distribution describe that backpressured failure
+state, not the healthy E279/E315 route. They must not select or size a production mechanism; a clean intact repeat is
+still required.
