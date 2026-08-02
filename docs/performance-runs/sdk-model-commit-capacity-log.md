@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | **359,508/s** matched geometric mean; best exact run **364,430/s** | `commit-packed-update` | **0.431M/s** in E531 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | **359,508/s** canonical matched geometric mean; sustained long control **408,185/s** in E550 | `commit-packed-update` | **0.431M/s** in E531 | Sole acceptance gate for the 500k target |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
 
@@ -317,6 +317,53 @@ preserve existing conflict diagnostics. That trade is not checkpoint-worthy at t
 production still uses the simpler separate lock and update. The next selected fundamental cost is the approximately
 3.4 ms packed stream-block insert, followed by the remainder of the co-located model callback.
 
+### E541-E551: set-based stream insert improves the SQL phase, not sustained E2E
+
+The packed route writes only about seven initial stream-block rows per model/event transaction in this workload. The
+previous `COPY ... FROM STDIN BINARY` path therefore paid its fixed protocol startup cost for roughly 7 MiB and 1,100
+rows over the entire million-command run. The candidate retained the exact fifteen stored columns, event and state
+ranges, model ids, segments, payload bytes and empty model-hash marker, but sent each transaction as one typed
+multi-array `unnest` insert. It changed neither transaction boundaries nor stored format. The complete
+`JdbcModelCommitStoreTest` passed 101/101.
+
+The profile pair proves a real local reduction:
+
+| Segment | E544 binary COPY control | E543 set-based candidate | Effect |
+| --- | ---: | ---: | ---: |
+| Stream-block insert mean | **3.476 ms** | **2.186 ms** | **-37.1%** |
+| Co-located model callback mean | 6.165 ms | 4.783 ms | -22.4% |
+| Active packed-store capacity | 0.451M/s | **0.509M/s** | **+12.9%** |
+| Physical blocks / data | 1,100 / 7.206 MiB | 1,101 / 7.371 MiB | equivalent work |
+| Profile E2E | 351,963/s | 353,064/s | +0.31% |
+
+The short one-million-command runs initially looked checkpoint-worthy but did not remain stable:
+
+| Order | Control | Candidate | Candidate effect |
+| --- | ---: | ---: | ---: |
+| candidate then control, E541/E542 | 355,677/s | 363,305/s | +2.14% |
+| control then candidate, E545/E546 | 348,140/s | 372,073/s | +6.87% |
+| candidate then control, E547/E548 | 365,630/s | 356,979/s | -2.37% |
+| control then candidate, E548/E549 | 365,630/s | 366,569/s | +0.26% |
+
+Batch counts varied from 83 to 153 in these roughly three-second measured phases. To prevent that feedback from
+selecting production code, E550/E551 lengthened warm-up to 262,144 and the otherwise identical complete measured
+route to 4,194,304 commands:
+
+| Run | Implementation | Full E2E | Dispatch batches / mean | Decision |
+| --- | --- | ---: | ---: | --- |
+| E550 | Existing binary COPY control | **408,185/s** | 352 / 11,916 | accepted control |
+| E551 | Set-based typed-array insert | 410,110/s | 348 / 12,053 | reject candidate |
+
+The sustained effect is only **+0.47%**. That is too small to justify specializing the production write protocol for
+this benchmark's tiny stream blocks, especially because other valid workloads can produce larger blocks for which
+binary COPY remains the safer general path. The candidate is reverted and the production Runtime remains unchanged.
+
+E550 also corrects how the older 0.407M/s figure should be read. E459's 0.407M/s was calculated active service
+capacity from one profiled ordered store lane, not an E2E ceiling. With longer warm-up, the accepted full
+command -> automatic `@Apply` -> durable model/global-event commit -> stored result route itself sustained
+**0.408M/s**. Canonical progress still uses the fixed one-million-command matched protocol; E550 is a non-canonical
+stability diagnostic, not a silently substituted acceptance baseline.
+
 ## Current decision
 
 1. Runtime `87327b71` is the new accepted production checkpoint; full E2E matched gain is +5.28%.
@@ -327,8 +374,13 @@ production still uses the simpler separate lock and update. The next selected fu
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
 6. Preserve the separate state lock/update for now. Their atomic replacement saved 24.1% locally but only 0.83% in
    balanced full-route runs, which does not justify the added SQL and failure-path complexity.
-7. Split and optimize the packed stream-block insert next; it remains approximately 3.4 ms in both matched profiles.
-8. Accept production work only through matched full command -> model -> event + result runs with correctness and read
+7. Preserve binary COPY for initial stream blocks. Typed-array insert reduced that phase by 37.1%, but delivered only
+   +0.47% on the longer complete E2E route and is not a production checkpoint.
+8. Use E550's 408,185/s only as evidence that the accepted route can sustain the old 0.407M service-capacity estimate;
+   keep the fixed canonical protocol as the progress baseline.
+9. Re-profile the accepted long-running route before choosing the next model-store mechanism; do not extrapolate the
+   next target from the older short-run phase proportions.
+10. Accept production work only through matched full command -> model -> event + result runs with correctness and read
    validation proportional to the affected path.
 
 ## Evidence
@@ -422,3 +474,18 @@ production still uses the simpler separate lock and update. The next selected fu
   `ae705c61b7e21c3abe2252f287874356f4693e56d6e11031e174bea4813c3ce7`.
 - E539/E540 log SHA-256: `97cd9e25b0363fb2c916a5077a82b64f9f5f65e341e06bfb832255ed0fd45ccb`,
   `c5c4f90d908c8dc487dc6b069fc3d068574c915d665a6a6ad27e62f0ff55b742`.
+- E541/E542 log SHA-256: `93692e69ea6bbc0c7357470c3d7dd2c8f94f7e609e158222476a42da218aa7c6`,
+  `4b7d4ad017258d0d3f0b4a02c4931ad63e6a351f6e969ec4347341d38f6b47e0`.
+- E543 log/JFR/summary SHA-256: `72ffc6b2da4157199d3ee4e5d0affa8a22052c4bec9589e6b42c8de42deee382`,
+  `de960d68245991bcc164b28cebf3236440630494b2e16a0c148bf6155c0f5392`,
+  `32800752ed908f0530df1990be6b4a254d5290c2b172e0ea504bc97ca9ea982d`.
+- E544 log/JFR/summary SHA-256: `e0dd66ed887eccef5dd989cbdb2ffc414bc93ecd4a24ff69c35da52fa2360ccb`,
+  `e22cc4384f1c28046d5cc45677bce9ebc9acfa660eee8d1808d7d431b4b821ac`,
+  `563aa99c8adaad9fbe6b1c4f0e7b610be3894bd06b84bf7c6463caaf5cb5cd69`.
+- E545-E549 log SHA-256: `73c5b94167f04c73c57efb0fde32b21f900982e17eff80f4a0bdac5eabc90d04`,
+  `fe6badbc94e2cdb7ef3641dac91c834a9c39aa960a0af494e2019c49d129e92c`,
+  `df7e4595cec112cf121a0683fa2788a12ac335c176d5a755cc49b8ba87bb1a06`,
+  `c26fdb210b1ea0c3fdabd042e265ebc867f0decbb5e173f110f9a695c209238c`,
+  `5c850ced03e6f21d4880b5f5c1c9c82862802d0308df5772899c015a764a7b77`.
+- E550/E551 long-run log SHA-256: `7ad9f5c92ba39dd679447daa469f48e1f7d45116b916f7025d0f49b519c77321`,
+  `bb62e87f3819459887d3bc95be062fab3115f02a57802fce8ce134131bfed068`.
