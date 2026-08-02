@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E165-E178 complete and reject the event/model-sidecar family. After old/new reads, derived-locator rebuild, partition rollover, hard-delete rewrite and retention migration all passed, the cheapest zero-byte tagged locator produced **253,045/s** versus **254,313/s** control across balanced E175-E178: **-0.50%**. A btree lost 13.44%; a repeated locator pointer lost 1.90% geometrically. The earlier local **-46.08%** model-task result is real, but lifecycle support plus closed-loop transaction fragmentation consumes its route gain. |
-| Next evidence target | fully revert sidecars, rerun the immutable exact P3 route under dual JFR/stage tracing, and rerank fundamental route segments and active service capacity before selecting another production mechanism |
+| Latest causal diagnosis | E179-E193 exclude eager derived model-stream locator maintenance as the current E2E limiter. E181 measured **3,917.617 ms** aggregate locator service running beside the measured route. The strongest bounded candidate cut locator batches **27 -> 6**, locator write service **710.184 -> 361.417 ms** and cursor service **134.758 -> 35.299 ms**, yet its matched full-route geometric mean was **249,059/s** versus **255,905/s** control: **-2.68%**. The saved work was parallel; changed feedback also fragmented model commits. |
+| Next evidence target | use the E179-E181 fundamental service split to rerank the still-serial event/model durability boundary; require a mechanism that improves natural transaction formation as well as local SQL service before changing production code |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E178 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E193 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1352,6 +1352,64 @@ transaction formation enough that no full-route capacity remains. The production
 performance checkpoint is created. Reopening requires a new mechanism that both removes the boundary and preserves
 or improves transaction grouping on the complete route.
 
+### Diagnostics E179-E193 — derived locator work is large but not on the limiting path
+
+E179 reran the immutable P3 source after the sidecar prototype was fully removed. It completed the exact 1,048,576
+command/result lifecycle at 230,901/s under dual JFR. E180 split previously invisible Java work in the packed model
+store; E181 then split the asynchronous derived model-stream locator. These profiled throughputs are diagnostic and
+must not be compared with non-profiled acceptance values.
+
+Fundamental active service across the E180/E181 measured route was:
+
+| Service segment | Active service | Calls/batches | Exact meaning |
+| --- | ---: | ---: | --- |
+| complete packed model commit | **3,902.987 ms** | 197 | ordered model-store ownership from accepted packed jobs through durable event/model transaction readiness |
+| event-store transaction | **3,405.298 ms** | 197 | event row preparation/insertion plus co-located model work and durable transaction commit; contains the next rows and is not additive with them |
+| co-located model task | **1,575.049 ms** | 197 | model-stream insert plus singleton state lock/head work inside the event transaction |
+| direct event insert | **973.552 ms** | 197 | binary event-log insert service within that same transaction |
+| model-stream insert | **876.284 ms** | 197 | durable packed model-stream COPY inside the co-located task |
+| event transaction commit | **442.403 ms** | 197 | PostgreSQL durable commit for the atomic event/model boundary |
+| model-state lock | 353.690 ms | 197 | singleton ordered state-head lock acquisition |
+| packed stream preparation | 340.148 ms | 197 | encode and prepare packed stream blocks; overlaps event-store work |
+| state-head update | 323.734 ms | 197 | publish the new state boundary while the transaction owns the state lock |
+| packed result completion | 356.877 ms | 323 tasks | parallel completion of 1,048,576 per-job model-store futures after durability |
+| cache packed heads | 176.388 ms | 197 | publish committed heads to the Runtime cache |
+| validate packed fast path | 163.219 ms | 197 | verify the conflict-free packed-update preconditions |
+| publish packed boundary | 76.052 ms | 197 | update in-memory visible indices and notify readers after durability |
+| collect packed events | 16.361 ms | 197 | collect the already serialized event envelopes for the event store |
+
+E181 separately exposed a **3,917.617 ms** derived-locator service cluster: 2,287.644 ms writing 1,048,576
+membership rows, 1,018.001 ms advancing/committing its cursor, 447.764 ms reading 1,147 authoritative stream blocks
+and 164.708 ms decoding them. This work looked larger than several serial segments, but it runs asynchronously and
+therefore needed an intact-route causal test before any production optimization.
+
+E182-E189 tested progressively stronger coalescing while preserving durable commands, model streams, global events,
+ordinary results and exact reads through the authoritative stream tail. The final diagnostic starts catch-up at a
+bounded membership threshold or deadline, lets explicit lifecycle waiters force immediate progress, and pins each wave
+to one visible state boundary. Under JFR that changed:
+
+| Derived locator measurement | E188 moving-target catch-up | E189 pinned catch-up | Change |
+| --- | ---: | ---: | ---: |
+| locator batches | 27 | **6** | **-77.78%** |
+| locator row-write service | 710.184 ms | **361.417 ms** | **-49.11%** |
+| cursor update/commit service | 134.758 ms | **35.299 ms** | **-73.80%** |
+| complete packed model-store service | 3,617.431 ms | 3,768.024 ms | +4.16% |
+| profiled E2E throughput | 240,342/s | 231,174/s | -3.81% |
+
+The matched non-JFR full-route decision then contradicted the local service improvement:
+
+| Pair | Eager locator control | Pinned bounded locator | Change |
+| --- | ---: | ---: | ---: |
+| E191 / E190 | 254,713/s | **257,535/s** | +1.11% |
+| E192 / E193 | **257,103/s** | 240,861/s | **-6.32%** |
+| geometric mean | **255,905/s** | 249,059/s | **-2.68%** |
+
+The candidate also produced 243 model transactions in E189 versus 229 before the pin and 197 in E180. The conclusion
+is causal rather than merely statistical: most locator service overlaps the limiting route, while catch-up timing feeds
+back into natural model transaction formation. Removing roughly three quarters of that work does not free E2E
+capacity. The entire coalescing candidate is reverted and receives no checkpoint. Retain locator segmentation as an
+observer, but do not optimize this cluster again without new evidence that it has moved onto the critical path.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1448,10 +1506,13 @@ or improves transaction grouping on the complete route.
     mean** and cut co-located model work 46.08%, but E165-E178 close the production family: all lifecycle contracts pass,
     yet the cheapest zero-byte locator is -0.50% across balanced pairs. The physical saving is real; lifecycle support
     and closed-loop transaction fragmentation consume it. Production source is reverted.
-33. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+33. E179-E193 rerank P3, split the model store and derived locator, and exclude the locator as the current limiter.
+    Pinned bounded catch-up cuts locator batches 77.78% and its largest service components 49-74%, but loses 2.68%
+    geometrically on the matched full route while fragmenting model transactions. Production source is reverted.
+34. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-34. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+35. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
