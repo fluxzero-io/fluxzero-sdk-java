@@ -450,3 +450,38 @@ dispatch batches and narrowed the loss further, yet E105 remained **3.72% slower
 worse p99/max. Runtime production source was then fully restored to accepted P3. This closes lane-count tuning and
 in-batch open-transaction splitting; the isolated probe's physical scaling does not survive the route's contention and
 batch-feedback loop in this form.
+
+### E107-E111: caller result completion is a real serial service lane, but naive parallelism loses
+
+E107 timed the existing `DefaultRequestHandler.processResults` body without removing any full-route work. After warm-up,
+398 ordered batches processed exactly 1,048,576 durable ordinary results. Their summed active service was
+**2,981.682 ms, or 351,673 results/s**; mean batch size was 2,634.6 and service p50/p95/p99/max was
+3.152/27.548/53.989/80.271 ms. The timer stops before its diagnostic `printf`, so console output is excluded from the
+service value. Its 238,608/s complete E2E result is profiling-only.
+
+That lane includes more than correlation: completing each serialized response future synchronously runs response
+deserialization, gateway mapping and caller completion actions. It therefore explains both the earlier 12.362-ms
+`result tracker -> request-handler receipt` residence and why its own capacity closely follows accepted P3 throughput.
+It is a genuine route boundary, not a standalone SDK map-lookup microbenchmark.
+
+E108 assigned every request id to one of eight stable ordered lanes. Responses for one request retained exact chunk and
+cross-batch ordering; independent requests could complete concurrently. Focused timeout, close, unknown-response and
+chunk-order tests passed, as did the full exact route. E109 ran the identical dirty binary with one lane:
+
+| Measurement | E109 one lane | E108 eight lanes | Change |
+| --- | ---: | ---: | ---: |
+| Complete E2E | **274,434/s** | 251,864/s | **-8.22%** |
+| p50 / p95 / p99 / max | 189.796 / 300.772 / 382.120 / 420.444 ms | 201.702 / 337.936 / 427.372 / 467.224 ms | all worse |
+| Result-gateway publication batches | 516 | 634 | +22.9% |
+| Result-gateway summed batch lifetime | 0.800 s | 0.916 s | +14.5% |
+| WebSocket result-callback summed lifetime | 15.274 s | 18.070 s | +18.3% |
+
+Parallel completion increased CPU concurrency and changed the closed-loop release pattern enough to fragment result
+publication and raise broad client work. The production candidate and its tests were fully reverted; tuning two or
+four completion lanes cannot provide the approximately 3x efficiency improvement required by the goal.
+
+E110 then tested the largest attributable avoidable leaf inside that lane: repeated numeric `$traceId` scans by the
+enabled route observer. One transient per-envelope cache plus allocation-free numeric callers removed the repeated
+byte search without changing metadata or wire semantics. It reached 255,128/s between clean controls of 274,434/s and
+258,698/s; against their geometric mean it was **4.25% slower**. The cache was fully reverted. Observer metadata scans
+remain diagnostic cost, but neither caching them nor parallelizing the encompassing completion lane is an E2E win.

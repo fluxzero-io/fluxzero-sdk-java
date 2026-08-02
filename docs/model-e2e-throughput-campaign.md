@@ -1042,10 +1042,15 @@ Runtime-collapsed/client-collapsed SHA-256 values are
 19. E102-E106 attribute and close the family: parallel overlap exists, but same-table insert service rises 52–61%, an
     extra marker is costly, and removing it plus reducing to two lanes still loses 3.72% matched E2E. Production source
     is fully reverted; do not retry lane depth or in-batch multi-transaction variants.
-20. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+20. E107 identifies another hard full-route boundary: the single ordered caller-result completion lane performs
+    1,048,576 completions in 2.982 active seconds, only 351,673/s. E108-E109 prove that eight ordered per-request lanes
+    are not the answer: they lose 8.22% and fragment result publication. E110-E111 also reject caching the largest
+    trace-only metadata leaf at -4.25% against bracketed controls. Both candidates are fully reverted; retain the
+    serial-lane capacity fact, but do not equate parallel CPU demand with free E2E capacity.
+21. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-21. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+22. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
