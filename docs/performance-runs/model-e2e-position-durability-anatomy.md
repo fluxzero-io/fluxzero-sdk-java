@@ -158,8 +158,7 @@ Both async implementations and their tests were reverted.
 - Do not accept the generic per-batch collection delay or any non-zero production default from E322-E330.
 - Do not accept either position-only async implementation from E331-E335. Removing the setting round trip leaves
   command-position service neutral and result-position service worse; the complete candidate is reverted.
-- Investigate a shared arrival-driven transaction owner for command
-  and result positions. That mechanism should combine already-arrived cross-log work without sleeping and must complete
-  each existing future only after the shared commit.
-- A larger protocol change such as fusing the previous position with the next read can remove the roughly 2.22-ms
-  command-side request/response portion, but it requires explicit compatibility and failure-semantics design.
+- Defer further position optimization while the generic result writer remains the lower full-route ceiling. A shared
+  arrival-driven position transaction owner and fusing the previous position with the next read remain possible later
+  research classes, not current candidates. They may return only when fresh complete-route evidence identifies the
+  command-consumer cycle as the active limiter.

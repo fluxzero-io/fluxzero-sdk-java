@@ -11,8 +11,8 @@ mistaken for a production regression again.
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
 | Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
 | Current production candidate | None; time-window coalescing and both position-only async variants are rejected |
-| Current focus | Compare arrival-driven cross-log position transactions with fusing previous-position acknowledgement into the next read |
-| Exit criterion before events/models return | Stable profiler-free no-model throughput **well above 1M/s** |
+| Current focus | Quantify and remove the generic ordered message-writer ceiling in [`model-e2e-no-model-capacity-model.md`](model-e2e-no-model-capacity-model.md) |
+| Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
 
 ## Route and immutable behavior
 
