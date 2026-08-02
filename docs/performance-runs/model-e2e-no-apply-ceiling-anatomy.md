@@ -344,10 +344,10 @@ results longer and did not improve intact E2E throughput. The candidate was reve
 Current evidence says:
 
 1. The no-apply durable-result route is not capped at 0.61M/s; that conclusion came from inadequate warm-up.
-2. A single sender client is an artificial aggregate constraint; two real clients sustain a geometric **0.936M/s** and
-   have reached **0.974M/s** once, with all ordinary command/result durability and completion intact.
-3. At that topology the strongest current shared limiter is the serial result JDBC store at **1.018M results/s active
-   service**, **92.6% utilization**, p95 queue **20.754 ms** and queue maximum 15.
+2. E290-E299 identify the later 0.59-0.77M/s band as an unpinned initial-heap low state, not a production regression.
+   With `-Xms8g`, the fully reverted production route returns to a 0.953M/s clean geometric pin and reaches 0.967M/s.
+3. At that topology the strongest measured shared limiter remains the ordered result JDBC store. E279 measured
+   **1.063M results/s active service**, **89.5% utilization** and p95 queue **19.843 ms**.
 4. This route still omits model/event work. It establishes base-route headroom and a causal target, not evidence that
    the complete P3 model route is near 1M/s.
 5. The current campaign remains on no-model command/result E2E until it is well above 1M/s. Screen bounded result
@@ -356,7 +356,7 @@ Current evidence says:
 
 ## Immutable evidence
 
-Every invocation is recorded as E209-E289 in
+Every invocation is recorded as E209-E299 in
 [`model-e2e-run-registry.csv`](model-e2e-run-registry.csv). Principal artifacts are:
 
 - E224 async-profiler log/collapsed stacks: `0bcf2161...` / `8467cf40...`;
@@ -366,5 +366,6 @@ Every invocation is recorded as E209-E289 in
 - E242 two-client batch log/JFR/summary: `76c5fe66...` / `ae05a611...` / `98b11672...`.
 - E280/E281/E282 completion isolation logs: `682471ee...` / `96b18f84...` / `0e4a3674...`.
 - E283-E289 offering diagnostics and clean default verification are registered with full hashes below.
+- E290-E299 heap/cache/database regression audit: [`model-e2e-no-model-change-log.md`](model-e2e-no-model-change-log.md).
 
 Full SHA-256 values and all paired/rejected run artifacts remain in the registry.

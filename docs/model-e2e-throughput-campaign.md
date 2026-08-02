@@ -16,14 +16,14 @@ experiments were rejected.
 | Fresh accepted-base pin | E205-E207 reran exact P3 in the original embedded, genuinely profiler-free Java 25 topology at 346,152 / 345,935 / 331,432 commands/s; geometric mean **341,103/s** |
 | Completion target | five consecutive canonical qualifying runs above 1,000,000/s |
 | Active campaign stage | Raise the intact durable no-model command/result route well above **1M/s** before adding one durable event per command and only then returning to model commits. Measure single-client offering/completion separately from multi-client Runtime capacity. |
-| Best non-qualifying ceiling | E238 observed **973,617/s** and E238/E240/E241 geometrically sustain **935,683/s** with two independent SDK sender clients on the durable command/result no-apply route. E259-E262 use the new caller-neutral driver and identify backlog fragmentation as a live causal lead; their absolute band is not compared with the earlier driver. |
+| Best non-qualifying ceiling | E293 restores the current production binary to **948,988/s** by reinstating the missing initial-heap pin. Clean E295/E297 16,384-producer controls geometrically sustain **952,719/s** and E296 reaches 950,653/s with the 8,192 producer. E295 is the current high at **967,037/s**. |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E283-E289 split no-model command offering. Driver batch construction and callback attachment are negligible; a 131,072-request global window collapses E2E to 275,124/s and p50 to 440 ms. Replenishing the real 65,536 window in 8,192-command chunks beats 16,384 in two matched pairs by **+2.53% geometrically**. The benchmark-only default is accepted at 8,192; E289 verifies the clean exact route at 769,494/s in the current low state. |
-| Next evidence target | Keep E279's 948,289/s high legacy profile as the shared E2E truth and E289's 8,192-command producer as the cleaner load generator. Rerank the remaining shared command-consumer/tracking/transport/result-writer stages; production work starts only after a full-route limiter is causally selected. |
+| Latest causal diagnosis | E290-E299 explain the apparent 948k -> 769k regression. The later launcher omitted E279's fixed initial heap: restoring `-Xms8g` returns the fully reverted production binary to 949-967k/s, while `-Xmx8g` alone remains at 759k/s. A larger command-cache count improves the amplified low state but is not the root or a production candidate. The clean 8,192/16,384 driver comparison is neutral (-0.22%). |
+| Next evidence target | Keep the fixed-heap 0.953M/s no-model route as E2E truth. Isolate the shared ordered message appender across command/result metadata and a payload-size matrix, then select a mechanism that raises intact durable E2E well above 1M/s without weakening gapless publication or payload generality. |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E289 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E299 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -65,7 +65,7 @@ Unless an experiment explicitly investigates one of these variables, both sides 
 | Searchable models | false |
 | Event-sourcing sessions | 2 |
 | Model-load measurement | false |
-| JVM heap | `-Xms8g -Xmx8g` |
+| JVM heap | `-Xms8g -Xmx8g`; E298 proves the initial-heap pin is causal, while E299 proves `-Xmx8g` alone is insufficient |
 | Canonical process topology | SDK client and embedded Runtime in one JVM; external two-JVM runs are diagnostics unless a new baseline is explicitly established |
 | Runtime Java | OpenJDK 25 for the benchmark and Runtime (`sdk`/`common` retain Java 21 bytecode compatibility but execute on Java 25) |
 | Database | PostgreSQL 18.3, Docker container `fluxzero-codex-s1-postgres`; record the current Docker host port per run |
@@ -116,6 +116,8 @@ P2's first complete instance is
 the operational source for every individual invocation. The later diagnostic ceiling that preserves the durable
 command/result route while replacing model apply with a typed no-op handler is documented separately in
 [`model-e2e-no-apply-ceiling-anatomy.md`](performance-runs/model-e2e-no-apply-ceiling-anatomy.md).
+The exact no-model environment and change-by-change regression audit is maintained in
+[`model-e2e-no-model-change-log.md`](performance-runs/model-e2e-no-model-change-log.md).
 
 ## Acceptance protocol
 
