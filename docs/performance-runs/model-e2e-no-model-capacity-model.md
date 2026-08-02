@@ -206,3 +206,28 @@ coalescing or writer capacity further. Every run produced exactly 1,048,576 dura
 events. These are still diagnostic-only: the short warm-up and persistent `kernelmanager_helper` load make absolute
 throughput and the full-route delta non-qualifying. N=3 has earned a long matched clean-host qualification; it is not
 yet an accepted production default or checkpoint.
+
+## E344-E346: replace logical-job count with physical row and envelope-byte limits
+
+`maxJobs` is an upstream-shape-dependent transaction limit: two logical jobs may represent radically different SQL
+and byte work. The second prototype therefore disables fusion at `maxRows=0` and, when enabled, groups contiguous
+direct-only jobs subject to both a physical LTS-row limit and the sum of their native envelope sizes. Original logical
+jobs remain indivisible, so an individually oversized append is admitted alone. A high internal 1,024-job drain guard
+only bounds one Backlog callback; it is not a transaction-tuning parameter. This retains multiple physical jobs and
+connections for parallel inserts while the existing single commit executor publishes them in order.
+
+The first full-route bracket used 64 rows and 8 MiB. In this 32-byte-command/void-result shape, 64 rows allowed at most
+8,192 result messages in one physical transaction—twice the legacy 4,096-message append ceiling:
+
+| Run | Candidate | E2E | Logical result jobs | Physical result transactions | Result writer | Commit capacity | Insert capacity |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| E344 | 64 rows, 8 MiB | 676,802/s | 425 | 380 | 0.741M/s | 0.872M/s | 0.599M/s |
+| E345 | Legacy reverse control | 705,425/s | 460 | 460 | 0.781M/s | 0.801M/s | 0.633M/s |
+| E346 | 64 rows, 8 MiB | 735,766/s | 422 | 366 | 0.794M/s | 0.858M/s | 0.685M/s |
+
+The two candidate throughputs have a 705,668/s geometric mean, only 0.035% above the bracketed 705,425/s control.
+The row-based mechanism reliably reduces commits and raises active commit capacity, but at 64 rows the larger inserts
+consume the entire gain. E344-E346 therefore reject **64 rows**, not row-based fusion itself. They also refine the next
+causal screen: cap at 32 rows so fusion can fill underfull logical jobs without ever making a normal physical insert
+larger than the existing 4,096-message maximum. All three runs persisted exactly 1,048,576 results and zero
+model/global events. Persistent host load still makes their absolute throughput non-qualifying.
