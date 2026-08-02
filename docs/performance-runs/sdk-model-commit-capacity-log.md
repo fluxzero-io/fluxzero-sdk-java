@@ -701,6 +701,51 @@ physical locator partitions through the grouped lanes; the complete `JdbcModelCo
 Authoritative model/event storage, physical locator layout, cursor-gated visibility, failure cleanup and wire formats
 are unchanged.
 
+### E606-E610: detailed P5 model trace and rejected cursor-transaction fusion
+
+E606 is a fresh exact full-route P5 trace: 4,194,304 commands, results, stored model events and global events at
+419,153/s with batch-only JFR. The ordered model/event transaction processed 672 natural batches averaging 6,242
+commands. Its mean active storage time was 11.378 ms, corresponding to 0.549M commands/s of active service capacity.
+
+The following are the fundamental or near-fundamental synchronous stages. They are nested in the same model/global-
+event transaction and must not be added to the 11.378-ms composite without accounting for that nesting.
+
+| Fundamental stage | Exact work | Mean | p50 | p95 | p99 | Max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| **Direct global-event insert** | Insert the durable event rows before the shared transaction can commit | **4.289 ms** | 3.591 | 9.766 | 23.190 | 35.404 |
+| **Advance state + insert packed model-stream blocks** | Atomically advance `model_state` and insert the encoded initial-stream blocks | **2.562 ms** | 2.167 | 5.452 | 8.652 | 28.590 |
+| **Global-event transaction commit** | PostgreSQL commit/WAL durability after event and co-located model writes | **1.999 ms** | 1.476 | 5.221 | 8.601 | 27.191 |
+| Prepare packed stream | Form entries, partition blocks and encode their payloads before storage consumes them | 1.071 ms | 0.718 | 2.642 | 4.033 | 33.654 |
+| Cache packed heads | Publish the newly durable model heads to the Runtime cache | 0.739 ms | 0.565 | 1.922 | 2.463 | 2.928 |
+| Validate packed fast path | Verify unique commit/target ids and that every cached previous head is still current | 0.710 ms | 0.490 | 1.931 | 2.519 | 3.985 |
+| Publish packed boundary | Publish recent updates, invalidate locations and advance the visible model boundary | 0.290 ms | 0.214 | 0.803 | 1.081 | 1.357 |
+| Complete packed results | Complete ordered result chunks after the durable boundary | 0.230 ms | 0.208 | 0.545 | 0.782 | 1.189 |
+
+The derived stream locator runs asynchronously and overlaps subsequent canonical work. Its stages therefore are not
+part of the per-command latency sum, but they compete for PostgreSQL, WAL, CPU and connections:
+
+| Derived locator stage | Exact work | Rounds / mean commands | Mean | p50 | p95 | p99 | Max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **Write locator rows** | Four parallel transaction lanes COPY hash arrays into eight physical locator partitions | 518 / 8,097 | **11.834 ms** | 9.344 | 30.462 | 48.835 | 79.025 |
+| **Advance locator cursor** | Publish the contiguous durable locator boundary in a separate final transaction | 518 / 8,097 | **2.779 ms** | 1.999 | 6.809 | 10.307 | 31.850 |
+| Read source blocks | Read newly durable authoritative packed stream blocks through the current visible boundary | 519 / 8.5 blocks | 2.410 ms | 1.713 | 5.918 | 9.222 | 34.964 |
+| Decode source blocks | Decode block memberships and derive sorted unique model hashes | 519 / 8.5 blocks | 0.497 ms | 0.403 | 0.956 | 1.728 | 26.351 |
+
+The apparently attractive cursor commit was tested on the complete route. E608/E609 reused the locator's existing
+read/cursor connection for one of the four write lanes, waited for the other three lane commits and then committed
+that fourth lane together with the cursor. Visibility stayed correct: the cursor could only commit after every other
+partition was durable, and `JdbcModelCommitStoreTest` passed 104/104 with the candidate active. It nevertheless changed
+natural feedback and reduced mean model dispatches.
+
+| Matched pair | P5 control | Fused locator/cursor transaction | Effect | Mean model dispatch |
+| --- | ---: | ---: | ---: | ---: |
+| E607 / E608 | 425,427/s | 417,748/s | **-1.81%** | 13,574 -> 11,716 |
+| E610 / E609, reverse order | 422,384/s | 415,671/s | **-1.59%** | 12,373 -> 11,848 |
+
+The matched geometric means are **423,903/s control versus 416,708/s candidate (-1.70%)**. Eliminating one measured
+commit per locator round is therefore not sufficient: this implementation damages the complete-route batching
+feedback by more than its local PostgreSQL saving. The candidate was fully reverted and is not P6.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -736,6 +781,11 @@ are unchanged.
 15. Do not hold SDK model-commit backlog slots until durable completion. E581-E583 show -0.73% complete-route effect
     and slightly lower active store capacity because the limit shifts work from both the smallest and the largest jobs
     into medium jobs. Preserve the existing overlap and optimize measured fixed store work instead.
+16. Use E606 as the detailed P5 stage baseline. The largest synchronous fundamental stages are direct event insertion,
+    the packed state/stream statement and the event transaction commit. The derived locator remains a material shared-
+    resource consumer, but its intervals overlap canonical work and cannot be added to model transaction latency.
+17. Do not fuse a locator write lane into the cursor transaction using the tested coordinator-lane implementation.
+    E607-E610 reject it at -1.70% matched E2E because natural model dispatches shrink by roughly 5-14%.
 
 ## Evidence
 
@@ -985,3 +1035,13 @@ are unchanged.
 - E604/E605 clean four/two-lane reverse-pair log SHA-256:
   `949595fa77b472a8d9e5c7b5241162bf00fb70a5b05c5dab33bdd194e3f1d1e3`,
   `c68e424bdae7d88c92bc8e30bf945fb0fb7885c1f594f0a22d375a62fea66d4d`.
+- E606 detailed P5 log/JFR/summary/filtered-phase SHA-256:
+  `3c19047328b7fba79be0bb53d2259aeb488953cefbcd0d7a3a61f938a1a615a2`,
+  `036d44dda717a48ae055552c88d467d156095a09f5607db0a1f88316be27a2cc`,
+  `5ff5a0f104c50ae0fe9722591771c8e790d5fdf01e9de9b187c8b024b09da615`,
+  `e25f2d88573a109e055879f1e7d976fc3e7633440528ee7aa715ce10052ecf0a`.
+- E607-E610 cursor-transaction control/candidate/candidate/control log SHA-256:
+  `1f32374f83e3a5f12c7224a35ea3e6ca18b3417788865f204072f9f865bd9f8a`,
+  `92a38900e326329af5f61e51942952ec3cca9f1d67f40340a8f3c324004a8b68`,
+  `51771be36b5ceaa3261ee450c15df788500b9f530dad3435af149be33ab0510b`,
+  `f450fff6cb142878d436580e3e19c6e53dab67d76e5dfc0f3e686e79579b616a`.
