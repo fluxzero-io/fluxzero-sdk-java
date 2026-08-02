@@ -249,6 +249,7 @@ public class DefaultTracker implements Runnable, Registration {
             Tracker.current.set(tracker);
             thread.set(currentThread());
             try {
+                List<SerializedMessage> previouslyProcessedMessages = null;
                 if (maxIndexExclusive != null && IndexUtils.timestampFromIndex(maxIndexExclusive).isBefore(
                         Fluxzero.currentTime())) {
                     Long storedLowestIndex = currentStoredLowestIndex();
@@ -259,10 +260,14 @@ public class DefaultTracker implements Runnable, Registration {
                 while (running.get()) {
                     pauseFetchIfNeeded();
                     if (running.get()) {
+                        recordRequestStages(previouslyProcessedMessages, "next-read-start");
+                        previouslyProcessedMessages = null;
                         MessageBatch batch = fetch(lastProcessedIndex);
                         if (batch != null) {
                             Tracker.current.set(tracker.withMessageBatch(batch));
                             processor.accept(batch);
+                            previouslyProcessedMessages = FluxzeroJfr.requestStageEnabled()
+                                    ? batch.getMessages() : null;
                         }
                     }
                 }
@@ -465,6 +470,7 @@ public class DefaultTracker implements Runnable, Registration {
                 return;
             }
             long handled = event == null ? 0L : System.nanoTime();
+            recordRequestStages(messages, "consumer-completed");
             if (event != null) {
                 event.callbackNanos = handled - handlingStarted;
             }
@@ -495,7 +501,7 @@ public class DefaultTracker implements Runnable, Registration {
     }
 
     private void recordRequestStages(List<SerializedMessage> messages, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
+        if (messages == null || !FluxzeroJfr.requestStageEnabled()) {
             return;
         }
         int batchSize = messages.size();
