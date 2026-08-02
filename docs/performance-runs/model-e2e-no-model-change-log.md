@@ -369,3 +369,39 @@ The artifacts are `/private/tmp/model-e2e-e383-backlog-inflight20-profile.log` (
 results were verified, with zero model and global events. The next comparison must keep the complete route intact but
 give the command cache enough byte-bounded headroom to prevent a transient scheduling wobble from changing the storage
 path. Only after that guardrail is stable is a profiler-free 16-versus-unbounded bracket meaningful.
+
+## E384: the byte-bounded cache guardrail removes the feedback cliff
+
+E384 repeats the same complete durable no-model route and the non-binding max-20 admission setting. Its only behavioral
+configuration change from E383 is `fluxzero.messageStoreCacheSize.command=1048576`; the existing 64-MiB byte cap is
+unchanged. Temporary JFR-only cache-edge instrumentation classifies every delegate fallback without changing cache
+behavior. The run completed at 881,840/s with p50/p95/p99/max latency of
+64.647/87.105/96.315/123.709 ms and again verified exactly 10,485,760 durable results.
+
+| Measure | E383 default count cap | E384 byte cap effective | Reading |
+| --- | ---: | ---: | --- |
+| configured count ceiling | 65,536 | 1,048,576 | defensive count no longer binds |
+| configured byte ceiling | 64 MiB | 64 MiB | unchanged memory budget |
+| observed command-cache entries at fallback | not instrumented | 308,129 mean | byte cap is the effective bound |
+| physical command scan | 708 / 33,386,496 | 412 / **704,512** | **97.9% fewer rows visited** |
+| command writer service | **1.328M/s** | 1.191M/s | recovery is not faster command SQL |
+| result writer service | 0.927M/s | 0.954M/s | normal full-route range |
+| command/result max active append futures | 9 / 18 | 9 / 17 | max-20 still does not bind |
+| E2E throughput | 622,010/s | 881,840/s | cache-cliff recovery, not admission evidence |
+
+The cache events make the healthy fallback shape explicit: command had 413 `at-tail` events and result had 1,463;
+neither store emitted `before-first`, `after-last`, `gap` or `empty`. `At-tail` means the requested last position is
+still present but no newer cached message exists yet, so the delegate briefly checks for newly durable rows. This is
+the ordinary low-volume JDBC race already present in healthy profiles. With the count ceiling out of the way, command
+messages average about 90 payload bytes plus the cache's 128-byte ownership estimate, so 64 MiB retains roughly 308k
+messages rather than a benchmark-shaped 65,536.
+
+E384 proves the cache count cap is the cliff amplifier and that the existing byte budget is a representative guardrail
+for this workload. It does not by itself select a new production default: the retained-weight calculation and a
+payload-size matrix must still protect tiny messages, large messages and metadata-heavy envelopes. It does make the
+next admission comparison valid: unbounded and max-16 can now be bracketed under the same byte-bounded cache policy
+without a short scheduling wobble changing the physical read path.
+
+Artifacts: log SHA-256 `0dc7fbe09820752e702ac069167bcb67cf2e5dc55ba4234c4da89d3e1b750bd4`, JFR SHA-256
+`1789360b766fbed3486e09d284ce534f47800b59d9f48ac1c724fe0b25867a9b`, and summary SHA-256
+`eb6599202361405c481eae2e74c32fe5c37a3184fe243b597c690b567e66778d`.
