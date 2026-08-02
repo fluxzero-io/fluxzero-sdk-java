@@ -135,22 +135,30 @@ to healthy sync anatomy E321:
 | E333 | async via separate `SET LOCAL` | 900,736 | 4.526 ms | 4.608 ms | 9.029 ms | 430,080 |
 
 Throughput is neutral (+0.30%), while each position database transaction becomes roughly 1.4-1.5 ms slower. The extra
-`SET LOCAL` protocol round trip costs more than the avoided WAL flush wait. This concrete implementation is therefore
-not checkpoint-worthy. PostgreSQL 18.3 locally confirms that a transaction-local `set_config` invoked from the first
-position update stays `off` through commit and returns to `on` after rollback/transaction completion. That supplies the
-next narrow diagnostic: embed the setting into the first position statement so the async mechanism is tested without
-an additional client/server round trip, then return to the full E2E route for the decision.
+`SET LOCAL` protocol round trip costs more than the avoided WAL flush wait. PostgreSQL 18.3 locally confirms that a
+transaction-local `set_config` invoked from the first position update stays `off` through commit and returns to `on`
+after rollback/transaction completion. E334 therefore embeds that setting into the update batch so no separate setting
+round trip remains. E335 is the adjacent sync reverse control on the same binary:
+
+| Run | Position commit | Throughput/s | Command position DB mean | Result position DB mean | SDK command barrier mean | Physical command reads |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| E334 | inline async | 790,633 | 4.140 ms | 4.122 ms | 8.331 ms | 749,568 |
+| E335 | synchronous control | 694,243 | 4.084 ms | 3.639 ms | 10.193 ms | 598,016 |
+
+Neither run entered the cache cliff, but their E2E difference follows broader host/feedback drift and is not supported
+by the targeted boundary: command-position service is equal and result-position service is 13.3% slower for async.
+Position-only async commit therefore offers no measured service headroom on this workload. Continuous synchronous
+command/result message-log commits already flush shared WAL frequently, so position WAL can become durable without a
+separate position-triggered flush; disabling the position commit wait does not remove a useful amount of residence.
+Both async implementations and their tests were reverted.
 
 ## Current decision and next evidence
 
 - Retain the JFR position instrumentation: it exposed a real, previously aggregated synchronous boundary.
 - Do not accept the generic per-batch collection delay or any non-zero production default from E322-E330.
-- Do not accept the separate-`SET LOCAL` async implementation from E331-E333; it adds more position service time than
-  it removes and has no complete-route throughput gain.
-- Test transaction-local async position commit without an extra round trip, while keeping every position future behind
-  the real PostgreSQL commit response. A candidate must improve complete-route throughput without increasing cache
-  fall-through or materially worsening latency.
-- If bounded waiting remains neutral or negative, investigate a shared arrival-driven transaction owner for command
+- Do not accept either position-only async implementation from E331-E335. Removing the setting round trip leaves
+  command-position service neutral and result-position service worse; the complete candidate is reverted.
+- Investigate a shared arrival-driven transaction owner for command
   and result positions. That mechanism should combine already-arrived cross-log work without sleeping and must complete
   each existing future only after the shared commit.
 - A larger protocol change such as fusing the previous position with the next read can remove the roughly 2.22-ms
