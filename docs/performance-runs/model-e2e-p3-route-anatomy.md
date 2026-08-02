@@ -440,3 +440,13 @@ capacity, but merely partitioning an already accepted coordinator batch changes 
 commit count, and full-route batching feedback enough to lose capacity. A measured E2E differential profile must
 attribute that loss before choosing between a cross-batch visibility pipeline and a denser write layout. Source remains
 uncommitted diagnostic code while attribution runs; it is not an accepted production state.
+
+E102-E103 then profiled that exact differential. Parallel preparation reduced the sum of overlapping co-located
+model/event work from 386.112 to 334.668 ms, but contention raised event insert service from 125.774 to 203.053 ms and
+stream-block insert service from 143.281 to 218.921 ms. Splitting also produced 164 instead of 139 stream rows, while
+64 explicit advance markers cost another 84.788 ms. Removing those redundant markers in E104 recovered much of E100's
+loss, but still reached only 181,091/s versus the later 193,257/s control. Two lanes preserved eight full 16,384-command
+dispatch batches and narrowed the loss further, yet E105 remained **3.72% slower** (186,078/s versus 193,257/s) with a
+worse p99/max. Runtime production source was then fully restored to accepted P3. This closes lane-count tuning and
+in-batch open-transaction splitting; the isolated probe's physical scaling does not survive the route's contention and
+batch-feedback loop in this form.

@@ -1039,10 +1039,13 @@ Runtime-collapsed/client-collapsed SHA-256 values are
 18. E100-E101 reject naive in-batch four-transaction preparation: the exact full-result smoke route falls from
     196,681/s to 160,342/s (−18.48%) and all latency percentiles worsen. Attribute the intact-route loss before changing
     the visibility pipeline or physical grouping; the storageprobe alone does not select production architecture.
-19. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+19. E102-E106 attribute and close the family: parallel overlap exists, but same-table insert service rises 52–61%, an
+    extra marker is costly, and removing it plus reducing to two lanes still loses 3.72% matched E2E. Production source
+    is fully reverted; do not retry lane depth or in-batch multi-transaction variants.
+20. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-20. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+21. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
