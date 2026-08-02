@@ -9,10 +9,10 @@ mistaken for a production regression again.
 | Campaign state | Current evidence |
 | --- | --- |
 | Accepted no-model production pin | **962,888 commands/s** (E315, profiler-free, full durable command/result route) |
-| Fresh current-production repin | **905,605 commands/s** (E365, profiler-free; 10,485,760 exact results, p50/p95 63.305/85.260 ms) |
-| Best recent healthy batch-profile | 900,736 commands/s (E333, diagnostic async-position candidate) |
-| Current production candidate | SDK `5f4d2c76`: exact per-submission Backlog completion plus optional `maxInFlightBatches`; Runtime remains intentionally unbounded for the checkpoint pin |
-| Current focus | Screen Runtime message-store `maxInFlightBatches=4/8/16/32` with command/result transaction shape and cliff diagnostics recorded for every profile |
+| Fresh exact-weight pin | E386/E389 unbounded: **964,390 / 963,072 commands/s**; geometric mean **963,731/s** |
+| Best recent healthy batch-profile | E391: 943,926/s with 8,192-message capacity; local result writer improves 11.0%, but matched E2E is neutral |
+| Current production checkpoint | SDK `bb8e1db2`: exact complete-envelope byte accounting plus Backlog `maxInFlightBatches`; Runtime remains intentionally unbounded and at the legacy 4,096-message backlog for the pin |
+| Current focus | E397 isolates physical WAL write/sync; next classify PostgreSQL commit wait events before changing any mechanism |
 | Exit criterion before events/models return | Stable profiler-free no-model throughput **at least 1.5M/s**, with **2.0M/s** as the structural-headroom target |
 
 ## Route and immutable behavior
@@ -405,3 +405,124 @@ without a short scheduling wobble changing the physical read path.
 Artifacts: log SHA-256 `0dc7fbe09820752e702ac069167bcb67cf2e5dc55ba4234c4da89d3e1b750bd4`, JFR SHA-256
 `1789360b766fbed3486e09d284ce534f47800b59d9f48ac1c724fe0b25867a9b`, and summary SHA-256
 `eb6599202361405c481eae2e74c32fe5c37a3184fe243b597c690b567e66778d`.
+
+## E385-E389: exact envelope weights change the admission result
+
+`SerializedMessage.getBytes()` previously returned only the payload length. That made every consumer byte limit,
+message-store byte group and cache weight blind to fixed headers, routing strings and metadata. E385 changes no wire
+format: it reports the already known native envelope length, or computes exactly the envelope that a materialized
+message will produce. Dirty envelope-backed messages retain their payload and metadata slices while being sized. The
+same complete durable route, 64-MiB command-cache budget and count ceiling of 1,048,576 remain in place.
+
+E385 profiles `maxInFlightBatches=16` after that correction. It reaches 923,628/s despite batch JFR and verifies all
+10,485,760 results. The cache now retains 136,742 commands on average at an ordinary `at-tail` fallback. This is the
+honest memory shape: about 363 native envelope bytes plus the cache's separate 128-byte Java ownership estimate per
+command. All 326 command and 1,170 result fallbacks are `at-tail`; no `before-first`, `after-last`, `gap` or `empty`
+event occurs. Physical command reads remain low at 326 scans / 618,496 visited rows.
+
+The corrected message weights also change storage feedback. E385 forms 4,032 result transactions averaging 2,600.6
+results, while the result admission peak reaches the configured 16. Commands remain at 2,560 full 4,096-message
+transactions and peak at only eight in flight, so the limit binds only the result side.
+
+The profiler-free ABBA bracket then rejects 16 for this route:
+
+| Run | Order | `maxInFlightBatches` | Warm-up | Measured E2E | p50 / p95 / p99 / max |
+| --- | ---: | ---: | ---: | ---: | --- |
+| E386 | A1 | unbounded | 830,878/s | **964,390/s** | 62.329 / 81.122 / 90.422 / 135.976 ms |
+| E387 | B1 | 16 | 833,759/s | 895,937/s | 66.515 / 92.133 / 115.803 / 212.637 ms |
+| E388 | B2 | 16 | 851,153/s | 940,942/s | 63.012 / 87.357 / 112.578 / 165.680 ms |
+| E389 | A2 | unbounded | 862,118/s | **963,072/s** | 62.369 / 82.841 / 98.205 / 164.093 ms |
+
+The unbounded geometric mean is **963,731/s** versus 918,164/s for 16: **16 loses 4.73%**. The generic bounded-Backlog
+API remains accepted and useful, but 16 is not selected as the Runtime message-store default. The next profile must use
+the winning unbounded route and exact envelope weights; old payload-only admission results no longer select the next
+production change.
+
+Artifacts:
+
+- E385 log/JFR/summary SHA-256: `e2b2c752561a1aef50ed24742d979c13e435dcfa94fc7df51def1331664226a8`,
+  `4fb7d323ef2d3d430c585016fd3368bddbe8b02ace28c275e4994de850f7c515`,
+  `74cbbffe693b67d3fae9095c8c0c6122473b3fc2926e65934b4dc7f4e4cf8801`;
+- E386 log SHA-256: `78afd211b0c3d2cb2bb12421c0bd2077e4b17fdd612636442522e559be559b0b`;
+- E387 log SHA-256: `64bba926a3e705b109a22017b0d7c8993e472ca7c8b4aa9eb5295e26af1b913f`;
+- E388 log SHA-256: `eb707bd175e7b95722b40075509b20ccc1c4b4596604d5fb12453456ae900bd0`;
+- E389 log SHA-256: `0c412664f45647075f6f0e802ed900caf2492e7d8a40f27ce1647a8ca36f7257`.
+
+## E390-E396: larger natural batches improve the writer but not stable E2E
+
+E390 profiles the profiler-free bracket's winning exact-weight, unbounded, 4,096-message route. Its 915,088/s profiled
+E2E consumes nearly all of the 0.949M/s active result-writer capacity. The result log uses 4,134 transactions averaging
+2,536.5 results; its serial commit service is 1.021M/s with a 2.484-ms mean commit. The command writer remains ahead at
+1.149M/s. This confirms result transaction/commit amortization as the immediate local limiter.
+
+E391 changes only the existing global `fluxzero.messageStoreBacklogSize` from 4,096 to 8,192. It waits nowhere and
+retains parallel inserts. The local mechanism works exactly as predicted:
+
+| Profile measure | E390: 4,096 | E391: 8,192 | Change |
+| --- | ---: | ---: | ---: |
+| command transactions | 2,560 | 1,280 | −50.0% |
+| commands/transaction | 4,096 | 8,192 | +100.0% |
+| command writer | 1.149M/s | **1.489M/s** | +29.6% |
+| result transactions | 4,134 | **2,932** | −29.1% |
+| results/transaction | 2,536.5 | **3,576.3** | +41.0% |
+| result writer | 0.949M/s | **1.053M/s** | +11.0% |
+| result commit capacity | 1.021M/s | **1.638M/s** | +60.4% |
+| profiled E2E | 915,088/s | **943,926/s** | +3.15% |
+
+E392 is excluded: macOS started `knowledgeconstructiond` at 97% CPU with about 175 MiB/s disk traffic during the run.
+The process was paused before the valid bracket. The two profiler-free reverse pairs then disagree in sign:
+
+| Pair | Control 4,096 | Candidate 8,192 | Delta |
+| --- | ---: | ---: | ---: |
+| E393/E394, candidate then control | 932,220/s | 889,180/s | −4.62% |
+| E395/E396, control then candidate | 901,059/s | 950,788/s | +5.52% |
+| geometric mean | 916,507/s | 919,468/s | **+0.32%** |
+
+Every valid run verifies exactly 10,485,760 durable results and zero model/global events. The complete profiler-free
+route therefore rejects 8,192 as a throughput checkpoint despite its clear local writer improvement. Larger natural
+batches merely move the limiter and alter closed-loop timing; another batch-size, fusion or admission candidate is not
+selected. The next measurement targets the fixed synchronous PostgreSQL commit cost itself.
+
+Artifacts:
+
+- E390 log/JFR/summary SHA-256: `03835cf1c667737d82a9d8634be192bc97e795594c19e43bdcb8c7476f7eb9d7`,
+  `399c8c691e7f925044fd4903181eeb062f43eef5ae0567e385653ed5715bef8a`,
+  `ae1a159c523b81b3e1f87973ff3b2fabae41ddcdb9ba8eadf0588e11f29e114f`;
+- E391 log/JFR/summary SHA-256: `aaade752c3c94197ff092aaf97b98a85a677feb5b0c6c91430139ea5d71aa3cc`,
+  `432f645f730ca276006a27c7c34c180b535fbfd3594bcb921182be595915950f`,
+  `ed2a319b83c2d1ed654040ea737b21ca1806ac6d20d1d438a94feabe2857d569`;
+- excluded E392 log SHA-256: `ca131422f42b1ef528267f64b91b38dcc3113184d3559dc404ae298509f2aa83`;
+- E393-E396 log SHA-256: `0cb62716ecc334795499dd1cc71fa8c696141ccd75fe3a62cd2c50677067e058`,
+  `327aba4ae516a9bdc2b4c086178145b3e9f911b81d07ad12218b5a4e3f7238c3`,
+  `1b8ed4ea8745d88a3875701f8a3801b745706208e2b28ad19701d5aa61599045`,
+  `9c876d9200ef9dcb35bfe37a010958cea610f4ef01878e745e99d562ab91a526`.
+
+## E397: measured-phase PostgreSQL statistics split physical WAL work from commit latency
+
+E397 runs the unchanged exact-weight, unbounded, 4,096-message route with the existing external measurement barrier and
+without JFR. After the full 10,485,760-command warm-up, the barrier pauses before measured work, PostgreSQL's database,
+I/O and WAL statistic counters are reset, and only then is the complete 10,485,760-command/result phase released. The
+run verifies every durable result and zero model/global events at 901,089/s, with p50/p95/p99/max latency of
+67.006/87.964/97.754/134.514 ms. Resetting counters changes no stored data, durability setting or production path.
+
+PostgreSQL 18 already had `track_io_timing=on`, `track_wal_io_timing=on`, `synchronous_commit=on` and
+`wal_sync_method=fdatasync`. Its measured-phase deltas are:
+
+| Server measure | Count or total | Mean / interpretation |
+| --- | ---: | ---: |
+| committed transactions | 16,864 | includes message, position, read and lifecycle transactions |
+| WAL records / bytes | 700,932 / 401,731,794 | no WAL-buffer-full event |
+| client-backend WAL writes | 10,035 / 504.366 ms | **0.050 ms per write** |
+| client-backend WAL syncs | 9,961 / 6,674.372 ms | **0.670 ms per physical sync** |
+| commits per client WAL sync | 1.69 | PostgreSQL already performs material group commit |
+| client relation write + extend time | 192.576 + 500.432 ms | smaller than WAL sync total |
+
+The E390 JFR result commit interval averages 2.484 ms. E397 proves this cannot be described as a 2.484-ms physical
+disk sync: WAL write itself is about 0.050 ms and the backend that performs an `fdatasync` averages 0.670 ms. A follower
+can wait for another backend's group commit without owning the recorded sync, and command/result/position transactions
+overlap. The server totals therefore must not be directly subtracted from the Java interval. The next diagnostic samples
+`pg_stat_activity` during the same measured phase and classifies wait events by active SQL kind before any commit-policy,
+batching or durability candidate is built.
+
+Artifacts: log SHA-256 `6006a6e7924352a126c168524e3d905d77fbd93d476fe0aa8be371da4b62af81`; measured-phase
+PostgreSQL snapshot SHA-256 `c4d228993680d952b7e06707925b2d48e3afc89c1dffba1d6e42c5b106373347`.
