@@ -51,7 +51,7 @@ public class ModelCommitStep {
     List<ModelCommitTarget> targets;
 
     /**
-     * Serialized payload bytes carried by this substep.
+     * Complete serialized event-message bytes carried by this substep.
      */
     @Transient
     public long getBytes() {

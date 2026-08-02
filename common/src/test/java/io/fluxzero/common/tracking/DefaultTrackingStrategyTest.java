@@ -228,32 +228,35 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
-    void limitsReturnedBatchByPayloadBytes() {
+    void limitsReturnedBatchBySerializedMessageBytes() {
         TestScheduler scheduler = new TestScheduler();
-        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
-                .withBatches(List.of(message(1L, 1, "accepted", 4),
-                                     message(2L, 1, "accepted", 4),
-                                     message(3L, 1, "accepted", 4)))) {
-            MessageBatch batch = subject.getBatch(tracker("consumer", "tracker").withMaxBytes(8L)).join();
+        List<SerializedMessage> messages = List.of(message(1L, 1, "accepted", 4),
+                                                   message(2L, 1, "accepted", 4),
+                                                   message(3L, 1, "accepted", 4));
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(messages)) {
+            long twoMessages = messages.get(0).getBytes() + messages.get(1).getBytes();
+            MessageBatch batch = subject.getBatch(
+                    tracker("consumer", "tracker").withMaxBytes(twoMessages)).join();
 
             assertEquals(List.of(1L, 2L),
                          batch.getMessages().stream().map(SerializedMessage::getIndex).toList());
-            assertEquals(8L, batch.getBytes());
+            assertEquals(twoMessages, batch.getBytes());
             assertEquals(2L, batch.getLastIndex());
             assertFalse(batch.isCaughtUp());
         }
     }
 
     @Test
-    void appliesPayloadByteLimitAfterStoreSideFilteringWithoutSkippingNextMatch() {
+    void appliesSerializedMessageByteLimitAfterStoreSideFilteringWithoutSkippingNextMatch() {
         TestScheduler scheduler = new TestScheduler();
-        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
-                .withBatches(List.of(message(1L, 1, "ignored", 32),
-                                     message(2L, 1, "accepted", 4),
-                                     message(3L, 1, "accepted", 4),
-                                     message(4L, 1, "accepted", 4)))) {
+        List<SerializedMessage> messages = List.of(message(1L, 1, "ignored", 32),
+                                                   message(2L, 1, "accepted", 4),
+                                                   message(3L, 1, "accepted", 4),
+                                                   message(4L, 1, "accepted", 4));
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(messages)) {
+            long twoAcceptedMessages = messages.get(1).getBytes() + messages.get(2).getBytes();
             MessageBatch batch = subject.getBatch(tracker("consumer", "tracker")
-                                                          .withMaxBytes(8L)
+                                                          .withMaxBytes(twoAcceptedMessages)
                                                           .withTypeFilter("accepted"::equals)).join();
 
             assertEquals(List.of(2L, 3L),
@@ -264,16 +267,16 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
-    void returnsOversizedFirstMessageWhenPayloadByteLimitIsSmaller() {
+    void returnsOversizedFirstMessageWhenSerializedMessageByteLimitIsSmaller() {
         TestScheduler scheduler = new TestScheduler();
-        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
-                .withBatches(List.of(message(1L, 1, "accepted", 12),
-                                     message(2L, 1, "accepted", 4)))) {
+        List<SerializedMessage> messages = List.of(message(1L, 1, "accepted", 12),
+                                                   message(2L, 1, "accepted", 4));
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(messages)) {
             MessageBatch batch = subject.getBatch(tracker("consumer", "tracker").withMaxBytes(8L)).join();
 
             assertEquals(List.of(1L),
                          batch.getMessages().stream().map(SerializedMessage::getIndex).toList());
-            assertEquals(12L, batch.getBytes());
+            assertEquals(messages.getFirst().getBytes(), batch.getBytes());
             assertEquals(1L, batch.getLastIndex());
             assertFalse(batch.isCaughtUp());
         }

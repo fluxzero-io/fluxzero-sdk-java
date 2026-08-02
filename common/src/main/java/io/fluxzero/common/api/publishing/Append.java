@@ -80,6 +80,9 @@ public class Append extends Command {
         return messages.size();
     }
 
+    /**
+     * Returns the complete serialized size of all appended messages.
+     */
     @JsonIgnore
     long getBytes() {
         return messages.stream().mapToLong(SerializedMessage::getBytes).sum();

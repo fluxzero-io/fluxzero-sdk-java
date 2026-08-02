@@ -553,9 +553,9 @@ public final class TrackingWireCodec {
     }
 
     private static Writer writer(int kind, List<SerializedMessage> messages, int version) {
-        long payloadBytes = messages.stream().mapToLong(SerializedMessage::getBytes).sum();
+        long serializedBytes = messages.stream().mapToLong(SerializedMessage::getBytes).sum();
         int initialSize = (int) Math.min(MAX_VALUE_BYTES,
-                                         Math.max(256L, payloadBytes + messages.size() * 64L));
+                                         Math.max(256L, serializedBytes));
         Writer output = new Writer(initialSize);
         output.writeInt(MAGIC);
         output.writeByte(version);

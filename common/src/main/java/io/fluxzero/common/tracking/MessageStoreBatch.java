@@ -42,7 +42,7 @@ public record MessageStoreBatch(
      *
      * @param source   source messages in index order
      * @param maxSize  maximum number of source messages to scan
-     * @param maxBytes maximum accepted-message payload bytes, or {@code 0} for no byte limit
+     * @param maxBytes maximum accepted complete-message bytes, or {@code 0} for no byte limit
      * @param filter   predicate deciding which messages enter the returned batch
      * @return a batch with both accepted messages and source scan metadata
      */

@@ -512,7 +512,7 @@ final class ModelEventBatchLoader {
             && maxPayloadBytes > 0L
             && payloadBytes > maxPayloadBytes) {
             throw invalid(
-                    "Compact model event response contains %d payload bytes, exceeding limit %d"
+                    "Compact model event response contains %d serialized event bytes, exceeding limit %d"
                             .formatted(
                                     payloadBytes,
                                     maxPayloadBytes));
@@ -736,7 +736,7 @@ final class ModelEventBatchLoader {
         }
         if (payloadList.size() > 1 && maxPayloadBytes > 0L && payloadBytes > maxPayloadBytes) {
             throw invalid(
-                    "Model event response contains %d payload bytes, exceeding limit %d"
+                    "Model event response contains %d serialized event bytes, exceeding limit %d"
                             .formatted(payloadBytes, maxPayloadBytes));
         }
 

@@ -121,6 +121,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     private volatile ByteSlice metadataSlice;
     private volatile boolean metadataDeferred;
     private volatile boolean reusable;
+    private volatile int serializedSize;
 
     /**
      * Creates a materialized message with every existing public field.
@@ -223,6 +224,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         }
         this.metadataDeferred = metadata == null && metadataOffset >= 0;
         this.reusable = envelope != null;
+        this.serializedSize = envelope == null ? -1 : envelopeLength;
     }
 
     /**
@@ -566,18 +568,74 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         return result;
     }
 
+    /**
+     * Returns the exact encoded size of this complete message, including fixed and variable headers, payload and
+     * metadata.
+     *
+     * <p>Envelope-backed messages return their known envelope length without materializing any component. For a
+     * materialized message the size is computed once; metadata encoding is retained by {@link Metadata} for the next
+     * transport or storage boundary.</p>
+     */
     @Transient
     public long getBytes() {
-        if (reusable) {
-            return payloadLength;
+        if (getClass() != SerializedMessage.class) {
+            return computeSerializedSize();
         }
-        byte[] value = data.getValue();
-        return value == null ? 0L : value.length;
+        int current = serializedSize;
+        if (current >= 0) {
+            return current;
+        }
+        synchronized (this) {
+            current = serializedSize;
+            if (current < 0) {
+                current = computeSerializedSize();
+                serializedSize = current;
+            }
+            return current;
+        }
+    }
+
+    private int computeSerializedSize() {
+        boolean directRepresentation = getClass() == SerializedMessage.class;
+        Data<byte[]> messageData = directRepresentation ? data : getData();
+        String currentSource = directRepresentation ? source : getSource();
+        String currentTarget = directRepresentation ? target : getTarget();
+        String currentMessageId = directRepresentation ? messageId : getMessageId();
+        int currentPayloadLength;
+        if (messageData == DEFERRED_DATA) {
+            currentPayloadLength = payloadLength;
+        } else {
+            Data.ByteArrayView payloadView = messageData.byteArrayView();
+            currentPayloadLength = payloadView == null
+                    ? length(messageData.getValue()) : payloadView.length();
+        }
+        Metadata currentMetadata = directRepresentation ? metadata : getMetadata();
+        int currentMetadataLength = directRepresentation && metadataDeferred
+                ? metadataLength
+                : length((currentMetadata == null ? Metadata.empty() : currentMetadata).toData().getValue());
+        int result = HEADER_SIZE;
+        result = addLength(result, hasEncodedDataType()
+                ? encodedDataTypeLength : utf8Length(messageData.getType()));
+        result = addLength(result, hasEncodedDataFormat()
+                ? encodedDataFormatLength : utf8Length(messageData.getFormat()));
+        result = addLength(result, sourceLength == MATERIALIZED_STRING
+                ? utf8Length(currentSource) : sourceLength);
+        result = addLength(result, targetLength == MATERIALIZED_STRING
+                ? utf8Length(currentTarget) : targetLength);
+        result = addLength(result, encodedMessageIdLength(
+                messageIdLength == MATERIALIZED_STRING ? currentMessageId : null));
+        result = addLength(result, currentPayloadLength);
+        result = addLength(result, currentMetadataLength);
+        if (result > MAX_VALUE_BYTES) {
+            throw new IllegalArgumentException("Native message envelope exceeds maximum size");
+        }
+        return result;
     }
 
     public synchronized void setData(@NonNull Data<byte[]> data) {
         this.data = Objects.requireNonNull(data, "data");
         reusable = false;
+        serializedSize = -1;
         deferredDataType = null;
         dataTypeLength = MATERIALIZED_STRING;
         dataFormatLength = MATERIALIZED_STRING;
@@ -748,8 +806,9 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         return result;
     }
 
-    public void setMetadata(Metadata metadata) {
+    public synchronized void setMetadata(Metadata metadata) {
         reusable = false;
+        serializedSize = -1;
         metadataDeferred = false;
         this.metadata = metadata;
     }
@@ -804,6 +863,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
 
     public synchronized void setSource(String source) {
         reusable = false;
+        serializedSize = -1;
         sourceLength = MATERIALIZED_STRING;
         this.source = source;
     }
@@ -881,6 +941,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
 
     public synchronized void setTarget(String target) {
         reusable = false;
+        serializedSize = -1;
         targetLength = MATERIALIZED_STRING;
         this.target = target;
     }
@@ -935,6 +996,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
 
     public synchronized void setMessageId(String messageId) {
         reusable = false;
+        serializedSize = -1;
         messageIdLength = MATERIALIZED_STRING;
         encodedMessageHeaders = null;
         encodedMessageIdLength =

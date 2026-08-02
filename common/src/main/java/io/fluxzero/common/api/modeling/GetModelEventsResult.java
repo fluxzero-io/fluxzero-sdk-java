@@ -26,7 +26,7 @@ import java.util.List;
  * Model heads and stream memberships observed at one pinned {@link #stateIndex}.
  * <p>
  * Event payloads are deduplicated by state index. Memberships reference that identity so loading several target
- * streams affected by the same original event does not multiply payload bytes on the wire.
+ * streams affected by the same original event does not multiply event-message bytes on the wire.
  */
 @Value
 public class GetModelEventsResult extends AbstractRequestResult {

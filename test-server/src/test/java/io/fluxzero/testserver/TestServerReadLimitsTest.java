@@ -41,6 +41,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
 class TestServerReadLimitsTest {
@@ -74,12 +75,14 @@ class TestServerReadLimitsTest {
 
             List<SerializedMessage> direct = tracking.readFromIndex(0, 10, 5L);
             assertEquals(List.of("aaaa"), direct.stream().map(TestServerReadLimitsTest::payload).toList());
+            long firstMessageBytes = direct.getFirst().getBytes();
+            assertTrue(firstMessageBytes > 5L);
 
             String consumer = "contract-byte-limit-consumer";
             ConsumerConfiguration config = ConsumerConfiguration.builder()
                     .name(consumer)
                     .maxFetchSize(10)
-                    .maxFetchBytes(5L)
+                    .maxFetchBytes(firstMessageBytes)
                     .maxWaitDuration(Duration.ZERO)
                     .build();
 
@@ -87,7 +90,7 @@ class TestServerReadLimitsTest {
             MessageBatch firstBatch = await(tracking.read(trackerId, null, config));
             assertEquals(List.of("aaaa"),
                          firstBatch.getMessages().stream().map(TestServerReadLimitsTest::payload).toList());
-            assertEquals(4L, firstBatch.getBytes());
+            assertEquals(firstMessageBytes, firstBatch.getBytes());
             assertEquals(firstBatch.getMessages().getFirst().getIndex(), firstBatch.getLastIndex());
             assertFalse(firstBatch.isCaughtUp());
 

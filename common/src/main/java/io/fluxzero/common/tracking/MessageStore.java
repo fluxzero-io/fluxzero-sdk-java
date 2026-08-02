@@ -74,11 +74,11 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
 
     /**
      * Retrieves a batch of messages starting from the given {@code lastIndex} (exclusive), limiting both message count
-     * and serialized payload bytes.
+     * and complete serialized message bytes.
      *
      * @param lastIndex minimum message index to start from (exclusive)
      * @param maxSize   maximum number of messages to retrieve
-     * @param maxBytes  maximum number of serialized payload bytes to retrieve, or {@code 0} for no byte limit
+     * @param maxBytes  maximum number of complete serialized message bytes to retrieve, or {@code 0} for no byte limit
      * @return a list of {@link SerializedMessage} instances
      */
     default List<SerializedMessage> getBatch(Long lastIndex, int maxSize, long maxBytes) {
@@ -97,7 +97,7 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
 
     /**
      * Retrieves a batch of messages starting from the given {@code minIndex}, limiting both message count and
-     * serialized payload bytes.
+     * complete serialized message bytes.
      * <p>
      * If the first available message is larger than {@code maxBytes}, it is still returned so consumers can make
      * progress.
@@ -105,7 +105,7 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
      * @param minIndex  minimum message index to start from
      * @param maxSize   maximum number of messages to retrieve
      * @param inclusive whether to include the message at {@code minIndex}
-     * @param maxBytes  maximum number of serialized payload bytes to retrieve, or {@code 0} for no byte limit
+     * @param maxBytes  maximum number of complete serialized message bytes to retrieve, or {@code 0} for no byte limit
      * @return a list of {@link SerializedMessage} instances
      */
     default List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes) {
@@ -116,14 +116,14 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
      * Scans messages starting from the given {@code minIndex}, returning messages accepted by {@code filter} and
      * metadata about the unfiltered source scan.
      * <p>
-     * {@code maxSize} limits the number of source messages scanned. {@code maxBytes} limits the cumulative serialized
-     * payload bytes of accepted messages. If the first accepted message is larger than {@code maxBytes}, it is still
+     * {@code maxSize} limits the number of source messages scanned. {@code maxBytes} limits the cumulative complete
+     * serialized bytes of accepted messages. If the first accepted message is larger than {@code maxBytes}, it is still
      * returned so consumers can make progress.
      *
      * @param minIndex minimum message index to start from
      * @param maxSize  maximum number of source messages to scan
      * @param inclusive whether to include the message at {@code minIndex}
-     * @param maxBytes maximum number of accepted serialized payload bytes, or {@code 0} for no byte limit
+     * @param maxBytes maximum number of accepted complete serialized message bytes, or {@code 0} for no byte limit
      * @param filter predicate deciding which messages enter the returned batch
      * @return accepted messages and source scan metadata
      */

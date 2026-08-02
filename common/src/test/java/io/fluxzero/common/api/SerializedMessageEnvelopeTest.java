@@ -377,7 +377,7 @@ class SerializedMessageEnvelopeTest {
         assertTrue(decoded.areDataHeadersMaterialized());
         assertEquals("doel-😀", decoded.getTarget());
         assertTrue(decoded.isTargetMaterialized());
-        assertEquals(4L, decoded.getBytes());
+        assertEquals(encoded.envelopeSize(), decoded.getBytes());
         decoded.setIndex(100L);
         decoded.setSegment(7);
         assertSame(decoded, SerializedMessage.encode(decoded));
@@ -456,7 +456,7 @@ class SerializedMessageEnvelopeTest {
     }
 
     @Test
-    void nullPayloadHasTheSameZeroByteSizeBeforeAndAfterDecoding() throws Exception {
+    void nullPayloadHasTheSameEnvelopeSizeBeforeAndAfterDecoding() throws Exception {
         SerializedMessage source = message().withData(
                 new Data<byte[]>((byte[]) null, "type", 0, "application/json"));
 
@@ -464,9 +464,94 @@ class SerializedMessageEnvelopeTest {
         SerializedMessage decoded = SerializedMessage.decode(
                 encoded.copyEnvelope(), 0, encoded.envelopeSize());
 
-        assertEquals(0L, encoded.getBytes());
-        assertEquals(0L, decoded.getBytes());
+        assertEquals(encoded.envelopeSize(), source.getBytes());
+        assertEquals(encoded.envelopeSize(), encoded.getBytes());
+        assertEquals(encoded.envelopeSize(), decoded.getBytes());
         assertNull(decoded.getData().getValue());
+    }
+
+    @Test
+    void reportsExactEnvelopeSizeBeforeEncodingAndAfterVariableWidthMutations() throws Exception {
+        SerializedMessage source = message();
+        int initialSize = SerializedMessage.encode(source).envelopeSize();
+
+        assertEquals(initialSize, source.getBytes());
+
+        source.setTarget("a-longer-target-😀");
+        source.setMetadata(source.getMetadata().with("extra", "metadata-value-東京"));
+        int mutatedSize = SerializedMessage.encode(source).envelopeSize();
+
+        assertEquals(mutatedSize, source.getBytes());
+        assertTrue(mutatedSize > initialSize);
+
+        source.setData(new Data<>(new byte[37], "longer.type.Name", 4, "application/custom"));
+        assertEquals(SerializedMessage.encode(source).envelopeSize(), source.getBytes());
+        source.setSource("a-longer-source");
+        assertEquals(SerializedMessage.encode(source).envelopeSize(), source.getBytes());
+        source.setMessageId("a-longer-message-id");
+        assertEquals(SerializedMessage.encode(source).envelopeSize(), source.getBytes());
+    }
+
+    @Test
+    void reportsDirtyEnvelopeSizeWithoutMaterializingOpaqueComponents() throws Exception {
+        SerializedMessage original = SerializedMessage.encode(message());
+        SerializedMessage decoded = SerializedMessage.decode(
+                original.copyEnvelope(), 0, original.envelopeSize());
+        String changedTarget = "a-longer-target-😀";
+        decoded.setTarget(changedTarget);
+
+        SerializedMessage expected = message();
+        expected.setTarget(changedTarget);
+        int expectedSize = SerializedMessage.encode(expected).envelopeSize();
+
+        assertFalse(decoded.areDataHeadersMaterialized());
+        assertFalse(decoded.isPayloadMaterialized());
+        assertFalse(decoded.isMetadataMaterialized());
+        assertEquals(expectedSize, decoded.getBytes());
+        assertFalse(decoded.areDataHeadersMaterialized());
+        assertFalse(decoded.isPayloadMaterialized());
+        assertFalse(decoded.isMetadataMaterialized());
+    }
+
+    @Test
+    void reportsEncodedSizeForSubclassOverridesWithoutCachingSuperclassValues() throws Exception {
+        Data<byte[]> data = new Data<>(new byte[19], "overridden.type", 3, "overridden/format");
+        Metadata metadata = Metadata.of("overridden", "metadata");
+        String[] overriddenSource = {"overridden-source"};
+        SerializedMessage source = new SerializedMessage(
+                new Data<>(new byte[1], "base.type", 0, "base/format"),
+                Metadata.empty(), "base-message-id", 1L) {
+            @Override
+            public Data<byte[]> getData() {
+                return data;
+            }
+
+            @Override
+            public Metadata getMetadata() {
+                return metadata;
+            }
+
+            @Override
+            public synchronized String getSource() {
+                return overriddenSource[0];
+            }
+
+            @Override
+            public synchronized String getTarget() {
+                return "overridden-target";
+            }
+
+            @Override
+            public synchronized String getMessageId() {
+                return "overridden-message-id";
+            }
+        };
+
+        long initialSize = source.getBytes();
+        assertEquals(SerializedMessage.encode(source).envelopeSize(), initialSize);
+        overriddenSource[0] = "a-much-longer-overridden-source";
+        assertEquals(SerializedMessage.encode(source).envelopeSize(), source.getBytes());
+        assertTrue(source.getBytes() > initialSize);
     }
 
     @Test
@@ -478,6 +563,7 @@ class SerializedMessageEnvelopeTest {
         SerializedMessage decoded = SerializedMessage.decode(
                 encoded.copyEnvelope(), 0, encoded.envelopeSize());
 
+        assertEquals(encoded.envelopeSize(), source.getBytes());
         assertEquals("before?after?", decoded.getSource());
     }
 

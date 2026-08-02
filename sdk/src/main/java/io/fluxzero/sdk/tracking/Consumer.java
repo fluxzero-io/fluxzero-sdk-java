@@ -102,7 +102,7 @@ public @interface Consumer {
     int maxFetchSize() default 1024;
 
     /**
-     * Maximum serialized payload bytes to fetch in a batch.
+     * Maximum complete serialized message bytes to fetch in a batch.
      * <p>
      * The default {@link ConsumerConfiguration#USE_DEFAULT_MAX_FETCH_BYTES} inherits
      * {@link ConsumerConfiguration#MAX_FETCH_BYTES_PROPERTY} when configured, otherwise

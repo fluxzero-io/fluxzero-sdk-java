@@ -75,8 +75,8 @@ public interface Tracker extends Comparable<Tracker> {
     int getMaxSize();
 
     /**
-     * @return the maximum serialized payload bytes this tracker wants to consume in a single batch, or {@code 0} for
-     * no byte limit.
+     * @return the maximum complete serialized message bytes this tracker wants to consume in a single batch, or
+     * {@code 0} for no byte limit.
      */
     default long getMaxBytes() {
         return 0L;

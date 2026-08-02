@@ -54,7 +54,8 @@ public class Read extends Request {
     int maxSize;
 
     /**
-     * Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.
+     * Maximum number of complete serialized message bytes to return in a single batch. A value of {@code 0} disables
+     * this limit.
      */
     long maxBytes;
 

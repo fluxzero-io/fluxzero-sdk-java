@@ -30,8 +30,8 @@ import java.util.List;
  * {@link #boundarySubstep} resolve the state boundary of one published model event through its already persisted
  * commit result inside the same runtime request. The two boundary forms are mutually exclusive. A stream request with
  * {@code maxSize == 0} requests only its head.
- * {@link #maxBytes} bounds the total deduplicated serialized event payload selected by the runtime. The oldest single
- * payload is always allowed through to guarantee progress, even when it exceeds that bound.
+ * {@link #maxBytes} bounds the total deduplicated complete event messages selected by the runtime. The oldest single
+ * event message is always allowed through to guarantee progress, even when it exceeds that bound.
  */
 @Value
 public class GetModelEvents extends Request {
@@ -62,10 +62,10 @@ public class GetModelEvents extends Request {
     Long boundaryEventIndex;
 
     /**
-     * Maximum total serialized bytes of unique returned event payloads. Zero disables the byte limit.
+     * Maximum total bytes of unique complete serialized event messages. Zero disables the byte limit.
      * <p>
-     * Membership and head metadata are not counted. A response may exceed this value by one payload when the oldest
-     * selected event is larger than the limit.
+     * Membership and head metadata are not counted. A response may exceed this value by one event message when the
+     * oldest selected event is larger than the limit.
      */
     long maxBytes;
 

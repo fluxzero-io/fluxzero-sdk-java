@@ -146,7 +146,7 @@ public class CommitModels extends Command implements RetryAwareRequest {
     }
 
     /**
-     * Returns the logical event payload bytes carried once by this commit.
+     * Returns the complete serialized event-message bytes carried once by this commit.
      */
     @Transient
     public long getBytes() {
