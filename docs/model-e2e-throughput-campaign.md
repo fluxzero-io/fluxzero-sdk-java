@@ -17,11 +17,11 @@ experiments were rejected.
 | Best non-qualifying ceiling | 405,700/s in E61 with the complete ordinary-result route removed |
 | Latest accepted checkpoint | P3 stores only the underfilled tail of a sufficiently large co-located transaction directly; E75 cut event staging 8.382 -> 0.037 ms and packed-model service 24.555 -> 20.268 ms without changing the atomic transaction |
 | Current production code | accepted P3 Runtime `9d0bed30b643`; low-rate/small isolated appends still stage, conditional rollback preserves the predicted head layout, and all 672 Runtime tests pass |
-| Latest causal diagnosis | E146-E150 identify closed-loop transaction fragmentation behind the tracking-residence gauge, not scan/query/buffer shortage. E153-E156 then hold P3 physical bytes, rows and 128 transactions fixed: attaching the compact model blocks to the existing event multi-row insert removes the model-stream COPY/table boundary and raises one-lane ordered physical capacity from 1.056M to **1.232M/s (+16.61%)** across two matched pairs. This is supporting storage evidence, not E2E acceptance. |
-| Next evidence target | implement the event/model sidecar on the complete exact route behind a diagnostic gate; preserve natural transaction formation, old rows, exact historical/direct reads, bounded locator recovery, hard-delete unlinking, event retention and ordinary durable results, then compare same-binary E2E before any production decision |
+| Latest causal diagnosis | E159-E162 now validate the same event/model sidecar on the intact exact command/result route: two matched same-binary pairs improve **+8.48%** and **+15.43%**, or **+11.90% geometric mean**. E163/E164 dual JFR attributes the gain to co-located model work falling 1,376 -> **742 ms total (-46.08%)** and event-store storage 1,763 -> **1,339 ms (-24.07%)**. Profiler feedback creates more/smaller transactions, so batching is the next coupled limiter. This remains diagnostic-only until all historical reads, locator recovery, partition rollover, retention and hard-delete semantics are complete. |
+| Next evidence target | complete the event/model sidecar as a backward-readable storage representation: schema-owned partition columns, unioned old/new initial-stream reads, bounded locator recovery, commit/event boundaries, safe hard-delete sidecar rewrite and retention ownership; then run focused correctness and matched canonical E2E before any production checkpoint |
 | Durable run register | [`model-e2e-run-registry.csv`](performance-runs/model-e2e-run-registry.csv) |
 
-Last updated after E152 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
+Last updated after E164 on 2026-08-02. This table is updated whenever a run changes the accepted base, current
 diagnosis, code state or next target.
 
 ## Objective and non-negotiable boundary
@@ -1282,6 +1282,44 @@ values are in
 [`model-e2e-e153-e156-event-sidecar-screening.csv`](performance-runs/model-e2e-e153-e156-event-sidecar-screening.csv);
 the benchmark-only Runtime checkpoint is `edb40774`.
 
+### Diagnostics E157-E164 — event/model sidecars survive the intact result route
+
+The gated full-route prototype attaches the already encoded compact initial-stream block to nullable columns on the
+same event-log row. Event indices, the singleton model-state lock, state-head update, transaction boundary, global event
+bytes, ordinary durable results and all measured exact counters remain present. E157 and E158 failed before seed work:
+the first exposed that dynamically altered parent columns were absent from a newly attached child partition; the second
+exposed use of a timestamp range for a table partitioned by 64-bit message index. Both runs are retained as failed
+diagnostics, and neither produced a throughput value.
+
+After correcting those schema-contract errors, the two same-binary pairs were:
+
+| Pair | Separate event + model table | Event-row model sidecar | Change | Candidate batches |
+| --- | ---: | ---: | ---: | ---: |
+| E160 / E159 | 246,125/s | **266,991/s** | **+8.48%** | 171 |
+| E162 / E161 | 251,670/s | **290,495/s** | **+15.43%** | 179 |
+| geometric mean | 248,882/s | **278,495/s** | **+11.90%** | — |
+
+Each successful run completed 1,048,576 commands with exact stored model memberships, global events and ordinary
+results. These are smoke comparisons rather than canonical acceptance because the candidate intentionally had not yet
+implemented general historical reads, locator rebuild, hard deletion or future partition rollover.
+
+The E163/E164 dual-JFR differential stayed positive at 250,702 versus 241,674/s (**+3.74%**) and locates the mechanism:
+
+| Runtime service across 1,048,576 commands | Control E164 | Sidecar E163 | Change |
+| --- | ---: | ---: | ---: |
+| co-located model task | 1,376.139 ms | **742.084 ms** | **-46.08%** |
+| event-store storage component | 1,763.395 ms | **1,339.037 ms** | **-24.07%** |
+| complete packed model-store storage | 3,432.942 ms | **3,367.418 ms** | -1.91% |
+| model transactions under dual JFR | 177 | **305** | +72.32% |
+| event-row insert service | 1,022.149 ms | 1,249.804 ms | +22.27% |
+| event commit service | 369.278 ms | 586.622 ms | +58.85% |
+
+The sidecar removes the intended model-stream COPY/table work, but the faster completion also feeds 72% more, smaller
+transactions under profiler pressure. That raises event INSERT and commit service and explains why the profiled route
+captures only part of the unprofiled gain. The causal model is now stronger: the physical boundary is a real limiter,
+and natural transaction formation is the coupled next constraint. No production checkpoint is allowed until the new
+representation preserves every read/lifecycle contract and then wins matched canonical runs.
+
 ## Immediate sequence
 
 1. Keep P1 and P2 as accepted comparison points. Generic collection delays, explicit `AFTER_BATCH`, concurrent model
@@ -1374,10 +1412,14 @@ the benchmark-only Runtime checkpoint is `edb40774`.
 31. E153-E156 validate one structural premise with fixed physical output: event-row model sidecars improve one-lane
     ordered capacity **16.61%** across two pairs by removing a complete COPY/table boundary. Keep this diagnostic-only
     until old rows, reads, locator recovery, retention and hard-delete pass on the full exact route.
-32. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
+32. E157-E164 validate that sidecars also improve the intact exact command/result route: two same-binary pairs gain
+    **11.90% geometric mean**, and dual JFR attributes this to 46.08% less co-located model work. Retain the candidate
+    as diagnostic-only while completing reads, locator recovery, partition rollover, retention and hard deletion;
+    transaction fragmentation is the explicitly measured coupled follow-up.
+33. Causally validate the largest canonical constraint by narrowly relieving or accelerating it while retaining the
     complete full-result route. Use a stage-removal ablation only when intact-route evidence cannot distinguish two
     mechanisms, and never as acceptance evidence.
-33. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
+34. Confirm each positive candidate through matched non-JFR runs. Checkpoint every statistically convincing, correct
     and practically net-positive result against P2—including a safe reproducible 3–4% gain—then rerank the full path
     and repeat until five consecutive qualifying runs exceed 1M/s.
 
