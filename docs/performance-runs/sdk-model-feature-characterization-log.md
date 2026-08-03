@@ -10,6 +10,7 @@
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
 | Standard metrics | **150,587/s; -64.3%**; 16,815,908 durable metrics for 4,194,304 commands | canonical |
 | Direct searchable model | **12,637/s qualified full route; +47.0%** versus the 8,595/s baseline; exact results/events/documents | adaptive parallel materialization accepted; clean-host pin pending |
+| Paused S1 durability candidate | Safe deferred search commits plus one store-local synchronous WAL barrier; 161 focused tests green; Runtime stash `574153ff52718648c048c31b45b3e8db4ccb87a3` above `c357aa14` | stashed; full default-database qualification pending |
 | Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
 | Graph ASYNC | Small route exact; former full-size lock blocker fixed by `6374fa74` | pending full-size requalification |
@@ -476,6 +477,38 @@ fell 46.156 -> 38.348 s (-16.9%). Result p95/p99 improved 8,388/9,926 -> 7,843/8
 receipt cleanup plus boundary-lock service rose 244.610 -> 253.078 s (+3.5%) and the separated boundary adds small
 transactions. This trade-off is recorded as resource-positive and throughput-neutral, not as progress toward the S1
 throughput target. The next accepted performance checkpoint still requires a positive full-size E2E result.
+
+### Paused search-durability investigation
+
+The next investigation kept the complete S1 route and first profiled database aging on `c357aa14`. The 2,097,152
+command run reached 17,834/s, while aggressive autovacuum reached 17,071/s and increased search-store service demand.
+The tuning was rejected and all PostgreSQL settings were restored. A receipt-cleanup backlog reduced its own measured
+service demand, but the autovacuum-disabled matched sequence moved 16,201 -> 16,709 -> 14,180/s and the reverse
+candidate under ordinary autovacuum collapsed to 12,876/s. It was a real secondary saving without stable full-route
+evidence and was completely reverted rather than retained as production complexity.
+
+An explicitly unsafe `synchronous_commit=off` search-lane diagnostic then bracketed 11,572 -> 12,815 -> 11,421/s.
+This established search-commit amortization headroom but could not satisfy the public durability contract by itself.
+The production-shaped candidate therefore adds a store-local synchronous WAL barrier after all independent search
+lane commits, and delays monitor publication, durable receipt removal and public future completion until that barrier
+has completed. Small one-lane batches and custom search stores keep their old synchronous path. Focused
+`JdbcSearchStoreTest` and `JdbcModelCommitStoreTest` verification passed 161/161 tests, including a deliberately locked
+barrier row and proof that futures and receipts do not advance early.
+
+| Run sequence | Database state | Control | Candidate | Interpretation |
+| --- | --- | ---: | ---: | --- |
+| Unsafe mechanism bracket | autovacuum off | 11,572/s and 11,421/s | **12,815/s** | approximately +11%; mechanism evidence only, unsafe implementation reverted |
+| Safe barrier pair | normal defaults; autovacuum overlapped the candidate | 10,969/s | 10,984/s | throughput neutral under contaminated scheduling |
+| Safe barrier reverse pair | autovacuum disabled for diagnosis only | 12,007/s reverse control | **12,787/s** | +6.5% adjacent; diagnostic only, not production DB tuning |
+
+The candidate is paused, not accepted. Its five-file Runtime diff is recoverable from Git stash object
+`574153ff52718648c048c31b45b3e8db4ccb87a3` (created as `stash@{0}` with message
+`wip(search): deferred materialization durability barrier after S1 diagnostics`) on base `c357aa14`. The attempted
+4,194,304-command qualification was stopped after warmup when unrelated heavy host work started; it has no measured
+throughput and is explicitly not a benchmark result. The Runtime worktree is clean, normal `autovacuum=on` and
+`synchronous_commit=on` are restored, and no search candidate is committed. Resume by applying the stash, rerunning a
+full default-PostgreSQL candidate/reverse-control pair on a quiet host, then running the full Runtime suite and an
+adversarial durability review before deciding whether to commit or revert it.
 
 ## Evidence
 
