@@ -401,9 +401,66 @@ improved. The remaining fundamental stages are now:
 | **Recompute oldest pending materialization** | 1,089 | 1,089 | **58.234 s** | **53.474 ms** | Still scans old dead prefixes and is the next narrow causal candidate |
 | Model-commit COPY | 544 | 3,883,008 | 37.232 s | 68.442 ms | Authoritative model commits and recoverable materialization receipts |
 
-The next optimization remains the already-observed cleanup boundary: seek the next pending materialization from its
-monotone current lower bound rather than rescanning dead index prefixes, while preserving unbounded startup rebuild
-for crash and upgrade safety. It must again be proven on the full S1 route before acceptance.
+### Exact receipt cleanup and monotone boundary advancement
+
+The first boundary-only candidate sought the next pending receipt from the current monotone lower bound instead of
+rescanning old index prefixes. Its adjacent full-route screen was effectively neutral: 14,346/s control versus
+14,359/s candidate, or +0.09%. It was therefore not accepted as a throughput optimization. The ordering mechanism was
+retained because it closes a real concurrent-completion race: a later materialization may finish first, but the
+published materialized state may only advance through the contiguous completed prefix.
+
+The next database profile exposed a different cleanup defect. The old statement independently matched every distinct
+segment and every commit ID. PostgreSQL therefore had to consider a broad cross-product rather than the exact durable
+receipt keys. Runtime checkpoint `c357aa14` sends equally sized segment and commit-ID arrays and joins their exact
+`unnest` pairs. It also commits the heavy receipt update before taking the singleton materialization-boundary lock.
+Otherwise each lane holds that global lock while flushing its own receipt WAL and serializes the parallel search
+pipeline again. The short follow-up transaction locks the state row, advances only from the current oldest pending
+state, and completes the public commit future only after that boundary is durable.
+
+Splitting those transactions creates a narrow failure window in which the receipt is gone while the conservative
+boundary still points behind it. The existing durable materialization recovery now repairs that boundary exactly when
+it reaches the clean tail and reschedules graph projection. Startup still performs the unbounded exact rebuild needed
+after a crash or upgrade. Tests explicitly cover reverse completion order, no premature boundary advancement, receipt
+commit while the state row is contended, no premature future completion, and recovery of durable materialization.
+
+The mechanism screen was bracketed by old-code controls of 14,346/s and 13,944/s. Their geometric mean is 14,144/s;
+the exact paired-key candidate reached **19,126/s**, or **+35.2%**. The longer 4,194,304-command intermediate run was
+materially less impressive at 13,445/s, only +6.4% over the prior 12,637/s full run. It remained exact but ran while
+IntelliJ and a development JVM materially loaded the host, so it is deliberately not a clean canonical pin. This
+mixed result is retained rather than averaged away.
+
+| Run | Implementation | Throughput | p50 / p95 / p99 / max | Status |
+| --- | --- | ---: | --- | --- |
+| F1-S1-BDC1 | old adaptive control | 14,346/s | 3,931.429 / 6,243.415 / 6,576.823 / 6,606.799 ms | diagnostic control |
+| F1-S1-BD1 | lower-bound boundary only | 14,359/s | 3,878.918 / 5,208.975 / 5,779.416 / 5,846.177 ms | no causal E2E gain |
+| F1-S1-RC1 | exact paired receipt keys, boundary still in receipt transaction | **19,126/s** | **2,997.942 / 4,449.327 / 5,340.988 / 5,365.488 ms** | +35.2% versus bracketed control mean |
+| F1-S1-RCC2 | reverse old adaptive control | 13,944/s | 4,015.132 / 5,484.996 / 6,236.790 / 6,796.415 ms | diagnostic control |
+| F1-S1-RC-F | 4.19M intermediate paired-key qualification | **13,445/s** | 4,056.345 / 7,196.829 / 7,954.871 / 8,880.816 ms | exact; host-contaminated; +6.4% versus PA14-F |
+| F1-S1-RS1 | final split receipt/boundary checkpoint | **17,977/s** | 3,011.382 / 4,404.269 / 4,961.242 / 5,053.360 ms | exact accepted screen |
+| F1-S1-RS2 | final checkpoint with post-warmup SQL profile | **18,226/s** | 3,151.384 / 4,732.556 / 4,830.776 / 4,897.880 ms | exact accepted screen |
+
+Every screen completed 524,288 commands, results, stored model events and global events and verified 65,536 exact
+model states and direct documents. The full intermediate qualification completed all 4,194,304 of each. No accepted
+run left an open receipt or a non-null pending materialization boundary. The final Runtime diff passed all 689 tests.
+
+`pg_stat_statements` was reset immediately after warmup in F1-S1-RS2. The table again reports overlapping cumulative
+database service, not additive latency. It shows that paired cleanup remains material work, but the search-index upsert
+has become the dominant measured database demand. The boundary lock still waits on ordinary model commits that update
+the same state row; it no longer holds the receipt transaction's WAL commit.
+
+| Fundamental database stage | Calls | Rows | Total DB time | Mean/call | WAL | Meaning |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| **Search-document upsert** | 340 | 378,994 | **50.725 s** | 149.191 ms | **847 MB** | Parallel direct-document and search-index maintenance |
+| **Clear exact durable receipts** | 64 | 378,994 | **10.425 s** | 162.898 ms | 159 MB | Paired-key cleanup, committed independently per materialization lane |
+| Search lifecycle fence | 340 | 378,994 | 7.048 s | 20.729 ms | 63 MB | Monotone document state and erasure exclusion |
+| **Acquire materialization-boundary lock** | 65 | 65 | **6.372 s** | **98.030 ms** | Wait mainly for ordinary model commits touching the singleton state row |
+| Model-commit COPY | 63 | 378,994 | 3.892 s | 61.777 ms | Authoritative model commits plus recoverable receipts |
+| Find next pending receipt | 36 | 36 | 0.064 s | 1.772 ms | Sparse lower-bound lookup; old dead-prefix scan is eliminated |
+| Persist new boundary | 99 | 99 | 0.002 s | 0.019 ms | Tiny state update after the correct prefix is known |
+
+A clean-host 4,194,304-command run of the final `c357aa14` checkpoint is still required before declaring a new stable
+S1 pin. The next optimization candidate must be selected from a detailed profile of that final route; the current SQL
+evidence points first at search upsert/index contention, not another speculative boundary tweak.
 
 ## Evidence
 
@@ -433,6 +490,16 @@ for crash and upgrade safety. It must again be proven on the full S1 route befor
   `e82f619b8be7b16f3a1c5c2a1d7aaf209eab90487414ae0ed3366020aacc5db6`;
 - full adaptive F1-S1-PA14-F log SHA-256:
   `c7ac020a63899eaaf0e3e1e3d316d81c4f086c672af68118627515f4d81e00fe`;
+- boundary control/candidate F1-S1-BDC1/F1-S1-BD1 SHA-256 respectively:
+  `7abb43595d0103e09401c5a1afb8321090e0fcc279c689297c7caef28c6464de`,
+  `eba95d4f537a4a03ad159716af6a826a6bc4bd027e683eaa674c3cc3813fc2c0`;
+- paired-receipt F1-S1-RC1/RCC2 and full F1-S1-RC-F SHA-256 respectively:
+  `93f5b6766060a4835573d4ff44a9e3a1f00629f3f377d27b80b48d2009a61653`,
+  `289af8d0448668d07fd6848dd7faafea66d8a29959f947bc087491b1a3f2717d`,
+  `fd2b1a72386d325d17b281e4be4ec96ea78d15bf02dac6f7f5b6b6bb1d58f604`;
+- final split receipt/boundary F1-S1-RS1/RS2 SHA-256 respectively:
+  `3537b4718ceeff69ee2fcf6d3d8eb39fb47d7f07526a92f1d0fa3cd056466af2`,
+  `969700fe2a76b8528c3d576c5a7777817e2ccc5e9241bc741d4f3d2f36148f1d`;
 - failed bounded-root-seed F1-G1-1 diagnostic SHA-256:
   `d0de94593551800bbe82f478ad1600f4026d24dd4b247f2958eca5393dbb906c`;
 - F1-R1-1, F1-R2-1 and their B0 reverse control SHA-256:
