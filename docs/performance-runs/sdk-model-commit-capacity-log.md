@@ -1035,6 +1035,54 @@ shared command/result database contention; it must not reopen this batch-boundar
 | E648 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` / E641 | two disjoint model batches in flight | 4,194,304 | 262,144 | batch-only JFR | 834,401/s | 809,801/s | false | reject: transaction count +103%, active store -45.8% | reverted |
 | E649 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` / E641 | release next batch at current commit start | 4,194,304 | 262,144 | batch-only JFR | 834,401/s | 819,577/s | false | reject: transaction count +29.5%, insufficient overlap | reverted |
 
+### E650-E657: JDBC execution delay is not binding, socket wait, planning or PostgreSQL cache misses
+
+E650/E651 repeated the SDK-inclusive isolated and complete canonical routes with a deliberately invasive full JFR that
+enabled every `jdk.SocketRead` and `jdk.SocketWrite` event at zero threshold. Its throughput is therefore diagnostic,
+not progress-comparable. The same global-event insert averaged 1.921 ms in isolation and 4.273 ms under command/result
+co-tenancy. Correlating the socket events to that phase found only 22.58 ms across 625 isolated inserts (0.036 ms per
+transaction) and 66.93 ms across 825 canonical inserts (0.081 ms per transaction); socket writes were negligible.
+Network blocking therefore explains only about 0.045 ms of the 2.352 ms Java/JDBC gap.
+
+E652/E653 next instrumented the three fundamental parts of the same prepared update, without enabling full JFR:
+
+| Direct global-event insert | E652 SDK-isolated | E653 full canonical | Canonical increase |
+| --- | ---: | ---: | ---: |
+| Full route throughput | **800,845/s** | **410,010/s** | diagnostic route split |
+| Model batches / mean size | 728 / 5,761 | 699 / 6,000 | comparable transaction shape |
+| Prepared-statement open | 0.008 ms | 0.016 ms | +0.008 ms |
+| Java parameter binding | 0.034 ms | 0.039 ms | +0.005 ms |
+| `executeUpdate()` | **1.600 ms** | **4.228 ms** | **+2.628 ms** |
+| Whole direct insert phase | 1.679 ms | 4.361 ms | +2.682 ms |
+| PostgreSQL statement execution | 0.150 ms | 0.671 ms | +0.521 ms |
+| Complete active model store | 6.176 ms / 0.933M/s | 11.586 ms / 0.518M/s | +87.6% time |
+
+Parameter materialization is thus not the candidate: practically the entire amplification occurs inside the blocking
+driver call. PostgreSQL reports part, but not all, of it as server execution. The remainder is driver/protocol/backend
+scheduling time; E650/E651 prove it is not ordinary socket blocking above the kernel boundary.
+
+E654/E655 enabled `pg_stat_statements.track_planning` for one matched diagnostic pair. Global-event planning averaged
+0.034 ms in isolation and 0.056 ms in the canonical route. That 0.022 ms delta is immaterial beside the roughly 2.7 ms
+whole-phase amplification. The server setting was restored to `off` immediately after the pair.
+
+Finally E656 changed only PostgreSQL `shared_buffers` from 128 MiB to 1 GiB. Normal relation reads collapsed to two
+blocks while relation hits rose above 2.1 million, proving the intended cache mechanism was active. Nevertheless the
+exact canonical route reached 404,505/s versus 406,820/s in the immediately adjacent restored-128-MiB E657 control
+(-0.57%); direct event insertion was 4.546 versus 4.591 ms and the active model store 11.872 versus 12.383 ms. The
+former physical reads were already cheap operating-system/cache reads and were not the throughput limiter. PostgreSQL
+was restored to 128 MiB and both Runtime repositories were returned to clean production source.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E650 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | zero-threshold socket trace | 4,194,304 | 262,144 | full JFR + socket I/O | n/a | 741,549/s | false | diagnostic: socket wait is negligible | diagnostic-only |
+| E651 | profile | full command -> model -> event + result | P5 `0c23c91f` | zero-threshold socket trace | 4,194,304 | 262,144 | full JFR + socket I/O | n/a | 322,360/s | false | diagnostic: socket wait does not explain canonical insert gap | diagnostic-only |
+| E652 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | split prepared update phases | 4,194,304 | 262,144 | batch-only JFR | n/a | 800,845/s | false | diagnostic: binding is negligible | diagnostic-only |
+| E653 | profile | full command -> model -> event + result | P5 `0c23c91f` | split prepared update phases | 4,194,304 | 262,144 | batch-only JFR | n/a | 410,010/s | true | diagnostic: delay is concentrated in `executeUpdate` | diagnostic-only |
+| E654 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | PostgreSQL planning trace | 4,194,304 | 262,144 | batch-only JFR + PG statistics | n/a | 821,171/s | false | diagnostic: 0.034 ms mean event planning | diagnostic-only |
+| E655 | profile | full command -> model -> event + result | P5 `0c23c91f` | PostgreSQL planning trace | 4,194,304 | 262,144 | batch-only JFR + PG statistics | n/a | 410,445/s | true | reject planning optimization: 0.056 ms mean | diagnostic-only |
+| E656 | profile | full command -> model -> event + result | P5 `0c23c91f` / E657 | PostgreSQL `shared_buffers=1GiB` | 4,194,304 | 262,144 | batch-only JFR + PG statistics | 406,820/s | 404,505/s | true | reject: -0.57% despite two physical relation reads | reverted |
+| E657 | profile | full command -> model -> event + result | P5 `0c23c91f` | restored `shared_buffers=128MiB` control | 4,194,304 | 262,144 | batch-only JFR | 406,820/s | 406,820/s | true | accepted adjacent control; no code change | diagnostic-only |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1109,6 +1157,16 @@ shared command/result database contention; it must not reopen this batch-boundar
 28. Do not overlap complete model batches or release the ordered model backlog at commit start. E648/E649 prove both
     variants reduce natural transaction size and lose SDK-inclusive throughput despite locally cheaper statements.
     Keep one durability-sized model batch and optimize within that transaction or the shared PostgreSQL workload.
+29. Keep the SDK side in every representative isolated model run. The synthetic tracked route starts with a serialized
+    command envelope and retains lazy decode, handler resolution, assertions/interceptors, automatic `@Apply`, model
+    event encoding, SDK batching and WebSocket transport. Only command append/tracking and ordinary result storage are
+    excluded; low-level `CommitModels` remains a secondary storage/wire diagnostic.
+30. Do not target global-event Java parameter binding or normal socket blocking. E650-E653 locate only 0.039 ms in
+    canonical binding and 0.081 ms in phase-correlated socket reads, while `executeUpdate()` itself takes 4.228 ms.
+31. Do not pursue prepared-statement caching/planning for P6. E654/E655 measure only a 0.022 ms isolated-to-canonical
+    planning delta and independently confirm E572's earlier conclusion.
+32. Preserve PostgreSQL `shared_buffers=128MiB` for this campaign host. E656/E657 eliminate practically all physical
+    relation reads at 1 GiB without improving canonical throughput, so buffer misses are not the model limiter.
 
 ## Evidence
 
@@ -1471,3 +1529,42 @@ shared command/result database contention; it must not reopen this batch-boundar
   `7dd5244a0890e077fac6308b4a2a67cd11920abd0371fce99c8c77fe332a3e66`,
   `1c6b2cf1177c0dcb404e6793ad4e16407640c0e5df27f8e3618b3a7d2d906dec`,
   `a65eb8a2e1d2a191edcdcc40945b03fcaa8e1f417c5397ceacdbe27a21c5f82d`.
+- E650 SDK-isolated socket-profile log/JFR/summary SHA-256:
+  `f2f70684e10f881a018a40fc62ec38cb03673e3017c55405f07f144df43405c0`,
+  `3fea599ede147c038800691275f95421bfe8fadd463b85f4809d3be15a8971a4`,
+  `95faec1704f5b8e20b642722ea42a6026f9d54706f2665bb20c4c982072a1a89`.
+- E651 canonical socket-profile log/JFR/summary SHA-256:
+  `aad3904616065d68628380dbb6ef37738ac6f17ae333b6cdbaf7a7f12f5e9a28`,
+  `bb67a00421a9601c5ae012d47bae22daf470d4d7f62be4622b0da081c042a5ba`,
+  `e1ae72059d5a0f1f3d21e1d3332cc3f6fb1a60122e08670d5f5e78c4e2694dcf`.
+- E652 SDK-isolated JDBC-phase log/JFR/summary/PostgreSQL-statements SHA-256:
+  `e101dea48abaafb920582d30229442e8a63210aefe356d92fb09f92733216237`,
+  `ac326e4f604260738fc3d4752c54a2e76fb09b1feb26431ea999c87c2b08177a`,
+  `488c1362e176b45a151077d2e5c3b20164406644f6227427d62a2c4f06523e9f`,
+  `4227c9eefdbc7167be37b9d96e1236d4124a84fca21fb5fe122e1f9db8146753`.
+- E653 canonical JDBC-phase log/JFR/summary/PostgreSQL-statements SHA-256:
+  `a6b494ba308b0b8c8f988ca58737e40e6865386479fe36d3ab43db945c5b00e9`,
+  `01cc8b0dcb809f9eabc6376c7d929cb6cef838fa05720fe7add829b3f73ef587`,
+  `e6434a104a8a2199a84ab05b69abc0fc7b0db56d1209f17421c5021a68785357`,
+  `85f7eb10c1c474d78f465016d2d9a6d1f3a8e3ea2a860ffd468655173528ebc2`.
+- E654 SDK-isolated planning log/JFR/summary/PostgreSQL-aggregate SHA-256:
+  `a6b28a31503a262542f21e2e4a6ae8b36b7aac33c477c80b2d4d6b516a696407`,
+  `4f9e7fc41fae91481e340b92ea6f0a70aafbf3fb133411b234bba380b231f371`,
+  `00cf6f8a677e996cdcd64058dc67fb4123a20bdeb82fd89a2b272de26d2085fc`,
+  `90e737097410a6e52cc7fde0532f4bdcbecb0961a8c01c9af7631e7aa93ace6e`.
+- E655 canonical planning log/JFR/summary/PostgreSQL-aggregate SHA-256:
+  `d38d115635733048f39ec3f2d4ad78ca977357111e4fd366b50e7edc9fb1e449`,
+  `f5e97878bf0bd686684409b42bfa6778d255f1144d5c93a2bc1d9af93873519f`,
+  `434b0ba85223cb293e7bb4e9cf5a53e0f8d5f12719f6fb40d53d740f24198399`,
+  `37c6e05db39fbc545e03caf17290319936499d94996d1bdaaae9eda751c8fd74`.
+- E656 one-GiB-shared-buffer log/JFR/summary/PostgreSQL-I/O SHA-256:
+  `670e9fa688b14198638d663d40c55e2a5b2f8eec5b23de9a116e8a5ae5ad7124`,
+  `70cee6286c126bada398e41dfb32781b1307021ddde0227eb847e0f4ad95f3b8`,
+  `3fc26a09f4341eb960f820ea8b84a981cd6c876a78c99f2d58d57f8b04db6fec`,
+  `7eaddfec875350ec68de3e410f6ed7409dce97d2410332558a9a807bfcb474a3`.
+  The attempted WAL query produced an empty file (`e3b0c442...`) because the installed PostgreSQL view lacked the
+  queried column; it is intentionally not evidence.
+- E657 restored-128-MiB control log/JFR/summary SHA-256:
+  `72bf1634c2b6459ba34aa38b4f0d85934054edf1e97b444d64e4d9473daaab36`,
+  `d2e1b88f2498bafd8c432539b80e4f31b7f36d2dcf87bf548292f113c3d5e887`,
+  `e72482a685566009153fe6fa0486d98b65774c547be2774e96f44ad82c1ba563`.
