@@ -150,8 +150,11 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
                 log.debug(ClientUtils.ignoreMarker, "Skipping console error publication because Fluxzero is not set");
                 return;
             }
+            // Handler and invocation on the triggering message describe its publisher. Only a currently active
+            // invocation may attribute the log event to a handler; currentCorrelationData restores it below.
             Metadata metadata = ofNullable(DeserializingMessage.getCurrent())
-                    .map(DeserializingMessage::getMetadata).orElse(Metadata.empty());
+                    .map(DeserializingMessage::getMetadata).orElse(Metadata.empty())
+                    .without("$handler").without("$invocation");
             metadata = metadata.with(Fluxzero.currentCorrelationData()).with(
                     "stackTrace", format("[%s] %s %s - %s%s", event.getThreadName(), event.getLevel(),
                                          event.getLoggerName(), event.getFormattedMessage(),
