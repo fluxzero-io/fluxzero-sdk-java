@@ -8,10 +8,10 @@
 | Characterization driver | Runtime benchmark `9bc22279` | accepted |
 | B0 current P5 pin | **420,559 commands/s**, 4,194,304 exact results, model events and global events | canonical |
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
-| Standard metrics | Correctness-qualified on M1; full-size measurement pending | smoke only |
-| Direct searchable model | Exact model state and 128/128 direct documents on S1 | smoke only |
-| Stable relationship | Exact 128 active and 128 historical relationships on R1 | smoke only |
-| Moving relationship | Exact 128 active, 136 historical and 5 measured moves on R2 | smoke only |
+| Standard metrics | **150,587/s; -64.3%**; 16,815,908 durable metrics for 4,194,304 commands | canonical |
+| Direct searchable model | Full-size S1 fails: 30,698-document transaction exhausts PostgreSQL advisory-lock capacity | blocked by correctness |
+| Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
+| Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
 | Graph ASYNC | Exact documents/high-watermark; **223 ms command-end lag**, 99.448 ms catch-up in the smoke | smoke only |
 | Graph AWAIT | Exact documents/high-watermark; **257 projection batches for 257 commands** and 89 commands/s in the smoke | smoke only |
 | Phase 2 cumulative C0-C5 | Not run yet | pending |
@@ -120,6 +120,36 @@ sampled encoded-time lag while requests were still pending was about 1,446 ms an
 MiB. This is not a rejected candidate: it is the first clear characterization of the current AWAIT contract and a
 strong optimization target.
 
+### Full-size M1, S1, R1 and R2
+
+M1, R1 and R2 used the same 65,536-model, 262,144-warmup, 4,194,304-command identity as B0. Full B0 controls
+immediately after M1 and after the relationship pair reached 423,665/s and 416,031/s respectively, so the feature
+results are not explained by a lasting host slowdown.
+
+| Run | Scenario | Throughput | Difference from matched B0 band | p50 / p95 / p99 / max | Correctness/resource result |
+| --- | --- | ---: | ---: | --- | --- |
+| F1-M1-1 | M1 | **150,587/s** | **-64.3%** | 363.356 / 558.256 / 622.469 / 731.312 ms | exact; **16,815,908 durable metrics** |
+| F1-S1-1 | S1 | n/a | n/a | n/a | excluded: 30,698 command failures after PostgreSQL lock exhaustion |
+| F1-R1-1 | R1 | **57,316/s** | **-86.3%** | 1,035.466 / 1,586.485 / 1,670.540 / 1,735.369 ms | exact 65,536 active/historical; zero moves |
+| F1-R2-1 | R2 | **41,079/s** | **-90.2%** | 1,448.118 / 2,393.348 / 2,543.870 / 2,628.300 ms | exact 110,144 history rows; **41,984 measured moves** |
+
+M1 emitted about 4.01 durable metrics for every measured command. Its reverse B0 control recovered immediately to
+423,665/s; the throughput loss is therefore a real cost of the standard metricflow on this workload, not JFR or host
+contamination.
+
+R1 proves that the general relationship path is already expensive when the relationship never changes. R2 moved the
+children whose ordinal is divisible by 100 and produced 41,984 real measured moves, 1.001% of all measured commands.
+R2 was a further 28.3% slower than R1, but most relationship cost precedes real mutation. Both routes completed exact
+results, model events, global events, final models and relationship history.
+
+S1 is a correctness/scalability failure, not a slow result. During warmup, one natural search materialization job
+contained 30,698 unique model documents. `JdbcSearchStore.advanceModelDocumentFences` currently obtains one
+transaction-scoped PostgreSQL advisory lock per model to exclude concurrent lifecycle erasure. The benchmark database
+uses ordinary `max_locks_per_transaction=64` and `max_connections=100`; the transaction exhausted the shared lock
+table and 30,698 command futures failed. Raising the local PostgreSQL limit or shrinking the benchmark window would
+hide rather than solve this unbounded per-transaction lockset, so F1-S1-1 is retained as `failed-correctness`. Full-size
+G1/G2 are not run through the same unsafe root-seeding path until that prerequisite is explicitly bounded or fixed.
+
 ## Phase 2 cumulative matrix
 
 The next driver layer will keep one cumulative workload and add features in order:
@@ -162,4 +192,12 @@ which practical route is optimized first.
   `af52f859d370d72df9580f6527b97a5308f8bb74d28b80f1ba9779a8c77373b5`,
   `566ac9f770d4052a6bd638c2f2a8676b8076e8ba3ed3758ccb23d19b525caef2`,
   `ca48ea96996a19e7a2b43933ae428681fbebbee7fbc7f7352fa3ce1418aedced`.
-
+- F1-M1-1 and its B0 reverse control SHA-256:
+  `51a0341897ecf06e2b88351c958c77b541c0e50886cdea04b3228104d6eabead`,
+  `a3211b9ca7bef5e4bb1073dbccca8ab298f62bd588c479f746c4eaf612c1632e`;
+- failed F1-S1-1 log SHA-256:
+  `052e9addec03b601b12973dd25774991aaecde3b01a6c4e3e492dbd6f068f3aa`;
+- F1-R1-1, F1-R2-1 and their B0 reverse control SHA-256:
+  `2ee5bca343d1ee8997f66fecae293626b893c98c7794a1a8fea4eec79ba095cd`,
+  `7db2aa9543527fa6e2b7d0d719f2e59bb9f20343881135addfd065ad81193136`,
+  `2818772781ef84aac2926e43ab92f39ddb45af64edc01dfd9f3c013c0f8c28c0`.
