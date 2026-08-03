@@ -4,7 +4,7 @@
 
 | Item | Current evidence | Status |
 | --- | --- | --- |
-| Accepted production base | Runtime P5 `0c23c91f`; graph AWAIT correctness `ef24c66a` | accepted |
+| Accepted production base | Runtime P5 `0c23c91f`; graph AWAIT correctness `ef24c66a`; AWAIT pipeline `59faf5eb` | accepted |
 | Characterization driver | Runtime `9ca25780` (Phase 2), `5dac6bc2` and `093a4b49` (Phase 3) | accepted |
 | B0 current P5 pin | **420,559 commands/s**, 4,194,304 exact results, model events and global events | canonical |
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
@@ -14,7 +14,7 @@
 | Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
 | Graph ASYNC | Exact 4,096-command representative run: **5,358/s foreground**, 372 ms catch-up and 3,604/s inclusive | noncanonical characterization |
-| Graph AWAIT | Exact matched run: **31/s**, zero completion lag and 4,096 upserts in 3,727 batches; an 8,192-open run correctly hit the 4,096-waiter safety cap | severe coalescing target; noncanonical |
+| Graph AWAIT | Exact matched post-fix run: **2,655/s**, zero lag, 4,096 upserts in 43 batches and p50/p95 92.7/105.3 ms; old matched base **31/s** | accepted 85.6x noncanonical checkpoint; quiet-host pin optional |
 | Phase 2 cumulative C0-C5 | Representative C2/C3/C4 remained near 4.8-4.9k/s; C5 AWAIT fell to **37/s** with 4,082 batches for 4,096 commands | exact; noncanonical characterization |
 | Phase 3 practical workload matrix | Every proposed dimension now has a medium-scale run; RETRY/FAIL contention still exposes the SDK duplicate-sequence loader failure | complete except correctness blocker |
 
@@ -418,9 +418,85 @@ with p95 197.615, 157.376 and 92.549 ms. Schema/index bytes grew 17,924,096/2,42
 39,182,336/4,120,576; live/dead tuple estimates ended at 7,755/5,896. The 3.211-second soak was too short to trigger an
 autovacuum, so it proves the measurement route and exact aging behavior, not long-duration autovacuum stability.
 
-This completes the proposed descriptive matrix. The next quiet-host work should not rerun every cell: it should first
-address the RETRY/FAIL correctness defect and the AWAIT projection coalescing behavior, while the stashed S1
-durability candidate remains a separately logged, unaccepted investigation.
+This completed the proposed descriptive matrix and identified AWAIT projection coalescing as the next concrete
+target. The checkpoint below addresses that target. The RETRY/FAIL correctness defect remains open, while the stashed
+S1 durability candidate remains a separately logged, unaccepted investigation.
+
+## Graph AWAIT optimization checkpoint
+
+Runtime `59faf5eb` addresses the G2 coalescing problem without changing PostgreSQL durability or the AWAIT contract.
+The final comparison uses the exact same full route and shape as MX-G2-R: Java 25, embedded Runtime, latest SDK
+defaults, 8 GiB fixed heap, 512 models, 1,024 warmup commands, 4,096 measured commands, 256 maximum open requests,
+16 consumer threads, 32-byte commands, 256-byte unique searchable documents and ordinary PostgreSQL settings. Neither
+run used JFR. The host was not reserved exclusively for benchmarking, so the checkpoint is
+`canonical_comparable=false`; the 85.6x difference and batching change are nevertheless too large and directly
+explained to be host noise.
+
+| Run | Runtime | Throughput | p50 / p95 / p99 / max | Projection batches | Active projection capacity |
+| --- | --- | ---: | --- | ---: | ---: |
+| MX-G2-R | `c357aa14` | **31/s** | 1,698.263 / 30,274.710 / 31,579.460 / 32,059.424 ms | 3,727 | 211 roots/s |
+| MX-G2-AWAIT-P1 | `59faf5eb` | **2,655/s** | **92.665 / 105.346 / 105.611 / 105.653 ms** | **43** | **6,054 roots/s** |
+
+This is an **85.6x** full-route throughput increase, **98.8% fewer projection batches**, 94.5% lower p50 and 99.7%
+lower p95. Both observations completed all 4,096 results, stored model events and global events; reconstructed 512
+exact model states and 512 active/historical relationships; produced 512 exact root and child graph documents; and
+ended at the exact durable high-watermark with zero projection lag. The post-fix run therefore remains true AWAIT:
+the result future completes only after its exact graph boundary is durable and published.
+
+### Causal model and accepted mechanism
+
+The old implementation created one virtual waiter and repeatedly queried PostgreSQL per AWAIT request. More
+importantly, projection reads stopped at the earliest outstanding waiter boundary. Under a continuous AWAIT workload
+that made almost every command its own projection batch, so the request pattern itself destroyed coalescing.
+
+The accepted implementation makes the following changes as one coherent scheduling fix:
+
+- AWAIT requests become bounded in-memory waiters; one status query completes all satisfied waiters after an ordered
+  cursor advance. The existing 4,096-waiter admission guard remains.
+- Ready signals may be read through the latest committed awaited boundary, allowing natural cross-command
+  coalescing while preserving every individual completion boundary.
+- Up to four already-ready projection jobs prepare and write concurrently, without a timer or artificial pause.
+  Durable cursor publication, metrics and waiter completion remain strictly in job order. Fenced search writes make
+  out-of-order physical completion safe.
+- Root batches start at up to 128 roots and split recursively only when graph limits require it; the old theoretical
+  `maxModels` calculation had reduced ordinary one-child batches to ten roots.
+- A root batch is stitched in one call instead of repeatedly rebuilding the complete edge index per root. JDBC can
+  also resolve current fenced descendant documents directly by globally unique model ID; custom search stores retain
+  the collection-resolution fallback.
+- The event-driven wake signal is allocated only while graph projection is enabled, so ordinary B0/model routes do
+  not gain an allocation on every commit.
+
+The final run's summed active stage demand was:
+
+| Fundamental stage | Total | Batch mean / p95 / max | Meaning |
+| --- | ---: | --- | --- |
+| Root head load | 86.045 ms | 2.001 / 2.835 / 3.019 ms | Resolve each affected root at the job's historical state boundary |
+| Root document load | 69.690 ms | 1.621 / 2.401 / 3.018 ms | Load direct searchable root documents |
+| Graph traversal | 46.750 ms | 1.087 / 2.043 / 2.454 ms | Resolve current relationship edges for the requested roots |
+| Edge/path mapping | 0.306 ms | 0.007 / 0.015 / 0.022 ms | Apply projection path overrides |
+| Collection lookup | 0 ms | 0 / 0 / 0 ms | Skipped because JDBC supports direct fenced ID lookup |
+| Descendant load | 92.325 ms | 2.147 / 2.954 / 4.168 ms | Load current child documents by ID |
+| Stitch | 39.072 ms | 0.909 / 1.326 / 1.411 ms | Construct complete projected root documents |
+| Search write | **341.795 ms** | **7.949 / 11.313 / 11.580 ms** | Persist fenced graph document upserts/deletes |
+
+These active durations overlap across at most four jobs and must not be added to E2E latency. They show that search
+write is now the largest remaining unit of projection service demand. The measured AWAIT result is about 49.6% of the
+earlier 5,358/s ASYNC foreground observation. Reaching ASYNC parity is explicitly deferred; 2.6k/s is accepted as the
+current checkpoint rather than forcing another optimization rabbit hole.
+
+### Rejected paths and verification
+
+Native transport batching of `AwaitModelGraphProjection` was neutral (2,060/s versus 2,042/s on its matched profiled
+shape) and was fully reverted. A fixed 256-root batch and advancing beyond an exact compact-update boundary both
+created liveness/correctness hazards and were reverted. Direct descendant lookup was retained only as a small,
+low-risk service improvement with a correct custom-store fallback; it was not credited with the broad E2E gain.
+
+The final code passed nine focused graph/search tests and all **695 Runtime tests**. Coverage includes out-of-order
+physical graph writes with ordered cursor/future publication, retry metrics, compact-update boundaries, waiter
+coalescing, adaptive batches above ten roots, direct fenced lookup across collections and deletion, pending-waiter
+failure during shutdown, and metric publication before AWAIT completion. The exact final evidence is
+`/private/tmp/model-g2-await-event-driven-pipeline-4096-post-metric-order.log`, SHA-256
+`88583ec4d998f4cfb6b751c6d00be7efab6dc00db20b141fe5278f246a08bd69`.
 
 ## S1 optimization campaign
 
