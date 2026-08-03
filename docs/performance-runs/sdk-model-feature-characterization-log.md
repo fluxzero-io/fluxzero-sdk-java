@@ -5,7 +5,7 @@
 | Item | Current evidence | Status |
 | --- | --- | --- |
 | Accepted production base | Runtime P5 `0c23c91f`; graph AWAIT correctness `ef24c66a` | accepted |
-| Characterization driver | Runtime benchmark `9bc22279` | accepted |
+| Characterization driver | Runtime benchmark `9ca25780` (Phase 1 + cumulative Phase 2) | accepted |
 | B0 current P5 pin | **420,559 commands/s**, 4,194,304 exact results, model events and global events | canonical |
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
 | Standard metrics | **150,587/s; -64.3%**; 16,815,908 durable metrics for 4,194,304 commands | canonical |
@@ -14,7 +14,7 @@
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
 | Graph ASYNC | Small route exact; full-size G1 hits the same advisory-lock exhaustion during child updates | blocked by correctness |
 | Graph AWAIT | Exact documents/high-watermark; **257 projection batches for 257 commands** and 89 commands/s in the smoke | smoke only |
-| Phase 2 cumulative C0-C5 | Not run yet | pending |
+| Phase 2 cumulative C0-C5 | All six exact correctness smokes passed; C0/C1 reuse the already-canonical physical routes | smoke-qualified |
 | Phase 3 practical workload matrix | Not run yet | pending |
 
 Only the qualifying full command -> automatic `@Apply` -> model/event commit -> durable result route is canonical. A
@@ -160,7 +160,7 @@ independent graph-only failure.
 
 ## Phase 2 cumulative matrix
 
-The next driver layer will keep one cumulative workload and add features in order:
+The cumulative driver keeps one workload and adds features in order:
 
 | Scenario | Cumulative workload |
 | --- | --- |
@@ -172,6 +172,29 @@ The next driver layer will keep one cumulative workload and add features in orde
 | C5 | Same workload as C4, but completion `AWAIT` replaces `ASYNC` |
 
 Every step retains the Phase-1 correctness contract. C5 does not add a second graph projection or completion mode.
+
+Runtime benchmark checkpoint `9ca25780` implements all six routes. The first qualification used 128 models, 129
+warmup updates, 257 measured updates, 128 maximum open requests, 16 consumers, 32-byte payloads, Java 25, embedded
+Runtime and no JFR. As in Phase 1, these deliberately tiny runs qualify behavior; their throughput is not canonical.
+
+| Run | Scenario | Throughput | p50 / p95 / p99 / max | Exact cumulative evidence |
+| --- | --- | ---: | --- | --- |
+| F2-C0-S | C0 | 5,326/s | 17.455 / 21.309 / 21.348 / 21.361 ms | 257 exact results/events; 128 exact models |
+| F2-C1-S | C1 | 3,127/s | 29.117 / 35.664 / 41.100 / 41.217 ms | C0 + 1,204 durable metrics |
+| F2-C2-S | C2 | 1,861/s | 56.944 / 63.209 / 63.902 / 63.921 ms | C1 + 128 exact direct documents |
+| F2-C3-S | C3 | 2,122/s | 49.747 / 56.123 / 56.177 / 56.184 ms | C2 + 128 exact roots, children and stable relationships |
+| F2-C4-S | C4 | 1,849/s foreground | 56.233 / 60.093 / 60.120 / 60.828 ms | C3 + exact graph documents and catch-up high-watermark |
+| F2-C5-S | C5 | **82/s** | **854.490 / 1,502.329 / 1,552.146 / 1,562.835 ms** | Same C4 workload with exact AWAIT completion |
+
+C4 completed commands with four pending graph signals, zero pending roots and about 114 ms encoded-time lag. It caught
+up in 153.566 ms to the exact source boundary. Projection performed 243 real root upserts in 25 batches and the
+inclusive command-plus-catch-up rate was 879/s. C5 had zero lag and no pending work when command results completed,
+but performed 257 root upserts in **257 batches**; this again proves that AWAIT currently suppresses coalescing rather
+than merely shifting the point at which results complete.
+
+C0 and C1 are aliases for the already-canonical B0 and M1 physical routes, whose full results are 420,559/s and
+150,587/s above. C2-C5 remain blocked from honest full-size qualification by the unbounded advisory-lock set found in
+S1. The smokes deliberately do not raise `max_locks_per_transaction` or reduce a run while calling it canonical.
 
 ## Phase 3 practical workload matrix
 
@@ -211,3 +234,10 @@ which practical route is optimized first.
   `2ee5bca343d1ee8997f66fecae293626b893c98c7794a1a8fea4eec79ba095cd`,
   `7db2aa9543527fa6e2b7d0d719f2e59bb9f20343881135addfd065ad81193136`,
   `2818772781ef84aac2926e43ab92f39ddb45af64edc01dfd9f3c013c0f8c28c0`.
+- C0/C1/C2/C3/C4/C5 cumulative smoke SHA-256 respectively:
+  `f0ec092a154e2c5255ba4539dea0368c5a815ef3e055f00bace0ddc8966672a8`,
+  `e647837c8558ab903471150f63993bbbd0d6dbd209d3fafc715fa9587b0f64be`,
+  `b954e865b89be8c499016156b17497422156f583d0c501094ae113135a8111b5`,
+  `18ba72957075f956651e4a0dc0270cd7c9eec593ff0acaa4165381836e53425f`,
+  `bc6aa8d06248bc08677645992a31210725e6ad191aa04f0c999108bac8de8277`,
+  `53d47bbdbf53d91fef419335e9a1973051c58e5a52870e8005fc66e6f5e47bd2`.
