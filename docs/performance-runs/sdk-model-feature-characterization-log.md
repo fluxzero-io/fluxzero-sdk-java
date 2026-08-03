@@ -462,6 +462,21 @@ A clean-host 4,194,304-command run of the final `c357aa14` checkpoint is still r
 S1 pin. The next optimization candidate must be selected from a detailed profile of that final route; the current SQL
 evidence points first at search upsert/index contention, not another speculative boundary tweak.
 
+The subsequent full-size candidate/reverse-control pair invalidated a throughput interpretation of the short screens.
+Final `c357aa14` completed at 10,967/s; old adaptive Runtime `45341bcd` completed at 11,004/s, a negligible **-0.34%**.
+Both runs were exact. A second dashboard dev-server started during the reverse control, so the pair is not promoted to
+`canonical_comparable=true`, but the equality is enough to reject any claim that receipt cleanup raised sustained
+full-size throughput.
+
+The checkpoint is retained only for its ordering fix and measured resource/tail improvements. Compared with the old
+control, it formed 404 instead of 554 materialization dispatch batches (-27.1%) and increased their mean size from
+7,570.9 to 10,381.9 commands (+37.1%). Search-upsert calls fell 3,156 -> 2,873 and cumulative service fell
+729.309 -> 631.035 s (-13.5%); search-lifecycle service fell 101.137 -> 84.257 s (-16.7%); model-commit COPY service
+fell 46.156 -> 38.348 s (-16.9%). Result p95/p99 improved 8,388/9,926 -> 7,843/8,610 ms. The explicit cost is that
+receipt cleanup plus boundary-lock service rose 244.610 -> 253.078 s (+3.5%) and the separated boundary adds small
+transactions. This trade-off is recorded as resource-positive and throughput-neutral, not as progress toward the S1
+throughput target. The next accepted performance checkpoint still requires a positive full-size E2E result.
+
 ## Evidence
 
 - F1-B0-1 log SHA-256: `30fbfdd4dfa1886574b5d3acd711e2ea728f9ccaec0790fb9afa06439e935960`;
@@ -500,6 +515,9 @@ evidence points first at search upsert/index contention, not another speculative
 - final split receipt/boundary F1-S1-RS1/RS2 SHA-256 respectively:
   `3537b4718ceeff69ee2fcf6d3d8eb39fb47d7f07526a92f1d0fa3cd056466af2`,
   `969700fe2a76b8528c3d576c5a7777817e2ccc5e9241bc741d4f3d2f36148f1d`;
+- full final receipt/boundary and old adaptive reverse-control SHA-256 respectively:
+  `1960b15745274b85768a98c18637840effcd9dd13976064e61c51351a65af9d4`,
+  `524603de8e5048434a14d8e7c22e7895f3d823030a7d815cd8f36c8d593bd80f`;
 - failed bounded-root-seed F1-G1-1 diagnostic SHA-256:
   `d0de94593551800bbe82f478ad1600f4026d24dd4b247f2958eca5393dbb906c`;
 - F1-R1-1, F1-R2-1 and their B0 reverse control SHA-256:
