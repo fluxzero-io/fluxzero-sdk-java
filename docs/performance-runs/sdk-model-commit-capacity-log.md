@@ -5,9 +5,10 @@
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
 | Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh unchanged E668/E671 controls average **420,348/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Sole acceptance gate for the 500k target |
-| Synthetic tracked SDK apply -> model + event durability | **834,806/s** without JFR; **846,441/s** with batch JFR | `commit-packed-update` | **0.995M/s** in E589 | SDK-inclusive model upper-bound diagnostic without command/result logs |
+| Synthetic tracked SDK apply -> model + event durability | Best **834,806/s** without JFR / **846,441/s** with batch JFR; fresh E694/E696 **812,491 / 816,815/s** | `commit-packed-update` | Best **0.995M/s** in E589; fresh **0.955 / 0.967M/s** | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
-| Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
+| Direct SDK `assertAndApply(command)` without tracked context | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
+| Tracked command context -> public `Fluxzero.assertAndApply(command)` | **283,002/s** without JFR; 278,239/s with batch JFR | `commit-packed-update` | **0.315M/s** in E698 | Public blocking-API diagnostic; preserves source-index correctness but fragments SDK transport/store batches |
 
 Production is Runtime `0c23c91f` (`perf(modeling): reduce stream locator commit pressure`) on top of P4
 `c98f47e6`. The full model campaign remains
@@ -31,7 +32,7 @@ It deliberately starts from already formed `CommitModels` requests. It therefore
 caching, assertions, interceptors, `@Apply`, transition planning and model-event serialization. It also excludes the
 command log, command tracking and ordinary result log.
 
-### Direct SDK model apply
+### Direct SDK model apply without a tracked command context
 
 This route calls the public instance extension point behind `Fluxzero.assertAndApply(command)`. It retains SDK model
 loading/cache lookup, assertions, interceptors, `@Apply`, transition planning, event serialization, SDK commit
@@ -43,6 +44,18 @@ This direct API does **not** have a tracked source message index. `ModelCommitte
 `possibleDuplicate` unknown so a transport retry can still be recognized through durable commit receipts. Runtime
 correctly routes these commits through the general idempotent path. The route is valuable, but it is not the packed
 automatic-command route minus two cheap stages.
+
+### Tracked public `Fluxzero.assertAndApply` call
+
+This route starts from the same serialized, monotonically indexed command envelopes as the synthetic tracked route.
+It activates each deserializing command as the current SDK message and then invokes the public blocking
+`Fluxzero.assertAndApply(command)` method. The outer command context supplies genuine idempotency evidence, so Runtime
+may safely use `commit-packed-update`; no index is forged inside the model commit.
+
+The public call deliberately bypasses ordinary command handlers and their decorators, and waits for real model/event
+durability before returning. It therefore measures an explicit handler delegating synchronously to
+`assertAndApply`, not the default automatic asynchronous model-handler path. Command append/tracking and ordinary
+result storage remain excluded.
 
 ### Synthetic tracked SDK model apply
 
@@ -1269,6 +1282,75 @@ checkpoint, not as P6 or a higher model-capacity pin.
 | E692 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | final source-only range qualification | 4,194,304 | 262,144 | none | n/a | 811,117/s | false | exact lower-state observation; no throughput claim | accepted |
 | E693 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | clean-host final range qualification | 4,194,304 | 262,144 | none | n/a | 809,631/s | false | exact lower-state observation; investigate separately | accepted |
 
+### E694-E696: current isolated store capacity and rejected extra idle collection delay
+
+E694 traced the unchanged P5 production code plus the accepted synthetic range-reservation benchmark cleanup. It
+completed exactly 4,194,304 handler calls, model events and global events at 812,491/s. The active packed-store
+service capacity was **0.955M/s**: 754 transactions averaged 5,563 models and 5.827 ms active storage. This is the
+current corresponding active-store measurement, but deliberately not a like-for-like route number, for E459's old
+**0.407M/s** active-lane estimate. E459 used pre-P4/P5 code on the complete command/result-contended route; E694
+includes the full SDK model handler but excludes command and ordinary-result logs. Neither number is an abstract
+ceiling for every workload feeding one ordered store lane.
+
+Relative to E641's higher 834,401/s state, E694's database leaves were not slower. Its event insert, packed
+state/stream work and commit were all slightly faster, but it formed 754 rather than 689 transactions for the same
+4,194,304 models. The current throughput gap is therefore transaction-shape/feedback variation, not a hidden
+production-code regression.
+
+E695 doubled only the caller window to 131,072 while retaining 65,536 models. That admitted two concurrent updates per
+model. The second update could not name the not-yet-durable first update as its predecessor, so the packed contract
+correctly failed and the whole batch entered the general load/conflict/idempotency path. Warm-up dropped to roughly
+75,923/s, retained about 8.7 GiB RSS and spent its time reconstructing initial streams. The run was intentionally
+terminated after a thread dump established the cause. It is an invalid capacity test, not evidence for or against a
+larger caller window.
+
+E696 changed only the existing idle-only model-backlog collection delay from 1 to 2 ms. It reduced SDK commit requests
+57,880 -> 52,101 and packed transactions 754 -> 726, increasing mean transaction size 5,563 -> 5,777. Active store
+capacity rose to **0.967M/s**, but route throughput improved only 0.53% to 816,815/s in one non-matched profiled pair.
+The setting adds low-load latency and mainly compensates for the synthetic caller's burst/tail shape. It is rejected
+without a canonical screen; the accepted one-millisecond default remains unchanged.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E694 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` + benchmark `b716a6ed` | current one-millisecond control | 4,194,304 | 262,144 | batch-only JFR | 812,491/s | 812,491/s | false | current lower-state capacity trace | diagnostic-only |
+| E695 | smoke | synthetic tracked SDK apply -> model/event durability | same | caller window 131,072 with only 65,536 models | 4,194,304 planned | 262,144 | thread dump | n/a | invalid | false | terminate: concurrent same-model updates changed store semantics | diagnostic-only |
+| E696 | profile | synthetic tracked SDK apply -> model/event durability | same | idle collection delay 2 ms | 4,194,304 | 262,144 | batch-only JFR | 812,491/s | 816,815/s | false | reject: +0.53%, artificial idle latency and non-canonical burst compensation | diagnostic-only |
+
+### E697-E699: tracked public `assertAndApply` preserves correctness but fragments batching
+
+The original E489-E492 direct API route had no tracked source message, so Runtime correctly selected
+`commit-general`. E697-E699 answer the narrower proposal to begin with real serialized commands, activate each
+deserializing command context and invoke `Fluxzero.assertAndApply(command)` without first appending the command or
+later storing an ordinary result. The benchmark uses Java 25 virtual threads because the public method deliberately
+blocks until the model/global-event commit is durable.
+
+All three runs retained exact model/global-event counts, and E698 selected `commit-packed-update` for all 1,048,576
+updates. The real command context therefore solves the idempotency-evidence problem. It does not make the route
+equivalent to the default automatic handler:
+
+| Measured shape | E694 automatic handler | E698 tracked public call | Direct-call amplification |
+| --- | ---: | ---: | ---: |
+| Measured models | 4,194,304 | 1,048,576 | normalized below |
+| SDK `commit-models` requests | 57,880; 72.5 models/request | **108,949; 9.6 models/request** | **7.5x more requests/model** |
+| Packed Runtime transactions | 754; 5,563 models/transaction | **767; 1,367 models/transaction** | **4.1x more transactions/model** |
+| Active packed-store service capacity | **0.955M/s** | **0.315M/s** | 67.0% lower |
+| SDK-inclusive route throughput | **812,491/s** | **278,239/s** with JFR / **283,002/s** clean | about 65% lower |
+
+`Fluxzero.assertAndApply` bypasses ordinary command handlers/decorators and waits for true durability before every
+call returns. Even with many virtual callers, that feedback exposes the SDK commit backlog to many tiny ready groups;
+the Runtime can fuse some of them, but not enough to recover the automatic handler's batch shape. The existing
+synthetic tracked route remains the representative SDK-inclusive model-capacity diagnostic because it preserves lazy
+decode, handler resolution, assertions/interceptors, automatic `@Apply`, asynchronous commit policy and batch
+coordination. The new public-call mode remains useful for explicit-handler/API performance, not for choosing P6.
+Runtime benchmark commit `1ac27472` retains that isolated public-API diagnostic; production Runtime code remains P5.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E697 | smoke | tracked command context -> public `Fluxzero.assertAndApply` -> model/event durability | P5 `0c23c91f` | initial exact route | 131,072 | 65,536 | none | n/a | 303,866/s | false | route works; require sustained/profile evidence | diagnostic-only |
+| E698 | profile | tracked command context -> public `Fluxzero.assertAndApply` -> model/event durability | same | sustained batch anatomy | 1,048,576 | 262,144 | batch-only JFR | n/a | 278,239/s | false | packed path confirmed; blocking API fragments transport/store batches | diagnostic-only |
+| E699 | profile | tracked command context -> public `Fluxzero.assertAndApply` -> model/event durability | same | clean sustained confirmation | 1,048,576 | 262,144 | none | n/a | 283,002/s | false | retain benchmark as public-API diagnostic, not a P6 candidate | accepted |
+| E700 | smoke | synthetic tracked SDK apply -> model/event durability | same | shared command-preparation regression smoke | 131,072 | 65,536 | none | n/a | 470,629/s | false | exact functional smoke only; two measured waves are not a capacity qualification | accepted |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1278,7 +1360,9 @@ checkpoint, not as P6 or a higher model-capacity pin.
    capacity at P5 versus 0.502M/s in the same-binary eight-lane control; these derived rates vary with natural
    transaction shape and are not E2E ceilings.
 3. Keep the low-level SDK update route as a fast secondary physical/wire check, never as the 500k acceptance gate.
-4. Keep direct `assertAndApply` as a separate public-API/idempotency observation, not a packed-route proxy.
+4. Keep both direct `assertAndApply` variants separate from the automatic model-capacity route. Without a tracked
+   context it correctly selects the general idempotent path; with a real tracked command it selects the packed path
+   but the blocking durability contract creates 7.5x more SDK requests and 4.1x more Runtime transactions per model.
 5. Preserve parallel locator partition writes; the single-transaction alternative is causally rejected at -5.88%.
 6. Preserve binary COPY as the general and checked fallback. The P4 typed-array statement is restricted to the packed
    no-type-registration path and is accepted because it removes state boundaries as one atomic unit.
@@ -1374,6 +1458,13 @@ checkpoint, not as P6 or a higher model-capacity pin.
 40. Use one contiguous synthetic command source-index range per benchmark wave. E685/E691 remove a 7.113% process-CPU
     artifact while same-binary E687-E690 keep the timed SDK/model capacity neutral. Do not count this benchmark-only
     cleanup as P6 or use E684's longer-run 875,977/s as a canonical pin.
+41. Treat E694's 0.955M/s and E696's 0.967M/s as the current isolated active-store range. The old 0.407M/s E459
+    estimate was older code under complete command/result PostgreSQL contention, not a contradiction or fixed lane
+    ceiling.
+42. Do not raise the one-millisecond idle collection delay to two milliseconds from E696. It changes synthetic tail
+    batching for only +0.53% in one non-matched profile and adds low-load latency; production remains unchanged.
+43. Use the tracked public `assertAndApply` mode only to observe explicit blocking delegation. E697-E699 prove exact
+    packed correctness, but durability-per-call fragments SDK and Runtime batches and reaches only 283,002/s clean.
 
 ## Evidence
 
@@ -1853,3 +1944,24 @@ checkpoint, not as P6 or a higher model-capacity pin.
   `31d4d36ac1a9369df1ade7bed49e1312d03bde37d025fe2b4408cb3283d4e793`,
   `b54e4de18fcf1f4233985e1c3867712eaaf990805579ab3c38cdb7630e7e56e3`,
   `e3175f79ceca3c33180181f94e9d092c91e9ab969423944a02e3665cf77da8f4`.
+- E694 current isolated-capacity log/JFR/summary SHA-256:
+  `848630c9f95eea2690802082198c0cb81143e1ba64d9c44cfc468baa9d3098b0`,
+  `43631705d64d471bdc7e4b449ac881b9bdc64490fd4887a12db6ec9858d8aacb`,
+  `d9e52e11d8a0dd54d79a9ce0e7f449bacbb2d3df1767e02ea9a1f16d89edf614`.
+- E695 invalid doubled-window log/thread-dump SHA-256:
+  `633a1bc1f52f2bc5276c356a99d11ab5f6b95a3670d265815881d7eb6fb7f418`,
+  `2a944543aa4deecff79737e317ebfb8a9f0718957d54acb79eb9ffeecb904a64`.
+- E696 two-millisecond idle-delay log/JFR/summary SHA-256:
+  `3ae0ccb9aac1d6577fc1842e5fb4ef765ef1a8ec44f0e9823950280613746726`,
+  `c0f2a7d445c1d82d966ad81e94f6a489c24569570266722d8f10250128116325`,
+  `d86d1080a98d3fded2e9db6f47e8687e4526b1a832dfb45a2a985dc2a336ab86`.
+- E697 tracked public-call smoke log SHA-256:
+  `f20dbe35ecfdc4932f3ff51b3ce2c5669e8733b9f8e32f860e9743e3b00cdeeb`.
+- E698 tracked public-call profile log/JFR/summary SHA-256:
+  `0383ea1cf5a479a3869a1c4168b6c0da97eb0559b79f34a2e51d4b9c82d3f956`,
+  `22d97e78cc1aa27dc47dcb9cd066bae0c964db04461523e1e401d7b7a26c6c23`,
+  `a3e207cce435c4ed1275dd8db1c42f9b3fffd6ce20ac2a6777a8f1c5c67636e1`.
+- E699 tracked public-call clean log SHA-256:
+  `ccd3ede7fd38e041c7a14b180bc3fe3b69eca1b6f9fb08152178dc08d7e473e6`.
+- E700 automatic-handler regression-smoke log SHA-256:
+  `93aac8fabae8eff8f3b9057b83ab96d1a8aa76bd941e0fdf94fbbab1887cafc0`.
