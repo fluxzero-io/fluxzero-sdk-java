@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh E633/E635 P5 replication **424,357/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh unchanged E668/E671 controls average **420,348/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Sole acceptance gate for the 500k target |
 | Synthetic tracked SDK apply -> model + event durability | **834,806/s** without JFR; **846,441/s** with batch JFR | `commit-packed-update` | **0.995M/s** in E589 | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
@@ -1083,6 +1083,116 @@ was restored to 128 MiB and both Runtime repositories were returned to clean pro
 | E656 | profile | full command -> model -> event + result | P5 `0c23c91f` / E657 | PostgreSQL `shared_buffers=1GiB` | 4,194,304 | 262,144 | batch-only JFR + PG statistics | 406,820/s | 404,505/s | true | reject: -0.57% despite two physical relation reads | reverted |
 | E657 | profile | full command -> model -> event + result | P5 `0c23c91f` | restored `shared_buffers=128MiB` control | 4,194,304 | 262,144 | batch-only JFR | 406,820/s | 406,820/s | true | accepted adjacent control; no code change | diagnostic-only |
 
+### E658-E661: the canonical JDBC gap is blocking poll time, not Java execution
+
+E658/E659 wrapped the direct global-event `executeUpdate()` call with current-thread CPU time while retaining the
+same batch JFR. The temporary timer was removed immediately after the pair. It resolves the broad JDBC interval into
+wall and actual Java CPU:
+
+| Direct global-event insert | E658 SDK-inclusive isolated | E659 full canonical | Canonical increase |
+| --- | ---: | ---: | ---: |
+| Complete route | 831,639/s | 412,155/s | diagnostic route split |
+| `executeUpdate()` wall mean | 1.632 ms | **4.173 ms** | **+2.541 ms** |
+| current-thread CPU mean | 0.105 ms | 0.115 ms | +0.010 ms |
+| CPU share of wall interval | 6.4% | **2.8%** | blocking dominates |
+
+E660/E661 then used async-profiler 4.5 wall-clock sampling around only the measured phase. This corrected E650/E651:
+zero-threshold JFR `SocketRead` does not include the time spent in
+`NioSocketImpl.park -> Net.poll`. The canonical profile contained 2,494 native `poll` samples below Runtime data-source
+work versus 382 in the SDK-isolated route. The three canonical JDBC commit threads contributed 2,318 samples
+(result 1,125, event 639 and command 554), while the isolated event route contributed 774. The approximately 2.1
+seconds of extra canonical data-source polling closely matches the independently timed event-insert amplification.
+
+The causal conclusion is narrower than “network is slow”: Java encoding, parameter binding and on-CPU driver work are
+not the cost. Under shared command/result/model load, JDBC workers spend the added time waiting below the socket API
+that JFR had observed. E660/E661 are profiler diagnostics and not progress comparisons; the isolated profiler was
+attached before the go signal and therefore also contains an idle prefix, but all PostgreSQL poll samples occur in the
+measured interval.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E658 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | current-thread CPU split | 4,194,304 | 262,144 | batch-only JFR + CPU timer | n/a | 831,639/s | false | diagnostic: 0.105 ms CPU inside 1.632 ms wall | diagnostic-only |
+| E659 | profile | full command -> model -> event + result | P5 `0c23c91f` | current-thread CPU split | 4,194,304 | 262,144 | batch-only JFR + CPU timer | n/a | 412,155/s | true | diagnostic: only 0.010 ms CPU of 2.541 ms canonical amplification | diagnostic-only |
+| E660 | profile | full command -> model -> event + result | P5 `0c23c91f` | native wall sampling | 4,194,304 | 262,144 | async-profiler wall + batch JFR | n/a | 402,445/s | false | diagnostic: canonical JDBC wait is native socket poll | diagnostic-only |
+| E661 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | native wall sampling | 4,194,304 | 262,144 | async-profiler wall + batch JFR | n/a | 788,498/s | false | diagnostic isolated comparison | diagnostic-only |
+
+### E662-E672: a smaller shared JDBC executor is benchmark tuning, not P6
+
+The wall profile showed all 32 shared insert-executor workers participating over the canonical interval. E662-E667
+therefore screened 24 and 16 workers while preserving all commands, model work, global events, results, transactions
+and synchronous commits. E664's 32-worker control is excluded because `fseventsd`, Contacts, ColorSync and Docker VM
+work contaminated the host. E665 produced a valid 404,572/s batch profile but its PostgreSQL sampler failed to compile,
+so its empty activity file is explicitly not evidence.
+
+The valid E666/E667 activity pair observed only 17-21 non-idle PostgreSQL backends at a time. Dominant states were
+completed transactions waiting for the Java client (`idle in transaction / ClientRead`), model-locator work and
+WALSync/WALWrite. Sixteen workers improved that profiled pair by 1.79%, but the clean non-JFR screen disproved 16 as a
+stable optimum:
+
+| Run | Shared insert workers | Full E2E | Relation to adjacent/current 32 control |
+| --- | ---: | ---: | ---: |
+| E668 | 32 control | 420,700/s | control |
+| E669 | 24 | **432,141/s** | +2.72% |
+| E670 | 16 | 420,537/s | -0.04% |
+| E671 | 32 control | 419,996/s | control |
+| E672 | 24 | 422,830/s | +0.67% |
+
+The two 32 controls average 420,348/s and the two 24-worker observations average 427,486/s: +1.70%, but with materially
+different pair effects. A process-wide fixed pool of 24 is tuned to this 14-core laptop, tiny payload and single
+PostgreSQL instance. It can reduce throughput for other core counts, databases or store mixes. The temporary pool-size
+property was removed, Runtime was rebuilt from clean P5 source, and no production checkpoint was made. The useful
+result is the co-tenancy mechanism: reducing simultaneous JDBC work can locally improve the event/model boundary, but
+an arbitrary global pool size is not a representative solution.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E662 | profile | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 24 | 4,194,304 | 262,144 | batch-only JFR | n/a | 415,758/s | true | preliminary screen only | diagnostic-only |
+| E663 | profile | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 16 | 4,194,304 | 262,144 | batch-only JFR | n/a | 412,656/s | true | preliminary screen only | diagnostic-only |
+| E664 | profile | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 32 control | 4,194,304 | 262,144 | batch-only JFR | n/a | 380,762/s | false | exclude host contamination | diagnostic-only |
+| E665 | profile | full command -> model -> event + result | P5 `0c23c91f` | 32-worker activity probe | 4,194,304 | 262,144 | batch-only JFR; sampler failed | n/a | 404,572/s | false | activity evidence invalid; throughput diagnostic only | diagnostic-only |
+| E666 | profile | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 16 | 4,194,304 | 262,144 | batch-only JFR + PG activity | 407,714/s | 415,013/s | true | causal server-wait comparison, not acceptance | diagnostic-only |
+| E667 | profile | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 32 control | 4,194,304 | 262,144 | batch-only JFR + PG activity | 407,714/s | 407,714/s | true | matched control | diagnostic-only |
+| E668 | canonical | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 32 control | 4,194,304 | 262,144 | none | 420,700/s | 420,700/s | true | accepted source control | diagnostic-only |
+| E669 | canonical | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 24 | 4,194,304 | 262,144 | none | 420,700/s | 432,141/s | true | promising first pair, continue | reverted |
+| E670 | canonical | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 16 | 4,194,304 | 262,144 | none | 420,700/s | 420,537/s | true | reject 16: flat | reverted |
+| E671 | canonical | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 32 control | 4,194,304 | 262,144 | none | 419,996/s | 419,996/s | true | accepted source control | diagnostic-only |
+| E672 | canonical | full command -> model -> event + result | P5 `0c23c91f` | shared insert workers 24 | 4,194,304 | 262,144 | none | 419,996/s | 422,830/s | true | reject global tuning: variable +0.67%/+2.72% and workload risk | reverted |
+
+### E673-E675: exact server statements and derived-locator admission
+
+E673 sampled exact `pg_stat_activity` statement text every five milliseconds during the unchanged complete route.
+The sampler itself reduced throughput to 412,336/s, so only its state distribution is evidence. Across 10,390
+non-idle backend observations (6.347 mean, 18 max), the largest exact groups were:
+
+| PostgreSQL state and last/current statement | Share |
+| --- | ---: |
+| idle in transaction after durable result-row insert | **16.78%** |
+| idle in transaction after reading packed `model_stream` blocks for the derived locator | **11.16%** |
+| idle in transaction after `BEGIN` | 6.71% |
+| `COMMIT` in WALSync | **4.55%** |
+| idle in transaction after durable command-row insert | 4.49% |
+| event insert active on CPU / waiting ClientRead / completed in transaction | about **4.7%** combined |
+| `COMMIT` waiting on WALWrite | 2.17% |
+
+The idle result/command/event inserts are not an absent-backpressure bug: `JdbcMessageStore` deliberately prepares
+physical inserts ahead of each store's ordered commit thread. That overlap is what E570/E571 proved useful. The
+derived model-stream locator is also visible as a material concurrent workload: one source-block reader plus COPY
+work spread over the configured partition lanes.
+
+E674/E675 changed only the existing locator write-lane property from the accepted default four to two and one. Both
+ran the entire non-JFR E2E route. At the profiler barrier immediately after the final ordinary result, an independent
+JDBC probe found `located_state_index == last_state_index` in both runs; no locator debt was moved beyond the measured
+window. Throughput was 423,261/s with two lanes and 424,439/s with one, only +0.69% and +0.97% against the fresh
+E668/E671 control average. This simple model has one membership per event; reducing the production default would risk
+slower locator catch-up for wider trees and multi-membership workloads without a convincing canonical gain. Four
+lanes remain accepted P5.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E673 | profile | full command -> model -> event + result | P5 `0c23c91f` | exact PostgreSQL statement-state sampling | 4,194,304 | 262,144 | no JFR + 5 ms PG sampler | n/a | 412,336/s | false | diagnostic statement attribution | diagnostic-only |
+| E674 | canonical | full command -> model -> event + result | P5 `0c23c91f` | locator write lanes 2 | 4,194,304 | 262,144 | none + post-route catch-up probe | 420,348/s | 423,261/s | true | reject: +0.69%, simple-model-only setting | reverted |
+| E675 | canonical | full command -> model -> event + result | P5 `0c23c91f` | locator write lanes 1 | 4,194,304 | 262,144 | none + post-route catch-up probe | 420,348/s | 424,439/s | true | reject: +0.97%, insufficient for wider-workload risk | reverted |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1167,6 +1277,18 @@ was restored to 128 MiB and both Runtime repositories were returned to clean pro
     planning delta and independently confirm E572's earlier conclusion.
 32. Preserve PostgreSQL `shared_buffers=128MiB` for this campaign host. E656/E657 eliminate practically all physical
     relation reads at 1 GiB without improving canonical throughput, so buffer misses are not the model limiter.
+33. Correct the earlier JFR socket interpretation with E658-E661. The canonical event insert spends only 0.115 ms on
+    its Java thread but 4.173 ms wall-clock; async-profiler places the missing time in native socket poll below the JFR
+    `SocketRead` interval. Do not target event encoding, binding or Java execution for this gap.
+34. Do not change the process-wide shared JDBC executor from 32 to a laptop-specific 24. E668-E672 average +1.70% but
+    vary from +0.67% to +2.72%, and 16 is flat. Preserve the default while investigating model-aware admission that
+    retains available parallelism for other store mixes.
+35. Preserve the accepted four derived-locator write lanes. E674/E675 fully catch up before the result boundary but
+    improve this one-membership benchmark by less than 1%; that does not justify risking wider-tree catch-up capacity.
+36. Interpret `idle in transaction` correctly. E673 shows completed result/command/event inserts waiting for their
+    ordered commit threads; this is intentional ahead-of-commit overlap, not evidence to serialize job creation.
+37. Do not rediscover model/event SQL fusion from the new sequential timing table. E570/E571 already implemented and
+    rejected that exact mechanism because it removes ahead-of-commit insert overlap and shrinks natural batches.
 
 ## Evidence
 
@@ -1568,3 +1690,57 @@ was restored to 128 MiB and both Runtime repositories were returned to clean pro
   `72bf1634c2b6459ba34aa38b4f0d85934054edf1e97b444d64e4d9473daaab36`,
   `d2e1b88f2498bafd8c432539b80e4f31b7f36d2dcf87bf548292f113c3d5e887`,
   `e72482a685566009153fe6fa0486d98b65774c547be2774e96f44ad82c1ba563`.
+- E658 SDK-isolated JDBC CPU log/JFR/summary SHA-256:
+  `627fbed90f8e3a5a48958faf8a0d4c2357fd639012b7200258ff8b06dac22d95`,
+  `9492e136a9a6a55a25b66823daf103e0404b50e0c77ae5eb72e44eb3c07b312f`,
+  `baad3ceecdc9ef8fe9733a35fb54a687ce5a87f843a656b4c2fa8dd012b4ec94`.
+- E659 canonical JDBC CPU log/JFR/summary SHA-256:
+  `9f279d83799ac58cde62d10fce82448b24448c127b7f1725f76d97fd014e2eed`,
+  `c1be381c8b8269deb30cc38fe96f57061ef2b720f1c750d6cc9e5b9c3a2290ac`,
+  `d9ba30e67f8e7d556f4be2f5920d2d941a0bf674c5d02800ba1dd22a9e206100`.
+- E660/E661 canonical/isolated wall-profile log/JFR/collapsed SHA-256:
+  `d33d607de622d9125e27b2af3a3fbc1b182ee6791346b7b2508b0ac2a63ec73d`,
+  `4f02a3b599c968d41741d31545b6ba264bb2c03aef74b4f34a6490167ea963aa`,
+  `629d28c157b02a5c1d015763d47fd2002149374267aec2fbd53f1be769317c1a`,
+  `789346da474240e500935534f405f5efc13ec8ba77d388077604b04c36f74baf`,
+  `9f25aae53cc5c53dae55d58889bf3f338c9629d0e378c88eb272ae98a2296b7b`,
+  `24a57ee7e8742160db09ff67cc9f8519b6a4c531017a45507d6bd475f3015b70`;
+  differential flame graph `1fa3cfa5326e966695aebf6c558a2358f41aba7dd18bcc84526bf3fa5cfe3125`.
+- E662-E664 24/16/contaminated-32 profile log/JFR/summary SHA-256:
+  `cd2cce0a1930d0bb3018d366e3c0ec57529fa5267d1021001ee16708a1fb94a1`,
+  `d8f7fece02f77e557594ff42cfb734c8042b39e46f87b082720f2271bcebc642`,
+  `182819535ce1b24f9da0881c2652e519a0ccbd3cbbb98fccd2db18ce8e2adfbf`,
+  `9521b1157f8631a60815463a500b7083a5ffe1b20792636156f0c50d6f87b0b0`,
+  `33c2c247548bd8fd452432cfa51c949b3d6939427dd0dd0d496342b17cb32bab`,
+  `b4ae61fea761e8fd086b85d622e5ad7bbb85d3fd99e52bb0bbd19b37e067a177`,
+  `0a60375a4faad63ba82f0815fa297d0afe73f4d79d1cf5201a7826536774f099`,
+  `15135570d20de948247434249cba62b4ecd442e443caedd40df0caa3e94efe5b`,
+  `2abd116cb3a988edbec2143c21e446d97523ffce8326ec64715a7111cd942d61`.
+- E665 log/JFR/summary SHA-256:
+  `63c57d09b9044137baede98ab4ca4b9fc4be34b583a1ba8cb6535c461b21e2b5`,
+  `e4fc6e7943860ed87c01a57f85afa4fa21456ba122fa9bab7a0c132ab7dc49fe`,
+  `dfec942202f5274f3a959bef36a69ac333f3afa0fe3bd597bca8d3a9be79887e`;
+  the activity output is empty (`e3b0c442...`) because the sampler did not compile.
+- E666/E667 16/32 activity-profile log/JFR/summary/activity SHA-256:
+  `e944cca01b04bb66862b3596359e6d23a2306651e35f2e8918a759d9348b869d`,
+  `4a687c22832ad7ab9ec43fd984d4e863baedce50fc3f02c9f737712c8422539f`,
+  `ae2de4814e05ae006730da2daba179713fd2d12835ef6164eb5d4bf3c3865da0`,
+  `96d328fdd4d772652f733b87a520db0a2a875ca6817f82f31ea99fd302c5e373`,
+  `01ddf1ff568a40866283aa8d93863d5ee41b1a83bdeb1cb1990aed9121e20f18`,
+  `a8989e527a2e2956ba5e3460cdc98f6bea7f8d66515266b720f6574ffaa662ac`,
+  `1458ecdcc30bebb314dba152157cf3228325b471c6122acf7b6419897c01a4ca`,
+  `53b1a80601855b3432a041be7d3cbe5ee9dcc1fa5655f00d1fcd0d48f34715eb`.
+- E668-E672 shared-pool screen log SHA-256:
+  `3d9cdf107531818c317c8aedc8d1b23ffd977536f7ffbc2aa2c282da5cbf439d`,
+  `b3e4079e6a998b67db66d35ce11b301726f95fb00fd0493b5a8a061fbb59398f`,
+  `b00aa2ff8caaaf7f301039863f3751bbb20520462baf804b0e9f2b046061a929`,
+  `d668bd57b4b61eab82f9cd7122be515230657e460fba8feaf9ae9080227052f5`,
+  `8c297eba05255679165fc237bcc497ee6cb523e03d563721f91d19327fa91cf6`.
+- E673 statement sampler log/activity SHA-256:
+  `5c1a77dd567d4908e367918bde68698f22752908ee9816507d5b92fa8b584bf1`,
+  `1271d73f342171051be4b85dbda5a501e4e5cf4d2a678fb5a0d099a71ebb0821`.
+- E674/E675 locator-lane log/catch-up SHA-256:
+  `2e86aa6580c4fff4ecc7468dc8d149d72ce810463a2f9d8f90506dfcadb5b277`,
+  `de19ac7db90d039c5c18737f67a798f6c91bac67fe173e18716e699b47acf4a4`,
+  `a7db5445b1022115550e9d281bb699123f8f0f0c7c92c0458e50ba0979813f20`,
+  `58ea52de07075d2b34b41fbdd0fbd6996dc0eb11dd9ef3fd037bba6c4c66642d`.
