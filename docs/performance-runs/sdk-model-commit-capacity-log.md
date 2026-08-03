@@ -957,6 +957,46 @@ the complete E2E route did not improve. Because the derived locator is off the m
 candidate additionally requires a non-trivial existing-schema migration, this is not a low-risk latent win. The
 candidate was removed without a production checkpoint; P5 and the E637 tracing remain the accepted source state.
 
+### E641-E647: SDK-inclusive isolation proves PostgreSQL co-tenancy, not metadata, halves model capacity
+
+E641 refreshed the synthetic tracked SDK route after the classified store instrumentation. It again kept serialized
+command decoding, handler resolution, assertions/interceptors, automatic `@Apply`, event serialization, model
+batching, WebSocket and real model/global-event durability, while excluding only command and ordinary-result logs.
+All 4,194,304 durable handler completions, model events and global events were exact at **834,401/s**, independently
+reproducing E588's 834,806/s. Its active model store served 0.984M updates/s.
+
+E642 and E643 then enabled PostgreSQL statistic resets at measured-phase start and ran the isolated and canonical
+routes with the same batch JFR. They establish a per-route database comparison instead of relying on accumulated
+server statistics:
+
+| Fundamental model work | E642 SDK-isolated | E643 full canonical | Canonical effect |
+| --- | ---: | ---: | ---: |
+| Full route throughput | **805,092/s** | **406,675/s** | -49.5% |
+| Active model-store capacity | **0.924M/s** | **0.512M/s** | -44.6% |
+| Mean model batch | 5,622 | 5,738 | +2.1% |
+| Direct global-event insert, Java/JDBC | 1.667 ms | **4.069 ms** | **+144%** |
+| Direct global-event insert, PostgreSQL execution | 0.146 ms | **0.660 ms** | **+352%** |
+| Atomic state/stream statement, Java/JDBC | 1.395 ms | **2.450 ms** | **+76%** |
+| Atomic state/stream statement, PostgreSQL execution | 0.290 ms | **0.431 ms** | **+49%** |
+| Shared event/model commit | 1.191 ms | **2.115 ms** | **+78%** |
+| Derived locator COPY, PostgreSQL execution | 1.315 ms | **2.016 ms** | **+53%** |
+| Total active model store | 6.082 ms | **11.211 ms** | **+84%** |
+
+The full route generated 355.6 MB WAL and 11,578 transactions versus 87.4 MB and 5,213 in isolation. It also caused
+42,852 physical buffer reads versus 2,057. The same model SQL is therefore materially slower inside PostgreSQL once
+command/result durability is active; the gap is not explained by a saturated application connection pool, SDK
+handler compute or only Java scheduling. The event insert is the largest amplification, while state/stream, commit
+and even the asynchronous locator all show the same shared-resource direction.
+
+E644 measured the physical compressed model data after another exact 845,926/s SDK-isolated run. Canonical E643 had
+stored 80.6 MB global-event data and 34.5 MB model-stream data, versus 55.7 MB and 25.6 MB in E644. E645/E646 then
+showed that the source command metadata visible to `@Apply` was empty in isolation and exactly
+`$requestTimeout=200000`, `$publicationDepth=0` (59 encoded bytes) in canonical. That correlation did not justify
+stripping observable metadata: E647 added those exact bytes to the isolated route and still achieved **826,359/s**,
+0.967M/s active store capacity and only 90.8 MB total WAL. Compressed global-event data rose merely to 58.2 MB.
+Consequently the two metadata fields are not the missing factor; the temporary benchmark option was removed and no
+SDK/runtime production behavior changed.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1021,6 +1061,13 @@ candidate was removed without a production checkpoint; P5 and the E637 tracing r
     per-lane COPY by 31.9% and a whole asynchronous locator round by 24.9%, but leaves the complete route effectively
     flat at -0.33%, creates 15.6% more locator jobs and introduces migration complexity. Return candidate selection to
     the synchronous global-event insert, packed state/stream statement and shared commit boundary.
+26. Use E642/E643 as the current co-tenancy proof. With nearly equal model batches, command/result durability makes
+    the same event insert 4.5x slower inside PostgreSQL, the state/stream statement 49% slower, commit 78% slower and
+    the complete active model store 84% slower. Preserve event-insert overlap and investigate model-boundary
+    scheduling/resource contention rather than another isolated SDK micro-optimization.
+27. Do not strip `$requestTimeout` or `$publicationDepth` from model events for performance. E645-E647 prove those
+    two fields account for only about 3.4 MB extra WAL and no meaningful isolated throughput loss; metadata propagation
+    remains an observable contract and is not the current limiter.
 
 ## Evidence
 
@@ -1344,3 +1391,34 @@ candidate was removed without a production checkpoint; P5 and the E637 tracing r
   `c199ddbb3f8e5842b0eabb9b3bf87916d4d967214373aa99b4e78c4656cfb4d4`,
   `34bce1e0fadfa3bf0cc090b28f7763285d17afd7eb53676317e87583f19026e9`,
   `b7fc3b00d91e9a37705dc902920ba361cc92ceaf55a40160545f37d3f0d13070`.
+- E641 refreshed SDK-isolated profile log/JFR/summary SHA-256:
+  `0c2df7277ef1bc31635ef4c25300944a9760c95b3cce50d3733d0d2499ee9a99`,
+  `d3a51d72d8e1aa1e0c0809491c091814347e3006550ffbfaac7306a07035c6e6`,
+  `42dc350662be4d319b8d82a07e0d468c0f131e8475716aa84489ee2e454bc40f`.
+- E642 SDK-isolated PostgreSQL profile log/JFR/summary/statements/global/I/O SHA-256:
+  `5e45131fc20ef31f10c56e377d1927d8e31819e3c078084946f544572b60597f`,
+  `e1115e595871ddbee2dad162a17f8b632087cf458176d27e4a678957f9674101`,
+  `9d45ebffb7dc094172425eaa89472ffe3ce17fd3f6b0ab497e6eaac091f4ba95`,
+  `2be858ccedbc4194b5010afcc34b2fead298d9743757116ef9b5cd7d89fee23e`,
+  `3652ad12d21c6bcf511a9552cf25b1e217509adfdf0cc1df3c7463e720212d06`,
+  `2a3d0b4a3d16614748b288696a2a215259f57b227430d3a9051c3b9138fa0263`.
+- E643 canonical PostgreSQL profile log/JFR/summary/statements/global/I/O SHA-256:
+  `3ed341b8fa05c7f6213f3479807f3233d4a08745165cca48a9ef64f029af5de8`,
+  `c06c779479cb439c57f6e515d4562c2e5148f971c168cd89b7311396ea755b27`,
+  `453ad7aab9cc114db87227f48de468bf8fba2cf53d4f4bfa3f9e56b273d0d9ef`,
+  `bf7324df5aeb0434b40f84804897fb402a388b1d3767adbcc87b43076815e8e1`,
+  `33f4a8235a6e27d1dcb2ea46239e4605fc33d4e96ecbb61564f3e93c25bc6316`,
+  `9e21faa563d2b18a312c6abbde34d2b01fe00ba5ac522d14ac23a82589ac953d`.
+- E644 isolated table-size log/table SHA-256:
+  `da244dfa5f26410aa4a964ca61b4bbbd9941058ceb6a6182633a87404fb4ddca`,
+  `d7dc7ec5e329c34989ed70507be14135456c0aeb8d8c30c3b035d93e44e9ed64`.
+- E645/E646 metadata diagnostic log SHA-256:
+  `7ed4b55b4dfc6a4d2c2758c94361e9081dd3121cfc96cd615ae7aa46617563f3`,
+  `8e76037311134cc6d68ba143ac90abfc6b61e8b38b3ce3d12ccd2f17a1ebe31b`.
+- E647 canonical-metadata isolation log/JFR/summary/statements/global/table SHA-256:
+  `9a676e534f3463632d0af77aaa418aeba52a0d8de852721f3fc487306eaa9a4a`,
+  `f56c33415d6ed9c81b1cf5cfb98122f202af73b8bc1a7f8655bdea66a400fd37`,
+  `b7af9d81bc10e8d791b8a317bca449750b8c4a549aafbc8b35ea650c8d1fae77`,
+  `e29fa90a4ee875fd0e44dc0db8782f870a37a0f4a9a4b30ff4dd1131175fbca2`,
+  `11e7052f07361bbe1d246ee99c26aba0be39850089948098f45f9716d7353a87`,
+  `a5c60a57fd8b98ac1ec615fac5d5535aeb772ab7b89fbd33396d77d0b601d7b0`.
