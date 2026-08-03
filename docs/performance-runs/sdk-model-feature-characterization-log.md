@@ -5,7 +5,7 @@
 | Item | Current evidence | Status |
 | --- | --- | --- |
 | Accepted production base | Runtime P5 `0c23c91f`; graph AWAIT correctness `ef24c66a` | accepted |
-| Characterization driver | Runtime benchmark `9ca25780` (Phase 1 + cumulative Phase 2) | accepted |
+| Characterization driver | Runtime `9ca25780` (Phase 2), `5dac6bc2` and `093a4b49` (Phase 3) | accepted |
 | B0 current P5 pin | **420,559 commands/s**, 4,194,304 exact results, model events and global events | canonical |
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
 | Standard metrics | **150,587/s; -64.3%**; 16,815,908 durable metrics for 4,194,304 commands | canonical |
@@ -15,7 +15,7 @@
 | Graph ASYNC | Small route exact; full-size G1 hits the same advisory-lock exhaustion during child updates | blocked by correctness |
 | Graph AWAIT | Exact documents/high-watermark; **257 projection batches for 257 commands** and 89 commands/s in the smoke | smoke only |
 | Phase 2 cumulative C0-C5 | All six exact correctness smokes passed; C0/C1 reuse the already-canonical physical routes | smoke-qualified |
-| Phase 3 practical workload matrix | Not run yet | pending |
+| Phase 3 practical workload matrix | All dimensions implemented and smoke-exercised; RETRY/FAIL contention exposes SDK sequence-loader failure | partially blocked |
 
 Only the qualifying full command -> automatic `@Apply` -> model/event commit -> durable result route is canonical. A
 smoke throughput is never compared with B0 and cannot accept or reject a production optimization.
@@ -198,7 +198,103 @@ S1. The smokes deliberately do not raise `max_locks_per_transaction` or reduce a
 
 ## Phase 3 practical workload matrix
 
-After C0-C5, characterization expands one controlled dimension at a time:
+Runtime checkpoints `5dac6bc2` and `093a4b49` add the practical matrix without changing production code. Generic
+properties vary payload size/entropy and relationship fan-out; dedicated scenarios isolate document size (`D1`), one
+atomic order+inventory commit (`A1`), Zipf contention (`K1`), a cold SDK/Runtime restart with a model set larger than
+the cache (`L1`), and database aging (`Q1`). All numbers below are correctness smokes, never canonical throughput.
+
+### Payload size and entropy
+
+These B0-shaped runs used 200 models, 201 warmup updates and 401 measured updates. `UNIQUE` generates deterministic
+one-byte printable characters per command; it is reproducible but intentionally poorly compressible.
+
+| Payload | Repetitive throughput / p95 | Unique throughput / p95 | Correctness |
+| ---: | ---: | ---: | --- |
+| 32 B | 7,758/s / 23.982 ms | 7,011/s / 23.960 ms | 401 exact results/events; 200 exact models |
+| 256 B | 7,251/s / 24.231 ms | 6,987/s / 26.702 ms | exact |
+| 1 KiB | 6,997/s / 24.906 ms | 4,963/s / 36.865 ms | exact |
+| 4 KiB | 6,298/s / 30.740 ms | **3,008/s / 64.537 ms** | exact |
+
+The tiny runs are noisy, but the 1 KiB and 4 KiB pairs prove that entropy materially changes the route and that the
+driver is not merely padding an object after transport.
+
+### Search-document size
+
+`D1` keeps the command payload at 32 B and sends only document size, seed and entropy. The `@Apply` deterministically
+constructs the large model field, isolating model/document serialization from a same-sized command payload. The
+driver also reads and reports the actual serialized document bytes.
+
+| Requested body | Throughput | p95 | Actual serialized mean / min / max | Correctness |
+| ---: | ---: | ---: | ---: | --- |
+| 256 B | 2,123/s | 87.998 ms | 426.5 / 425 / 427 B | 200 exact models and documents |
+| 2 KiB | 683/s | 403.781 ms | 2,225.6 / 2,224 / 2,229 B | exact |
+| 16 KiB | **105/s** | **2,079.757 ms** | 16,619.6 / 16,615 / 16,632 B | exact |
+
+### Relationship fan-out
+
+`relationshipFanOut` changes the actual number of root models and parent IDs. Exact graph verification no longer
+assumes one child at list index zero; it validates every child independent of graph list order.
+
+| Fan-out | Roots / children | R1 throughput / p95 | Correctness |
+| ---: | ---: | ---: | --- |
+| 1:1 | 200 / 200 | 7,111/s / 25.860 ms | 200 exact active/historical relationships |
+| 1:10 | 20 / 200 | 7,094/s / 23.491 ms | exact |
+| 1:100 | 2 / 200 | 3,032/s / 65.523 ms | exact |
+
+A separate C4 fan-out-10 smoke also passed: 20 exact roots, 200 exact direct child documents, relationships and graph
+children, with exact projection catch-up. Its 2,364/s foreground rate remains noncanonical.
+
+### Atomic multi-model command
+
+`A1` updates an order and inventory from the same pinned begin state in one commit. For 257 measured commands it
+verified 257 results, **514 modelstream memberships**, 257 global events and 128 exact order/inventory pairs. Both
+models recorded the other's exact begin-state value. The smoke reached 2,164 commands/s with p95 56.700 ms.
+
+### Zipf contention and conflict policies
+
+`K1` uses 32 keys, Zipf exponent 1.2, unique routing keys and 16 handler threads. The hottest model received 334 of
+1,024 measured commands (32.62%). It reports attempted and durable throughput separately and counts resolver calls,
+selected retries, terminal resolver failures and failure types.
+
+| Policy | Attempted / durable | Resolver evidence | Qualification |
+| --- | ---: | --- | --- |
+| ACCEPT | 436/s / 436/s | 0 resolver calls; 1,024/1,024 exact | passed smoke |
+| RETRY | 1,707/s / 78/s | 18 real conflict callbacks and 18 selected retries | **failed correctness: 977 command failures** |
+| FAIL | 1,306/s / 108/s | 90 real conflict callbacks and 90 terminal resolver decisions | **failed correctness: 939 command failures** |
+
+ACCEPT is exact, but the current in-process commit coordinator serializes/re-evaluates hot models before Runtime
+conflict rejection; this run must not be misrepresented as a count of server-side rebases. RETRY and FAIL do prove
+real Runtime conflict rejection. They then expose a separate SDK failure such as
+`Model stream 'sdk-contended-16' returned sequence 3 after 3`; most failed commands did not reach the resolver at all.
+Final SDK reconstruction fails with the same duplicate-sequence observation. These two policy routes remain
+`failed-correctness` until that loader/concurrent-read problem is understood.
+
+### Cold cache and component restart
+
+`L1` seeded 512 models, closed the SDK and embedded Runtime, restarted both against the retained schema, and measured
+the first 513 full E2E updates with no warmup. The handler used an explicit adaptive cache of 64 entries, so the model
+set was provably 8x larger. All 512 final states and 513 model/global events were exact. The small smoke reached 968/s
+at p95 529.602 ms; new Runtime construction took 70.649 ms and SDK construction plus tracker readiness 1,025.430 ms.
+PostgreSQL itself and its page cache were intentionally retained; this is a cold SDK/Runtime-component run, not a cold
+database-host run.
+
+### Database aging and soak
+
+`Q1` owns the full history: each round performs updates, deterministic delete/recreate churn, exact result/event
+counting, full model reconstruction, a real PostgreSQL `CHECKPOINT`, a stats flush, then reports schema/index bytes,
+live/dead tuples, autovacuum count and cumulative WAL since the soak baseline. One JFR/profiler boundary spans the
+whole soak rather than being restarted per round.
+
+The qualification smoke used 128 models, three rounds of 257 updates and 5% churn (six deletes plus six recreates per
+round). All 771 updates and all 36 churn commands completed exactly. Schema bytes grew 3,358,720 -> 3,743,744 ->
+3,981,312; cumulative soak WAL grew 117,826 -> 236,287 -> 393,837 bytes. The inclusive 807-command rate was 1,959/s;
+the update-only round rates were 2,806/s, 4,528/s and 5,074/s. Every round reconstructed all 128 exact
+models. No autovacuum occurred during this deliberately short 0.412-second smoke; longer canonical soaks must run
+long enough to observe it rather than infer its cost here.
+
+### Supported practical dimensions
+
+The driver now supports controlled runs for:
 
 - payload size 32 B, 256 B, 1 KiB and 4 KiB with both repetitive and unique/poorly compressible content;
 - searchable document size approximately 256 B, 2 KiB and 16 KiB;
@@ -241,3 +337,28 @@ which practical route is optimized first.
   `18ba72957075f956651e4a0dc0270cd7c9eec593ff0acaa4165381836e53425f`,
   `bc6aa8d06248bc08677645992a31210725e6ad191aa04f0c999108bac8de8277`,
   `53d47bbdbf53d91fef419335e9a1973051c58e5a52870e8005fc66e6f5e47bd2`.
+- Phase-3 32/256/1,024/4,096-byte repetitive/unique payload matrix SHA-256 respectively:
+  `6872382f4191a4f263b9e19ce447a9382cc7d4957d1a9ab57a6cc945c576cfe6`,
+  `748a79aa2cd1dca8afd1350664a8137997741d0a4a6dbaaac982dce2e9f19e9a`,
+  `6c441715406143f57797d080c8f346048676411fb3201113c199870478cc109d`,
+  `4ffdb25c9ffa3b64e121822693eef76f0a3b481b7fd49806f7242fc8f487ffca`,
+  `ea7e6c54807d3a53f33af7e041e1d7e996bfad23615dbfa3a4bb66e9e0f24380`,
+  `20845c537cd8bcf9c4d65725d54bea989a528f9ff8e7b42dc16f56d97d97745c`,
+  `cb674cafdf8bd58cc4f7d04a23b2857eeabdd08c2962bbc3822a863ff63ee92d`,
+  `34f1322dfc214202cf55f7b57ef6af7a0820be072c6da94701211141e3515ce1`.
+- Phase-3 fan-out 1/10/100 and C4 graph fan-out-10 SHA-256 respectively:
+  `15c035cd71f5b6454b49f2c6f6b0d7a4ca38701bb90ca1a5f23cd5ced82fd663`,
+  `9be55252efb65095a96491699e16382919a9b29b1088b50a5bb0f3e97e6fc2e9`,
+  `b55979adaa4c6fb03e34b3b98e39e15802ceb096ac0c4681dcb3453968044c5b`,
+  `f561a9dd4b190329322161faa53e8535d8bbff31d675c3af67900c610a088522`.
+- Phase-3 D1 document 256 B/2 KiB/16 KiB SHA-256 respectively:
+  `07dd92a3ddc55e7c4be84c242658eafef5bfeebbf465a8b3c5403326b4874738`,
+  `b9f9e373870147853ee62b833f3ac97434d203203d83be14c5bccc7f16374cfe`,
+  `e303a0feb0683bfccc5e198492601c6fbdfb0e981a48cb2a4279b95f37879e47`.
+- A1 atomic, K1 ACCEPT/RETRY/FAIL, L1 cold restart and Q1 aging SHA-256 respectively:
+  `1af1f51371c229f653c2a22b7f48c2242dbcd47c25e45591ebec677308be44bf`,
+  `9f9e39ffde561796578a12c500d8d626df388f4cb0514a97701106cb5590c7f2`,
+  `30e9801dbde108f0bf6a0debbe0cc3aa1dba0043ed9492affb7d9c12cc60ca5b`,
+  `24fc080df49528c99120188c6eab759ea36b6b849c22bb07e0a5f292ba29e845`,
+  `2003b9c89e642221b46092f98c821b774137edd6e861b9ba28706b6ab349d070`,
+  `586ffd87a14432c11808c1ce75ce5898f4946a8fc1dd394c5f279448ea2444a9`.
