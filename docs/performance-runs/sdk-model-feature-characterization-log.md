@@ -13,10 +13,10 @@
 | Paused S1 durability candidate | Safe deferred search commits plus one store-local synchronous WAL barrier; 161 focused tests green; Runtime stash `574153ff52718648c048c31b45b3e8db4ccb87a3` above `c357aa14` | stashed; full default-database qualification pending |
 | Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
-| Graph ASYNC | Small route exact; former full-size lock blocker fixed by `6374fa74` | pending full-size requalification |
-| Graph AWAIT | Exact documents/high-watermark; **257 projection batches for 257 commands** and 89 commands/s in the smoke | smoke only |
-| Phase 2 cumulative C0-C5 | All six exact correctness smokes passed; C0/C1 reuse the already-canonical physical routes | smoke-qualified |
-| Phase 3 practical workload matrix | All dimensions implemented and smoke-exercised; RETRY/FAIL contention exposes SDK sequence-loader failure | partially blocked |
+| Graph ASYNC | Exact 4,096-command representative run: **5,358/s foreground**, 372 ms catch-up and 3,604/s inclusive | noncanonical characterization |
+| Graph AWAIT | Exact matched run: **31/s**, zero completion lag and 4,096 upserts in 3,727 batches; an 8,192-open run correctly hit the 4,096-waiter safety cap | severe coalescing target; noncanonical |
+| Phase 2 cumulative C0-C5 | Representative C2/C3/C4 remained near 4.8-4.9k/s; C5 AWAIT fell to **37/s** with 4,082 batches for 4,096 commands | exact; noncanonical characterization |
+| Phase 3 practical workload matrix | Every proposed dimension now has a medium-scale run; RETRY/FAIL contention still exposes the SDK duplicate-sequence loader failure | complete except correctness blocker |
 
 Only the qualifying full command -> automatic `@Apply` -> model/event commit -> durable result route is canonical. A
 smoke throughput is never compared with B0 and cannot accept or reject a production optimization.
@@ -307,6 +307,120 @@ The driver now supports controlled runs for:
 
 This phase remains descriptive: correctness is the gate, while throughput, latency, resource use and stage times decide
 which practical route is optimized first.
+
+## Medium-scale characterization completion on the clean production-code base
+
+After pausing the S1 durability candidate, the complete proposed matrix was rerun from clean Runtime `c357aa14` and
+the current SDK with Java 25, 8 GiB fixed heap, latest SDK defaults, ordinary PostgreSQL settings
+(`synchronous_commit=on`, `autovacuum=on`) and no JFR. No database tuning or production-code candidate was active.
+The host was deliberately allowed to remain busy because these runs complete the feature map rather than qualify
+throughput. Every number in this section is therefore `canonical_comparable=false`: large differences are useful
+characterization, but small differences must not be interpreted as optimization wins or regressions.
+
+The existing full canonical B0, M1, S1, R1 and R2 results above remain the applicable Phase-1 evidence. C0 and C1 are
+the same physical B0 and M1 routes, so they were not rerun merely under another scenario name. The runs below close
+the previously missing graph, cumulative and practical cells.
+
+### Graph completion and cumulative C2-C5
+
+The matched representative graph pair used 512 models, 1,024 warmup commands, 4,096 measured commands and 256 maximum
+open requests. Both routes verified exact results, model/global events, models, relationships, direct documents,
+complete root documents and the durable projection high-watermark.
+
+| Run | Route | Foreground | Inclusive | p50 / p95 / p99 / max | Projection behavior |
+| --- | --- | ---: | ---: | --- | --- |
+| MX-G1-R | Graph ASYNC | **5,358/s** | 3,604/s | 46.193 / 59.780 / 60.153 / 60.241 ms | 715 ms completion lag; 372.048 ms catch-up; 918 upserts in 93 batches |
+| MX-G2-R | Graph AWAIT | **31/s** | 31/s | **1,698.263 / 30,274.710 / 31,579.460 / 32,059.424 ms** | zero completion lag; 4,096 upserts in **3,727 batches** |
+
+The AWAIT route is roughly 173x slower in this matched observation. That is not host noise: AWAIT nearly removes
+cross-command graph coalescing and holds results for the materialization boundary. A larger 8,192-open G2 diagnostic
+correctly failed the Runtime `MAX_AWAITERS=4096` admission guard rather than growing an unbounded waiter set. A
+follow-up with 2,048 open requests made progress without errors but root seeding was only tens per second and was
+stopped before measurement; the representative 256-open run above is the completed characterization.
+
+A separate high-pressure G1 run with 8,192 models and 65,536 measured commands completed exactly at 10,638/s
+foreground. It ended with about 17.2 seconds of projection lag, caught up in 10.652 seconds and reached 3,898/s
+inclusive, with a maximum sampled heap of 4,949.2 MiB. It is retained as scale evidence, not as a canonical score.
+
+The matched cumulative runs below used the same 512/1,024/4,096/256 shape. Standard metrics were enabled and all
+expected durable metrics and feature state were exact.
+
+| Run | Scenario | Throughput | p50 / p95 / p99 / max | Exact added feature evidence |
+| --- | --- | ---: | --- | --- |
+| MX-C2 | Metrics + searchable | 4,845/s | 50.086 / 56.180 / 57.367 / 57.686 ms | 512 exact models and direct documents; 17,655 metrics |
+| MX-C3 | C2 + stable `@ParentId` | 4,840/s | 50.452 / 58.609 / 59.061 / 60.260 ms | exact roots, children and relationships; 17,640 metrics |
+| MX-C4 | C3 + graph ASYNC | 4,925/s foreground; 2,981/s inclusive | 49.081 / 55.108 / 57.584 / 57.669 ms | 597 ms lag; 542.419 ms catch-up; 1,449 upserts in 147 batches |
+| MX-C5 | C4 with AWAIT | **37/s** | **2,060.028 / 3,659.729 / 30,319.712 / 30,337.888 ms** | zero lag; 4,096 upserts in **4,082 batches**; 37,937 metrics |
+
+C2-C4 are indistinguishable at this noisy scale and cannot rank their feature costs. C5 independently reproduces the
+AWAIT coalescing problem and is the clear functional performance target.
+
+### Payload and document size
+
+The payload matrix kept the full B0-shaped command -> automatic apply -> durable model/event/result route, with 4,096
+models, 8,192 warmup commands and 32,768 measured commands. All eight runs completed 32,768 exact results, model
+events and global events and reconstructed 4,096 exact final models.
+
+| Payload | Repetitive throughput / p95 | Unique throughput / p95 | Interpretation |
+| ---: | ---: | ---: | --- |
+| 32 B | 42,279/s / 142.174 ms | 55,448/s / 99.091 ms | host/run ordering dominates this small pair |
+| 256 B | 61,423/s / 82.782 ms | 42,212/s / 99.578 ms | unique content begins to cost materially |
+| 1 KiB | 57,688/s / 79.923 ms | **16,287/s / 292.978 ms** | strong entropy/size regime |
+| 4 KiB | 40,809/s / 141.966 ms | **4,504/s / 932.776 ms** | transport/serialization/storage bytes dominate |
+
+The 32-byte inversion is why these scores are not optimization evidence. The 1 KiB and 4 KiB collapse is large and
+monotone enough to establish a real practical byte/entropy dimension.
+
+Document-size runs used 1,024 searchable models, 2,048 warmup commands, 8,192 measured commands and 512 maximum open
+requests. The command stayed 32 B; only the deterministic poorly compressible model/document body grew. All runs
+verified every result/event, final model and direct document.
+
+| Requested body | Actual serialized mean / min / max | Throughput | p50 / p95 / p99 / max |
+| ---: | ---: | ---: | --- |
+| 256 B | 427.9 / 425 / 429 B | 3,713/s | 105.508 / 297.608 / 300.583 / 301.975 ms |
+| 2 KiB | 2,227.1 / 2,225 / 2,241 B | 686/s | 1,245.043 ms p95 |
+| 16 KiB | 16,621.4 / 16,617 / 16,634 B | **92/s** | 4,270.630 / 6,183.418 / 6,184.122 / 7,059.820 ms |
+
+### Relationship and graph fan-out
+
+R1 used 4,000 children, 8,000 warmup commands and 32,000 measured commands. Every run verified 4,000 exact final
+children plus active and historical relationships with no moves.
+
+| Fan-out | Roots / children | Throughput | p95 |
+| ---: | ---: | ---: | ---: |
+| 1:1 | 4,000 / 4,000 | 79,924/s | 58.692 ms |
+| 1:10 | 400 / 4,000 | 64,529/s | 84.060 ms |
+| 1:100 | 40 / 4,000 | 64,838/s | 73.441 ms |
+
+The stable relationship route has no 1:100 explosion. A matched C4 graph series with 1,000 children, 2,000 warmup
+and 8,000 measured commands kept foreground throughput flat at 5,680/s, 5,989/s and 5,726/s for fan-out 1, 10 and
+100. Inclusive throughput improved from 3,412/s to 5,274/s and 5,416/s because fewer distinct roots allow much more
+projection coalescing: upserts/batches fell from 2,185/219 to 750/75 and 125/25. Every graph and high-watermark was
+exact.
+
+### Atomic commits, contention, cold restart and aging
+
+| Run | Shape | Result |
+| --- | --- | --- |
+| MX-A1 | 4,096 order/inventory pairs; 8,192 warmup; 32,768 measured | **16,908/s**; exact 32,768 results, 65,536 modelstream memberships, 32,768 global events and 4,096 atomic pairs |
+| MX-K1-A | 64 hot keys; Zipf 1.2; ACCEPT; 4,096 measured | 401 durable/s; 1,210 commands (29.54%) on hottest key; 4,096/4,096 exact; coordinator prevented Runtime conflicts |
+| MX-K1-R | same with RETRY | **failed correctness**: 243 successes, 3,853 technical failures; 71 retry decisions; duplicate model-sequence loader error |
+| MX-K1-F | FAIL; 1,024 measured | **failed correctness**: 170 successes, 854 technical failures; 42 terminal decisions; same duplicate model-sequence loader error |
+| MX-L1 | 8,192 models; adaptive cache 1,024; cold SDK/Runtime; 32,768 measured | 2,224/s; p95 2,123.917 ms; 8,192 exact states; Runtime 88.856 ms and SDK/tracker 1,021.627 ms restart |
+| MX-Q1 | 4,096 models; three rounds of 32,768 updates; 1% delete/recreate churn | 98,304 exact updates and all final models; 3.211 s inclusive; real checkpoints and 24,316,100 B cumulative WAL |
+
+The RETRY and FAIL results are not throughput observations: they remain a genuine correctness blocker in concurrent
+model loading and must be fixed before those policies can be characterized. MX-L1 restarts the SDK and Runtime but
+retains PostgreSQL and its page cache, as documented for L1.
+
+MX-Q1 used normal autovacuum and synchronous commits. Its three update rounds reached 35,841/s, 35,684/s and 64,345/s
+with p95 197.615, 157.376 and 92.549 ms. Schema/index bytes grew 17,924,096/2,424,832 ->
+39,182,336/4,120,576; live/dead tuple estimates ended at 7,755/5,896. The 3.211-second soak was too short to trigger an
+autovacuum, so it proves the measurement route and exact aging behavior, not long-duration autovacuum stability.
+
+This completes the proposed descriptive matrix. The next quiet-host work should not rerun every cell: it should first
+address the RETRY/FAIL correctness defect and the AWAIT projection coalescing behavior, while the stashed S1
+durability candidate remains a separately logged, unaccepted investigation.
 
 ## S1 optimization campaign
 
