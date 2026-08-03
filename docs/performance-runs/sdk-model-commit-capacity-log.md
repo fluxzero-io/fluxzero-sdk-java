@@ -1193,6 +1193,27 @@ lanes remain accepted P5.
 | E674 | canonical | full command -> model -> event + result | P5 `0c23c91f` | locator write lanes 2 | 4,194,304 | 262,144 | none + post-route catch-up probe | 420,348/s | 423,261/s | true | reject: +0.69%, simple-model-only setting | reverted |
 | E675 | canonical | full command -> model -> event + result | P5 `0c23c91f` | locator write lanes 1 | 4,194,304 | 262,144 | none + post-route catch-up probe | 420,348/s | 424,439/s | true | reject: +0.97%, insufficient for wider-workload risk | reverted |
 
+### E676-E679: exclusive co-located insert admission removes useful overlap
+
+E676-E679 tested the narrow follow-up to the canonical JDBC poll amplification. A temporary fair read/write admission
+lock surrounded only the physical direct-LTS insert: ordinary command/result jobs retained parallel read admission,
+while jobs with a co-located model callback received exclusive write admission. Commit ordering, futures, connections,
+serialization and model-store code were unchanged. The intent was to let the global-event insert complete without
+competing direct message inserts while preserving all work before and after that statement.
+
+Two same-binary no-JFR pairs reject the mechanism. Controls averaged 430,490/s and candidates 413,703/s, a **3.90%**
+loss. Both candidate runs were tightly grouped, and the reverse control was the fastest run. Correctness counts remained
+exact at 4,194,304 ordinary results, model events and global events per run. The blocking JDBC gap is therefore real,
+but excluding other inserts sacrifices useful PostgreSQL/worker overlap instead of converting that wait into route
+capacity. The lock and property were removed completely and P5 was rebuilt clean.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E676 | canonical | full command -> model -> event + result | P5 `0c23c91f` | admission disabled, same candidate binary | 4,194,304 | 262,144 | none | 427,204/s | 427,204/s | true | pair-one control | diagnostic-only |
+| E677 | canonical | full command -> model -> event + result | P5 `0c23c91f` | exclusive co-located direct-insert admission | 4,194,304 | 262,144 | none | 427,204/s | 414,808/s | true | reject: -2.90% | reverted |
+| E678 | canonical | full command -> model -> event + result | P5 `0c23c91f` | exclusive co-located direct-insert admission | 4,194,304 | 262,144 | none | 433,775/s | 412,597/s | true | reject: -4.88% | reverted |
+| E679 | canonical | full command -> model -> event + result | P5 `0c23c91f` | admission disabled, same candidate binary | 4,194,304 | 262,144 | none | 433,775/s | 433,775/s | true | reverse control | diagnostic-only |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1289,6 +1310,9 @@ lanes remain accepted P5.
     ordered commit threads; this is intentional ahead-of-commit overlap, not evidence to serialize job creation.
 37. Do not rediscover model/event SQL fusion from the new sequential timing table. E570/E571 already implemented and
     rejected that exact mechanism because it removes ahead-of-commit insert overlap and shrinks natural batches.
+38. Do not prioritize co-located model/event inserts by excluding ordinary direct message inserts. E676-E679 lose
+    3.90% across two canonical pairs. Preserve insert overlap and seek lower transaction/round-trip cost or better
+    parallel progress without serializing otherwise independent physical inserts.
 
 ## Evidence
 
@@ -1744,3 +1768,8 @@ lanes remain accepted P5.
   `de19ac7db90d039c5c18737f67a798f6c91bac67fe173e18716e699b47acf4a4`,
   `a7db5445b1022115550e9d281bb699123f8f0f0c7c92c0458e50ba0979813f20`,
   `58ea52de07075d2b34b41fbdd0fbd6996dc0eb11dd9ef3fd037bba6c4c66642d`.
+- E676-E679 co-located insert-admission log SHA-256:
+  `8fb4997afdb33a283fa3c6d0a0d1c8085f0f3efe36a8c825fe7d9a10eb99a21e`,
+  `e110cf26eda50470bbb649e667326ac9bfdaabc70eeb4f446ab2d09c83f69af5`,
+  `fc53b226cbb82e88046bf5fdd56f2c031ef0546d8d49f4d4dea48aa96d8475d5`,
+  `8a39fab949dd1f6e204ca1fe94fefee3816736f82735f24e0cdbfa065532536e`.
