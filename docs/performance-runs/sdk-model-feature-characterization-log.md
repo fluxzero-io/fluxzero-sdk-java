@@ -9,10 +9,10 @@
 | B0 current P5 pin | **420,559 commands/s**, 4,194,304 exact results, model events and global events | canonical |
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
 | Standard metrics | **150,587/s; -64.3%**; 16,815,908 durable metrics for 4,194,304 commands | canonical |
-| Direct searchable model | Full-size S1 fails: 30,698-document transaction exhausts PostgreSQL advisory-lock capacity | blocked by correctness |
+| Direct searchable model | **8,595/s**; 4,194,304 exact results/events/documents; lifecycle locks bounded to 64 per transaction | canonical correctness baseline; optimize |
 | Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
-| Graph ASYNC | Small route exact; full-size G1 hits the same advisory-lock exhaustion during child updates | blocked by correctness |
+| Graph ASYNC | Small route exact; former full-size lock blocker fixed by `6374fa74` | pending full-size requalification |
 | Graph AWAIT | Exact documents/high-watermark; **257 projection batches for 257 commands** and 89 commands/s in the smoke | smoke only |
 | Phase 2 cumulative C0-C5 | All six exact correctness smokes passed; C0/C1 reuse the already-canonical physical routes | smoke-qualified |
 | Phase 3 practical workload matrix | All dimensions implemented and smoke-exercised; RETRY/FAIL contention exposes SDK sequence-loader failure | partially blocked |
@@ -307,6 +307,50 @@ The driver now supports controlled runs for:
 This phase remains descriptive: correctness is the gate, while throughput, latency, resource use and stage times decide
 which practical route is optimized first.
 
+## S1 optimization campaign
+
+### Bounded model-lifecycle locks and first full-size baseline
+
+Runtime checkpoint `6374fa74` replaces one transaction-level advisory lock per distinct model with 64 deterministic
+lifecycle-lock stripes. Ordinary document and snapshot materialization takes shared stripe locks; irreversible erasure
+takes the same stripes exclusively and in stripe order. An update that races an erasure still retries and observes the
+durable erasure fence, while unrelated document writes remain mutually compatible. This bounds transaction lock use
+without raising PostgreSQL's lock settings or reducing the benchmark window.
+
+The focused 8,192-model regression, the explicit concurrent erase/write race, all 51 standard search-store tests, all
+52 RUM search-store tests and the complete 686-test Runtime suite passed. The full S1 qualification then ran on
+PostgreSQL 18 with the restored defaults `max_locks_per_transaction=64` and `max_connections=100`. Sampling observed
+at most **64 advisory locks in one transaction** and 128 across two simultaneous materialization transactions, versus
+about 29,700 in a single old diagnostic transaction.
+
+The exact canonical-shape run used Java 25, embedded Runtime, latest SDK defaults `2026.07.27`, 8 GiB fixed heap,
+65,536 models, 262,144 warmup updates, 4,194,304 measured updates, 65,536 maximum open requests, 16 consumer threads,
+32-byte payloads and no JFR. A user development server remained active on the host, so the number below is the first
+correct full-route optimization baseline rather than a clean-host throughput pin.
+
+| Run | Throughput | p50 / p95 / p99 / max | Exact result |
+| --- | ---: | --- | --- |
+| F1-S1-L1 | **8,595/s** | **7,173.920 / 10,782.290 / 11,619.521 / 12,120.680 ms** | 4,194,304 results, model events and global events; 65,536 exact models and direct documents; zero failures |
+
+`pg_stat_statements` was reset shortly after measurement started and retained 3,848,105 materialized rows. The times
+below are cumulative PostgreSQL execution time and may overlap across connections; they are not additive route
+latency. They do, however, expose the service demand of the current materialization path.
+
+| Fundamental database stage | Calls | Rows | Total DB time | Mean/call | WAL | Meaning |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| **Search-document upsert** | 1,710 | 3,848,105 | **226.893 s** | 132.686 ms | **9.74 GB** | Insert/update the direct document and maintain its full-text, reverse, facet and ordering indexes |
+| **Clear durable materialization receipt** | 629 | 3,848,105 | **144.006 s** | 228.944 ms | **1.74 GB** | Null the recoverable `document_projection` after its search write is durable |
+| **Recompute oldest pending materialization** | 630 | 630 | **63.613 s** | **100.973 ms** | 23.3 MB | Find the next unfinished durable projection and advance the tracker safety boundary |
+| Lifecycle fence and bounded lock acquisition | 629 | 3,848,105 | 39.598 s | 62.954 ms | 571.8 MB | Exclude erasure and advance the per-document state fence before writing |
+| Model-commit COPY | 628 | 3,841,127 | 38.494 s | 61.297 ms | 2.88 GB | Persist the authoritative model commits and recoverable projection payloads |
+
+The writer samples showed normally one active search-upsert query and approximately one PostgreSQL core of database
+CPU. The next candidate must therefore test parallel search materialization across independent commit jobs while
+keeping every individual atomic model commit in one transaction. It must not split a multi-model commit. The durable
+receipt cleanup remains one ordered post-apply step. Separately, the pending-min query was observed scanning dead
+prefix entries in every commit partition; a monotonic lower-bound seek is a second concrete candidate after the
+parallel writer is causally tested.
+
 ## Evidence
 
 - F1-B0-1 log SHA-256: `30fbfdd4dfa1886574b5d3acd711e2ea728f9ccaec0790fb9afa06439e935960`;
@@ -324,6 +368,8 @@ which practical route is optimized first.
   `a3211b9ca7bef5e4bb1073dbccca8ab298f62bd588c479f746c4eaf612c1632e`;
 - failed F1-S1-1 log SHA-256:
   `052e9addec03b601b12973dd25774991aaecde3b01a6c4e3e492dbd6f068f3aa`;
+- bounded-lock F1-S1-L1 log SHA-256:
+  `29dace8c2a27fb24ff0c09887684bc9fa8c2b26b01bd7a5e4a49929db179c21b`;
 - failed bounded-root-seed F1-G1-1 diagnostic SHA-256:
   `d0de94593551800bbe82f478ad1600f4026d24dd4b247f2958eca5393dbb906c`;
 - F1-R1-1, F1-R2-1 and their B0 reverse control SHA-256:
