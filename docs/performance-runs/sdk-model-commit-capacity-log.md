@@ -997,6 +997,44 @@ stripping observable metadata: E647 added those exact bytes to the isolated rout
 Consequently the two metadata fields are not the missing factor; the temporary benchmark option was removed and no
 SDK/runtime production behavior changed.
 
+### E648-E649: cross-batch overlap loses by fragmenting natural model batches
+
+E648 tested the most direct use of the corrected bounded SDK `Backlog`: at most two model-store batches could be in
+flight, disjoint packed targets received monotonic reserved state-index ranges, event inserts still ran on the
+existing insert executor and the event store still committed in index order. Correctness was exact, and the profile
+did show two insert workers. It nevertheless cut the mean transaction from 6,088 to 2,998 messages and more than
+doubled physical model/event transactions from 689 to 1,399. Locally cheaper half-sized statements could not
+amortize their extra state updates and commits; active model-store capacity fell from 0.984M/s to 0.533M/s.
+
+E649 then tested a narrower stage handoff without a second free backlog slot. The ordered model backlog released its
+next batch only after the current global-event insert and atomic model state/stream statement had completed, directly
+before the current transaction entered its durable commit. The intent was to overlap only event insert N+1 with
+commit N. That preserved more natural batching than E648, but still reduced the mean batch to 4,702 and increased
+transactions to 892. The 1.29 ms mean commit window was too short: the next insert was ready in only about 3% of
+commit-complete samples (`activeWorkers` 1.03), so the extra 203 commits outweighed the overlap.
+
+| Measure | E641 accepted P5 | E648 two in flight | E649 commit handoff |
+| --- | ---: | ---: | ---: |
+| Exact SDK-inclusive throughput | **834,401/s** | 809,801/s | 819,577/s |
+| Model/event transactions | **689** | 1,399 | 892 |
+| Mean messages/transaction | **6,087.5** | 2,998.1 | 4,702.1 |
+| Active model-store capacity | **0.984M/s** | 0.533M/s | 0.829M/s |
+| Mean direct event insert | 1.641 ms | 1.278 ms | 1.504 ms |
+| Mean atomic state/stream statement | 1.411 ms | 1.213 ms | 1.254 ms |
+| Mean commit | **1.174 ms** | 1.200 ms | 1.289 ms |
+| Insert workers ready at commit start | 1.00 | 1.27 | 1.00 |
+| Code outcome | accepted base | reverted | reverted |
+
+Both candidates were fully removed. The causal conclusion is stronger than a throughput comparison: in this
+feedback loop, releasing a later model batch before current durability removes messages from the next naturally
+amortized transaction. Future P6 work must reduce PostgreSQL/model cost within the same large transaction or reduce
+shared command/result database contention; it must not reopen this batch-boundary mechanism without new evidence.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E648 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` / E641 | two disjoint model batches in flight | 4,194,304 | 262,144 | batch-only JFR | 834,401/s | 809,801/s | false | reject: transaction count +103%, active store -45.8% | reverted |
+| E649 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` / E641 | release next batch at current commit start | 4,194,304 | 262,144 | batch-only JFR | 834,401/s | 819,577/s | false | reject: transaction count +29.5%, insufficient overlap | reverted |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1068,6 +1106,9 @@ SDK/runtime production behavior changed.
 27. Do not strip `$requestTimeout` or `$publicationDepth` from model events for performance. E645-E647 prove those
     two fields account for only about 3.4 MB extra WAL and no meaningful isolated throughput loss; metadata propagation
     remains an observable contract and is not the current limiter.
+28. Do not overlap complete model batches or release the ordered model backlog at commit start. E648/E649 prove both
+    variants reduce natural transaction size and lose SDK-inclusive throughput despite locally cheaper statements.
+    Keep one durability-sized model batch and optimize within that transaction or the shared PostgreSQL workload.
 
 ## Evidence
 
@@ -1422,3 +1463,11 @@ SDK/runtime production behavior changed.
   `e29fa90a4ee875fd0e44dc0db8782f870a37a0f4a9a4b30ff4dd1131175fbca2`,
   `11e7052f07361bbe1d246ee99c26aba0be39850089948098f45f9716d7353a87`,
   `a5c60a57fd8b98ac1ec615fac5d5535aeb772ab7b89fbd33396d77d0b601d7b0`.
+- E648 bounded two-batch overlap log/JFR/summary SHA-256:
+  `b1903d51978c119853017735a3d7ff5c48178332b9f0a422356523565a8c88fd`,
+  `a3232087d1be74d46218f9c5f1d4dc482923d3488540edbe1ec893c675de83ef`,
+  `ef6a02fc9538109a6da92eac6250982d04f2fb9647ba82508ecf6fe65e2adff2`.
+- E649 commit-start handoff log/JFR/summary SHA-256:
+  `7dd5244a0890e077fac6308b4a2a67cd11920abd0371fce99c8c77fe332a3e66`,
+  `1c6b2cf1177c0dcb404e6793ad4e16407640c0e5df27f8e3618b3a7d2d906dec`,
+  `a65eb8a2e1d2a191edcdcc40945b03fcaa8e1f417c5397ceacdbe27a21c5f82d`.
