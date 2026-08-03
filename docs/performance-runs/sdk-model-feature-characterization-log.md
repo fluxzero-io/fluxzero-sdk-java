@@ -9,7 +9,7 @@
 | B0 current P5 pin | **420,559 commands/s**, 4,194,304 exact results, model events and global events | canonical |
 | B0 recent reference | E668/E671 mean **420,348 commands/s** | reproduced |
 | Standard metrics | **150,587/s; -64.3%**; 16,815,908 durable metrics for 4,194,304 commands | canonical |
-| Direct searchable model | **8,595/s**; 4,194,304 exact results/events/documents; lifecycle locks bounded to 64 per transaction | canonical correctness baseline; optimize |
+| Direct searchable model | **12,637/s qualified full route; +47.0%** versus the 8,595/s baseline; exact results/events/documents | adaptive parallel materialization accepted; clean-host pin pending |
 | Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
 | Graph ASYNC | Small route exact; former full-size lock blocker fixed by `6374fa74` | pending full-size requalification |
@@ -345,11 +345,65 @@ latency. They do, however, expose the service demand of the current materializat
 | Model-commit COPY | 628 | 3,841,127 | 38.494 s | 61.297 ms | 2.88 GB | Persist the authoritative model commits and recoverable projection payloads |
 
 The writer samples showed normally one active search-upsert query and approximately one PostgreSQL core of database
-CPU. The next candidate must therefore test parallel search materialization across independent commit jobs while
-keeping every individual atomic model commit in one transaction. It must not split a multi-model commit. The durable
-receipt cleanup remains one ordered post-apply step. Separately, the pending-min query was observed scanning dead
-prefix entries in every commit partition; a monotonic lower-bound seek is a second concrete candidate after the
-parallel writer is causally tested.
+CPU. This established parallel search materialization across independent commit jobs as the next causal candidate.
+
+### Adaptive parallel materialization
+
+Runtime checkpoint `45341bcd` partitions the materializations of one committed model batch across independent search
+transactions. One `CommitModels` job is never split: an atomic order-plus-inventory commit, including its direct
+documents and snapshots, stays in one search transaction. Lanes are balanced by the exact mutation byte estimate.
+All lanes must finish durably before their shared model-commit receipts are cleared once and any command future is
+completed. A partial lane failure therefore leaves the exact durable receipts available for idempotent recovery.
+
+Parallelism is deliberately workload-adaptive rather than unconditional. The default maximum is the available JVM
+processor count clamped to 4..16 (14 here, with an explicit maximum override of 32). A batch only earns another lane
+per 1,024 materialization mutations or 1 MiB of materialization bytes. Small batches remain one immediate transaction;
+large batches use the already-available `JdbcSearchStore` workers without a timer or collection pause. The settings
+are `fluxzero.modelMaterializationLanes`, `fluxzero.modelMaterializationMutationsPerLane` and
+`fluxzero.modelMaterializationBytesPerLane`.
+
+The 524,288-command screens kept the full command -> automatic `@Apply` -> model/event commit -> durable result ->
+exact search-document route, 65,536 models, Java 25, 8 GiB heap and no JFR. They were shorter than a canonical run and
+the host moved materially, so only the adjacent comparisons are causal evidence.
+
+| Run | Lanes / adaptive thresholds | Throughput | p50 | Interpretation |
+| --- | --- | ---: | ---: | --- |
+| F1-S1-PC1 | 1 | 10,584/s | 5,508.959 ms | first matched control |
+| F1-S1-P4 | 4 / disabled for the mechanism screen | 12,640/s | 4,641.004 ms | **+19.4%** versus PC1 |
+| F1-S1-P8 | 8 / disabled for the mechanism screen | 13,639/s | 4,288.156 ms | **+28.9%** versus PC1 |
+| F1-S1-P16 | 16 / disabled for the mechanism screen | **15,002/s** | **3,885.477 ms** | **+41.7%** versus PC1 |
+| F1-S1-PC2 | 1 | 8,616/s | 6,966.338 ms | reverse control; confirms large host movement |
+| F1-S1-PA14 | 14 / 1,024 mutations / 1 MiB | **14,043/s** | **4,340.689 ms** | production-adaptive candidate; exact |
+
+The full 4,194,304-command qualification used the same identity as F1-S1-L1 and printed every resolved
+materialization setting in its own log. A separate `fluxzero-dev-server` test JVM and Spotlight became active after
+measurement started, so this is a full correctness and performance qualification but deliberately
+`canonical_comparable=false`; it is not presented as the final clean-host pin.
+
+| Run | Throughput | Difference from F1-S1-L1 | p50 / p95 / p99 / max | Exact result |
+| --- | ---: | ---: | --- | --- |
+| F1-S1-PA14-F | **12,637/s** | **+47.0%** | **4,747.708 / 6,794.208 / 7,207.764 / 7,894.615 ms** | 4,194,304 results, model events and global events; 65,536 exact models/documents; zero failures and zero pending receipts |
+
+The final production diff passed 688 Runtime tests. Focused tests additionally prove two concurrent lane futures,
+one indivisible multi-model job, no early command completion or receipt cleanup, and one transaction for a small
+batch. The full-route backlog stayed bounded: at 2.33 million durable commits it had about 28,000 pending receipts,
+then fell to 44 at the final durable boundary and zero after completion.
+
+`pg_stat_statements` was reset immediately after warmup. Cumulative DB service can overlap across lanes and must not
+be added as latency; the increased search service reflects real parallel work and contention, while wall-clock E2E
+improved. The remaining fundamental stages are now:
+
+| Fundamental database stage | Calls | Rows | Total DB time | Mean/call | WAL | Meaning |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| **Search-document upsert** | 3,166 | 3,908,430 | **619.432 s** | 195.651 ms | 9.53 GB | Parallel direct-document and index maintenance; no longer a single active lane |
+| **Clear durable materialization receipt** | 545 | 3,915,363 | **159.341 s** | **292.368 ms** | Shared post-lane cleanup; now the largest non-search stage |
+| Lifecycle fence and bounded lock acquisition | 3,155 | 3,883,008 | 68.626 s | 21.751 ms | Per-lane monotone state fence and bounded erasure exclusion |
+| **Recompute oldest pending materialization** | 1,089 | 1,089 | **58.234 s** | **53.474 ms** | Still scans old dead prefixes and is the next narrow causal candidate |
+| Model-commit COPY | 544 | 3,883,008 | 37.232 s | 68.442 ms | Authoritative model commits and recoverable materialization receipts |
+
+The next optimization remains the already-observed cleanup boundary: seek the next pending materialization from its
+monotone current lower bound rather than rescanning dead index prefixes, while preserving unbounded startup rebuild
+for crash and upgrade safety. It must again be proven on the full S1 route before acceptance.
 
 ## Evidence
 
@@ -370,6 +424,15 @@ parallel writer is causally tested.
   `052e9addec03b601b12973dd25774991aaecde3b01a6c4e3e492dbd6f068f3aa`;
 - bounded-lock F1-S1-L1 log SHA-256:
   `29dace8c2a27fb24ff0c09887684bc9fa8c2b26b01bd7a5e4a49929db179c21b`;
+- parallel-materialization F1-S1-P4/PC1/P8/P16/PC2/PA14 screen SHA-256 respectively:
+  `a0528e6f9bff0face7f0ce89b25ed6eaa751a9712676952a62fc8e05452ec098`,
+  `048e952625e816c641364404a965cb2e4b2624c7ce74ce42ee3d07731dfddece`,
+  `990c488baabd134bf7f3f0a36083a61c9920b5828e36f81731308577d0ce5226`,
+  `9c524fd4ac96b4cc9d09ca8a861e9a53fb2e7c3e5e9ce025ad27d6d3f31ee61a`,
+  `be01715a7db3de69280486641d4c1dddd509e7ba70e48b035325cd6fe2304bb6`,
+  `e82f619b8be7b16f3a1c5c2a1d7aaf209eab90487414ae0ed3366020aacc5db6`;
+- full adaptive F1-S1-PA14-F log SHA-256:
+  `c7ac020a63899eaaf0e3e1e3d316d81c4f086c672af68118627515f4d81e00fe`;
 - failed bounded-root-seed F1-G1-1 diagnostic SHA-256:
   `d0de94593551800bbe82f478ad1600f4026d24dd4b247f2958eca5393dbb906c`;
 - F1-R1-1, F1-R2-1 and their B0 reverse control SHA-256:
