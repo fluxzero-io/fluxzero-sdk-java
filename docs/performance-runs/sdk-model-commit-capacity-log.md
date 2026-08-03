@@ -1214,6 +1214,25 @@ capacity. The lock and property were removed completely and P5 was rebuilt clean
 | E678 | canonical | full command -> model -> event + result | P5 `0c23c91f` | exclusive co-located direct-insert admission | 4,194,304 | 262,144 | none | 433,775/s | 412,597/s | true | reject: -4.88% | reverted |
 | E679 | canonical | full command -> model -> event + result | P5 `0c23c91f` | admission disabled, same candidate binary | 4,194,304 | 262,144 | none | 433,775/s | 433,775/s | true | reverse control | diagnostic-only |
 
+### E680-E682: larger global-event blocks do not remove a storage boundary
+
+E680-E682 returned to the SDK-inclusive isolated model route and tested whether the 32,912 physical global-event rows
+seen in E641 represented avoidable boundary pressure. The accepted message store groups at most 128 logical messages
+per compressed LTS row. A diagnostic process property raised that value to 256 without changing backlog collection,
+transactions, commit ordering, the model store, event payloads or any route stage.
+
+The candidate did not improve the route. Two 128 controls averaged 817,750/s and the 256 run achieved 816,160/s
+(-0.19%). Code inspection explains the null result: each model/event job already sends its roughly 48 compressed rows
+in one multi-value insert statement and one existing transaction. Doubling the row packing reduces rows and bound
+parameters, but not insert round trips or commits. There is therefore no basis for a 512 screen or for accepting the
+larger random-read/decompression unit. No source change was made.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E680 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | global-event group size 128 | 4,194,304 | 262,144 | none | 820,426/s | 820,426/s | false | diagnostic control | diagnostic-only |
+| E681 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | global-event group size 256 | 4,194,304 | 262,144 | none | 817,750/s | 816,160/s | false | reject: -0.19% versus mean controls | diagnostic-only |
+| E682 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | global-event group size 128 | 4,194,304 | 262,144 | none | 815,073/s | 815,073/s | false | reverse diagnostic control | diagnostic-only |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1313,6 +1332,9 @@ capacity. The lock and property were removed completely and P5 was rebuilt clean
 38. Do not prioritize co-located model/event inserts by excluding ordinary direct message inserts. E676-E679 lose
     3.90% across two canonical pairs. Preserve insert overlap and seek lower transaction/round-trip cost or better
     parallel progress without serializing otherwise independent physical inserts.
+39. Keep 128 logical messages per compressed message-store row. E680-E682 show that 256 is flat on the SDK-inclusive
+    model route because rows within a job already share one multi-value statement and transaction; physical row count
+    is not transaction or round-trip count.
 
 ## Evidence
 
@@ -1773,3 +1795,7 @@ capacity. The lock and property were removed completely and P5 was rebuilt clean
   `e110cf26eda50470bbb649e667326ac9bfdaabc70eeb4f446ab2d09c83f69af5`,
   `fc53b226cbb82e88046bf5fdd56f2c031ef0546d8d49f4d4dea48aa96d8475d5`,
   `8a39fab949dd1f6e204ca1fe94fefee3816736f82735f24e0cdbfa065532536e`.
+- E680-E682 global-event group-size log SHA-256:
+  `d64de3c61afff61bd092e46e060685f5dece8f28f78a887ecfdd0f8de239bb97`,
+  `13868db00022bbf097b74bf09167fd08ef0d03c3ffc2adeca62769345c28a515`,
+  `bc131785edfffb02d34da533a83e70676f7df93110d9e8e5af12b99c5a965568`.
