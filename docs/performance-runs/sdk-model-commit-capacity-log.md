@@ -1351,6 +1351,74 @@ Runtime benchmark commit `1ac27472` retains that isolated public-API diagnostic;
 | E699 | profile | tracked command context -> public `Fluxzero.assertAndApply` -> model/event durability | same | clean sustained confirmation | 1,048,576 | 262,144 | none | n/a | 283,002/s | false | retain benchmark as public-API diagnostic, not a P6 candidate | accepted |
 | E700 | smoke | synthetic tracked SDK apply -> model/event durability | same | shared command-preparation regression smoke | 131,072 | 65,536 | none | n/a | 470,629/s | false | exact functional smoke only; two measured waves are not a capacity qualification | accepted |
 
+### E701-E703: full SDK-handler trace and rejected independent-lane driver
+
+E701 retained the complete synthetic tracked SDK handler and added deterministic end-to-end request stages to 1,024
+of 4,194,304 exact updates. Full profiling reduced observed throughput to 761,936/s, so the throughput value is not a
+replacement pin. The trace is useful because it separates the actual per-request work from scheduling, durability and
+the deliberately overlapping batch policy:
+
+| Fundamental segment | Exact boundary | mean | p50 | p95 | p99 | max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Handler admission | registered -> model evaluation start | 0.008 ms | 0.002 | 0.011 | 0.341 | 0.467 |
+| Model evaluation | evaluation start -> evaluation complete | 0.029 ms | 0.002 | 0.246 | 0.414 | 0.549 |
+| Commit handoff | evaluation complete -> preparation start | 0.014 ms | 0.001 | 0.014 | 0.736 | 0.880 |
+| Commit preparation | preparation start -> preparation complete | 0.007 ms | 0.002 | 0.010 | 0.171 | 0.387 |
+| Dispatch scheduling | preparation complete -> dispatch start | 0.002 ms | 0.000 | 0.002 | 0.067 | 0.271 |
+| Synchronous dispatch | dispatch start -> dispatched | 0.002 ms | 0.000 | 0.002 | 0.041 | 0.188 |
+| SDK commit-backlog scheduling | dispatched -> transport encoding start | **2.830 ms** | 2.486 | 5.280 | 9.326 | 25.507 |
+| Transport encode/compress | encoding start -> SDK send complete | 0.103 ms | 0.068 | 0.228 | 0.512 | 3.543 |
+| Wire plus Runtime decode | SDK send complete -> Runtime request received | 0.117 ms | 0.079 | 0.239 | 1.125 | 2.725 |
+| Runtime intake | request received -> model store enqueued | 0.094 ms | 0.058 | 0.204 | 1.027 | 3.391 |
+| Runtime model-store queue | store enqueued -> store start | **2.248 ms** | 1.644 | 5.386 | 10.946 | 17.701 |
+| Model/event durability | store start -> durable | **5.927 ms** | 5.463 | 12.794 | 16.872 | 16.992 |
+| Runtime post-durable work | durable -> store complete | 0.479 ms | 0.364 | 1.643 | 2.058 | 2.436 |
+| Runtime response handoff | store complete -> response queued | 0.011 ms | 0.007 | 0.028 | 0.076 | 0.182 |
+| Runtime response queue | response queued -> send start | 0.250 ms | 0.119 | 0.933 | 3.191 | 4.417 |
+| Response encode | send start -> encode complete | 0.182 ms | 0.103 | 0.571 | 1.531 | 2.957 |
+| Runtime socket send | encode complete -> send complete | 0.039 ms | 0.027 | 0.095 | 0.251 | 0.421 |
+| Wire plus SDK decode/context | Runtime send complete -> SDK context restored | **1.026 ms** | 0.697 | 2.672 | 4.436 | 28.848 |
+| SDK result preparation entry | context restored -> result preparation start | 0.036 ms | 0.023 | 0.106 | 0.187 | 0.562 |
+| SDK response processing | result preparation start -> commit response received | 0.101 ms | 0.048 | 0.345 | 0.754 | 3.204 |
+| SDK request matching | response received -> result matched | 0.000 ms | 0.000 | 0.001 | 0.002 | 0.014 |
+| SDK result match handoff | result matched -> post-commit start | 0.165 ms | 0.075 | 0.579 | 1.379 | 4.367 |
+| SDK post-commit | post-commit start -> post-commit complete | **0.851 ms** | 0.536 | 2.410 | 4.630 | 8.966 |
+| Result preparation finish | post-commit complete -> result preparation complete | 0.063 ms | 0.029 | 0.243 | 0.493 | 0.853 |
+| Callback admission | result preparation complete -> callback queued | 0.034 ms | 0.021 | 0.102 | 0.171 | 0.314 |
+| Callback queue | callback queued -> callback start | 0.085 ms | 0.044 | 0.302 | 0.498 | 1.299 |
+| Callback execution | callback start -> model execution complete | 0.020 ms | 0.012 | 0.064 | 0.105 | 0.726 |
+| Result callback finish | model execution complete -> result callback complete | 0.026 ms | 0.023 | 0.068 | 0.126 | 0.300 |
+
+The intervals above are fundamental and sequential only along one sampled request. The following intervals are
+composites or deliberate batch effects and must not be added to that table:
+
+| Composite interval | Components / exact meaning | mean | p50 | p95 | p99 | max |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| SDK transport plus Runtime admission | SDK backlog scheduling + encode + wire/decode + Runtime intake/queue | 5.392 ms | n/a | n/a | n/a | n/a |
+| Durable model boundary | Runtime queue + model/event durability | 8.175 ms | n/a | n/a | n/a | n/a |
+| Post-commit return path | Runtime post-durable + response transport/queues + SDK match/post-commit | 3.342 ms | n/a | n/a | n/a | n/a |
+| Handler batch tail | one handler completed its execution -> all sibling handlers reach the await-after-batch barrier | **66.043 ms** | n/a | n/a | n/a | n/a |
+
+The trace therefore rejects SDK evaluation, preparation and envelope encoding as the next large target. It identifies
+commit-backlog scheduling, Runtime queueing, actual durability and SDK post-commit as material fundamental segments.
+The 66 ms batch tail is not handler compute or a separately removable sleep: the benchmark submits a 65,536-command
+wave as sixteen 4,096-command handler tasks and waits for the complete wave, matching the current
+`ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH` batch contract.
+
+E702 established a same-binary, short clean control at 765,166/s with exactly 1,048,576 durable handler completions,
+model events and global events. E703 tested a diagnostic driver with sixteen persistent lanes, each advancing to its
+next 4,096-model slice immediately after its own future completed. That created non-contiguous source-index progress:
+one lane advanced by 65,536 while the other fifteen intervening source ranges were still active. It changed the
+ordered tracking/commit feedback, reached only 66,905/s, and is not representative of a real contiguous command
+batch. The driver was removed immediately. This result neither rejects independent real clients nor changes the P5
+production conclusion; it only prevents the synthetic benchmark from silently measuring an invalid scheduling model.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E701 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` + benchmark `1ac27472` | deterministic complete request-stage trace | 4,194,304 | 262,144 | full JFR | n/a | 761,936/s | false | retain trace; evaluation/encoding are minor, scheduling/durability/post-commit are material | diagnostic-only |
+| E702 | profile | synthetic tracked SDK apply -> model/event durability | same | ordinary contiguous-wave control on candidate binary | 1,048,576 | 262,144 | none | 765,166/s | 765,166/s | false | exact short adjacent control | diagnostic-only |
+| E703 | profile | synthetic tracked SDK apply -> model/event durability | same | sixteen persistent non-contiguous source lanes | 1,048,576 | 262,144 | none | 765,166/s | 66,905/s | false | reject invalid scheduling model; source-index progress no longer resembles a command batch | reverted |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1465,6 +1533,13 @@ Runtime benchmark commit `1ac27472` retains that isolated public-API diagnostic;
     batching for only +0.53% in one non-matched profile and adds low-load latency; production remains unchanged.
 43. Use the tracked public `assertAndApply` mode only to observe explicit blocking delegation. E697-E699 prove exact
     packed correctness, but durability-per-call fragments SDK and Runtime batches and reaches only 283,002/s clean.
+44. Use E701's fundamental request stages to select further SDK-inclusive work. Model evaluation, preparation and
+    encode/compress together are only 0.139 ms mean; commit-backlog scheduling (2.830 ms), Runtime queueing (2.248 ms),
+    durability (5.927 ms) and SDK post-commit (0.851 ms) are the material boundaries. Do not add the 66.043 ms sibling
+    batch-tail composite to these sequential stages.
+45. Do not replace the contiguous synthetic handler wave with E703's persistent source-partition lanes. They advance
+    source indexes non-contiguously, alter the ordered feedback and lose 91.3% against the adjacent short control. The
+    experiment was a benchmark-driver diagnostic and was fully removed; production remains P5.
 
 ## Evidence
 
@@ -1965,3 +2040,11 @@ Runtime benchmark commit `1ac27472` retains that isolated public-API diagnostic;
   `ccd3ede7fd38e041c7a14b180bc3fe3b69eca1b6f9fb08152178dc08d7e473e6`.
 - E700 automatic-handler regression-smoke log SHA-256:
   `93aac8fabae8eff8f3b9057b83ab96d1a8aa76bd941e0fdf94fbbab1887cafc0`.
+- E701 full SDK-handler request trace log/JFR/summary SHA-256:
+  `a97bb0377c759db496742175cacec2bb05e050a9d5c949f5f2f21d9cb4f62b69`,
+  `23521c1d676475b96d964566ef9f37c315cf89f4a4a94ceafac339b6c7061dca`,
+  `126d2021bdbb661c77f7ba9014ac6c64e14265dae9f7034c80f3a73ebf09867f`.
+- E702 adjacent contiguous-wave control log SHA-256:
+  `bbd34b0ae652e19d368effa357bcd63d8472876679975dce84b533c02683d63b`.
+- E703 rejected persistent-lane diagnostic log SHA-256:
+  `b7baaead775becffb5c006848510eeb51b3c298e26d23c524857616a765b553b`.
