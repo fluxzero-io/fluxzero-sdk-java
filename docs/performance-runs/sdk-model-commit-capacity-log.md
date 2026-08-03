@@ -929,6 +929,34 @@ The next bounded hypothesis is one COPY stream per lane while retaining four dis
 processing, one transaction per lane and the later ordered cursor. It requires a safe way to route the two physical
 partitions from one COPY; no production implementation is accepted by E637 itself.
 
+### E638-E640: one partition-routing COPY per locator lane is locally faster but not E2E-relevant
+
+The candidate introduced a storage-less PostgreSQL partitioned parent above the same eight unlogged physical locator
+tables. Each of the existing four lanes could then stream its two physical partitions through one binary COPY while
+retaining four-way insert parallelism, one transaction per lane, immediate processing and the later ordered cursor.
+No timer, asynchronous commit or command/result change was involved.
+
+E638 was an invalid launch diagnostic: PostgreSQL correctly rejected the legacy child-table column migration after the
+tables had become partitions. E639 fixed that candidate-only schema bootstrap and completed an exact 262,144-command
+smoke at 313,831/s; its short size is not canonical-comparable. E640 then verified exactly 4,194,304 ordinary results,
+model events and global events on the complete canonical route:
+
+| Measure | E637 accepted P5 | E640 one-COPY candidate | Effect |
+| --- | ---: | ---: | ---: |
+| Full E2E under batch JFR | **415,962/s** | **414,592/s** | -0.33% |
+| Active model-store capacity | 0.510M/s | 0.512M/s | effectively unchanged |
+| Locator coordinator rounds | 514 | 594 | +15.6% |
+| Mean physical locator rows/round | 8,154.7 | 7,061.1 | -13.4% |
+| Mean per-lane COPY | 9.289 ms | **6.330 ms** | **-31.9%** |
+| Mean per-lane commit | 1.409 ms | 1.621 ms | +15.0% |
+| Mean complete four-lane locator write | 11.877 ms | **8.916 ms** | **-24.9%** |
+
+The mechanism did remove a COPY startup and materially reduce each asynchronous locator round, but it also changed
+batch feedback enough to create more, smaller locator jobs. Most importantly, the synchronous model/event-store and
+the complete E2E route did not improve. Because the derived locator is off the model-commit critical path and the
+candidate additionally requires a non-trivial existing-schema migration, this is not a low-risk latent win. The
+candidate was removed without a production checkpoint; P5 and the E637 tracing remain the accepted source state.
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -989,6 +1017,10 @@ partitions from one COPY; no production implementation is accepted by E637 itsel
 24. Do not test asynchronous locator lane commits merely because commit latency is visible. E637 splits the locator
     and shows 9.289 ms mean per-lane COPY versus 1.409 ms commit. Preserve commit semantics and first investigate
     eliminating the second COPY startup per lane without reducing parallelism or adding a wait.
+25. Do not retain the tested partition-routing parent solely to remove the second locator COPY startup. E640 improves
+    per-lane COPY by 31.9% and a whole asynchronous locator round by 24.9%, but leaves the complete route effectively
+    flat at -0.33%, creates 15.6% more locator jobs and introduces migration complexity. Return candidate selection to
+    the synchronous global-event insert, packed state/stream statement and shared commit boundary.
 
 ## Evidence
 
@@ -1304,3 +1336,11 @@ partitions from one COPY; no production implementation is accepted by E637 itsel
   `3e5c935dc68a25c58e5113144873fc4fd7944ec044c34569ba6bca2784140491`,
   `2c8a0230181a1673b8aa7af8857ccad59f139d045a4b860c3f04f83c7f6d0cb4`,
   `827756cba597fcd1116b7b33ac21184ca38b593d630ce3904fb353fa7735210f`.
+- E638 invalid candidate-schema launch log SHA-256:
+  `87a25388c5cbb8a1fa348daef7eefbaed23ef99797857cb0b55497ea44dff04a`.
+- E639 corrected candidate smoke log SHA-256:
+  `214d5efdcc2c3766349db4134dcd0d7d43420a31789e7b5a24802026ca33f850`.
+- E640 one-COPY candidate profile log/JFR/summary SHA-256:
+  `c199ddbb3f8e5842b0eabb9b3bf87916d4d967214373aa99b4e78c4656cfb4d4`,
+  `34bce1e0fadfa3bf0cc090b28f7763285d17afd7eb53676317e87583f19026e9`,
+  `b7fc3b00d91e9a37705dc902920ba361cc92ceaf55a40160545f37d3f0d13070`.
