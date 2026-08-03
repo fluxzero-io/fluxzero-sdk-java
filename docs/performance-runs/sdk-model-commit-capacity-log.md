@@ -1233,6 +1233,42 @@ larger random-read/decompression unit. No source change was made.
 | E681 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | global-event group size 256 | 4,194,304 | 262,144 | none | 817,750/s | 816,160/s | false | reject: -0.19% versus mean controls | diagnostic-only |
 | E682 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | global-event group size 128 | 4,194,304 | 262,144 | none | 815,073/s | 815,073/s | false | reverse diagnostic control | diagnostic-only |
 
+### E683-E693: remove synthetic source-index contention without changing timed capacity
+
+E683-E685 profiled the complete SDK-inclusive isolated model route at the process level. E683's first profiler attach
+missed the short measured window but completed exactly at 819,197/s. E684 extended only the measured command count to
+16,777,216 and captured eight seconds of CPU samples. The largest Java leaf was
+`AtomicLong.updateAndGet` at 5.84% of all samples. A stack-aware E685 capture then attributed 2,876 of 40,434 samples
+(**7.113%**) specifically to `SdkModelCommitBenchmark.executeSyntheticTrackedModelApplies`: every parallel command
+serializer contended on the same synthetic source-index atomic and called the clock inside its CAS update.
+
+That preparation occurs before the benchmark starts each wave's handler/service timer, so removing it must not be
+claimed as model-store throughput. The benchmark was changed to reserve one contiguous monotonic source-index range
+per wave and assign `firstIndex + offset` in parallel. Besides removing contention, this makes synthetic command order
+match a real command log instead of assigning indexes in parallel completion order.
+
+Two same-binary no-JFR pairs placed the timed effect at noise: controls averaged 840,699/s and range reservation
+839,571/s (-0.13%). E691's stack-aware candidate profile captured 24,994 CPU samples and **zero** through the old
+benchmark atomic path, while exactly verifying 8,388,608 handler completions, model events and global events. Final
+source-only qualification E692/E693 remained exact but ran in a later lower 809-811k system/batching state. Those
+observations are retained rather than hidden, but they do not overturn the same-binary comparison because the changed
+preparation is outside the reported timer. Runtime benchmark commit `b716a6ed` is accepted as a resource/stability
+checkpoint, not as P6 or a higher model-capacity pin.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E683 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | profiler attach timing check | 4,194,304 | 262,144 | attach missed measured window | n/a | 819,197/s | false | exact run; no profile evidence | diagnostic-only |
+| E684 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | long CPU leaf profile | 16,777,216 | 262,144 | async-profiler CPU, 8 s | n/a | 875,977/s | false | identify process CPU leaves | diagnostic-only |
+| E685 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | stack-aware old index generator | 8,388,608 | 262,144 | async-profiler CPU collapsed, 5 s | n/a | 825,518/s | false | 7.113% samples in benchmark atomic | diagnostic-only |
+| E686 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | direct range-reservation screen | 4,194,304 | 262,144 | none | prior old-binary cluster ~818k/s | 839,003/s | false | promising, require same-binary pairs | diagnostic-only |
+| E687 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | same-binary per-command atomic control | 4,194,304 | 262,144 | none | 839,891/s | 839,891/s | false | pair-one control | diagnostic-only |
+| E688 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | one source-index range per wave | 4,194,304 | 262,144 | none | 839,891/s | 841,557/s | false | +0.20%; timed-neutral | accepted |
+| E689 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | one source-index range per wave | 4,194,304 | 262,144 | none | 841,507/s | 837,584/s | false | -0.47%; timed-neutral | accepted |
+| E690 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | same-binary per-command atomic control | 4,194,304 | 262,144 | none | 841,507/s | 841,507/s | false | reverse control | diagnostic-only |
+| E691 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | range-reservation CPU verification | 8,388,608 | 262,144 | async-profiler CPU collapsed, 5 s | n/a | 820,919/s | false | atomic path 7.113% -> 0%; exact | accepted |
+| E692 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | final source-only range qualification | 4,194,304 | 262,144 | none | n/a | 811,117/s | false | exact lower-state observation; no throughput claim | accepted |
+| E693 | profile | synthetic tracked SDK apply -> model/event durability | P5 `0c23c91f` | clean-host final range qualification | 4,194,304 | 262,144 | none | n/a | 809,631/s | false | exact lower-state observation; investigate separately | accepted |
+
 ## Current decision
 
 1. Runtime `0c23c91f` is the accepted P5 checkpoint on top of P4 `c98f47e6`. Four locator write lanes retain parallel
@@ -1335,6 +1371,9 @@ larger random-read/decompression unit. No source change was made.
 39. Keep 128 logical messages per compressed message-store row. E680-E682 show that 256 is flat on the SDK-inclusive
     model route because rows within a job already share one multi-value statement and transaction; physical row count
     is not transaction or round-trip count.
+40. Use one contiguous synthetic command source-index range per benchmark wave. E685/E691 remove a 7.113% process-CPU
+    artifact while same-binary E687-E690 keep the timed SDK/model capacity neutral. Do not count this benchmark-only
+    cleanup as P6 or use E684's longer-run 875,977/s as a canonical pin.
 
 ## Evidence
 
@@ -1799,3 +1838,18 @@ larger random-read/decompression unit. No source change was made.
   `d64de3c61afff61bd092e46e060685f5dece8f28f78a887ecfdd0f8de239bb97`,
   `13868db00022bbf097b74bf09167fd08ef0d03c3ffc2adeca62769345c28a515`,
   `bc131785edfffb02d34da533a83e70676f7df93110d9e8e5af12b99c5a965568`.
+- E683-E693 synthetic source-index CPU and qualification SHA-256:
+  `6f32243ad48b17af6283ef7f40e7f008788e4501bbdad13c755a41963c05daa9`,
+  `7fea665bcb286f0ad1a018d4a741dfc07a9ef600e68d11a9b0e8dda3abcda97e`,
+  `925c2ee082e944c2817c25b0efca33a1067dbebb9df4d6b4e17e8e4941211f23`,
+  `14dea7f3ca43245a975f084d194cc4a890c1913880a71263ac19c7509e9ff844`,
+  `9e1d730722d8346fdddf45cdd8f6a559f92423a5f7f267450e9805ebca164531`,
+  `2ee539fc253b0136dba2e470d8da4181eeaa19aaab0840a11f94892aae972abd`,
+  `b5fb3eef240dec67906e6e529679575a9b5e77eeef22d58b7218db0424a72464`,
+  `9e68ffb5361eda0728170a2a3df71f1c2c73c81750e17af3e2fd0d29a33b4d5c`,
+  `5007b37397e11c6e4de34725af2630ed16d0713bbc8db348348b4933c3059901`,
+  `2182161d8971405214a09a5808d5ff23cf04c84e371be276b97225c2d7ef698c`,
+  `b2de5b8ed087a0c9126d2c87aa78efe6ea005428a085a538f894712cb4218ccf`,
+  `31d4d36ac1a9369df1ade7bed49e1312d03bde37d025fe2b4408cb3283d4e793`,
+  `b54e4de18fcf1f4233985e1c3867712eaaf990805579ab3c38cdb7630e7e56e3`,
+  `e3175f79ceca3c33180181f94e9d092c91e9ab969423944a02e3665cf77da8f4`.
