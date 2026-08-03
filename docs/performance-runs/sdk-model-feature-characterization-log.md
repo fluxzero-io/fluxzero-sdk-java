@@ -12,7 +12,7 @@
 | Direct searchable model | Full-size S1 fails: 30,698-document transaction exhausts PostgreSQL advisory-lock capacity | blocked by correctness |
 | Stable relationship | **57,316/s; -86.3%**; exact 65,536 active/historical relationships | canonical |
 | Moving relationship | **41,079/s; -90.2%**; exact 41,984 measured moves | canonical |
-| Graph ASYNC | Exact documents/high-watermark; **223 ms command-end lag**, 99.448 ms catch-up in the smoke | smoke only |
+| Graph ASYNC | Small route exact; full-size G1 hits the same advisory-lock exhaustion during child updates | blocked by correctness |
 | Graph AWAIT | Exact documents/high-watermark; **257 projection batches for 257 commands** and 89 commands/s in the smoke | smoke only |
 | Phase 2 cumulative C0-C5 | Not run yet | pending |
 | Phase 3 practical workload matrix | Not run yet | pending |
@@ -148,7 +148,15 @@ transaction-scoped PostgreSQL advisory lock per model to exclude concurrent life
 uses ordinary `max_locks_per_transaction=64` and `max_connections=100`; the transaction exhausted the shared lock
 table and 30,698 command futures failed. Raising the local PostgreSQL limit or shrinking the benchmark window would
 hide rather than solve this unbounded per-transaction lockset, so F1-S1-1 is retained as `failed-correctness`. Full-size
-G1/G2 are not run through the same unsafe root-seeding path until that prerequisite is explicitly bounded or fixed.
+G1/G2 therefore require the same lock problem to be understood rather than a larger database setting.
+
+A bounded-root-seed G1 diagnostic then tested whether only prerequisite creation caused the problem. Root and child
+seeding completed, but full-size child updates also create direct documents needed by graph composition. Concurrent
+direct-document and 128-root graph transactions exhausted the same shared advisory-lock table; even a ten-root graph
+write then failed because other transactions already held the available lock entries. Exactly 44,386 command futures
+failed. The temporary root-seed property was removed and no benchmark or production code was accepted from this
+diagnostic. This proves full-size G1/G2 and cumulative C2+ share the S1 prerequisite bug rather than having an
+independent graph-only failure.
 
 ## Phase 2 cumulative matrix
 
@@ -197,6 +205,8 @@ which practical route is optimized first.
   `a3211b9ca7bef5e4bb1073dbccca8ab298f62bd588c479f746c4eaf612c1632e`;
 - failed F1-S1-1 log SHA-256:
   `052e9addec03b601b12973dd25774991aaecde3b01a6c4e3e492dbd6f068f3aa`;
+- failed bounded-root-seed F1-G1-1 diagnostic SHA-256:
+  `d0de94593551800bbe82f478ad1600f4026d24dd4b247f2958eca5393dbb906c`;
 - F1-R1-1, F1-R2-1 and their B0 reverse control SHA-256:
   `2ee5bca343d1ee8997f66fecae293626b893c98c7794a1a8fea4eec79ba095cd`,
   `7db2aa9543527fa6e2b7d0d719f2e59bb9f20343881135addfd065ad81193136`,
