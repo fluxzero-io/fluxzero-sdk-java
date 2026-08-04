@@ -58,6 +58,7 @@ import io.fluxzero.sdk.persisting.search.DocumentStore;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -463,10 +464,10 @@ class DefaultModelRepositoryTest {
 
             CompletionException failure = assertThrows(
                     CompletionException.class,
-                    () -> fluxzero.commandGateway().send(
-                            new CreateDocumentOrder(
+                    () -> fluxzero.executeModelCommit(
+                            new Message(new CreateDocumentOrder(
                                     orderId,
-                                    inventoryId)).join());
+                                    inventoryId))).join());
 
             assertInstanceOf(
                     EventSourcingException.class,
@@ -513,11 +514,11 @@ class DefaultModelRepositoryTest {
                 new UpcastAccountId("one");
         JacksonSerializer serializer =
                 new JacksonSerializer();
-        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .replaceSerializer(serializer)
                 .disableKeepalive()
                 .disableShutdownHook()
-                .build(LocalClient.newInstance(null))) {
+                .build(LocalClient.newInstance(null)))) {
             fluxzero.commandGateway().send(
                     new CreateUpcastAccount(id, 1)).join();
             fluxzero.commandGateway().send(
@@ -585,11 +586,12 @@ class DefaultModelRepositoryTest {
         EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
-                .build(client)) {
-            fluxzero.commandGateway().send(new CreateAccount(id, 5)).join();
+                .build(client))) {
+            fluxzero.executeModelCommit(
+                    new Message(new CreateAccount(id, 5))).join();
             clearInvocations(eventStoreClient);
 
             assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
@@ -607,16 +609,16 @@ class DefaultModelRepositoryTest {
         EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
-                .build(client)) {
-            fluxzero.commandGateway().send(
-                    new CreateAccount(id, 5)).join();
+                .build(client))) {
+            fluxzero.executeModelCommit(
+                    new Message(new CreateAccount(id, 5))).join();
             clearInvocations(eventStoreClient);
 
-            fluxzero.commandGateway().send(
-                    new ChangeAccount(id, 2)).join();
+            fluxzero.executeModelCommit(
+                    new Message(new ChangeAccount(id, 2))).join();
 
             assertEquals(
                     new Account(id, 7),
@@ -635,10 +637,10 @@ class DefaultModelRepositoryTest {
         EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
-                .build(client)) {
+                .build(client))) {
             fluxzero.commandGateway().send(
                     new CreateSnapshotAccount(id, 1)).join();
             fluxzero.commandGateway().send(
@@ -682,11 +684,11 @@ class DefaultModelRepositoryTest {
                         "externally-erased");
         LocalClient localClient =
                 LocalClient.newInstance(null);
-        try (Fluxzero fluxzero =
+        try (Fluxzero fluxzero = withModelHandlers(
                      DefaultFluxzero.builder()
                              .disableKeepalive()
                              .disableShutdownHook()
-                             .build(localClient)) {
+                             .build(localClient))) {
             fluxzero.commandGateway().send(
                     new CreateAccount(id, 5))
                     .join();
@@ -854,11 +856,11 @@ class DefaultModelRepositoryTest {
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient)
                 .when(client).getEventStoreClient();
-        try (Fluxzero fluxzero =
+        try (Fluxzero fluxzero = withModelHandlers(
                      DefaultFluxzero.builder()
                              .disableKeepalive()
                              .disableShutdownHook()
-                             .build(client)) {
+                             .build(client))) {
             fluxzero.commandGateway().send(
                     new CreateAccount(id, 5)).join();
             long oldStateIndex =
@@ -1054,11 +1056,11 @@ class DefaultModelRepositoryTest {
         EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableAutomaticModelCaching()
                 .disableShutdownHook()
-                .build(client)) {
+                .build(client))) {
             fluxzero.commandGateway().send(new CreateAccounts(List.of(
                     new CreateAccount(first, 1),
                     new CreateAccount(second, 2)))).join();
@@ -1174,11 +1176,11 @@ class DefaultModelRepositoryTest {
         doReturn(eventStoreClient)
                 .when(client)
                 .getEventStoreClient();
-        try (Fluxzero fluxzero =
+        try (Fluxzero fluxzero = withModelHandlers(
                      DefaultFluxzero.builder()
                              .disableKeepalive()
                              .disableShutdownHook()
-                             .build(client)) {
+                             .build(client))) {
             fluxzero.commandGateway().send(
                     new CreateGraphRoot(
                             rootId, "root"))
@@ -1236,11 +1238,11 @@ class DefaultModelRepositoryTest {
                 spy(localClient.getEventStoreClient());
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
                 .disableAutomaticModelCaching()
-                .build(client)) {
+                .build(client))) {
             fluxzero.commandGateway().send(
                     new CreateInventory(inventoryId, 5)).join();
             fluxzero.commandGateway().send(
@@ -1294,10 +1296,25 @@ class DefaultModelRepositoryTest {
     }
 
     private static Fluxzero configuredFluxzero() {
-        return DefaultFluxzero.builder()
+        return withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
-                .build(LocalClient.newInstance(null));
+                .build(LocalClient.newInstance(null)));
+    }
+
+    private static Fluxzero withModelHandlers(Fluxzero fluxzero) {
+        Object[] handlerTypes = Arrays.stream(
+                        DefaultModelRepositoryTest.class.getDeclaredClasses())
+                .filter(type -> {
+                    ModelMetadata metadata = ModelMetadata.of(type);
+                    return metadata.isModel() || metadata.handlerMethods().stream()
+                            .anyMatch(handler -> handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY
+                                                 || handler.kind() == ModelMetadata.HandlerKind.APPLY
+                                                    && !handler.targetModelTypes().isEmpty());
+                })
+                .toArray();
+        fluxzero.registerHandlers(handlerTypes);
+        return fluxzero;
     }
 
     private static <T> void awaitModelValue(

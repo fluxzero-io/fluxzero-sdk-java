@@ -262,6 +262,15 @@ public class DefaultFluxzero implements Fluxzero {
     }
 
     @Override
+    public CompletableFuture<Void> executeModelAssertions(Message update) {
+        ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
+        if (executor == null) {
+            return Fluxzero.super.executeModelAssertions(update);
+        }
+        return executor.assertLegal(update);
+    }
+
+    @Override
     public Registration beforeShutdown(Runnable task) {
         cleanupTasks.add(task);
         return () -> cleanupTasks.remove(task);

@@ -58,6 +58,7 @@ import io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty;
 import io.fluxzero.sdk.configuration.spring.ConditionalOnProperty;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
@@ -170,7 +171,8 @@ import static java.util.stream.Stream.empty;
  * Handlers may be registered by class or by instance. In general:
  * <ul>
  *   <li>Stateless singleton handlers may be registered either by instance or class</li>
- *   <li>Handlers annotated with {@code @Stateful}, {@code @TrackSelf}, or {@code @SocketEndpoint} must be registered by <strong>class</strong> only</li>
+ *   <li>Handlers annotated with {@code @Stateful}, {@code @TrackSelf}, {@code @Model}, or {@code @SocketEndpoint}
+ *       must be registered by <strong>class</strong> only</li>
  * </ul>
  *
  * <p>
@@ -384,7 +386,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final String observationTestId;
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
-    private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
+    private final Set<Class<?>> registeredAutomaticHandlers = ConcurrentHashMap.newKeySet();
 
     /**
      * Closes all fixtures associated with the current execution thread.
@@ -607,8 +609,7 @@ public class TestFixture implements Given<TestFixture>, When {
             }
             warnIfDuplicateHandlers(handlers);
             handlers.stream().map(this::handlerType)
-                    .filter(ClientUtils::isSelfTracking)
-                    .forEach(registeredTrackSelfHandlers::add);
+                    .forEach(registeredAutomaticHandlers::add);
             if (fixture.synchronous) {
                 fixture.rememberConsumerAssignments(handlers);
             }
@@ -2006,20 +2007,29 @@ public class TestFixture implements Given<TestFixture>, When {
     protected <M extends Message> M trace(Object object) {
         Class<?> callerClass = getCallerClass();
         M result = (M) fluxzero.apply(fc -> asMessage(parseObject(object, callerClass)));
-        registerAutomaticTrackSelfHandler(result);
+        registerAutomaticHandler(result);
         fixtureResult.setTracedMessage(result);
         return result;
     }
 
-    protected void registerAutomaticTrackSelfHandler(Message message) {
+    protected void registerAutomaticHandler(Message message) {
         if (synchronous || message == null || message.getPayload() == null) {
             return;
         }
         Class<?> payloadClass = message.getPayloadClass();
-        if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)
-            && registeredTrackSelfHandlers.add(payloadClass)) {
+        boolean automaticHandler = ClientUtils.isSelfTracking(payloadClass)
+                                   || hasModelHandlerMethods(payloadClass);
+        if (automaticHandler && matchesTrackSelfConditions(payloadClass)
+            && registeredAutomaticHandlers.add(payloadClass)) {
             registration = registration.merge(fluxzero.registerHandlers(payloadClass));
         }
+    }
+
+    private static boolean hasModelHandlerMethods(Class<?> payloadClass) {
+        return ModelMetadata.of(payloadClass).handlerMethods().stream()
+                .anyMatch(handler -> handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY
+                                     || handler.kind() == ModelMetadata.HandlerKind.APPLY
+                                        && !handler.targetModelTypes().isEmpty());
     }
 
     private boolean matchesTrackSelfConditions(Class<?> payloadClass) {
@@ -2153,7 +2163,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                     boolean request) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.recordObservation(TestFixtureObservation.dispatch(message, messageType, topic, namespace));
-            testFixture.registerAutomaticTrackSelfHandler(message);
+            testFixture.registerAutomaticHandler(message);
             if (request) {
                 testFixture.requestDispatches.add(message.getMessageId());
             }

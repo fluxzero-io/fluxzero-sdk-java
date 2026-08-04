@@ -87,13 +87,22 @@ final class ModelCommitEngine {
             DeserializingMessage message,
             ModelCommitContext beginState,
             Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
+        return evaluate(message, beginState, selectedHandlers, true);
+    }
+
+    private Evaluation evaluate(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            Collection<ModelMetadata.HandlerMethod> selectedHandlers,
+            boolean applyHandlers) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
         Objects.requireNonNull(selectedHandlers, "selectedHandlers");
         beginState.attachTo(message);
         try {
             return message.apply(
-                    ignored -> evaluateInContext(message, beginState, selectedHandlers));
+                    ignored -> evaluateInContext(
+                            message, beginState, selectedHandlers, applyHandlers));
         } finally {
             beginState.attachTo(message);
         }
@@ -104,13 +113,26 @@ final class ModelCommitEngine {
         Objects.requireNonNull(initialMessage, "initialMessage");
         Deque<PendingSubstep> pending = new ArrayDeque<>();
         pending.add(new PendingSubstep(initialMessage, true));
-        return evaluate(pending, resolver, initialMessage);
+        return evaluate(pending, resolver, initialMessage, true);
+    }
+
+    /**
+     * Runs apply interceptors and immediate legality assertions without invoking applies or after-handler assertions.
+     */
+    void assertLegal(
+            DeserializingMessage initialMessage,
+            SubstepResolver resolver) {
+        Objects.requireNonNull(initialMessage, "initialMessage");
+        Deque<PendingSubstep> pending = new ArrayDeque<>();
+        pending.add(new PendingSubstep(initialMessage, true));
+        evaluate(pending, resolver, initialMessage, false);
     }
 
     private CommitEvaluation evaluate(
             Deque<PendingSubstep> pending,
             SubstepResolver resolver,
-            DeserializingMessage initialMessage) {
+            DeserializingMessage initialMessage,
+            boolean applyHandlers) {
         Objects.requireNonNull(resolver, "resolver");
         Map<String, Object> stagedValues = new LinkedHashMap<>();
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
@@ -192,7 +214,9 @@ final class ModelCommitEngine {
                     }
                 }
 
-                Evaluation evaluation = evaluate(current.message(), context, resolved.handlers());
+                Evaluation evaluation = evaluate(
+                        current.message(), context,
+                        resolved.handlers(), applyHandlers);
                 for (Transition transition : evaluation.transitions()) {
                     stagedValues.put(transition.modelId(), transition.after());
                 }
@@ -228,17 +252,22 @@ final class ModelCommitEngine {
         }
         Deque<PendingSubstep> pending = new ArrayDeque<>(appliedMessages.size());
         appliedMessages.forEach(message -> pending.add(new PendingSubstep(message, false)));
-        return evaluate(pending, resolver, null);
+        return evaluate(pending, resolver, null, true);
     }
 
     private Evaluation evaluateInContext(
             DeserializingMessage message,
             ModelCommitContext beginState,
-            Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
+            Collection<ModelMetadata.HandlerMethod> selectedHandlers,
+            boolean applyHandlers) {
         HandlerPlan plan = handlerPlan(selectedHandlers);
 
         for (int i = 0; i < plan.beforeAssertions().size(); i++) {
             invokeIfApplicable(plan.beforeAssertions().get(i), message, beginState);
+        }
+
+        if (!applyHandlers) {
+            return new Evaluation(beginState, beginState, List.of());
         }
 
         Map<String, Transition> transitions = null;

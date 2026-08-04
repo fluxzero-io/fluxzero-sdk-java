@@ -18,6 +18,12 @@ package io.fluxzero.sdk.modeling;
 
 /**
  * Controls whether model applies may be exposed as an automatic command handler.
+ * <p>
+ * Automatic model handlers behave like self-tracking payloads: commands are first stored and then handled by the
+ * asynchronous consumer infrastructure. Spring discovers eligible model and payload types within the application's
+ * component-scan boundaries; non-Spring applications can register the types through
+ * {@link io.fluxzero.sdk.Fluxzero#registerHandlers(Object...)}. A payload is never claimed merely because it declares
+ * assertions or interceptors: its locally registered interceptor chain must reach a model apply.
  */
 public enum AutomaticModelHandling {
     /**

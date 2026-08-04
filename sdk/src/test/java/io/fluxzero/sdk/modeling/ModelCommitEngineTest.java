@@ -431,6 +431,50 @@ class ModelCommitEngineTest {
     }
 
     @Test
+    void validationOnlyRunsImmediateAssertionsWithoutAppliesOrAfterAssertions() {
+        OrderId id = new OrderId("validate-only");
+        List<String> observations = new ArrayList<>();
+        AssertedOrderUpdate command = new AssertedOrderUpdate(id, observations);
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(AssertedOrderUpdate.class).handlerMethods();
+        Entity<Order> order = entity(id, new Order(id, "pending"));
+        ModelCommitContext begin = context(command, handlers, order);
+
+        engine.assertLegal(
+                message(command),
+                (substep, requestedStateIndex, stagedValues) ->
+                        new ModelCommitEngine.ResolvedSubstep(begin, handlers));
+
+        assertEquals(
+                List.of("before-high-pending", "before-low-pending"),
+                observations);
+        assertEquals(new Order(id, "pending"), order.get());
+    }
+
+    @Test
+    void validationOnlyRunsApplyInterceptorBeforeImmediateAssertions() {
+        ReceiverOrderId id = new ReceiverOrderId("validate-only");
+        List<String> observations = new ArrayList<>();
+        RenameReceiverOrder command =
+                new RenameReceiverOrder(id, "ignored", observations);
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(ReceiverOrder.class).handlerMethods();
+        Entity<ReceiverOrder> order = entity(
+                id, new ReceiverOrder(id, "initial"));
+        ModelCommitContext begin = context(command, handlers, order);
+
+        engine.assertLegal(
+                message(command),
+                (substep, requestedStateIndex, stagedValues) ->
+                        new ModelCommitEngine.ResolvedSubstep(begin, handlers));
+
+        assertEquals(
+                List.of("intercept-initial", "assert-initial"),
+                observations);
+        assertEquals(new ReceiverOrder(id, "initial"), order.get());
+    }
+
+    @Test
     void failingAfterAssertionExposesNoPartiallyUpdatedContext() {
         OrderId id = new OrderId("reject");
         RejectAfterOrderUpdate command = new RejectAfterOrderUpdate(id);

@@ -45,6 +45,7 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -217,6 +218,101 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void directAssertLegalInterceptsAndValidatesWithoutApplying() {
+        AccountId accountId = new AccountId("validate-only");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(accountId, 29))
+                .whenApplying(fluxzero -> {
+                    List<String> observations =
+                            new java.util.ArrayList<>();
+                    Fluxzero.assertLegal(
+                            new ValidateOnlyAccount(
+                                    accountId, 29,
+                                    observations),
+                            Metadata.of(
+                                    "validation", "direct"));
+                    return new ValidationResult(
+                            observations,
+                            fluxzero.modelRepository()
+                                    .load(accountId).get(),
+                            fluxzero.eventStore()
+                                    .getEvents(accountId)
+                                    .count());
+                })
+                .expectResult(new ValidationResult(
+                        List.of(
+                                "intercept-29",
+                                "assert-29-direct"),
+                        new Account(accountId, 29),
+                        1L));
+    }
+
+    @Test
+    void directAssertAndApplyWithoutApplyValidatesAndReturns() {
+        AccountId accountId = new AccountId("assert-and-apply-validation-only");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(accountId, 29))
+                .whenApplying(fluxzero -> {
+                    List<String> observations =
+                            new java.util.ArrayList<>();
+                    Fluxzero.assertAndApply(
+                            new ValidateOnlyAccount(
+                                    accountId, 29,
+                                    observations),
+                            Metadata.of(
+                                    "validation", "direct"));
+                    return new ValidationResult(
+                            observations,
+                            fluxzero.modelRepository()
+                                    .load(accountId).get(),
+                            fluxzero.eventStore()
+                                    .getEvents(accountId)
+                                    .count());
+                })
+                .expectResult(new ValidationResult(
+                        List.of(
+                                "intercept-29",
+                                "assert-29-direct"),
+                        new Account(accountId, 29),
+                        1L));
+    }
+
+    @Test
+    void senderOnlyApplicationCanDispatchCommandWithoutLocalApply() {
+        RemoteOnlyCommand command =
+                new RemoteOnlyCommand("remote");
+
+        TestFixture.create()
+                .whenApplying(fluxzero -> {
+                    Fluxzero.sendAndForgetCommand(command);
+                    return null;
+                })
+                .expectCommands(command)
+                .expectNoEvents();
+    }
+
+    @Test
+    void unregisteredModelCommandIsNotHandledLocally() {
+        AccountId accountId =
+                new AccountId("unregistered");
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(LocalClient.newInstance(null))) {
+            fluxzero.commandGateway()
+                    .sendAndForget(
+                            STORED,
+                            new Message(new CreateAccount(
+                                    accountId, 42)))
+                    .join();
+
+            assertFalse(fluxzero.modelRepository()
+                                .load(accountId)
+                                .isPresent());
+        }
+    }
+
+    @Test
     void directAssertAndApplyPropagatesApplyFailureWithoutCommit() {
         TestFixture fixture =
                 TestFixture.create(new ExplicitFailingDelegatingHandler());
@@ -303,8 +399,8 @@ class ModelCommitHandlerIntegrationTest {
                 .disableShutdownHook()
                 .build(client)) {
             String modelId = "root-consumer-model";
-            fluxzero.commandGateway().send(
-                    new CreateRootConsumerModel(modelId)).join();
+            fluxzero.executeModelCommit(new Message(
+                    new CreateRootConsumerModel(modelId))).join();
             Registration registration =
                     fluxzero.registerHandlers(
                             RootConsumerModel.class);
@@ -933,8 +1029,8 @@ class ModelCommitHandlerIntegrationTest {
                 .build(client)) {
             ReceiverAccountId accountId =
                     new ReceiverAccountId("tracked");
-            fluxzero.commandGateway().send(
-                    new CreateReceiverAccount(accountId, "before")).join();
+            fluxzero.executeModelCommit(new Message(
+                    new CreateReceiverAccount(accountId, "before"))).join();
             Registration registration =
                     fluxzero.registerHandlers(ReceiverAccount.class);
             try {
@@ -963,10 +1059,10 @@ class ModelCommitHandlerIntegrationTest {
                 .build(client)) {
             FirstCounterId firstId = new FirstCounterId("tracked");
             SecondCounterId secondId = new SecondCounterId("tracked");
-            fluxzero.commandGateway().send(
-                    new CreateFirstCounter(firstId)).join();
-            fluxzero.commandGateway().send(
-                    new CreateSecondCounter(secondId)).join();
+            fluxzero.executeModelCommit(new Message(
+                    new CreateFirstCounter(firstId))).join();
+            fluxzero.executeModelCommit(new Message(
+                    new CreateSecondCounter(secondId))).join();
             receiverInvocations.set(0);
             Registration registration = fluxzero.registerHandlers(
                     FirstCounter.class, SecondCounter.class);
@@ -1023,6 +1119,50 @@ class ModelCommitHandlerIntegrationTest {
         Account apply() {
             return new Account(accountId, balance);
         }
+    }
+
+    private record ValidateOnlyAccount(
+            AccountId accountId,
+            int expectedBalance,
+            List<String> observations) {
+        @InterceptApply
+        ValidateOnlyAccount intercept(Account account) {
+            observations.add(
+                    "intercept-" + account.balance());
+            return this;
+        }
+
+        @AssertLegal
+        void assertBalance(
+                Account account,
+                Metadata metadata) {
+            observations.add(
+                    "assert-" + account.balance()
+                    + "-" + metadata.get(
+                            "validation"));
+            if (account.balance() != expectedBalance) {
+                throw new IllegalStateException(
+                        "Unexpected balance");
+            }
+        }
+
+        @AssertLegal(afterHandler = true)
+        void afterHandlerMustNotRun() {
+            observations.add("after");
+        }
+    }
+
+    private record ValidationResult(
+            List<String> observations,
+            Account account,
+            long eventCount) {
+        private ValidationResult {
+            observations = List.copyOf(
+                    observations);
+        }
+    }
+
+    private record RemoteOnlyCommand(String id) {
     }
 
     private record DeleteAccount(AccountId accountId) {

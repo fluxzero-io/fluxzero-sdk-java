@@ -47,6 +47,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
@@ -73,11 +74,14 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * Fallback command registry for payloads that declare independent-model applies or target model receiver handlers.
+ * Command handler factory for payloads that declare independent-model applies or target model receiver handlers.
  * <p>
- * Regular {@code @HandleCommand} handlers remain first in the command registry. This handler therefore activates only
- * when normal command handling did not select a handler.
+ * Regular {@code @HandleCommand} handlers remain first in the command registry. Automatic model handlers are tracked
+ * asynchronously and only activate for registered payload/model types whose local interceptor chain reaches a model
+ * apply. The local registry surface exists solely for the synchronous {@code TestFixture}, which deliberately forces
+ * all handlers onto one thread.
  */
+@Slf4j
 public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory, AutoCloseable {
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
@@ -147,6 +151,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final ConcurrentHashMap<Class<?>, List<ProjectionRoot>> projectionPlans =
             new ConcurrentHashMap<>();
     private volatile CachedProjectionRoots recentProjectionRoots;
+    private volatile boolean localHandlingEnabled;
 
     /**
      * Returns the repository shared by automatic command handling and public model loads.
@@ -228,9 +233,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
             if (!hasModelApplies(
                     message.getPayloadClass())) {
-                return CompletableFuture.failedFuture(new IllegalArgumentException(
-                        "No model @Apply handler found for "
-                        + message.getPayloadClass().getName()));
+                engine.assertLegal(message, new CommitLoader(null));
+                log.warn(
+                        "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has "
+                        + "no locally reachable model @Apply handler. No model changes were committed.",
+                        message.getPayloadClass().getName());
+                return COMPLETED_VOID;
             }
             return execute(message).thenApply(ignored -> null);
         } catch (Throwable failure) {
@@ -238,8 +246,30 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
     }
 
+    /**
+     * Runs apply interceptors and immediate model assertions without invoking applies or committing model changes.
+     * Regular command handlers and command handler decorators are deliberately bypassed.
+     *
+     * @param update model assertion message
+     * @return completion of the validation-only evaluation
+     */
+    public CompletableFuture<Void> assertLegal(Message update) {
+        try {
+            Objects.requireNonNull(update, "update");
+            DeserializingMessage message =
+                    new DeserializingMessage(update, MessageType.COMMAND, serializer);
+            engine.assertLegal(message, new CommitLoader(null));
+            return COMPLETED_VOID;
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
+        if (!localHandlingEnabled) {
+            return Optional.empty();
+        }
         HandlerInvoker invoker = decoratedHandler.getInvokerOrNull(message);
         if (invoker == null) {
             return Optional.empty();
@@ -264,6 +294,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     @Override
     public boolean canHandle(DeserializingMessage message) {
+        return localHandlingEnabled && canAutomaticallyHandle(message);
+    }
+
+    private boolean canAutomaticallyHandle(DeserializingMessage message) {
         if (message.getMessageType() != MessageType.COMMAND) {
             return false;
         }
@@ -427,7 +461,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         LinkedHashSet<Class<?>> payloadTypes = ModelMetadata.of(targetType)
                 .handlerMethods().stream()
                 .filter(handler -> handler.kind()
-                        == ModelMetadata.HandlerKind.APPLY)
+                        != ModelMetadata.HandlerKind.ASSERT_LEGAL)
                 .filter(handler -> handlerFilter.test(
                         handler.executable().getDeclaringClass(),
                         handler.executable()))
@@ -451,8 +485,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     /**
-     * Creates one tracked command handler for a registered model receiver or a payload type that declares model
-     * applies. The handler remains scoped to that registration so ordinary command handlers retain precedence.
+     * Creates one tracked command handler for a registered model receiver or a payload type whose interceptor chain
+     * reaches a model apply. The handler remains scoped to that registration so ordinary command handlers retain
+     * precedence.
      */
     @Override
     public Optional<Handler<DeserializingMessage>> createHandler(
@@ -463,6 +498,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         boolean modelReceiver = ModelMetadata.of(targetType).isModel();
         boolean payloadCommit = declaresModelCommit(
                 targetType, new LinkedHashSet<>())
+                                && automaticHandlingEnabled(
+                                        targetType,
+                                        new LinkedHashSet<>())
                                 && planFor(targetType).handlers().stream()
                                         .anyMatch(handler ->
                                                 handlerFilter.test(
@@ -486,12 +524,23 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     @Override
     public boolean hasLocalHandlers() {
-        return true;
+        return localHandlingEnabled;
+    }
+
+    @Override
+    public boolean canSkipLocalHandling(
+            MessageType messageType,
+            Class<?> payloadType) {
+        return !localHandlingEnabled;
     }
 
     @Override
     public void setSelfHandlerFilter(HandlerFilter selfHandlerFilter) {
-        // Model commits are selected from @Model and @Apply metadata, independent of local handler ownership.
+        /*
+         * Automatic model handlers are normally tracked asynchronously, like @TrackSelf handlers. The synchronous
+         * TestFixture deliberately forces every handler onto its local path with the shared ALWAYS_HANDLE marker.
+         */
+        localHandlingEnabled = selfHandlerFilter == HandlerFilter.ALWAYS_HANDLE;
     }
 
     private CompletableFuture<Object> execute(DeserializingMessage message) {
@@ -1663,7 +1712,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     || !modelReceiver
                        && trackingTarget.isAssignableFrom(
                                message.getPayloadClass());
-            if (!selected || !canHandle(message)) {
+            if (!selected || !canAutomaticallyHandle(message)) {
                 return null;
             }
             ModelCommitPolicy commitPolicy =

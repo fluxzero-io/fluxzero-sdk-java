@@ -16,6 +16,9 @@
 
 package io.fluxzero.sdk.modeling;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
@@ -25,6 +28,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
@@ -34,6 +38,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -62,6 +67,90 @@ import static org.mockito.Mockito.withSettings;
 class ModelCommitHandlerRegistryTest {
 
     @Test
+    void localApplyDiscoveryDoesNotTurnSenderOnlyApplicationIntoAHandler() {
+        ModelCommitHandlerRegistry senderOnly =
+                subject(AutomaticModelHandling.ENABLED);
+        ModelCommitHandlerRegistry receiver =
+                subject(AutomaticModelHandling.ENABLED);
+        senderOnly.setSelfHandlerFilter((type, method) -> false);
+        receiver.setSelfHandlerFilter((type, method) -> false);
+        receiver.registerHandler(
+                CrossApplicationModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+        CrossApplicationCommand command =
+                new CrossApplicationCommand("shared");
+
+        assertFalse(senderOnly.canHandle(message(command)));
+        assertTrue(senderOnly.createHandler(
+                CrossApplicationCommand.class,
+                HandlerFilter.ALWAYS_HANDLE,
+                List.of()).isEmpty());
+        assertFalse(receiver.canHandle(message(command)));
+        assertTrue(receiver.createHandler(
+                CrossApplicationCommand.class,
+                HandlerFilter.ALWAYS_HANDLE,
+                List.of()).isPresent());
+    }
+
+    @Test
+    void explicitAssertAndApplyWithoutLocalApplyAssertsThenWarns() {
+        DefaultModelRepository repository =
+                mock(DefaultModelRepository.class);
+        EventStoreClient eventStoreClient =
+                mock(EventStoreClient.class);
+        stubModelLoads(repository);
+        ModelCommitHandlerRegistry subject =
+                subject(repository, eventStoreClient);
+        Logger logger = (Logger) LoggerFactory.getLogger(
+                ModelCommitHandlerRegistry.class);
+        ListAppender<ILoggingEvent> appender =
+                new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertTrue(subject.assertAndApply(new Message(
+                    new CrossApplicationCommand(""))).isCompletedExceptionally());
+
+            subject.assertAndApply(new Message(
+                    new CrossApplicationCommand("valid"))).join();
+
+            assertEquals(1, appender.list.stream()
+                    .filter(event -> event.getFormattedMessage()
+                            .contains("no locally reachable model @Apply handler"))
+                    .count());
+            verify(eventStoreClient, never()).commitModels(any());
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+            subject.close();
+        }
+    }
+
+    @Test
+    void automaticModelHandlerIsTrackedRatherThanHandledLocally() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+        try {
+            subject.setSelfHandlerFilter((type, method) -> false);
+            assertTrue(subject.createHandler(
+                    TimingCreateCommand.class,
+                    HandlerFilter.ALWAYS_HANDLE,
+                    List.of()).isPresent());
+            assertFalse(subject.canHandle(
+                    message(new TimingCreateCommand("tracked"))));
+            assertTrue(subject.handle(
+                    message(new TimingCreateCommand("tracked"))).isEmpty());
+
+            subject.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+
+            assertTrue(subject.canHandle(
+                    message(new TimingCreateCommand("fixture"))));
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void receiverApplyTracksTheCommandPayloadRatherThanTheModel() {
         ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
@@ -85,6 +174,28 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void receiverInterceptorTracksCommandWhenItsOutputReachesAnotherModelApply() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+        subject.registerHandler(
+                InterceptingModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+        subject.registerHandler(
+                StaticApplyModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+
+        assertEquals(
+                List.of(ReceiverInterceptCommand.class),
+                subject.trackingTargets(
+                        InterceptingModel.class,
+                        HandlerFilter.ALWAYS_HANDLE));
+        assertTrue(subject.createHandler(
+                ReceiverInterceptCommand.class,
+                HandlerFilter.ALWAYS_HANDLE,
+                List.of()).isPresent());
+    }
+
+    @Test
     void staticModelApplyTracksTheCommandPayloadRatherThanTheModel() {
         ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
@@ -101,14 +212,16 @@ class ModelCommitHandlerRegistryTest {
                 StaticCreateCommand.class,
                 HandlerFilter.ALWAYS_HANDLE,
                 List.of()).isPresent());
-        assertTrue(subject.canHandle(
-                message(new StaticCreateCommand("created"))));
     }
 
     @Test
     void automaticHandlingUsesApplyThenModelThenApplicationPrecedence() {
         ModelCommitHandlerRegistry disabledApplication =
                 subject(AutomaticModelHandling.DISABLED);
+        assertTrue(disabledApplication.createHandler(
+                TimingCreateCommand.class,
+                HandlerFilter.ALWAYS_HANDLE,
+                List.of()).isEmpty());
         disabledApplication.registerHandler(
                 ReceiverModel.class,
                 HandlerFilter.ALWAYS_HANDLE);
@@ -117,6 +230,8 @@ class ModelCommitHandlerRegistryTest {
                 HandlerFilter.ALWAYS_HANDLE);
         disabledApplication.registerHandler(
                 ApplyEnabledModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+        disabledApplication.setSelfHandlerFilter(
                 HandlerFilter.ALWAYS_HANDLE);
 
         assertFalse(disabledApplication.canHandle(
@@ -131,6 +246,8 @@ class ModelCommitHandlerRegistryTest {
         enabledApplication.registerHandler(
                 ApplyDisabledModel.class,
                 HandlerFilter.ALWAYS_HANDLE);
+        enabledApplication.setSelfHandlerFilter(
+                HandlerFilter.ALWAYS_HANDLE);
         assertFalse(enabledApplication.canHandle(
                 message(new ApplyDisabledCommand("disabled"))));
     }
@@ -144,6 +261,8 @@ class ModelCommitHandlerRegistryTest {
                 HandlerFilter.ALWAYS_HANDLE);
         subject.registerHandler(
                 MixedDisabledModel.class,
+                HandlerFilter.ALWAYS_HANDLE);
+        subject.setSelfHandlerFilter(
                 HandlerFilter.ALWAYS_HANDLE);
 
         assertFalse(subject.canHandle(
@@ -635,7 +754,7 @@ class ModelCommitHandlerRegistryTest {
             JacksonSerializer serializer,
             AutomaticModelHandling automaticHandling,
             GraphProjectionCompletion graphProjectionCompletion) {
-        return new ModelCommitHandlerRegistry(
+        ModelCommitHandlerRegistry result = new ModelCommitHandlerRegistry(
                 repository,
                 eventStoreClient,
                 serializer,
@@ -650,6 +769,8 @@ class ModelCommitHandlerRegistryTest {
                 0,
                 automaticHandling,
                 graphProjectionCompletion);
+        result.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+        return result;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -745,6 +866,27 @@ class ModelCommitHandlerRegistryTest {
     private record ReceiverCommand(String id) {
     }
 
+    private record CrossApplicationCommand(String id) {
+        @AssertLegal
+        void validate() {
+            if (id.isBlank()) {
+                throw new IllegalArgumentException(
+                        "ID must not be blank");
+            }
+        }
+    }
+
+    @Model
+    private record CrossApplicationModel(
+            @EntityId String id) {
+        @Apply
+        CrossApplicationModel apply(
+                CrossApplicationCommand command) {
+            return new CrossApplicationModel(
+                    command.id());
+        }
+    }
+
     @Model
     private record StaticApplyModel(
             @EntityId String id) {
@@ -757,6 +899,20 @@ class ModelCommitHandlerRegistryTest {
     }
 
     private record StaticCreateCommand(
+            String id) {
+    }
+
+    @Model
+    private record InterceptingModel(
+            @EntityId String id) {
+        @InterceptApply
+        StaticCreateCommand intercept(
+                ReceiverInterceptCommand command) {
+            return new StaticCreateCommand(command.id());
+        }
+    }
+
+    private record ReceiverInterceptCommand(
             String id) {
     }
 

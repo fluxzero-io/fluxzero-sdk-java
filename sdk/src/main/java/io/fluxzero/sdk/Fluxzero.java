@@ -529,8 +529,34 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Runs apply interceptors and immediate model assertions declared for the given update without invoking applies or
+     * committing model changes.
+     * <p>
+     * Assertions marked with {@link io.fluxzero.sdk.modeling.AssertLegal#afterHandler()} are not invoked because this
+     * validation-only operation does not produce a post-apply model state. This enters the model pipeline directly and
+     * does not dispatch the update as a command.
+     *
+     * @param update the update payload or message to validate
+     */
+    static void assertLegal(Object update) {
+        awaitModelCommit(get().executeModelAssertions(Message.asMessage(update)));
+    }
+
+    /**
+     * Runs apply interceptors and immediate model assertions with the supplied metadata, without invoking applies or
+     * committing model changes.
+     *
+     * @param update   the update payload to validate
+     * @param metadata metadata available to interceptors and assertions
+     */
+    static void assertLegal(Object update, Metadata metadata) {
+        awaitModelCommit(get().executeModelAssertions(new Message(update, metadata)));
+    }
+
+    /**
      * Runs the model assertions, apply interceptors, and applies declared for the given update and waits until the
-     * resulting model commit has been committed.
+     * resulting model commit has been committed. If this application has no locally reachable model apply, immediate
+     * assertions and apply interceptors still run, after which the call logs a warning and returns without committing.
      * <p>
      * This enters the model-commit pipeline directly. It does not dispatch the update as a command and therefore can
      * safely be called from an explicit {@link HandleCommand} handler for the same payload type.
@@ -1504,6 +1530,20 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeModelCommit(Message update) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support direct model commits"));
+    }
+
+    /**
+     * Executes model apply interceptors and immediate assertions without applying or committing the update.
+     * <p>
+     * This is an infrastructure extension point used by {@link #assertLegal(Object)}. Custom Fluxzero implementations
+     * that support independent models should override it.
+     *
+     * @param update message containing the model update to validate
+     * @return completion of the validation-only model evaluation
+     */
+    default CompletableFuture<Void> executeModelAssertions(Message update) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support direct model assertions"));
     }
 
     /**
