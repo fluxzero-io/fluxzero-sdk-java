@@ -1308,6 +1308,13 @@ Your `UserProvider` implementation can also support testing and system behavior 
 
 This ensures your custom user logic is consistently applied, even in automated tests and background execution.
 
+With `fluxzero.defaults.version >= 2026.08.04`, `AbstractUserProvider` stores `User.getName()` in its metadata field for
+regular users and `$system` for the system user, instead of serializing the complete user. On receipt, `$system` resolves
+through `getSystemUser()` and other IDs through `getUserById(...)`; complete user objects from older messages remain
+readable. Applications using compatibility defaults keep the complete-user format. Set
+`fluxzero.auth.useUserIdMetadata` explicitly to `true` or `false` to select either format independently of the defaults
+version.
+
 ---
 
 ### 🔧 Registering your UserProvider
@@ -5025,6 +5032,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+| `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
 
 For example:
 
