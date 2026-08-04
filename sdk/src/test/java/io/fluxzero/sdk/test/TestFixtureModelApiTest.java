@@ -19,10 +19,15 @@ package io.fluxzero.sdk.test;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -30,6 +35,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TestFixtureModelApiTest {
+
+    @Test
+    void synchronousFixtureDistinguishesModelEventFromSourceCommandWithSameMessageId() {
+        AtomicInteger handled = new AtomicInteger();
+        CreateModel command = new CreateModel("model-1");
+
+        TestFixture.create(new ModelEventHandler(handled))
+                .whenCommand(command)
+                .expectOnlyEvents(command)
+                .expectTrue(ignored -> handled.get() == 1);
+    }
 
     @Test
     void modelEventsUseTheModelRepositoryWithoutAggregateMetadata() {
@@ -49,5 +65,23 @@ class TestFixtureModelApiTest {
     }
 
     private record TestModel(String id) {
+    }
+
+    @Model
+    private record FixtureModel(@EntityId String id) {
+    }
+
+    private record CreateModel(String id) {
+        @Apply
+        FixtureModel apply() {
+            return new FixtureModel(id);
+        }
+    }
+
+    private record ModelEventHandler(AtomicInteger handled) {
+        @HandleEvent
+        void handle(CreateModel ignored) {
+            handled.incrementAndGet();
+        }
     }
 }

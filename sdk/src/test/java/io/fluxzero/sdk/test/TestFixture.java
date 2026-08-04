@@ -61,6 +61,7 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
+import io.fluxzero.sdk.publishing.DefaultEventGateway;
 import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
@@ -378,6 +379,8 @@ public class TestFixture implements Given<TestFixture>, When {
     private final ThreadLocal<Deque<ActiveHandler>> activeHandlers = ThreadLocal.withInitial(ArrayDeque::new);
 
     private FixtureResult fixtureResult = new FixtureResult();
+    private MessageType tracedMessageType;
+    private String tracedMessageTopic;
 
     private final BeanParameterResolver beanParameterResolver = new BeanParameterResolver();
     private final Map<String, String> testProperties = new HashMap<>();
@@ -1290,56 +1293,56 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public Then<Object> whenCommand(Object command) {
-        Message message = trace(command);
+        Message message = trace(command, MessageType.COMMAND, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.commandGateway().send(message)));
     }
 
     @Override
     public Then<Object> whenCommandByUser(Object user, Object command) {
-        Message message = trace(command);
+        Message message = trace(command, MessageType.COMMAND, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.commandGateway().send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<Object> whenQuery(Object query) {
-        Message message = trace(query);
+        Message message = trace(query, MessageType.QUERY, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.queryGateway().send(message)));
     }
 
     @Override
     public Then<Object> whenQueryByUser(Object user, Object query) {
-        Message message = trace(query);
+        Message message = trace(query, MessageType.QUERY, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.queryGateway().send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<Object> whenCustom(String topic, Object request) {
-        Message message = trace(request);
+        Message message = trace(request, CUSTOM, topic);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.customGateway(topic).send(message)));
     }
 
     @Override
     public Then<Object> whenCustomByUser(Object user, String topic, Object request) {
-        Message message = trace(request);
+        Message message = trace(request, CUSTOM, topic);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.customGateway(topic).send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<?> whenEvent(Object event) {
-        Message message = trace(event);
+        Message message = trace(event, EVENT, null);
         return message.getPayload() == null ? whenNothingHappens()
                 : executeWhen(fc -> fc.eventGateway().publish(message, Guarantee.STORED).get());
     }
 
     @Override
     public Then<?> whenMetric(Object metric) {
-        Message message = trace(metric);
+        Message message = trace(metric, MessageType.METRICS, null);
         return message.getPayload() == null ? whenNothingHappens()
                 : executeWhen(fc -> ((DefaultMetricsGateway) fc.metricsGateway()).sendAndForget(message,
                                                                                                 Guarantee.STORED)
@@ -1376,13 +1379,13 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public Then<Object> whenWebRequest(WebRequest request) {
-        WebRequest message = trace(request);
+        WebRequest message = trace(request, MessageType.WEBREQUEST, null);
         return doWhenWebRequest(message);
     }
 
     @Override
     public Then<Object> whenWebRequestByUser(Object user, WebRequest request) {
-        WebRequest message = addUser(getUser(user), trace(request));
+        WebRequest message = addUser(getUser(user), trace(request, MessageType.WEBREQUEST, null));
         return doWhenWebRequest(message);
     }
 
@@ -1468,7 +1471,7 @@ public class TestFixture implements Given<TestFixture>, When {
                 return whenTimeAdvancesTo(match.getDeadline());
             }
         }
-        Message message = trace(schedule);
+        Message message = trace(schedule, SCHEDULE, null);
         return executeWhen(fc -> {
             if (message instanceof Schedule s) {
                 fc.messageScheduler().schedule(s);
@@ -1661,6 +1664,8 @@ public class TestFixture implements Given<TestFixture>, When {
         resetMocks();
         var previousResult = fixtureResult;
         fixtureResult = new FixtureResult();
+        tracedMessageType = null;
+        tracedMessageTopic = null;
         fixtureResult.setPreviousResult(previousResult);
         GivenWhenThenAssertionError.useTrace(this::renderTrace);
         return this;
@@ -2005,10 +2010,17 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @SuppressWarnings("unchecked")
     protected <M extends Message> M trace(Object object) {
+        return trace(object, null, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <M extends Message> M trace(Object object, MessageType messageType, String topic) {
         Class<?> callerClass = getCallerClass();
         M result = (M) fluxzero.apply(fc -> asMessage(parseObject(object, callerClass)));
         registerAutomaticHandler(result);
         fixtureResult.setTracedMessage(result);
+        tracedMessageType = messageType;
+        tracedMessageTopic = topic;
         return result;
     }
 
@@ -2136,7 +2148,7 @@ public class TestFixture implements Given<TestFixture>, When {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
-        private final Set<String> interceptedMessageIds = new CopyOnWriteArraySet<>();
+        private final Set<InterceptedMessage> interceptedMessages = new CopyOnWriteArraySet<>();
 
         protected void interceptClientDispatch(MessageType messageType, String topic,
                                                String namespace, List<SerializedMessage> messages) {
@@ -2144,11 +2156,19 @@ public class TestFixture implements Given<TestFixture>, When {
                 try {
                     testFixture.fluxzero.serializer()
                             .deserializeMessages(messages.stream()
-                                                         .filter(m -> !interceptedMessageIds.contains(
-                                                                 m.getMessageId())),
+                                                         .filter(m -> !interceptedMessages.contains(
+                                                                 new InterceptedMessage(messageType, topic,
+                                                                                        m.getMessageId()))),
                                                  messageType)
                             .map(DeserializingMessage::toMessage)
-                            .forEach(m -> monitorDispatch(m, messageType, topic, namespace, false));
+                            .forEach(m -> {
+                                if (testFixture.synchronous && messageType == EVENT
+                                    && testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway gateway) {
+                                    gateway.dispatchStoredLocally(m).join();
+                                } else {
+                                    monitorDispatch(m, messageType, topic, namespace, false);
+                                }
+                            });
                 } catch (Exception ignored) {
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
@@ -2169,7 +2189,7 @@ public class TestFixture implements Given<TestFixture>, When {
             }
 
             if (testFixture.fixtureResult.isCollectingResults()) {
-                interceptedMessageIds.add(message.getMessageId());
+                interceptedMessages.add(new InterceptedMessage(messageType, topic, message.getMessageId()));
             }
 
             if (messageType == SCHEDULE) {
@@ -2201,7 +2221,7 @@ public class TestFixture implements Given<TestFixture>, When {
                         }).forEach(e -> addMessage(e.getValue(), message));
             }
 
-            if (captureMessage(message)) {
+            if (captureMessage(message, messageType, topic)) {
                 switch (messageType) {
                     case COMMAND -> testFixture.registerCommand(message);
                     case QUERY -> testFixture.registerQuery(message);
@@ -2245,10 +2265,14 @@ public class TestFixture implements Given<TestFixture>, When {
             }
         }
 
-        protected Boolean captureMessage(Message message) {
+        protected Boolean captureMessage(Message message, MessageType messageType, String topic) {
             return testFixture.fixtureResult.isCollectingResults()
                    && ofNullable(testFixture.fixtureResult.getTracedMessage())
-                           .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())).orElse(true);
+                           .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())
+                                     || testFixture.tracedMessageType != null
+                                        && (messageType != testFixture.tracedMessageType
+                                            || !Objects.equals(topic, testFixture.tracedMessageTopic)))
+                           .orElse(true);
         }
 
         protected <T extends Message> void addMessage(List<T> messages, T message) {
@@ -2353,6 +2377,9 @@ public class TestFixture implements Given<TestFixture>, When {
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()));
             }
             testFixture.checkConsumers();
+        }
+
+        private record InterceptedMessage(MessageType messageType, String topic, String messageId) {
         }
     }
 
