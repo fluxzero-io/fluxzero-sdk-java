@@ -50,6 +50,51 @@ most messages or requests. For high-risk changes:
 Keep regression tests deterministic, focused on observable contracts, and proportionate in runtime. Do not make the
 suite materially slower or flaky merely to increase coverage.
 
+## Versioned Defaults
+
+Use `fluxzero.defaults.version` to introduce a better default without silently changing applications that upgrade the
+SDK. Treat the absence of this property as compatibility mode: existing behavior remains active until an application
+opts into a defaults version at or after the change's threshold.
+
+- Give each changed default a new ISO date threshold represented by a `LocalDate`. Thresholds are immutable and
+  monotonic: never reuse an existing date for different behavior or change what an existing threshold means.
+- Gate runtime behavior with `ApplicationProperties.defaultsVersionAtLeast(LocalDate)` only when the active Fluxzero
+  application context is the intended property source. During builder or configuration resolution, use
+  `ApplicationProperties.defaultsVersionAtLeast(PropertySource, LocalDate)` with that component's explicit source so
+  multiple applications, namespaces, and tests cannot affect one another.
+- Provide a dedicated feature property for every material default change. An explicitly configured feature property
+  takes precedence in both directions: it can enable the new behavior on older defaults or retain compatibility
+  behavior on newer defaults. Derive the value from `fluxzero.defaults.version` only when the feature property is
+  absent.
+- Let invalid non-empty defaults versions fail with the configuration error from `ApplicationProperties`; do not
+  silently fall back to compatibility behavior.
+
+The usual selection pattern is:
+
+```java
+private static final LocalDate FEATURE_DEFAULTS_VERSION = LocalDate.of(2026, 8, 4);
+
+String configured = propertySource.get(FEATURE_PROPERTY);
+boolean enabled = configured != null
+        ? Boolean.parseBoolean(configured.trim())
+        : ApplicationProperties.defaultsVersionAtLeast(propertySource, FEATURE_DEFAULTS_VERSION);
+```
+
+Resolve versioned defaults at the configuration or lifecycle boundary where possible. If a value is needed on a hot
+path, do not repeatedly parse the date or allocate configuration state; resolve it once or use a lifecycle-bound cache
+that is keyed by the actual feature property and defaults version. Never use a static cache that conflates distinct
+applications or property sources.
+
+For stored or exchanged data, plan the transition as a mixed-version migration. New defaults may write the new form,
+but new readers should continue to accept the old form where practical, and the dedicated feature property should
+provide a rollback path. Review security, retries, replay, queued messages, and independently upgraded producers and
+consumers explicitly.
+
+Document every threshold and its override in both the `ApplicationProperties.DEFAULTS_VERSION_PROPERTY` Javadoc table
+and the README's Versioned Defaults table, plus the affected feature documentation. Add focused tests for an absent
+defaults version, an older version, the exact threshold, a newer version, and explicit overrides in both directions.
+For wire or persisted formats, also test old-data reads and new-data round trips.
+
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.
