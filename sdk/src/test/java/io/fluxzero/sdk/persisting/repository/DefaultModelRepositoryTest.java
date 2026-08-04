@@ -312,6 +312,65 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void missingUntypedModelReturnsEmptyObjectEntity() {
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            Entity<Object> loaded =
+                    fluxzero.modelRepository()
+                            .load("missing-model");
+
+            assertEquals("missing-model", loaded.id());
+            assertEquals(Object.class, loaded.type());
+            assertTrue(loaded.isEmpty());
+            assertEquals(-1L, loaded.sequenceNumber());
+            assertEquals(
+                    -1L,
+                    assertInstanceOf(
+                            ModelRoot.class,
+                            loaded).stateIndex());
+        }
+    }
+
+    @Test
+    void existingUntypedModelWithoutStoredTypeStillFails() {
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            CommitModelsResult result =
+                    fluxzero.client()
+                            .getEventStoreClient()
+                            .commitModels(
+                                    new CommitModels(
+                                            "untyped-head",
+                                            -1L,
+                                            List.of("untyped-head"),
+                                            List.of(
+                                                    ModelCommitStep.builder()
+                                                            .event(new Message("state")
+                                                                           .serialize(
+                                                                                   fluxzero.serializer()))
+                                                            .targets(List.of(
+                                                                    ModelCommitTarget.builder()
+                                                                            .modelId("untyped-head")
+                                                                            .storeEvent(false)
+                                                                            .updateState(true)
+                                                                            .relationships(List.of())
+                                                                            .build()))
+                                                            .build()),
+                                            ModelConflictPolicy.ACCEPT,
+                                            Guarantee.STORED))
+                            .join();
+            assertTrue(result.isAccepted());
+
+            EventSourcingException failure = assertThrows(
+                    EventSourcingException.class,
+                    () -> fluxzero.modelRepository()
+                            .load("untyped-head", Object.class));
+
+            assertEquals(
+                    "Model 'untyped-head' has no stored type metadata",
+                    failure.getMessage());
+        }
+    }
+
+    @Test
     void untypedLoadInfersModelTypeFromPayloadApplyFactory() {
         AccountId id =
                 new AccountId("payload-type");

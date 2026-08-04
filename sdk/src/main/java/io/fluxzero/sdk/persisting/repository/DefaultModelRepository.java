@@ -329,10 +329,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelEventStateBoundary handlerBoundary =
                 handlerBoundary();
         if (Object.class.equals(modelType)) {
+            Class<?> resolvedType = resolveUntypedType(
+                    modelId, handlerBoundary);
+            if (resolvedType == null) {
+                return cast(emptyUntyped(modelId));
+            }
             return cast(load(
                     modelId,
-                    resolveUntypedType(
-                            modelId, handlerBoundary)));
+                    resolvedType));
         }
         ModelMetadata metadata = ModelMetadata.validate(modelType);
         Model annotation = metadata.model().orElseThrow(() -> new IllegalArgumentException(
@@ -712,12 +716,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         0, 0L, true));
         pin(handlerBoundary, graph.getStateIndex());
         ModelEventStream stream = graph.getStreams().getFirst();
-        if (stream.getHead() == null || stream.getHead().getModelType() == null) {
+        if (stream.getHead() == null) {
+            return null;
+        }
+        if (stream.getHead().getModelType() == null) {
             throw new EventSourcingException(
                     "Model '%s' has no stored type metadata".formatted(modelId));
         }
         return classForName(serializer.upcastType(
                 stream.getHead().getModelType()));
+    }
+
+    private Entity<Object> emptyUntyped(String modelId) {
+        return ImmutableModelRoot.<Object>builder()
+                .id(modelId)
+                .type(Object.class)
+                .entityHelper(entityHelper)
+                .serializer(serializer)
+                .build();
     }
 
     private ModelEventStateBoundary handlerBoundary() {
