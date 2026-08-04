@@ -1003,3 +1003,30 @@ Artifacts:
 - E451 old-Runtime log SHA-256: `da619ea76921fe380e3737ff6edfda413aee1d784bfdbfdb011f2ebcdedf8a80`;
 - E452 current log SHA-256: `5edc146e1cc011f4df929cefc1ab515961abf56ca18c91bf76bff85752395d96`;
 - E453 current-repeat log SHA-256: `6b13c51ae67f9093e57daa7078d6da1b88f97ddb75c1625654253057324edbee`.
+
+## S39-NM: registration-time model handling removes the outbound fallback probe
+
+SDK `d7506649e96` makes automatic model commands follow the same registration-time asynchronous tracking lifecycle as
+`@TrackSelf`. Its direct parent is `975a7646197`; Runtime remained clean at `59faf5eb054`. The production diff does not
+change this no-model route's handler, message stores, transport, results or durability. It does let an application with
+no local model handler skip the former fallback lookup before serializing each outbound command.
+
+The full 10,485,760-warm-up plus 10,485,760-measured durable no-model route was run in BABA order without JFR. Every run
+verified exactly 10,485,760 ordinary results and zero model/global events:
+
+| Order | SDK | Warm-up | Measured E2E |
+| --- | --- | ---: | ---: |
+| B1 | `d7506649e96` | 649,680/s | 734,976/s |
+| A1 | `975a7646197` | 587,647/s | 518,149/s |
+| B2 | `d7506649e96` | 663,406/s | 770,278/s |
+| A2 | `975a7646197` | 660,192/s | 706,773/s |
+
+The geometric means are **752,420/s current versus 605,156/s parent (+24.34%)**. The host was far below the healthy
+E452/E453 1.011M/s pin and drifted materially inside the series, so this does not replace that pin or qualify an exact
+production gain. It does establish the direction safely: the lowest current run remained above the highest parent run,
+and the 1M route is not regressed by S39. A fresh healthy-host series is required before attributing a precise gain.
+
+Log SHA-256 in run order: `47bf56035810a1b1d5b52106e5e301e07165b569dd188a7421aaf5a99d1ea337`,
+`553e97a19473d36adc711223e861ad6c41a6f8cf01c1bd3b4389dba87ca4ee91`,
+`6488840a72f720f0f7d739dcd214164b92ba402079f33956907424bd1a83f061`,
+`bb7e7358d7a944fbc5b48931a3cfc02b6349e17734a3243e2f6689b54de4d992`.

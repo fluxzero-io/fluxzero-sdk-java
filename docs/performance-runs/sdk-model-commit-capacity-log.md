@@ -2048,3 +2048,32 @@ production conclusion; it only prevents the synthetic benchmark from silently me
   `bbd34b0ae652e19d368effa357bcd63d8472876679975dce84b533c02683d63b`.
 - E703 rejected persistent-lane diagnostic log SHA-256:
   `b7baaead775becffb5c006848510eeb51b3c298e26d23c524857616a765b553b`.
+
+## S39-M: tracked model-command registration performance check
+
+SDK `d7506649e96` replaces lazy/local automatic-model dispatch discovery with registration-time asynchronous tracking,
+matching `@TrackSelf`; its direct parent is `975a7646197`. Runtime remained clean at `59faf5eb054`. The handler app in
+this benchmark already registers `EventModel.class`, so the consumed command still selects the same automatic tracked
+handler and the model/event/result storage paths are unchanged. Only the sender can skip the obsolete local fallback
+probe.
+
+The full 65,536-model, 262,144-warm-up and 4,194,304-measured command/model/event/result route ran in BABA order without
+JFR. All four runs verified exactly 4,194,304 results, stored model events and global events plus all 65,536 final model
+states:
+
+| Order | SDK | Warm-up | Measured E2E | Dispatch batches / mean |
+| --- | --- | ---: | ---: | ---: |
+| B1 | `d7506649e96` | 198,606/s | 253,907/s | 351 / 11,949.6 |
+| A1 | `975a7646197` | 232,988/s | 272,744/s | 338 / 12,409.2 |
+| B2 | `d7506649e96` | 225,348/s | 269,792/s | 360 / 11,650.8 |
+| A2 | `975a7646197` | 257,116/s | 257,080/s | 350 / 11,983.7 |
+
+The geometric means are **261,729/s current versus 264,796/s parent (-1.16%)**. Absolute throughput was far below the
+accepted P5 425,606/s pin and natural batch formation varied materially, so this is a loaded-host diagnostic rather
+than evidence of a model-route regression. It shows that the large no-model sender improvement is effectively absorbed
+once model durability dominates. The accepted 425k pin remains unchanged.
+
+Log SHA-256 in run order: `25569dca5d43ed9c85f4ff9d2ba133b734704d570f7b37f1dfb1314448e5f0dd`,
+`ec388bd756a9f0dc0769088647904310472f790aafacdf1cffb05575a143fbd5`,
+`d6c47e85eade70f25ed2a27507d3a5f0c97e5eb0b9a74c021aa1767d061b8b0e`,
+`76f633994eaab356c15349b7000d569bc27f47136fb3a7ab1fa13c459d317b2c`.
