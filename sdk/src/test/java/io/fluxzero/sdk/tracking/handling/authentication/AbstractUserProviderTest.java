@@ -113,15 +113,18 @@ class AbstractUserProviderTest {
     }
 
     @Test
-    void newDefaultsRemainCompatibleWithSerializedUsersAndTheirFailures() {
+    void newDefaultsRemainCompatibleWithSerializedUsersAndObjectShapedIds() {
         withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
             MockUser metadataUser = new MockUser("metadata");
             Metadata metadata = Metadata.of(DEFAULT_USER_KEY, metadataUser);
 
             assertEquals(metadataUser, provider.fromMessage(message(metadata)));
-            assertThrows(IllegalStateException.class,
-                         () -> provider.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, "{invalid"))));
             assertNull(provider.requestedUserId);
+
+            assertSame(resolvedUser, provider.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, "{invalid"))));
+            assertEquals("{invalid", provider.requestedUserId);
+            assertSame(resolvedUser, provider.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, "{invalid}"))));
+            assertEquals("{invalid}", provider.requestedUserId);
         });
     }
 

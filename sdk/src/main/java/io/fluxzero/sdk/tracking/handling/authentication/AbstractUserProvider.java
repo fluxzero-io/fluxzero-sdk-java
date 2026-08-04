@@ -110,18 +110,8 @@ public abstract class AbstractUserProvider implements UserProvider {
         if (!useUserIdMetadata()) {
             return metadata.get(metadataKey, userClass);
         }
-        String metadataValue = metadata.get(metadataKey);
-        if (metadataValue == null || "null".equals(metadataValue)) {
-            return null;
-        }
-        if (SYSTEM_USER_ID.equals(metadataValue)) {
-            return getSystemUser();
-        }
-        String normalizedValue = metadataValue.stripLeading();
-        if (normalizedValue.startsWith("{") || normalizedValue.startsWith("[")) {
-            return metadata.get(metadataKey, userClass);
-        }
-        return getUserById(metadataValue);
+        return metadata.get(metadataKey, userClass,
+                            userId -> SYSTEM_USER_ID.equals(userId) ? getSystemUser() : getUserById(userId));
     }
 
     /**
