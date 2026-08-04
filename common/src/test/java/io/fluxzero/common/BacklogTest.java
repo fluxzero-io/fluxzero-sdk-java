@@ -16,7 +16,12 @@ package io.fluxzero.common;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BacklogTest {
 
@@ -26,5 +31,32 @@ class BacklogTest {
         assertEquals(16, Backlog.initialBatchCapacity(512));
         assertEquals(16, Backlog.initialBatchCapacity(1024));
         assertEquals(16, Backlog.initialBatchCapacity(Integer.MAX_VALUE));
+    }
+
+    @Test
+    void boundsOrderedBatchesByCountAndWeight() {
+        List<List<String>> batches = new ArrayList<>();
+        Backlog<String> subject = Backlog.forOrderedAsyncConsumer(batch -> {
+            batches.add(List.copyOf(batch));
+            return CompletableFuture.completedFuture(null);
+        }, 3, String::length, 5L);
+
+        subject.add(List.of("aa", "bbb", "123456", "c", "dd", "e")).join();
+        subject.shutDown();
+
+        assertEquals(
+                List.of(List.of("aa", "bbb"), List.of("123456"), List.of("c", "dd", "e")),
+                batches);
+    }
+
+    @Test
+    void invalidWeightFailsTheItemWithoutStoppingTheBacklog() {
+        Backlog<String> subject = Backlog.forOrderedAsyncConsumer(
+                batch -> CompletableFuture.completedFuture(null),
+                3, value -> value.equals("invalid") ? -1L : value.length(), 5L);
+
+        assertThrows(Exception.class, () -> subject.add("invalid").join());
+        subject.add("valid").join();
+        subject.shutDown();
     }
 }

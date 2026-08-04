@@ -16,8 +16,9 @@ Execution cadence and backlog workflow are defined in `AGENTS.md` in the root of
 Fluxzero encourages an **inside-out** development order to ensure logic is correct and testable.
 Prefer model/DDD fidelity over fast breadth. Do not begin with endpoints; begin with domain commands and model.
 
-1. **Commands + Domain Model**: Define command intent, aggregate/entity boundaries, value objects, and invariants.
-2. **Handlers + State Transitions**: Implement `@HandleCommand`/`@HandleQuery` with `@Apply` and `@AssertLegal`.
+1. **Commands + Domain Model**: Define command intent, model boundaries, relationships, value objects, and invariants.
+2. **State Transitions + Handlers**: Implement model `@Apply`/`@AssertLegal`; add message handlers only for orchestration,
+   queries and side effects.
 3. **Tests**: Verify domain behavior and invariants using `TestFixture`.
 4. **Queries / Read Models / Side Effects**: Add search/read shaping and event-driven side effects.
 5. **Endpoints Last**: Expose logic via REST/WebSockets as thin transport adapters.
@@ -48,9 +49,9 @@ Use this tree to find the correct manual for your current task, ordered by the r
 
 ### 2. Implementing Logic & State
 
-- **"I need to define Aggregates, Entities, or apply state changes"**
-    - → [Entities & Aggregates](entities.md)
-        - [Define an Aggregate or Entity](entities.md#aggregates)
+- **"I need to define Models, relationships, or apply state changes"**
+    - → [Models and State](entities.md)
+        - [Define a Model](entities.md#define-a-model)
         - [Intercept or rewrite updates (@InterceptApply)](entities.md#intercept-apply)
         - [Apply state changes (@Apply)](entities.md#apply)
         - [Implement permission checks (@AssertLegal)](entities.md#assertlegal)
@@ -146,7 +147,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 | [Glossary](glossary.md)                       | Key terms and definitions used in Fluxzero.                  |
 | [Handling](handling.md)                       | Handling incoming messages (Commands, Queries, Events, Web). |
 | [Sending](sending.md)                         | Dispatching messages and making external web requests.       |
-| [Entities](entities.md)                       | Domain modeling, event sourcing, and aggregate lifecycle.    |
+| [Models](entities.md)                         | Domain modeling, relationships, persistence and lifecycle.   |
 | [Sagas](sagas.md)                             | Stateful handlers and long-running workflows.                |
 | [Tracking](tracking.md)                       | Async consumption mechanism, consumers, and replays.         |
 | [Metrics](metrics.md)                         | Observability signals, tracking metrics, and ignored messages. |
@@ -166,7 +167,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 1. **Logic First**: Business logic resides in `@Apply`, `@AssertLegal`, and handler methods. Infrastructure is managed
    automatically by Fluxzero.
 2. **Deterministic State**: `@Apply` methods must be pure functions. Never load data or search inside an `@Apply` block.
-3. **Dumb Aggregates**: Aggregates are immutable state holders. They do not handle messages themselves.
+3. **Immutable Models**: Models are immutable state holders. Action logic normally lives on command/update payloads.
 4. **Naming Convention**: Commands are imperative (`CreateUser`), Queries are descriptive (`GetUserProfile`). Events
    reflect facts and are typically the action payload (`CreateUser`).
 5. **Method Precedence**: When multiple handler methods match a message, the most specific one (matching the payload
@@ -203,8 +204,8 @@ Use this tree to find the correct manual for your current task, ordered by the r
     WebSockets or secondary queries to handle eventually consistent side-effects like search index updates.
 22. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of
     messages asynchronously.
-23. **Entity IDs**: Use `Fluxzero.generateId(...)` when creating new aggregates or members. Do this in the **endpoint**
-    or **command interface**, never inside the aggregate's `@Apply` method.
+23. **Model IDs**: Use `Fluxzero.generateId(...)` when creating new models or members. Do this in the **endpoint**
+    or **command interface**, never inside `@Apply`.
 24. **Message Idempotency**: Every message has an ID. Providing a consistent ID from the client (or endpoint) enables
     automatic deduplication in the Fluxzero runtime.
 25. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
@@ -223,7 +224,7 @@ Follow this layout unless instructed otherwise:
 
 - Root: `io.fluxzero.<app>.<domain>`
 - Commands, queries, IDs: `...<domain>.api`
-- Models (aggregates, entities, value objects): `...<domain>.api.model`
+- Models, embedded members and value objects: `...<domain>.api.model`
 - Handlers (stateful and stateless): `...<domain>`
 - Endpoints: `...<domain>.<Something>Endpoint`
 - Tests: mirror the domain structure under `src/test/java`

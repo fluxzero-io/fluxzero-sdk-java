@@ -950,6 +950,14 @@ class EventSourcingRepositoryTest {
         }
 
         @Test
+        void notEventSourcedAggregateStillStoresAndPublishesEventsByDefault() {
+            testFixture.whenCommand(new CreateModel())
+                    .expectEvents(new CreateModel())
+                    .expectThat(fc -> assertEquals(
+                            1L, fc.eventStore().getEvents(aggregateId.toString()).count()));
+        }
+
+        @Test
         void notEventSourcedAggregateIsNotBlockedByDispatchInterceptor() {
             TestFixture.create(DefaultFluxzero.builder()
                                        .addDispatchInterceptor((message, messageType, topic) -> null,

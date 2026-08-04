@@ -15,8 +15,10 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.CreateAuditTrail;
@@ -28,9 +30,14 @@ import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.Group;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
+import io.fluxzero.common.api.search.ModelGraphComposition;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
@@ -38,6 +45,8 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.ModelGraphProjections;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -56,6 +65,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -87,6 +97,19 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             return getSearchClient().getSearchCollections();
         } catch (Exception e) {
             throw new DocumentStoreException("Could not retrieve search collections", e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> materializeModelAction(
+            MaterializeModelAction action) {
+        try {
+            return getSearchClient()
+                    .materializeModelAction(action);
+        } catch (Exception e) {
+            throw new DocumentStoreException(
+                    "Could not apply fenced model materialization for action "
+                    + action.getActionId(), e);
         }
     }
 
@@ -177,6 +200,65 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public Search search(SearchQuery.Builder searchBuilder) {
         return new DefaultSearch(searchBuilder);
+    }
+
+    @Override
+    public GraphSearch searchGraph(
+            Class<?> rootModelType,
+            boolean forceAdHoc) {
+        ModelMetadata.RootConfiguration root =
+                ModelMetadata.validate(rootModelType)
+                        .rootConfiguration()
+                        .orElseThrow(() ->
+                                             new IllegalArgumentException(
+                                                     rootModelType.getName()
+                                                     + " is not an independent model"));
+        if (root.kind()
+            != ModelMetadata.RootKind.MODEL) {
+            throw new IllegalArgumentException(
+                    rootModelType.getName()
+                    + " is not an independent model");
+        }
+        if (!root.searchable()) {
+            throw new IllegalArgumentException(
+                    "Graph search root %s must be searchable"
+                            .formatted(
+                                    rootModelType.getName()));
+        }
+        Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>
+                projection =
+                ModelGraphProjections.configuration(
+                        rootModelType);
+        boolean live =
+                forceAdHoc
+                || projection.isEmpty();
+        String collection =
+                live
+                        ? determineCollection(
+                                rootModelType)
+                        : projection.orElseThrow()
+                                .getCollection();
+        ModelGraphComposition composition =
+                live
+                        ? projection.map(
+                                        io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration
+                                                ::getComposition)
+                                .orElseGet(() ->
+                                                   ModelGraphComposition
+                                                           .builder()
+                                                           .build())
+                        : null;
+        List<ModelGraphPathOverride> pathOverrides =
+                live
+                        ? projection.map(
+                                        io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration
+                                                ::getPathOverrides)
+                                .orElseGet(List::of)
+                        : List.of();
+        return new DefaultGraphSearch(
+                SearchQuery.builder()
+                        .collection(collection),
+                composition, pathOverrides);
     }
 
     @Override
@@ -289,6 +371,11 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         private final SearchQuery.Builder queryBuilder;
         private final List<String> sorting = new ArrayList<>();
         private final List<String> pathFilters = new ArrayList<>();
+        private final List<ModelRelationConstraint> relationConstraints =
+                new ArrayList<>();
+        protected ModelGraphComposition graphComposition;
+        protected List<ModelGraphPathOverride>
+                graphPathOverrides = List.of();
         private volatile int skip;
 
         protected DefaultSearch() {
@@ -324,6 +411,19 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 default:
                     queryBuilder.constraints(Arrays.asList(constraints));
                     break;
+            }
+            return this;
+        }
+
+        @Override
+        public Search relation(
+                ModelRelationConstraint... constraints) {
+            for (ModelRelationConstraint constraint :
+                    constraints) {
+                relationConstraints.add(
+                        Objects.requireNonNull(
+                                constraint,
+                                "Model relation constraint"));
             }
             return this;
         }
@@ -402,11 +502,27 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @Override
         public <T> CompletableFuture<List<T>> fetchAsync(int maxSize, Class<T> type) {
-            SearchQuery query = queryBuilder.build();
-            return getSearchClient().searchAsync(
-                    SearchDocuments.builder().query(query).maxSize(maxSize).sorting(sorting)
-                            .pathFilters(pathFilters).skip(skip).build(),
-                    Math.min(maxSize, defaultFetchSize)).thenApply(hits -> mapHits(hits, type));
+            SearchDocuments request = searchRequest(maxSize);
+            int fetchSize = Math.min(
+                    maxSize, defaultFetchSize);
+            CompletableFuture<List<SearchHit<SerializedDocument>>> future =
+                    graphComposition != null
+                            ? getSearchClient().searchModelGraphAsync(
+                                    new SearchModelGraphDocuments(
+                                            request,
+                                            relationConstraints,
+                                            graphComposition,
+                                            graphPathOverrides),
+                                    fetchSize)
+                            : relationConstraints.isEmpty()
+                                    ? getSearchClient().searchAsync(
+                                            request, fetchSize)
+                                    : getSearchClient().searchModelsAsync(
+                                            new SearchModelDocuments(
+                                                    request,
+                                                    relationConstraints),
+                                            fetchSize);
+            return future.thenApply(hits -> mapHits(hits, type));
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -414,8 +530,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             if (SerializedDocument.class.equals(type)) {
                 return (List) hits.stream().map(SearchHit::getValue).toList();
             }
-            Function<SerializedDocument, T> convertFunction = type == null
-                    ? serializer::fromDocument : document -> serializer.fromDocument(document, type);
+            Function<SerializedDocument, T> convertFunction =
+                    converter(type);
             return hits.stream().map(hit -> hit.map(convertFunction).getValue()).toList();
         }
 
@@ -426,49 +542,109 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         protected <T> Stream<SearchHit<T>> fetchHitStream(Integer maxSize, Class<T> type, int fetchSize) {
-            SearchQuery query = queryBuilder.build();
-            Stream<SearchHit<SerializedDocument>> hitStream = getSearchClient().search(
-                    SearchDocuments.builder().query(query).maxSize(maxSize).sorting(sorting)
-                            .pathFilters(pathFilters).skip(skip).build(), fetchSize);
+            SearchDocuments request = searchRequest(maxSize);
+            Stream<SearchHit<SerializedDocument>> hitStream =
+                    graphComposition != null
+                            ? getSearchClient().searchModelGraph(
+                                    new SearchModelGraphDocuments(
+                                            request,
+                                            relationConstraints,
+                                            graphComposition,
+                                            graphPathOverrides),
+                                    fetchSize)
+                            : relationConstraints.isEmpty()
+                                    ? getSearchClient().search(
+                                            request, fetchSize)
+                                    : getSearchClient().searchModels(
+                                            new SearchModelDocuments(
+                                                    request,
+                                                    relationConstraints),
+                                            fetchSize);
             if (SerializedDocument.class.equals(type)) {
                 return (Stream) hitStream;
             }
-            Function<SerializedDocument, T> convertFunction = type == null
-                    ? serializer::fromDocument : document -> serializer.fromDocument(document, type);
+            Function<SerializedDocument, T> convertFunction =
+                    converter(type);
             return hitStream.map(hit -> hit.map(convertFunction));
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> Function<SerializedDocument, T>
+                converter(Class<T> type) {
+            Class<?> effectiveType =
+                    type == null
+                            ? defaultResultType()
+                            : type;
+            return effectiveType == null
+                    ? serializer::fromDocument
+                    : document ->
+                            (T) serializer.fromDocument(
+                                    document,
+                                    effectiveType);
+        }
+
+        protected Class<?> defaultResultType() {
+            return null;
         }
 
         @Override
         public SearchHistogram fetchHistogram(int resolution, int maxSize) {
+            requireOrdinarySearch("histograms");
             return getSearchClient().fetchHistogram(new GetSearchHistogram(queryBuilder.build(), resolution, maxSize));
         }
 
         @Override
         public GroupSearch groupBy(String... paths) {
+            requireOrdinarySearch("grouped statistics");
             return new DefaultGroupSearch(Arrays.asList(paths));
         }
 
         @Override
         public List<FacetStats> facetStats() {
+            requireOrdinarySearch("facet statistics");
             return getSearchClient().fetchFacetStats(queryBuilder.build())
                     .stream().filter(s -> !s.getName().startsWith("$metadata/")).toList();
         }
 
         @Override
         public CompletableFuture<List<FacetStats>> facetStatsAsync() {
+            requireOrdinarySearch("facet statistics");
             return getSearchClient().fetchFacetStatsAsync(queryBuilder.build())
                     .thenApply(stats -> stats.stream().filter(s -> !s.getName().startsWith("$metadata/")).toList());
         }
 
         @Override
         public CompletableFuture<Void> delete(int batchSize) {
+            requireOrdinarySearch("bulk delete");
             return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED, batchSize);
         }
 
         @Override
         public CompletableFuture<Void> move(Object targetCollection) {
+            requireOrdinarySearch("bulk move");
             return getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection),
                                           Guarantee.STORED);
+        }
+
+        private SearchDocuments searchRequest(
+                Integer maxSize) {
+            return SearchDocuments.builder()
+                    .query(queryBuilder.build())
+                    .maxSize(maxSize)
+                    .sorting(sorting)
+                    .pathFilters(pathFilters)
+                    .skip(skip)
+                    .build();
+        }
+
+        private void requireOrdinarySearch(
+                String operation) {
+            if (!relationConstraints.isEmpty()
+                || graphComposition != null) {
+                throw new UnsupportedOperationException(
+                        "Model relationship search and graph composition are not yet supported for "
+                        + operation);
+            }
         }
 
         @AllArgsConstructor
@@ -488,6 +664,27 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                         .thenApply(stats -> stats.stream()
                                 .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
             }
+        }
+    }
+
+    protected class DefaultGraphSearch
+            extends DefaultSearch
+            implements GraphSearch {
+
+        protected DefaultGraphSearch(
+                SearchQuery.Builder queryBuilder,
+                ModelGraphComposition composition,
+                List<ModelGraphPathOverride>
+                        pathOverrides) {
+            super(queryBuilder);
+            this.graphComposition = composition;
+            this.graphPathOverrides =
+                    List.copyOf(pathOverrides);
+        }
+
+        @Override
+        protected Class<?> defaultResultType() {
+            return ObjectNode.class;
         }
     }
 }

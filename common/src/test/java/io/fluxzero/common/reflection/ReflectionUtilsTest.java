@@ -41,6 +41,7 @@ import java.lang.reflect.Type;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.determineCommonAncestors;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
@@ -481,6 +482,35 @@ class ReflectionUtilsTest {
             assertEquals(Instant.class, timestampPath.getLeafType());
             assertFalse(metadata.propertyPath("child/unknown").isExists());
         }
+
+        @Test
+        void findsAnnotatedMethodsAndConstructorsAsExecutables() {
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(ExecutableFixture.class);
+
+            assertEquals(List.of("create", "io.fluxzero.common.reflection.ReflectionUtilsTest$ExecutableFixture"),
+                         metadata.annotatedExecutables(ExecutableMarker.class).stream()
+                                 .map(executable -> executable instanceof Method
+                                         ? executable.getName() : executable.getDeclaringClass().getName())
+                                 .toList());
+        }
+
+        @Test
+        void ownsSpecializedStructuralMetadata() {
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(MockObject.class);
+            AtomicInteger invocations = new AtomicInteger();
+
+            SpecializedFixture first = metadata.specializedMetadata(
+                    SpecializedFixture.class,
+                    type -> new SpecializedFixture(type, invocations.incrementAndGet()));
+            SpecializedFixture second = metadata.specializedMetadata(
+                    SpecializedFixture.class,
+                    type -> new SpecializedFixture(Object.class, invocations.incrementAndGet()));
+
+            assertSame(first, second);
+            assertSame(MockObject.class, first.type());
+            assertEquals(1, first.computation());
+            assertEquals(1, invocations.get());
+        }
     }
 
     @Nested
@@ -547,6 +577,11 @@ class ReflectionUtilsTest {
     }
 
     @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
+    private @interface ExecutableMarker {
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.TYPE, ElementType.ANNOTATION_TYPE})
     private @interface TypeMarker {
         String value();
@@ -569,6 +604,19 @@ class ReflectionUtilsTest {
     private static class MetaAnnotatedField {
         @MetaMarker
         private final String value = "test";
+    }
+
+    private static class ExecutableFixture {
+        @ExecutableMarker
+        ExecutableFixture() {
+        }
+
+        @ExecutableMarker
+        void create() {
+        }
+    }
+
+    private record SpecializedFixture(Class<?> type, int computation) {
     }
 
     @TypeMarker("outer")

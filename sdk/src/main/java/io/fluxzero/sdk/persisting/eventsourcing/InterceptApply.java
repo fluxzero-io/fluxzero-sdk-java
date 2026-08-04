@@ -51,10 +51,14 @@ import java.util.Collection;
  * <ul>
  *     <li>The current entity (if it exists)</li>
  *     <li>Any parent or ancestor entity in the aggregate</li>
+ *     <li>Any independently stored {@link io.fluxzero.sdk.modeling.Model @Model} loaded for the current model action,
+ *         either as its value or as {@link io.fluxzero.sdk.modeling.Entity}{@code <T>}</li>
  *     <li>The update object (if defined on the entity side)</li>
  *     <li>Context like {@link io.fluxzero.common.api.Metadata}, {@link io.fluxzero.sdk.common.Message}, or
  *         {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>
  * </ul>
+ * Injected models are read inputs unless one of the emitted updates later targets and returns them from an
+ * {@link Apply @Apply}.
  *
  * <p>
  * Note that empty entities (where the value is {@code null}) are not injected unless the parameter is annotated with

@@ -21,12 +21,32 @@ import io.fluxzero.common.api.eventsourcing.DeleteEvents;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
+import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -111,6 +131,81 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     public CompletableFuture<Void> storeEvents(String aggregateId, List<SerializedMessage> events, boolean storeOnly,
                                                Guarantee guarantee) {
         return sendCommand(new AppendEvents(List.of(new EventBatch(aggregateId, events, storeOnly)), guarantee));
+    }
+
+    /**
+     * Commits an independent-model action and retains the positions returned by the runtime.
+     */
+    @Override
+    public CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
+        return send(action);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeModelActionMaterialization(
+            CompleteModelActionMaterialization request) {
+        return sendCommand(request);
+    }
+
+    @Override
+    public GetModelActionMaterializationResult
+            getModelActionMaterialization(
+                    GetModelActionMaterialization request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public GetModelEventsResult getModelEvents(GetModelEvents request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(
+            TrackModelUpdates request) {
+        return send(request);
+    }
+
+    @Override
+    public GetModelGraphResult getModelGraph(GetModelGraph request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public GetModelGraphResult getModelAncestors(GetModelAncestors request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<ModelGraphProjectionStatus>
+            registerModelGraphProjection(
+                    RegisterModelGraphProjection request) {
+        return send(request);
+    }
+
+    @Override
+    public ModelGraphProjectionStatus
+            getModelGraphProjectionStatus(
+                    GetModelGraphProjectionStatus request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<ModelGraphProjectionStatus>
+            awaitModelGraphProjection(
+                    AwaitModelGraphProjection request) {
+        return send(request);
+    }
+
+    @Override
+    public ModelDeletionPlan planModelDeletion(
+            PlanModelDeletion request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<ModelDeletionResult> deleteModel(
+            DeleteModel request) {
+        return send(request);
     }
 
     /**

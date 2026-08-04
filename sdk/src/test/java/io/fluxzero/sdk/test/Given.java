@@ -153,6 +153,22 @@ public interface Given<Self extends Given<Self>> extends When {
     Self givenAppliedEvents(String aggregateId, Class<?> aggregateClass, Object... events);
 
     /**
+     * Event-sources an independently stored model into the state used as input for the behavior under test.
+     * <p>
+     * This is model vocabulary for {@link io.fluxzero.sdk.modeling.Model}; it does not load a containing aggregate.
+     */
+    default Self givenModelEvents(Id<?> modelId, Object... events) {
+        return givenModelEvents(modelId.toString(), modelId.getType(), events);
+    }
+
+    /**
+     * Event-sources an independently stored model into the state used as input for the behavior under test.
+     */
+    default Self givenModelEvents(String modelId, Class<?> modelClass, Object... events) {
+        throw new UnsupportedOperationException("This Given implementation does not support independent models");
+    }
+
+    /**
      * Publishes one or more events that were emitted before the behavior under test.
      * <p>
      * Events may be {@link Message} or plain objects.

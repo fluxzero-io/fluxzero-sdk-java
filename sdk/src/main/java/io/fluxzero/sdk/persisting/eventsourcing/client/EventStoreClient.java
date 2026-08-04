@@ -16,10 +16,30 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelActionMaterialization;
+import io.fluxzero.common.api.modeling.GetModelActionMaterializationResult;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
@@ -51,6 +71,124 @@ import java.util.concurrent.CompletableFuture;
  * @see io.fluxzero.sdk.persisting.repository.AggregateRepository
  */
 public interface EventStoreClient extends AutoCloseable {
+
+    /**
+     * Atomically commits the ordered state transitions of one independent-model action.
+     * <p>
+     * Unlike aggregate event appends, this operation returns the runtime-assigned state, event, and per-model stream
+     * positions. Implementations predating independent models remain source-compatible and fail only when this
+     * capability is invoked.
+     *
+     * @param action complete model action with its durable idempotency key
+     * @return durable result containing the positions assigned by the event store
+     */
+    default CompletableFuture<CommitModelActionResult> commitModelAction(CommitModelAction action) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Independent model actions are not supported by this event store"));
+    }
+
+    /**
+     * Closes the runtime readiness fence after SDK-owned model documents and snapshots have been materialized.
+     */
+    default CompletableFuture<Void> completeModelActionMaterialization(
+            CompleteModelActionMaterialization request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model materialization completion is not supported by this event store"));
+    }
+
+    /**
+     * Loads the exact retained direct-document and snapshot mutations for restart-safe materialization repair.
+     */
+    default GetModelActionMaterializationResult
+            getModelActionMaterialization(
+                    GetModelActionMaterialization request) {
+        throw new UnsupportedOperationException(
+                "Independent model materialization repair is not supported by this event store");
+    }
+
+    /**
+     * Batch-loads independent model heads and event memberships at one pinned state boundary.
+     */
+    default GetModelEventsResult getModelEvents(GetModelEvents request) {
+        throw new UnsupportedOperationException("Independent model event loading is not supported by this event store");
+    }
+
+    /**
+     * Long-polls committed independent-model action substeps after a client-controlled state cursor.
+     */
+    default CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(
+            TrackModelUpdates request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model update tracking is not supported by this event store"));
+    }
+
+    /**
+     * Loads one bounded temporal model graph and an optional first page of its grouped model streams.
+     */
+    default GetModelGraphResult getModelGraph(GetModelGraph request) {
+        throw new UnsupportedOperationException("Independent model graph loading is not supported by this event store");
+    }
+
+    /**
+     * Loads the bounded temporal ancestor graph of one or more independent models.
+     */
+    default GetModelGraphResult getModelAncestors(GetModelAncestors request) {
+        throw new UnsupportedOperationException(
+                "Independent model ancestor loading is not supported by this event store");
+    }
+
+    /**
+     * Idempotently registers an asynchronous materialized model-graph projection.
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            registerModelGraphProjection(
+                    RegisterModelGraphProjection request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized model graph projections are not supported by this event store"));
+    }
+
+    /**
+     * Returns the current high-watermark and backlog for one materialized graph projection.
+     */
+    default ModelGraphProjectionStatus
+            getModelGraphProjectionStatus(
+                    GetModelGraphProjectionStatus request) {
+        throw new UnsupportedOperationException(
+                "Materialized model graph projection status is not supported by this event store");
+    }
+
+    /**
+     * Completes after every affected root in a graph projection has crossed the requested committed state boundary.
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            awaitModelGraphProjection(
+                    AwaitModelGraphProjection request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized model graph projection completion is not supported by this event store"));
+    }
+
+    /**
+     * Creates a bounded, non-mutating plan for an explicit independent-model hard deletion.
+     */
+    default ModelDeletionPlan planModelDeletion(
+            PlanModelDeletion request) {
+        throw new UnsupportedOperationException(
+                "Independent model deletion planning is not supported by this event store");
+    }
+
+    /**
+     * Executes or resumes an idempotent independent-model hard deletion.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            DeleteModel request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this event store"));
+    }
 
     /**
      * Stores a list of serialized events for a given aggregate identifier.

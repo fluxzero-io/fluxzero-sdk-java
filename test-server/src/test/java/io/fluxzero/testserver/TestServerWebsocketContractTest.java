@@ -18,6 +18,19 @@ package io.fluxzero.testserver;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.CommitModelAction;
+import io.fluxzero.common.api.modeling.CommitModelActionResult;
+import io.fluxzero.common.api.modeling.CompleteModelActionMaterialization;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
+import io.fluxzero.common.api.modeling.ModelActionSubstep;
+import io.fluxzero.common.api.modeling.ModelActionTarget;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMaterialization;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
@@ -28,6 +41,7 @@ import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchCollectionType;
 import io.fluxzero.common.api.search.SearchDocuments;
@@ -39,6 +53,7 @@ import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.tracking.Tracker;
+import io.fluxzero.common.search.Document;
 import io.fluxzero.sdk.common.websocket.JdkWebsocketConnector;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
@@ -84,6 +99,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.delete;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.index;
 import static io.fluxzero.common.api.search.SearchCollectionType.regular;
+import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -382,6 +398,140 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void materializedModelGraphRoundTripsOverFullServer()
+            throws Exception {
+        WebSocketClient client =
+                client(
+                        "model-graph",
+                        "model-graph-"
+                        + UUID.randomUUID());
+        try {
+            EventStoreClient eventStore =
+                    client.getEventStoreClient();
+            SearchClient search =
+                    client.getSearchClient();
+            String rootId =
+                    "root-" + UUID.randomUUID();
+            String childId =
+                    "child-" + UUID.randomUUID();
+            String roots =
+                    "roots-" + UUID.randomUUID();
+            String projection =
+                    "root-graphs-"
+                    + UUID.randomUUID();
+            String rootType =
+                    "ContractRoot";
+            await(eventStore
+                          .registerModelGraphProjection(
+                                  new RegisterModelGraphProjection(
+                                          new ModelGraphProjectionConfiguration(
+                                                  rootType,
+                                                  roots,
+                                                  projection,
+                                                  ModelGraphComposition
+                                                          .builder()
+                                                          .build(),
+                                                  List.of()),
+                                          true)));
+
+            ModelActionTarget root =
+                    modelTarget(
+                            rootId, rootType,
+                            new ModelDocumentMutation(
+                                    roots,
+                                    structuredDocument(
+                                            rootId,
+                                            roots,
+                                            "name",
+                                            "root")),
+                            List.of());
+            CommitModelActionResult rootResult =
+                    await(eventStore
+                                  .commitModelAction(
+                                          modelAction(
+                                                  "create-root-"
+                                                  + UUID.randomUUID(),
+                                                  -1L,
+                                                  root)));
+            materialize(
+                    eventStore, search,
+                    rootResult, root);
+
+            ModelActionTarget child =
+                    modelTarget(
+                            childId,
+                            "ContractChild",
+                            new ModelDocumentMutation(
+                                    ModelDocumentMutation
+                                            .GRAPH_COMPONENT_COLLECTION,
+                                    structuredDocument(
+                                            childId,
+                                            ModelDocumentMutation
+                                                    .GRAPH_COMPONENT_COLLECTION,
+                                            "name",
+                                            "child")),
+                            List.of(
+                                    ModelRelationship
+                                            .builder()
+                                            .parentId(
+                                                    rootId)
+                                            .parentType(
+                                                    rootType)
+                                            .path(
+                                                    "children")
+                                            .build()));
+            CommitModelActionResult childResult =
+                    await(eventStore
+                                  .commitModelAction(
+                                          modelAction(
+                                                  "create-child-"
+                                                  + UUID.randomUUID(),
+                                                  rootResult
+                                                          .getSubsteps()
+                                                          .getLast()
+                                                          .getStateIndex(),
+                                                  child)));
+            materialize(
+                    eventStore, search,
+                    childResult, child);
+            await(eventStore
+                          .awaitModelGraphProjection(
+                                  new AwaitModelGraphProjection(
+                                          projection,
+                                          childResult
+                                                  .getSubsteps()
+                                                  .getLast()
+                                                  .getStateIndex(),
+                                          List.of(
+                                                  childId))));
+
+            SerializedDocument graph =
+                    search.search(
+                                    SearchDocuments.builder()
+                                            .query(
+                                                    SearchQuery
+                                                            .builder()
+                                                            .collection(
+                                                                    projection)
+                                                            .build())
+                                            .build(),
+                                    10)
+                            .map(SearchHit::getValue)
+                            .findFirst()
+                            .orElseThrow();
+            assertEquals(
+                    "child",
+                    graph.deserializeDocument()
+                            .getEntryAtPath(
+                                    "children/0/name")
+                            .orElseThrow()
+                            .getValue());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
     void keyValueAndSchedulingRequestsRoundTripOverFullServer() throws Exception {
         WebSocketClient client = client("key-value-scheduling");
         try {
@@ -518,6 +668,91 @@ class TestServerWebsocketContractTest {
     private static SerializedMessage message(String id, byte[] value) {
         return new SerializedMessage(new Data<>(value, String.class.getName(), 0, "text/plain"),
                                      Metadata.empty(), id + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
+    }
+
+    private static ModelActionTarget modelTarget(
+            String modelId,
+            String modelType,
+            ModelDocumentMutation document,
+            List<ModelRelationship> relationships) {
+        return ModelActionTarget.builder()
+                .modelId(modelId)
+                .modelType(modelType)
+                .storeEvent(true)
+                .updateState(true)
+                .document(document)
+                .updateRelationships(true)
+                .relationships(relationships)
+                .build();
+    }
+
+    private static CommitModelAction modelAction(
+            String actionId,
+            long readStateIndex,
+            ModelActionTarget target) {
+        return new CommitModelAction(
+                actionId,
+                readStateIndex,
+                List.of(target.getModelId()),
+                List.of(
+                        ModelActionSubstep.builder()
+                                .event(
+                                        message(actionId))
+                                .targets(
+                                        List.of(target))
+                                .build()),
+                ModelConflictPolicy.ACCEPT,
+                STORED);
+    }
+
+    private static void materialize(
+            EventStoreClient eventStore,
+            SearchClient search,
+            CommitModelActionResult result,
+            ModelActionTarget target)
+            throws Exception {
+        long stateIndex =
+                result.getSubsteps()
+                        .getLast()
+                        .getStateIndex();
+        await(search.materializeModelAction(
+                new MaterializeModelAction(
+                        result.getActionId(),
+                        stateIndex,
+                        List.of(
+                                new ModelDocumentMaterialization(
+                                        target.getModelId(),
+                                        stateIndex,
+                                        target.getDocument())),
+                        List.of())));
+        await(eventStore
+                      .completeModelActionMaterialization(
+                              new CompleteModelActionMaterialization(
+                                      result.getActionId(),
+                                      stateIndex)));
+    }
+
+    private static SerializedDocument structuredDocument(
+            String id,
+            String collection,
+            String path,
+            String value) {
+        return new SerializedDocument(
+                Document.builder()
+                        .id(id)
+                        .type("ContractDocument")
+                        .collection(collection)
+                        .timestamp(Instant.now())
+                        .entries(
+                                Map.of(
+                                        new Document.Entry(
+                                                TEXT,
+                                                value),
+                                        List.of(
+                                                new Document.Path(
+                                                        path))))
+                        .summary(() -> value)
+                        .build());
     }
 
     private static SerializedDocument document(String id, String collection, String value, Set<FacetEntry> facets) {

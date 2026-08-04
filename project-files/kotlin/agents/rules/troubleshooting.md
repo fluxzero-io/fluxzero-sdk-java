@@ -27,7 +27,7 @@ This guide helps you quickly resolve common issues encountered when building Flu
 
 **Cause**:
 - The handler for the expected message is not registered in the `TestFixture`.
-- The expectation is missing orchestrated follow-ups (e.g., you expect the aggregate event but forgot the command sent by a saga).
+- The expectation is missing orchestrated follow-ups (for example, a saga publishes another command).
 
 **Fix**:
 - Ensure the fixture registers all relevant handlers: `TestFixture.create(BookingProcess::class, BookingHandler::class)`.

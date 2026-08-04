@@ -23,7 +23,9 @@ import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.DocumentStats.FieldStats;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.Group;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.constraints.AllConstraint;
 import io.fluxzero.common.api.search.constraints.AnyConstraint;
 import io.fluxzero.common.api.search.constraints.BetweenConstraint;
@@ -35,6 +37,7 @@ import io.fluxzero.common.api.search.constraints.NotConstraint;
 import io.fluxzero.common.api.search.constraints.QueryConstraint;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.ClientUtils;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -298,6 +301,91 @@ public interface Search {
      * Adds one or more custom constraints to the search using a logical AND.
      */
     Search constraint(Constraint... constraints);
+
+    /**
+     * Requires a directly related parent document to match the supplied document constraints.
+     */
+    default Search whereParent(
+            Object collection, Constraint... constraints) {
+        return whereAncestor(
+                collection, 1, 1, constraints);
+    }
+
+    /**
+     * Requires an ancestor document at any supported depth to match the supplied document constraints.
+     */
+    default Search whereAncestor(
+            Object collection, Constraint... constraints) {
+        return whereAncestor(
+                collection, 1, 64, constraints);
+    }
+
+    /**
+     * Requires an ancestor document within the supplied depth range to match the document constraints.
+     */
+    default Search whereAncestor(
+            Object collection,
+            int minDepth,
+            int maxDepth,
+            Constraint... constraints) {
+        return relation(ModelRelationConstraint.builder()
+                                .direction(ModelRelationConstraint.Direction.ANCESTOR)
+                                .query(SearchQuery.builder()
+                                               .collection(ClientUtils.determineSearchCollection(collection))
+                                               .constraints(List.of(constraints))
+                                               .build())
+                                .minDepth(minDepth)
+                                .maxDepth(maxDepth)
+                                .build());
+    }
+
+    /**
+     * Requires a directly related child document to match the supplied document constraints.
+     */
+    default Search whereChild(
+            Object collection, Constraint... constraints) {
+        return whereDescendant(
+                collection, 1, 1, constraints);
+    }
+
+    /**
+     * Requires a descendant document at any supported depth to match the supplied document constraints.
+     */
+    default Search whereDescendant(
+            Object collection, Constraint... constraints) {
+        return whereDescendant(
+                collection, 1, 64, constraints);
+    }
+
+    /**
+     * Requires a descendant document within the supplied depth range to match the document constraints.
+     */
+    default Search whereDescendant(
+            Object collection,
+            int minDepth,
+            int maxDepth,
+            Constraint... constraints) {
+        return relation(ModelRelationConstraint.builder()
+                                .direction(ModelRelationConstraint.Direction.DESCENDANT)
+                                .query(SearchQuery.builder()
+                                               .collection(ClientUtils.determineSearchCollection(collection))
+                                               .constraints(List.of(constraints))
+                                               .build())
+                                .minDepth(minDepth)
+                                .maxDepth(maxDepth)
+                                .build());
+    }
+
+    /**
+     * Adds advanced current-state model relationship constraints using logical AND.
+     * <p>
+     * Implementations that do not support independent-model graph search fail when this method is called.
+     */
+    default Search relation(
+            ModelRelationConstraint... constraints) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph search is not supported");
+    }
 
     /*
         Sorting

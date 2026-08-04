@@ -150,7 +150,7 @@ class LegacyProjectEndpoint {
     
     @HandleGet("/{id}")
     fun getLegacyProject(@PathParam id: ProjectId): Any {
-        val modernProject = Fluxzero.loadAggregate(id).get()
+        val modernProject = Fluxzero.loadModel(id).get()
         
         // Manually downcasting to Revision 1 for legacy V1 clients
         return Fluxzero.downcast(modernProject, 1)

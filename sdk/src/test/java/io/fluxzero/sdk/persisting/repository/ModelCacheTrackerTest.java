@@ -1,0 +1,726 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.persisting.repository;
+
+import io.fluxzero.common.api.modeling.ModelActionTargetResult;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class ModelCacheTrackerTest {
+
+    @Test
+    void bootstrapSkipsHistoryButKeepsPendingDocumentsUncacheable()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        AtomicReference<TrackModelUpdates> longPoll =
+                new AtomicReference<>();
+        CompletableFuture<TrackModelUpdatesResult> pending =
+                new CompletableFuture<>();
+        when(eventStore.trackModelUpdates(any()))
+                .thenAnswer(invocation -> {
+                    TrackModelUpdates request =
+                            invocation.getArgument(0);
+                    if (request.getMaxWaitMillis()
+                        == 0L) {
+                        return CompletableFuture
+                                .completedFuture(
+                                        new TrackModelUpdatesResult(
+                                                request.getRequestId(),
+                                                request.getLastStateIndex(),
+                                                10L, 8L,
+                                                List.of()));
+                    }
+                    longPoll.set(request);
+                    return pending;
+                });
+        Cache cache = new DefaultCache();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            Long boundary =
+                    tracker.safeDocumentBoundary();
+            assertNull(boundary);
+
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (longPoll.get() == null
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
+            assertTrue(
+                    longPoll.get() != null,
+                    "tracker did not issue its first long poll");
+            assertEquals(
+                    10L,
+                    longPoll.get()
+                            .getLastStateIndex());
+            pending.complete(
+                    new TrackModelUpdatesResult(
+                            longPoll.get()
+                                    .getRequestId(),
+                            10L, 10L, 10L,
+                            List.of()));
+            long materializedDeadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (tracker.safeDocumentBoundary()
+                   == null
+                   && System.nanoTime()
+                      < materializedDeadline) {
+                Thread.onSpinWait();
+            }
+            assertEquals(
+                    10L,
+                    tracker.safeDocumentBoundary());
+        } finally {
+            pending.cancel(true);
+            cache.close();
+        }
+    }
+
+    @Test
+    void fencesThenRefreshesRemoteUpdatesWithoutEvictingReplayBase()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> before = entity(SampleModel.class);
+        Entity<?> after = entity(SampleModel.class);
+        cache.put("sample-1", before);
+        CountDownLatch refreshed = new CountDownLatch(1);
+        AtomicInteger refreshCount = new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (targets, safeStateIndex) -> {
+                                 assertEquals(
+                                         Map.of(
+                                                 "sample-1",
+                                                 SampleModel.class),
+                                         targets);
+                                 assertEquals(
+                                         11L,
+                                         safeStateIndex);
+                                 assertSame(
+                                         before,
+                                         cache.get(
+                                                 "sample-1"));
+                                 cache.put(
+                                         "sample-1",
+                                         after);
+                                 refreshCount.incrementAndGet();
+                                 refreshed.countDown();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(11L);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            assertSame(
+                    before,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "action-1", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+
+            assertTrue(
+                    refreshed.await(
+                            5L,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    1,
+                    refreshCount.get());
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (tracker.current(
+                    "sample-1",
+                    SampleModel.class) == null
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
+            assertSame(
+                    after,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void pendingDocumentUpdateFencesNowAndRefreshesAfterMaterialization()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> before =
+                entity(SampleModel.class);
+        Entity<?> after =
+                entity(SampleModel.class);
+        cache.put("sample-1", before);
+        CountDownLatch refreshed =
+                new CountDownLatch(1);
+        AtomicInteger refreshCount =
+                new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (targets, safeStateIndex) -> {
+                                 assertEquals(
+                                         11L,
+                                         safeStateIndex);
+                                 cache.put(
+                                         "sample-1",
+                                         after);
+                                 refreshCount
+                                         .incrementAndGet();
+                                 refreshed.countDown();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 10L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "action-1", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            CompletableFuture<TrackModelUpdatesResult>
+                    materializationPoll =
+                    awaitNext(polls);
+
+            assertNull(
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertEquals(
+                    0,
+                    refreshCount.get());
+            assertSame(
+                    before,
+                    cache.get("sample-1"));
+
+            materializationPoll.complete(
+                    new TrackModelUpdatesResult(
+                            2L, 11L, 11L, 11L,
+                            List.of()));
+            assertTrue(
+                    refreshed.await(
+                            5L,
+                            TimeUnit.SECONDS));
+            assertSame(
+                    after,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void unrelatedNewerUpdateDoesNotInvalidateAuthoritativeLocalCommit()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> committed =
+                entity(SampleModel.class);
+        cache.put("sample-1", committed);
+        AtomicInteger refreshCount =
+                new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshCount.incrementAndGet();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "unrelated-action", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "another-model",
+                                                            0L,
+                                                            true))))));
+            awaitNext(polls);
+
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+
+            assertSame(
+                    committed,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertEquals(0, refreshCount.get());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void inFlightLocalCommitDoesNotRaceItsTrackedUpdateIntoARefresh()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> committed =
+                entity(SampleModel.class);
+        cache.put("sample-1", committed);
+        AtomicInteger refreshCount =
+                new AtomicInteger();
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshCount
+                                         .incrementAndGet();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            Runnable localCommitComplete =
+                    tracker.beginLocalCommit(
+                            List.of(
+                                    "sample-1"));
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "local-action", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            awaitNext(polls);
+
+            tracker.committed(
+                    "sample-1",
+                    SampleModel.class,
+                    11L);
+            localCommitComplete.run();
+
+            assertSame(
+                    committed,
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertEquals(
+                    0, refreshCount.get());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void failedLocalCommitReleasesItsDeferredRemoteRefresh()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        cache.put(
+                "sample-1",
+                entity(SampleModel.class));
+        CountDownLatch refreshed =
+                new CountDownLatch(1);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshed.countDown();
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(
+                                                 safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            Runnable localCommitComplete =
+                    tracker.beginLocalCommit(
+                            List.of(
+                                    "sample-1"));
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.ACTION,
+                                            "remote-action", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelActionTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            awaitNext(polls);
+            assertEquals(
+                    1L,
+                    refreshed.getCount());
+
+            localCommitComplete.run();
+
+            assertTrue(
+                    refreshed.await(
+                            5L,
+                            TimeUnit.SECONDS));
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void preparedHardDeleteClearsCacheWithoutRetainingDeletedIds()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        cache.put(
+                "sample-1",
+                entity(SampleModel.class));
+        cache.put(
+                "sample-2",
+                entity(SampleModel.class));
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            tracker.loaded(
+                    "sample-2",
+                    SampleModel.class,
+                    10L);
+
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            2L, 12L, 12L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.HARD_DELETE,
+                                            "deletion-1", 0,
+                                            12L, null,
+                                            List.of()))));
+
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (!cache.isEmpty()
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
+            assertTrue(cache.isEmpty());
+            assertNull(
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertNull(
+                    tracker.safeDocumentBoundary(),
+                    "direct documents must not be cached while erasure is pending");
+
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            3L, 12L, 12L, 12L,
+                            List.of()));
+            long materializedDeadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (tracker.safeDocumentBoundary()
+                   == null
+                   && System.nanoTime()
+                      < materializedDeadline) {
+                Thread.onSpinWait();
+            }
+            assertEquals(
+                    12L,
+                    tracker.safeDocumentBoundary());
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void shutdownCancelsTheOutstandingLongPoll()
+            throws Exception {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        cache.put(
+                "sample-1",
+                entity(SampleModel.class));
+        ModelCacheTracker tracker =
+                new ModelCacheTracker(
+                        eventStore, cache,
+                        (ignored, safeStateIndex) ->
+                                new ModelCacheTracker
+                                        .RefreshedBatch(
+                                                safeStateIndex));
+        try {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            CompletableFuture<TrackModelUpdatesResult>
+                    pending =
+                    awaitNext(polls);
+
+            tracker.close();
+
+            assertTrue(
+                    pending.isCancelled());
+            assertNull(
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+        } finally {
+            tracker.close();
+            cache.close();
+        }
+    }
+
+    @Test
+    void unsupportedTrackingDisablesTheFastPath() {
+        EventStoreClient eventStore =
+                mock(EventStoreClient.class);
+        when(eventStore.trackModelUpdates(any()))
+                .thenReturn(
+                        CompletableFuture.failedFuture(
+                                new UnsupportedOperationException(
+                                        "old runtime")));
+        Cache cache = new DefaultCache();
+        Entity<?> cached =
+                entity(SampleModel.class);
+        cache.put("sample-1", cached);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS
+                            .toNanos(5L);
+            while (tracker.current(
+                    "sample-1",
+                    SampleModel.class) != null
+                   && System.nanoTime()
+                      < deadline) {
+                Thread.onSpinWait();
+            }
+
+            assertNull(
+                    tracker.current(
+                            "sample-1",
+                            SampleModel.class));
+            assertSame(
+                    cached,
+                    cache.get("sample-1"));
+        } finally {
+            cache.close();
+        }
+    }
+
+    private static ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+            polls(EventStoreClient eventStore) {
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                result =
+                new ConcurrentLinkedQueue<>();
+        when(eventStore.trackModelUpdates(any()))
+                .thenAnswer(invocation -> {
+                    TrackModelUpdates request =
+                            invocation.getArgument(0);
+                    if (request.getMaxWaitMillis()
+                        == 0L) {
+                        return CompletableFuture
+                                .completedFuture(
+                                        new TrackModelUpdatesResult(
+                                                request.getRequestId(),
+                                                request.getLastStateIndex(),
+                                                10L, 10L,
+                                                List.of()));
+                    }
+                    CompletableFuture<TrackModelUpdatesResult>
+                            poll =
+                            new CompletableFuture<>();
+                    result.add(poll);
+                    return poll;
+                });
+        return result;
+    }
+
+    private static void completeNext(
+            ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                    polls,
+            TrackModelUpdatesResult result)
+            throws InterruptedException {
+        awaitNext(polls).complete(result);
+    }
+
+    private static CompletableFuture<TrackModelUpdatesResult>
+            awaitNext(
+                    ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                            polls)
+            throws InterruptedException {
+        long deadline =
+                System.nanoTime()
+                + TimeUnit.SECONDS
+                        .toNanos(5L);
+        CompletableFuture<TrackModelUpdatesResult>
+                poll;
+        while ((poll = polls.poll()) == null
+               && System.nanoTime()
+                  < deadline) {
+            Thread.onSpinWait();
+        }
+        assertTrue(
+                poll != null,
+                "tracker did not issue a long poll");
+        return poll;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Entity<?> entity(
+            Class<?> modelType) {
+        Entity<Object> entity =
+                mock(Entity.class);
+        when(entity.type())
+                .thenReturn(
+                        (Class<Object>) modelType);
+        return entity;
+    }
+
+    private record SampleModel(String id) {
+    }
+}

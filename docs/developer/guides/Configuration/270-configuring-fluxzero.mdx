@@ -63,7 +63,7 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
 ### Consumer and tracking configuration
 
 - `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer template
-  per message type. In `perHandler` mode this template is copied for generated handler consumers; in
+  per message type. In `perPackage` and `perHandler` modes this template is copied for generated consumers; in
   `defaultAppConsumer` mode it is the shared fallback consumer.
 - `addConsumerConfiguration(...)` to register additional consumers for selected message types.
 - `forwardWebRequestsToLocalServer(...)` to redirect incoming `@HandleWeb` calls to an existing local HTTP server.
@@ -124,7 +124,7 @@ These methods disable internal features as needed:
 | `disableMessageCorrelation()`        | Skips automatic correlation ID injection                           |
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
-| `disableAutomaticAggregateCaching()` | Skips aggregate cache setup                                        |
+| `disableAutomaticAggregateCaching()` | Legacy: skips 1.x aggregate cache setup                            |
 | `disableScheduledCommandHandler()`   | Removes default handler for scheduled commands                     |
 | `disableTrackingMetrics()`           | Prevents emitting metrics during message tracking                  |
 | `disableCacheEvictionMetrics()`      | Disables cache eviction telemetry                                  |
@@ -214,7 +214,7 @@ Fluxzero exposes several core components as Spring beans, making them easy to in
 | `ErrorGateway`        | Report errors manually                        |
 | `ResultGateway`       | Manually publish results from async flows     |
 | `MessageScheduler`    | Schedule commands or other messages           |
-| `AggregateRepository` | Load and store aggregates                     |
+| `AggregateRepository` | Legacy 1.x aggregate persistence compatibility |
 | `DocumentStore`       | Search, filter, and persist document models   |
 | `KeyValueStore`       | Access key-value persisted state              |
 

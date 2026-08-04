@@ -1,429 +1,292 @@
-# Entities & Aggregates
+# Models and state
 
-In Fluxzero, aggregates and entities are immutable state holders. They simply define the data structure, while the rules
-for transitioning between states lie in commands and orchestration logic resides in handlers.
+Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs are legacy
+Fluxzero 1.x compatibility surfaces and are scheduled for deprecation in 2.0.
 
----
+## Core rules
 
-## Quick Navigation
+1. Implement model state as immutable data classes and value objects.
+2. Put action-specific `@AssertLegal`, `@InterceptApply` and `@Apply` methods on the command/update payload by default.
+3. Keep `@Apply` pure and deterministic. It is reused during event sourcing.
+4. Do not load, search, publish or perform I/O from `@Apply`.
+5. Prefer a separate model for state with an independent identity, update frequency, search need, retention rule or
+   lifecycle.
+6. Use `@Member` only for values that deliberately share one modelstream, document, cache entry and lifecycle.
+7. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
 
-- [Core Rules](#core-rules)
-- [Defining State](#defining-state)
-    - [Aggregates (@Aggregate)](#aggregates)
-    - [Entities & Members](#entities)
-    - [Ownership & Permissions](#ownership)
-- [Applying State Changes (@Apply)](#apply)
-- [Filtering Updates (@InterceptApply)](#intercept-apply)
-- [Business Invariants (@AssertLegal)](#assertlegal)
-- [Loading Entities](#loading-entities)
+## Define a model
 
----
-
-<a name="core-rules"></a>
-
-## Core Rules
-
-1. **Immutability**: State should be implemented as immutable `data classes`.
-2. **Logic Separation**: Aggregates are "dumb". Handlers process messages and use `assertAndApply(this)` to interact
-   with the aggregate. While it is possible to place `@Apply`, `@AssertLegal`, or `@InterceptApply` directly in the
-   entity, this is **not recommended**; keep this logic in the command payload (using Kotlin extension methods if
-   needed, but ideally within the payload class itself).
-3. **Pure Transitions**: `@Apply` methods must be pure functions, as they are also used during event-sourcing. They
-   should only depend on the current state and the command payload.
-4. **Deterministic State**: Inside `@Apply`, **never** perform searches, load other entities, or trigger side effects.
-   Do those things in event handlers.
-5. **No Updates in State Logic**: Inside `@AssertLegal` and `@InterceptApply`, it is fine to query, load other entities,
-   or perform searches, but **never** invoke updates.
-6. **Model Mutable Subparts as Entities**: If a nested object can be created/updated/deleted independently, model it as
-   an entity (`@EntityId` + `@Member`) rather than a plain value object field.
-
----
-
-<a name="defining-state"></a>
-
-## Defining State
-
-<a name="aggregates"></a>
-
-### Aggregates (@Aggregate)
-
-The consistency boundary root. Aggregates can be **event-sourced**, **document-based**, or both.
-
-**Annotation Settings**:
-
-- `searchable`: If `true`, the aggregate is automatically indexed in the document store.
-- `collection`: (Optional) The name of the search collection. Defaults to the aggregate simple name.
-- `eventPublication`: Controls when updates are stored and published.
-    - `ALWAYS` (Default): Every applied update results in an event, even if no state changed.
-    - `IF_MODIFIED`: Only creates/publishes an event if the aggregate's state actually changed (via `equals()` or
-      `hashCode()`). **Recommended** to simplify idempotency (updates that don't change state won't clutter the stream).
-    - `NEVER`: No events are stored or published. Used when just updating the aggregate document. Ensure
-      `cached = false` in this case.
-- `publicationStrategy`: Controls the destination of the event.
-    - `STORE_AND_PUBLISH` (Default): Persist to the event store and global event log for distribution to handlers.
-    - `STORE_ONLY`: Persists to the event store but does not trigger handlers. Useful for silent migrations or
-      audit-only state.
-    - `PUBLISH_ONLY`: Triggers handlers but don't persist to the event store. Useful to inform of triggers that do not
-      change the aggregate state.
-
-[//]: # (@formatter:off)
 ```kotlin
-@Aggregate(
-    searchable = true,
-    eventPublication = EventPublication.IF_MODIFIED
-)
+@Model(searchable = true)
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
-    @Alias(prefix = "owner-") val ownerId: UserId,
-    @Member val tasks: List<Task> = emptyList()
+    val ownerId: UserId
 )
+
+class ProjectId(value: String) :
+    Id<Project>(value, "project-")
 ```
-[//]: # (@formatter:on)
 
-<a name="entities"></a>
+Important settings:
 
-### Entities & Members
+- `eventSourced`: controls the current-state load route. Events are still stored when `false`.
+- `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
+  model's own collection; an explicit `@ParentId(path = "...")` still retains a private graph-component document.
+- `collection`: stable direct search collection name.
+- `eventPublication`: controls whether unchanged transitions create an event.
+- `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
+- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
+- `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
+- `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
+- `graphProjection`: optional durable whole-tree read model.
 
-Nested components within an aggregate.
+`eventSourced = false` does not disable event storage or publication. It means current state loads from the direct
+document. Historical event-boundary loads still use stored model events.
 
-- **Data Classes**: Kotlin `data classes` work seamlessly. The SDK uses the `copy()` method for state updates.
-- **Routing**: The `@EntityId` property must be present in the command payload for automatic routing. Use
-  `@Member(idProperty = "otherProperty")` if names differ.
+## Apply actions
 
-#### Entity Boundary Heuristics
-
-Model a type as an entity (root or `@Member`) when most of these are true:
-
-- it has an identity that must stay stable over time,
-- it can be created/updated/deleted without replacing the whole parent object,
-- commands often target it directly (or by ID) as part of normal workflows,
-- it carries lifecycle/status transitions of its own.
-
-Keep it as a value object when it is replaced as one whole and has no independent lifecycle.
-
-Entities can be nested many levels deep (`a -> b -> c -> d`). Any level can declare `@Member` children and be targeted
-through routing as long as IDs are present.
-
-[//]: # (@formatter:off)
 ```kotlin
+data class CreateProject(
+    val projectId: ProjectId,
+    val details: ProjectDetails
+) {
+    @Apply
+    fun apply(sender: Sender) =
+        Project(projectId, details, sender.userId())
+}
+
+data class RenameProject(
+    val projectId: ProjectId,
+    val name: String
+) {
+    @Apply
+    fun apply(project: Project) =
+        project.copy(
+            details = project.details.withName(name)
+        )
+}
+
+data class DeleteProject(val projectId: ProjectId) {
+    @Apply
+    fun apply(project: Project): Project? = null
+}
+```
+
+Returning `null` deletes the current value but still stores/publishes the update according to the model policy. Do not
+use `Unit` for model applies.
+
+Compatibility checks are inferred:
+
+- A factory without current state requires the model to be absent.
+- A non-null current-model parameter requires it to exist.
+- A nullable model parameter allows either state.
+- Use `disableCompatibilityCheck = true` only for deliberate advanced behavior.
+
+Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
+Use an explicit handler only for real orchestration and call `Fluxzero.assertAndApply(command)` once.
+
+## Assertions and interceptors
+
+```kotlin
+data class RenameProject(
+    val projectId: ProjectId,
+    val name: String
+) {
+    @AssertLegal
+    fun assertOwner(project: Project, sender: Sender) {
+        if (project.ownerId != sender.userId()) {
+            throw ProjectErrors.unauthorized
+        }
+    }
+
+    @InterceptApply
+    fun ignoreNoChange(project: Project): Any? =
+        if (project.details.name == name) null else this
+
+    @Apply
+    fun apply(project: Project) =
+        project.copy(
+            details = project.details.withName(name)
+        )
+}
+```
+
+Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
+direct target and related ancestor resolved for the action. They must not perform nested model writes.
+
+## Multi-model actions
+
+```kotlin
+data class ReserveStock(
+    val orderId: OrderId,
+    val inventoryId: InventoryId,
+    val quantity: Int
+) {
+    @AssertLegal
+    fun assertAvailable(inventory: Inventory) {
+        if (inventory.available < quantity) {
+            throw InventoryErrors.insufficientStock
+        }
+    }
+
+    @Apply
+    fun apply(order: Order) = order.reserve(quantity)
+
+    @Apply
+    fun apply(inventory: Inventory) =
+        inventory.reserve(quantity)
+}
+```
+
+The SDK loads all targets at one state boundary and commits their events, direct documents, snapshots and relationship
+deltas as one model action. The event is globally published once.
+
+Typed IDs resolve automatically. If two payload properties refer to the same model type, qualify the model parameter:
+
+```kotlin
+@Apply
+fun debit(
+    @Association("sourceId") source: Account
+) = source.debit(amount)
+```
+
+## Relationships
+
+```kotlin
+@Model(searchable = true)
 data class Task(
     @EntityId val taskId: TaskId,
+    @ParentId(path = "tasks")
+    val projectId: ProjectId,
     val details: TaskDetails,
-    val completed: Boolean = false
+    val completed: Boolean
 )
 ```
-```kotlin
-@Aggregate
-data class A(
-    @EntityId val aId: AId,
-    @Member val bs: List<B> = emptyList()
-)
 
-data class B(
-    @EntityId val bId: BId,
-    @Member val cs: List<C> = emptyList()
-)
+- Updating `projectId` moves the task.
+- The parent and siblings do not need to load for a task-only change.
+- Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
+- `path` is a stable public graph-placement contract. Omit it if automatic tree stitching/projection is not wanted.
+- Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 
-data class C(
-    @EntityId val cId: CId,
-    @Member val ds: List<D> = emptyList()
-)
+Inject parents and further ancestors:
 
-data class D(
-    @EntityId val dId: DId,
-    val details: DDetails
-)
-```
-[//]: # (@formatter:on)
-
-<a name="ownership"></a>
-
-### Ownership & Permissions
-
-It is common practice to store an `ownerId` in an aggregate to enforce security in subsequent commands. Use **Error
-Interfaces** to group related exceptions.
-
-[//]: # (@formatter:off)
 ```kotlin
 @AssertLegal
-fun assertOwner(project: Project, sender: Sender) {
-    if (project.ownerId != sender.userId()) {
-        throw ProjectErrors.unauthorized
-    }
-}
-```
-[//]: # (@formatter:on)
-
----
-
-<a name="apply"></a>
-
-## Applying State Changes (@Apply)
-
-The `@Apply` method has a **dual function**:
-
-1. It performs the initial modification when a command is first handled.
-2. It is reused to rebuild the aggregate state when **event sourcing** (replaying the event stream).
-
-> **Important**: Applying an update to an entity via `@Apply` is what triggers **event publication**. In Fluxzero,
-> events are a **side effect** of applying state changes to an entity. Depending on the
-`@Aggregate(eventPublication=...)` setting, this will result in an event being stored and/or distributed to other
-> handlers.
-
-- **Creation**: Returns a new instance.
-- **Update**: Takes the current instance and returns an updated copy.
-- **Deletion**: Returns `null`.
-
-```kotlin
-data class CreateUser(val userId: UserId, val profile: UserProfile) {
-    @Apply
-    fun apply(): UserAccount {
-        return UserAccount(userId, profile, accountClosed = false)
-    }
-}
-```
-```kotlin
-data class UpdateProfile(val userId: UserId, val profile: UserProfile) {
-    @Apply
-    fun apply(current: UserAccount): UserAccount {
-        return current.copy(profile = profile)
-    }
-}
-```
-```kotlin
-data class DeleteUser(val userId: UserId) {
-    @Apply
-    fun apply(current: UserAccount): UserAccount? {
-        return null // delete
-    }
-}
-```
-```kotlin
-data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: TaskDetails) {
-    @Apply
-    fun apply(): Task {
-        return Task(taskId, details, completed = false) // direct child creation
-    }
+fun assertOpen(
+    task: Task,
+    @Association("tasks") parent: Project,
+    grandparent: Portfolio
+) {
+    // Read-only ancestor dependencies.
 }
 ```
 
-You can apply updates directly to child/member entities (like `Task`) without manually rebuilding the parent. Fluxzero
-immutably updates the parent aggregate (using Kotlin `copy(...)`) and inserts/replaces the child.
+## Embedded members
 
-One update can also define multiple `@Apply` methods for different levels in the hierarchy. This is useful when a
-single message should change both a member entity and the aggregate root.
+`@Model` plus `@Member` is the intentional shared-stream option:
 
 ```kotlin
-data class CreatePaymentAttempt(val paymentId: String, val paymentAttemptId: String) {
-    @Apply
-    fun apply(): PaymentAttempt {
-        return PaymentAttempt(paymentAttemptId)
-    }
+@Model(searchable = true)
+data class Invoice(
+    @EntityId val invoiceId: InvoiceId,
+    @Member val lines: List<InvoiceLine>
+)
 
-    @Apply
-    fun apply(payment: Payment): Payment {
-        return payment.copy(status = "pending")
-    }
+data class InvoiceLine(
+    @EntityId val lineId: LineId,
+    val amount: BigDecimal
+)
+```
+
+Choose this only if members always load, search, move, retain and disappear with the root model.
+
+## Loading and event parameters
+
+```kotlin
+val entity: Entity<Project> =
+    Fluxzero.loadModel(projectId)
+val project = entity.get()
+
+val graph: ModelGraph<Project> =
+    Fluxzero.modelRepository().loadGraph(projectId)
+```
+
+Current loads use the model cache and its long-polling update tracker. Event handlers use the exact action boundary:
+
+```kotlin
+@HandleEvent
+fun on(
+    event: RenameProject,
+    project: Project,
+    entity: Entity<Project>
+) {
+    // Exact state after this event.
 }
 ```
 
-Here the same update creates a new `PaymentAttempt` and updates the root aggregate status in one state transition.
+Use `Entity<T>` to observe an absent model after logical deletion. Ordinary events without model-action metadata do not
+receive model injection.
 
-#### Tip: Minimizing Upcasters (Present Tense vs. Past Tense)
+## Search and graph composition
 
-Fluxzero encourages applying the Command payload itself (e.g., `CreateUser`, `UpdateEmail`), which will result in a
-"Present Tense" event stream.
-
-Because functional needs and API contracts are generally more stable than internal state representations, storing the
-inputs directly often results in an event stream that requires very few schema transformations (upcasters) over many
-years.
-
-### Automatic Existence Checks
-
-The SDK implicitly checks existence based on the `@Apply` signature:
-
-- **Missing Entity**: If current state is injected as a non-null type but the entity is missing,
-  `Entity#NOT_FOUND_EXCEPTION` is thrown.
-- **Existing Entity**: If no current state is injected (creation signature) but the entity already exists,
-  `Entity#ALREADY_EXISTS_EXCEPTION` is thrown.
-
-These checks can be relaxed by:
-
-- using nullable injected parameters (for example `current: UserAccount?`) so methods can run when the entity/member is
-  missing, or
-- setting `@Apply(disableCompatibilityCheck = true)` for advanced cases where compatibility checks should be skipped.
-
----
-
-<a name="intercept-apply"></a>
-
-## Filtering Updates (@InterceptApply)
-
-Use `@InterceptApply` to filter or modify an update **before** `@AssertLegal` and `@Apply` is called. Unlike `@Apply`,
-you can query other aggregates or search here to enrich the payload.
-
-In most cases, `@InterceptApply` lives on the update class being handled, so that update is available as `this` (not as
-an injected method parameter).
-
-[//]: # (@formatter:off)
 ```kotlin
-data class CreateUser(val userId: UserId, val profile: UserProfile) {
-    @InterceptApply
-    fun ignoreNoChange(current: UserAccount): Any? {
-        return if (current.profile == profile) null else this
+val open = Fluxzero.search(Task::class.java)
+    .match(false, "completed")
+    .fetchAll(Task::class.java)
+
+val related = Fluxzero.search(Task::class.java)
+    .whereAncestor(
+        Project::class.java,
+        MatchConstraint.match("active", "status")
+    )
+    .fetchAll(Task::class.java)
+```
+
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use `searchGraph(Root::class.java)` for a
+complete graph-shaped JSON result. It reads a configured `@GraphProjection` by default and otherwise stitches current
+direct documents live; pass `true` as the second argument to force live composition.
+
+## Conflict and deletion
+
+`ModelConflictPolicy.DEFAULT` resolves from apply/model, builder configuration or application properties:
+
+- `ACCEPT`: preserve the event once; rebase derived documents and relationships on current merged state.
+- `RETRY`: reload and rerun assertions/interceptors/applies.
+- `FAIL`: return the conflict.
+
+Returning `null` is logical deletion. `modelRepository().deleteModel(id, NONE)` physically erases modelstream, direct
+document, snapshots and cache state. Descendant cascade requires an explicit plan. Erasure fences prevent delayed
+writes from resurrecting data.
+
+## Testing
+
+```kotlin
+TestFixture.create()
+    .givenCommands(
+        CreateProject(projectId, details)
+    )
+    .whenCommand(
+        RenameProject(projectId, "New")
+    )
+    .expectEvents(
+        RenameProject(projectId, "New")
+    )
+    .expectThat {
+        assertEquals(
+            "New",
+            Fluxzero.loadModel(projectId)
+                .get().details.name
+        )
     }
-}
 ```
-```kotlin
-data class CreateUser(val userId: UserId, val profile: UserProfile) {
-    @InterceptApply
-    fun rewriteCreateAsUpdate(current: UserAccount): UpdateProfile {
-        // Non-null current means this interceptor is only invoked when UserAccount exists.
-        return UpdateProfile(userId, profile)
-    }
-}
-```
-```kotlin
-data class BulkCreateTasks(val tasks: List<CreateTask>) {
-    @InterceptApply
-    fun expandBulk(): List<CreateTask> {
-        return tasks
-    }
-}
-```
-```kotlin
-data class CompleteTask(val projectId: ProjectId, val taskId: TaskId) {
-    @InterceptApply
-    fun skipWhenAlreadyCompleted(project: Project, task: Task): Any? {
-        // You can inject both parent aggregate and addressed member entity.
-        return if (task.completed) null else this
-    }
-}
-```
-```kotlin
-data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: TaskDetails) {
-    @InterceptApply
-    fun skipDuplicate(task: Task?): Any? {
-        // Child does not exist yet on create path; nullable type lets this run in both cases.
-        return if (task != null) null else this
-    }
-}
-```
-[//]: # (@formatter:on)
 
-Flux recursively applies interceptors until no further transformation is needed.
+Cover direct search, relationship movement, modelstream reconstruction, logical/hard deletion, event-boundary
+injection and a real runtime integration flow where relevant.
 
-For bulk expansion, returned updates are applied sequentially to the same loaded aggregate/member context, so each
-later update sees the state produced by earlier updates in the list.
+## Legacy note
 
-Parameter injection rules are the same as `@AssertLegal`: if a parameter like `current: UserAccount` is non-null, the
-interceptor is skipped when that entity is missing. Use nullable types when you want the interceptor to run for both
-create and update paths.
-
-`@InterceptApply` also works for member-entity updates. Interceptors can inspect child/member state and inject both the
-child entity and parent aggregate in the same method. Parent injection is optional when only member state is needed.
-
-### Invocation Order
-
-1. Intercept using `@InterceptApply`
-2. Assert preconditions using `@AssertLegal`
-3. Apply state using `@Apply`
-
-### Return Type Semantics
-
-| Return value                    | Effect                    |
-|:--------------------------------|:--------------------------|
-| `null` or `Unit`                | Suppress update           |
-| `this`                          | No change                 |
-| New update object               | Rewrite the update        |
-| `Collection` / `Stream` / `Optional` | Emit multiple updates |
-
-> **Tip**: For idempotent handling of unchanged state, prefer
-> `@Aggregate(eventPublication = EventPublication.IF_MODIFIED)`.
-
----
-
-<a name="assertlegal"></a>
-
-## Business Invariants (@AssertLegal)
-
-Enforce rules before an update. If a check fails, throw an exception that extends from `FunctionalException`. These
-exceptions are portable and often used for client-side (**4xx** type) errors.
-
-- **Exceptions**: Prefer domain `Errors` objects (for example `UserErrors.accountClosed`). These constants typically
-  wrap `IllegalCommandException`/`UnauthorizedException` and keep behavior consistent across handlers and tests.
-- **Rule Separation**: Split different business rules into separate `@AssertLegal` methods.
-- **Null Safety**: Use nullable types (for example `current: UserAccount?`) to inject an entity that might not exist.
-  With a non-null parameter, the method will not be invoked if the entity is missing.
-- **Existence checks**: Prefer relying on the automatic checks in [Applying State Changes (@Apply)](#apply) instead of
-  duplicating existence checks in `@AssertLegal`.
-
-Define domain error constants close to invariant logic:
-
-[//]: # (@formatter:off)
-```kotlin
-object ProjectErrors {
-    val unauthorized: FunctionalException = UnauthorizedException("Unauthorized for action")
-    val accountClosed: FunctionalException = IllegalCommandException("Account is closed")
-    val maxTasksReached: FunctionalException = IllegalCommandException("Project cannot have more than 3 tasks")
-    val taskCompleted: FunctionalException = IllegalCommandException("Task has already completed")
-}
-```
-[//]: # (@formatter:on)
-
-Using shared error constants makes tests simpler and less brittle: assertions can verify exact domain errors directly,
-instead of comparing exception message strings.
-
-Example patterns:
-
-[//]: # (@formatter:off)
-```kotlin
-data class UpdateProfile(val userId: UserId, val profile: UserProfile) {
-    @AssertLegal
-    fun assertAccountNotClosed(current: UserAccount) {
-        if (current.accountClosed) {
-            throw ProjectErrors.accountClosed
-        }
-    }
-}
-```
-```kotlin
-data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: TaskDetails) {
-    @AssertLegal
-    fun assertTaskLimit(project: Project, task: Task?) {
-        // Parent + child injection in one invariant; nullable child allows missing/new member.
-        if (task == null && project.tasks.size >= 3) {
-            throw ProjectErrors.maxTasksReached
-        }
-    }
-}
-```
-[//]: # (@formatter:on)
-
----
-
-<a name="loading-entities"></a>
-
-## Loading Entities
-
-### Retrieval Patterns
-
-[//]: # (@formatter:off)
-```kotlin
-// Load by ID
-val p: Project = Fluxzero.loadAggregate(projectId).get()
-
-// Load by Alias
-val p2: Project = Fluxzero.loadEntity("owner-$userId").get()
-
-// Load aggregate from a member ID
-val p3: Project = Fluxzero.loadAggregateFor(taskId).get()
-
-// Load a specific member entity
-val t: Task = Fluxzero.loadEntity(taskId).get()
-```
-[//]: # (@formatter:on)
-
-> **Note on Event Replay**: Loading or injecting an aggregate inside an `@HandleEvent` method automatically plays it
-> back to reflect its state at the moment that specific event occurred.
+Do not migrate an existing `@Aggregate` by changing only its annotation: streams, documents, lifecycle and identity
+boundaries change. Keep old persisted aggregate code on the 1.x compatibility API until a deliberate data migration.
+All new examples and implementations should use `@Model`.

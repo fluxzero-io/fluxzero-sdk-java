@@ -111,6 +111,37 @@ public class DefaultEntityHelper implements EntityHelper {
         this.disablePayloadValidation = disablePayloadValidation;
     }
 
+    /**
+     * Creates an entity helper for replaying independent model events.
+     * <p>
+     * The dedicated model resolver is intentionally absent from the aggregate helper so legacy aggregate handler
+     * discovery and replay remain on their existing path.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static DefaultEntityHelper forModels(
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            boolean disablePayloadValidation) {
+        List<ParameterResolver<? super DeserializingMessage>> resolvers =
+                new java.util.ArrayList<>(parameterResolvers.size() + 1);
+        resolvers.add((ParameterResolver) new ModelParameterResolver());
+        resolvers.addAll(parameterResolvers);
+        return new DefaultEntityHelper(List.copyOf(resolvers), disablePayloadValidation);
+    }
+
+    /**
+     * Validates model apply methods discovered on the given type.
+     * <p>
+     * This method is intended for model registration and handler discovery. A void apply declared by a model, or a
+     * void apply with a model parameter, cannot identify the independently stored target state and is therefore
+     * rejected. Aggregate-only handler types retain their existing mutable-entity behavior.
+     *
+     * @param type model or apply-handler type to validate
+     * @throws IllegalStateException if the type contains a void apply targeting a model
+     */
+    public static void validateModelApplyMethods(Class<?> type) {
+        ModelMetadata.validate(type);
+    }
+
     private static HandlerConfiguration<MessageWithEntity> assertLegalHandlerConfiguration() {
         return HandlerConfiguration.<MessageWithEntity>builder().methodAnnotation(AssertLegal.class)
                 .invokeMultipleMethods(true)

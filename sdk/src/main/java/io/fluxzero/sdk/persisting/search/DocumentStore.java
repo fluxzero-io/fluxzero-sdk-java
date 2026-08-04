@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchQuery;
@@ -62,6 +63,19 @@ import static java.util.Collections.singletonList;
  * @see Fluxzero#search(Object)
  */
 public interface DocumentStore extends Namespaced<DocumentStore> {
+
+    /**
+     * Applies runtime-positioned independent-model documents and snapshots through monotone search-store fences.
+     * <p>
+     * Implementations must be idempotent and must ignore a direct-document write whose {@code stateIndex} is older
+     * than or equal to the currently stored fence. This is deliberately separate from ordinary bulk indexing.
+     */
+    default CompletableFuture<Void> materializeModelAction(
+            MaterializeModelAction action) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Fenced independent-model materialization is not supported by this document store"));
+    }
 
     /**
      * Retrieves existing regular search collections and audit trails.
@@ -372,6 +386,31 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * Prepares a search query based on the specified {@link SearchQuery.Builder}.
      */
     Search search(SearchQuery.Builder queryBuilder);
+
+    /**
+     * Searches complete graph views for an independent model root.
+     * <p>
+     * A configured materialized graph collection is used by default. If the root has no materialized projection, the
+     * current graph is composed live from direct documents and explicit parent paths.
+     */
+    default GraphSearch searchGraph(
+            @NonNull Class<?> rootModelType) {
+        return searchGraph(
+                rootModelType, false);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root.
+     *
+     * @param rootModelType root model class
+     * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
+     */
+    default GraphSearch searchGraph(
+            @NonNull Class<?> rootModelType,
+            boolean forceAdHoc) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph search is not supported by this document store");
+    }
 
     /**
      * Checks whether a document exists for the given identifier and its associated type. The type is used to determine

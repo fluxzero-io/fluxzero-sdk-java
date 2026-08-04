@@ -997,6 +997,7 @@ public class ReflectionUtils {
         private final ConcurrentHashMap<String, BiConsumer<Object, Object>> setters = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, PropertyPathMetadata> propertyPaths = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<MemberInvokerKey, MemberInvoker> invokers = new ConcurrentHashMap<>();
+        private volatile ConcurrentHashMap<Class<?>, Object> specializedMetadata;
 
         @SneakyThrows
         private TypeMetadata(Class<?> type) {
@@ -1087,6 +1088,19 @@ public class ReflectionUtils {
             return annotatedMethods.computeIfAbsent(annotation, this::computeAnnotatedMethods);
         }
 
+        /**
+         * Returns annotated methods, including inherited methods, followed by annotated constructors declared by this
+         * type.
+         */
+        public List<Executable> annotatedExecutables(Class<? extends Annotation> annotation) {
+            return Stream.concat(
+                    annotatedMethods(annotation).stream(),
+                    Stream.of(type.getDeclaredConstructors())
+                            .filter(constructor -> methodAnnotation(constructor, annotation).isPresent()))
+                    .map(Executable.class::cast)
+                    .toList();
+        }
+
         public List<? extends AccessibleObject> annotatedProperties(Class<? extends Annotation> annotation) {
             return annotatedProperties.computeIfAbsent(annotation, this::computeAnnotatedProperties);
         }
@@ -1124,6 +1138,30 @@ public class ReflectionUtils {
         public MemberInvoker invoker(Member member, boolean forceAccess) {
             return invokers.computeIfAbsent(new MemberInvokerKey(member, forceAccess),
                                             ignored -> new DefaultMemberInvoker(member, forceAccess));
+        }
+
+        /**
+         * Returns type-specific structural metadata owned by this central type cache.
+         * <p>
+         * SDK features can use this extension point for immutable metadata that is derived only from {@link #type()}.
+         * Runtime or instance state must not be captured by the factory or the returned value.
+         *
+         * @param metadataType unique metadata kind and expected result type
+         * @param factory      computes the metadata from this Java type on first access
+         * @param <M>          metadata type
+         * @return the cached metadata instance
+         */
+        public <M> M specializedMetadata(Class<M> metadataType, Function<Class<?>, ? extends M> factory) {
+            ConcurrentHashMap<Class<?>, Object> metadata = specializedMetadata;
+            if (metadata == null) {
+                synchronized (this) {
+                    metadata = specializedMetadata;
+                    if (metadata == null) {
+                        specializedMetadata = metadata = new ConcurrentHashMap<>();
+                    }
+                }
+            }
+            return metadataType.cast(metadata.computeIfAbsent(metadataType, ignored -> factory.apply(type)));
         }
 
         @SuppressWarnings("unchecked")

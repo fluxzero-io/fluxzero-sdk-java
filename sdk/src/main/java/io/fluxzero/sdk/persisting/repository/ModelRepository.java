@@ -1,0 +1,250 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.persisting.repository;
+
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelDeletionCascade;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.sdk.common.Namespaced;
+import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelActionContext;
+import io.fluxzero.sdk.modeling.ModelGraph;
+import io.fluxzero.sdk.modeling.ModelTargetResolver;
+import jakarta.validation.constraints.NotNull;
+import lombok.NonNull;
+
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Repository for loading independently stored {@link Model models}.
+ * <p>
+ * Model identity is always the exact {@link Object#toString()} value of the supplied ID. A model type or annotation
+ * name is never concatenated into the persisted key.
+ */
+public interface ModelRepository extends Namespaced<ModelRepository> {
+
+    /**
+     * Returns this repository scoped to the requested namespace.
+     * <p>
+     * Custom repositories that are not namespace-aware retain their behavior by returning the same instance.
+     */
+    @Override
+    default ModelRepository forNamespace(String namespace) {
+        return this;
+    }
+
+    /**
+     * Loads a model using the type carried by a typed identifier.
+     */
+    default <T> Entity<T> load(@NonNull Id<T> modelId) {
+        return load(modelId.toString(), modelId.getType());
+    }
+
+    /**
+     * Loads a model by ID, inferring its requested type when the ID is typed.
+     * <p>
+     * An untyped ID requests {@link Object}. An event-sourced repository may infer the model type from payload-side
+     * {@code @Apply} factories in the model stream. Stored model type metadata is a fallback for model-side handlers,
+     * document-loaded models, or histories that do not expose such a factory.
+     */
+    @SuppressWarnings("unchecked")
+    default <T> Entity<T> load(@NotNull Object modelId) {
+        return (Entity<T>) load(modelId.toString(),
+                                modelId instanceof Id<?> id ? (Class<Object>) id.getType() : Object.class);
+    }
+
+    /**
+     * Loads a model using the exact string representation of the supplied ID.
+     */
+    default <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
+        return load(modelId.toString(), modelType);
+    }
+
+    /**
+     * Loads a model by its exact string ID and expected type.
+     *
+     * @param modelId   persisted model key; never decorated with model type metadata
+     * @param modelType expected model type, or {@link Object} when it should be resolved from storage
+     */
+    <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);
+
+    /**
+     * Loads all model parameters for one selected message handler at one repository boundary.
+     * <p>
+     * Event and notification handlers carrying model-action metadata must be reconstructed at that exact action
+     * boundary. Other handlers use one current load context. Implementations should batch direct targets and ancestor
+     * traversal rather than loading each parameter independently.
+     */
+    default ModelActionContext loadContext(
+            @NonNull ModelTargetResolver.Resolution
+                    resolution) {
+        throw new UnsupportedOperationException(
+                "Coherent model handler parameter loading is not supported by this repository");
+    }
+
+    /**
+     * Creates a bounded, non-mutating plan for an explicit model hard deletion.
+     * <p>
+     * A descendant cascade must be planned and confirmed before execution. The returned published-event count makes
+     * clear that globally published events are outside the model-stream erasure boundary.
+     */
+    default ModelDeletionPlan planDeletion(
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        throw new UnsupportedOperationException(
+                "Independent model deletion planning is not supported by this repository");
+    }
+
+    /**
+     * Hard-deletes exactly one model.
+     * <p>
+     * Passing {@link ModelDeletionCascade#DESCENDANTS} without a confirmed plan is rejected. Use
+     * {@link #deleteModel(ModelDeletionPlan)} for descendant cascades.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Executes or resumes an exact-model hard deletion using an explicit durable idempotency key.
+     * Descendant deletion still requires a confirmed plan.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull String deletionId,
+            @NonNull Object modelId,
+            @NonNull ModelDeletionCascade cascade) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Executes a previously confirmed hard-deletion plan with a new durable idempotency key.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull ModelDeletionPlan plan) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Executes or resumes a confirmed plan using an explicit durable idempotency key.
+     */
+    default CompletableFuture<ModelDeletionResult> deleteModel(
+            @NonNull String deletionId,
+            @NonNull ModelDeletionPlan plan) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Independent model hard deletion is not supported by this repository"));
+    }
+
+    /**
+     * Registers the graph projection declared by the supplied model type.
+     *
+     * @param modelType model carrying an enabled graph projection
+     * @param rebuild whether all current roots should be scanned even if the definition is unchanged
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            registerGraphProjection(
+                    @NonNull Class<?> modelType,
+                    boolean rebuild) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized model graph projections are not supported by this repository"));
+    }
+
+    /**
+     * Registers a changed graph definition and rebuilds all current roots.
+     */
+    default CompletableFuture<ModelGraphProjectionStatus>
+            registerGraphProjection(
+                    @NonNull Class<?> modelType) {
+        return registerGraphProjection(
+                modelType, true);
+    }
+
+    /**
+     * Returns current graph-projection freshness for the supplied model type.
+     */
+    default ModelGraphProjectionStatus
+            graphProjectionStatus(
+                    @NonNull Class<?> modelType) {
+        throw new UnsupportedOperationException(
+                "Materialized model graph projections are not supported by this repository");
+    }
+
+    /**
+     * Reconstructs a model and every descendant connected through an explicit graph path at one state boundary.
+     */
+    default <T> ModelGraph<T> loadGraph(@NonNull Id<T> rootId) {
+        return loadGraph(rootId.toString(), rootId.getType(), ModelGraph.Options.DEFAULT);
+    }
+
+    /**
+     * Reconstructs a model graph at an inclusive historical model-state boundary.
+     */
+    default <T> ModelGraph<T> loadGraphAt(
+            @NonNull Id<T> rootId,
+            long stateIndex) {
+        return loadGraphAt(
+                rootId, stateIndex,
+                ModelGraph.Options.DEFAULT);
+    }
+
+    /**
+     * Reconstructs a bounded model graph at an inclusive historical model-state boundary.
+     */
+    default <T> ModelGraph<T> loadGraphAt(
+            @NonNull Id<T> rootId,
+            long stateIndex,
+            @NonNull ModelGraph.Options options) {
+        return loadGraphAt(
+                rootId.toString(), rootId.getType(),
+                stateIndex, options);
+    }
+
+    /**
+     * Reconstructs a bounded model graph using exact persisted identity and root type.
+     */
+    default <T> ModelGraph<T> loadGraph(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            @NonNull ModelGraph.Options options) {
+        throw new UnsupportedOperationException(
+                "Independent model graph reconstruction is not supported by this repository");
+    }
+
+    /**
+     * Reconstructs a bounded model graph using exact persisted identity, root type, and inclusive historical boundary.
+     */
+    default <T> ModelGraph<T> loadGraphAt(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long stateIndex,
+            @NonNull ModelGraph.Options options) {
+        throw new UnsupportedOperationException(
+                "Historical independent model graph reconstruction is not supported by this repository");
+    }
+}

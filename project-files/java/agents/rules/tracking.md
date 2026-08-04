@@ -47,11 +47,11 @@ Annotate your handler class or `package-info.java` with `@Consumer` to define pr
 > threads and be processed in strict order if they share segments.
 
 Handlers without an explicit `@Consumer` or matching builder-level `ConsumerConfiguration` use the
-unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class
-its own generated default consumer. `defaultAppConsumer` assigns those handlers to the shared application default
-consumer. When the mode is absent, `perHandler` is the default behavior for
-`fluxzero.defaults.version >= 2026.05.20`; older or missing defaults versions keep `defaultAppConsumer` for
-compatibility.
+unconfigured-handler fallback. `perPackage` shares a generated consumer per exact handler package and message type,
+`perHandler` isolates every handler class, and `defaultAppConsumer` uses the shared application consumer. When the mode
+is absent, `perPackage` is the default for `fluxzero.defaults.version >= 2026.07.27`, `perHandler` for versions from
+`2026.05.20` through `2026.07.26`, and `defaultAppConsumer` for older or missing defaults versions. Automatic model
+commands use the consumer selected for their payload package, including a root-package `@Consumer`.
 
 [//]: # (@formatter:off)
 ```java

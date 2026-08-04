@@ -19,6 +19,10 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -28,16 +32,21 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelGraphComposition;
+import io.fluxzero.common.api.search.ModelRelationConstraint;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
+import io.fluxzero.common.api.search.SearchModelDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
+import io.fluxzero.common.search.ModelGraphDocumentSearch;
+import io.fluxzero.common.search.ModelGraphDocumentStitcher;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.tracking.IndexUtils;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -45,6 +54,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,7 +88,6 @@ import static java.util.stream.Collectors.toMap;
  * Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use
  * in test scenarios where a real Fluxzero Runtime connection is not available or needed.
  */
-@AllArgsConstructor
 public class InMemorySearchStore implements SearchClient {
     protected static final Function<SerializedDocument, String> identifier =
             d -> asIdentifier(d.getCollection(), d.getId());
@@ -88,6 +97,11 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     private final Map<String, SerializedDocument> documents = new ConcurrentHashMap<>();
+    private final Map<String, Long> modelDocumentStateIndices =
+            new ConcurrentHashMap<>();
+    private final Map<String, Long>
+            modelGraphProjectionStateIndices =
+            new ConcurrentHashMap<>();
 
     private final AtomicLong nextIndex = new AtomicLong();
     private final Map<String, ConcurrentSkipListMap<Long, SerializedMessage>> messageLogs = new ConcurrentHashMap<>();
@@ -98,6 +112,43 @@ public class InMemorySearchStore implements SearchClient {
     @Getter
     @Setter
     private Duration retentionTime;
+
+    private final ModelRelationResolver modelRelationResolver;
+    private final ModelGraphResolver modelGraphResolver;
+    private final ModelDocumentCollectionResolver
+            modelDocumentCollectionResolver;
+
+    public InMemorySearchStore(Duration retentionTime) {
+        this(retentionTime, null, null, null);
+    }
+
+    public InMemorySearchStore(
+            Duration retentionTime,
+            ModelRelationResolver modelRelationResolver) {
+        this(retentionTime, modelRelationResolver,
+             null, null);
+    }
+
+    public InMemorySearchStore(
+            Duration retentionTime,
+            ModelRelationResolver modelRelationResolver,
+            ModelGraphResolver modelGraphResolver) {
+        this(retentionTime, modelRelationResolver,
+             modelGraphResolver, null);
+    }
+
+    public InMemorySearchStore(
+            Duration retentionTime,
+            ModelRelationResolver modelRelationResolver,
+            ModelGraphResolver modelGraphResolver,
+            ModelDocumentCollectionResolver
+                    modelDocumentCollectionResolver) {
+        this.retentionTime = retentionTime;
+        this.modelRelationResolver = modelRelationResolver;
+        this.modelGraphResolver = modelGraphResolver;
+        this.modelDocumentCollectionResolver =
+                modelDocumentCollectionResolver;
+    }
 
     @Override
     public List<SearchCollection> getSearchCollections() {
@@ -122,7 +173,16 @@ public class InMemorySearchStore implements SearchClient {
     @Override
     public Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize) {
         SearchQuery query = searchDocuments.getQuery();
-        Stream<SerializedDocument> documentStream = documents.values().stream().filter(query::matches);
+        Stream<SerializedDocument> documentStream = documents.values().stream();
+        if (searchDocuments.getDocumentIds() != null
+            && !searchDocuments.getDocumentIds()
+                    .isEmpty()) {
+            Set<String> ids = Set.copyOf(
+                    searchDocuments.getDocumentIds());
+            documentStream = documentStream.filter(
+                    document -> ids.contains(document.getId()));
+        }
+        documentStream = documentStream.filter(query::matches);
         documentStream = documentStream.sorted(
                 comparing(SerializedDocument::deserializeDocument, Document.createComparator(searchDocuments)));
         if (!searchDocuments.getPathFilters().isEmpty()) {
@@ -144,6 +204,165 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
+    public Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments request,
+            int fetchSize) {
+        if (modelRelationResolver == null) {
+            throw new UnsupportedOperationException(
+                    "Independent-model graph search has no relationship resolver");
+        }
+        LinkedHashSet<String> candidates = null;
+        for (ModelRelationConstraint relation :
+                request.getRelations()) {
+            List<String> related = search(
+                    SearchDocuments.builder()
+                            .query(relation.getQuery())
+                            .maxSize(
+                                    relation.getMaxRelatedModels()
+                                    + 1)
+                            .build(),
+                    relation.getMaxRelatedModels() + 1)
+                    .map(SearchHit::getId)
+                    .toList();
+            if (related.size()
+                > relation.getMaxRelatedModels()) {
+                throw new IllegalArgumentException(
+                        "Related model query exceeds maxRelatedModels "
+                        + relation.getMaxRelatedModels()
+                        + "; narrow the query or use a materialized graph projection");
+            }
+            Set<String> resolved =
+                    modelRelationResolver.resolve(
+                            new LinkedHashSet<>(related),
+                            relation);
+            if (candidates == null) {
+                candidates = new LinkedHashSet<>(
+                        resolved);
+            } else {
+                candidates.retainAll(resolved);
+            }
+            if (candidates.isEmpty()) {
+                return Stream.empty();
+            }
+        }
+        if (request.getSearch().getDocumentIds()
+            != null
+            && !request.getSearch()
+                    .getDocumentIds().isEmpty()) {
+            candidates.retainAll(
+                    request.getSearch().getDocumentIds());
+        }
+        return search(
+                request.getSearch().toBuilder()
+                        .documentIds(List.copyOf(candidates))
+                        .build(),
+                fetchSize);
+    }
+
+    @Override
+    public Stream<SearchHit<SerializedDocument>>
+    searchModelGraph(
+            SearchModelGraphDocuments request,
+            int fetchSize) {
+        if (modelGraphResolver == null) {
+            throw new UnsupportedOperationException(
+                    "Independent-model graph composition has no graph resolver");
+        }
+        SearchDocuments graphSearch =
+                request.getSearch();
+        SearchDocuments candidateSearch =
+                SearchDocuments.builder()
+                        .query(SearchQuery.builder()
+                                       .collections(
+                                               graphSearch.getQuery()
+                                                       .getCollections())
+                                       .build())
+                        .documentIds(
+                                graphSearch.getDocumentIds())
+                        .maxSize(
+                                request.getComposition()
+                                        .getMaxModels()
+                                + 1)
+                        .build();
+        List<SerializedDocument> roots =
+                (request.getRelations().isEmpty()
+                        ? search(
+                                candidateSearch,
+                                request.getComposition()
+                                        .getMaxModels()
+                                + 1)
+                        : searchModels(
+                                new SearchModelDocuments(
+                                        candidateSearch,
+                                        request.getRelations()),
+                                request.getComposition()
+                                        .getMaxModels()
+                                + 1))
+                        .map(SearchHit::getValue)
+                        .toList();
+        if (roots.size()
+            > request.getComposition()
+                    .getMaxModels()) {
+            throw new IllegalArgumentException(
+                    "Model graph search exceeds maxModels "
+                    + request.getComposition()
+                            .getMaxModels()
+                    + " before composition; narrow the roots or use a materialized graph projection");
+        }
+        if (roots.isEmpty()) {
+            return Stream.empty();
+        }
+        List<ModelGraphEdge> edges =
+                ModelGraphDocumentStitcher
+                        .applyPathOverrides(
+                                modelGraphResolver.resolve(
+                                        roots.stream()
+                                                .map(SerializedDocument::getId)
+                                                .collect(
+                                                        java.util.stream.Collectors
+                                                                .toCollection(
+                                                                        LinkedHashSet::new)),
+                                        request.getComposition()),
+                                request.getPathOverrides());
+        LinkedHashSet<String> graphIds =
+                roots.stream()
+                        .map(SerializedDocument::getId)
+                        .collect(
+                                java.util.stream.Collectors
+                                        .toCollection(
+                                                LinkedHashSet::new));
+        edges.forEach(edge -> {
+            graphIds.add(edge.getParentId());
+            graphIds.add(edge.getChildId());
+        });
+        LinkedHashMap<String, SerializedDocument>
+                graphDocuments =
+                resolveGraphDocuments(
+                        roots, graphIds);
+        long collectionCount =
+                graphDocuments.values().stream()
+                        .map(SerializedDocument::getCollection)
+                        .distinct().count();
+        if (collectionCount
+            > request.getComposition()
+                    .getMaxCollections()) {
+            throw new IllegalArgumentException(
+                    "Model graph composition exceeds maxCollections "
+                    + request.getComposition()
+                            .getMaxCollections()
+                    + "; narrow the result or use a materialized graph projection");
+        }
+        return ModelGraphDocumentSearch.apply(
+                        ModelGraphDocumentStitcher.stitch(
+                                roots, edges,
+                                graphDocuments,
+                                request.getComposition()),
+                        graphSearch)
+                .stream().map(
+                SearchHit::fromDocument);
+    }
+
+    @Override
     public boolean documentExists(HasDocument r) {
         return Optional.ofNullable(documents.get(asIdentifier(r.getCollection(), r.getId()))).isPresent();
     }
@@ -151,6 +370,87 @@ public class InMemorySearchStore implements SearchClient {
     @Override
     public Optional<SerializedDocument> fetch(GetDocument r) {
         return Optional.ofNullable(documents.get(asIdentifier(r.getCollection(), r.getId())));
+    }
+
+    /**
+     * Resolves target model IDs from related matches at the current relationship boundary.
+     */
+    @FunctionalInterface
+    public interface ModelRelationResolver {
+        Set<String> resolve(
+                Set<String> relatedModelIds,
+                ModelRelationConstraint constraint);
+    }
+
+    /**
+     * Resolves explicitly placed current child edges for root models.
+     */
+    @FunctionalInterface
+    public interface ModelGraphResolver {
+        List<ModelGraphEdge> resolve(
+                Set<String> rootModelIds,
+                ModelGraphComposition composition);
+    }
+
+    /**
+     * Resolves the exact current-document collection for model IDs.
+     */
+    @FunctionalInterface
+    public interface ModelDocumentCollectionResolver {
+        Map<String, String> resolve(
+                Set<String> modelIds);
+    }
+
+    private LinkedHashMap<String, SerializedDocument>
+    resolveGraphDocuments(
+            List<SerializedDocument> roots,
+            Set<String> graphIds) {
+        LinkedHashMap<String, SerializedDocument>
+                result = new LinkedHashMap<>();
+        roots.forEach(document ->
+                              result.put(
+                                      document.getId(),
+                                      document));
+        if (modelDocumentCollectionResolver
+            != null) {
+            modelDocumentCollectionResolver.resolve(
+                            graphIds)
+                    .forEach((modelId, collection) -> {
+                        SerializedDocument document =
+                                documents.get(
+                                        asIdentifier(
+                                                collection,
+                                                modelId));
+                        if (document != null) {
+                            result.put(
+                                    modelId,
+                                    document);
+                        }
+                    });
+            return result;
+        }
+        documents.values().stream()
+                .filter(document ->
+                                graphIds.contains(
+                                        document.getId()))
+                .forEach(document -> {
+                    SerializedDocument existing =
+                            result.putIfAbsent(
+                                    document.getId(),
+                                    document);
+                    if (existing != null
+                        && !existing.getCollection()
+                                .equals(
+                                        document.getCollection())) {
+                        throw new IllegalArgumentException(
+                                "Model %s has current documents in both %s and %s"
+                                        .formatted(
+                                                document.getId(),
+                                                existing.getCollection(),
+                                                document.getCollection()));
+                    }
+                });
+        return result;
     }
 
     @Override
@@ -253,6 +553,273 @@ public class InMemorySearchStore implements SearchClient {
             }
         });
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public synchronized CompletableFuture<Void>
+            materializeModelAction(
+                    MaterializeModelAction action) {
+        Map<String, SerializedDocument> indexed =
+                new LinkedHashMap<>();
+        action.getDocuments().forEach(update -> {
+            long current =
+                    modelDocumentStateIndices
+                            .getOrDefault(
+                                    update.getModelId(),
+                                    -1L);
+            if (current >= update.getStateIndex()) {
+                return;
+            }
+            modelDocumentStateIndices.put(
+                    update.getModelId(),
+                    update.getStateIndex());
+            var mutation =
+                    update.getMutation();
+            SerializedDocument document =
+                    mutation.getDocument();
+            if (document == null) {
+                documents.remove(
+                        asIdentifier(
+                                mutation.getCollection(),
+                                update.getModelId()));
+            } else {
+                documents.put(
+                        identifier.apply(document),
+                        document);
+                indexed.put(
+                        identifier.apply(document),
+                        document);
+                collections.add(
+                        document.getCollection());
+            }
+        });
+        storeMessages(indexed);
+        action.getSnapshots().forEach(update -> {
+            SerializedDocument document =
+                    update.getMutation().toDocument(
+                            update.getModelId(),
+                            update.getSequenceNumber(),
+                            update.getStateIndex());
+            documents.putIfAbsent(
+                    identifier.apply(document),
+                    document);
+            collections.add(
+                    document.getCollection());
+            trimModelSnapshots(
+                    update.getModelId(),
+                    update.getMutation()
+                            .getMaxSnapshotCount());
+        });
+        return CompletableFuture.completedFuture(
+                null);
+    }
+
+    /**
+     * Synchronously materializes affected roots for the SDK-only graph-projection worker.
+     */
+    public synchronized void materializeModelGraphProjection(
+            ModelGraphProjectionConfiguration
+                    configuration,
+            Set<String> rootIds,
+            long stateIndex,
+            boolean rebuild) {
+        if (modelGraphResolver == null
+            || modelDocumentCollectionResolver
+               == null) {
+            throw new UnsupportedOperationException(
+                    "Independent-model graph projection has no graph resolvers");
+        }
+        if (rebuild) {
+            documents.values().removeIf(
+                    document ->
+                            configuration.getCollection()
+                                    .equals(
+                                            document.getCollection())
+                            && !rootIds.contains(
+                                    document.getId()));
+            String prefix =
+                    configuration.getCollection()
+                    + "/";
+            modelGraphProjectionStateIndices
+                    .keySet()
+                    .removeIf(key ->
+                                      key.startsWith(prefix)
+                                      && !rootIds.contains(
+                                              key.substring(
+                                                      prefix.length())));
+        }
+        if (rootIds.isEmpty()) {
+            return;
+        }
+        Map<String, String> pathOverrides =
+                configuration.getPathOverrides()
+                        .stream()
+                        .collect(
+                                LinkedHashMap::new,
+                                (map, override) ->
+                                        map.put(
+                                                override.getPath(),
+                                                override.getProjectionPath()),
+                                Map::putAll);
+        Map<String, SerializedDocument> indexed =
+                new LinkedHashMap<>();
+        for (String rootId : rootIds) {
+            String projectionKey =
+                    asIdentifier(
+                            configuration
+                                    .getCollection(),
+                            rootId);
+            long current =
+                    modelGraphProjectionStateIndices
+                            .getOrDefault(
+                                    projectionKey, -1L);
+            if (!rebuild
+                && current >= stateIndex) {
+                continue;
+            }
+            SerializedDocument root =
+                    documents.get(
+                            asIdentifier(
+                                    configuration
+                                            .getRootCollection(),
+                                    rootId));
+            if (root == null) {
+                documents.remove(
+                        projectionKey);
+                modelGraphProjectionStateIndices.put(
+                        projectionKey,
+                        stateIndex);
+                continue;
+            }
+            List<ModelGraphEdge> edges =
+                    modelGraphResolver.resolve(
+                                    Set.of(rootId),
+                                    configuration
+                                            .getComposition())
+                            .stream()
+                            .map(edge -> {
+                                String path =
+                                        pathOverrides
+                                                .getOrDefault(
+                                                        edge.getPath(),
+                                                        edge.getPath());
+                                return Objects.equals(
+                                        path,
+                                        edge.getPath())
+                                        ? edge
+                                        : new ModelGraphEdge(
+                                                edge.getChildId(),
+                                                edge.getParentId(),
+                                                edge.getParentType(),
+                                                path,
+                                                edge.getValidFrom(),
+                                                edge.getValidUntil());
+                            })
+                            .toList();
+            LinkedHashSet<String> graphIds =
+                    new LinkedHashSet<>();
+            graphIds.add(rootId);
+            edges.forEach(edge -> {
+                graphIds.add(
+                        edge.getParentId());
+                graphIds.add(
+                        edge.getChildId());
+            });
+            LinkedHashMap<String, SerializedDocument>
+                    graphDocuments =
+                    resolveGraphDocuments(
+                            List.of(root),
+                            graphIds);
+            long collectionCount =
+                    graphDocuments.values()
+                            .stream()
+                            .map(SerializedDocument
+                                         ::getCollection)
+                            .distinct()
+                            .count();
+            if (collectionCount
+                > configuration.getComposition()
+                        .getMaxCollections()) {
+                throw new IllegalArgumentException(
+                        "Model graph projection exceeds maxCollections "
+                        + configuration
+                                .getComposition()
+                                .getMaxCollections());
+            }
+            SerializedDocument composed =
+                    ModelGraphDocumentStitcher
+                            .stitch(
+                                    List.of(root),
+                                    edges,
+                                    graphDocuments,
+                                    configuration
+                                            .getComposition())
+                            .getFirst()
+                            .withCollection(
+                                    configuration
+                                            .getCollection());
+            documents.put(
+                    projectionKey,
+                    composed);
+            indexed.put(
+                    projectionKey,
+                    composed);
+            collections.add(
+                    configuration
+                            .getCollection());
+            modelGraphProjectionStateIndices.put(
+                    projectionKey,
+                    stateIndex);
+        }
+        storeMessages(indexed);
+    }
+
+    private void trimModelSnapshots(
+            String modelId,
+            int configuredMaximum) {
+        int maximum =
+                Math.max(1, configuredMaximum);
+        List<SerializedDocument> snapshots =
+                documents.values().stream()
+                        .filter(document ->
+                                        ModelSnapshotMutation.COLLECTION
+                                                .equals(
+                                                        document.getCollection()))
+                        .filter(document ->
+                                        document.getFacets()
+                                                .stream()
+                                                .anyMatch(
+                                                        facet ->
+                                                                ModelSnapshotMutation.MODEL_ID_FACET
+                                                                        .equals(
+                                                                                facet.getName())
+                                                                && modelId.equals(
+                                                                        facet.getValue())))
+                        .sorted(
+                                comparing(
+                                        InMemorySearchStore
+                                                ::snapshotSequence)
+                                        .reversed())
+                        .toList();
+        snapshots.stream()
+                .skip(maximum)
+                .forEach(snapshot ->
+                                 documents.remove(
+                                         identifier.apply(
+                                                 snapshot)));
+    }
+
+    private static long snapshotSequence(
+            SerializedDocument document) {
+        return document.getFacets().stream()
+                .filter(facet ->
+                                ModelSnapshotMutation.SEQUENCE_NUMBER
+                                        .equals(
+                                                facet.getName()))
+                .map(FacetEntry::getValue)
+                .mapToLong(Long::parseLong)
+                .findFirst()
+                .orElseThrow();
     }
 
     public Stream<SerializedMessage> openStream(String collection, Long lastIndex, int maxSize) {

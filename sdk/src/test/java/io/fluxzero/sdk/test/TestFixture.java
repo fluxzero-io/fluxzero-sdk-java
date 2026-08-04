@@ -354,6 +354,7 @@ public class TestFixture implements Given<TestFixture>, When {
     public static Duration defaultResultTimeout = Duration.ofSeconds(2L);
     public static Duration defaultConsumerTimeout = Duration.ofSeconds(5L);
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
+    private static final LocalDate PER_PACKAGE_DEFAULTS_VERSION = LocalDate.of(2026, 7, 27);
 
     @Getter
     private final Fluxzero fluxzero;
@@ -684,7 +685,8 @@ public class TestFixture implements Given<TestFixture>, When {
     private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
             MessageType messageType, List<?> handlers) {
         List<ConsumerConfiguration> explicitConfigurations = explicitConfigurations(messageType, handlers).toList();
-        if (useSharedDefaultAppConsumerForUnconfiguredHandlers()) {
+        UnconfiguredHandlerConsumerMode mode = unconfiguredHandlerConsumerMode(fluxzero.propertySource());
+        if (mode == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER) {
             return assignHandlersToConsumers(
                     handlers, Stream.concat(explicitConfigurations.stream(),
                                             sharedDefaultConsumerConfiguration(messageType)));
@@ -692,7 +694,7 @@ public class TestFixture implements Given<TestFixture>, When {
         List<Object> fallbackHandlers = fallbackHandlers(handlers, explicitConfigurations);
         return assignHandlersToConsumers(
                 handlers, Stream.concat(explicitConfigurations.stream(),
-                                        defaultConsumerConfigurations(messageType, fallbackHandlers)));
+                                        defaultConsumerConfigurations(messageType, fallbackHandlers, mode)));
     }
 
     private Stream<ConsumerConfiguration> explicitConfigurations(MessageType messageType, List<?> handlers) {
@@ -716,16 +718,14 @@ public class TestFixture implements Given<TestFixture>, When {
         return result;
     }
 
-    private boolean useSharedDefaultAppConsumerForUnconfiguredHandlers() {
-        return unconfiguredHandlerConsumerMode(fluxzero.propertySource())
-               == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
-    }
-
     private UnconfiguredHandlerConsumerMode unconfiguredHandlerConsumerMode(PropertySource propertySource) {
         String configuredMode = propertySource.get(
                 ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY);
         if (configuredMode != null) {
             return parseUnconfiguredHandlerConsumerMode(configuredMode);
+        }
+        if (defaultsVersionAtLeast(propertySource, PER_PACKAGE_DEFAULTS_VERSION)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
         }
         return defaultsVersionUsesPerHandlerConsumers(propertySource)
                 ? UnconfiguredHandlerConsumerMode.PER_HANDLER
@@ -737,13 +737,17 @@ public class TestFixture implements Given<TestFixture>, When {
         if (ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.PER_HANDLER;
         }
+        if (ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
+        }
         if (ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
         }
         throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                 "Invalid unconfigured handler consumer mode",
-                "Property `%s` must be `%s` or `%s`, but found `%s`.".formatted(
+                "Property `%s` must be `%s`, `%s` or `%s`, but found `%s`.".formatted(
                         ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                        ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE,
                         ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE,
                         ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE, mode),
                 "Set a supported mode, or remove the property to derive the default from `%s`.".formatted(
@@ -752,8 +756,13 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
+        return defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+    }
+
+    private boolean defaultsVersionAtLeast(
+            PropertySource propertySource, LocalDate version) {
         try {
-            return ApplicationProperties.defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+            return ApplicationProperties.defaultsVersionAtLeast(propertySource, version);
         } catch (IllegalArgumentException e) {
             throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                     "Invalid Fluxzero defaults version",
@@ -783,13 +792,19 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private Stream<ConsumerConfiguration> defaultConsumerConfigurations(
-            MessageType messageType, List<Object> handlers) {
+            MessageType messageType,
+            List<Object> handlers,
+            UnconfiguredHandlerConsumerMode mode) {
         if (handlers.isEmpty()) {
             return Stream.empty();
         }
         ConsumerConfiguration template = fluxzero.configuration().defaultConsumerConfigurations().get(messageType);
         if (template == null) {
             return Stream.empty();
+        }
+        if (mode == UnconfiguredHandlerConsumerMode.PER_PACKAGE) {
+            return defaultPackageConsumerConfigurations(
+                    fluxzero.client().name(), template, handlers);
         }
         List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().collect(toList());
         Map<String, Integer> simpleNameCounts = new HashMap<>();
@@ -798,6 +813,31 @@ public class TestFixture implements Given<TestFixture>, When {
         return handlerTypes.stream().map(handlerType -> defaultConsumerConfiguration(
                 fluxzero.client().name(), template, handlerType,
                 simpleNameCounts.get(consumerSimpleName(handlerType)) > 1));
+    }
+
+    private static Stream<ConsumerConfiguration> defaultPackageConsumerConfigurations(
+            String applicationName,
+            ConsumerConfiguration template,
+            List<Object> handlers) {
+        return handlers.stream()
+                .map(ReflectionUtils::asClass)
+                .filter(Objects::nonNull)
+                .map(Class::getPackageName)
+                .distinct()
+                .map(packageName -> {
+                    Predicate<Object> handlerFilter = handler -> {
+                        Class<?> handlerType = ReflectionUtils.asClass(handler);
+                        return handlerType != null
+                               && handlerType.getPackageName().equals(packageName);
+                    };
+                    String packageKey = packageName.isBlank()
+                            ? "default" : packageName.replace('.', '_');
+                    return template.toBuilder()
+                            .name(defaultApplicationConsumerName(
+                                    applicationName, "package_" + packageKey))
+                            .handlerFilter(template.getHandlerFilter().and(handlerFilter))
+                            .build();
+                });
     }
 
     private List<ConsumerConfiguration> normalizeConfigurations(Stream<ConsumerConfiguration> configurations) {
@@ -850,6 +890,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private enum UnconfiguredHandlerConsumerMode {
         DEFAULT_APP_CONSUMER,
+        PER_PACKAGE,
         PER_HANDLER
     }
 
@@ -992,6 +1033,15 @@ public class TestFixture implements Given<TestFixture>, When {
         return givenModificationWithTrace(describeFixtureAction("applied events to", aggregateClass),
                                           fixture -> fixture.applyEvents(
                                                   aggregateId, aggregateClass, fixture.getFluxzero(),
+                                                  fixture.asEventMessages(callerClass, events).toList()));
+    }
+
+    @Override
+    public TestFixture givenModelEvents(String modelId, Class<?> modelClass, Object... events) {
+        Class<?> callerClass = getCallerClass();
+        return givenModificationWithTrace(describeFixtureAction("event-sourced model", modelClass),
+                                          fixture -> fixture.applyModelEvents(
+                                                  modelId, modelClass, fixture.getFluxzero(),
                                                   fixture.asEventMessages(callerClass, events).toList()));
     }
 
@@ -1307,6 +1357,17 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public Then<?> whenModelEventsAreApplied(String modelId, Class<?> modelClass, Object... events) {
+        Class<?> callerClass = getCallerClass();
+        return executeWhenWithTrace(describeFixtureAction("applying events to model", modelClass),
+                                    fc -> {
+                                        applyModelEvents(modelId, modelClass, fc,
+                                                         asMessages(callerClass, events).collect(toList()));
+                                        return null;
+                                    });
+    }
+
+    @Override
     public <R> Then<List<R>> whenSearching(Object collection, UnaryOperator<Search> searchQuery) {
         return executeWhenWithTrace(describeFixtureAction("searching", collection),
                                     fc -> searchQuery.apply(fc.documentStore().search(collection)).fetchAll());
@@ -1554,6 +1615,10 @@ public class TestFixture implements Given<TestFixture>, When {
                                 Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
                                 Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
                                                                                  .toList());
+    }
+
+    protected void applyModelEvents(String modelId, Class<?> modelClass, Fluxzero fc, List<Message> events) {
+        fc.modelRepository().load(modelId, modelClass).apply(events);
     }
 
     protected List<Schedule> getFutureSchedules() {

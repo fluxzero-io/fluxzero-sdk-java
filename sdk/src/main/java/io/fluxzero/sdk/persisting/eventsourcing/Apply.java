@@ -15,10 +15,14 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
+import io.fluxzero.sdk.modeling.Model;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -42,7 +46,12 @@ import java.lang.annotation.Target;
  *     <li>On a <strong>constructor</strong> or static method of the entity, if the update creates a new instance</li>
  * </ul>
  * <p>
- * For deletions, returning {@code null} signals that the entity should be removed.
+ * For deletions, returning {@code null} signals that the entity should be removed. The applied event is still stored
+ * and/or published according to the configured publication settings.
+ * <p>
+ * For independently stored {@link Model models}, the return value identifies the target model and its resulting state.
+ * A {@code void} apply is therefore invalid for a model. Legacy mutable entities inside aggregates may continue to use
+ * {@code void}, although immutable return values are strongly preferred.
  * <p>
  * When the entity is part of a larger aggregate, Fluxzero automatically routes the update to the correct entity
  * instance using matching identifier fields, typically annotated with {@link EntityId}.
@@ -53,10 +62,13 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>The current entity instance (for non-static apply methods)</li>
  *     <li>Any parent, grandparent, or other ancestor entity in the aggregate hierarchy</li>
+ *     <li>Any independently stored model loaded for the current model action, either as its value or as
+ *         {@link io.fluxzero.sdk.modeling.Entity}{@code <T>}</li>
  *     <li>The update object itself</li>
  *     <li>The full {@link io.fluxzero.sdk.common.Message} or its {@link io.fluxzero.common.api.Metadata}</li>
  *     <li>Other context such as the {@link io.fluxzero.sdk.tracking.handling.authentication.User} performing the update</li>
  * </ul>
+ * Injected models are read inputs. Only a model returned by an apply is targeted by that apply.
  *
  * <p>
  * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter
@@ -129,6 +141,7 @@ import java.lang.annotation.Target;
  * Updates targeting `Product` will automatically be routed based on `@EntityId` inside `Product`.
  *
  * @see io.fluxzero.sdk.modeling.Aggregate
+ * @see Model
  * @see AggregateEventRouting
  * @see EntityId
  * @see io.fluxzero.sdk.modeling.Member
@@ -139,6 +152,22 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Apply {
+
+    /**
+     * Overrides conflict handling for the model produced by this apply.
+     */
+    ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
+
+    /**
+     * Overrides whether this apply participates in automatic model command handling.
+     */
+    AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
+
+    /**
+     * Overrides command-result completion for graph projections affected by this apply.
+     */
+    GraphProjectionCompletion graphProjectionCompletion()
+            default GraphProjectionCompletion.DEFAULT;
 
     /**
      * Controls whether the update should result in a published update, depending on whether the entity was actually
@@ -153,7 +182,9 @@ public @interface Apply {
     /**
      * Controls how the applied update is stored and/or published, and whether publish-only updates advance aggregate
      * state for the owning aggregate type. This strategy takes precedence over {@link #eventPublication()} if explicitly
-     * set.
+     * set. A publish-only apply cannot change an event-sourced {@link Model}; Fluxzero rejects such a transition before
+     * commit because its stored stream could not reconstruct the new state. Publish-only no-ops and changes to
+     * document-loaded models remain supported.
      *
      * @return strategy for persisting and/or publishing the applied update
      */

@@ -1,0 +1,124 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.common.api.modeling;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.fluxzero.common.api.search.ModelGraphComposition;
+import lombok.Value;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * Durable definition of one asynchronous materialized model-graph document.
+ * <p>
+ * The target collection is the projection identity within a namespace. It is intentionally distinct from the direct
+ * root collection so asynchronous graph writes cannot weaken direct-model search consistency.
+ */
+@Value
+public class ModelGraphProjectionConfiguration {
+
+    /**
+     * Stable serialized type descriptor of projection roots.
+     */
+    String rootModelType;
+
+    /**
+     * Collection containing the synchronously maintained direct root document.
+     */
+    String rootCollection;
+
+    /**
+     * Distinct collection receiving asynchronously composed graph documents.
+     */
+    String collection;
+
+    /**
+     * Explicit traversal and output bounds.
+     */
+    ModelGraphComposition composition;
+
+    /**
+     * Optional projection-local canonical path replacements.
+     */
+    List<ModelGraphPathOverride> pathOverrides;
+
+    @JsonCreator
+    public ModelGraphProjectionConfiguration(
+            @JsonProperty("rootModelType")
+            String rootModelType,
+            @JsonProperty("rootCollection")
+            String rootCollection,
+            @JsonProperty("collection")
+            String collection,
+            @JsonProperty("composition")
+            ModelGraphComposition composition,
+            @JsonProperty("pathOverrides")
+            List<ModelGraphPathOverride> pathOverrides) {
+        this.rootModelType = requireText(
+                rootModelType, "Root model type");
+        this.rootCollection = requireText(
+                rootCollection, "Root model collection");
+        this.collection = requireText(
+                collection, "Graph projection collection");
+        if (this.rootCollection.equals(this.collection)) {
+            throw new IllegalArgumentException(
+                    "Graph projection collection must differ from the direct root collection");
+        }
+        this.composition = Objects.requireNonNull(
+                composition, "Model graph composition");
+        this.pathOverrides = pathOverrides == null
+                ? List.of() : List.copyOf(pathOverrides);
+        Map<String, String> unique = new LinkedHashMap<>();
+        Map<String, String> uniqueTargets =
+                new LinkedHashMap<>();
+        for (ModelGraphPathOverride override : this.pathOverrides) {
+            String previous = unique.putIfAbsent(
+                    override.getPath(),
+                    override.getProjectionPath());
+            if (previous != null) {
+                throw new IllegalArgumentException(
+                        "Duplicate graph path override for "
+                        + override.getPath());
+            }
+            String previousSource =
+                    uniqueTargets.putIfAbsent(
+                            override.getProjectionPath(),
+                            override.getPath());
+            if (previousSource != null) {
+                throw new IllegalArgumentException(
+                        "Graph paths '%s' and '%s' both project to '%s'"
+                                .formatted(
+                                        previousSource,
+                                        override.getPath(),
+                                        override.getProjectionPath()));
+            }
+        }
+    }
+
+    private static String requireText(String value, String description) {
+        String result = Objects.requireNonNull(value, description).trim();
+        if (result.isEmpty()
+            || !result.equals(value)) {
+            throw new IllegalArgumentException(
+                    description
+                    + " must not be blank or have surrounding whitespace");
+        }
+        return result;
+    }
+}

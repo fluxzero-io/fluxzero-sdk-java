@@ -18,6 +18,8 @@ package io.fluxzero.sdk.persisting.search.client;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.api.BooleanResult;
+import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.*;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -72,39 +75,113 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     }
 
     @Override
+    public CompletableFuture<Void> materializeModelAction(
+            MaterializeModelAction action) {
+        return sendCommand(action);
+    }
+
+    @Override
     public Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize) {
-        AtomicInteger count = new AtomicInteger();
-        Integer maxSize = searchDocuments.getMaxSize();
-        int maxFetchSize = maxSize == null ? fetchSize : Math.min(maxSize, fetchSize);
-        SearchDocuments request = searchDocuments.toBuilder().maxSize(maxFetchSize).build();
-        Stream<SerializedDocument> documentStream = ObjectUtils.<SearchDocumentsResult>iterate(
-                        sendAndWait(request),
-                        result -> sendAndWait(request.toBuilder().maxSize(
-                                        maxSize == null ? maxFetchSize : Math.min(maxSize - count.get(), maxFetchSize))
-                                                      .lastHit(result.lastMatch()).build()),
-                        result -> result.size() < maxFetchSize
-                                || (maxSize != null && count.addAndGet(result.size()) >= maxSize))
-                .flatMap(r -> r.getMatches().stream());
-        if (maxSize != null) {
-            documentStream = documentStream.limit(maxSize);
-        }
-        return documentStream.map(SearchHit::fromDocument);
+        return search(searchDocuments, fetchSize, request -> request);
     }
 
     @Override
     public CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(SearchDocuments searchDocuments,
                                                                               int fetchSize) {
+        return searchAsync(searchDocuments, fetchSize, request -> request);
+    }
+
+    @Override
+    public Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        return search(
+                searchDocuments.getSearch(), fetchSize,
+                request -> new SearchModelDocuments(request, searchDocuments.getRelations()));
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>>
+    searchModelsAsync(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        return searchAsync(
+                searchDocuments.getSearch(), fetchSize,
+                request -> new SearchModelDocuments(request, searchDocuments.getRelations()));
+    }
+
+    @Override
+    public Stream<SearchHit<SerializedDocument>> searchModelGraph(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        return search(
+                searchDocuments.getSearch(), fetchSize,
+                request -> graphRequest(searchDocuments, request));
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>>
+    searchModelGraphAsync(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        return searchAsync(
+                searchDocuments.getSearch(), fetchSize,
+                request -> graphRequest(searchDocuments, request));
+    }
+
+    private static SearchModelGraphDocuments graphRequest(
+            SearchModelGraphDocuments template,
+            SearchDocuments search) {
+        return new SearchModelGraphDocuments(
+                search, template.getRelations(),
+                template.getComposition(),
+                template.getPathOverrides());
+    }
+
+    private Stream<SearchHit<SerializedDocument>> search(
+            SearchDocuments searchDocuments,
+            int fetchSize,
+            Function<SearchDocuments, ? extends Request> requestFactory) {
+        AtomicInteger count = new AtomicInteger();
         Integer maxSize = searchDocuments.getMaxSize();
         int maxFetchSize = maxSize == null ? fetchSize : Math.min(maxSize, fetchSize);
         SearchDocuments request = searchDocuments.toBuilder().maxSize(maxFetchSize).build();
-        return searchAsync(request, maxSize, maxFetchSize, new ArrayList<>());
+        Stream<SerializedDocument> documents = ObjectUtils.<SearchDocumentsResult>iterate(
+                        sendAndWait(requestFactory.apply(request)),
+                        result -> sendAndWait(requestFactory.apply(
+                                request.toBuilder()
+                                        .maxSize(maxSize == null
+                                                         ? maxFetchSize
+                                                         : Math.min(maxSize - count.get(), maxFetchSize))
+                                        .lastHit(result.lastMatch())
+                                        .build())),
+                        result -> result.size() < maxFetchSize
+                                  || maxSize != null
+                                     && count.addAndGet(result.size()) >= maxSize)
+                .flatMap(result -> result.getMatches().stream());
+        if (maxSize != null) {
+            documents = documents.limit(maxSize);
+        }
+        return documents.map(SearchHit::fromDocument);
     }
 
-    private CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(SearchDocuments request,
-                                                                               Integer maxSize,
-                                                                               int maxFetchSize,
-                                                                               List<SearchHit<SerializedDocument>> hits) {
-        return this.<SearchDocumentsResult>send(request).thenCompose(result -> {
+    private CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(
+            SearchDocuments searchDocuments,
+            int fetchSize,
+            Function<SearchDocuments, ? extends Request> requestFactory) {
+        Integer maxSize = searchDocuments.getMaxSize();
+        int maxFetchSize = maxSize == null ? fetchSize : Math.min(maxSize, fetchSize);
+        SearchDocuments request = searchDocuments.toBuilder().maxSize(maxFetchSize).build();
+        return searchAsync(request, maxSize, maxFetchSize, new ArrayList<>(), requestFactory);
+    }
+
+    private CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(
+            SearchDocuments request,
+            Integer maxSize,
+            int maxFetchSize,
+            List<SearchHit<SerializedDocument>> hits,
+            Function<SearchDocuments, ? extends Request> requestFactory) {
+        return this.<SearchDocumentsResult>send(requestFactory.apply(request)).thenCompose(result -> {
             result.getMatches().stream().map(SearchHit::fromDocument).forEach(hits::add);
             if (result.size() < maxFetchSize || (maxSize != null && hits.size() >= maxSize)) {
                 return CompletableFuture.completedFuture(maxSize == null || hits.size() <= maxSize
@@ -115,7 +192,7 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
                 return CompletableFuture.completedFuture(hits);
             }
             return searchAsync(request.toBuilder().maxSize(nextMaxSize).lastHit(result.lastMatch()).build(),
-                               maxSize, maxFetchSize, hits);
+                               maxSize, maxFetchSize, hits, requestFactory);
         });
     }
 

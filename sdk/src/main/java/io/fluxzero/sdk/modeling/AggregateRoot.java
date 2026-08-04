@@ -17,22 +17,18 @@ package io.fluxzero.sdk.modeling;
 import java.time.Instant;
 
 /**
- * Represents the root of an aggregate in a domain model.
+ * Represents the root of a legacy aggregate in a domain model.
  * <p>
- * An {@code AggregateRoot} is a specialized {@link Entity} that serves as the entry point for a consistency boundary
- * in domain-driven design.
- * <p>
- * Unlike nested entities, an {@code AggregateRoot}'s {@link #parent()} is always {@code null}, as it is the top-level
- * context for its child entities.
- * <p>
- * {@link #previous()} can be used to access the prior version of the aggregate, enabling differential processing.
+ * This compatibility specialization retains aggregate vocabulary while the shared persisted-root contract lives in
+ * {@link ModelRoot}. Existing aggregate implementations and callers remain valid.
  *
  * @param <T> the type of the underlying domain object
  *
  * @see Entity
  * @see Aggregate
+ * @see ModelRoot
  */
-public interface AggregateRoot<T> extends Entity<T> {
+public interface AggregateRoot<T> extends ModelRoot<T> {
 
     @Override
     default Entity<?> parent() {
@@ -59,6 +55,4 @@ public interface AggregateRoot<T> extends Entity<T> {
 
     @Override
     Entity<T> previous();
-
-
 }

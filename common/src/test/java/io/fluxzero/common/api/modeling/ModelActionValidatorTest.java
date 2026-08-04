@@ -1,0 +1,124 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.common.api.modeling;
+
+import io.fluxzero.common.Guarantee;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+class ModelActionValidatorTest {
+
+    @Test
+    void acceptsOneCompleteStateOnlyTransition() {
+        assertDoesNotThrow(() -> ModelActionValidator.validate(action(
+                List.of("order-1"),
+                ModelActionTarget.builder()
+                        .modelId("order-1")
+                        .updateState(true)
+                        .relationships(List.of())
+                        .build())));
+    }
+
+    @Test
+    void rejectsDuplicateReadsAndMalformedTargets() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(action(
+                        List.of("order-1", "order-1"),
+                        target("order-1"))));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(action(
+                        List.of("order-1"),
+                        target("order-2"))));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(action(
+                        List.of("order-1"),
+                        target("order-1").toBuilder()
+                                .relationships(List.of(
+                                        ModelRelationship.builder()
+                                                .parentId(" ")
+                                                .build()))
+                                .build())));
+    }
+
+    @Test
+    void rejectsSnapshotsThatCannotBeReconstructed() {
+        ModelActionTarget invalid = target("order-1").toBuilder()
+                .snapshot(new ModelSnapshotMutation(null, 0L, 10, 2))
+                .build();
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(action(List.of("order-1"), invalid)));
+    }
+
+    @Test
+    void validatesTemporalGraphBoundsAndBoundaries() {
+        assertDoesNotThrow(() -> ModelActionValidator.validate(
+                new GetModelGraph("root-1", null, 16, 10_000, 100, 0L, true)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(
+                        new GetModelGraph(
+                                "root-1", 10L, "action-1", 0,
+                                16, 10_000, 100, 0L, true)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(
+                        new GetModelAncestors(
+                                List.of("child-1", "child-2"), null,
+                                1, 1, 100, 0L)));
+    }
+
+    @Test
+    void validatesDeletionBounds() {
+        assertDoesNotThrow(() -> ModelActionValidator.validate(
+                new PlanModelDeletion("root-1", ModelDeletionCascade.NONE)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelActionValidator.validate(
+                        new PlanModelDeletion(
+                                "root-1", ModelDeletionCascade.DESCENDANTS,
+                                1_025, 100_000, 100)));
+    }
+
+    private static CommitModelAction action(
+            List<String> readModelIds,
+            ModelActionTarget target) {
+        return new CommitModelAction(
+                "action-1", -1L, readModelIds,
+                List.of(ModelActionSubstep.builder()
+                                .targets(List.of(target))
+                                .build()),
+                ModelConflictPolicy.ACCEPT,
+                Guarantee.STORED);
+    }
+
+    private static ModelActionTarget target(String modelId) {
+        return ModelActionTarget.builder()
+                .modelId(modelId)
+                .updateState(true)
+                .relationships(List.of())
+                .build();
+    }
+}

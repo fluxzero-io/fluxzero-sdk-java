@@ -1,141 +1,180 @@
 ---
-title: Entity loading
+title: Loading models
 slug: docs/guides/modeling-and-persistence/entity-loading
-description: Loading and updating stateful domain entities
+description: Load independent models, embedded members and complete model graphs
 sidebar:
-  order: 170
+   order: 170
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero allows you to model the state of your domain using entities that evolve over time by applying updates. These entities — such as users, orders, etc. — maintain state and enforce invariants through controlled updates, typically driven by commands.
+A Fluxzero `@Model` has its own identity, persistence boundary and lifecycle. Its event stream, cache, direct search
+document and snapshots are enabled independently through the model settings. Loading one model therefore never requires
+loading its parent, siblings or children.
 
-To inspect or update the state of an entity, start by retrieving its aggregate with `Fluxzero.loadAggregate(...)`.
-
-## Event-sourced entities
-
-Event Sourcing is the default persistence strategy in Fluxzero. The current state is reconstructed by replaying a stream of past updates. Rather than persisting only the latest snapshot, Fluxzero stores every change as an event, and the full history can be replayed to rebuild state at any point in time.
-
-By default, event sourced aggregates use the following loading strategy:
-
-```mermaid
-graph TD
-    LOAD[Load aggregate] --> CACHE{Check cache}
-    CACHE -->|Hit| RETURN[Return cached state]
-    CACHE -->|Miss| SNAPSHOT{Check for snapshot}
-
-    SNAPSHOT -->|Found| LOAD_EVENTS[Load events after snapshot]
-    SNAPSHOT -->|Not Found| LOAD_ALL[Load all events]
-
-    LOAD_EVENTS --> APPLY_RECENT[Apply recent events to snapshot]
-    LOAD_ALL --> APPLY_ALL[Apply all events from beginning]
-
-    APPLY_RECENT --> UPDATE_CACHE[Update cache]
-    APPLY_ALL --> UPDATE_CACHE
-    UPDATE_CACHE --> RETURN
-
-    RETURN --> HANDLING_MESSAGE{Handling message?}
-    HANDLING_MESSAGE -->|Yes| PLAYBACK[Play back entity to message time]
-    HANDLING_MESSAGE -->|No| DONE[Return entity]
-
-    PLAYBACK --> DONE
+```java
+@Model
+public record Order(@EntityId OrderId orderId, OrderStatus status) {
+}
 ```
 
-Each event that is applied during event-sourcing is deserialized and routed to the corresponding `@Apply` method to reconstruct the aggregate’s entity graph.
-
-- If no such method exists for a given event, the event is silently ignored.
-- If the event class itself is missing, deserialization will fail unless `ignoreUnknownEvents = true` is set on the aggregate.
-
-### Loading inside handlers
-
-If you load an event-sourced `Entity` while handling a message (for example inside an `@HandleEvent` method), Fluxzero automatically plays the entity back to the exact version that matches the message’s index. You don’t get the latest state, but the state as it was when the message occurred.
-
-If the application cache is still behind, Fluxzero waits until it has caught up before returning the entity. This prevents stale reads and guarantees consistency.
-
-By keeping caches in sync, Fluxzero makes it easy to safely load event-sourced entities anywhere.
-This makes it possible to depend on event-sourced, state-aware entities directly within any of your handlers
-— *often eliminating the need for separate projections or read models altogether.*
-
-#### Example: detecting significant balance change
+Use a typed `Id<T>` whenever possible. Besides making application code safer, it lets Fluxzero infer the requested
+model type without storing the type as part of the identity.
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    public class FraudMonitor {
-
-        @HandleEvent
-        void handle(Entity<BankAccount> entity) {
-            BankAccount current = entity.get();
-            BankAccount previous = entity.previous().get();
-
-            if (hasSuspiciousDelta(previous, current)) {
-                Fluxzero.publishEvent(new AdminNotification(
-                        "Unusual balance change on account %s"
-                                .formatted(current.getAccountId())));
-            }
-        }
-
-        boolean hasSuspiciousDelta(BankAccount previous, BankAccount current) {
-            if (previous == null || current == null) {
-                return false;
-            }
-            BigDecimal delta = current.getBalance()
-                    .subtract(previous.getBalance()).abs();
-            return delta.compareTo(BigDecimal.valueOf(10_000)) > 0;
-        }
-    }
+    Entity<Order> entity = Fluxzero.loadModel(orderId);
+    Order order = entity.get();
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    class FraudMonitor {
-
-        @HandleEvent
-        fun handle(entity: Entity<BankAccount>) {
-            val current = entity.get()
-            val previous = entity.previous().get()
-
-            if (hasSuspiciousDelta(previous, current)) {
-                Fluxzero.publishEvent(
-                    AdminNotification(
-                        "Unusual balance change on account ${current.accountId}"
-                    )
-                )
-            }
-        }
-
-        fun hasSuspiciousDelta(previous: BankAccount?, current: BankAccount?): Boolean {
-            if (previous == null || current == null) return false
-            val delta = current.balance.subtract(previous.balance).abs()
-            return delta > BigDecimal.valueOf(10_000)
-        }
-    }
+    val entity: Entity<Order> = Fluxzero.loadModel(orderId)
+    val order: Order? = entity.get()
     ```
   </TabItem>
 </Tabs>
 
-In this example:
+`Entity<T>` carries more than the value:
 
-- The aggregate (`BankAccount`) is automatically synchronized with the current event.
-- The handler can access both the current and previous versions.
-- It uses these to detect large balance changes.
-- No external query or projection is required — this is consistent state straight from the event log.
+- `isPresent()` distinguishes an existing model from an empty or logically deleted model;
+- `id()` and `type()` expose its persisted identity and type;
+- `previous()` returns the retained previous revision when `cachingDepth` permits it;
+- `sequenceNumber()` is the position within this model's own stream.
 
-## Document-based entities
+An untyped ID can be loaded by supplying the model class explicitly:
 
-If event-sourcing is disabled but searchable is enabled (`@Aggregate(eventSourced = false, searchable = true)`),
-aggregates are loaded as follows:
-
-```mermaid
-graph TD
-    LOAD[Load aggregate] --> CACHE{Check cache}
-    CACHE -->|Hit| RETURN[Return cached state]
-    CACHE -->|Miss| DOCUMENT{Check for document}
-
-    DOCUMENT -->|Found| UPDATE_CACHE[Update cache]
-    DOCUMENT -->|Not Found| RETURN_EMPTY[Return empty aggregate]
+```java
+Order order = Fluxzero.loadModel("order-123", Order.class).get();
 ```
 
-<Aside type="caution">
-Note: Document-based aggregates cannot be played back to a specific message version. When loaded inside a handler, you always get the latest state.
+## Event-sourced loading
+
+Event sourcing is the default:
+
+```java
+@Model
+record Order(@EntityId OrderId orderId, OrderStatus status) {
+}
+```
+
+Fluxzero first checks the model cache, then an applicable snapshot or checkpoint, and finally reads only the required
+suffix of that model's stream. Events are replayed through their `@Apply` methods.
+
+```mermaid
+flowchart LR
+    LOAD["loadModel(id)"] --> CACHE{"Current cache entry?"}
+    CACHE -->|fresh| RETURN["Return Entity"]
+    CACHE -->|missing or stale| SNAPSHOT["Load snapshot/checkpoint"]
+    SNAPSHOT --> EVENTS["Load missing model events"]
+    EVENTS --> APPLY["Replay @Apply methods"]
+    APPLY --> RETURN
+```
+
+Each independently stored child has a short stream of its own. Updating one line item does not replay the lifetime
+history of the order, inventory model or its siblings.
+
+## Document-based loading
+
+Set `eventSourced = false` to load the current model directly from its synchronously maintained document:
+
+```java
+@Model(eventSourced = false, searchable = true)
+record Country(@EntityId CountryId countryId, String name) {
+}
+```
+
+This changes only the normal **load** strategy. Applied updates are still stored and published as events unless
+`eventPublication` or `publicationStrategy` says otherwise. The directly changed searchable document is visible when
+the model commit completes.
+
+Document-based models participate in the same durable model-update tracking as event-sourced models, so caches in other
+SDK instances are invalidated or refreshed after remote commits.
+
+## Model parameters in message handlers
+
+Every selected message handler can inject directly addressed models and their ancestors. When an event or notification
+was produced by a model action, Fluxzero pins those loads to that action's persisted state boundary:
+
+```java
+@HandleEvent
+void on(ItemReserved event, Order order, Entity<Inventory> inventory) {
+    // order and inventory are exactly as they existed for this event
+}
+```
+
+Parameter injection uses the ID properties in the event:
+
+- a property matching the model's `@EntityId` name;
+- otherwise one unique typed `Id<Model>`;
+- `@Association("sourceId")` when two IDs refer to the same model type.
+
+Both `T` and `Entity<T>` are supported. A deleted target can be injected as an empty `Entity<T>`; a non-null bare `T`
+matches only when the model exists. `@Association` first checks metadata unless `excludeMetadata = true`.
+
+Parents, grandparents and further ancestors can be injected without repeating their IDs:
+
+```java
+@HandleQuery
+OrderView inspect(InspectLine query, LineItem line, Order order, Customer customer) {
+    // query only needs the typed LineItemId; relations resolve Order and Customer
+}
+```
+
+The child parameter may be omitted. A typed child ID in the payload is enough to anchor graph traversal when the
+selected handler only requests an ancestor. Use `@Association("billingLines")` to select the relation path if several
+ancestors of the requested type are reachable.
+
+Later cache entries never leak into historical event handling. Earlier `STORE_ONLY` model transitions are included
+because exactness is based on the committed model action, not only on the globally published event stream.
+
+Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
+parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,
+while document-loaded targets remain current-only direct-document reads. Handler selection itself performs no
+repository I/O.
+
+## Loading a complete model graph
+
+Relations declared with `@ParentId` can be traversed without turning the models back into one permanent consistency
+boundary:
+
+```java
+ModelGraph<Order> graph = Fluxzero.get()
+        .modelRepository()
+        .loadGraph(orderId);
+```
+
+The runtime pins one `stateIndex`, finds the nodes and edges belonging to the root at that boundary, reconstructs the
+models in batches and places children at their declared paths. Use `loadGraphAt(...)` for an historical graph:
+
+```java
+ModelGraph<Order> historical = Fluxzero.get()
+        .modelRepository()
+        .loadGraphAt(orderId, stateIndex);
+```
+
+Graph loads are bounded by `ModelGraph.Options`; do not use an unbounded graph as a substitute for loading the direct
+model needed by a command.
+
+## Embedded members
+
+A model may still contain `@Member` values:
+
+```java
+@Model
+record SmallOrder(
+        @EntityId OrderId orderId,
+        @Member List<EmbeddedNote> notes) {
+}
+```
+
+Embedded members share the model's stream, cache, document, snapshots and lifecycle. Use them only when that is exactly
+the intended ownership. Use a separate `@Model` plus `@ParentId` when a child must move, be searched independently,
+have its own lifecycle or be changed without loading the root.
+
+<Aside type="note" title="Legacy aggregate API">
+`@Aggregate`, `loadAggregate(...)` and `loadAggregateFor(...)` remain available for existing Fluxzero 1.x
+applications. New code should use `@Model`; the aggregate API is scheduled for deprecation in Fluxzero 2.0.
 </Aside>

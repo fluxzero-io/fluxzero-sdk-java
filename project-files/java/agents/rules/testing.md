@@ -122,7 +122,7 @@ Any effects introduced during this phase are **ignored** by the `Then` phase ass
 |:------------------------------|:---------------------------------------------------|
 | `givenCommands(...)`          | Issues commands before the test triggers.          |
 | `givenEvents(...)`            | Publishes events into the stream.                  |
-| `givenAppliedEvents(id, ...)` | Replays events into a specific aggregate instance. |
+| `givenModelEvents(id, type, ...)` | Replays events into a specific model instance. |
 | `givenDocument(...)`          | Pre-populates the search index with documents.     |
 | `givenStateful(saga)`         | Pre-registers a stateful handler instance.         |
 | `givenExpiredSchedules(...)`  | Simulates timers that have already triggered.      |

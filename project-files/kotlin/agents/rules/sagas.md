@@ -22,8 +22,8 @@ and be directly addressable via `@Association` keys.
 
 - Use **@Stateful** when you need a workflow that remembers progress between messages and requires independent
   addressing (e.g., a Stripe payment process).
-- Use a **stateless @Component** when the process can derive its state from existing aggregates or queries each time.
-- **Rule of Thumb**: If you need explicit correlation keys, timers, or a lifecycle not tied to a single aggregate,
+- Use a **stateless @Component** when the process can derive its state from existing models or queries each time.
+- **Rule of Thumb**: If you need explicit correlation keys, timers, or a lifecycle not tied to one model,
   prefer `@Stateful`.
 
 ---
@@ -229,10 +229,10 @@ data class Payment(
 
 ## Stateless Orchestration Alternative
 
-You can also implement a stateless `@Component` that loads/queries aggregates to drive orchestration.
+You can also implement a stateless `@Component` that loads/queries models to drive orchestration.
 
-- **Pros**: Leverages aggregate caching and natural event synchronization.
-- **Cons**: Progress is implicit in aggregate state; correlation may be less explicit than with `@Stateful`; `@Stateful`
+- **Pros**: Leverages model caching and exact event-boundary loading.
+- **Cons**: Progress is implicit in model state; correlation may be less explicit than with `@Stateful`; `@Stateful`
   documents are searchable.
-- **Recommendation**: If the workflow is naturally expressed as state transitions on one aggregate, stateless is often
+- **Recommendation**: If the workflow is naturally expressed as model state transitions, stateless is often
   simpler.

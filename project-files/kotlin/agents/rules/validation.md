@@ -215,7 +215,7 @@ class UserQueryHandler {
     @HandleQuery
     @FilterContent // Enables recursive filtering for the result
     fun handle(query: GetUserProfile): UserProfile {
-        return Fluxzero.loadAggregate(query.userId).get()
+        return Fluxzero.loadModel(query.userId).get()
     }
 }
 ```

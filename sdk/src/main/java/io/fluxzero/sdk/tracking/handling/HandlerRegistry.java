@@ -165,6 +165,12 @@ public interface HandlerRegistry extends HasLocalHandlers {
             public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
                 return first.handle(message).or(() -> second.handle(message));
             }
+
+            @Override
+            public boolean handleLocal(LocalExecution execution) {
+                return first.handleLocal(execution)
+                       || second.handleLocal(execution);
+            }
         };
     }
 

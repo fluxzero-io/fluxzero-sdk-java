@@ -74,17 +74,17 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+| `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.05.21
+fluxzero.defaults.version=2026.07.27
 ```
 
-This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
-explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
-`fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+This enables the package-scoped consumer default and all earlier versioned defaults. To choose one behavior explicitly
+without changing the defaults version, set the dedicated property directly. Existing applications that omit
+`fluxzero.defaults.version` retain the original shared application consumer and immediate implicit periodic start.
 
 ---
 

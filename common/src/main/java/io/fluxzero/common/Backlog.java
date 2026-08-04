@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -70,6 +71,8 @@ public class Backlog<T> implements Monitored<List<T>> {
     private static final int MAX_INITIAL_BATCH_CAPACITY = 16;
 
     private final int maxBatchSize;
+    private final ToLongFunction<? super T> batchWeight;
+    private final long maxBatchWeight;
     private final Queue<T> queue = new ConcurrentLinkedQueue<>();
     private final ThrowingFunction<List<T>, CompletableFuture<?>> consumer;
     private final ErrorHandler<List<T>> errorHandler;
@@ -155,6 +158,36 @@ public class Backlog<T> implements Monitored<List<T>> {
         return new Backlog<>(consumer, maxBatchSize, errorHandler, true);
     }
 
+    /**
+     * Creates an ordered async backlog bounded by both item count and cumulative item weight.
+     * <p>
+     * The first item is always admitted, even when it exceeds {@code maxBatchWeight}, so an oversized item can make
+     * progress as a one-item batch.
+     *
+     * @param consumer       ordered asynchronous batch consumer
+     * @param maxBatchSize   maximum number of items in one batch
+     * @param batchWeight    non-negative weight of an item
+     * @param maxBatchWeight maximum cumulative weight, except for one individually oversized item
+     */
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ToLongFunction<? super T> batchWeight,
+            long maxBatchWeight) {
+        if (maxBatchSize <= 0) {
+            throw new IllegalArgumentException("Maximum batch size must be positive");
+        }
+        if (maxBatchWeight <= 0L) {
+            throw new IllegalArgumentException("Maximum batch weight must be positive");
+        }
+        return new Backlog<>(
+                consumer, maxBatchSize,
+                (e, batch) -> log.error(
+                        "Consumer {} failed to handle batch of size {}. Continuing with next batch.",
+                        consumer, batch.size(), e),
+                true, batchWeight, maxBatchWeight);
+    }
+
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
         this(consumer, 1024);
     }
@@ -170,11 +203,23 @@ public class Backlog<T> implements Monitored<List<T>> {
 
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer, int maxBatchSize,
                       ErrorHandler<List<T>> errorHandler, boolean waitForAsyncConsumer) {
+        this(consumer, maxBatchSize, errorHandler, waitForAsyncConsumer, null, Long.MAX_VALUE);
+    }
+
+    private Backlog(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ErrorHandler<List<T>> errorHandler,
+            boolean waitForAsyncConsumer,
+            ToLongFunction<? super T> batchWeight,
+            long maxBatchWeight) {
         this.maxBatchSize = maxBatchSize;
         this.consumer = consumer;
         this.executorService = Executors.newSingleThreadExecutor(newPlatformThreadFactory("Backlog"));
         this.errorHandler = errorHandler;
         this.waitForAsyncConsumer = waitForAsyncConsumer;
+        this.batchWeight = batchWeight;
+        this.maxBatchWeight = maxBatchWeight;
     }
 
     /**
@@ -219,19 +264,44 @@ public class Backlog<T> implements Monitored<List<T>> {
         try {
             while (!queue.isEmpty()) {
                 List<T> batch = new ArrayList<>(initialBatchCapacity(maxBatchSize));
+                long weight = 0L;
+                Throwable batchConstructionError = null;
                 while (batch.size() < maxBatchSize) {
-                    T value = queue.poll();
+                    T value = queue.peek();
                     if (value == null) {
                         break;
                     }
+                    long itemWeight;
+                    try {
+                        itemWeight = itemWeight(value);
+                    } catch (Throwable e) {
+                        if (batch.isEmpty()) {
+                            queue.poll();
+                            batch.add(value);
+                            batchConstructionError = e;
+                        }
+                        break;
+                    }
+                    if (!batch.isEmpty() && itemWeight > maxBatchWeight - weight) {
+                        break;
+                    }
+                    value = queue.poll();
+                    if (value == null) {
+                        continue;
+                    }
                     batch.add(value);
+                    weight = itemWeight > Long.MAX_VALUE - weight ? Long.MAX_VALUE : weight + itemWeight;
                 }
                 CompletableFuture<?> future;
-                try {
-                    future = consumer.apply(batch);
-                } catch (Throwable e) {
-                    future = CompletableFuture.failedFuture(e);
-                    errorHandler.handleError(e, batch);
+                if (batchConstructionError == null) {
+                    try {
+                        future = consumer.apply(batch);
+                    } catch (Throwable e) {
+                        future = CompletableFuture.failedFuture(e);
+                        errorHandler.handleError(e, batch);
+                    }
+                } else {
+                    future = CompletableFuture.failedFuture(batchConstructionError);
                 }
                 long lastPosition = flushPosition.addAndGet(batch.size());
                 if (future == null) {
@@ -270,6 +340,17 @@ public class Backlog<T> implements Monitored<List<T>> {
 
     static int initialBatchCapacity(int maxBatchSize) {
         return Math.min(maxBatchSize, MAX_INITIAL_BATCH_CAPACITY);
+    }
+
+    private long itemWeight(T value) {
+        if (batchWeight == null) {
+            return 0L;
+        }
+        long result = batchWeight.applyAsLong(value);
+        if (result < 0L) {
+            throw new IllegalArgumentException("Batch item weight must not be negative");
+        }
+        return result;
     }
 
     protected void completeResults(long untilPosition, Throwable e) {

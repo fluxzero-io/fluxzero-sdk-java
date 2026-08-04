@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.modeling.MaterializeModelAction;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -27,6 +28,8 @@ import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
@@ -51,6 +54,16 @@ import java.util.stream.Stream;
  * @see DocumentSerializer
  */
 public interface SearchClient extends AutoCloseable {
+
+    /**
+     * Applies one exact independent-model materialization package through monotone state fences.
+     */
+    default CompletableFuture<Void> materializeModelAction(
+            MaterializeModelAction action) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Fenced independent-model materialization is not supported by this search client"));
+    }
 
     /**
      * Retrieves existing regular search collections and audit trails.
@@ -83,6 +96,26 @@ public interface SearchClient extends AutoCloseable {
     Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize);
 
     /**
+     * Executes a bounded current-state search across independent model relationships.
+     */
+    default Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph search is not supported by this client");
+    }
+
+    /**
+     * Executes a current-state model search and composes each matching root's explicitly placed child graph.
+     */
+    default Stream<SearchHit<SerializedDocument>> searchModelGraph(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph composition is not supported by this client");
+    }
+
+    /**
      * Asynchronously executes a search query using the given criteria and fetch size and materializes the matching hits.
      * <p>
      * The default implementation adapts {@link #search(SearchDocuments, int)} to a future. Remote clients can override
@@ -95,6 +128,28 @@ public interface SearchClient extends AutoCloseable {
     default CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(SearchDocuments searchDocuments,
                                                                                int fetchSize) {
         return SearchClientAsyncSupport.supplyAsync(() -> search(searchDocuments, fetchSize).toList());
+    }
+
+    /**
+     * Asynchronously executes a bounded current-state search across independent model relationships.
+     */
+    default CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelsAsync(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        return SearchClientAsyncSupport.supplyAsync(
+                () -> searchModels(
+                        searchDocuments, fetchSize).toList());
+    }
+
+    /**
+     * Asynchronously searches and composes current independent-model graphs.
+     */
+    default CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelGraphAsync(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        return SearchClientAsyncSupport.supplyAsync(
+                () -> searchModelGraph(
+                        searchDocuments, fetchSize).toList());
     }
 
     /**
