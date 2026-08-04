@@ -117,6 +117,35 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void validatesCompleteAliasReplacement() {
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(commit(
+                List.of("order-1"),
+                target("order-1").toBuilder()
+                        .aliases(List.of("code-1", "code-2"))
+                        .build())));
+        assertThrows(IllegalArgumentException.class, () ->
+                ModelCommitValidator.validate(commit(
+                        List.of("order-1"),
+                        target("order-1").toBuilder()
+                                .aliases(List.of("code", "code"))
+                                .build())));
+        assertThrows(IllegalArgumentException.class, () ->
+                ModelCommitValidator.validate(commit(
+                        List.of("order-1"),
+                        target("order-1").toBuilder()
+                                .aliases(List.of(" "))
+                                .build())));
+        assertThrows(IllegalArgumentException.class, () ->
+                ModelCommitValidator.validate(commit(
+                        List.of("order-1"),
+                        target("order-1").toBuilder()
+                                .delete(true)
+                                .updateRelationships(true)
+                                .aliases(List.of("code"))
+                                .build())));
+    }
+
+    @Test
     void validatesTemporalGraphBoundsAndBoundaries() {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 new GetModelGraph("root-1", null, 16, 10_000, 100, 0L, true)));

@@ -73,6 +73,57 @@ class ModelCommitterTest {
             DispatchInterceptor.noOp, "client-1");
 
     @Test
+    void includesCompleteModelAliasesOnlyForAliasAwareTypes() throws Exception {
+        AliasedId id = new AliasedId("1");
+        AliasedModel value = new AliasedModel(
+                id, "primary", List.of("secondary", "secondary"));
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(
+                        new UpdateAliased(id),
+                        transition(
+                                id, AliasedModel.class, null, value,
+                                UpdateAliased.class, "apply", AliasedModel.class)),
+                Map.of(id.toString(), value));
+
+        var target = committer.prepare("commit-alias", evaluation)
+                .commit().getSubsteps().getFirst().getTargets().getFirst();
+
+        assertEquals(
+                List.of("code-primary", "alternative-secondary"),
+                target.getAliases());
+
+        var deletion = evaluation(
+                List.of(id.toString()),
+                substep(
+                        new UpdateAliased(id),
+                        transition(
+                                id, AliasedModel.class, value, null,
+                                UpdateAliased.class, "apply", AliasedModel.class)),
+                Map.of());
+        assertEquals(
+                List.of(),
+                committer.prepare("delete-alias", deletion)
+                        .commit().getSubsteps().getFirst().getTargets().getFirst()
+                        .getAliases());
+
+        OrderId orderId = new OrderId("without-alias");
+        Order order = new Order(orderId, null, "new", Instant.EPOCH);
+        var ordinary = evaluation(
+                List.of(orderId.toString()),
+                substep(
+                        new UpdateOrder(orderId),
+                        transition(
+                                orderId, Order.class, null, order,
+                                UpdateOrder.class, "apply", Order.class)),
+                Map.of(orderId.toString(), order));
+        assertNull(
+                committer.prepare("commit-ordinary", ordinary)
+                        .commit().getSubsteps().getFirst().getTargets().getFirst()
+                        .getAliases());
+    }
+
+    @Test
     void commitsOriginalEventOnceWithoutResendingAnUnchangedChildOwnedRelationship() throws Exception {
         OrderId orderId = new OrderId("1");
         CustomerId customerId = new CustomerId("1");
@@ -1134,6 +1185,26 @@ class ModelCommitterTest {
         @Apply
         SnapshotModel apply(
                 SnapshotModel current) {
+            return current;
+        }
+    }
+
+    @Model
+    private record AliasedModel(
+            @EntityId AliasedId id,
+            @Alias(prefix = "code-") String code,
+            @Alias(prefix = "alternative-") List<String> alternatives) {
+    }
+
+    private static class AliasedId extends Id<AliasedModel> {
+        AliasedId(String id) {
+            super(id, "aliased-");
+        }
+    }
+
+    private record UpdateAliased(AliasedId id) {
+        @Apply
+        AliasedModel apply(AliasedModel current) {
             return current;
         }
     }

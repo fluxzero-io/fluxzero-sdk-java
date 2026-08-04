@@ -148,7 +148,8 @@ public final class ModelCommitWireCodec {
             if (target.getDocument() != null
                     || target.getSnapshot() != null
                     || target.isUpdateRelationships()
-                    || !target.getRelationships().isEmpty()) {
+                    || !target.getRelationships().isEmpty()
+                    || target.getAliases() != null) {
                 return false;
             }
         }

@@ -847,6 +847,10 @@ final class ModelCommitter {
                 transition, effective, effective.plan(),
                 nextSequence,
                 message.getTimestamp());
+        List<String> aliases = effective.updateState()
+                ? ModelMetadata.of(transition.modelType())
+                        .aliases(transition.after())
+                : null;
         return new ModelCommitTarget(
                 transition.modelId(),
                 effective.plan().modelTypeName(),
@@ -858,7 +862,8 @@ final class ModelCommitter {
                 documentMutation,
                 snapshot,
                 relationships.update(),
-                relationships.relationships());
+                relationships.relationships(),
+                aliases);
     }
 
     private SerializedMessage serialize(

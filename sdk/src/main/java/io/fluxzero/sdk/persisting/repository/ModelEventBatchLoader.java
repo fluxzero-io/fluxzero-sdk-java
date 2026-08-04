@@ -854,9 +854,11 @@ final class ModelEventBatchLoader {
             ModelHeadState head,
             long responseStateIndex,
             ModelHeadState previous) {
-        if (!requestedId.equals(head.getModelId())) {
+        if (head.getModelId() == null
+            || head.getModelId().isBlank()) {
             throw invalid(
-                    "Model head for '%s' reports ID '%s'".formatted(requestedId, head.getModelId()));
+                    "Model head for '%s' reports a blank resolved ID"
+                            .formatted(requestedId));
         }
         if (!head.isHistoryComplete()) {
             throw invalid(

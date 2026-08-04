@@ -43,6 +43,7 @@ import io.fluxzero.sdk.configuration.FluxzeroConfiguration;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.DelegatingEntity;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -918,7 +919,8 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Loads the independently stored model identified by the given typed ID.
      * <p>
-     * The persisted key is exactly {@link Id#toString()}; no model name is prefixed or concatenated.
+     * The persisted key is exactly {@link Id#toString()}; no model name is prefixed or concatenated. When no primary
+     * model has that identity, a current {@link Alias @Alias} value may resolve the model instead.
      */
     static <T> Entity<T> loadModel(Id<T> modelId) {
         return get().modelRepository().load(modelId);
@@ -928,7 +930,7 @@ public interface Fluxzero extends AutoCloseable {
      * Loads an independently stored model by ID. Typed IDs provide the requested model type; untyped IDs let the
      * repository resolve the stored type.
      * <p>
-     * The persisted key is exactly {@link Object#toString()}.
+     * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
      */
     static <T> Entity<T> loadModel(Object modelId) {
         return get().modelRepository().load(modelId);
@@ -937,7 +939,7 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Loads an independently stored model by ID and expected type.
      * <p>
-     * The persisted key is exactly {@link Object#toString()}.
+     * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
      */
     static <T> Entity<T> loadModel(Object modelId, Class<T> modelType) {
         return get().modelRepository().load(modelId, modelType);

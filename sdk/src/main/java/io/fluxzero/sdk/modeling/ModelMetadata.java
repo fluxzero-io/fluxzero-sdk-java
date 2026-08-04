@@ -44,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -63,6 +64,7 @@ public final class ModelMetadata {
     private final Aggregate aggregate;
     private final RootConfiguration rootConfiguration;
     private final Property entityId;
+    private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
     private final Map<Parameter, ModelParameter> modelParameters;
@@ -143,6 +145,16 @@ public final class ModelMetadata {
             validateScalarId(entityId, "@EntityId");
         }
 
+        this.aliasProperties = typeMetadata.annotatedProperties(Alias.class).stream()
+                .map(member -> {
+                    Alias annotation = ReflectionUtils.getAnnotationAs(
+                                    member, Alias.class, Alias.class)
+                            .orElseThrow();
+                    return new AliasProperty(
+                            property(member), annotation.prefix(), annotation.postfix());
+                })
+                .toList();
+
         this.parentReferences = inspectParentReferences(typeMetadata);
         if (model == null && !parentReferences.isEmpty()) {
             throw invalid("@ParentId is only supported on @Model types, but was found on %s".formatted(type.getName()));
@@ -179,6 +191,38 @@ public final class ModelMetadata {
 
     public Optional<Property> entityId() {
         return Optional.ofNullable(entityId);
+    }
+
+    /**
+     * Whether this model declares at least one independently persisted alias.
+     */
+    public boolean hasAliases() {
+        return !aliasProperties.isEmpty();
+    }
+
+    /**
+     * Returns the complete aliases declared by the supplied model value, or {@code null} when its type does not
+     * participate in independent-model alias persistence.
+     */
+    public List<String> aliases(Object value) {
+        if (aliasProperties.isEmpty()) {
+            return null;
+        }
+        if (value == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        for (AliasProperty alias : aliasProperties) {
+            Object candidate = alias.property().read(value);
+            if (candidate instanceof Collection<?> collection) {
+                collection.stream().filter(Objects::nonNull)
+                        .map(item -> alias.value(item.toString()))
+                        .forEach(result::add);
+            } else if (candidate != null) {
+                result.add(alias.value(candidate.toString()));
+            }
+        }
+        return List.copyOf(result);
     }
 
     String entityIdName() {
@@ -650,6 +694,12 @@ public final class ModelMetadata {
             String name, AccessibleObject member, Class<?> type, Type genericType, MemberInvoker reader) {
         public Object read(Object target) {
             return reader.invoke(target);
+        }
+    }
+
+    private record AliasProperty(Property property, String prefix, String postfix) {
+        private String value(String value) {
+            return prefix + value + postfix;
         }
     }
 

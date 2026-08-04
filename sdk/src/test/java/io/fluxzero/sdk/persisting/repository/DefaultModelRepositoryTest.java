@@ -40,6 +40,7 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
@@ -658,6 +659,42 @@ class DefaultModelRepositoryTest {
 
             verify(eventStoreClient, times(0))
                     .getCompactModelEvents(any());
+        }
+    }
+
+    @Test
+    void loadsIndependentModelByCurrentAliasWithoutSearch() {
+        AliasAccountId id = new AliasAccountId("1");
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            fluxzero.executeModelCommit(
+                    new Message(new CreateAliasAccount(
+                            id, "first-code", 5))).join();
+
+            Entity<AliasAccount> typed = fluxzero.apply(ignored ->
+                    Fluxzero.loadModel(
+                            "first-code", AliasAccount.class));
+            Entity<Object> untyped = fluxzero.apply(ignored ->
+                    Fluxzero.loadModel("first-code"));
+
+            assertEquals(id.toString(), typed.id());
+            assertEquals(new AliasAccount(
+                    id, "first-code", 5), typed.get());
+            assertEquals(AliasAccount.class, untyped.type());
+            assertEquals(typed.get(), untyped.get());
+
+            fluxzero.executeModelCommit(
+                    new Message(new RenameAliasAccount(
+                            id, "second-code"))).join();
+
+            assertTrue(fluxzero.apply(ignored ->
+                    Fluxzero.loadModel(
+                            "first-code", AliasAccount.class))
+                    .isEmpty());
+            Entity<AliasAccount> renamed = fluxzero.apply(ignored ->
+                    Fluxzero.loadModel(
+                            "second-code", AliasAccount.class));
+            assertEquals(id.toString(), renamed.id());
+            assertEquals("second-code", renamed.get().code());
         }
     }
 
@@ -1541,6 +1578,41 @@ class DefaultModelRepositoryTest {
 
     private record CreateAliasedAccount(
             AliasedAccountId accountId, int balance) {
+    }
+
+    @Model
+    private record AliasAccount(
+            @EntityId AliasAccountId accountId,
+            @Alias String code,
+            int balance) {
+    }
+
+    private static class AliasAccountId
+            extends Id<AliasAccount> {
+        private AliasAccountId(String id) {
+            super(id, "alias-account-");
+        }
+    }
+
+    private record CreateAliasAccount(
+            AliasAccountId accountId,
+            String code,
+            int balance) {
+        @Apply
+        AliasAccount apply() {
+            return new AliasAccount(
+                    accountId, code, balance);
+        }
+    }
+
+    private record RenameAliasAccount(
+            AliasAccountId accountId,
+            String code) {
+        @Apply
+        AliasAccount apply(AliasAccount account) {
+            return new AliasAccount(
+                    accountId, code, account.balance());
+        }
     }
 
     private record DeleteAccount(AccountId accountId) {

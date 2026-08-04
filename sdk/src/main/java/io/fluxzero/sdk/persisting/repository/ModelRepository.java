@@ -21,6 +21,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.sdk.common.Namespaced;
+import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
@@ -36,8 +37,9 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Repository for loading independently stored {@link Model models}.
  * <p>
- * Model identity is always the exact {@link Object#toString()} value of the supplied ID. A model type or annotation
- * name is never concatenated into the persisted key.
+ * Model identity is always the exact {@link Object#toString()} value of its {@code @EntityId}; a model type or
+ * annotation name is never concatenated into the persisted key. Loads first match that primary identity and then, when
+ * no such model exists, a current value declared with {@link Alias @Alias}.
  */
 public interface ModelRepository extends Namespaced<ModelRepository> {
 
@@ -73,16 +75,18 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Loads a model using the exact string representation of the supplied ID.
+     * Loads a model using the string representation of the supplied ID, resolving a current model alias when no primary
+     * model has that identity.
      */
     default <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
         return load(modelId.toString(), modelType);
     }
 
     /**
-     * Loads a model by its exact string ID and expected type.
+     * Loads a model by primary ID or current alias and expected type. A primary model ID always takes precedence over
+     * an alias with the same value.
      *
-     * @param modelId   persisted model key; never decorated with model type metadata
+     * @param modelId   persisted model key or current alias; never decorated with model type metadata
      * @param modelType expected model type, or {@link Object} when it should be resolved from storage
      */
     <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType);

@@ -118,7 +118,8 @@ public final class ModelCommitValidator {
                     }
                     if (target.isDelete() || target.isUpdateRelationships()
                         || target.getDocument() != null || target.getSnapshot() != null
-                        || target.getRelationships() == null || !target.getRelationships().isEmpty()) {
+                        || target.getRelationships() == null || !target.getRelationships().isEmpty()
+                        || target.getAliases() != null) {
                         throw new IllegalArgumentException(
                                 "Event-only target model %s contains a state mutation"
                                         .formatted(target.getModelId()));
@@ -138,6 +139,12 @@ public final class ModelCommitValidator {
                     throw new IllegalArgumentException(
                             "Deleted target model %s must update relationships".formatted(target.getModelId()));
                 }
+                if (target.isDelete() && target.getAliases() != null
+                    && !target.getAliases().isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Deleted target model %s must not retain aliases"
+                                    .formatted(target.getModelId()));
+                }
                 if (!target.isUpdateRelationships() && !target.getRelationships().isEmpty()) {
                     throw new IllegalArgumentException(
                             "Target model %s supplies relationships without update intent"
@@ -145,6 +152,7 @@ public final class ModelCommitValidator {
                 }
                 validateDocument(target);
                 validateSnapshot(target);
+                validateAliases(target);
                 Set<RelationshipKey> relationships =
                         target.getRelationships().size() > 1 ? new HashSet<>() : null;
                 for (ModelRelationship relationship : target.getRelationships()) {
@@ -210,6 +218,21 @@ public final class ModelCommitValidator {
         if (snapshot.getMaxSnapshotCount() < 1) {
             throw new IllegalArgumentException(
                     "Target model %s has an invalid maximum snapshot count".formatted(target.getModelId()));
+        }
+    }
+
+    private static void validateAliases(ModelCommitTarget target) {
+        if (target.getAliases() == null) {
+            return;
+        }
+        Set<String> aliases = new HashSet<>();
+        for (String alias : target.getAliases()) {
+            validateModelId(alias);
+            if (!aliases.add(alias)) {
+                throw new IllegalArgumentException(
+                        "Target model %s contains duplicate alias %s"
+                                .formatted(target.getModelId(), alias));
+            }
         }
     }
 
@@ -468,6 +491,7 @@ public final class ModelCommitValidator {
         if (!target.isStoreEvent() || !target.isUpdateState()
             || target.isDelete() || target.isUpdateRelationships()
             || target.getRelationships() == null || !target.getRelationships().isEmpty()
+            || target.getAliases() != null
             || target.getDocument() != null || target.getSnapshot() != null
             || !java.util.Objects.equals(
                     target.getModelId(), commit.getReadModelIds().getFirst())) {

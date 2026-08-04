@@ -411,6 +411,7 @@ class WebSocketTransportCodecsTest {
                                                .parentType("com.example.Customer")
                                                .path("orders")
                                                .build()))
+                .aliases(List.of("order-code"))
                 .build();
         ModelCommitTarget nonStoredDelete = ModelCommitTarget.builder()
                 .modelId("reservation-1")
@@ -471,6 +472,10 @@ class WebSocketTransportCodecsTest {
                     "orders",
                     decodedRequest.getSubsteps().getFirst().getTargets().getFirst()
                             .getRelationships().getFirst().getPath());
+            assertEquals(
+                    List.of("order-code"),
+                    decodedRequest.getSubsteps().getFirst()
+                            .getTargets().getFirst().getAliases());
             assertEquals(
                     "Order one",
                     decodedRequest.getSubsteps().getFirst()

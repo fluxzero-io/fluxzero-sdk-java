@@ -58,6 +58,124 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InMemoryEventStoreModelCommitTest {
 
     @Test
+    void resolvesAndAtomicallyReplacesIndependentModelAliases() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit(
+                "create-alias-owner",
+                ModelCommitStep.builder()
+                        .event(event("created"))
+                        .targets(List.of(storedTarget("model-1")
+                                .toBuilder()
+                                .modelType("example.Model")
+                                .aliases(List.of("old-code"))
+                                .build()))
+                        .build())).join();
+
+        var initial = modelStream(store, "old-code");
+        assertEquals("old-code", initial.getModelId());
+        assertEquals("model-1", initial.getHead().getModelId());
+        assertEquals("example.Model", initial.getHead().getModelType());
+        assertEquals(1, initial.getMemberships().size());
+
+        store.commitModels(commit(
+                "legacy-update", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("legacy"))
+                        .targets(List.of(storedTarget("model-1")
+                                .toBuilder()
+                                .modelType("example.Model")
+                                .aliases(null)
+                                .build()))
+                        .build())).join();
+        assertEquals(2, modelStream(store, "old-code")
+                .getMemberships().size());
+
+        store.commitModels(commit(
+                "replace-alias", 1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("updated"))
+                        .targets(List.of(storedTarget("model-1")
+                                .toBuilder()
+                                .modelType("example.Model")
+                                .aliases(List.of("new-code"))
+                                .build()))
+                        .build())).join();
+
+        assertEquals(null, modelStream(store, "old-code").getHead());
+        var updated = modelStream(store, "new-code");
+        assertEquals("model-1", updated.getHead().getModelId());
+        assertEquals(3, updated.getMemberships().size());
+    }
+
+    @Test
+    void aliasCollisionRejectsWholeCommitAndPrimaryIdWinsAliasLookup() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit(
+                "alias-owner",
+                ModelCommitStep.builder()
+                        .event(event("owner"))
+                        .targets(List.of(storedTarget("model-1")
+                                .toBuilder()
+                                .aliases(List.of("shared"))
+                                .build()))
+                        .build())).join();
+
+        assertThrows(CompletionException.class, () ->
+                store.commitModels(commit(
+                        "alias-collision",
+                        ModelCommitStep.builder()
+                                .event(event("rejected"))
+                                .targets(List.of(storedTarget("model-2")
+                                        .toBuilder()
+                                        .aliases(List.of("shared"))
+                                        .build()))
+                                .build())).join());
+        assertEquals(null, modelStream(store, "model-2").getHead());
+
+        store.commitModels(commit(
+                "primary-owner",
+                ModelCommitStep.builder()
+                        .event(event("primary"))
+                        .targets(List.of(storedTarget("shared")))
+                        .build())).join();
+
+        assertEquals("shared", modelStream(store, "shared")
+                .getHead().getModelId());
+    }
+
+    @Test
+    void logicalDeletionClearsIndependentModelAliases() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit(
+                "create-deleted-alias",
+                ModelCommitStep.builder()
+                        .event(event("created"))
+                        .targets(List.of(storedTarget("model-1")
+                                .toBuilder()
+                                .aliases(List.of("code"))
+                                .build()))
+                        .build())).join();
+        store.commitModels(commit(
+                "delete-alias-owner", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("deleted"))
+                        .targets(List.of(storedTarget("model-1")
+                                .toBuilder()
+                                .delete(true)
+                                .aliases(null)
+                                .updateRelationships(true)
+                                .relationships(List.of())
+                                .build()))
+                        .build())).join();
+
+        assertEquals(null, modelStream(store, "code").getHead());
+        assertTrue(modelStream(store, "model-1").getHead().isDeleted());
+    }
+
+    @Test
     void publishedModelEventIsObservedAfterItsModelState() {
         InMemoryEventStore store = denseStore();
         AtomicBoolean modelVisible = new AtomicBoolean();
@@ -1216,6 +1334,14 @@ class InMemoryEventStoreModelCommitTest {
     private static InMemoryEventStore denseStore() {
         return new InMemoryEventStore(
                 Duration.ofMinutes(2), () -> 0L);
+    }
+
+    private static io.fluxzero.common.api.modeling.ModelEventStream
+            modelStream(InMemoryEventStore store, String modelId) {
+        return store.getModelEvents(new GetModelEvents(
+                        List.of(new ModelEventStreamRequest(
+                                modelId, -1L, 10)), null, 1_024L))
+                .getStreams().getFirst();
     }
 
     private static CommitModels commit(

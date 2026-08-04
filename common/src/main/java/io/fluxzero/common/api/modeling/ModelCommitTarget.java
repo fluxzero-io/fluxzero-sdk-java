@@ -101,4 +101,13 @@ public class ModelCommitTarget {
      * client-calculated previous/current deltas. The list is empty when relationships are not updated.
      */
     List<ModelRelationship> relationships;
+
+    /**
+     * Complete desired aliases of the resulting model state.
+     * <p>
+     * A {@code null} value denotes a client which does not manage independent-model aliases. An empty list explicitly
+     * removes every current alias. The runtime applies this replacement atomically with the model transition.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    List<String> aliases;
 }

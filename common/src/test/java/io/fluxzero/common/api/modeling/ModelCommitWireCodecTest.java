@@ -232,6 +232,22 @@ class ModelCommitWireCodecTest {
                         Guarantee.STORED,
                         false);
         assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(rich))));
+
+        CommitModels base = commit("aliases", false);
+        ModelCommitStep baseStep = base.getSubsteps().getFirst();
+        CommitModels withAliases = new CommitModels(
+                base.getCommitId(), base.getReadStateIndex(),
+                base.getReadModelIds(),
+                List.of(baseStep.toBuilder()
+                        .targets(List.of(baseStep.getTargets().getFirst()
+                                .toBuilder()
+                                .aliases(List.of("alias"))
+                                .build()))
+                        .build()),
+                base.getConflictPolicy(), base.getGuarantee(),
+                base.getPossibleDuplicate());
+        assertNull(ModelCommitWireCodec.tryEncode(
+                new RequestBatch<>(List.of(withAliases))));
     }
 
     @Test

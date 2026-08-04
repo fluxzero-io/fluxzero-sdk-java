@@ -347,29 +347,42 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             Entity<?> cached =
                     modelCacheTracker.current(
                             modelId, modelType);
-            if (cached != null) {
+            if (cached != null
+                && (cached.isPresent()
+                    || !metadata.hasAliases())) {
                 return cast(cached);
             }
         }
         if (!annotation.eventSourced()
             && handlerBoundary == null) {
+            Entity<?> entity = loadDocumentUnchecked(
+                    modelId, modelType,
+                    metadata, annotation);
+            if (entity.isEmpty()
+                && metadata.hasAliases()) {
+                String resolvedId = resolveCurrentModelId(modelId);
+                if (!resolvedId.equals(modelId)) {
+                    entity = loadDocumentUnchecked(
+                            resolvedId, modelType,
+                            metadata, annotation);
+                }
+            }
             if (!annotation.cached()
                 || modelCacheTracker == null) {
-                return loadDocument(
-                        modelId, modelType,
-                        metadata, annotation);
+                return cast(entity);
             }
             Long readStateIndex =
                     modelCacheTracker
                             .safeDocumentBoundary();
-            Entity<?> entity =
-                    loadDocumentUnchecked(
-                            modelId, modelType,
-                            metadata, annotation);
-            if (readStateIndex != null) {
-                modelCache.put(modelId, entity);
+            if (readStateIndex != null
+                && (entity.isPresent()
+                    || !metadata.hasAliases())) {
+                String resolvedId = entity.isPresent()
+                        ? entity.id().toString()
+                        : modelId;
+                modelCache.put(resolvedId, entity);
                 modelCacheTracker.loaded(
-                        modelId, modelType,
+                        resolvedId, modelType,
                         readStateIndex);
             }
             return cast(entity);
@@ -384,14 +397,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 boundary(handlerBoundary),
                 Map.of());
         pin(handlerBoundary, context.readStateIndex());
+        Entity<?> entity = context.entries().getFirst().entity();
         if (handlerBoundary == null
             && annotation.cached()
-            && modelCacheTracker != null) {
+            && modelCacheTracker != null
+            && entity.isPresent()) {
             modelCacheTracker.loaded(
-                    modelId, modelType,
+                    entity.id().toString(),
+                    modelType,
                     context.readStateIndex());
         }
-        return cast(context.entries().getFirst().entity());
+        return cast(entity);
     }
 
     @Override
@@ -647,6 +663,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             || stream.getMemberships().isEmpty()) {
             return null;
         }
+        String resolvedModelId = stream.getHead() == null
+                ? modelId
+                : stream.getHead().getModelId();
         long firstStateIndex = stream.getMemberships()
                 .getFirst().getStateIndex();
         ModelEventPayload firstPayload =
@@ -665,7 +684,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             EVENT, UnknownTypeStrategy.FAIL)
                     .map(DeserializingMessage::getPayload)
                     .forEach(payload -> payloadFactoryTarget(
-                                    modelId, payload)
+                                    resolvedModelId, payload)
                             .ifPresent(candidates::add));
         } catch (RuntimeException ignored) {
             return null;
@@ -708,14 +727,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         }
         ModelEventBatchLoader.Boundary boundary =
                 boundary(handlerBoundary);
-        GetModelGraphResult graph = client.getEventStoreClient().getModelGraph(
-                new GetModelGraph(
-                        modelId, boundary.stateIndex(),
+        GetModelEventsResult result = client.getEventStoreClient().getModelEvents(
+                new GetModelEvents(
+                        List.of(new ModelEventStreamRequest(
+                                modelId, -1L, 0)),
+                        boundary.stateIndex(),
                         boundary.commitId(),
-                        boundary.substep(), boundary.eventIndex(), 0, 1,
-                        0, 0L, true));
-        pin(handlerBoundary, graph.getStateIndex());
-        ModelEventStream stream = graph.getStreams().getFirst();
+                        boundary.substep(),
+                        boundary.eventIndex(),
+                        ModelEventBatchLoader.DEFAULT_SETTINGS
+                                .maxPayloadBytes()));
+        pin(handlerBoundary, result.getStateIndex());
+        ModelEventStream stream = result.getStreams().getFirst();
         if (stream.getHead() == null) {
             return null;
         }
@@ -725,6 +748,37 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         }
         return classForName(serializer.upcastType(
                 stream.getHead().getModelType()));
+    }
+
+    private String resolveCurrentModelId(String requestedId) {
+        if (client.getEventStoreClient() == null) {
+            return requestedId;
+        }
+        GetModelEventsResult result =
+                client.getEventStoreClient().getModelEvents(
+                        new GetModelEvents(
+                                List.of(
+                                        new ModelEventStreamRequest(
+                                                requestedId, -1L, 0)),
+                                null, 0L));
+        if (result.getStreams().size() != 1) {
+            throw new EventSourcingException(
+                    "Model alias lookup for '%s' returned %d streams"
+                            .formatted(
+                                    requestedId,
+                                    result.getStreams().size()));
+        }
+        ModelEventStream stream = result.getStreams().getFirst();
+        if (!requestedId.equals(stream.getModelId())) {
+            throw new EventSourcingException(
+                    "Model alias lookup for '%s' returned stream '%s'"
+                            .formatted(
+                                    requestedId,
+                                    stream.getModelId()));
+        }
+        return stream.getHead() == null
+                ? requestedId
+                : stream.getHead().getModelId();
     }
 
     private Entity<Object> emptyUntyped(String modelId) {
@@ -1138,6 +1192,46 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         target.modelId(), entity);
             }
         }
+        LinkedHashMap<String, Entity<?>> canonicalLoaded =
+                new LinkedHashMap<>(loaded.size());
+        List<ModelTargetResolver.ResolvedModel> canonicalTargets =
+                new ArrayList<>(resolution.models().size());
+        boolean aliasesResolved = false;
+        for (ModelTargetResolver.ResolvedModel target :
+                resolution.models()) {
+            Entity<?> entity = loaded.get(target.modelId());
+            String resolvedId = entity != null
+                                && entity.isPresent()
+                                && entity.id() != null
+                    ? entity.id().toString()
+                    : target.modelId();
+            if (!resolvedId.equals(target.modelId())) {
+                if (target.access().writes()) {
+                    throw new EventSourcingException(
+                            "Writable model target '%s' resolved through alias to '%s'"
+                                    .formatted(
+                                            target.modelId(),
+                                            resolvedId));
+                }
+                aliasesResolved = true;
+                target = new ModelTargetResolver.ResolvedModel(
+                        resolvedId,
+                        target.modelType(),
+                        target.access(),
+                        target.sourceProperties());
+            }
+            if (canonicalLoaded.put(resolvedId, entity) != null) {
+                throw new EventSourcingException(
+                        "Multiple requested model IDs resolve to "
+                        + resolvedId);
+            }
+            canonicalTargets.add(target);
+        }
+        if (aliasesResolved) {
+            resolution = resolution.withResolvedModels(
+                    canonicalTargets);
+            loaded = canonicalLoaded;
+        }
         if (!historicalBoundary
             && modelCacheTracker != null) {
             for (ModelTargetResolver.ResolvedModel target :
@@ -1186,6 +1280,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             target.modelId(),
                             target.modelType());
             if (current == null) {
+                return null;
+            }
+            if (current.entity().isEmpty()
+                && ModelMetadata.validate(
+                                target.modelType())
+                        .hasAliases()) {
                 return null;
             }
             entities.put(
@@ -1908,23 +2008,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                     entity = withHead(
                                             state.current, head);
                                 }
+                                ModelTargetResolver.ResolvedModel resolvedTarget =
+                                        state.target;
                                 validateReconstruction(
-                                        target, head, entity);
+                                        resolvedTarget, head, entity);
                                 boolean cacheable =
                                         cacheAtBoundary
+                                        && head != null
                                         && ModelMetadata.of(
-                                                        target.modelType())
+                                                        resolvedTarget.modelType())
                                                 .model()
                                                 .orElseThrow()
                                                 .cached()
-                                        && (head == null
-                                            || head.isHistoryComplete());
+                                        && head.isHistoryComplete();
                                 if (head == null && !cacheable) {
                                     modelCache.remove(
                                             target.modelId());
                                 }
                                 return new FinalizedReconstruction(
-                                        target, entity, cacheable);
+                                        target, resolvedTarget,
+                                        entity, cacheable);
                             })
                             .toList();
             LinkedHashMap<String, Entity<?>> cacheCandidates =
@@ -1933,7 +2036,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     .filter(FinalizedReconstruction::cacheable)
                     .forEach(value ->
                                      cacheCandidates.put(
-                                             value.target().modelId(),
+                                             value.resolvedTarget().modelId(),
                                              value.entity()));
             modelCache.mergeAll(
                     cacheCandidates,
@@ -1966,6 +2069,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
         private record FinalizedReconstruction(
                 ModelTargetResolver.ResolvedModel target,
+                ModelTargetResolver.ResolvedModel resolvedTarget,
                 Entity<?> entity,
                 boolean cacheable) {
         }
@@ -2059,6 +2163,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 GetModelEventsResult page,
                 Map<String, MutableReconstruction> states) {
             long started = System.nanoTime();
+            page.getStreams().forEach(
+                    stream -> resolveTarget(
+                            stream.getModelId(), stream.getHead(), states));
             PayloadLookup payloads =
                     PayloadLookup.from(page.getPayloads());
             boolean independent =
@@ -2103,6 +2210,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 ModelEventBatchLoader.CompactPage page,
                 Map<String, MutableReconstruction> states) {
             long started = System.nanoTime();
+            page.streams().forEach(
+                    stream -> resolveTarget(
+                            stream.modelId(), stream.head(), states));
             boolean independent =
                     page.streams().size() >= 32
                     && page.streams().parallelStream()
@@ -2135,6 +2245,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         (System.nanoTime() - classified)
                         / 1_000_000.0);
             }
+        }
+
+        private void resolveTarget(
+                String requestedId,
+                ModelHeadState head,
+                Map<String, MutableReconstruction> states) {
+            if (head == null
+                || requestedId.equals(head.getModelId())) {
+                return;
+            }
+            MutableReconstruction state = states.get(requestedId);
+            if (state == null) {
+                throw new EventSourcingException(
+                        "Model alias response returned unrelated stream "
+                        + requestedId);
+            }
+            state.resolve(head.getModelId());
         }
 
         private boolean isIndependent(
@@ -2519,7 +2646,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         }
 
         private final class MutableReconstruction {
-            private final ModelTargetResolver.ResolvedModel target;
+            private ModelTargetResolver.ResolvedModel target;
             private final Entity<?> base;
             private Entity<?> current;
             private ModelEventMembership previous;
@@ -2529,6 +2656,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 this.target = target;
                 this.base = base;
                 this.current = base == null ? empty(target) : base;
+            }
+
+            private void resolve(String modelId) {
+                if (target.modelId().equals(modelId)) {
+                    return;
+                }
+                if (previous != null
+                    || base != null && base.isPresent()) {
+                    throw new EventSourcingException(
+                            "Model alias '%s' resolved after reconstruction started"
+                                    .formatted(target.modelId()));
+                }
+                target = new ModelTargetResolver.ResolvedModel(
+                        modelId,
+                        target.modelType(),
+                        target.access(),
+                        target.sourceProperties());
+                current = empty(target);
             }
 
             private void apply(StoredEvent storedEvent) {

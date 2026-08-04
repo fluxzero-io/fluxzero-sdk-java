@@ -120,6 +120,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, ModelStreamHead> modelHeads = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamHead>> modelHeadHistory = new ConcurrentHashMap<>();
     private final Map<String, List<ModelStreamMembership>> modelStreams = new ConcurrentHashMap<>();
+    private final Map<String, String> modelAliases = new ConcurrentHashMap<>();
     private final Map<String, ModelGraphProjectionConfiguration> modelGraphProjections =
             new ConcurrentHashMap<>();
     private final List<ModelGraphProjectionSignal>
@@ -261,6 +262,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 return new ModelCommitOutcome(conflict, List.of());
             }
             validateCommitState(commit);
+            ModelAliasPlan aliasPlan = planModelAliases(commit);
 
             List<SerializedMessage> publishedEvents = commit.getSubsteps().stream()
                     .filter(ModelCommitStep::isPublishEvent)
@@ -342,6 +344,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         substep.isPublishEvent() ? substep.getEvent().getIndex() : null,
                         List.copyOf(targetResults)));
             }
+            applyModelAliases(aliasPlan);
             CommitModelsResult result = CommitModelsResult.accepted(
                     commit.getRequestId(), commit.getCommitId(), List.copyOf(substepResults));
             if (hasMaterialization(commit, substepResults)) {
@@ -878,6 +881,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             selected.forEach(modelStreams::remove);
             selected.forEach(modelRelationStateIndices::remove);
             selected.forEach(appliedEvents::remove);
+            modelAliases.entrySet()
+                    .removeIf(entry -> selected.contains(
+                            entry.getValue()));
             sanitizeModelCommitResults(
                     selected);
             long deletionStateIndex =
@@ -1568,12 +1574,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     "Model maxStateIndex %d is outside visible range -1..%d"
                             .formatted(stateIndex, modelStateIndex));
         }
+        LinkedHashMap<String, String> resolvedModelIds = new LinkedHashMap<>();
+        request.getRequests().forEach(streamRequest ->
+                resolvedModelIds.put(
+                        streamRequest.getModelId(),
+                        resolveModelId(streamRequest.getModelId(), stateIndex)));
         LinkedHashMap<String, List<ModelStreamMembership>> streamCandidates = new LinkedHashMap<>();
         long firstExcludedStateIndex = Long.MAX_VALUE;
         for (var streamRequest : request.getRequests()) {
+            String resolvedModelId = resolvedModelIds.get(
+                    streamRequest.getModelId());
             List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0
                     ? List.of()
-                    : modelStreams.getOrDefault(streamRequest.getModelId(), List.of()).stream()
+                    : modelStreams.getOrDefault(resolvedModelId, List.of()).stream()
                             .filter(entry -> entry.sequenceNumber() > streamRequest.getLastSequenceNumber())
                             .filter(entry -> entry.stateIndex() <= stateIndex)
                             .limit((long) streamRequest.getMaxSize() + 1L)
@@ -1603,14 +1616,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         Set<Long> selectedStateIndices = payloads.keySet();
         List<ModelEventStream> streams = new ArrayList<>(request.getRequests().size());
         for (var streamRequest : request.getRequests()) {
+            String resolvedModelId = resolvedModelIds.get(
+                    streamRequest.getModelId());
             ModelStreamHead head = modelHeadHistory.getOrDefault(
-                            streamRequest.getModelId(), List.of()).stream()
+                            resolvedModelId, List.of()).stream()
                     .filter(candidate -> candidate.stateIndex() <= stateIndex)
                     .reduce((first, second) -> second).orElse(null);
             streams.add(new ModelEventStream(
                     streamRequest.getModelId(),
                     head == null ? null : new ModelHeadState(
-                            streamRequest.getModelId(), head.modelType(),
+                            resolvedModelId, head.modelType(),
                             head.sequenceNumber(), head.stateIndex(),
                             head.historyComplete(), head.deleted()),
                     candidateMemberships.get(streamRequest.getModelId()).stream()
@@ -1622,6 +1637,74 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 payloads.entrySet().stream()
                         .map(entry -> new ModelEventPayload(entry.getKey(), entry.getValue())).toList(),
                 List.copyOf(streams));
+    }
+
+    private String resolveModelId(
+            String requestedModelId,
+            long stateIndex) {
+        boolean primaryExists = modelHeadHistory
+                .getOrDefault(requestedModelId, List.of())
+                .stream()
+                .anyMatch(head -> head.stateIndex() <= stateIndex);
+        return primaryExists
+                ? requestedModelId
+                : modelAliases.getOrDefault(
+                        requestedModelId, requestedModelId);
+    }
+
+    private ModelAliasPlan planModelAliases(
+            CommitModels commit) {
+        LinkedHashMap<String, List<String>> replacements =
+                new LinkedHashMap<>();
+        commit.getSubsteps().stream()
+                .flatMap(substep -> substep.getTargets().stream())
+                .forEach(target -> {
+                    if (target.isDelete()) {
+                        replacements.put(
+                                target.getModelId(), List.of());
+                    } else if (target.getAliases() != null) {
+                        replacements.put(
+                                target.getModelId(),
+                                target.getAliases().stream()
+                                        .filter(alias -> !alias.equals(
+                                                target.getModelId()))
+                                        .toList());
+                    }
+                });
+        if (replacements.isEmpty()) {
+            return new ModelAliasPlan(Map.of());
+        }
+        Map<String, String> aliases = new HashMap<>(modelAliases);
+        aliases.entrySet().removeIf(entry ->
+                replacements.containsKey(entry.getValue()));
+        replacements.forEach((modelId, replacement) ->
+                replacement.forEach(alias -> {
+                    String existingModelId = aliases.putIfAbsent(
+                            alias, modelId);
+                    if (existingModelId != null
+                        && !existingModelId.equals(modelId)) {
+                        throw new IllegalStateException(
+                                "Model alias '%s' is already assigned to model '%s'"
+                                        .formatted(alias, existingModelId));
+                    }
+                }));
+        return new ModelAliasPlan(Map.copyOf(replacements));
+    }
+
+    private void applyModelAliases(
+            ModelAliasPlan plan) {
+        if (plan.replacements().isEmpty()) {
+            return;
+        }
+        modelAliases.entrySet().removeIf(entry ->
+                plan.replacements().containsKey(entry.getValue()));
+        plan.replacements().forEach((modelId, aliases) ->
+                aliases.forEach(alias ->
+                        modelAliases.put(alias, modelId)));
+    }
+
+    private record ModelAliasPlan(
+            Map<String, List<String>> replacements) {
     }
 
     @Override

@@ -31,6 +31,11 @@ import java.lang.annotation.Target;
  * You can annotate fields and property methods. If a property value is a collection the members of the collection are
  * all added as aliases of the entity. If the property value is {@code null} or an empty collection the alias is
  * ignored.
+ * <p>
+ * On an independently stored {@link Model}, current aliases are persisted atomically with each model transition and
+ * may be used with {@link Fluxzero#loadModel(Object)}. Such aliases identify a model globally and must therefore be
+ * unique across independently stored models. A primary model ID takes precedence over an equal alias. Aliases which
+ * are intentionally local to one aggregate tree should not be exposed as independent-model aliases.
  */
 @Documented
 @Target({ElementType.FIELD, ElementType.METHOD})
