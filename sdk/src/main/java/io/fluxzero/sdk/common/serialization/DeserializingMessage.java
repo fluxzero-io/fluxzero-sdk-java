@@ -289,6 +289,16 @@ public class DeserializingMessage implements HasMessage {
                                                        serializer));
     }
 
+    /**
+     * Replaces the complete logical message while retaining this wrapper's type, topic, serializer, and context.
+     *
+     * <p>Unlike {@link #withPayload(Object)}, this method deliberately retains the supplied message identity. It is
+     * used when one handled message expands into several independently publishable model updates.</p>
+     */
+    public DeserializingMessage withMessage(Message message) {
+        return withSameContext(new DeserializingMessage(message, messageType, topic, serializer));
+    }
+
     @Override
     public String getMessageId() {
         if (delegate != null) {

@@ -233,12 +233,19 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
             if (!hasModelApplies(
                     message.getPayloadClass())) {
-                engine.assertLegal(message, new CommitLoader(null));
-                log.warn(
-                        "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has "
-                        + "no locally reachable model @Apply handler. No model changes were committed.",
-                        message.getPayloadClass().getName());
-                return COMPLETED_VOID;
+                ModelCommitEngine.CommitEvaluation evaluation =
+                        evaluate(message);
+                if (evaluation.transitions().isEmpty()) {
+                    log.warn(
+                            "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has "
+                            + "no locally reachable model @Apply handler. No model changes were committed.",
+                            message.getPayloadClass().getName());
+                    return COMPLETED_VOID;
+                }
+                return executeRegistered(
+                        message, evaluation,
+                        null, null, -1)
+                        .thenApply(ignored -> null);
             }
             return execute(message).thenApply(ignored -> null);
         } catch (Throwable failure) {
@@ -260,6 +267,21 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
             engine.assertLegal(message, new CommitLoader(null));
             return COMPLETED_VOID;
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    /**
+     * Applies an already accepted event without re-running command assertions or apply interceptors.
+     */
+    public CompletableFuture<Void> applyStoredEvent(Message event) {
+        try {
+            Objects.requireNonNull(event, "event");
+            DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
+            ModelCommitEngine.CommitEvaluation evaluation =
+                    engine.rebase(List.of(message), new CommitLoader(null, true));
+            return executeRegistered(message, evaluation, null, null, -1).thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -629,6 +651,19 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             batchTicket.assign(
                     initialEvaluation.readModelIds());
         }
+        return executeRegistered(
+                message, initialEvaluation,
+                batchTicket,
+                transportBatch,
+                transportSlot);
+    }
+
+    private CompletableFuture<Object> executeRegistered(
+            DeserializingMessage message,
+            ModelCommitEngine.CommitEvaluation initialEvaluation,
+            BatchCommitTicket batchTicket,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
         if (ModelConflictPolicies.resolve(
                 initialEvaluation,
                 conflictPolicy)
@@ -1326,12 +1361,18 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private final class CommitLoader implements ModelCommitEngine.SubstepResolver {
         private final Long pinnedStateIndex;
+        private final boolean applyOnly;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
         private final Map<AncestorPlanKey, List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
                 new LinkedHashMap<>();
 
         private CommitLoader(Long pinnedStateIndex) {
+            this(pinnedStateIndex, false);
+        }
+
+        private CommitLoader(Long pinnedStateIndex, boolean applyOnly) {
             this.pinnedStateIndex = pinnedStateIndex;
+            this.applyOnly = applyOnly;
         }
 
         @Override
@@ -1347,7 +1388,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             CommitPlan plan = planFor(substep.getPayloadClass());
             List<ModelMetadata.HandlerMethod> handlers =
-                    pinnedStateIndex == null ? plan.handlers() : plan.applies();
+                    applyOnly || pinnedStateIndex != null ? plan.applies() : plan.handlers();
             ModelTargetResolver.Resolution resolution =
                     targetPlan(substep.getPayloadClass(), plan, pinnedStateIndex != null)
                             .resolve(substep.getPayload());
@@ -1545,9 +1586,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     && !handler.targetModelTypes().isEmpty())) {
                 return true;
             }
-            return handlers.stream()
+            List<ModelMetadata.HandlerMethod> interceptors = handlers.stream()
                     .filter(handler -> handler.kind()
                             == ModelMetadata.HandlerKind.INTERCEPT_APPLY)
+                    .toList();
+            if (interceptors.stream().anyMatch(handler -> handler.emittedPayloadTypes().isEmpty())) {
+                return !interceptors.isEmpty();
+            }
+            return interceptors.stream()
                     .flatMap(handler ->
                             handler.emittedPayloadTypes().stream())
                     .anyMatch(emitted ->

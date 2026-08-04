@@ -323,8 +323,10 @@ final class ModelCommitEngine {
             transitionList = List.copyOf(transitions.values());
             resultingState = beginState.withValues(values);
         }
-        for (int i = 0; i < plan.afterAssertions().size(); i++) {
-            invokeIfApplicable(plan.afterAssertions().get(i), message, resultingState);
+        if (transitions != null) {
+            for (int i = 0; i < plan.afterAssertions().size(); i++) {
+                invokeIfApplicable(plan.afterAssertions().get(i), message, resultingState);
+            }
         }
         return new Evaluation(
                 beginState, resultingState, transitionList);
@@ -633,17 +635,23 @@ final class ModelCommitEngine {
     }
 
     private static DeserializingMessage emittedMessage(
-            DeserializingMessage source, Object output) {
+            DeserializingMessage source, Object output,
+            boolean preserveSourceIdentity) {
         if (output instanceof DeserializingMessage message) {
             return message.withMetadata(
                     source.getMetadata().with(message.getMetadata()));
         }
         if (output instanceof HasMessage hasMessage) {
             Message emitted = hasMessage.toMessage();
-            return source.withPayload(emitted.getPayload())
-                    .withMetadata(source.getMetadata().with(emitted.getMetadata()));
+            return source.withMessage(emitted.withMetadata(
+                    source.getMetadata().with(emitted.getMetadata())));
         }
-        return source.withPayload(output);
+        if (preserveSourceIdentity) {
+            return source.withPayload(output);
+        }
+        return source.withMessage(new Message(
+                output, source.getMetadata(), null,
+                source.getTimestamp()));
     }
 
     private static void enqueueOutputs(
@@ -654,41 +662,52 @@ final class ModelCommitEngine {
             return;
         }
         if (output instanceof Optional<?> optional) {
-            enqueueOutput(source, optional.orElseThrow(), pending);
+            Object value = optional.orElseThrow();
+            enqueueOutput(source, value, pending,
+                          value.getClass().equals(source.getPayloadClass()));
             return;
         }
         if (output instanceof List<?> outputs) {
             for (int i = outputs.size() - 1; i >= 0; i--) {
-                enqueueOutput(source, outputs.get(i), pending);
+                enqueueOutput(source, outputs.get(i), pending,
+                              i == 0 && outputs.get(i) != null
+                              && outputs.get(i).getClass().equals(source.getPayloadClass()));
             }
             return;
         }
         if (output instanceof Collection<?> outputs) {
             List<?> ordered = new ArrayList<>(outputs);
             for (int i = ordered.size() - 1; i >= 0; i--) {
-                enqueueOutput(source, ordered.get(i), pending);
+                enqueueOutput(source, ordered.get(i), pending,
+                              i == 0 && ordered.get(i) != null
+                              && ordered.get(i).getClass().equals(source.getPayloadClass()));
             }
             return;
         }
         if (output instanceof Stream<?> outputs) {
             List<?> ordered = outputs.toList();
             for (int i = ordered.size() - 1; i >= 0; i--) {
-                enqueueOutput(source, ordered.get(i), pending);
+                enqueueOutput(source, ordered.get(i), pending,
+                              i == 0 && ordered.get(i) != null
+                              && ordered.get(i).getClass().equals(source.getPayloadClass()));
             }
             return;
         }
-        enqueueOutput(source, output, pending);
+        enqueueOutput(source, output, pending,
+                      output.getClass().equals(source.getPayloadClass()));
     }
 
     private static void enqueueOutput(
             DeserializingMessage source,
             Object output,
-            Deque<PendingSubstep> pending) {
+            Deque<PendingSubstep> pending,
+            boolean preserveSourceIdentity) {
         if (output == null) {
             throw new IllegalStateException(
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
         }
-        DeserializingMessage emitted = emittedMessage(source, output);
+        DeserializingMessage emitted = emittedMessage(
+                source, output, preserveSourceIdentity);
         boolean reintercept =
                 !emitted.getPayloadClass().equals(source.getPayloadClass());
         pending.addFirst(new PendingSubstep(emitted, reintercept));

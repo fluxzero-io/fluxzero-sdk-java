@@ -111,8 +111,19 @@ public final class ModelCommitValidator {
                             "Target model %s is absent from readModelIds".formatted(target.getModelId()));
                 }
                 if (!target.isUpdateState()) {
-                    throw new IllegalArgumentException(
-                            "Target model %s does not update state".formatted(target.getModelId()));
+                    if (!target.isStoreEvent() && !substep.isPublishEvent()) {
+                        throw new IllegalArgumentException(
+                                "Target model %s neither updates state nor emits an event"
+                                        .formatted(target.getModelId()));
+                    }
+                    if (target.isDelete() || target.isUpdateRelationships()
+                        || target.getDocument() != null || target.getSnapshot() != null
+                        || target.getRelationships() == null || !target.getRelationships().isEmpty()) {
+                        throw new IllegalArgumentException(
+                                "Event-only target model %s contains a state mutation"
+                                        .formatted(target.getModelId()));
+                    }
+                    continue;
                 }
                 if (target.getRelationships() == null) {
                     throw new IllegalArgumentException(

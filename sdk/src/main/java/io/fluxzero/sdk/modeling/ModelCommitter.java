@@ -28,6 +28,7 @@ import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -611,7 +612,9 @@ final class ModelCommitter {
             boolean publishEvent = transitions.stream().anyMatch(EffectiveTransition::publishEvent);
             boolean eventRequired = publishEvent
                                     || transitions.stream().anyMatch(EffectiveTransition::storeEvent);
-            SerializedMessage event = eventRequired ? serialize(appliedSubstep.message()) : null;
+            SerializedMessage event = eventRequired
+                    ? serialize(appliedSubstep.message(), commitId, evaluatedSubstep)
+                    : null;
             if (event != null) {
                 event.setSource(source);
                 applyEventRouting(event, transitions);
@@ -660,7 +663,7 @@ final class ModelCommitter {
         boolean eventRequired = effective.publishEvent()
                                 || effective.storeEvent();
         SerializedMessage event = eventRequired
-                ? serialize(appliedSubstep.message()) : null;
+                ? serialize(appliedSubstep.message(), commitId, 0) : null;
         String eventMessageId = null;
         if (event != null) {
             event.setSource(source);
@@ -858,7 +861,8 @@ final class ModelCommitter {
                 relationships.relationships());
     }
 
-    private SerializedMessage serialize(DeserializingMessage message) {
+    private SerializedMessage serialize(
+            DeserializingMessage message, String commitId, int substep) {
         SerializedMessage source = message.getSerializedObject(serializer);
         io.fluxzero.sdk.common.Message logicalMessage =
                 message.toMessage();
@@ -882,6 +886,9 @@ final class ModelCommitter {
                     "Serialized model event was suppressed after @Apply evaluation; "
                     + "logical event suppression must happen before model applies");
         }
+        serialized.setMetadata(serialized.getMetadata().with(
+                ModelEventMetadata.COMMIT_ID, commitId,
+                ModelEventMetadata.SUBSTEP, substep));
         return serialized;
     }
 

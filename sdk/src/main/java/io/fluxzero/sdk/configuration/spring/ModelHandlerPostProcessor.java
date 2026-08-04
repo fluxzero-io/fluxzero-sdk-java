@@ -29,8 +29,8 @@ import java.io.IOException;
  * Discovered types are registered as {@link FluxzeroPrototype Fluxzero prototypes}, just like self-tracking payloads.
  * Their automatic command handlers therefore use the asynchronous tracker infrastructure and never turn publishing
  * from the same application into local command handling. A discovered command only becomes a handler when its locally
- * registered model chain contains a reachable model {@link Apply @Apply}; assertions or interceptors alone do not
- * claim the command.
+ * registered model chain contains a reachable model {@link Apply @Apply}. An interceptor with a dynamically typed
+ * result is also tracked because its concrete output can only be known during command handling.
  */
 public class ModelHandlerPostProcessor extends ComponentScanPrototypePostProcessor {
 

@@ -117,6 +117,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -1054,9 +1055,17 @@ public class TestFixture implements Given<TestFixture>, When {
         Class<?> callerClass = getCallerClass();
         for (Object event : events) {
             givenModification(fixture -> fixture.asEventMessages(callerClass, event)
-                    .forEach(e -> fixture.getFluxzero().eventGateway().publish(e)));
+                    .forEach(fixture::publishGivenEvent));
         }
         return this;
+    }
+
+    private void publishGivenEvent(Message event) {
+        if (hasModelHandlerMethods(event.getPayloadClass())) {
+            getDispatchResult(getFluxzero().executeStoredModelEvent(event));
+        } else {
+            getFluxzero().eventGateway().publish(event);
+        }
     }
 
     @Override
@@ -1614,6 +1623,13 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     protected void applyEvents(String aggregateId, Class<?> aggregateClass, Fluxzero fc, List<Message> events) {
+        if (ModelMetadata.of(aggregateClass).isModel()) {
+            events.stream().map(e -> e.withMetadata(e.getMetadata().with(
+                            Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
+                            Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
+                    .forEach(e -> getDispatchResult(fc.executeStoredModelEvent(e)));
+            return;
+        }
         fc.aggregateRepository().load(aggregateId, aggregateClass).apply(events.stream().map(
                         e -> e.withMetadata(e.getMetadata().with(
                                 Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
@@ -1637,6 +1653,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected void waitForConsumers() {
         if (synchronous) {
+            interceptor.dispatchStoredEvents();
             return;
         }
         synchronized (consumers) {
@@ -2149,22 +2166,24 @@ public class TestFixture implements Given<TestFixture>, When {
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
         private final Set<InterceptedMessage> interceptedMessages = new CopyOnWriteArraySet<>();
+        private final ConcurrentLinkedQueue<Message> storedEvents = new ConcurrentLinkedQueue<>();
 
         protected void interceptClientDispatch(MessageType messageType, String topic,
                                                String namespace, List<SerializedMessage> messages) {
-            if (testFixture.fixtureResult.isCollectingResults()) {
+            boolean dispatchStoredEvent = testFixture.synchronous && messageType == EVENT
+                                          && testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway;
+            if (testFixture.fixtureResult.isCollectingResults() || dispatchStoredEvent) {
                 try {
                     testFixture.fluxzero.serializer()
                             .deserializeMessages(messages.stream()
-                                                         .filter(m -> !interceptedMessages.contains(
+                                                         .filter(m -> !interceptedMessages.remove(
                                                                  new InterceptedMessage(messageType, topic,
                                                                                         m.getMessageId()))),
                                                  messageType)
                             .map(DeserializingMessage::toMessage)
                             .forEach(m -> {
-                                if (testFixture.synchronous && messageType == EVENT
-                                    && testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway gateway) {
-                                    gateway.dispatchStoredLocally(m).join();
+                                if (dispatchStoredEvent) {
+                                    storedEvents.add(m);
                                 } else {
                                     monitorDispatch(m, messageType, topic, namespace, false);
                                 }
@@ -2172,6 +2191,16 @@ public class TestFixture implements Given<TestFixture>, When {
                 } catch (Exception ignored) {
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
+            }
+        }
+
+        private void dispatchStoredEvents() {
+            if (!(testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway gateway)) {
+                return;
+            }
+            Message event;
+            while ((event = storedEvents.poll()) != null) {
+                gateway.dispatchStoredLocally(event).join();
             }
         }
 
@@ -2188,9 +2217,7 @@ public class TestFixture implements Given<TestFixture>, When {
                 testFixture.requestDispatches.add(message.getMessageId());
             }
 
-            if (testFixture.fixtureResult.isCollectingResults()) {
-                interceptedMessages.add(new InterceptedMessage(messageType, topic, message.getMessageId()));
-            }
+            interceptedMessages.add(new InterceptedMessage(messageType, topic, message.getMessageId()));
 
             if (messageType == SCHEDULE) {
                 addMessage(publishedSchedules, (Schedule) message);

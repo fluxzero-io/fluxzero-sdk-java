@@ -20,14 +20,21 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.common.api.Metadata;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -45,6 +52,110 @@ class TestFixtureModelApiTest {
                 .whenCommand(command)
                 .expectOnlyEvents(command)
                 .expectTrue(ignored -> handled.get() == 1);
+    }
+
+    @Test
+    @Timeout(2)
+    void synchronousStoredEventHandlersObserveTheCommittedModel() {
+        AtomicReference<FixtureModel> observed = new AtomicReference<>();
+
+        TestFixture.create(new ModelReadingEventHandler(observed))
+                .whenCommand(new CreateModel("model-1"))
+                .expectOnlyEvents(new CreateModel("model-1"))
+                .expectTrue(ignored -> new FixtureModel("model-1").equals(observed.get()));
+    }
+
+    @Test
+    @Timeout(2)
+    void synchronousStoredDeleteEventHandlersReceiveTheDeletedModelHistory() {
+        AtomicReference<FixtureModel> previous = new AtomicReference<>();
+
+        TestFixture.create(new ModelDeletionEventHandler(previous))
+                .givenCommands(new CreateModel("model-1"))
+                .whenCommand(new DeleteFixtureModel("model-1"))
+                .expectOnlyEvents(new DeleteFixtureModel("model-1"))
+                .expectTrue(ignored -> new FixtureModel("model-1").equals(previous.get()));
+    }
+
+    @Test
+    @Timeout(2)
+    void asynchronousStoredDeleteEventHandlersPreferTheExactModelCommitBoundary() {
+        AtomicReference<FixtureModel> previous = new AtomicReference<>();
+
+        TestFixture.createAsync(new ModelDeletionEventHandler(previous))
+                .givenCommands(new CreateModel("model-1"))
+                .whenCommand(new DeleteFixtureModel("model-1"))
+                .expectOnlyEvents(new DeleteFixtureModel("model-1"))
+                .expectTrue(ignored -> new FixtureModel("model-1").equals(previous.get()));
+    }
+
+    @Test
+    @Timeout(2)
+    void ordinaryEventsResolveIndependentModelsFromOneCurrentContext() {
+        AtomicReference<FixtureModel> observed = new AtomicReference<>();
+
+        TestFixture.createAsync(new OrdinaryEventModelHandler(observed))
+                .givenCommands(new CreateModel("model-1"))
+                .whenEvent(new OrdinaryEvent("model-1"))
+                .expectNoErrors()
+                .expectTrue(ignored -> new FixtureModel("model-1").equals(observed.get()));
+    }
+
+    @Test
+    void givenEventsApplyIndependentModelsAndDispatchTheStoredEventOnce() {
+        AtomicInteger handled = new AtomicInteger();
+        StoredModelEvent event = new StoredModelEvent("model-1");
+
+        TestFixture.create(new ModelEventHandler(handled))
+                .givenEvents(event)
+                .whenApplying(ignored -> Fluxzero.<FixtureModel>loadModel("model-1").get())
+                .expectResult(new FixtureModel("model-1"))
+                .andThen()
+                .whenApplying(ignored -> handled.get())
+                .expectResult(1);
+    }
+
+    @Test
+    void givenAppliedEventsAutomaticallyUseIndependentModelApplies() {
+        StoredModelEvent event = new StoredModelEvent("model-1");
+
+        TestFixture.create()
+                .givenAppliedEvents("model-1", FixtureModel.class, event)
+                .whenApplying(ignored -> Fluxzero.<FixtureModel>loadModel("model-1").get())
+                .expectResult(new FixtureModel("model-1"));
+    }
+
+    @Test
+    void legacyEntityLoadFallsBackToAnIndependentModel() {
+        TestFixture.create()
+                .givenCommands(new CreateModel("model-1"))
+                .whenApplying(ignored -> Fluxzero.<FixtureModel>loadEntity("model-1").get())
+                .expectResult(new FixtureModel("model-1"));
+    }
+
+    @Test
+    void legacyTypedAggregateLoadAppliesToAnIndependentModel() {
+        FixtureModelId id = new FixtureModelId("model-1");
+
+        TestFixture.create()
+                .given(ignored -> Fluxzero.loadAggregate(id).apply(new StoredModelEvent("model-1")))
+                .whenApplying(ignored -> Fluxzero.<FixtureModel>loadModel(id).get())
+                .expectResult(new FixtureModel("model-1"));
+    }
+
+    @Test
+    void manualAssertAndApplyInheritsTheHandledMessageContext() {
+        ContextualCreate command = new ContextualCreate("model-1");
+
+        TestFixture.create(new ContextualHandler())
+                .whenCommand(new Message(command, Metadata.of("tenant", "alpha")))
+                .expectNoErrors()
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.<ContextualModel>loadModel("model-1").get())
+                .expectResult(new ContextualModel("model-1", "alpha"))
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.<ContextualModel>loadModel("model-2").get())
+                .expectResult(new ContextualModel("model-2", "alpha"));
     }
 
     @Test
@@ -71,6 +182,12 @@ class TestFixtureModelApiTest {
     private record FixtureModel(@EntityId String id) {
     }
 
+    private static class FixtureModelId extends Id<FixtureModel> {
+        private FixtureModelId(String id) {
+            super(id, FixtureModel.class);
+        }
+    }
+
     private record CreateModel(String id) {
         @Apply
         FixtureModel apply() {
@@ -78,10 +195,78 @@ class TestFixtureModelApiTest {
         }
     }
 
+    private record StoredModelEvent(String id) {
+        @AssertLegal
+        void mustNotRunForStoredEvents() {
+            throw new AssertionError("Stored events must not run command assertions");
+        }
+
+        @Apply
+        FixtureModel apply() {
+            return new FixtureModel(id);
+        }
+    }
+
+    private record DeleteFixtureModel(String id) {
+        @Apply
+        FixtureModel apply(FixtureModel model) {
+            return null;
+        }
+    }
+
     private record ModelEventHandler(AtomicInteger handled) {
         @HandleEvent
         void handle(CreateModel ignored) {
             handled.incrementAndGet();
+        }
+
+        @HandleEvent
+        void handle(StoredModelEvent ignored) {
+            handled.incrementAndGet();
+        }
+    }
+
+    private record ModelReadingEventHandler(AtomicReference<FixtureModel> observed) {
+        @HandleEvent
+        void handle(CreateModel event) {
+            observed.set(Fluxzero.<FixtureModel>loadModel(event.id()).get());
+        }
+    }
+
+    private record ModelDeletionEventHandler(AtomicReference<FixtureModel> previous) {
+        @HandleEvent
+        void handle(DeleteFixtureModel event, Entity<FixtureModel> model) {
+            previous.set(model.previous().get());
+        }
+    }
+
+    private record OrdinaryEvent(String id) {
+    }
+
+    private record OrdinaryEventModelHandler(AtomicReference<FixtureModel> observed) {
+        @HandleEvent
+        void handle(OrdinaryEvent event, Entity<FixtureModel> model) {
+            observed.set(model.get());
+        }
+    }
+
+    @Model
+    private record ContextualModel(@EntityId String id, String tenant) {
+    }
+
+    private record ContextualCreate(String id) {
+        @Apply(automaticHandling = io.fluxzero.sdk.modeling.AutomaticModelHandling.DISABLED)
+        ContextualModel apply(Metadata metadata) {
+            return new ContextualModel(id, metadata.get("tenant"));
+        }
+    }
+
+    private static class ContextualHandler {
+        @HandleCommand
+        @LocalHandler
+        void handle(ContextualCreate command) {
+            Fluxzero.assertAndApply(command);
+            Fluxzero.assertAndApply(new ContextualCreate("model-2"));
         }
     }
 }

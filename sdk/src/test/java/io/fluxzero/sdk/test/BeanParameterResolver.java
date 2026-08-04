@@ -74,8 +74,24 @@ public class BeanParameterResolver implements ParameterResolver<Object> {
      */
     @Override
     public UnaryOperator<Object> resolve(Parameter p, Annotation methodAnnotation) {
-        return v -> beans.stream().filter(b -> p.getType().isAssignableFrom(b.getClass())).findFirst().orElseThrow(
-                () -> new IllegalStateException("No qualifying bean of type '" + p.getType() + "' available"));
+        return v -> beans.stream().filter(b -> p.getType().isAssignableFrom(b.getClass())).findFirst().orElseGet(() -> {
+            if (!isRequired(p)) {
+                return null;
+            }
+            throw new IllegalStateException("No qualifying bean of type '" + p.getType() + "' available");
+        });
+    }
+
+    private static boolean isRequired(Parameter parameter) {
+        Annotation autowired = ReflectionUtils.getAnnotation(parameter, autowiredClass).orElse(null);
+        if (autowired == null) {
+            return true;
+        }
+        try {
+            return (boolean) autowired.annotationType().getMethod("required").invoke(autowired);
+        } catch (ReflectiveOperationException ignored) {
+            return true;
+        }
     }
 
     /**

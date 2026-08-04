@@ -103,6 +103,8 @@ import static java.util.Collections.synchronizedMap;
  */
 public class InMemoryEventStore extends InMemoryMessageStore implements EventStoreClient {
 
+    private boolean deferModelCommitNotification;
+
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
     private final Map<String, CommitModelsResult> modelCommits = new ConcurrentHashMap<>();
@@ -209,17 +211,28 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
+    public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {
+            ModelCommitOutcome outcome = commitModelsSynchronized(commit);
+            if (!outcome.publishedEvents().isEmpty()) {
+                notifyMonitors(outcome.publishedEvents());
+            }
+            return CompletableFuture.completedFuture(outcome.result());
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    private synchronized ModelCommitOutcome commitModelsSynchronized(CommitModels commit) {
             ModelCommitValidator.validate(commit);
             CommitModelsResult previous = modelCommits.get(commit.getCommitId());
             if (previous != null) {
                 completeModelCommitMaterialization(
                         commit.getCommitId());
-                return CompletableFuture.completedFuture(
+                return new ModelCommitOutcome(
                         modelCommits.get(commit.getCommitId())
                                 .asDuplicateForRequest(
-                                commit.getRequestId()));
+                                commit.getRequestId()), List.of());
             }
             commit.getSubsteps().stream()
                     .flatMap(substep ->
@@ -245,8 +258,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             CommitModelsResult conflict = conflict(
                     commit, conflictPolicy);
             if (conflict != null) {
-                return CompletableFuture.completedFuture(
-                        conflict);
+                return new ModelCommitOutcome(conflict, List.of());
             }
             validateCommitState(commit);
 
@@ -255,7 +267,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     .map(ModelCommitStep::getEvent)
                     .toList();
             if (!publishedEvents.isEmpty()) {
-                append(publishedEvents).join();
+                deferModelCommitNotification = true;
+                try {
+                    append(publishedEvents).join();
+                } finally {
+                    deferModelCommitNotification = false;
+                }
             }
 
             List<ModelCommitStepResult> substepResults = new ArrayList<>(commit.getSubsteps().size());
@@ -365,11 +382,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             completeModelCommitMaterialization(
                     commit.getCommitId());
-            return CompletableFuture.completedFuture(
-                    modelCommits.get(commit.getCommitId()));
-        } catch (Exception e) {
-            return CompletableFuture.failedFuture(e);
+            return new ModelCommitOutcome(
+                    modelCommits.get(commit.getCommitId()), publishedEvents);
+    }
+
+    @Override
+    protected void notifyMonitors(List<SerializedMessage> messages) {
+        synchronized (this) {
+            if (deferModelCommitNotification) {
+                return;
+            }
         }
+        super.notifyMonitors(messages);
+    }
+
+    private record ModelCommitOutcome(
+            CommitModelsResult result,
+            List<SerializedMessage> publishedEvents) {
     }
 
     @Override

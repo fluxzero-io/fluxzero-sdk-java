@@ -45,15 +45,55 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryEventStoreModelCommitTest {
+
+    @Test
+    void publishedModelEventIsObservedAfterItsModelState() {
+        InMemoryEventStore store = denseStore();
+        AtomicBoolean modelVisible = new AtomicBoolean();
+        store.registerMonitor(ignored -> modelVisible.set(
+                store.getModelEvents(new GetModelEvents(
+                                List.of(new ModelEventStreamRequest("visible-model", -1L, 10)), null, 1_024L))
+                        .getStreams().getFirst().getMemberships().size() == 1));
+
+        store.commitModels(commit(
+                "visible-model-commit",
+                ModelCommitStep.builder()
+                        .event(event("visible"))
+                        .publishEvent(true)
+                        .targets(List.of(storedTarget("visible-model")))
+                        .build())).join();
+
+        assertTrue(modelVisible.get());
+    }
+
+    @Test
+    void publishedModelEventMonitorCanWaitForTheCommittedModelUpdate() {
+        InMemoryEventStore store = denseStore();
+        AtomicBoolean modelVisible = new AtomicBoolean();
+        store.registerMonitor(ignored -> modelVisible.set(
+                !store.trackModelUpdates(new TrackModelUpdates(-1L, 10, 1_000L)).join().getUpdates().isEmpty()));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> store.commitModels(commit(
+                "visible-model-update-commit",
+                ModelCommitStep.builder()
+                        .event(event("visible-update"))
+                        .publishEvent(true)
+                        .targets(List.of(storedTarget("visible-update-model")))
+                        .build())).join());
+
+        assertTrue(modelVisible.get());
+    }
 
     @Test
     void emptyModelUpdateHeartbeatKeepsTheClientCursor() {

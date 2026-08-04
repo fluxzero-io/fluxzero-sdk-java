@@ -1251,6 +1251,10 @@ class DefaultModelRepositoryTest {
                     .getEvents(accountId.toString())
                     .findFirst().orElseThrow();
             assertNotNull(handledEvent.getIndex());
+            String handledCommitId = (String) handledEvent.getMetadata().get(
+                    io.fluxzero.common.api.modeling.ModelEventMetadata.COMMIT_ID);
+            int handledSubstep = Integer.parseInt(handledEvent.getMetadata().get(
+                    io.fluxzero.common.api.modeling.ModelEventMetadata.SUBSTEP));
 
             fluxzero.commandGateway().send(
                     new ChangeInventory(inventoryId, 95)).join();
@@ -1285,9 +1289,13 @@ class DefaultModelRepositoryTest {
                     .getCompactModelEvents(
                             requests.capture());
             assertEquals(
-                    handledEvent.getIndex(),
+                    handledCommitId,
                     requests.getAllValues().getFirst()
-                            .getBoundaryEventIndex());
+                            .getBoundaryCommitId());
+            assertEquals(
+                    handledSubstep,
+                    requests.getAllValues().getFirst()
+                            .getBoundarySubstep());
             assertEquals(
                     handledStateIndex,
                     requests.getAllValues().getLast()

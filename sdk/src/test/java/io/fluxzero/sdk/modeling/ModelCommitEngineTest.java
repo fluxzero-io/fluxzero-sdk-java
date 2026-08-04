@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -222,9 +223,10 @@ class ModelCommitEngineTest {
                 firstId.toString(), entity(firstId, new Inventory(firstId, 5)),
                 secondId.toString(), entity(secondId, new Inventory(secondId, 10)));
         List<Long> requestedStateIndices = new ArrayList<>();
+        DeserializingMessage source = message(command);
 
         ModelCommitEngine.CommitEvaluation result = engine.evaluate(
-                message(command),
+                source,
                 (substep, requestedStateIndex, stagedValues) -> {
                     requestedStateIndices.add(requestedStateIndex);
                     return resolveSubstep(substep, 77, stored);
@@ -244,6 +246,10 @@ class ModelCommitEngineTest {
                         .map(AdjustInventory::inventoryId).toList());
         assertEquals(4, ((Inventory) result.finalValues().get(firstId.toString())).available());
         assertEquals(8, ((Inventory) result.finalValues().get(secondId.toString())).available());
+        assertNotEquals(result.substeps().getFirst().message().getMessageId(),
+                        result.substeps().getLast().message().getMessageId());
+        assertNotEquals(source.getMessageId(), result.substeps().getFirst().message().getMessageId());
+        assertEquals(source.getTimestamp(), result.substeps().getFirst().message().getTimestamp());
     }
 
     @Test
@@ -322,8 +328,9 @@ class ModelCommitEngineTest {
                 Map.of(id.toString(), entity(id, new Inventory(id, 5)));
         int[] resolutions = {0};
 
+        DeserializingMessage source = message(command);
         ModelCommitEngine.CommitEvaluation result = engine.evaluate(
-                message(command),
+                source,
                 (substep, requestedStateIndex, stagedValues) -> {
                     resolutions[0]++;
                     return resolveSubstep(substep, 91, stored);
@@ -331,6 +338,7 @@ class ModelCommitEngineTest {
 
         assertEquals(2, resolutions[0]);
         assertEquals(1, result.substeps().size());
+        assertEquals(source.getMessageId(), result.substeps().getFirst().message().getMessageId());
         assertTrue(((NormalizeInventory) result.substeps().getFirst()
                 .message().getPayload()).normalized());
         assertEquals(3, ((Inventory) result.finalValues().get(id.toString())).available());

@@ -731,11 +731,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return current.computeContextIfAbsent(
                         ModelEventStateBoundary.class,
                         message -> {
-                            Long eventIndex = message.getIndex();
-                            if (eventIndex != null) {
-                                return ModelEventStateBoundary.event(
-                                        eventIndex);
-                            }
                             Object commitId = message.getMetadata() == null
                                     ? null
                                     : message.getMetadata().get(
@@ -744,12 +739,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                     ? null
                                     : message.getMetadata().get(
                                             ModelEventMetadata.SUBSTEP);
-                            return commitId instanceof String id
-                                   && !id.isBlank()
-                                   && substep != null
-                                    ? ModelEventStateBoundary.commit(
-                                            id, parseSubstep(substep))
-                                    : null;
+                            if (commitId instanceof String id
+                                && !id.isBlank()
+                                && substep != null) {
+                                return ModelEventStateBoundary.commit(
+                                        id, parseSubstep(substep));
+                            }
+                            return null;
                         });
     }
 

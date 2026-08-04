@@ -443,6 +443,41 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void explicitAssertAndApplyDynamicallyFollowsUntypedInterceptorOutput() {
+        TestFixture fixture = TestFixture.create(
+                ReceiverAccount.class,
+                new UntypedRenameReceiverAccountsHandler());
+        ReceiverAccountId accountId = new ReceiverAccountId("untyped-intercepted");
+
+        fixture.givenCommands(new CreateReceiverAccount(accountId, "before"))
+                .whenCommand(new UntypedRenameReceiverAccounts(List.of(
+                        new RenameReceiverAccount(accountId, "after"))))
+                .expectTrue(fluxzero -> new ReceiverAccount(
+                        accountId, "after").equals(
+                        fluxzero.modelRepository().load(accountId).get()));
+    }
+
+    @Test
+    void testFixtureAutomaticallyHandlesDynamicallyTypedInterceptorOutput() {
+        ReceiverAccountId accountId = new ReceiverAccountId("auto-untyped-intercepted");
+
+        TestFixture.create(ReceiverAccount.class)
+                .givenCommands(new CreateReceiverAccount(accountId, "before"))
+                .whenCommand(new UntypedRenameReceiverAccounts(List.of(
+                        new RenameReceiverAccount(accountId, "after"))))
+                .expectNoErrors()
+                .expectTrue(fluxzero -> new ReceiverAccount(accountId, "after").equals(
+                        fluxzero.modelRepository().load(accountId).get()));
+    }
+
+    @Test
+    void testFixtureCompletesDynamicallyTypedEmptyInterceptorOutput() {
+        TestFixture.create(ReceiverAccount.class)
+                .whenCommand(new UntypedRenameReceiverAccounts(List.of()))
+                .expectNoErrors();
+    }
+
+    @Test
     void failedApplyDoesNotCommitAnyTarget() {
         TestFixture fixture = TestFixture.create();
         AccountId accountId = new AccountId("4");
@@ -1291,6 +1326,20 @@ class ModelCommitHandlerIntegrationTest {
         @InterceptApply
         List<RenameReceiverAccount> intercept() {
             return commands;
+        }
+    }
+
+    private record UntypedRenameReceiverAccounts(List<?> commands) {
+        @InterceptApply
+        List<?> intercept() {
+            return commands;
+        }
+    }
+
+    private static final class UntypedRenameReceiverAccountsHandler {
+        @HandleCommand
+        void handle(UntypedRenameReceiverAccounts command) {
+            Fluxzero.assertAndApply(command);
         }
     }
 

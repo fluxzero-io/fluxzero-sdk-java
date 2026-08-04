@@ -262,6 +262,15 @@ public class DefaultFluxzero implements Fluxzero {
     }
 
     @Override
+    public CompletableFuture<Void> executeStoredModelEvent(Message event) {
+        ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
+        if (executor == null) {
+            return Fluxzero.super.executeStoredModelEvent(event);
+        }
+        return executor.applyStoredEvent(event);
+    }
+
+    @Override
     public CompletableFuture<Void> executeModelAssertions(Message update) {
         ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
         if (executor == null) {

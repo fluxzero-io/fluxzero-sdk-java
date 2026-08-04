@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import org.junit.jupiter.api.Test;
 import org.msgpack.core.MessageBufferPacker;
 import org.msgpack.core.MessagePack;
@@ -34,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -45,6 +47,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ModelEventRequestBatcherTest {
+
+    @Test
+    void executesLocalStoreReadsOnTheCallingThread() {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        AtomicReference<Thread> invocationThread = new AtomicReference<>();
+        when(client.getCompactModelEvents(any())).thenAnswer(invocation -> {
+            invocationThread.set(Thread.currentThread());
+            return compactResponse(invocation.getArgument(0), List.of());
+        });
+        ModelEventRequestBatcher subject = new ModelEventRequestBatcher(client, 16, 20_000_000L);
+
+        Thread callingThread = Thread.currentThread();
+        subject.getCompact(request("local"));
+
+        assertSame(callingThread, invocationThread.get());
+    }
 
     @Test
     void preservesEmbeddedCompactBlocksWhenConcurrentReadsAreCoalesced()

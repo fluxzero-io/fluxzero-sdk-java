@@ -21,6 +21,7 @@ import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.Memoization;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.FluxzeroConfiguration;
@@ -49,6 +50,7 @@ import org.mockito.Mockito;
 import java.time.Clock;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A {@link Fluxzero} implementation that wraps another instance and spies on its major components using Mockito.
@@ -240,6 +242,21 @@ public class SpyingFluxzero implements Fluxzero {
     @Override
     public FluxzeroConfiguration configuration() {
         return delegate.configuration();
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelCommit(Message update) {
+        return delegate.executeModelCommit(update);
+    }
+
+    @Override
+    public CompletableFuture<Void> executeStoredModelEvent(Message event) {
+        return delegate.executeStoredModelEvent(event);
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelAssertions(Message update) {
+        return delegate.executeModelAssertions(update);
     }
 
     @Override

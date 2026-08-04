@@ -31,6 +31,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.UuidFactory;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -42,10 +43,13 @@ import io.fluxzero.sdk.configuration.FluxzeroConfiguration;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.DelegatingEntity;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
@@ -539,7 +543,7 @@ public interface Fluxzero extends AutoCloseable {
      * @param update the update payload or message to validate
      */
     static void assertLegal(Object update) {
-        awaitModelCommit(get().executeModelAssertions(Message.asMessage(update)));
+        awaitModelCommit(get().executeModelAssertions(modelMessage(update)));
     }
 
     /**
@@ -550,7 +554,9 @@ public interface Fluxzero extends AutoCloseable {
      * @param metadata metadata available to interceptors and assertions
      */
     static void assertLegal(Object update, Metadata metadata) {
-        awaitModelCommit(get().executeModelAssertions(new Message(update, metadata)));
+        Message message = modelMessage(update);
+        awaitModelCommit(get().executeModelAssertions(
+                message.withMetadata(message.getMetadata().with(metadata))));
     }
 
     /**
@@ -564,7 +570,7 @@ public interface Fluxzero extends AutoCloseable {
      * @param update the update payload or message to assert and apply
      */
     static void assertAndApply(Object update) {
-        awaitModelCommit(get().executeModelCommit(Message.asMessage(update)));
+        awaitModelCommit(get().executeModelCommit(modelMessage(update)));
     }
 
     /**
@@ -574,7 +580,18 @@ public interface Fluxzero extends AutoCloseable {
      * @param metadata metadata to attach to the model event
      */
     static void assertAndApply(Object update, Metadata metadata) {
-        awaitModelCommit(get().executeModelCommit(new Message(update, metadata)));
+        Message message = modelMessage(update);
+        awaitModelCommit(get().executeModelCommit(
+                message.withMetadata(message.getMetadata().with(metadata))));
+    }
+
+    private static Message modelMessage(Object update) {
+        if (update instanceof HasMessage) {
+            return Message.asMessage(update);
+        }
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        return current == null ? Message.asMessage(update)
+                : new Message(update, current.getMetadata(), null, current.getTimestamp());
     }
 
     private static void awaitModelCommit(CompletableFuture<Void> completion) {
@@ -858,10 +875,15 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be
      * played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.
+     * Typed identifiers whose declared type is an independent {@link Model} are delegated to the model repository. This
+     * preserves source-compatible typed loads while migrating an aggregate root to an independent model.
      *
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Id<T> aggregateId) {
+        if (aggregateId.getType().isAnnotationPresent(Model.class)) {
+            return legacyModelEntity(loadModel(aggregateId), aggregateId, aggregateId.getType());
+        }
         return playbackToHandledMessage(get().aggregateRepository().load(aggregateId));
     }
 
@@ -887,6 +909,9 @@ public interface Fluxzero extends AutoCloseable {
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Object aggregateId, Class<T> aggregateType) {
+        if (aggregateType.isAnnotationPresent(Model.class)) {
+            return legacyModelEntity(loadModel(aggregateId, aggregateType), aggregateId, aggregateType);
+        }
         return playbackToHandledMessage(get().aggregateRepository().load(aggregateId, aggregateType));
     }
 
@@ -973,9 +998,29 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> Entity<T> loadEntity(Object entityId) {
-        return (Entity<T>) loadAggregateFor(entityId).getEntity(entityId)
-                .orElseGet(() -> entityId instanceof Id id
-                        ? loadAggregate(id) : loadAggregate(entityId.toString(), Object.class));
+        if (entityId instanceof Id<?> id && id.getType().isAnnotationPresent(Model.class)) {
+            return (Entity<T>) loadModel(id);
+        }
+        try {
+            Entity<T> aggregateEntity = (Entity<T>) loadAggregateFor(entityId).getEntity(entityId)
+                    .orElseGet(() -> entityId instanceof Id id
+                            ? loadAggregate(id) : loadAggregate(entityId.toString(), Object.class));
+            if (!aggregateEntity.isEmpty()) {
+                return aggregateEntity;
+            }
+            try {
+                return loadModel(entityId);
+            } catch (EventSourcingException ignored) {
+                return aggregateEntity;
+            }
+        } catch (EventSourcingException aggregateFailure) {
+            try {
+                return loadModel(entityId);
+            } catch (EventSourcingException modelFailure) {
+                aggregateFailure.addSuppressed(modelFailure);
+                throw aggregateFailure;
+            }
+        }
     }
 
     /**
@@ -987,7 +1032,39 @@ public interface Fluxzero extends AutoCloseable {
      * back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.
      */
     static <T> Entity<T> loadEntity(Id<T> entityId) {
+        if (entityId.getType().isAnnotationPresent(Model.class)) {
+            return loadModel(entityId);
+        }
         return loadAggregateFor(entityId).<T>getEntity(entityId).orElseGet(() -> loadAggregate(entityId));
+    }
+
+    private static <T> Entity<T> legacyModelEntity(
+            Entity<T> initial, Object modelId, Class<T> modelType) {
+        return new DelegatingEntity<>(initial) {
+            @Override
+            public Entity<T> update(java.util.function.UnaryOperator<T> function) {
+                delegate = delegate.update(function);
+                return this;
+            }
+
+            @Override
+            public Entity<T> apply(Message eventMessage) {
+                Fluxzero.get().executeStoredModelEvent(eventMessage).join();
+                delegate = Fluxzero.loadModel(modelId, modelType);
+                return this;
+            }
+
+            @Override
+            public <E extends Exception> Entity<T> assertLegal(Object update) throws E {
+                Fluxzero.assertLegal(update);
+                return this;
+            }
+
+            @Override
+            public Entity<T> commit() {
+                return this;
+            }
+        };
     }
 
     /**
@@ -1530,6 +1607,19 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeModelCommit(Message update) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support direct model commits"));
+    }
+
+    /**
+     * Applies an event that was already accepted by its original command flow to independent models.
+     * Assertions and apply interceptors are skipped, while regular {@code @Apply} methods and durable event
+     * publication are preserved. This infrastructure hook is primarily used by replay and test fixtures.
+     *
+     * @param event previously accepted event to apply
+     * @return completion of the durable model commit
+     */
+    default CompletableFuture<Void> executeStoredModelEvent(Message event) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support stored model event application"));
     }
 
     /**

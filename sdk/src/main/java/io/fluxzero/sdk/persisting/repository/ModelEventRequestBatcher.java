@@ -24,6 +24,8 @@ import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.serialization.ModelStreamBatchDecoder;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
+import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,6 +90,18 @@ final class ModelEventRequestBatcher {
     private GetModelEventsResult get(
             GetModelEvents request, boolean compact) {
         if (!isCurrentBoundary(request) || request.getRequests().isEmpty()) {
+            return compact
+                    ? eventStoreClient.getCompactModelEvents(request)
+                    : eventStoreClient.getModelEvents(request);
+        }
+        /*
+         * Local stores have no transport round trip to coalesce. More importantly, their append monitor may dispatch
+         * stored events while holding the re-entrant in-memory store lock. A handler is allowed to load another model
+         * from that callback. Moving such a nested read to the batcher's virtual thread would make it wait for the lock
+         * still owned by the calling commit thread, while that thread waits for the read result.
+         */
+        if (eventStoreClient instanceof LocalEventStoreClient
+            || eventStoreClient instanceof InMemoryEventStore) {
             return compact
                     ? eventStoreClient.getCompactModelEvents(request)
                     : eventStoreClient.getModelEvents(request);

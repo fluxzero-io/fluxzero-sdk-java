@@ -60,6 +60,28 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void acceptsEventOnlyTransitionButRejectsEmptyNoOp() {
+        ModelCommitTarget eventOnly = ModelCommitTarget.builder()
+                .modelId("order-1")
+                .updateState(false)
+                .relationships(List.of())
+                .build();
+        CommitModels published = new CommitModels(
+                "commit-1", -1L, List.of("order-1"),
+                List.of(ModelCommitStep.builder()
+                                .event(new SerializedMessage(
+                                        new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "event-1", 1L))
+                                .publishEvent(true)
+                                .targets(List.of(eventOnly))
+                                .build()),
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(published));
+        assertThrows(IllegalArgumentException.class,
+                     () -> ModelCommitValidator.validate(commit(List.of("order-1"), eventOnly)));
+    }
+
+    @Test
     void rejectsDuplicateReadsAndMalformedTargets() {
         assertThrows(
                 IllegalArgumentException.class,
