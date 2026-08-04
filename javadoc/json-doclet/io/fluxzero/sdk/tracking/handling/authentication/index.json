@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider",
     "kind" : "class"
   }, {
+    "file" : "AbstractUserProvider.UserMetadataConfiguration.json",
+    "name" : "AbstractUserProvider.UserMetadataConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration",
+    "kind" : "record"
+  }, {
     "file" : "AuthenticatingInterceptor.json",
     "name" : "AuthenticatingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor",

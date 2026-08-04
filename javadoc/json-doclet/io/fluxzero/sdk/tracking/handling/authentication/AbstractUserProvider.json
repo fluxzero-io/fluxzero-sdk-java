@@ -4,11 +4,8 @@
   "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
   "kind" : "class",
   "modifiers" : [ "abstract", "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
-  "documentation" : " Abstract base class for implementing {@link UserProvider}s that resolve user identities via a metadata key.\n <p>\n This implementation provides a reusable foundation for extracting, injecting, and managing {@link User} instances\n within {@link Metadata}, commonly used in message handling scenarios. Most concrete {@code UserProvider}\n implementations can extend this class to inherit standard behavior for:\n <ul>\n   <li>Retrieving a user from message metadata via a configured key</li>\n   <li>Checking whether a user is present in metadata</li>\n   <li>Inserting or removing user entries in metadata</li>\n </ul>\n\n <h2>Metadata key</h2>\n The default metadata key used for storing user objects is {@link #DEFAULT_USER_KEY}, which resolves to {@code \"$user\"}.\n Custom keys can also be provided via the constructor for flexibility across different application contexts.\n\n @see User\n @see UserProvider\n @see Metadata\n @see io.fluxzero.sdk.common.HasMessage\n",
+  "annotations" : [ ],
+  "documentation" : " Abstract base class for implementing {@link UserProvider}s that resolve user identities via a metadata key.\n <p>\n This implementation provides a reusable foundation for extracting, injecting, and managing {@link User} instances\n within {@link Metadata}, commonly used in message handling scenarios. Most concrete {@code UserProvider}\n implementations can extend this class to inherit standard behavior for:\n <ul>\n   <li>Retrieving a user or resolving a user ID from message metadata via a configured key</li>\n   <li>Checking whether a user is present in metadata</li>\n   <li>Inserting or removing user entries in metadata</li>\n </ul>\n\n <h2>Metadata key</h2>\n The default metadata key is {@link #DEFAULT_USER_KEY}, which resolves to {@code \"$user\"}. With compatibility\n defaults, this key stores a serialized user object. With defaults version {@code 2026.08.04} or newer, or when\n {@link #USE_USER_ID_METADATA_PROPERTY} is enabled, it stores {@link User#getName()} for regular users and\n {@link #SYSTEM_USER_ID} for the system user. Regular IDs resolve through {@link #getUserById(Object)} and the system\n ID resolves through {@link #getSystemUser()}.\n Custom keys can also be provided via the constructor for flexibility across different application contexts.\n\n @see User\n @see UserProvider\n @see Metadata\n @see io.fluxzero.sdk.common.HasMessage\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.authentication.UserProvider" ],
@@ -18,8 +15,32 @@
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Default key used in {@link Metadata} to store {@link User} objects.\n",
+    "documentation" : " Default key used in {@link Metadata} to store user information.\n",
     "constantValue" : "$user"
+  }, {
+    "name" : "SYSTEM_USER_ID",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.SYSTEM_USER_ID",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Reserved user ID that resolves to the system user.\n",
+    "constantValue" : "$system"
+  }, {
+    "name" : "USER_ID_METADATA_DEFAULTS_VERSION",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.USER_ID_METADATA_DEFAULTS_VERSION",
+    "type" : "java.time.LocalDate",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "USE_USER_ID_METADATA_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.USE_USER_ID_METADATA_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Property that explicitly selects whether user metadata contains user IDs instead of serialized user objects.\n",
+    "constantValue" : "fluxzero.auth.useUserIdMetadata"
   }, {
     "name" : "metadataKey",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.metadataKey",
@@ -33,6 +54,14 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.userClass",
     "type" : "java.lang.Class<? extends io.fluxzero.sdk.tracking.handling.authentication.User>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "userMetadataConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.userMetadataConfiguration",
+    "type" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.UserMetadataConfiguration",
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -52,6 +81,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs an {@code AbstractUserProvider} using the default metadata key {@link #DEFAULT_USER_KEY}.\n\n @param userClass the concrete user class this provider resolves\n"
+  }, {
+    "name" : "AbstractUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider#AbstractUserProvider",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadataKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "userClass",
+      "type" : "java.lang.Class<? extends io.fluxzero.sdk.tracking.handling.authentication.User>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs an {@code AbstractUserProvider} using a custom metadata key.\n\n @param metadataKey the key that stores the user or user ID\n @param userClass   the concrete user class this provider resolves\n"
   } ],
   "methods" : [ {
     "name" : "addToMetadata",
@@ -81,7 +130,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Adds a {@link User} to the metadata using the configured key.\n\n @param metadata the original metadata\n @param user     the user to add\n @param ifAbsent whether to only add the user if it is not already present\n @return updated metadata including the user\n"
+    "documentation" : " Adds a {@link User} to the metadata using the configured key. Compatibility defaults serialize the complete user;\n new defaults store {@link User#getName()} so the receiving provider can resolve a regular user by ID, or\n {@link #SYSTEM_USER_ID} when {@link #isSystemUser(User)} identifies the user as the system user.\n\n @param metadata the original metadata\n @param user     the user to add\n @param ifAbsent whether to only add the user if it is not already present\n @return updated metadata including the user\n @throws IllegalArgumentException if a regular user has the reserved name {@link #SYSTEM_USER_ID}\n"
   }, {
     "name" : "containsUser",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider#containsUser",
@@ -119,7 +168,23 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Extracts a {@link User} from the metadata of a message.\n <p>\n Uses the configured {@code metadataKey} to locate the user in the metadata of the given message.\n\n @param message the message containing metadata\n @return the resolved {@link User}, or {@code null} if not found\n"
+    "documentation" : " Extracts a {@link User} from the metadata of a message.\n <p>\n Uses the configured {@code metadataKey} to locate the user in the metadata of the given message. Compatibility\n defaults only accept a serialized user object. New defaults also accept user IDs while continuing to deserialize\n user objects written before migration. IDs are resolved through {@link #getUserById(Object)}, except for\n {@link #SYSTEM_USER_ID}, which resolves through {@link #getSystemUser()}.\n\n @param message the message containing metadata\n @return the resolved {@link User}, or {@code null} if not found\n"
+  }, {
+    "name" : "isSystemUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider#isSystemUser",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether a user should be represented by {@link #SYSTEM_USER_ID} in metadata.\n <p>\n The default implementation checks whether the supplied user is the same instance as {@link #getSystemUser()}.\n Providers whose system user is not a stable instance may override this method with their own identity check.\n\n @param user the non-null user being added to metadata\n @return {@code true} if the user represents the system identity\n"
   }, {
     "name" : "removeFromMetadata",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider#removeFromMetadata",
@@ -139,8 +204,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Removes the user entry from the metadata.\n\n @param metadata the original metadata\n @return a new {@link Metadata} instance without the user entry\n"
+  }, {
+    "name" : "useUserIdMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider#useUserIdMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "UserMetadataConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

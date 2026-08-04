@@ -230,6 +230,32 @@
     "qualifiedName" : "io.fluxzero.common.api.Metadata#get",
     "returnType" : "T",
     "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stringMapper",
+      "type" : "java.util.function.Function<java.lang.String,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves an object value or maps a raw string value to the requested type.\n <p>\n Values enclosed by matching object or array delimiters are first deserialized using this metadata instance's\n object mapper. If such a value is not syntactically valid JSON, or if it is not enclosed by those delimiters, it\n is passed to {@code stringMapper}. A mapping failure for valid JSON remains a deserialization error. Missing and\n explicitly null values return {@code null}.\n\n @param key          the key whose value should be retrieved\n @param type         the object type to deserialize\n @param stringMapper maps a raw string value to the requested type\n @param <T>          the requested type\n @return the deserialized or mapped value, or {@code null} if the value is missing or explicitly null\n @throws IllegalStateException if a valid JSON value cannot be mapped to the requested type\n"
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#get",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
       "values" : {
@@ -383,6 +409,22 @@
     "varArgs" : false,
     "documentation" : " Retrieves a map containing only the entries from the metadata whose keys start with the prefix \"$trace.\".\n\n @return a map of trace-specific entries where keys start with \"$trace.\"\n"
   }, {
+    "name" : "hasObjectEncoding",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#hasObjectEncoding",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "of",
     "qualifiedName" : "io.fluxzero.common.api.Metadata#of",
     "returnType" : "io.fluxzero.common.api.Metadata",
@@ -435,6 +477,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a new instance of {@code Metadata} populated with the given map.\n\n @param map the map containing key-value pairs to populate the metadata. The keys and values are expected to be\n            convertible to strings.\n @return a new {@code Metadata} instance containing the key-value pairs from the provided map.\n"
+  }, {
+    "name" : "skipWhitespace",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#skipWhitespace",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.api.Metadata#toString",
