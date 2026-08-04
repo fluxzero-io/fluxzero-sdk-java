@@ -193,6 +193,7 @@ public class FluxzeroSpringConfigTest {
         assertRegisteredAsPrototype(ScannedModel.class);
         assertRegisteredAsPrototype(ScannedModelCommand.class);
         assertRegisteredAsPrototype(SuppressedScannedModelCommand.class);
+        assertRegisteredAsPrototype(DynamicScannedModelCommand.class);
         assertThrows(NoSuchBeanDefinitionException.class,
                      () -> beanFactory.getBean(ScannedModelCommand.class));
         assertThrows(NoSuchBeanDefinitionException.class,
@@ -211,6 +212,14 @@ public class FluxzeroSpringConfigTest {
         assertTrue(fluxzero.modelRepository()
                 .load("suppressed", ScannedModel.class)
                 .isEmpty());
+
+        assertNull(fluxzero.commandGateway().sendAndWait(
+                new DynamicScannedModelCommand("dynamic-scanned")));
+        assertEquals(
+                new ScannedModel("dynamic-scanned", "created"),
+                fluxzero.modelRepository()
+                        .load("dynamic-scanned", ScannedModel.class)
+                        .get());
     }
 
     @Test
@@ -537,6 +546,14 @@ public class FluxzeroSpringConfigTest {
         @InterceptApply
         ScannedModelCommand suppress() {
             return null;
+        }
+    }
+
+    @Component
+    record DynamicScannedModelCommand(String id) {
+        @InterceptApply
+        List<?> expand() {
+            return List.of(new ScannedModelCommand(id));
         }
     }
 
