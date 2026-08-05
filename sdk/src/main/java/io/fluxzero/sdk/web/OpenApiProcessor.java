@@ -938,15 +938,21 @@ public class OpenApiProcessor extends AbstractProcessor {
             messager.printMessage(Diagnostic.Kind.ERROR,
                                   "Conflicting modelGraphPaths selections for " + rootName);
         }
-        ObjectNode result = schemaContext.ref(root, new LinkedHashSet<>(), true);
-        result.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, rootName);
-        if (!paths.isEmpty()) {
-            ArrayNode pathMarker = result.putArray(OpenApiRenderer.MODEL_GRAPH_PATHS_EXTENSION);
-            paths.forEach(pathMarker::add);
+        schemaContext.markModelGraphTypes = true;
+        try {
+            schemaContext.prepareModelGraph(root);
+            ObjectNode result = schemaContext.ref(root, new LinkedHashSet<>(), true);
+            result.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, binaryName(root));
+            if (!paths.isEmpty()) {
+                ArrayNode pathMarker = result.putArray(OpenApiRenderer.MODEL_GRAPH_PATHS_EXTENSION);
+                paths.forEach(pathMarker::add);
+            }
+            schemaContext.markType(root);
+            addModelGraphChildren(root, "", paths, schemaContext, new LinkedHashSet<>());
+            return result;
+        } finally {
+            schemaContext.markModelGraphTypes = false;
         }
-        schemaContext.markType(root);
-        addModelGraphChildren(root, "", paths, schemaContext, new LinkedHashSet<>());
-        return result;
     }
 
     private void addModelGraphChildren(TypeElement parentType, String parentPath, List<String> selectedPaths,
@@ -2082,6 +2088,10 @@ public class OpenApiProcessor extends AbstractProcessor {
         return type.getQualifiedName().toString();
     }
 
+    private String binaryName(TypeElement type) {
+        return elements.getBinaryName(type).toString();
+    }
+
     private String simplePackageName(PackageElement packageElement) {
         String qualifiedName = packageElement == null ? "" : packageElement.getQualifiedName().toString();
         int dot = qualifiedName.lastIndexOf('.');
@@ -2405,8 +2415,10 @@ public class OpenApiProcessor extends AbstractProcessor {
         private final Map<String, ObjectNode> schemas = new LinkedHashMap<>();
         private final Set<String> responseSchemas = new LinkedHashSet<>();
         private final Set<String> expandedModelGraphs = new LinkedHashSet<>();
+        private final Set<String> preparedModelGraphs = new LinkedHashSet<>();
         private final Map<String, List<String>> modelGraphSelections = new LinkedHashMap<>();
         private final String openApiVersion;
+        private boolean markModelGraphTypes;
 
         SchemaContext(String openApiVersion) {
             this.openApiVersion = openApiVersion;
@@ -2424,6 +2436,9 @@ public class OpenApiProcessor extends AbstractProcessor {
                 placeholder.setAll(objectSchema(type, visiting, this, responseSchema));
             }
             names.putIfAbsent(qualifiedName, name);
+            if (markModelGraphTypes) {
+                markType(type);
+            }
             return object().put("$ref", "#/components/schemas/" + name);
         }
 
@@ -2438,10 +2453,17 @@ public class OpenApiProcessor extends AbstractProcessor {
             return openApiVersion;
         }
 
+        void prepareModelGraph(TypeElement root) {
+            String rootName = qualifiedName(root);
+            if (preparedModelGraphs.add(rootName)) {
+                responseSchemas.remove(name(root));
+            }
+        }
+
         void markType(TypeElement type) {
             ObjectNode schema = schemas.get(name(type));
             if (schema != null) {
-                schema.put(OpenApiRenderer.JAVA_TYPE_EXTENSION, qualifiedName(type));
+                schema.put(OpenApiRenderer.JAVA_TYPE_EXTENSION, binaryName(type));
             }
         }
 

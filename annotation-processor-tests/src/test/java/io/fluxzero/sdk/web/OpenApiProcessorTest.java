@@ -173,6 +173,9 @@ class OpenApiProcessorTest {
         assertEquals("array", connections.path("type").asText());
         assertEquals("Location connections", connections.path("description").asText());
         assertEquals("#/components/schemas/ProcessorConnection", connections.path("items").path("$ref").asText());
+        assertEquals(ProcessorOrganisationInfo.class.getName(),
+                     graphSchemas.path("ProcessorOrganisationInfo")
+                             .path(OpenApiRenderer.JAVA_TYPE_EXTENSION).asText());
         JsonNode selectedSchemas = document.path("components").path("schemas");
         assertTrue(selectedSchemas.path("SelectedRoot").path("properties").has("children"));
         assertTrue(selectedSchemas.path("SelectedChild").path("properties").has("leaves"));
@@ -350,7 +353,10 @@ class OpenApiProcessorTest {
     }
 
     @Model
-    record ProcessorOrganisation(@EntityId String id, String name) {
+    record ProcessorOrganisation(@EntityId String id, String name, ProcessorOrganisationInfo info) {
+    }
+
+    record ProcessorOrganisationInfo(String name) {
     }
 
     static class ProcessorOrganisationId extends Id<ProcessorOrganisation> {
