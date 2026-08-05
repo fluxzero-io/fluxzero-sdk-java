@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
@@ -44,6 +45,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 
@@ -96,6 +98,8 @@ final class ModelCacheTracker implements AutoCloseable {
     private final AtomicBoolean refreshRequested =
             new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicReference<Fluxzero> application =
+            new AtomicReference<>();
     private final Object startMonitor = new Object();
     private final Object trackMonitor = new Object();
     private final Registration evictionRegistration;
@@ -623,6 +627,11 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     private boolean start() {
+        if (application.get() == null) {
+            Fluxzero.getOptionally().ifPresent(
+                    current -> application.compareAndSet(
+                            null, current));
+        }
         if (started.get()) {
             return healthy && !unsupported && !closed.get();
         }
@@ -990,11 +999,9 @@ final class ModelCacheTracker implements AutoCloseable {
             }
             if (!targets.isEmpty()) {
                 REFRESHED_TARGETS.add(targets.size());
-                RefreshedBatch refreshed =
-                        refresher.refresh(
-                                Map.copyOf(
-                                        targets),
-                                refreshBoundary);
+                RefreshedBatch refreshed = refresh(
+                        Map.copyOf(targets),
+                        refreshBoundary);
                 if (refreshed.readStateIndex()
                     > refreshBoundary) {
                     throw new IllegalStateException(
@@ -1046,6 +1053,19 @@ final class ModelCacheTracker implements AutoCloseable {
                 scheduleRefresh();
             }
         }
+    }
+
+    private RefreshedBatch refresh(
+            Map<String, Class<?>> targets,
+            long refreshBoundary) {
+        Fluxzero current = application.get();
+        return current == null
+                ? refresher.refresh(
+                        targets, refreshBoundary)
+                : current.apply(ignored ->
+                        refresher.refresh(
+                                targets,
+                                refreshBoundary));
     }
 
     @Override

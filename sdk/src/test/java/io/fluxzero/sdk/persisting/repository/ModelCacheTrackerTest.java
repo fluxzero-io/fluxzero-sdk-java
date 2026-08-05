@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -286,6 +288,9 @@ class ModelCacheTrackerTest {
         cache.put("sample-1", before);
         CountDownLatch refreshed = new CountDownLatch(1);
         AtomicInteger refreshCount = new AtomicInteger();
+        Fluxzero application =
+                mock(Fluxzero.class, CALLS_REAL_METHODS);
+        Fluxzero.instance.set(application);
         try (ModelCacheTracker tracker =
                      new ModelCacheTracker(
                              eventStore, cache,
@@ -302,6 +307,9 @@ class ModelCacheTrackerTest {
                                          before,
                                          cache.get(
                                                  "sample-1"));
+                                 assertSame(
+                                         application,
+                                         Fluxzero.get());
                                  cache.put(
                                          "sample-1",
                                          after);
@@ -361,6 +369,7 @@ class ModelCacheTrackerTest {
                             "sample-1",
                             SampleModel.class));
         } finally {
+            Fluxzero.instance.remove();
             cache.close();
         }
     }
