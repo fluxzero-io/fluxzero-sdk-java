@@ -25,7 +25,8 @@ import java.lang.annotation.Target;
  * Adds an explicit response entry to generated API documentation.
  * <p>
  * Handler return types are inferred automatically. Use this annotation for additional status codes, error responses,
- * or response descriptions that cannot be derived from the method signature.
+ * response descriptions that cannot be derived from the method signature, or a composed independent-model graph
+ * whose runtime representation is an untyped JSON tree.
  * </p>
  *
  * @see ApiDoc
@@ -51,8 +52,9 @@ public @interface ApiDocResponse {
      * Optional reusable response reference.
      * <p>
      * A bare value such as {@code error} is resolved to {@code #/components/responses/error}. A value starting with
-     * {@code #/} is used as-is. When set, {@link #description()}, {@link #type()}, and {@link #contentType()} are
-     * ignored because OpenAPI Reference Objects cannot have response-object siblings in OpenAPI 3.0.
+     * {@code #/} is used as-is. When set, {@link #description()}, {@link #type()}, {@link #modelGraph()}, and
+     * {@link #contentType()} are ignored because OpenAPI Reference Objects cannot have response-object siblings in
+     * OpenAPI 3.0.
      */
     String ref() default "";
 
@@ -60,6 +62,17 @@ public @interface ApiDocResponse {
      * Optional response body type. {@code Void.class} means no explicit type was provided.
      */
     Class<?> type() default Void.class;
+
+    /**
+     * Optional root model of a composed independent-model graph response.
+     * <p>
+     * Use this when a handler returns a {@code JsonNode} (or another untyped JSON representation) produced from a
+     * model graph. The generated schema starts with this model and follows child relationships that declare both a
+     * {@link io.fluxzero.sdk.modeling.ParentId#path() ParentId path} and optional relationship documentation through
+     * {@link io.fluxzero.sdk.modeling.ParentId#apiDoc() ParentId.apiDoc}. This option is mutually exclusive with
+     * {@link #type()}.
+     */
+    Class<?> modelGraph() default Void.class;
 
     /**
      * Optional response content type.

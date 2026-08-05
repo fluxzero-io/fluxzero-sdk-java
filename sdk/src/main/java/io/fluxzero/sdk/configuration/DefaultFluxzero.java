@@ -1161,6 +1161,10 @@ public class DefaultFluxzero implements Fluxzero {
                             handlerFactory.withFallback(
                                     modelCommitHandlerRegistry);
                         }
+                        if (m == WEBREQUEST) {
+                            handlerFactory.withModelGraphTypes(
+                                    modelCommitHandlerRegistry::registeredModelTypes);
+                        }
                         return new DefaultTracking(
                                 m,
                                 m == WEBREQUEST
@@ -1519,11 +1523,16 @@ public class DefaultFluxzero implements Fluxzero {
                                                        Map<MessageType, DispatchInterceptor> dispatchInterceptors,
                                                        Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
                                                        RepositoryProvider repositoryProvider) {
-            var result = new LocalHandlerRegistry(new DefaultHandlerFactory(
+            DefaultHandlerFactory handlerFactory = new DefaultHandlerFactory(
                     messageType, handlerDecorators.get(messageType), parameterResolvers,
                     methodInvocationValidator(messageType),
                     handlerRepositorySupplier, repositoryProvider,
-                    !disableTrackingMetrics, this.serializer), dispatchInterceptors.get(messageType));
+                    !disableTrackingMetrics, this.serializer);
+            if (messageType == WEBREQUEST) {
+                handlerFactory.withModelGraphTypes(
+                        modelCommitHandlerRegistry::registeredModelTypes);
+            }
+            var result = new LocalHandlerRegistry(handlerFactory, dispatchInterceptors.get(messageType));
             if (messageType == EVENT) {
                 return result.andThen(new LocalHandlerRegistry(new DefaultHandlerFactory(
                         NOTIFICATION, handlerDecorators.get(EVENT), parameterResolvers,

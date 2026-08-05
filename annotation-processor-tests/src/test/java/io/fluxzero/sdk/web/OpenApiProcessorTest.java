@@ -16,6 +16,10 @@ package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ParentId;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -141,6 +145,21 @@ class OpenApiProcessorTest {
                 .path("schema").path("properties");
         assertEquals("binary", multipart.path("file").path("format").asText());
         assertTrue(upload.path("responses").has("204"));
+
+        JsonNode graphSchema = paths.path("/processor/model-graphs/{id}").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("#/components/schemas/ProcessorOrganisation", graphSchema.path("$ref").asText());
+        JsonNode graphSchemas = document.path("components").path("schemas");
+        JsonNode locations = graphSchemas.path("ProcessorOrganisation").path("properties").path("locations");
+        assertEquals("array", locations.path("type").asText());
+        assertEquals("Organisation locations", locations.path("description").asText());
+        assertEquals("#/components/schemas/ProcessorLocation", locations.path("items").path("$ref").asText());
+        assertTrue(contains(graphSchemas.path("ProcessorOrganisation").path("required"), "locations"));
+        JsonNode connections = graphSchemas.path("ProcessorLocation").path("properties")
+                .path("assets").path("properties").path("connections");
+        assertEquals("array", connections.path("type").asText());
+        assertEquals("Location connections", connections.path("description").asText());
+        assertEquals("#/components/schemas/ProcessorConnection", connections.path("items").path("$ref").asText());
     }
 
     @ApiDocInfo(
@@ -193,6 +212,13 @@ class OpenApiProcessorTest {
 
         @HandleGet("/lombok")
         LombokDto lombok() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
+        @HandleGet("/model-graphs/{id}")
+        JsonNode modelGraph(@PathParam("id") String id) {
             return null;
         }
 
@@ -282,6 +308,33 @@ class OpenApiProcessorTest {
     static class JsonValueId {
         @com.fasterxml.jackson.annotation.JsonValue
         String value;
+    }
+
+    @Model
+    record ProcessorOrganisation(@EntityId String id, String name) {
+    }
+
+    static class ProcessorOrganisationId extends Id<ProcessorOrganisation> {
+        ProcessorOrganisationId(String id) {
+            super(id);
+        }
+    }
+
+    @Model
+    record ProcessorLocation(
+            @EntityId String id,
+            @ParentId(path = "locations",
+                    apiDoc = @ApiDoc(description = "Organisation locations", required = true,
+                            type = "object"))
+            ProcessorOrganisationId organisationId) {
+    }
+
+    @Model
+    record ProcessorConnection(
+            @EntityId String id,
+            @ParentId(value = ProcessorLocation.class, path = "assets/connections",
+                    apiDoc = @ApiDoc(description = "Location connections"))
+            String locationId) {
     }
 
     @lombok.Value

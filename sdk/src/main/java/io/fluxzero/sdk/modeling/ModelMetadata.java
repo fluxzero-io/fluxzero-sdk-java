@@ -25,6 +25,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.Association;
+import io.fluxzero.sdk.web.ApiDoc;
 
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
@@ -328,7 +329,8 @@ public final class ModelMetadata {
                 throw invalid("@ParentId path '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
                                       .formatted(path, type.getName(), parentProperty.property().name()));
             }
-            result.add(new ParentReference(parentProperty.property(), path, parentModelType));
+            result.add(new ParentReference(
+                    parentProperty.property(), path, parentModelType, annotation.apiDoc()));
         }
         return List.copyOf(result);
     }
@@ -708,8 +710,9 @@ public final class ModelMetadata {
      *
      * @param path            optional parent-relative automatic composition path
      * @param parentModelType inferred or explicitly declared parent model type, or {@code null} for an untyped ID
+     * @param apiDoc          optional documentation for the list-valued automatic composition path
      */
-    public record ParentReference(Property property, String path, Class<?> parentModelType) {
+    public record ParentReference(Property property, String path, Class<?> parentModelType, ApiDoc apiDoc) {
         public Object read(Object target) {
             return property.read(target);
         }

@@ -2431,6 +2431,35 @@ disabling the runtime endpoint or model. Use `@ApiDocInfo.security` for top-leve
 `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI components such as reusable responses or
 security schemes when automatic inference is not enough.
 
+Independent-model graphs can be documented even when their runtime representation is a `JsonNode`. Select the graph
+root on the response and document each list-valued graph edge next to its canonical parent path:
+
+```java
+@ApiDoc
+@HandleGet("/organisations/{id}")
+@ApiDocResponse(status = 200, modelGraph = Organisation.class)
+JsonNode getOrganisation(@PathParam String id) {
+    return loadOrganisationGraph(id);
+}
+
+@Model
+record Location(
+        @EntityId String id,
+        @ParentId(
+                value = Organisation.class,
+                path = "locations",
+                apiDoc = @ApiDoc(
+                        description = "Locations belonging to the organisation",
+                        required = true))
+        String organisationId) {
+}
+```
+
+The root schema is inferred from `Organisation`; the `locations` property is rendered as a list of `Location` items.
+Slash-separated paths create nested objects before the final list property, and descendants are followed recursively.
+`ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
+metadata with the model types registered in the current application, so child models may live in another Maven module.
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:

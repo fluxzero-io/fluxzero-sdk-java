@@ -178,9 +178,14 @@ public final class ApiDocExtractor {
 
     private static void addResponses(Map<Integer, ApiDocResponseDescriptor> target, ApiDocResponse[] responses) {
         for (ApiDocResponse response : responses) {
+            if (isBlank(response.ref())
+                && !Void.class.equals(response.type()) && !Void.class.equals(response.modelGraph())) {
+                throw new IllegalArgumentException(
+                        "@ApiDocResponse may declare either type or modelGraph, but not both");
+            }
             target.put(response.status(),
                        new ApiDocResponseDescriptor(response.status(), response.description(), response.ref(),
-                                                    response.type(), response.contentType()));
+                                                    response.type(), response.modelGraph(), response.contentType()));
         }
     }
 

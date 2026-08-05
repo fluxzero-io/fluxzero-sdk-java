@@ -16,6 +16,8 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.web.ApiDoc;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -39,6 +41,8 @@ import java.lang.annotation.Target;
  * collection: the runtime appends deterministic numeric child positions, so numeric path segments are not allowed.
  * Graph placement is independent from {@link Model#searchable()}: a non-searchable child with an explicit path is
  * retained in a private current-document collection for composition, but is not exposed through its own collection.
+ * {@link #apiDoc()} optionally describes the list-valued property created at that path when the graph is used as a
+ * documented web response. It has no effect unless {@link #path()} is set.
  * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
  *
@@ -59,4 +63,14 @@ public @interface ParentId {
      * Optional slash-separated, non-reserved collection path relative to the parent document.
      */
     String path() default "";
+
+    /**
+     * Optional API documentation for the list-valued graph property at {@link #path()}.
+     * <p>
+     * The child item schema is inferred from the model that declares this parent reference. Nested path segments are
+     * represented as objects, while the final path segment is represented as an array of child models. Structural
+     * {@link ApiDoc} hints such as {@link ApiDoc#type()}, {@link ApiDoc#format()}, and {@link ApiDoc#implementation()}
+     * cannot override that inferred array and child type.
+     */
+    ApiDoc apiDoc() default @ApiDoc;
 }

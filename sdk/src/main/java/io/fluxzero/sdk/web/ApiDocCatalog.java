@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.web;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -23,8 +24,23 @@ import java.util.List;
  * documentation format.
  * </p>
  */
-public record ApiDocCatalog(List<ApiDocEndpoint> endpoints) {
+public record ApiDocCatalog(List<ApiDocEndpoint> endpoints, List<Class<?>> modelTypes) {
+    /**
+     * Creates a catalog without an independent-model type registry.
+     */
+    public ApiDocCatalog(List<ApiDocEndpoint> endpoints) {
+        this(endpoints, List.of());
+    }
+
+    /**
+     * Creates a catalog with the model types available for composing documented model-graph response schemas.
+     */
+    public ApiDocCatalog(List<ApiDocEndpoint> endpoints, Collection<Class<?>> modelTypes) {
+        this(endpoints, List.copyOf(modelTypes));
+    }
+
     public ApiDocCatalog {
         endpoints = List.copyOf(endpoints);
+        modelTypes = List.copyOf(modelTypes);
     }
 }

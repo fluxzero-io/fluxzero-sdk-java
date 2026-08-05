@@ -192,6 +192,9 @@ public class OpenApiProcessor extends AbstractProcessor {
     static final String API_DOC_RESPONSE = "io.fluxzero.sdk.web.ApiDocResponse";
     static final String API_DOC_RESPONSES = "io.fluxzero.sdk.web.ApiDocResponses";
     static final String API_DOC_EXCLUDE = "io.fluxzero.sdk.web.ApiDocExclude";
+    static final String MODEL = "io.fluxzero.sdk.modeling.Model";
+    static final String PARENT_ID = "io.fluxzero.sdk.modeling.ParentId";
+    static final String MODEL_ID = "io.fluxzero.sdk.modeling.Id";
     static final String SWAGGER_SCHEMA = "io.swagger.v3.oas.annotations.media.Schema";
     static final String SWAGGER_ARRAY_SCHEMA = "io.swagger.v3.oas.annotations.media.ArraySchema";
     static final String SWAGGER_HIDDEN = "io.swagger.v3.oas.annotations.Hidden";
@@ -213,6 +216,7 @@ public class OpenApiProcessor extends AbstractProcessor {
     );
 
     private final List<Endpoint> endpoints = new ArrayList<>();
+    private final List<ModelGraphRelation> modelGraphRelations = new ArrayList<>();
     private final Set<String> visitedTypes = new LinkedHashSet<>();
 
     private Filer filer;
@@ -260,6 +264,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (!qualifiedName.isBlank() && !visitedTypes.add(qualifiedName)) {
             return;
         }
+        scanModelGraphRelations(type);
         for (Element enclosed : type.getEnclosedElements()) {
             if (enclosed instanceof TypeElement nested) {
                 scanType(nested);
@@ -267,6 +272,60 @@ public class OpenApiProcessor extends AbstractProcessor {
                        && enclosed.getKind() == ElementKind.METHOD) {
                 scanMethod(type, executable);
             }
+        }
+    }
+
+    private void scanModelGraphRelations(TypeElement childType) {
+        if (findAnnotation(childType, MODEL) == null) {
+            return;
+        }
+        for (Element member : elements.getAllMembers(childType)) {
+            if (!(member.getKind() == ElementKind.FIELD || member.getKind() == ElementKind.METHOD)) {
+                continue;
+            }
+            AnnotationMirror parentId = findAnnotation(member, PARENT_ID);
+            if (parentId == null) {
+                continue;
+            }
+            Map<String, AnnotationValue> values = annotationValues(parentId);
+            String path = stringValue(values.get("path"));
+            if (isBlank(path)) {
+                continue;
+            }
+            TypeMirror explicitParent = typeValue(values.get("value"));
+            TypeMirror parentType = isNoResponseType(explicitParent)
+                    ? inferModelIdType(memberType(member), new LinkedHashSet<>()).orElse(null)
+                    : explicitParent;
+            if (parentType == null) {
+                continue;
+            }
+            modelGraphRelations.add(new ModelGraphRelation(
+                    childType, parentType, path, annotationMirror(values.get("apiDoc"))));
+        }
+    }
+
+    private TypeMirror memberType(Element member) {
+        return member instanceof ExecutableElement method ? method.getReturnType() : member.asType();
+    }
+
+    private Optional<TypeMirror> inferModelIdType(TypeMirror type, Set<String> visiting) {
+        if (type == null || type.getKind().isPrimitive() || !visiting.add(type.toString())) {
+            return Optional.empty();
+        }
+        try {
+            if (type instanceof DeclaredType declared && isSameErasure(type, MODEL_ID)
+                && !declared.getTypeArguments().isEmpty()) {
+                return Optional.of(declared.getTypeArguments().getFirst());
+            }
+            for (TypeMirror superType : types.directSupertypes(type)) {
+                Optional<TypeMirror> result = inferModelIdType(superType, visiting);
+                if (result.isPresent()) {
+                    return result;
+                }
+            }
+            return Optional.empty();
+        } finally {
+            visiting.remove(type.toString());
         }
     }
 
@@ -468,11 +527,20 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private Response response(AnnotationMirror annotation) {
         Map<String, AnnotationValue> values = annotationValues(annotation);
+        TypeMirror type = typeValue(values.get("type"));
+        TypeMirror modelGraph = typeValue(values.get("modelGraph"));
+        if (isBlank(stringValue(values.get("ref")))
+            && !isNoResponseType(type) && !isNoResponseType(modelGraph)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                                  "@ApiDocResponse may declare either type or modelGraph, but not both",
+                                  annotation.getAnnotationType().asElement());
+        }
         return new Response(
                 intValue(values.get("status")),
                 stringValue(values.get("description")),
                 stringValue(values.get("ref")),
-                typeValue(values.get("type")),
+                type,
+                modelGraph,
                 stringValue(values.get("contentType")));
     }
 
@@ -820,13 +888,169 @@ public class OpenApiProcessor extends AbstractProcessor {
             response.put("description", isBlank(descriptor.description())
                     ? defaultDescription(descriptor.status()) : descriptor.description());
         }
-        if (!isNoResponseType(descriptor.type())) {
+        if (!isNoResponseType(descriptor.modelGraph())) {
+            addContent(response,
+                       isBlank(descriptor.contentType()) ? "application/json" : descriptor.contentType(),
+                       modelGraphSchema(descriptor.modelGraph(), schemaContext));
+        } else if (!isNoResponseType(descriptor.type())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? inferMediaType(descriptor.type())
                                : descriptor.contentType(),
                        responseSchema(descriptor.type(), schemaContext));
         }
         return response;
+    }
+
+    private ObjectNode modelGraphSchema(TypeMirror rootType, SchemaContext schemaContext) {
+        TypeElement root = asTypeElement(rootType);
+        if (root == null || findAnnotation(root, MODEL) == null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                                  "@ApiDocResponse.modelGraph must refer to an @Model type, but found " + rootType);
+            return object().put("type", "object");
+        }
+        ObjectNode result = schemaContext.ref(root, new LinkedHashSet<>(), true);
+        result.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, qualifiedName(root));
+        schemaContext.markType(root);
+        addModelGraphChildren(root, schemaContext, new LinkedHashSet<>());
+        return result;
+    }
+
+    private void addModelGraphChildren(TypeElement parentType, SchemaContext schemaContext, Set<String> visiting) {
+        String parentName = qualifiedName(parentType);
+        if (!visiting.add(parentName)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                                  "Documented model graph contains a parent cycle at " + parentName);
+            return;
+        }
+        if (!schemaContext.expandedModelGraphs.add(parentName)) {
+            visiting.remove(parentName);
+            return;
+        }
+        try {
+            Map<String, List<ModelGraphRelation>> byPath = new LinkedHashMap<>();
+            modelGraphRelations.stream()
+                    .filter(relation -> types.isSameType(types.erasure(relation.parentType()),
+                                                         types.erasure(parentType.asType())))
+                    .forEach(relation -> byPath.computeIfAbsent(relation.path(), ignored -> new ArrayList<>())
+                            .add(relation));
+            if (byPath.isEmpty()) {
+                return;
+            }
+            ObjectNode parentSchema = schemaContext.schemas.get(schemaContext.name(parentType));
+            byPath.forEach((path, relations) -> {
+                AnnotationMirror apiDoc = commonApiDoc(path, parentType, relations);
+                List<TypeElement> childTypes = relations.stream().map(ModelGraphRelation::childType)
+                        .collect(java.util.stream.Collectors.toMap(
+                                this::qualifiedName, type -> type, (first, ignored) -> first,
+                                LinkedHashMap::new)).values().stream().toList();
+                ObjectNode items;
+                if (childTypes.size() == 1) {
+                    TypeElement childType = childTypes.getFirst();
+                    items = schemaContext.ref(childType, new LinkedHashSet<>(), true);
+                    schemaContext.markType(childType);
+                    addModelGraphChildren(childType, schemaContext, visiting);
+                } else {
+                    items = object();
+                    ArrayNode oneOf = items.putArray("oneOf");
+                    childTypes.forEach(childType -> {
+                        oneOf.add(schemaContext.ref(childType, new LinkedHashSet<>(), true));
+                        schemaContext.markType(childType);
+                        addModelGraphChildren(childType, schemaContext, visiting);
+                    });
+                }
+                ObjectNode property = object().set("items", items);
+                SchemaMetadata metadata = metadata(apiDoc);
+                applySchemaMetadata(property, arrayMetadata(metadata), schemaContext);
+                putGraphPath(parentSchema, path, property, metadata.required());
+            });
+        } finally {
+            visiting.remove(parentName);
+        }
+    }
+
+    private AnnotationMirror commonApiDoc(String path, TypeElement parentType, List<ModelGraphRelation> relations) {
+        AnnotationMirror first = relations.getFirst().apiDoc();
+        String firstValue = first == null ? "" : annotationValues(first).toString();
+        if (relations.stream().map(ModelGraphRelation::apiDoc)
+                .map(value -> value == null ? "" : annotationValues(value).toString())
+                .anyMatch(value -> !firstValue.equals(value))) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                                  "Conflicting @ParentId.apiDoc declarations for graph path '%s' below %s"
+                                          .formatted(path, qualifiedName(parentType)));
+        }
+        return first;
+    }
+
+    private SchemaMetadata arrayMetadata(SchemaMetadata metadata) {
+        return new SchemaMetadata(
+                metadata.description(), "array", "", metadata.example(), metadata.defaultValue(),
+                metadata.minimum(), metadata.maximum(), metadata.minSize(), metadata.maxSize(),
+                metadata.uniqueItems(), metadata.pattern(), metadata.allowableValues(), metadata.required(),
+                metadata.deprecated(), metadata.hidden(), null);
+    }
+
+    private void putGraphPath(ObjectNode schema, String path, ObjectNode property, boolean required) {
+        ObjectNode current = graphObjectSchema(schema);
+        String[] segments = path.split("/");
+        for (int i = 0; i < segments.length - 1; i++) {
+            ObjectNode properties = current.withObject("/properties");
+            JsonNode existing = properties.get(segments[i]);
+            if (existing == null) {
+                current = object().put("type", "object");
+                properties.set(segments[i], current);
+            } else if (existing instanceof ObjectNode objectNode) {
+                current = graphObjectSchema(objectNode);
+            } else {
+                messager.printMessage(Diagnostic.Kind.ERROR, "Graph documentation path collides at " + path);
+                return;
+            }
+        }
+        ObjectNode properties = current.withObject("/properties");
+        String propertyName = segments[segments.length - 1];
+        if (properties.has(propertyName)) {
+            messager.printMessage(Diagnostic.Kind.ERROR, "Graph documentation path collides at " + path);
+            return;
+        }
+        properties.set(propertyName, property);
+        if (required) {
+            ArrayNode requiredProperties = current.withArray("/required");
+            if (!contains(requiredProperties, propertyName)) {
+                requiredProperties.add(propertyName);
+            }
+        }
+    }
+
+    private ObjectNode graphObjectSchema(ObjectNode schema) {
+        if (schema.has("properties") || !schema.has("allOf")) {
+            if (!schema.has("type") && !schema.has("allOf")) {
+                schema.put("type", "object");
+            }
+            return schema;
+        }
+        ArrayNode allOf = schema.withArray("/allOf");
+        for (JsonNode entry : allOf) {
+            if (entry instanceof ObjectNode objectNode && !objectNode.has("$ref")) {
+                return objectNode;
+            }
+        }
+        ObjectNode extension = object().put("type", "object");
+        allOf.add(extension);
+        return extension;
+    }
+
+    private boolean contains(ArrayNode values, String value) {
+        for (JsonNode item : values) {
+            if (value.equals(item.asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private SchemaMetadata metadata(AnnotationMirror annotation) {
+        SchemaMetadataBuilder builder = new SchemaMetadataBuilder();
+        builder.apply(annotation);
+        return builder.build();
     }
 
     private void addContent(ObjectNode target, String mediaType, ObjectNode schema) {
@@ -1878,7 +2102,12 @@ public class OpenApiProcessor extends AbstractProcessor {
     private record BodyInfo(String name, TypeMirror type, VariableElement element) {
     }
 
-    private record Response(int status, String description, String ref, TypeMirror type, String contentType) {
+    private record Response(
+            int status, String description, String ref, TypeMirror type, TypeMirror modelGraph, String contentType) {
+    }
+
+    private record ModelGraphRelation(
+            TypeElement childType, TypeMirror parentType, String path, AnnotationMirror apiDoc) {
     }
 
     private record Documentation(
@@ -2107,6 +2336,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         private final Map<String, String> names = new LinkedHashMap<>();
         private final Map<String, ObjectNode> schemas = new LinkedHashMap<>();
         private final Set<String> responseSchemas = new LinkedHashSet<>();
+        private final Set<String> expandedModelGraphs = new LinkedHashSet<>();
         private final String openApiVersion;
 
         SchemaContext(String openApiVersion) {
@@ -2137,6 +2367,13 @@ public class OpenApiProcessor extends AbstractProcessor {
 
         String openApiVersion() {
             return openApiVersion;
+        }
+
+        void markType(TypeElement type) {
+            ObjectNode schema = schemas.get(name(type));
+            if (schema != null) {
+                schema.put(OpenApiRenderer.JAVA_TYPE_EXTENSION, qualifiedName(type));
+            }
         }
 
         private String name(TypeElement type) {

@@ -24,6 +24,14 @@ public record ApiDocResponseDescriptor(
         String description,
         String ref,
         Type type,
+        Type modelGraph,
         String contentType
 ) {
+    /**
+     * Creates a regular typed response descriptor without a model-graph schema.
+     */
+    public ApiDocResponseDescriptor(
+            int status, String description, String ref, Type type, String contentType) {
+        this(status, description, ref, type, Void.class, contentType);
+    }
 }

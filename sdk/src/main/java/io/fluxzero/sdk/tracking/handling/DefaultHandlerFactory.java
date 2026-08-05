@@ -47,6 +47,7 @@ import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -127,6 +128,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final Serializer serializer;
     private volatile Predicate<Class<?>> registeredHandlerType = ignored -> false;
     private HandlerFactory fallbackFactory;
+    private Supplier<? extends Collection<Class<?>>> modelGraphTypes = List::of;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
     private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
@@ -196,6 +198,15 @@ public class DefaultHandlerFactory implements HandlerFactory {
      */
     public DefaultHandlerFactory withFallback(HandlerFactory fallbackFactory) {
         this.fallbackFactory = Objects.requireNonNull(fallbackFactory);
+        return this;
+    }
+
+    /**
+     * Supplies the independently registered model types used to document composed model-graph web responses.
+     */
+    public DefaultHandlerFactory withModelGraphTypes(
+            Supplier<? extends Collection<Class<?>>> modelGraphTypes) {
+        this.modelGraphTypes = Objects.requireNonNull(modelGraphTypes);
         return this;
     }
 
@@ -332,7 +343,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                           targetClass, targetSupplier, createHandlerMatcher(target, config))
                   : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
         if (messageType == MessageType.WEBREQUEST) {
-            for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
+            for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(
+                    targetClass, target, modelGraphTypes)) {
                 if (openApiDocumentEndpoints.add(endpoint)) {
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
                 }

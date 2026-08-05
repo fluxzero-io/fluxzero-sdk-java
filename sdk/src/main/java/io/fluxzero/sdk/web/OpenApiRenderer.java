@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -83,6 +84,8 @@ import static io.fluxzero.common.ObjectUtils.isBlank;
  * @see OpenApiProcessor
  */
 public final class OpenApiRenderer {
+    static final String MODEL_GRAPH_EXTENSION = "x-fluxzero-model-graph";
+    static final String JAVA_TYPE_EXTENSION = "x-fluxzero-java-type";
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final Set<String> OPENAPI_METHODS =
             Set.of(GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE);
@@ -96,7 +99,7 @@ public final class OpenApiRenderer {
 
     public static ObjectNode render(ApiDocCatalog catalog, OpenApiOptions options) {
         DocumentInfo documentInfo = documentInfo(catalog, options);
-        SchemaContext schemaContext = new SchemaContext(documentInfo.openApiVersion());
+        SchemaContext schemaContext = new SchemaContext(documentInfo.openApiVersion(), catalog.modelTypes());
         ObjectNode document = object();
         document.put("openapi", documentInfo.openApiVersion());
         document.set("info", info(documentInfo));
@@ -132,7 +135,16 @@ public final class OpenApiRenderer {
             }
             documentInfo.components().forEach((path, value) -> setComponent(components, path, value.deepCopy()));
         }
+        stripModelGraphExtensions(document);
         return document;
+    }
+
+    private static void stripModelGraphExtensions(JsonNode node) {
+        if (node instanceof ObjectNode objectNode) {
+            objectNode.remove(MODEL_GRAPH_EXTENSION);
+            objectNode.remove(JAVA_TYPE_EXTENSION);
+        }
+        node.elements().forEachRemaining(OpenApiRenderer::stripModelGraphExtensions);
     }
 
     private static void setComponent(ObjectNode components, String path, JsonNode value) {
@@ -163,6 +175,63 @@ public final class OpenApiRenderer {
 
     public static String renderPrettyJson(ApiDocCatalog catalog, OpenApiOptions options) {
         return JsonUtils.asPrettyJson(render(catalog, options));
+    }
+
+    static String enrichModelGraphs(String documentJson, Collection<Class<?>> modelTypes, ClassLoader classLoader) {
+        ObjectNode document = (ObjectNode) JsonUtils.fromJson(documentJson, JsonNode.class);
+        List<ObjectNode> graphSchemas = new ArrayList<>();
+        collectModelGraphSchemas(document, graphSchemas);
+        if (graphSchemas.isEmpty()) {
+            return documentJson;
+        }
+        if (modelTypes.isEmpty()) {
+            stripModelGraphExtensions(document);
+            return JsonUtils.asPrettyJson(document);
+        }
+        ObjectNode existingSchemas = document.withObject("/components").withObject("/schemas");
+        SchemaContext context = new SchemaContext(
+                document.path("openapi").asText(OpenApiOptions.DEFAULT_OPENAPI_VERSION),
+                List.copyOf(modelTypes), existingSchemas);
+        context.bindMarkedTypes(classLoader);
+        for (ObjectNode graphSchema : graphSchemas) {
+            String rootName = graphSchema.path(MODEL_GRAPH_EXTENSION).asText();
+            Class<?> root = loadType(rootName, classLoader);
+            referencedSchemaName(graphSchema).ifPresent(name -> context.bind(root, name));
+            graphSchema.removeAll();
+            graphSchema.setAll(modelGraphSchema(root, context));
+            graphSchema.remove(MODEL_GRAPH_EXTENSION);
+        }
+        ObjectNode schemas = context.schemasNode();
+        schemas.elements().forEachRemaining(schema -> {
+            if (schema instanceof ObjectNode objectNode) {
+                objectNode.remove(JAVA_TYPE_EXTENSION);
+            }
+        });
+        document.withObject("/components").set("schemas", schemas);
+        return JsonUtils.asPrettyJson(document);
+    }
+
+    private static void collectModelGraphSchemas(JsonNode node, List<ObjectNode> result) {
+        if (node instanceof ObjectNode objectNode && objectNode.hasNonNull(MODEL_GRAPH_EXTENSION)) {
+            result.add(objectNode);
+        }
+        node.elements().forEachRemaining(child -> collectModelGraphSchemas(child, result));
+    }
+
+    private static Class<?> loadType(String name, ClassLoader classLoader) {
+        try {
+            ClassLoader effectiveClassLoader = classLoader == null
+                    ? ClassLoader.getSystemClassLoader() : classLoader;
+            return Class.forName(name, false, effectiveClassLoader);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Could not load documented model graph root " + name, e);
+        }
+    }
+
+    private static Optional<String> referencedSchemaName(ObjectNode schema) {
+        String prefix = "#/components/schemas/";
+        String reference = schema.path("$ref").asText();
+        return reference.startsWith(prefix) ? Optional.of(reference.substring(prefix.length())) : Optional.empty();
     }
 
     private static DocumentInfo documentInfo(ApiDocCatalog catalog, OpenApiOptions options) {
@@ -395,12 +464,163 @@ public final class OpenApiRenderer {
             response.put("description", isBlank(descriptor.description())
                     ? defaultDescription(descriptor.status()) : descriptor.description());
         }
-        if (!isNoResponseType(descriptor.type())) {
+        if (!isNoResponseType(descriptor.modelGraph())) {
+            addContent(response,
+                       isBlank(descriptor.contentType()) ? "application/json" : descriptor.contentType(),
+                       modelGraphSchema(descriptor.modelGraph(), schemaContext));
+        } else if (!isNoResponseType(descriptor.type())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? inferMediaType(descriptor.type()) : descriptor.contentType(),
                        responseSchema(descriptor.type(), schemaContext));
         }
         return response;
+    }
+
+    private static ObjectNode modelGraphSchema(Type rootType, SchemaContext schemaContext) {
+        Class<?> root = rawClass(rootType);
+        if (root == null || !ModelMetadata.of(root).isModel()) {
+            throw new IllegalArgumentException(
+                    "@ApiDocResponse.modelGraph must refer to an @Model type, but found " + rootType);
+        }
+        ObjectNode result = schemaContext.ref(root, new LinkedHashSet<>(), true);
+        result.put(MODEL_GRAPH_EXTENSION, root.getName());
+        schemaContext.markType(root);
+        addModelGraphChildren(root, schemaContext, new LinkedHashSet<>());
+        return result;
+    }
+
+    private static void addModelGraphChildren(Class<?> parentType, SchemaContext schemaContext,
+                                              Set<Class<?>> visiting) {
+        if (!visiting.add(parentType)) {
+            throw new IllegalArgumentException(
+                    "Documented model graph contains a parent cycle at " + parentType.getName());
+        }
+        if (!schemaContext.expandedModelGraphs.add(parentType)) {
+            visiting.remove(parentType);
+            return;
+        }
+        try {
+            Map<String, List<ModelGraphRelation>> byPath = new LinkedHashMap<>();
+            schemaContext.modelTypes.stream().distinct()
+                    .filter(type -> ModelMetadata.of(type).isModel())
+                    .forEach(childType -> ModelMetadata.of(childType).parentReferences().stream()
+                            .filter(ModelMetadata.ParentReference::automaticallyComposed)
+                            .filter(parent -> parentType.equals(parent.parentModelType()))
+                            .forEach(parent -> byPath.computeIfAbsent(parent.path(), ignored -> new ArrayList<>())
+                                    .add(new ModelGraphRelation(childType, parent.apiDoc()))));
+            if (byPath.isEmpty()) {
+                return;
+            }
+            ObjectNode parentSchema = schemaContext.schemas.get(schemaContext.name(parentType));
+            byPath.forEach((path, relations) -> {
+                List<ModelGraphRelation> distinct = relations.stream().distinct().toList();
+                ApiDoc apiDoc = commonApiDoc(path, parentType, distinct);
+                ObjectNode items;
+                List<Class<?>> childTypes = distinct.stream().map(ModelGraphRelation::childType).distinct().toList();
+                if (childTypes.size() == 1) {
+                    Class<?> childType = childTypes.getFirst();
+                    items = schemaContext.ref(childType, new LinkedHashSet<>(), true);
+                    schemaContext.markType(childType);
+                    addModelGraphChildren(childType, schemaContext, visiting);
+                } else {
+                    items = object();
+                    ArrayNode oneOf = items.putArray("oneOf");
+                    childTypes.forEach(childType -> {
+                        oneOf.add(schemaContext.ref(childType, new LinkedHashSet<>(), true));
+                        schemaContext.markType(childType);
+                        addModelGraphChildren(childType, schemaContext, visiting);
+                    });
+                }
+                ObjectNode property = object().set("items", items);
+                applySchemaMetadata(property, arrayMetadata(metadata(apiDoc)), schemaContext);
+                putGraphPath(parentSchema, path, property, apiDoc.required());
+            });
+        } catch (RuntimeException e) {
+            schemaContext.expandedModelGraphs.remove(parentType);
+            throw e;
+        } finally {
+            visiting.remove(parentType);
+        }
+    }
+
+    private static ApiDoc commonApiDoc(String path, Class<?> parentType, List<ModelGraphRelation> relations) {
+        ApiDoc first = relations.getFirst().apiDoc();
+        if (relations.stream().map(ModelGraphRelation::apiDoc).anyMatch(apiDoc -> !first.equals(apiDoc))) {
+            throw new IllegalArgumentException(
+                    "Conflicting @ParentId.apiDoc declarations for graph path '%s' below %s"
+                            .formatted(path, parentType.getName()));
+        }
+        return first;
+    }
+
+    private static SchemaMetadata arrayMetadata(SchemaMetadata metadata) {
+        return new SchemaMetadata(
+                metadata.description(), "array", "", metadata.example(), metadata.defaultValue(),
+                metadata.minimum(), metadata.maximum(), metadata.minSize(), metadata.maxSize(),
+                metadata.uniqueItems(), metadata.pattern(), metadata.allowableValues(), metadata.required(),
+                metadata.deprecated(), metadata.hidden(), null);
+    }
+
+    private static void putGraphPath(ObjectNode schema, String path, ObjectNode property, boolean required) {
+        ObjectNode current = graphObjectSchema(schema);
+        String[] segments = path.split("/");
+        for (int i = 0; i < segments.length - 1; i++) {
+            ObjectNode properties = current.withObject("/properties");
+            JsonNode existing = properties.get(segments[i]);
+            if (existing == null) {
+                current = object().put("type", "object");
+                properties.set(segments[i], current);
+            } else if (existing instanceof ObjectNode objectNode) {
+                current = graphObjectSchema(objectNode);
+            } else {
+                throw new IllegalArgumentException("Graph documentation path collides at " + path);
+            }
+        }
+        ObjectNode properties = current.withObject("/properties");
+        String propertyName = segments[segments.length - 1];
+        if (properties.has(propertyName)) {
+            throw new IllegalArgumentException("Graph documentation path collides at " + path);
+        }
+        properties.set(propertyName, property);
+        if (required) {
+            ArrayNode requiredProperties = current.withArray("/required");
+            if (!contains(requiredProperties, propertyName)) {
+                requiredProperties.add(propertyName);
+            }
+        }
+    }
+
+    private static ObjectNode graphObjectSchema(ObjectNode schema) {
+        if (schema.has("properties") || !schema.has("allOf")) {
+            if (!schema.has("type") && !schema.has("allOf")) {
+                schema.put("type", "object");
+            }
+            return schema;
+        }
+        ArrayNode allOf = schema.withArray("/allOf");
+        for (JsonNode entry : allOf) {
+            if (entry instanceof ObjectNode objectNode && !objectNode.has("$ref")) {
+                return objectNode;
+            }
+        }
+        ObjectNode extension = object().put("type", "object");
+        allOf.add(extension);
+        return extension;
+    }
+
+    private static boolean contains(ArrayNode values, String value) {
+        for (JsonNode item : values) {
+            if (value.equals(item.asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static SchemaMetadata metadata(ApiDoc apiDoc) {
+        SchemaMetadata.Builder builder = new SchemaMetadata.Builder();
+        builder.apply(apiDoc);
+        return builder.build();
     }
 
     private static ArrayNode security(List<String> requirements) {
@@ -1187,10 +1407,18 @@ public final class OpenApiRenderer {
         private final Map<Class<?>, String> names = new LinkedHashMap<>();
         private final Map<String, ObjectNode> schemas = new LinkedHashMap<>();
         private final Set<String> responseSchemas = new LinkedHashSet<>();
+        private final Set<Class<?>> expandedModelGraphs = new LinkedHashSet<>();
         private final String openApiVersion;
+        private final List<Class<?>> modelTypes;
 
-        SchemaContext(String openApiVersion) {
+        SchemaContext(String openApiVersion, List<Class<?>> modelTypes) {
             this.openApiVersion = openApiVersion;
+            this.modelTypes = modelTypes;
+        }
+
+        SchemaContext(String openApiVersion, List<Class<?>> modelTypes, ObjectNode schemas) {
+            this(openApiVersion, modelTypes);
+            schemas.fields().forEachRemaining(entry -> this.schemas.put(entry.getKey(), entry.getValue().deepCopy()));
         }
 
         ObjectNode ref(Class<?> type, Set<Type> visiting, boolean responseSchema) {
@@ -1217,6 +1445,26 @@ public final class OpenApiRenderer {
             return openApiVersion;
         }
 
+        void bind(Class<?> type, String name) {
+            names.put(type, name);
+        }
+
+        void bindMarkedTypes(ClassLoader classLoader) {
+            schemas.forEach((name, schema) -> {
+                String typeName = schema.path(JAVA_TYPE_EXTENSION).asText();
+                if (!typeName.isBlank()) {
+                    bind(loadType(typeName, classLoader), name);
+                }
+            });
+        }
+
+        void markType(Class<?> type) {
+            ObjectNode schema = schemas.get(name(type));
+            if (schema != null) {
+                schema.put(JAVA_TYPE_EXTENSION, type.getName());
+            }
+        }
+
         private String name(Class<?> type) {
             return names.computeIfAbsent(type, this::uniqueName);
         }
@@ -1228,11 +1476,14 @@ public final class OpenApiRenderer {
             }
             String candidate = base;
             int index = 2;
-            while (names.containsValue(candidate)) {
+            while (names.containsValue(candidate) || schemas.containsKey(candidate)) {
                 candidate = base + index++;
             }
             return candidate;
         }
+    }
+
+    private record ModelGraphRelation(Class<?> childType, ApiDoc apiDoc) {
     }
 
     private record DocumentInfo(

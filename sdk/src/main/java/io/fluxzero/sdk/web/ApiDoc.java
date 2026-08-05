@@ -38,6 +38,11 @@ import java.lang.annotation.Target;
  * Javadoc from already compiled dependency classes is not available to javac processors; use {@code @ApiDoc} when schema
  * documentation must cross module boundaries.
  * </p>
+ * <p>
+ * The annotation can also be nested in {@link io.fluxzero.sdk.modeling.ParentId} to describe the list property that
+ * an independent-model relationship contributes to a documented model graph. Select such a graph as a response with
+ * {@link ApiDocResponse#modelGraph()}.
+ * </p>
  *
  * @see ApiDocExtractor
  * @see OpenApiProcessor

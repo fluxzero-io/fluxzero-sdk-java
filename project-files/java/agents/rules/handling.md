@@ -519,6 +519,11 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   `maximum`, `allowableValues`, `required`, and `implementation` attributes instead of Swagger `@Schema`.
 - Use repeatable `@ApiDocResponse` annotations for additional status/error responses, or to describe an inferred
   response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
+- For a composed independent-model graph returned as `JsonNode`, select its root with
+  `@ApiDocResponse(status = 200, modelGraph = RootModel.class)`. Add
+  `apiDoc = @ApiDoc(...)` next to each child model's `@ParentId(path = ...)`; the final path segment is documented as
+  a list of that child model and slash-separated prefixes become nested objects. `type` and `modelGraph` are mutually
+  exclusive. Runtime-served docs include registered child models from other modules.
 - Use `@ApiDocExclude` to exclude package/class/method endpoints or model fields/record components/parameters from
   generated docs only; it does not disable runtime handling.
 - Use `@ApiDocInfo` on a package or handler type for document-level metadata such as title, version, description,

@@ -161,6 +161,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return repository;
     }
 
+    /**
+     * Returns a stable snapshot of model types currently registered with this application.
+     */
+    public List<Class<?>> registeredModelTypes() {
+        return List.copyOf(registeredModelTypes);
+    }
+
     /** Creates the automatic model-commit registry. */
     public ModelCommitHandlerRegistry(
             DefaultModelRepository repository,

@@ -23,6 +23,7 @@ import java.util.List;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApiDocExtractorTest {
@@ -86,6 +87,12 @@ class ApiDocExtractorTest {
     @Test
     void onlyIncludesHandlersOptedInWithApiDoc() {
         assertTrue(ApiDocExtractor.extract(UndocumentedHandler.class).endpoints().isEmpty());
+    }
+
+    @Test
+    void rejectsAmbiguousTypedAndModelGraphResponses() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> ApiDocExtractor.extract(AmbiguousResponseHandler.class));
     }
 
     private static void assertParameter(ApiDocEndpoint endpoint, String name, WebParameterSource source, Type type) {
@@ -159,6 +166,15 @@ class ApiDocExtractorTest {
         @HandleGet("/internal")
         String internal() {
             return "internal";
+        }
+    }
+
+    @ApiDoc
+    static class AmbiguousResponseHandler {
+        @ApiDocResponse(status = 200, type = ReadingResponse.class, modelGraph = ReadingResponse.class)
+        @HandleGet("/ambiguous")
+        Object ambiguous() {
+            return null;
         }
     }
 

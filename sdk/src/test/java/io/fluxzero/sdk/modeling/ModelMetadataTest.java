@@ -20,6 +20,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.tracking.handling.Association;
+import io.fluxzero.sdk.web.ApiDoc;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -74,6 +75,8 @@ class ModelMetadataTest {
         assertEquals("parent-parent", metadata.parentReferences().getFirst().read(value).toString());
         assertEquals("external-parent", metadata.parentReferences().getLast().read(value));
         assertTrue(metadata.parentReferences().stream().allMatch(ModelMetadata.ParentReference::automaticallyComposed));
+        assertEquals("Child items", metadata.parentReferences().getFirst().apiDoc().description());
+        assertEquals("", metadata.parentReferences().getLast().apiDoc().description());
     }
 
     @Test
@@ -310,7 +313,7 @@ class ModelMetadataTest {
     @Model
     private record ChildModel(
             @EntityId ChildModelId childId,
-            @ParentId(path = "items") ParentModelId parentId,
+            @ParentId(path = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
             @ParentId(value = ParentModel.class, path = "externalItems") String externalParentId) {
     }
 
