@@ -435,7 +435,7 @@ public final class OpenApiRenderer {
                     .filter(response -> response.status().equals(status))
                     .map(response -> response.node().deepCopy())
                     .orElseGet(OpenApiRenderer::object);
-            responses.set(status, response(descriptor, base, schemaContext));
+            responses.set(status, response(endpoint, descriptor, base, schemaContext));
         }
         return responses;
     }
@@ -458,8 +458,8 @@ public final class OpenApiRenderer {
         return Optional.of(new RenderedResponse("200", response));
     }
 
-    private static ObjectNode response(ApiDocResponseDescriptor descriptor, ObjectNode response,
-                                       SchemaContext schemaContext) {
+    private static ObjectNode response(ApiDocEndpoint endpoint, ApiDocResponseDescriptor descriptor,
+                                       ObjectNode response, SchemaContext schemaContext) {
         if (!response.has("description") || !isBlank(descriptor.description())) {
             response.put("description", isBlank(descriptor.description())
                     ? defaultDescription(descriptor.status()) : descriptor.description());
@@ -467,13 +467,30 @@ public final class OpenApiRenderer {
         if (!isNoResponseType(descriptor.modelGraph())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? "application/json" : descriptor.contentType(),
-                       modelGraphSchema(descriptor.modelGraph(), schemaContext));
+                       modelGraphResponseSchema(endpoint, descriptor.modelGraph(), schemaContext));
         } else if (!isNoResponseType(descriptor.type())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? inferMediaType(descriptor.type()) : descriptor.contentType(),
                        responseSchema(descriptor.type(), schemaContext));
         }
         return response;
+    }
+
+    private static ObjectNode modelGraphResponseSchema(ApiDocEndpoint endpoint, Type rootType,
+                                                       SchemaContext schemaContext) {
+        ObjectNode graphSchema = modelGraphSchema(rootType, schemaContext);
+        Type responseType = endpoint.responseType();
+        Class<?> rawResponseType = rawClass(responseType);
+        ObjectNode result = null;
+        boolean arrayResponse = responseType instanceof GenericArrayType
+                                || rawResponseType != null && rawResponseType.isArray()
+                                   && !byte[].class.equals(rawResponseType);
+        if (arrayResponse) {
+            result = object().put("type", "array").set("items", graphSchema);
+        } else if (rawResponseType != null && Collection.class.isAssignableFrom(rawResponseType)) {
+            result = object().put("type", "array").set("items", graphSchema);
+        }
+        return result == null ? graphSchema : result;
     }
 
     private static ObjectNode modelGraphSchema(Type rootType, SchemaContext schemaContext) {

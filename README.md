@@ -2457,6 +2457,8 @@ record Location(
 
 The root schema is inferred from `Organisation`; the `locations` property is rendered as a list of `Location` items.
 Slash-separated paths create nested objects before the final list property, and descendants are followed recursively.
+If the handler returns an array or collection of JSON trees, the response remains an array whose items use the complete
+model-graph schema.
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
 metadata with the model types registered in the current application, so child models may live in another Maven module.
 

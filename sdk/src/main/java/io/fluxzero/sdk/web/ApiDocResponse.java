@@ -70,7 +70,8 @@ public @interface ApiDocResponse {
      * model graph. The generated schema starts with this model and follows child relationships that declare both a
      * {@link io.fluxzero.sdk.modeling.ParentId#path() ParentId path} and optional relationship documentation through
      * {@link io.fluxzero.sdk.modeling.ParentId#apiDoc() ParentId.apiDoc}. This option is mutually exclusive with
-     * {@link #type()}.
+     * {@link #type()}. When the handler returns an array or collection, the response remains an array whose items are
+     * graphs rooted at this model.
      */
     Class<?> modelGraph() default Void.class;
 

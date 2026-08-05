@@ -149,6 +149,19 @@ class OpenApiProcessorTest {
         JsonNode graphSchema = paths.path("/processor/model-graphs/{id}").path("get")
                 .path("responses").path("200").path("content").path("application/json").path("schema");
         assertEquals("#/components/schemas/ProcessorOrganisation", graphSchema.path("$ref").asText());
+        JsonNode graphListSchema = paths.path("/processor/model-graphs").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", graphListSchema.path("type").asText());
+        assertFalse(graphListSchema.has("description"));
+        assertEquals("List processor model graphs",
+                     paths.path("/processor/model-graphs").path("get").path("description").asText());
+        assertEquals("#/components/schemas/ProcessorOrganisation",
+                     graphListSchema.path("items").path("$ref").asText());
+        JsonNode graphArraySchema = paths.path("/processor/model-graphs/array").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", graphArraySchema.path("type").asText());
+        assertEquals("#/components/schemas/ProcessorOrganisation",
+                     graphArraySchema.path("items").path("$ref").asText());
         JsonNode graphSchemas = document.path("components").path("schemas");
         JsonNode locations = graphSchemas.path("ProcessorOrganisation").path("properties").path("locations");
         assertEquals("array", locations.path("type").asText());
@@ -219,6 +232,20 @@ class OpenApiProcessorTest {
         @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
         @HandleGet("/model-graphs/{id}")
         JsonNode modelGraph(@PathParam("id") String id) {
+            return null;
+        }
+
+        @ApiDoc(description = "List processor model graphs")
+        @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
+        @HandleGet("/model-graphs")
+        List<JsonNode> modelGraphs() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
+        @HandleGet("/model-graphs/array")
+        JsonNode[] modelGraphArray() {
             return null;
         }
 

@@ -864,7 +864,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                     .filter(response -> response.status().equals(status))
                     .map(response -> response.node().deepCopy())
                     .orElseGet(this::object);
-            responses.set(status, response(descriptor, base, schemaContext));
+            responses.set(status, response(endpoint, descriptor, base, schemaContext));
         }
         return responses;
     }
@@ -883,7 +883,8 @@ public class OpenApiProcessor extends AbstractProcessor {
         return Optional.of(new RenderedResponse("200", response));
     }
 
-    private ObjectNode response(Response descriptor, ObjectNode response, SchemaContext schemaContext) {
+    private ObjectNode response(Endpoint endpoint, Response descriptor, ObjectNode response,
+                                SchemaContext schemaContext) {
         if (!response.has("description") || !isBlank(descriptor.description())) {
             response.put("description", isBlank(descriptor.description())
                     ? defaultDescription(descriptor.status()) : descriptor.description());
@@ -891,7 +892,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (!isNoResponseType(descriptor.modelGraph())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? "application/json" : descriptor.contentType(),
-                       modelGraphSchema(descriptor.modelGraph(), schemaContext));
+                       modelGraphResponseSchema(endpoint.responseType(), descriptor.modelGraph(), schemaContext));
         } else if (!isNoResponseType(descriptor.type())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? inferMediaType(descriptor.type())
@@ -899,6 +900,18 @@ public class OpenApiProcessor extends AbstractProcessor {
                        responseSchema(descriptor.type(), schemaContext));
         }
         return response;
+    }
+
+    private ObjectNode modelGraphResponseSchema(TypeMirror responseType, TypeMirror rootType,
+                                                SchemaContext schemaContext) {
+        ObjectNode graphSchema = modelGraphSchema(rootType, schemaContext);
+        if (responseType != null && responseType.getKind() == TypeKind.ARRAY && !isBinaryType(responseType)) {
+            return object().put("type", "array").set("items", graphSchema);
+        }
+        if (responseType instanceof DeclaredType && isAssignable(responseType, "java.util.Collection")) {
+            return object().put("type", "array").set("items", graphSchema);
+        }
+        return graphSchema;
     }
 
     private ObjectNode modelGraphSchema(TypeMirror rootType, SchemaContext schemaContext) {

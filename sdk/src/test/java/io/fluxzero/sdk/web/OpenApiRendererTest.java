@@ -239,6 +239,19 @@ class OpenApiRendererTest {
                      document.path("paths").path("/organisations/{id}/copy").path("get")
                              .path("responses").path("200").path("content").path("application/json")
                              .path("schema").path("$ref").asText());
+        JsonNode listResponseSchema = document.path("paths").path("/organisations").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", listResponseSchema.path("type").asText());
+        assertFalse(listResponseSchema.has("description"));
+        assertEquals("List organisations",
+                     document.path("paths").path("/organisations").path("get").path("description").asText());
+        assertEquals("#/components/schemas/OrganisationModel",
+                     listResponseSchema.path("items").path("$ref").asText());
+        JsonNode arrayResponseSchema = document.path("paths").path("/organisations/array").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", arrayResponseSchema.path("type").asText());
+        assertEquals("#/components/schemas/OrganisationModel",
+                     arrayResponseSchema.path("items").path("$ref").asText());
 
         JsonNode schemas = document.path("components").path("schemas");
         JsonNode organisation = schemas.path("OrganisationModel");
@@ -358,6 +371,20 @@ class OpenApiRendererTest {
         @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
         @HandleGet("/organisations/{id}/copy")
         JsonNode organisationCopy(@PathParam("id") String id) {
+            return null;
+        }
+
+        @ApiDoc(description = "List organisations")
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
+        @HandleGet("/organisations")
+        List<JsonNode> organisations() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
+        @HandleGet("/organisations/array")
+        JsonNode[] organisationArray() {
             return null;
         }
     }
