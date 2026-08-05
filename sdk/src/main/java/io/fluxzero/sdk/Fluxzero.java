@@ -95,6 +95,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -611,6 +612,44 @@ public interface Fluxzero extends AutoCloseable {
         Message message = modelMessage(update);
         return startModelCommit(
                 get(), message.withMetadata(message.getMetadata().with(metadata)));
+    }
+
+    /**
+     * Runs and commits multiple independent model updates asynchronously. Every update remains a separate model commit
+     * with its own conflict handling and durability boundary. Implementations may batch commits that become ready
+     * together for transport, without making the updates atomic or delaying already-full transport batches.
+     * <p>
+     * All updates are converted to messages before this method returns, so metadata and context inherited from the
+     * current handler remain available to every asynchronous commit pipeline.
+     *
+     * @param updates independent update payloads or messages to assert and apply
+     * @return completion after every resulting model commit has been durably stored
+     */
+    static CompletableFuture<Void> assertAndApplyAllAsync(Collection<?> updates) {
+        Objects.requireNonNull(updates, "updates");
+        List<Message> messages = updates.stream()
+                .map(update -> modelMessage(Objects.requireNonNull(update, "update")))
+                .toList();
+        if (messages.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Fluxzero fluxzero = get();
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Thread.ofVirtual().name("Fluxzero-model-commit-batch").start(context.wrap(() -> {
+            try {
+                fluxzero.executeModelCommits(messages).whenComplete(context.wrap((ignored, failure) -> {
+                    if (failure == null) {
+                        result.complete(null);
+                    } else {
+                        result.completeExceptionally(failure);
+                    }
+                }));
+            } catch (Throwable failure) {
+                result.completeExceptionally(failure);
+            }
+        }));
+        return result;
     }
 
     private static CompletableFuture<Void> startModelCommit(Fluxzero fluxzero, Message message) {
@@ -1655,6 +1694,21 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeModelCommit(Message update) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support direct model commits"));
+    }
+
+    /**
+     * Executes multiple independent model commits without routing them through command handlers. The default
+     * implementation preserves compatibility for custom implementations by invoking {@link #executeModelCommit(Message)}
+     * for every update. Implementations may override this to batch transport while retaining separate commit semantics.
+     *
+     * @param updates messages containing independent model updates
+     * @return completion after every durable model commit
+     */
+    default CompletableFuture<Void> executeModelCommits(List<Message> updates) {
+        Objects.requireNonNull(updates, "updates");
+        return CompletableFuture.allOf(updates.stream()
+                .map(update -> executeModelCommit(Objects.requireNonNull(update, "update")))
+                .toArray(CompletableFuture[]::new));
     }
 
     /**

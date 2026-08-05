@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -53,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -62,6 +64,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
@@ -128,6 +131,86 @@ class ModelCommitHandlerRegistryTest {
         } finally {
             logger.detachAppender(appender);
             appender.stop();
+            subject.close();
+        }
+    }
+
+    @Test
+    void explicitBulkAssertAndApplyBatchesTransportButCompletesEachDurableCommit() throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(
+                EventStoreClient.class,
+                withSettings().extraInterfaces(ModelCommitBatchingClient.class));
+        ModelCommitBatchingClient batchingClient =
+                (ModelCommitBatchingClient) eventStoreClient;
+        ModelCommitBatchingClient.ModelCommitBatch transportBatch =
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+        Map<CommitModels, CompletableFuture<CommitModelsResult>> responses =
+                new ConcurrentHashMap<>();
+        CountDownLatch prepared = new CountDownLatch(2);
+        when(batchingClient.beginReadyModelCommitBatch()).thenReturn(transportBatch);
+        when(transportBatch.add(anyInt(), any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(1);
+            CompletableFuture<CommitModelsResult> response = new CompletableFuture<>();
+            responses.put(commit, response);
+            prepared.countDown();
+            return response;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+
+        try {
+            CompletableFuture<Void> result = subject.assertAndApplyAll(List.of(
+                    new Message(new TimingCreateCommand("bulk-a")),
+                    new Message(new TimingCreateCommand("bulk-b"))));
+
+            assertTrue(prepared.await(5, TimeUnit.SECONDS));
+            verify(transportBatch, timeout(5_000).times(1)).flush();
+            verify(eventStoreClient, never()).commitModels(any());
+            assertFalse(result.isDone());
+
+            responses.forEach((commit, response) -> response.complete(
+                    acceptedResult(commit)));
+            result.get(5, TimeUnit.SECONDS);
+            verify(transportBatch, times(2)).add(anyInt(), any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void explicitBulkAssertAndApplyFlushesValidCommitsWhenAnotherUpdateFails() throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(
+                EventStoreClient.class,
+                withSettings().extraInterfaces(ModelCommitBatchingClient.class));
+        ModelCommitBatchingClient batchingClient =
+                (ModelCommitBatchingClient) eventStoreClient;
+        ModelCommitBatchingClient.ModelCommitBatch transportBatch =
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+        CompletableFuture<CommitModels> prepared = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> response = new CompletableFuture<>();
+        when(batchingClient.beginReadyModelCommitBatch()).thenReturn(transportBatch);
+        when(transportBatch.add(anyInt(), any())).thenAnswer(invocation -> {
+            prepared.complete(invocation.getArgument(1));
+            return response;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+
+        try {
+            CompletableFuture<Void> result = subject.assertAndApplyAll(List.of(
+                    new Message(new CrossApplicationCommand("")),
+                    new Message(new TimingCreateCommand("bulk-valid"))));
+
+            CommitModels commit = prepared.get(5, TimeUnit.SECONDS);
+            verify(transportBatch, timeout(5_000).times(1)).flush();
+            assertFalse(result.isDone());
+
+            response.complete(acceptedResult(commit));
+            assertThrows(CompletionException.class, result::join);
+            verify(transportBatch, times(1)).add(anyInt(), any());
+        } finally {
             subject.close();
         }
     }

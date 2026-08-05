@@ -48,6 +48,7 @@ import lombok.AllArgsConstructor;
 import org.mockito.Mockito;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -247,6 +248,11 @@ public class SpyingFluxzero implements Fluxzero {
     @Override
     public CompletableFuture<Void> executeModelCommit(Message update) {
         return delegate.executeModelCommit(update);
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelCommits(List<Message> updates) {
+        return delegate.executeModelCommits(updates);
     }
 
     @Override

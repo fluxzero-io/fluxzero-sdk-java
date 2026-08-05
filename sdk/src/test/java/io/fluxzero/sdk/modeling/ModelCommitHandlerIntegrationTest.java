@@ -233,6 +233,22 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void directBulkAssertAndApplyAsyncCommitsIndependentUpdates() {
+        AccountId first = new AccountId("bulk-direct-first");
+        AccountId second = new AccountId("bulk-direct-second");
+        TestFixture.createAsync()
+                .whenApplying(fluxzero -> Fluxzero.assertAndApplyAllAsync(List.of(
+                                new CreateAccount(first, 41),
+                                new CreateAccount(second, 43)))
+                        .thenApply(ignored -> List.of(
+                                fluxzero.modelRepository().load(first).get(),
+                                fluxzero.modelRepository().load(second).get())))
+                .expectResult(List.of(
+                        new Account(first, 41),
+                        new Account(second, 43)));
+    }
+
+    @Test
     void directAssertLegalInterceptsAndValidatesWithoutApplying() {
         AccountId accountId = new AccountId("validate-only");
         TestFixture.create()

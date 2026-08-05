@@ -227,6 +227,56 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
      * @return completion of the durable model commit
      */
     public CompletableFuture<Void> assertAndApply(Message update) {
+        return assertAndApply(update, null, -1);
+    }
+
+    /**
+     * Executes independent updates concurrently and batches only the transport of commits that become ready together.
+     * Each update keeps its own commit, conflict handling, and durability completion.
+     */
+    public CompletableFuture<Void> assertAndApplyAll(List<Message> updates) {
+        Objects.requireNonNull(updates, "updates");
+        List<Message> messages = updates.stream()
+                .map(update -> Objects.requireNonNull(update, "update"))
+                .toList();
+        if (messages.isEmpty()) {
+            return COMPLETED_VOID;
+        }
+        ModelCommitter.CommitBatch transportBatch = committer.beginReadyBatch();
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
+        @SuppressWarnings("unchecked")
+        CompletableFuture<CompletableFuture<Void>>[] starts = new CompletableFuture[messages.size()];
+        for (int index = 0; index < messages.size(); index++) {
+            Message update = messages.get(index);
+            int slot = index;
+            CompletableFuture<CompletableFuture<Void>> started = new CompletableFuture<>();
+            starts[index] = started;
+            try {
+                Thread.ofVirtual().name("Fluxzero-model-commit").start(context.wrap(() -> {
+                    try {
+                        started.complete(assertAndApply(update, transportBatch, slot));
+                    } catch (Throwable failure) {
+                        started.complete(CompletableFuture.failedFuture(failure));
+                    }
+                }));
+            } catch (Throwable failure) {
+                started.complete(CompletableFuture.failedFuture(failure));
+            }
+        }
+        return CompletableFuture.allOf(starts).thenCompose(ignored -> {
+            if (transportBatch != null) {
+                transportBatch.flush();
+            }
+            return CompletableFuture.allOf(Stream.of(starts)
+                    .map(CompletableFuture::join)
+                    .toArray(CompletableFuture[]::new));
+        });
+    }
+
+    private CompletableFuture<Void> assertAndApply(
+            Message update,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
         try {
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
@@ -244,10 +294,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 }
                 return executeRegistered(
                         message, evaluation,
-                        null, null, -1)
+                        null, transportBatch, transportSlot)
                         .thenApply(ignored -> null);
             }
-            return execute(message).thenApply(ignored -> null);
+            return execute(message, transportBatch, transportSlot)
+                    .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
