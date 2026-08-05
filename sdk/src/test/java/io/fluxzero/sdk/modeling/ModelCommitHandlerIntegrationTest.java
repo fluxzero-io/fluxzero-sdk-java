@@ -72,6 +72,29 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void modelDefaultSkipsAnEventWhenApplyDoesNotModifyState() {
+        AccountId accountId = new AccountId("default-if-modified");
+
+        TestFixture.create()
+                .givenCommands(new CreateAccount(accountId, 42))
+                .whenCommand(new TouchAccount(accountId))
+                .expectNoResult()
+                .expectNoEvents();
+    }
+
+    @Test
+    void applyMayAlwaysPublishAnUnchangedModelEvent() {
+        AccountId accountId = new AccountId("explicit-always");
+        AlwaysTouchAccount command = new AlwaysTouchAccount(accountId);
+
+        TestFixture.create()
+                .givenCommands(new CreateAccount(accountId, 42))
+                .whenCommand(command)
+                .expectNoResult()
+                .expectEvents(command);
+    }
+
+    @Test
     void dedicatedModelCacheCanBeConfiguredOrDisabled() {
         InspectableCache configured =
                 new InspectableCache();
@@ -1189,6 +1212,20 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         Account apply() {
             return new Account(accountId, balance);
+        }
+    }
+
+    private record TouchAccount(AccountId accountId) {
+        @Apply
+        Account apply(Account account) {
+            return account;
+        }
+    }
+
+    private record AlwaysTouchAccount(AccountId accountId) {
+        @Apply(eventPublication = EventPublication.ALWAYS)
+        Account apply(Account account) {
+            return account;
         }
     }
 

@@ -1038,7 +1038,7 @@ final class ModelCommitter {
                 apply != null && apply.eventPublication() != EventPublication.DEFAULT
                         ? apply.eventPublication()
                         : model.eventPublication() == EventPublication.DEFAULT
-                                ? EventPublication.ALWAYS : model.eventPublication();
+                                ? EventPublication.IF_MODIFIED : model.eventPublication();
         EventPublicationStrategy strategy =
                 apply != null && apply.publicationStrategy() != EventPublicationStrategy.DEFAULT
                         ? apply.publicationStrategy()

@@ -20,13 +20,14 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 /**
  * Controls whether an applied update should result in event publication.
  * <p>
- * This setting can be defined at the aggregate level (via {@link Aggregate}) and optionally overridden on specific
- * {@link Apply @Apply} methods.
+ * This setting can be defined at the aggregate or independent-model level (via {@link Aggregate} or {@link Model})
+ * and optionally overridden on specific {@link Apply @Apply} methods.
  * <p>
  * Event publication occurs when an update is applied to an entity. Depending on this setting and the configured
  * {@link EventPublicationStrategy}, the update may be published and/or stored.
  *
  * @see Aggregate
+ * @see Model
  * @see Apply
  * @see InterceptApply
  * @see EventPublicationStrategy
@@ -36,15 +37,15 @@ public enum EventPublication {
     /**
      * Inherit the publication behavior from the parent context.
      * <p>
-     * This may be the enclosing aggregate or the application-level default. If not explicitly configured elsewhere,
-     * {@link #ALWAYS} is used as a fallback.
+     * This may be the enclosing aggregate, model, or application-level default. If not explicitly configured
+     * elsewhere, aggregates fall back to {@link #ALWAYS}; independent models fall back to {@link #IF_MODIFIED}.
      */
     DEFAULT,
 
     /**
      * Always publish and/or store the applied update, even if it does not change the entity.
      * <p>
-     * This is the default behavior if no other setting is specified.
+     * This is the default behavior for aggregates if no other setting is specified.
      */
     ALWAYS,
 

@@ -1344,7 +1344,7 @@ class ModelCommitHandlerRegistryTest {
     @Model
     private record ReceiverModel(
             @EntityId String id) {
-        @Apply
+        @Apply(eventPublication = EventPublication.ALWAYS)
         ReceiverModel apply(ReceiverCommand command) {
             return new ReceiverModel(command.id());
         }

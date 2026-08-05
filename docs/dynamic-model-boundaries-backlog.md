@@ -26,6 +26,9 @@ phase, not the central abstraction.
   - `false`: load the current model directly from its own document collection.
 - `eventSourced = false` does not suppress event storage or publication. As with aggregates, `EventPublication` and
   `EventPublicationStrategy` determine whether an applied event is stored and/or published.
+- `@Model.eventPublication` defaults to `IF_MODIFIED`: an unchanged result produces no model-stream or global event.
+  Use an explicit model- or apply-level `ALWAYS` for intentional no-op domain notifications. Legacy aggregate defaults
+  remain unchanged.
 - A searchable model is synchronously indexed/deleted as part of commit completion. A successful commit therefore
   makes the directly changed model immediately searchable, matching current searchable aggregate behavior.
 - Related current model documents can be queried and stitched as a virtual graph at read time when their

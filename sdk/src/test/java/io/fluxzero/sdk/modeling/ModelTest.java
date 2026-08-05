@@ -51,7 +51,7 @@ class ModelTest {
         assertEquals(1, model.cachingDepth());
         assertEquals(100, model.checkpointPeriod());
         assertEquals(ModelCommitPolicy.DEFAULT, model.commitPolicy());
-        assertEquals(EventPublication.DEFAULT, model.eventPublication());
+        assertEquals(IF_MODIFIED, model.eventPublication());
         assertEquals(EventPublicationStrategy.DEFAULT, model.publicationStrategy());
         assertEquals(AggregateEventRouting.MESSAGE_ROUTING_KEY, model.eventRouting());
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());

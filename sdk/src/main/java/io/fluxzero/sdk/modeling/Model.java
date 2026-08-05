@@ -92,7 +92,8 @@ public @interface Model {
      * When disabled, the current model is loaded directly from its document. This setting does not suppress storing or
      * publishing events produced by {@link Apply} methods. A state-changing event-sourced model apply must store its
      * reconstructing event; a {@code PUBLISH_ONLY} or {@link EventPublication#NEVER NEVER} transition that would change
-     * state is rejected before commit. A publish-only no-op remains a valid domain notification.
+     * state is rejected before commit. A publish-only no-op remains a valid domain notification when publication is
+     * explicitly set to {@link EventPublication#ALWAYS ALWAYS}.
      */
     boolean eventSourced() default true;
 
@@ -149,9 +150,11 @@ public @interface Model {
     /**
      * Controls whether an applied update produces an event when the returned model is unchanged.
      * <p>
-     * This setting is evaluated before {@link #publicationStrategy()}.
+     * Independent models default to {@link EventPublication#IF_MODIFIED IF_MODIFIED}, so a no-op apply does not
+     * create a model-stream or globally published event. Use {@link EventPublication#ALWAYS ALWAYS} when an unchanged
+     * apply intentionally represents a domain event. This setting is evaluated before {@link #publicationStrategy()}.
      */
-    EventPublication eventPublication() default EventPublication.DEFAULT;
+    EventPublication eventPublication() default EventPublication.IF_MODIFIED;
 
     /**
      * Controls whether applied events are stored, published, or both.

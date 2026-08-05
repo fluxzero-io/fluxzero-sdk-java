@@ -408,12 +408,13 @@ class ModelCommitterTest {
     void silentRetryIsBoundedAndCanBeMappedToAnApplicationError() throws Exception {
         OrderId orderId = new OrderId("1");
         Order order = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
+        Order updated = new Order(orderId, null, "updated", Instant.parse("2026-01-02T00:00:00Z"));
         var evaluation = evaluation(
                 List.of(orderId.toString()),
                 substep(
                         new UpdateOrder(orderId),
-                        transition(orderId, Order.class, order, order, UpdateOrder.class, "apply", Order.class)),
-                Map.of(orderId.toString(), order));
+                        transition(orderId, Order.class, order, updated, UpdateOrder.class, "apply", Order.class)),
+                Map.of(orderId.toString(), updated));
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
             CommitModels request = invocation.getArgument(0);
             return CompletableFuture.completedFuture(conflict(request, true));
@@ -1099,10 +1100,7 @@ class ModelCommitterTest {
         }
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            eventPublication = EventPublication.IF_MODIFIED)
+    @Model(eventSourced = false, searchable = true)
     private record ConditionalModel(@EntityId ConditionalId conditionalId, String value) {
     }
 
@@ -1156,14 +1154,14 @@ class ModelCommitterTest {
     }
 
     private record UpdateEqualsProbe(EqualsProbeId id) {
-        @Apply
+        @Apply(eventPublication = EventPublication.ALWAYS)
         EqualsProbeModel apply(EqualsProbeModel current) {
             return current;
         }
     }
 
     private record TouchEqualsProbe(EqualsProbeId id) {
-        @Apply(eventPublication = EventPublication.IF_MODIFIED)
+        @Apply
         EqualsProbeModel apply(EqualsProbeModel current) {
             return current;
         }
@@ -1252,12 +1250,12 @@ class ModelCommitterTest {
     }
 
     private record MixedUpdate(StoredOnlyId storedId, PublishedOnlyId publishedId) {
-        @Apply
+        @Apply(eventPublication = EventPublication.ALWAYS)
         StoredOnly apply(StoredOnly current) {
             return current;
         }
 
-        @Apply
+        @Apply(eventPublication = EventPublication.ALWAYS)
         PublishedOnly apply(PublishedOnly current) {
             return current;
         }

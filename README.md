@@ -3134,7 +3134,9 @@ routes. `searchable = false` suppresses only the address's own search collection
 
 Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
-stored and published. Direct searchable documents are synchronous with model-commit completion.
+stored and published. `@Model` defaults `eventPublication` to `IF_MODIFIED`, so returning unchanged state does not
+produce an event; use `ALWAYS` explicitly for intentional no-op domain notifications. Direct searchable documents are
+synchronous with model-commit completion.
 
 Load current state with `Fluxzero.loadModel(id)`. Any selected message handler can inject directly addressed models and
 their parents, grandparents or further ancestors as `T` or `Entity<T>`. Event and notification handlers receive the
@@ -3349,8 +3351,8 @@ data integrity and simplifying update logic.
 - A **new update object** → rewrites the update
 - A **Collection**, `Stream`, or `Optional` → emits zero or more new updates
 
-> 📌 You typically don’t need to intercept just to avoid storing no-ops. Instead, annotate the `@Aggregate` or `@Apply`
-> method with `eventPublication = IF_MODIFIED` to avoid persisting unchanged state.
+> 📌 You typically don’t need to intercept just to avoid storing no-ops. `@Model` already defaults to
+> `eventPublication = IF_MODIFIED`. For legacy aggregates, annotate the `@Aggregate` or `@Apply` explicitly.
 
 ---
 

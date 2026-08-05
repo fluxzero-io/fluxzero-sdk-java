@@ -2193,3 +2193,29 @@ downstream test `73874fa989f911fcabef568c42a7dc7a813187169f38786b1a39a20b4c59322
 `9735ab783e7ef95f68f107b532bcf5eb422624f4a3a0f62e1395c4ade976330b`,
 `07834ed23fbdfcdb403009859e819d16d9eef55bb3521e9bab2b18b427e33ab1`,
 `72918e5d2bcf4ce5161ec446330531a6891805435702d26e69680ec1260f3ef8`.
+
+## S49: `IF_MODIFIED` as the original independent-model default
+
+`@Model.eventPublication` now defaults to `IF_MODIFIED`; legacy `@Aggregate` behavior remains unchanged and an
+explicit model- or apply-level `ALWAYS` retains intentional no-op events. The hot-path delta for a genuinely changed
+model is one `Objects.equals(before, after)` call. It adds no serialization, materialization, transport or storage work;
+an unchanged model instead avoids all model-event and global-event work.
+
+The full canonical-shaped route compared the default candidate with the same current SDK/Runtime binary and an
+explicit `ALWAYS` on only the benchmark's `EventModel`. Every run completed exactly 4,194,304 command results, stored
+model events and global events plus 65,536 exact final states:
+
+| Order | Model policy | Measured E2E | Qualification |
+| --- | --- | ---: | --- |
+| E728 A1 | explicit `ALWAYS` control | 200,066/s | host initially usable |
+| E729 B1 | default `IF_MODIFIED` | 125,025/s | invalid for comparison: Spotlight began consuming substantial CPU |
+| E730 A2 | explicit `ALWAYS` reverse control | 71,198/s | invalid; control fell below candidate as host load worsened |
+
+At the post-E729 host snapshot `mds_stores` consumed 84% of one core, `mds` 33%, Docker's VM 22% and load average was
+16.08. The 200k -> 125k delta is therefore not attributed to the equality check: the unchanged reverse control then
+fell another 43% to 71k/s. These runs are durability/correctness evidence only and make no throughput claim. The
+historical P5 pin remains unchanged. The Runtime benchmark source was restored exactly after the diagnostic.
+
+Log SHA-256 in run order: `67a7fafe8c23ca8376fcd330bf5d40dae8237661b87987d004d2e1eb2b1fcdec`,
+`16fd92e06ac32fe7c3ad9c40c7fd9006d500fc2436fe80e16fd7539958b1343f`,
+`3b65c303493eaf4c1e606491d466d1dd59fcbb289f4379941093770032fdf287`.
