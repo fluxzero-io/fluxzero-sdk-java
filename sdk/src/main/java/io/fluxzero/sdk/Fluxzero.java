@@ -586,6 +586,52 @@ public interface Fluxzero extends AutoCloseable {
                 message.withMetadata(message.getMetadata().with(metadata))));
     }
 
+    /**
+     * Runs the model assertions, apply interceptors, and applies declared for the given update without blocking the
+     * caller, and completes after the resulting model commit has been durably stored.
+     * <p>
+     * The update is converted to a message before this method returns, so metadata and context inherited from the
+     * current handler remain available to the asynchronous commit pipeline.
+     *
+     * @param update the update payload or message to assert and apply
+     * @return completion of the durable model commit
+     */
+    static CompletableFuture<Void> assertAndApplyAsync(Object update) {
+        return startModelCommit(get(), modelMessage(update));
+    }
+
+    /**
+     * Runs and commits a model commit asynchronously with the supplied metadata.
+     *
+     * @param update   the update payload to assert and apply
+     * @param metadata metadata to attach to the model event
+     * @return completion of the durable model commit
+     */
+    static CompletableFuture<Void> assertAndApplyAsync(Object update, Metadata metadata) {
+        Message message = modelMessage(update);
+        return startModelCommit(
+                get(), message.withMetadata(message.getMetadata().with(metadata)));
+    }
+
+    private static CompletableFuture<Void> startModelCommit(Fluxzero fluxzero, Message message) {
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Thread.ofVirtual().name("Fluxzero-model-commit").start(context.wrap(() -> {
+            try {
+                fluxzero.executeModelCommit(message).whenComplete(context.wrap((ignored, failure) -> {
+                    if (failure == null) {
+                        result.complete(null);
+                    } else {
+                        result.completeExceptionally(failure);
+                    }
+                }));
+            } catch (Throwable failure) {
+                result.completeExceptionally(failure);
+            }
+        }));
+        return result;
+    }
+
     private static Message modelMessage(Object update) {
         if (update instanceof HasMessage) {
             return Message.asMessage(update);

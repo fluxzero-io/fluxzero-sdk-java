@@ -218,6 +218,21 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void directAssertAndApplyAsyncCompletesWithDurableModelCommit() {
+        AccountId accountId = new AccountId("async-outside-handler");
+        ASYNC_COMMIT_METADATA.set(null);
+        TestFixture.createAsync()
+                .whenApplying(fluxzero -> Fluxzero.assertAndApplyAsync(
+                                new CreateAsyncAccount(accountId, 31),
+                                Metadata.of("async-context", "captured"))
+                        .thenApply(ignored -> fluxzero.modelRepository()
+                                .load(accountId).get()))
+                .expectResult(new Account(accountId, 31))
+                .expectThat(ignored -> assertEquals(
+                        "captured", ASYNC_COMMIT_METADATA.get()));
+    }
+
+    @Test
     void directAssertLegalInterceptsAndValidatesWithoutApplying() {
         AccountId accountId = new AccountId("validate-only");
         TestFixture.create()
@@ -328,14 +343,19 @@ class ModelCommitHandlerIntegrationTest {
     @Test
     void asyncHandlerResultRemainsUnchangedAfterDirectAssertAndApply() {
         TestFixture fixture =
-                TestFixture.create(new AsyncDelegatingHandler());
+                TestFixture.createAsync(new AsyncDelegatingHandler());
         AccountId accountId = new AccountId("direct-async");
+        ASYNC_COMMIT_METADATA.set(null);
 
-        fixture.whenCommand(new AsyncDelegatedCreate(accountId))
+        fixture.whenCommand(new Message(
+                        new AsyncDelegatedRequest(accountId),
+                        Metadata.of("async-context", "inherited")))
                 .expectResult("async")
                 .expectTrue(fluxzero -> new Account(accountId, 71)
                         .equals(fluxzero.modelRepository()
-                                        .load(accountId).get()));
+                                        .load(accountId).get()))
+                .expectThat(ignored -> assertEquals(
+                        "inherited", ASYNC_COMMIT_METADATA.get()));
     }
 
     @Test
@@ -1156,6 +1176,17 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
+    private static final AtomicReference<String> ASYNC_COMMIT_METADATA =
+            new AtomicReference<>();
+
+    private record CreateAsyncAccount(AccountId accountId, int balance) {
+        @Apply
+        Account apply(Metadata metadata) {
+            ASYNC_COMMIT_METADATA.set(metadata.get("async-context"));
+            return new Account(accountId, balance);
+        }
+    }
+
     private record ValidateOnlyAccount(
             AccountId accountId,
             int expectedBalance,
@@ -1269,16 +1300,21 @@ class ModelCommitHandlerIntegrationTest {
 
     private record AsyncDelegatedCreate(AccountId accountId) {
         @Apply
-        Account apply() {
+        Account apply(Metadata metadata) {
+            ASYNC_COMMIT_METADATA.set(metadata.get("async-context"));
             return new Account(accountId, 71);
         }
     }
 
+    private record AsyncDelegatedRequest(AccountId accountId) {
+    }
+
     private static final class AsyncDelegatingHandler {
         @HandleCommand
-        CompletableFuture<String> handle(AsyncDelegatedCreate command) {
-            Fluxzero.assertAndApply(command);
-            return CompletableFuture.completedFuture("async");
+        CompletableFuture<String> handle(AsyncDelegatedRequest command) {
+            return Fluxzero.assertAndApplyAsync(
+                            new AsyncDelegatedCreate(command.accountId()))
+                    .thenApply(ignored -> "async");
         }
     }
 
