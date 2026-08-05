@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Type;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -95,6 +96,8 @@ public class DeserializingMessage implements HasMessage {
 
     private static final ThreadLocal<Set<Consumer<Throwable>>> batchCompletionHandlers = new ThreadLocal<>();
     private static final ThreadLocal<Map<Object, Object>> batchResources = new ThreadLocal<>();
+    private static final ThreadLocal<DeserializingMessage> messageBatchMessage =
+            ThreadLocalContext.create();
 
     /**
      * Thread-local holder for the message currently being handled.
@@ -120,6 +123,14 @@ public class DeserializingMessage implements HasMessage {
     @Getter(AccessLevel.NONE)
     @NonFinal
     Message message;
+
+    @Getter(AccessLevel.NONE)
+    @NonFinal
+    transient MessageBatchResources activeMessageBatchResources;
+
+    @Getter(AccessLevel.NONE)
+    @NonFinal
+    transient int activeMessageBatchIndex = -1;
 
     @Getter(AccessLevel.NONE)
     transient Serializer serializer;
@@ -515,14 +526,30 @@ public class DeserializingMessage implements HasMessage {
             return;
         }
         DeserializingMessage previous = getCurrent();
+        DeserializingMessage previousBatchMessage =
+                messageBatchMessage.get();
+        boolean ownsBatch = previousBatchMessage == null;
+        MessageBatchResources sharedResources = ownsBatch
+                ? new MessageBatchResources(
+                        batch instanceof Collection<?> collection
+                                ? collection.size() : -1)
+                : previousBatchMessage.activeMessageBatchResources;
+        int messageIndex = 0;
         boolean completeOnSuccess = previous == null;
         try {
             for (DeserializingMessage message : batch) {
                 try {
+                    if (ownsBatch) {
+                        activateMessageBatch(
+                                message, sharedResources,
+                                messageIndex++);
+                    }
                     current.set(message);
                     action.accept(message);
                 } finally {
                     current.set(previous);
+                    restoreMessageBatchMessage(
+                            previousBatchMessage, ownsBatch);
                 }
             }
         } catch (Throwable e) {
@@ -538,19 +565,33 @@ public class DeserializingMessage implements HasMessage {
     private static void forEachListInBatch(List<DeserializingMessage> messages,
                                            Consumer<? super DeserializingMessage> action) {
         DeserializingMessage previous = getCurrent();
+        DeserializingMessage previousBatchMessage =
+                messageBatchMessage.get();
+        boolean ownsBatch = previousBatchMessage == null;
+        MessageBatchResources sharedResources = ownsBatch
+                ? new MessageBatchResources(messages.size())
+                : previousBatchMessage.activeMessageBatchResources;
         boolean completeOnSuccess = previous == null;
         try {
             for (int i = 0; i < messages.size(); i++) {
                 DeserializingMessage message = messages.get(i);
+                if (ownsBatch) {
+                    activateMessageBatch(
+                            message, sharedResources, i);
+                }
                 current.set(message);
                 action.accept(message);
             }
         } catch (Throwable e) {
             current.set(previous);
+            restoreMessageBatchMessage(
+                    previousBatchMessage, ownsBatch);
             completeBatch(e);
             throw e;
         }
         current.set(previous);
+        restoreMessageBatchMessage(
+                previousBatchMessage, ownsBatch);
         if (completeOnSuccess) {
             completeBatch(null);
         }
@@ -579,6 +620,70 @@ public class DeserializingMessage implements HasMessage {
         return (V) getBatchResources().computeIfAbsent(key, (Function) function);
     }
 
+    /**
+     * Returns one resource shared by the complete current message batch, creating it when necessary.
+     *
+     * <p>Unlike {@link #computeForBatchIfAbsent(Object, Function)}, this resource participates in captured request
+     * context and is therefore visible to asynchronous handler workers. The mapping function and returned value must
+     * consequently be safe for concurrent use. Outside message-batch handling this method returns {@code null}.</p>
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <K, V> V computeForMessageBatchIfAbsent(
+            K key,
+            Function<? super K, ? extends V> function) {
+        DeserializingMessage batchMessage =
+                messageBatchMessage.get();
+        return batchMessage == null
+                ? null
+                : (V) batchMessage.activeMessageBatchResources
+                        .values()
+                        .computeIfAbsent(key, (Function) function);
+    }
+
+    /**
+     * Returns a previously created asynchronous message-batch resource, or {@code null} outside that batch.
+     */
+    @SuppressWarnings("unchecked")
+    public static <V> V getMessageBatchResource(Object key) {
+        DeserializingMessage batchMessage =
+                messageBatchMessage.get();
+        return batchMessage == null
+                ? null
+                : (V) batchMessage.activeMessageBatchResources
+                        .values().get(key);
+    }
+
+    /**
+     * Returns the zero-based position of the current message in its tracking batch, or {@code -1} outside a batch.
+     */
+    public static int getMessageBatchIndex() {
+        DeserializingMessage batchMessage =
+                messageBatchMessage.get();
+        return batchMessage == null
+                ? -1 : batchMessage.activeMessageBatchIndex;
+    }
+
+    /**
+     * Returns the routing segment of the current message-batch position, or {@code -1} outside a message batch.
+     */
+    public static int getMessageBatchSegment() {
+        DeserializingMessage batchMessage =
+                messageBatchMessage.get();
+        return batchMessage == null
+                ? -1 : segmentOf(batchMessage);
+    }
+
+    /**
+     * Returns the known message count of the current batch, or {@code -1} when its source did not expose a size.
+     */
+    public static int getMessageBatchSize() {
+        DeserializingMessage batchMessage =
+                messageBatchMessage.get();
+        return batchMessage == null
+                ? -1
+                : batchMessage.activeMessageBatchResources.size();
+    }
+
     @SuppressWarnings("unchecked")
     public static <V> V getBatchResource(Object key) {
         return (V) getBatchResources().get(key);
@@ -599,10 +704,18 @@ public class DeserializingMessage implements HasMessage {
 
     protected static class MessageSpliterator extends Spliterators.AbstractSpliterator<DeserializingMessage> {
         private final Spliterator<DeserializingMessage> upStream;
+        private final MessageBatchResources sharedResources;
+        private int messageIndex;
 
         public MessageSpliterator(Spliterator<DeserializingMessage> upStream) {
             super(upStream.estimateSize(), upStream.characteristics());
             this.upStream = upStream;
+            DeserializingMessage activeMessage =
+                    messageBatchMessage.get();
+            this.sharedResources = activeMessage == null
+                    ? new MessageBatchResources(
+                            expectedSize(upStream.estimateSize()))
+                    : activeMessage.activeMessageBatchResources;
         }
 
         @Override
@@ -611,11 +724,21 @@ public class DeserializingMessage implements HasMessage {
             try {
                 hadNext = upStream.tryAdvance(d -> {
                     DeserializingMessage previous = getCurrent();
+                    DeserializingMessage previousBatchMessage =
+                            messageBatchMessage.get();
+                    boolean ownsBatch = previousBatchMessage == null;
                     try {
+                        if (ownsBatch) {
+                            activateMessageBatch(
+                                    d, sharedResources,
+                                    messageIndex++);
+                        }
                         current.set(d);
                         action.accept(d);
                     } finally {
                         current.set(previous);
+                        restoreMessageBatchMessage(
+                                previousBatchMessage, ownsBatch);
                     }
                 });
             } catch (Throwable e) {
@@ -661,5 +784,47 @@ public class DeserializingMessage implements HasMessage {
      */
     public static void completeLocalBatch(Throwable error) {
         completeBatch(error);
+    }
+
+    private static void activateMessageBatch(
+            DeserializingMessage message,
+            MessageBatchResources resources,
+            int index) {
+        message.activeMessageBatchResources = resources;
+        message.activeMessageBatchIndex = index;
+        messageBatchMessage.set(message);
+    }
+
+    private static void restoreMessageBatchMessage(
+            DeserializingMessage previous,
+            boolean owned) {
+        if (!owned) {
+            return;
+        }
+        if (previous == null) {
+            messageBatchMessage.remove();
+        } else {
+            messageBatchMessage.set(previous);
+        }
+    }
+
+    private record MessageBatchResources(
+            ConcurrentHashMap<Object, Object> values,
+            int size) {
+        private MessageBatchResources(int size) {
+            this(new ConcurrentHashMap<>(), size);
+        }
+    }
+
+    private static int expectedSize(long estimate) {
+        return estimate < 0L || estimate > Integer.MAX_VALUE
+                ? -1 : (int) estimate;
+    }
+
+    private static int segmentOf(
+            DeserializingMessage message) {
+        Integer segment = message.getSerializedObject()
+                .getSegment();
+        return segment == null ? -1 : segment;
     }
 }

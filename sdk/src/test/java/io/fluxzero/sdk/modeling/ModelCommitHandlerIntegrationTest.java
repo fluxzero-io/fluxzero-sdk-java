@@ -23,6 +23,7 @@ import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,6 +50,7 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -1033,6 +1036,247 @@ class ModelCommitHandlerIntegrationTest {
                         "assert:second/root|intercept:second/root|apply:second/root")
                         .equals(fluxzero.modelRepository()
                                         .load(grandchildId).get()));
+    }
+
+    @Test
+    void currentGraphReflectsPendingChildMoveAndKeepsHistoricalGraphStable() {
+        FamilyRootId firstRootId = new FamilyRootId("batch-graph-first");
+        FamilyRootId secondRootId = new FamilyRootId("batch-graph-second");
+        FamilyChildId firstChildId = new FamilyChildId("batch-graph-first");
+        FamilyChildId secondChildId = new FamilyChildId("batch-graph-second");
+        FamilyGrandchildId grandchildId = new FamilyGrandchildId("batch-graph");
+        FamilyChild before = new FamilyChild(
+                firstChildId, firstRootId, "moving");
+        FamilyChild after = new FamilyChild(
+                firstChildId, secondRootId, "moving");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(firstRootId, "first"),
+                        new CreateFamilyRoot(secondRootId, "second"),
+                        new CreateFamilyChild(firstChildId, firstRootId, "moving"),
+                        new CreateFamilyChild(secondChildId, secondRootId, "existing"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, firstChildId, firstChildId))
+                .whenApplying(fluxzero -> {
+                    ModelGraph<FamilyRoot> durable =
+                            fluxzero.modelRepository().loadGraph(firstRootId);
+                    DeserializingMessage moveMessage =
+                            new DeserializingMessage(
+                                    new Message("move"), COMMAND,
+                                    fluxzero.serializer());
+                    DeserializingMessage readMessage =
+                            new DeserializingMessage(
+                                    new Message("read"), COMMAND,
+                                    fluxzero.serializer());
+                    DeserializingMessage.forEachInBatch(
+                            List.of(moveMessage, readMessage), current -> {
+                                if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                                    MessageBatchModelView.stage(
+                                            null,
+                                            new ModelCommitEngine.CommitEvaluation(
+                                                    durable.stateIndex(),
+                                                    List.of(firstChildId.toString()),
+                                                    java.util.Map.of(
+                                                            firstChildId.toString(),
+                                                            FamilyChild.class),
+                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                            current,
+                                                            List.of(new ModelCommitEngine.Transition(
+                                                                    firstChildId.toString(),
+                                                                    FamilyChild.class,
+                                                                    0L, before, after, null)))),
+                                                    java.util.Map.of(
+                                                            firstChildId.toString(), after)),
+                                            null);
+                                    return;
+                                }
+
+                                assertEquals(
+                                        after,
+                                        fluxzero.modelRepository()
+                                                .load(firstChildId).get());
+                                ModelGraph<FamilyRoot> oldGraph =
+                                        fluxzero.modelRepository()
+                                                .loadGraph(firstRootId);
+                                ModelGraph<FamilyRoot> newGraph =
+                                        fluxzero.modelRepository()
+                                                .loadGraph(secondRootId);
+                                ModelGraph<FamilyRoot> historical =
+                                        fluxzero.modelRepository().loadGraphAt(
+                                                firstRootId,
+                                                durable.stateIndex());
+
+                                assertEquals(
+                                        List.of(),
+                                        oldGraph.root().children("children"));
+                                assertEquals(
+                                        List.of("existing", "moving"),
+                                        newGraph.root().children("children")
+                                                .stream()
+                                                .map(node -> ((FamilyChild) node.model().get()).name())
+                                                .sorted()
+                                                .toList());
+                                ModelGraph.Node<?> moved =
+                                        newGraph.root().children("children")
+                                                .stream()
+                                                .filter(node -> node.model().id()
+                                                        .equals(firstChildId.toString()))
+                                                .findFirst().orElseThrow();
+                                assertEquals(
+                                        grandchildId.toString(),
+                                        moved.children("primaryGrandchildren")
+                                                .getFirst().model().id());
+                                assertEquals(
+                                        firstChildId.toString(),
+                                        historical.root().children("children")
+                                                .getFirst().model().id());
+                            });
+                    return null;
+                })
+                .expectNoErrors();
+    }
+
+    @Test
+    void currentGraphCanBeComposedEntirelyFromNewPendingModels() {
+        FamilyRootId rootId = new FamilyRootId("batch-new-root");
+        FamilyChildId childId = new FamilyChildId("batch-new-child");
+        FamilyRoot root = new FamilyRoot(rootId, "new-root");
+        FamilyChild child = new FamilyChild(childId, rootId, "new-child");
+
+        TestFixture.create()
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    new DeserializingMessage(
+                                            new Message("create"), COMMAND,
+                                            fluxzero.serializer()),
+                                    new DeserializingMessage(
+                                            new Message("read"), COMMAND,
+                                            fluxzero.serializer())),
+                            current -> {
+                                if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                                    MessageBatchModelView.stage(
+                                            null,
+                                            new ModelCommitEngine.CommitEvaluation(
+                                                    -1L,
+                                                    List.of(
+                                                            rootId.toString(),
+                                                            childId.toString()),
+                                                    java.util.Map.of(
+                                                            rootId.toString(), FamilyRoot.class,
+                                                            childId.toString(), FamilyChild.class),
+                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                            current,
+                                                            List.of(
+                                                                    new ModelCommitEngine.Transition(
+                                                                            rootId.toString(),
+                                                                            FamilyRoot.class,
+                                                                            -1L, null, root, null),
+                                                                    new ModelCommitEngine.Transition(
+                                                                            childId.toString(),
+                                                                            FamilyChild.class,
+                                                                            -1L, null, child, null)))),
+                                                    java.util.Map.of(
+                                                            rootId.toString(), root,
+                                                            childId.toString(), child)),
+                                            null);
+                                    return;
+                                }
+                                ModelGraph<FamilyRoot> graph =
+                                        fluxzero.modelRepository().loadGraph(rootId);
+                                assertEquals(root, graph.root().model().get());
+                                assertEquals(
+                                        child,
+                                        graph.root().children("children")
+                                                .getFirst().model().get());
+                            });
+                    return null;
+                })
+                .expectNoErrors();
+    }
+
+    @Test
+    void pendingRootDeletionHidesItsCurrentGraphButNotItsHistory() {
+        FamilyRootId rootId =
+                new FamilyRootId("batch-deleted-root");
+        FamilyChildId childId =
+                new FamilyChildId("batch-deleted-root");
+        FamilyRoot root =
+                new FamilyRoot(rootId, "deleted-root");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(
+                                rootId, root.name()),
+                        new CreateFamilyChild(
+                                childId, rootId, "child"))
+                .whenApplying(fluxzero -> {
+                    ModelGraph<FamilyRoot> durable =
+                            fluxzero.modelRepository()
+                                    .loadGraph(rootId);
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    new DeserializingMessage(
+                                            new Message("delete"), COMMAND,
+                                            fluxzero.serializer()),
+                                    new DeserializingMessage(
+                                            new Message("read"), COMMAND,
+                                            fluxzero.serializer())),
+                            current -> {
+                                if (DeserializingMessage
+                                            .getMessageBatchIndex()
+                                    == 0) {
+                                    MessageBatchModelView.stage(
+                                            null,
+                                            new ModelCommitEngine.CommitEvaluation(
+                                                    durable.stateIndex(),
+                                                    List.of(
+                                                            rootId.toString()),
+                                                    java.util.Map.of(
+                                                            rootId.toString(),
+                                                            FamilyRoot.class),
+                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                            current,
+                                                            List.of(new ModelCommitEngine.Transition(
+                                                                    rootId.toString(),
+                                                                    FamilyRoot.class,
+                                                                    0L, root,
+                                                                    null, null)))),
+                                                    Collections.singletonMap(
+                                                            rootId.toString(),
+                                                            null)),
+                                            null);
+                                    return;
+                                }
+                                ModelGraph<FamilyRoot> currentGraph =
+                                        fluxzero.modelRepository()
+                                                .loadGraph(rootId);
+                                ModelGraph<FamilyRoot> historical =
+                                        fluxzero.modelRepository()
+                                                .loadGraphAt(
+                                                        rootId,
+                                                        durable.stateIndex());
+
+                                assertTrue(
+                                        currentGraph.root()
+                                                .model().isEmpty());
+                                assertTrue(
+                                        currentGraph.root()
+                                                .children().isEmpty());
+                                assertEquals(
+                                        root,
+                                        historical.root()
+                                                .model().get());
+                                assertEquals(
+                                        childId.toString(),
+                                        historical.root()
+                                                .children("children")
+                                                .getFirst().model().id());
+                            });
+                    return null;
+                })
+                .expectNoErrors();
     }
 
     @Test

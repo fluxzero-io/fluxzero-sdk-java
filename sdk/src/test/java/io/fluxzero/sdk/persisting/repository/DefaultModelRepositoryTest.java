@@ -30,10 +30,13 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.MemoryPressureController;
 import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
@@ -89,6 +92,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.MessageType.COMMAND;
 
 class DefaultModelRepositoryTest {
 
@@ -649,6 +653,7 @@ class DefaultModelRepositoryTest {
         try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
+                .replaceCache(testCache())
                 .build(client))) {
             fluxzero.executeModelCommit(
                     new Message(new CreateAccount(id, 5))).join();
@@ -708,6 +713,7 @@ class DefaultModelRepositoryTest {
         try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
+                .replaceCache(testCache())
                 .build(client))) {
             fluxzero.executeModelCommit(
                     new Message(new CreateAccount(id, 5))).join();
@@ -721,6 +727,168 @@ class DefaultModelRepositoryTest {
                     fluxzero.modelRepository().load(id).get());
             verify(eventStoreClient, times(0))
                     .getCompactModelEvents(any());
+            verify(eventStoreClient, times(1))
+                    .commitModels(any());
+        }
+    }
+
+    @Test
+    void explicitModelCommitsReadEarlierPendingChangesFromTheCurrentMessageBatch()
+            throws Exception {
+        AccountId id = new AccountId("explicit-batch");
+        LocalClient localClient = LocalClient.newInstance(null);
+        EventStoreClient delegate = localClient.getEventStoreClient();
+        EventStoreClient eventStoreClient = spy(delegate);
+        LocalClient client = spy(localClient);
+        doReturn(eventStoreClient).when(client).getEventStoreClient();
+        AtomicBoolean delayNextCommit = new AtomicBoolean();
+        CompletableFuture<Void> releaseFirstCommit =
+                new CompletableFuture<>();
+        doAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            if (delayNextCommit.compareAndSet(true, false)) {
+                return releaseFirstCommit.thenCompose(
+                        ignored -> delegate.commitModels(commit));
+            }
+            return delegate.commitModels(commit);
+        }).when(eventStoreClient).commitModels(any());
+
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(client))) {
+            fluxzero.executeModelCommit(
+                    new Message(new CreateAccount(id, 5))).join();
+            clearInvocations(eventStoreClient);
+            delayNextCommit.set(true);
+            @SuppressWarnings("unchecked")
+            CompletableFuture<Void>[] updates =
+                    new CompletableFuture[2];
+
+            fluxzero.apply(ignored -> {
+                DeserializingMessage first =
+                        new DeserializingMessage(
+                                new Message("first"), COMMAND,
+                                fluxzero.serializer());
+                DeserializingMessage second =
+                        new DeserializingMessage(
+                                new Message("second"), COMMAND,
+                                fluxzero.serializer());
+                first.getSerializedObject().setSegment(17);
+                second.getSerializedObject().setSegment(17);
+                DeserializingMessage.forEachInBatch(
+                        List.of(first, second),
+                        current -> {
+                            int index =
+                                    DeserializingMessage
+                                            .getMessageBatchIndex();
+                            updates[index] =
+                                    fluxzero.executeModelCommit(
+                                            new Message(
+                                                    new ChangeAccount(
+                                                            id,
+                                                            index == 0
+                                                                    ? 2 : 3)));
+                        });
+                return null;
+            });
+
+            verify(eventStoreClient, times(1))
+                    .commitModels(any());
+            assertFalse(updates[0].isDone());
+            assertFalse(updates[1].isDone());
+
+            releaseFirstCommit.complete(null);
+            CompletableFuture.allOf(updates)
+                    .get(5, TimeUnit.SECONDS);
+
+            assertEquals(
+                    new Account(id, 10),
+                    fluxzero.modelRepository().load(id).get());
+            verify(eventStoreClient, times(2))
+                    .commitModels(any());
+        }
+    }
+
+    @Test
+    void explicitBatchDependentCommitFailsWhenItsPendingPredecessorFails()
+            throws Exception {
+        AccountId id = new AccountId("explicit-batch-failure");
+        LocalClient localClient = LocalClient.newInstance(null);
+        EventStoreClient delegate = localClient.getEventStoreClient();
+        EventStoreClient eventStoreClient = spy(delegate);
+        LocalClient client = spy(localClient);
+        doReturn(eventStoreClient).when(client).getEventStoreClient();
+        AtomicReference<CompletableFuture<CommitModelsResult>>
+                pendingResponse = new AtomicReference<>();
+        doAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            CompletableFuture<CommitModelsResult> pending =
+                    pendingResponse.get();
+            return pending == null
+                    ? delegate.commitModels(commit)
+                    : pending;
+        }).when(eventStoreClient).commitModels(any());
+
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(client))) {
+            fluxzero.executeModelCommit(
+                    new Message(new CreateAccount(id, 5))).join();
+            clearInvocations(eventStoreClient);
+            CompletableFuture<CommitModelsResult> rejected =
+                    new CompletableFuture<>();
+            pendingResponse.set(rejected);
+            @SuppressWarnings("unchecked")
+            CompletableFuture<Void>[] updates =
+                    new CompletableFuture[2];
+
+            fluxzero.apply(ignored -> {
+                DeserializingMessage first =
+                        new DeserializingMessage(
+                                new Message("first"), COMMAND,
+                                fluxzero.serializer());
+                DeserializingMessage second =
+                        new DeserializingMessage(
+                                new Message("second"), COMMAND,
+                                fluxzero.serializer());
+                first.getSerializedObject().setSegment(23);
+                second.getSerializedObject().setSegment(23);
+                DeserializingMessage.forEachInBatch(
+                        List.of(first, second),
+                        current -> {
+                            int index = DeserializingMessage
+                                    .getMessageBatchIndex();
+                            if (index == 1) {
+                                assertEquals(
+                                        new Account(id, 6),
+                                        fluxzero.modelRepository()
+                                                .load(id).get());
+                            }
+                            updates[index] =
+                                    fluxzero.executeModelCommit(
+                                            new Message(
+                                                    new ChangeAccount(
+                                                            id, index + 1)));
+                        });
+                return null;
+            });
+
+            verify(eventStoreClient, times(1))
+                    .commitModels(any());
+            rejected.completeExceptionally(
+                    new IllegalStateException("predecessor failed"));
+
+            assertThrows(
+                    CompletionException.class,
+                    () -> updates[0].join());
+            assertThrows(
+                    CompletionException.class,
+                    () -> updates[1].join());
+            assertEquals(
+                    new Account(id, 5),
+                    fluxzero.modelRepository().load(id).get());
             verify(eventStoreClient, times(1))
                     .commitModels(any());
         }
@@ -1404,6 +1572,11 @@ class DefaultModelRepositoryTest {
                 .disableKeepalive()
                 .disableShutdownHook()
                 .build(LocalClient.newInstance(null)));
+    }
+
+    private static Cache testCache() {
+        return new AdaptiveObjectCache(
+                100, MemoryPressureController.none());
     }
 
     private static Fluxzero withModelHandlers(Fluxzero fluxzero) {

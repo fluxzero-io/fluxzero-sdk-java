@@ -29,7 +29,9 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * A node can occur below several parents because the relationship graph is a DAG. The underlying model remains one
  * independently loaded {@link Entity}; graph composition does not merge its stream into a root stream.
  *
- * @param stateIndex pinned state boundary shared by every node and edge
+ * @param stateIndex pinned durable state boundary shared by every reconstructed node and edge; a current graph load
+ *                   during tracked handling may additionally overlay pending changes from earlier messages in the
+ *                   same ordered batch segment
  * @param root composed root node
  * @param models all independently reconstructed models keyed by exact model ID
  * @param edges temporal edges selected at {@code stateIndex}

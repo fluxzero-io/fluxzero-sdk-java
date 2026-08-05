@@ -1008,7 +1008,7 @@ public interface Fluxzero extends AutoCloseable {
      * model has that identity, a current {@link Alias @Alias} value may resolve the model instead.
      */
     static <T> Entity<T> loadModel(Id<T> modelId) {
-        return get().modelRepository().load(modelId);
+        return currentModelRepository().load(modelId);
     }
 
     /**
@@ -1018,7 +1018,7 @@ public interface Fluxzero extends AutoCloseable {
      * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
      */
     static <T> Entity<T> loadModel(Object modelId) {
-        return get().modelRepository().load(modelId);
+        return currentModelRepository().load(modelId);
     }
 
     /**
@@ -1027,7 +1027,7 @@ public interface Fluxzero extends AutoCloseable {
      * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
      */
     static <T> Entity<T> loadModel(Object modelId, Class<T> modelType) {
-        return get().modelRepository().load(modelId, modelType);
+        return currentModelRepository().load(modelId, modelType);
     }
 
     /**
@@ -1037,7 +1037,16 @@ public interface Fluxzero extends AutoCloseable {
      */
     static <T> List<Entity<T>> loadModels(
             List<?> modelIds, Class<T> modelType) {
-        return get().modelRepository().loadAll(modelIds, modelType);
+        return currentModelRepository().loadAll(modelIds, modelType);
+    }
+
+    private static ModelRepository currentModelRepository() {
+        ModelRepository repository = get().modelRepository();
+        DeserializingMessage message = DeserializingMessage.getCurrent();
+        return message == null
+                ? repository
+                : repository.forNamespace(
+                        ClientUtils.getConsumerNamespace(message));
     }
 
     /**

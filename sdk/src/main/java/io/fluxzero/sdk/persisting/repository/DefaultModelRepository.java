@@ -43,6 +43,7 @@ import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
@@ -56,6 +57,7 @@ import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelEventReplayer;
 import io.fluxzero.sdk.modeling.ModelGraph;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
+import io.fluxzero.sdk.modeling.MessageBatchModelView;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
@@ -88,6 +90,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
+import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
 import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
 
 /**
@@ -326,6 +329,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
     @Override
     public <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType) {
+        return MessageBatchModelView.overlayCurrent(
+                messageBatchNamespace(), modelId, modelType,
+                loadDurable(modelId, modelType));
+    }
+
+    private <T> Entity<T> loadDurable(
+            String modelId,
+            Class<T> modelType) {
         ModelEventStateBoundary handlerBoundary =
                 handlerBoundary();
         if (Object.class.equals(modelType)) {
@@ -334,7 +345,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             if (resolvedType == null) {
                 return cast(emptyUntyped(modelId));
             }
-            return cast(load(
+            return cast(loadDurable(
                     modelId,
                     resolvedType));
         }
@@ -395,7 +406,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 new ModelTargetResolver.Resolution(
                         List.of(target), List.of()),
                 boundary(handlerBoundary),
-                Map.of());
+                Map.of(), false);
         pin(handlerBoundary, context.readStateIndex());
         Entity<?> entity = context.entries().getFirst().entity();
         if (handlerBoundary == null
@@ -441,7 +452,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelCommitContext context = loadContext(
                 new ModelTargetResolver.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
-                Map.of());
+                Map.of(), false);
+        context = MessageBatchModelView.overlayCurrent(
+                messageBatchNamespace(), context);
         pin(handlerBoundary, context.readStateIndex());
         return context.entries().stream()
                 .map(ModelCommitContext.Entry::entity)
@@ -461,7 +474,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return loadGraph(
                 rootId, rootType, options,
                 boundary(handlerBoundary),
-                handlerBoundary);
+                handlerBoundary, true);
     }
 
     @Override
@@ -478,7 +491,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelMetadata.validate(rootType);
         return loadGraph(
                 rootId, rootType, options,
-                ModelEventBatchLoader.Boundary.at(stateIndex), null);
+                ModelEventBatchLoader.Boundary.at(stateIndex), null,
+                false);
     }
 
     private <T> ModelGraph<T> loadGraph(
@@ -486,7 +500,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             Class<T> rootType,
             ModelGraph.Options options,
             ModelEventBatchLoader.Boundary boundary,
-            ModelEventStateBoundary handlerBoundary) {
+            ModelEventStateBoundary handlerBoundary,
+            boolean includeMessageBatch) {
         GetModelGraphResult graph = client.getEventStoreClient().getModelGraph(
                 new GetModelGraph(
                         rootId, boundary.stateIndex(),
@@ -516,9 +531,213 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     "Model graph moved from state index %d to %d during reconstruction"
                             .formatted(graph.getStateIndex(), reconstructed.stateIndex()));
         }
-        return composeGraph(
+        Map<String, MessageBatchModelView.StagedModel> staged =
+                includeMessageBatch
+                        ? MessageBatchModelView.currentValues(
+                                messageBatchNamespace())
+                        : Map.of();
+        Map<String, Entity<?>> durableModels =
+                reconstructed.entities();
+        MessageBatchModelView.StagedModel stagedRoot =
+                staged.get(rootId);
+        if (stagedRoot != null
+            && !stagedRoot.existedBefore()
+            && !durableModels.containsKey(rootId)) {
+            LinkedHashMap<String, Entity<?>> withEmptyRoot =
+                    new LinkedHashMap<>(durableModels);
+            withEmptyRoot.put(
+                    rootId,
+                    ImmutableModelRoot.builder()
+                            .id(rootId)
+                            .type((Class) stagedRoot.modelType())
+                            .idProperty(ModelMetadata.validate(
+                                            stagedRoot.modelType())
+                                                .entityId()
+                                                .orElseThrow()
+                                                .name())
+                            .value(null)
+                            .build());
+            durableModels = withEmptyRoot;
+        }
+        ModelGraph<T> durable = composeGraph(
                 rootId, graph.getStateIndex(),
-                reconstructed.entities(), graph.getEdges());
+                durableModels, graph.getEdges());
+        return includeMessageBatch
+                ? overlayMessageBatchGraph(
+                        durable, rootId, rootType, options, staged)
+                : durable;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private <T> ModelGraph<T> overlayMessageBatchGraph(
+            ModelGraph<T> durable,
+            String rootId,
+            Class<T> rootType,
+            ModelGraph.Options options,
+            Map<String, MessageBatchModelView.StagedModel> staged) {
+        if (staged.isEmpty()) {
+            return durable;
+        }
+        MessageBatchModelView.StagedModel rootCandidate =
+                staged.get(rootId);
+        if (rootCandidate != null
+            && rootCandidate.value() == null) {
+            Entity<?> deleted = MessageBatchModelView.overlayCurrent(
+                    messageBatchNamespace(), rootId,
+                    (Class) rootCandidate.modelType(),
+                    durable.root().model());
+            return composeGraph(
+                    rootId, durable.stateIndex(),
+                    Map.of(rootId, deleted), List.of());
+        }
+        LinkedHashMap<String, Entity<?>> models =
+                new LinkedHashMap<>(durable.models());
+        LinkedHashSet<ModelGraphEdge> edges =
+                new LinkedHashSet<>(durable.edges());
+        edges.removeIf(edge ->
+                staged.containsKey(edge.getChildId()));
+        staged.values().forEach(model -> {
+            Object value = model.value();
+            if (value == null) {
+                return;
+            }
+            for (ModelMetadata.ParentReference parent :
+                    ModelMetadata.validate(model.modelType())
+                            .parentReferences()) {
+                if (parent.path().isEmpty()) {
+                    continue;
+                }
+                Object parentId = parent.read(value);
+                if (parentId != null) {
+                    edges.add(new ModelGraphEdge(
+                            model.modelId(), parentId.toString(),
+                            parent.parentModelType() == null
+                                    ? null
+                                    : parent.parentModelType().getName(),
+                            parent.path(), -1L, null));
+                }
+            }
+        });
+
+        GraphSelection initial = selectGraph(
+                rootId, edges, options);
+        for (String modelId : initial.modelIds()) {
+            MessageBatchModelView.StagedModel candidate =
+                    staged.get(modelId);
+            if (candidate == null || models.containsKey(modelId)
+                || !candidate.existedBefore()) {
+                continue;
+            }
+            ModelGraph<?> supplemental = loadGraph(
+                    modelId, (Class) candidate.modelType(),
+                    ModelGraph.Options.DEFAULT,
+                    ModelEventBatchLoader.Boundary.at(
+                            durable.stateIndex()),
+                    null, false);
+            models.putAll(supplemental.models());
+            supplemental.edges().stream()
+                    .filter(edge ->
+                            !staged.containsKey(
+                                    edge.getChildId()))
+                    .forEach(edges::add);
+        }
+
+        GraphSelection selected = selectGraph(
+                rootId, edges, options);
+        LinkedHashMap<String, Entity<?>> selectedModels =
+                new LinkedHashMap<>();
+        for (String modelId : selected.modelIds()) {
+            MessageBatchModelView.StagedModel candidate =
+                    staged.get(modelId);
+            Entity<?> entity = models.get(modelId);
+            if (candidate != null) {
+                if (entity == null) {
+                    entity = ImmutableModelRoot.builder()
+                            .id(modelId)
+                            .type((Class) candidate.modelType())
+                            .idProperty(ModelMetadata.validate(
+                                            candidate.modelType())
+                                                .entityId()
+                                                .orElseThrow()
+                                                .name())
+                            .value(null)
+                            .build();
+                }
+                entity = MessageBatchModelView.overlayCurrent(
+                        messageBatchNamespace(), modelId,
+                        (Class) candidate.modelType(), entity);
+            }
+            if (entity == null) {
+                throw new EventSourcingException(
+                        "Message-batch model graph contains an unloaded node "
+                        + modelId);
+            }
+            selectedModels.put(modelId, entity);
+        }
+        Class<T> effectiveRootType =
+                staged.containsKey(rootId)
+                        ? (Class<T>) staged.get(rootId).modelType()
+                        : rootType;
+        if (!rootType.isAssignableFrom(effectiveRootType)) {
+            throw new EventSourcingException(
+                    "Message-batch graph root '%s' has staged type %s instead of %s"
+                            .formatted(
+                                    rootId, effectiveRootType.getName(),
+                                    rootType.getName()));
+        }
+        return composeGraph(
+                rootId, durable.stateIndex(),
+                selectedModels, selected.edges());
+    }
+
+    private static GraphSelection selectGraph(
+            String rootId,
+            Collection<ModelGraphEdge> edges,
+            ModelGraph.Options options) {
+        LinkedHashMap<String, List<ModelGraphEdge>> byParent =
+                new LinkedHashMap<>();
+        for (ModelGraphEdge edge : edges) {
+            if (edge.getPath() != null) {
+                byParent.computeIfAbsent(
+                                edge.getParentId(), ignored -> new ArrayList<>())
+                        .add(edge);
+            }
+        }
+        LinkedHashSet<String> modelIds = new LinkedHashSet<>();
+        modelIds.add(rootId);
+        List<String> frontier = List.of(rootId);
+        List<ModelGraphEdge> selectedEdges = new ArrayList<>();
+        for (int depth = 0;
+             !frontier.isEmpty()
+             && (options.maxDepth() == UNBOUNDED
+                 || depth < options.maxDepth());
+             depth++) {
+            List<String> next = new ArrayList<>();
+            for (String parentId : frontier) {
+                for (ModelGraphEdge edge :
+                        byParent.getOrDefault(parentId, List.of())) {
+                    selectedEdges.add(edge);
+                    if (modelIds.add(edge.getChildId())) {
+                        if (options.maxModels() != UNBOUNDED
+                            && modelIds.size() > options.maxModels()) {
+                            throw new IllegalArgumentException(
+                                    "Model graph exceeds maxModels "
+                                    + options.maxModels());
+                        }
+                        next.add(edge.getChildId());
+                    }
+                }
+            }
+            frontier = next;
+        }
+        return new GraphSelection(
+                List.copyOf(modelIds),
+                List.copyOf(selectedEdges));
+    }
+
+    private record GraphSelection(
+            List<String> modelIds,
+            List<ModelGraphEdge> edges) {
     }
 
     /**
@@ -968,7 +1187,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ModelEventStateBoundary handlerBoundary =
                 handlerBoundary();
         ModelCommitContext context = loadContext(
-                resolution, boundary(handlerBoundary), Map.of());
+                resolution, boundary(handlerBoundary), Map.of(), true);
         pin(handlerBoundary, context.readStateIndex());
         return context;
     }
@@ -984,7 +1203,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return loadContext(
                 resolution,
                 ModelEventBatchLoader.Boundary.at(maxStateIndex),
-                Map.of());
+                Map.of(), false);
     }
 
     /**
@@ -995,9 +1214,43 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             Long maxStateIndex,
             Map<String, Object> stagedValues) {
         return loadContext(
+                resolution, maxStateIndex,
+                stagedValues, true);
+    }
+
+    /**
+     * Loads a commit context with an explicit choice whether pending values from the surrounding tracking batch should
+     * be overlaid. Automatic model handling disables this generic overlay because its preplanned batch view already
+     * supplies exactly the required predecessors; explicit operations and ordinary handlers enable it.
+     */
+    public ModelCommitContext loadContext(
+            ModelTargetResolver.Resolution resolution,
+            Long maxStateIndex,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch) {
+        ModelCommitContext context = loadContext(
                 resolution,
                 ModelEventBatchLoader.Boundary.at(maxStateIndex),
-                stagedValues);
+                stagedValues, includeMessageBatch);
+        return includeMessageBatch
+                ? MessageBatchModelView.overlayCurrent(
+                        messageBatchNamespace(), context)
+                : context;
+    }
+
+    private String messageBatchNamespace() {
+        DeserializingMessage message =
+                DeserializingMessage.getCurrent();
+        if (message == null) {
+            return client.namespace();
+        }
+        String consumerNamespace =
+                ClientUtils.getConsumerNamespace(message);
+        String resolvedConsumerNamespace =
+                client.forNamespace(consumerNamespace).namespace();
+        return Objects.equals(
+                client.namespace(), resolvedConsumerNamespace)
+                ? consumerNamespace : client.namespace();
     }
 
     /**
@@ -1084,7 +1337,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private ModelCommitContext loadContext(
             ModelTargetResolver.Resolution resolution,
             ModelEventBatchLoader.Boundary boundary,
-            Map<String, Object> stagedValues) {
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -1107,7 +1361,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         Long ancestorStateIndex = null;
         if (resolution.hasAncestorDependencies()) {
             AncestorResolution ancestors = resolveAncestors(
-                    resolution, boundary, stagedValues);
+                    resolution, boundary, stagedValues,
+                    includeMessageBatch);
             resolution = ancestors.resolution();
             ancestorStateIndex = ancestors.stateIndex();
             boundary = ModelEventBatchLoader.Boundary.at(ancestorStateIndex);
@@ -1312,61 +1567,91 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private AncestorResolution resolveAncestors(
             ModelTargetResolver.Resolution resolution,
             ModelEventBatchLoader.Boundary boundary,
-            Map<String, Object> stagedValues) {
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch) {
         if (resolution.models().isEmpty()) {
             throw new IllegalStateException(
                     "Ancestor injection requires at least one direct model target from which to traverse");
         }
         LinkedHashSet<String> roots = new LinkedHashSet<>();
         resolution.models().forEach(target -> roots.add(target.modelId()));
-        LinkedHashSet<String> requestRoots = new LinkedHashSet<>(roots);
-        Map<String, Class<?>> stagedTypes = new LinkedHashMap<>();
-        List<ModelGraphEdge> stagedEdges = new ArrayList<>();
-        for (Map.Entry<String, Object> entry : stagedValues.entrySet()) {
-            requestRoots.add(entry.getKey());
-            Object value = entry.getValue();
-            if (value == null) {
-                continue;
+        LinkedHashMap<String, Object> effectiveStagedValues =
+                new LinkedHashMap<>(stagedValues);
+        Map<String, Class<?>> stagedTypes;
+        List<ModelGraphEdge> stagedEdges;
+        GetModelGraphResult graph;
+        for (int expansion = 0; ; expansion++) {
+            if (expansion > COMMIT_ANCESTOR_MAX_DEPTH) {
+                throw new IllegalStateException(
+                        "Message-batch ancestor overlay exceeds maximum depth "
+                        + COMMIT_ANCESTOR_MAX_DEPTH);
             }
-            ModelMetadata metadata = ModelMetadata.validate(value.getClass());
-            stagedTypes.put(entry.getKey(), value.getClass());
-            for (ModelMetadata.ParentReference parent : metadata.parentReferences()) {
-                Object parentId = parent.read(value);
-                if (parentId == null) {
+            LinkedHashSet<String> requestRoots =
+                    new LinkedHashSet<>(roots);
+            stagedTypes = new LinkedHashMap<>();
+            stagedEdges = new ArrayList<>();
+            for (Map.Entry<String, Object> entry :
+                    effectiveStagedValues.entrySet()) {
+                requestRoots.add(entry.getKey());
+                Object value = entry.getValue();
+                if (value == null) {
                     continue;
                 }
-                String parentIdString = Objects.requireNonNull(
-                        parentId.toString(),
-                        () -> "@ParentId " + parent.property().name()
-                              + " returned a null ID string");
-                requestRoots.add(parentIdString);
-                stagedEdges.add(new ModelGraphEdge(
-                        entry.getKey(), parentIdString,
-                        parent.parentModelType() == null
-                                ? null : parent.parentModelType().getName(),
-                        parent.path().isEmpty() ? null : parent.path(),
-                        -1L, null));
+                ModelMetadata metadata =
+                        ModelMetadata.validate(value.getClass());
+                stagedTypes.put(entry.getKey(), value.getClass());
+                for (ModelMetadata.ParentReference parent :
+                        metadata.parentReferences()) {
+                    Object parentId = parent.read(value);
+                    if (parentId == null) {
+                        continue;
+                    }
+                    String parentIdString = Objects.requireNonNull(
+                            parentId.toString(),
+                            () -> "@ParentId "
+                                  + parent.property().name()
+                                  + " returned a null ID string");
+                    requestRoots.add(parentIdString);
+                    stagedEdges.add(new ModelGraphEdge(
+                            entry.getKey(), parentIdString,
+                            parent.parentModelType() == null
+                                    ? null
+                                    : parent.parentModelType().getName(),
+                            parent.path().isEmpty()
+                                    ? null : parent.path(),
+                            -1L, null));
+                }
+            }
+            if (requestRoots.size()
+                > COMMIT_ANCESTOR_MAX_MODELS) {
+                throw new IllegalStateException(
+                        "Model commit requires more than %d ancestor traversal roots"
+                                .formatted(
+                                        COMMIT_ANCESTOR_MAX_MODELS));
+            }
+
+            graph = client.getEventStoreClient().getModelAncestors(
+                    new GetModelAncestors(
+                            List.copyOf(requestRoots),
+                            boundary.stateIndex(),
+                            boundary.commitId(),
+                            boundary.substep(),
+                            boundary.eventIndex(),
+                            COMMIT_ANCESTOR_MAX_DEPTH,
+                            COMMIT_ANCESTOR_MAX_MODELS,
+                            0, 0L));
+            if (!includeMessageBatch
+                || !addPendingAncestorValues(
+                        requestRoots, graph,
+                        effectiveStagedValues)) {
+                break;
             }
         }
-        if (requestRoots.size() > COMMIT_ANCESTOR_MAX_MODELS) {
-            throw new IllegalStateException(
-                    "Model commit requires more than %d ancestor traversal roots"
-                            .formatted(COMMIT_ANCESTOR_MAX_MODELS));
-        }
-
-        GetModelGraphResult graph = client.getEventStoreClient().getModelAncestors(
-                new GetModelAncestors(
-                        List.copyOf(requestRoots),
-                        boundary.stateIndex(),
-                        boundary.commitId(),
-                        boundary.substep(),
-                        boundary.eventIndex(),
-                        COMMIT_ANCESTOR_MAX_DEPTH,
-                        COMMIT_ANCESTOR_MAX_MODELS,
-                        0, 0L));
         List<ModelGraphEdge> edges = new ArrayList<>(graph.getEdges());
-        if (!stagedValues.isEmpty()) {
-            edges.removeIf(edge -> stagedValues.containsKey(edge.getChildId()));
+        if (!effectiveStagedValues.isEmpty()) {
+            edges.removeIf(edge ->
+                    effectiveStagedValues.containsKey(
+                            edge.getChildId()));
             edges.addAll(stagedEdges);
         }
         GraphReachability reachable = reachableAncestors(
@@ -1460,6 +1745,35 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 graph.getStateIndex(),
                 resolution.withResolvedModels(
                         List.copyOf(selected.values())));
+    }
+
+    private boolean addPendingAncestorValues(
+            Collection<String> requestRoots,
+            GetModelGraphResult graph,
+            Map<String, Object> stagedValues) {
+        LinkedHashSet<String> candidateIds =
+                new LinkedHashSet<>(requestRoots);
+        graph.getStreams().forEach(stream ->
+                candidateIds.add(stream.getModelId()));
+        graph.getEdges().forEach(edge -> {
+            candidateIds.add(edge.getChildId());
+            candidateIds.add(edge.getParentId());
+        });
+        boolean changed = false;
+        String namespace = messageBatchNamespace();
+        for (String modelId : candidateIds) {
+            if (stagedValues.containsKey(modelId)) {
+                continue;
+            }
+            MessageBatchModelView.StagedModel pending =
+                    MessageBatchModelView.currentValue(
+                            namespace, modelId);
+            if (pending != null) {
+                stagedValues.put(modelId, pending.value());
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     private GraphReachability reachableAncestors(
@@ -2875,7 +3189,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                                                 : ModelEventBatchLoader.Boundary.commit(
                                                                         membership.getCommitId(),
                                                                         membership.getSubstep() - 1),
-                                                        Map.of());
+                                                        Map.of(), false);
                                         boolean invalidBoundary =
                                                 firstSubstep
                                                         ? ancestors

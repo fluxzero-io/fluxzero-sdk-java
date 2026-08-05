@@ -2219,3 +2219,106 @@ historical P5 pin remains unchanged. The Runtime benchmark source was restored e
 Log SHA-256 in run order: `67a7fafe8c23ca8376fcd330bf5d40dae8237661b87987d004d2e1eb2b1fcdec`,
 `16fd92e06ac32fe7c3ad9c40c7fd9006d500fc2436fe80e16fd7539958b1343f`,
 `3b65c303493eaf4c1e606491d466d1dd59fcbb289f4379941093770032fdf287`.
+
+## S56: complete current-message-batch model view
+
+S40 made automatic model handlers observe earlier speculative automatic model changes in the same ordered tracking
+segment. S56 extends that contract to the rest of the SDK surface: direct `loadModel`/`loadModels`, ordinary handler
+model injection, explicit `assertAndApply` and stored-event application, ancestor injection and current graph loads.
+The view remains scoped by application namespace, tracking batch and routing segment. Exact historical graph loads stay
+durable-only. Pending producers become causal dependencies; their consumers reevaluate after real durability, failure
+propagates without committing dependent state, and successful producers stop shadowing the canonical repository.
+
+The first complete implementation indexed every evaluation eagerly in concurrent exact-ID and alias maps. It also
+enabled the generic message-batch overlay inside the existing automatic commit loader, duplicating S40's selective
+`BatchModelView`. The full route lost about 19%. Making the index lazy did not recover that loss, which causally showed
+that the dominant regression was the duplicated automatic load route rather than map allocation alone. The corrected
+candidate leaves automatic handlers on their existing selective S40 path and enables the generic overlay only for
+ordinary/direct/explicit/graph reads that need the broader contract.
+
+The two reverse-order final-source pairs before the last adversarial concurrency hardening are neutral in aggregate:
+candidate geometric mean **223,925/s**, parent geometric mean **223,918/s**, or **+0.003%**. The host changed state
+materially between the pairs, but each candidate was directly adjacent to its own parent control and all runs verified
+exactly 4,194,304 results, stored model events and global events plus 65,536 final states. The historical clean-host P5
+pin of 425,606/s remains the absolute reference; none of these loaded-host runs replaces it.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E731 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | eager generic message-batch index | 4,194,304 | 262,144 | none | 234,669/s | 190,914/s | true | reject: automatic route regression | reverted |
+| E732 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | parent control | 4,194,304 | 262,144 | none | 234,669/s | 234,669/s | true | adjacent parent control | diagnostic-only |
+| E733 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | eager generic message-batch index | 4,194,304 | 262,144 | none | 234,669/s | 189,596/s | true | confirm rejection | reverted |
+| E734 | profile | full command -> model -> event + result | SDK `7555a29a8f9` | eager generic message-batch index | 1,048,576 | 262,144 | full JFR | n/a | 202,339/s | false | locate candidate CPU/allocation only | diagnostic-only |
+| E735 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | lazy array journal, generic automatic route | 4,194,304 | 262,144 | none | 234,669/s | 191,498/s | false | lazy index alone does not recover E2E | reverted |
+| E736 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | selective automatic route, pair 1 | 4,194,304 | 262,144 | none | 232,827/s | 233,739/s | true | +0.39%; continue reverse pair | accepted |
+| E737 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | adjacent parent control, pair 1 | 4,194,304 | 262,144 | none | 232,827/s | 232,827/s | true | reverse parent control | diagnostic-only |
+| E738 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | selective automatic route, pair 2 | 4,194,304 | 262,144 | none | 215,349/s | 214,523/s | true | -0.38%; aggregate neutral | accepted |
+| E739 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | adjacent parent control, pair 2 | 4,194,304 | 262,144 | none | 215,349/s | 215,349/s | true | confirms host-level fall, not candidate regression | diagnostic-only |
+| E740 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | post-pair candidate observation | 4,194,304 | 262,144 | none | n/a | 185,128/s | false | exclude: media analysis, Spotlight and UI CPU | diagnostic-only |
+| E741 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | concurrency-hardened array journal, candidate 1 | 4,194,304 | 262,144 | none | 230,481/s | 223,236/s | true | -3.14%; require reverse adjacency | diagnostic-only |
+| E742 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | adjacent parent control after E741 | 4,194,304 | 262,144 | none | 230,481/s | 230,481/s | true | parent control | diagnostic-only |
+| E743 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | concurrency-hardened array journal, candidate 2 | 4,194,304 | 262,144 | none | 230,481/s | 230,841/s | true | +0.16%; contradicts E741 regression | diagnostic-only |
+| E744 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | parent control after E743 | 4,194,304 | 262,144 | none | 170,862/s | 170,862/s | false | exclude: host state collapsed between adjacent runs | diagnostic-only |
+| E745 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | concurrency-hardened array journal after E744 | 4,194,304 | 262,144 | none | n/a | 212,730/s | false | host recovered; not adjacent-comparable to E744 | diagnostic-only |
+
+The adversarial follow-up found two uncommon journal cases after E740: repeated explicit operations in one handler
+message and concurrent growth for an iterable without a known size. Both are now covered without adding a collection
+to the ordinary one-evaluation path. E741-E745 used atomic slot arrays even though all journal access is already under
+the same growth/index lock. Their one valid candidate/control neighborhood is mixed (-3.14% followed immediately by
++0.16%), while the attempted reverse pair is invalidated by an abrupt 230,841/s to 170,862/s host collapse. The final
+source therefore replaces those redundant atomic slots with plain arrays; a final adjacent qualification of that exact
+source is still required before the checkpoint. The current host is excluded while Spotlight, media analysis,
+`knowledgeconstructiond`, a dashboard build and the Angular development server consume material CPU.
+
+Evidence SHA-256: E731 `bd6d14b10eee5ca43ebc8aec11f444edca180a5c19726826fc846669fcf19635`, E732
+`571984d6de4e007125c716d6e70f426307984c8667c8eea169d988a8e4c419ab`, E733
+`ffa3726b98cd723df6ee426213cb2ab9473616a8d93d5d09fcb4d7c1e306ef53`, E734 log/JFR
+`2b6d39195030098170dff4e397bc0166f155e20c018dda9bae6a8fe61d69133a` /
+`ff9c78bf67c0c15ba4649ae3b9bf3881e4a37fc0093cf7b410aeb8b4c3cb9573`, E735
+`77f11c08beb31d4c3edaedeb7ff621a86d3fadbdff2f9620bc910a4b17bc995c`, E736
+`def2c235a729880428030f225dc9a6da586122c005522cda5c1772f207aa0f10`, E737
+`5b7a76dd52851f742956e11ba64db0ce0ac246edf1980a6267d87437112f5347`, E738
+`81b015c0d3fd39d42a9ebc6c7cd451982156b4aadc5c6fa642e7d2e7bf19e948`, E739
+`c46893400a7f5c705a34a40de291c5a4b67ca8e5dc97028fee2a20aedb8c8d73`, E740
+`79f209a8c174f3082fe8eac746d419afdfa587e384b35d5c0dd06ff931f8b34d`, E741
+`faec82fb58c4b19fc47c8ba9aa9f4d52fbb9b8b206a42e794407d113b5e9bd67`, E742
+`cc4ac47f2f2126e5b9840c15d3b841ebeed9a141d679becd60ca7fdfe143e30c`, E743
+`9ab1192487e094740b18b3706c88bb84851aed68f3363707d89a26ad3022e625`, E744
+`8a9435559943f91cf6313f0310f6e22b893f1b953634f056d56fbcd5df5aa6fd`, E745
+`51b3877c62764ff831bff5633ea7514285606ab12e77de9f65d8949f3b120709`.
+
+The first exact-source qualification attempt, E746-E748, remained unsuitable for a relative decision: Spotlight and
+media analysis consumed substantial CPU throughout the first candidate, changed state before the parent and remained
+active during the final candidate. E749 is also excluded because its invocation accidentally omitted the canonical
+1,048,576-entry command-cache override and therefore exercised the 65,536-entry compatibility default. All four runs
+still passed the complete durability and final-state verification.
+
+The corrected final candidate-parent-candidate sequence E750-E752 used the same Runtime, Java 25 process, database and
+canonical benchmark identity, including the 1,048,576-entry command cache. The laptop remained too busy for an
+absolute pin—WindowServer, Codex/Chrome rendering and Docker were active, and Dropbox/IntelliJ activity appeared around
+E752—but the parent was below both directly adjacent candidate runs:
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E746 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | final plain-array journal | 4,194,304 | 262,144 | none | n/a | 230,095/s | false | exclude: Spotlight/media analysis host load | diagnostic-only |
+| E747 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | parent control | 4,194,304 | 262,144 | none | 261,903/s | n/a | false | exclude: host state changed after E746 | diagnostic-only |
+| E748 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | final plain-array journal | 4,194,304 | 262,144 | none | 261,903/s | 240,762/s | false | exclude: background indexers remained active | diagnostic-only |
+| E749 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | final plain-array journal | 4,194,304 | 262,144 | none | n/a | 172,947/s | false | exclude: noncanonical 65,536-entry command cache | diagnostic-only |
+| E750 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | final plain-array journal | 4,194,304 | 262,144 | none | 163,772/s | 173,922/s | true | +6.20% versus following parent | accepted |
+| E751 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | parent control | 4,194,304 | 262,144 | none | 163,772/s | n/a | true | bracketed parent control | diagnostic-only |
+| E752 | canonical | full command -> model -> event + result | SDK `7555a29a8f9` | final plain-array journal | 4,194,304 | 262,144 | none | 163,772/s | 194,940/s | true | +19.03% versus preceding parent | accepted |
+
+The two candidate observations have a geometric mean of **184,131/s** versus **163,772/s** for their shared adjacent
+parent, or **+12.43%**. This is acceptance evidence that the complete current-message-batch view does not regress the
+canonical route; it is not a new absolute throughput claim. The clean-host P5 pin remains **425,606/s**.
+
+Evidence SHA-256: E746 `3a2157c96490baf9a27cd2b67a3a130d31c0e33a42d7d910c6708ef77b8a5214`, E747
+`4b35d2985e2e122fee94ba06a01e0bd899960fce8696cd14500e801870ccd275`, E748
+`c6fecca2b81c7b6fc422d145d6a52b3e0df38ef709c5576e75dad65971b8c2e7`, E749
+`977b15c98a0b2d3aaa58e7e83e7b6ddbc867d210053073fc9c434be78458e6ea`, E750
+`1cbeaa3a005b5c170ca36ca46434f32bf44732423fd90a783915358f791c6b4e`, E751
+`4b0776389793a58a2db0b97c9d9a0f28eb7595e60925fb4fdb2cda4502bccf39`, E752
+`debbd7c47df6ecc959a10e0d249bca06636a7077b70f5306519b2099df18eece`.
+
+Final verification evidence: focused message-batch/model suite 156 tests
+`2433758d072d620edbb1e2814ceaf2c457af398ad1754ce653883f75131996a0`; last exact full SDK reactor install
+`e120caae549a504899e549d8ff15f0883253d77ee7df5cfcd2389da20d15030a`.

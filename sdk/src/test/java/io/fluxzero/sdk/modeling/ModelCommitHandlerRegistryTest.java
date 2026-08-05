@@ -35,6 +35,7 @@ import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
+import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -173,6 +175,140 @@ class ModelCommitHandlerRegistryTest {
                     acceptedResult(commit)));
             result.get(5, TimeUnit.SECONDS);
             verify(transportBatch, times(2)).add(anyInt(), any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void explicitAssertAndApplyParticipatesInTheCurrentMessageBatchView()
+            throws Exception {
+        DefaultModelRepository repository =
+                mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient =
+                mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> committed =
+                new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> response =
+                new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any()))
+                .thenAnswer(invocation -> {
+                    committed.complete(invocation.getArgument(0));
+                    return response;
+                });
+        ModelCommitHandlerRegistry subject =
+                subject(repository, eventStoreClient);
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void>[] update =
+                new CompletableFuture[1];
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void>[] publicationBarrier =
+                new CompletableFuture[1];
+
+        try {
+            DeserializingMessage.forEachInBatch(
+                    List.of(
+                            message("manual-producer", 7),
+                            message("manual-consumer", 7)),
+                    current -> {
+                        if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                            update[0] = subject.assertAndApply(
+                                    new Message(
+                                            new TimingCreateCommand(
+                                                    "manual-batch")));
+                            return;
+                        }
+                        Entity<TimingModel> durable =
+                                ImmutableModelRoot.<TimingModel>builder()
+                                        .id("manual-batch")
+                                        .type(TimingModel.class)
+                                        .idProperty("id")
+                                        .stateIndex(0L)
+                                        .sequenceNumber(-1L)
+                                        .build();
+                        assertEquals(
+                                new TimingModel("manual-batch"),
+                                MessageBatchModelView.overlayCurrent(
+                                        null, "manual-batch",
+                                        TimingModel.class,
+                                        durable).get());
+                        publicationBarrier[0] =
+                                Invocation.resultPublicationBarrier(
+                                        current);
+                        assertFalse(
+                                publicationBarrier[0].isDone());
+                    });
+
+            CommitModels commit =
+                    committed.get(5, TimeUnit.SECONDS);
+            assertFalse(update[0].isDone());
+            response.complete(acceptedResult(commit));
+            update[0].get(5, TimeUnit.SECONDS);
+            publicationBarrier[0].get(5, TimeUnit.SECONDS);
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void storedEventApplyParticipatesInTheCurrentMessageBatchView()
+            throws Exception {
+        DefaultModelRepository repository =
+                mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient =
+                mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> committed =
+                new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> response =
+                new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any()))
+                .thenAnswer(invocation -> {
+                    committed.complete(invocation.getArgument(0));
+                    return response;
+                });
+        ModelCommitHandlerRegistry subject =
+                subject(repository, eventStoreClient);
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Void>[] update =
+                new CompletableFuture[1];
+
+        try {
+            DeserializingMessage.forEachInBatch(
+                    List.of(
+                            message("event-producer", 9),
+                            message("event-consumer", 9)),
+                    current -> {
+                        if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                            update[0] = subject.applyStoredEvent(
+                                    new Message(
+                                            new TimingCreateCommand(
+                                                    "stored-event-batch")));
+                            return;
+                        }
+                        Entity<TimingModel> durable =
+                                ImmutableModelRoot.<TimingModel>builder()
+                                        .id("stored-event-batch")
+                                        .type(TimingModel.class)
+                                        .idProperty("id")
+                                        .stateIndex(0L)
+                                        .sequenceNumber(-1L)
+                                        .build();
+                        assertEquals(
+                                new TimingModel(
+                                        "stored-event-batch"),
+                                MessageBatchModelView.overlayCurrent(
+                                        null, "stored-event-batch",
+                                        TimingModel.class,
+                                        durable).get());
+                    });
+
+            CommitModels commit =
+                    committed.get(5, TimeUnit.SECONDS);
+            assertFalse(update[0].isDone());
+            response.complete(acceptedResult(commit));
+            update[0].get(5, TimeUnit.SECONDS);
         } finally {
             subject.close();
         }
@@ -1163,25 +1299,30 @@ class ModelCommitHandlerRegistryTest {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void stubModelLoads(DefaultModelRepository repository) {
+        org.mockito.stubbing.Answer<ModelCommitContext> answer = invocation -> {
+            ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
+            Map<String, Entity<?>> loaded = resolution.models().stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            ModelTargetResolver.ResolvedModel::modelId,
+                            target -> ImmutableModelRoot.<Object>builder()
+                                    .id(target.modelId())
+                                    .type((Class<Object>) target.modelType())
+                                    .idProperty(ModelMetadata.of(target.modelType())
+                                            .entityId().orElseThrow().name())
+                                    .value(null)
+                                    .sequenceNumber(-1L)
+                                    .stateIndex(0L)
+                                    .build()));
+            return ModelCommitContext.create(0L, resolution, loaded);
+        };
         when(repository.loadContext(
                 any(ModelTargetResolver.Resolution.class),
                 nullable(Long.class), anyMap()))
-                .thenAnswer(invocation -> {
-                    ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
-                    Map<String, Entity<?>> loaded = resolution.models().stream()
-                            .collect(java.util.stream.Collectors.toMap(
-                                    ModelTargetResolver.ResolvedModel::modelId,
-                                    target -> ImmutableModelRoot.<Object>builder()
-                                            .id(target.modelId())
-                                            .type((Class<Object>) target.modelType())
-                                            .idProperty(ModelMetadata.of(target.modelType())
-                                                    .entityId().orElseThrow().name())
-                                            .value(null)
-                                            .sequenceNumber(-1L)
-                                            .stateIndex(0L)
-                                            .build()));
-                    return ModelCommitContext.create(0L, resolution, loaded);
-                });
+                .thenAnswer(answer);
+        when(repository.loadContext(
+                any(ModelTargetResolver.Resolution.class),
+                nullable(Long.class), anyMap(), anyBoolean()))
+                .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
     }
@@ -1190,70 +1331,75 @@ class ModelCommitHandlerRegistryTest {
     private static void stubBatchModelLoads(
             DefaultModelRepository repository,
             Map<String, Object> durable) {
+        org.mockito.stubbing.Answer<ModelCommitContext> answer = invocation -> {
+            ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
+            Map<String, Object> staged = invocation.getArgument(2);
+            LinkedHashMap<String, ModelTargetResolver.ResolvedModel> targets =
+                    new LinkedHashMap<>();
+            resolution.models().forEach(target ->
+                    ModelTargetResolver.merge(targets, target));
+            for (ModelTargetResolver.AncestorDependency dependency :
+                    resolution.ancestorDependencies()) {
+                for (ModelTargetResolver.ResolvedModel target :
+                        resolution.models()) {
+                    Object child = staged.containsKey(target.modelId())
+                            ? staged.get(target.modelId())
+                            : durable.get(target.modelId());
+                    if (child == null) {
+                        continue;
+                    }
+                    for (ModelMetadata.ParentReference parent :
+                            ModelMetadata.validate(child.getClass()).parentReferences()) {
+                        if (parent.parentModelType() == null
+                            || !dependency.modelType().isAssignableFrom(
+                                    parent.parentModelType())) {
+                            continue;
+                        }
+                        Object parentId = parent.read(child);
+                        if (parentId != null) {
+                            ModelTargetResolver.merge(
+                                    targets,
+                                    new ModelTargetResolver.ResolvedModel(
+                                    parentId.toString(),
+                                    dependency.modelType(),
+                                    ModelTargetResolver.Access.READ_ONLY,
+                                    dependency.association() == null
+                                            ? List.of()
+                                            : List.of(dependency.association())));
+                        }
+                    }
+                }
+            }
+            LinkedHashMap<String, Entity<?>> loaded = new LinkedHashMap<>();
+            for (ModelTargetResolver.ResolvedModel target : targets.values()) {
+                Object value = staged.containsKey(target.modelId())
+                        ? staged.get(target.modelId())
+                        : durable.get(target.modelId());
+                loaded.put(target.modelId(),
+                           ImmutableModelRoot.<Object>builder()
+                                   .id(target.modelId())
+                                   .type((Class<Object>) target.modelType())
+                                   .idProperty(ModelMetadata.of(target.modelType())
+                                           .entityId().orElseThrow().name())
+                                   .value(value)
+                                   .sequenceNumber(value == null ? -1L : 0L)
+                                   .stateIndex(0L)
+                                   .build());
+            }
+            return ModelCommitContext.create(
+                    0L,
+                    resolution.withResolvedModels(
+                            List.copyOf(targets.values())),
+                    loaded);
+        };
         when(repository.loadContext(
                 any(ModelTargetResolver.Resolution.class),
                 nullable(Long.class), anyMap()))
-                .thenAnswer(invocation -> {
-                    ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
-                    Map<String, Object> staged = invocation.getArgument(2);
-                    LinkedHashMap<String, ModelTargetResolver.ResolvedModel> targets =
-                            new LinkedHashMap<>();
-                    resolution.models().forEach(target ->
-                            ModelTargetResolver.merge(targets, target));
-                    for (ModelTargetResolver.AncestorDependency dependency :
-                            resolution.ancestorDependencies()) {
-                        for (ModelTargetResolver.ResolvedModel target :
-                                resolution.models()) {
-                            Object child = staged.containsKey(target.modelId())
-                                    ? staged.get(target.modelId())
-                                    : durable.get(target.modelId());
-                            if (child == null) {
-                                continue;
-                            }
-                            for (ModelMetadata.ParentReference parent :
-                                    ModelMetadata.validate(child.getClass()).parentReferences()) {
-                                if (parent.parentModelType() == null
-                                    || !dependency.modelType().isAssignableFrom(
-                                            parent.parentModelType())) {
-                                    continue;
-                                }
-                                Object parentId = parent.read(child);
-                                if (parentId != null) {
-                                    ModelTargetResolver.merge(
-                                            targets,
-                                            new ModelTargetResolver.ResolvedModel(
-                                            parentId.toString(),
-                                            dependency.modelType(),
-                                            ModelTargetResolver.Access.READ_ONLY,
-                                            dependency.association() == null
-                                                    ? List.of()
-                                                    : List.of(dependency.association())));
-                                }
-                            }
-                        }
-                    }
-                    LinkedHashMap<String, Entity<?>> loaded = new LinkedHashMap<>();
-                    for (ModelTargetResolver.ResolvedModel target : targets.values()) {
-                        Object value = staged.containsKey(target.modelId())
-                                ? staged.get(target.modelId())
-                                : durable.get(target.modelId());
-                        loaded.put(target.modelId(),
-                                   ImmutableModelRoot.<Object>builder()
-                                           .id(target.modelId())
-                                           .type((Class<Object>) target.modelType())
-                                           .idProperty(ModelMetadata.of(target.modelType())
-                                                   .entityId().orElseThrow().name())
-                                           .value(value)
-                                           .sequenceNumber(value == null ? -1L : 0L)
-                                           .stateIndex(0L)
-                                           .build());
-                    }
-                    return ModelCommitContext.create(
-                            0L,
-                            resolution.withResolvedModels(
-                                    List.copyOf(targets.values())),
-                            loaded);
-                });
+                .thenAnswer(answer);
+        when(repository.loadContext(
+                any(ModelTargetResolver.Resolution.class),
+                nullable(Long.class), anyMap(), anyBoolean()))
+                .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
         doAnswer(invocation -> {

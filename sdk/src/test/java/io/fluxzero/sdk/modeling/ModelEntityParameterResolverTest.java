@@ -48,6 +48,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -660,6 +661,86 @@ class ModelEntityParameterResolverTest {
     }
 
     @Test
+    void ancestorInjectionUsesARelationshipMovedEarlierInTheMessageBatch()
+            throws Exception {
+        CompanyId firstCompanyId =
+                new CompanyId("batch-move-first");
+        CompanyId secondCompanyId =
+                new CompanyId("batch-move-second");
+        DepartmentId departmentId =
+                new DepartmentId("batch-move");
+        WorkerId workerId =
+                new WorkerId("batch-move");
+        Department before =
+                new Department(departmentId, firstCompanyId);
+        Department after =
+                new Department(departmentId, secondCompanyId);
+        Method handler = Handler.class.getDeclaredMethod(
+                "onWorkerAncestor",
+                InspectWorker.class,
+                Company.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateCompany(firstCompanyId),
+                        new CreateCompany(secondCompanyId),
+                        new CreateDepartment(
+                                departmentId, firstCompanyId),
+                        new CreateWorker(
+                                workerId, departmentId))
+                .whenApplying(fluxzero -> {
+                    AtomicReference<Object> result =
+                            new AtomicReference<>();
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    new DeserializingMessage(
+                                            new Message("move"),
+                                            MessageType.COMMAND,
+                                            fluxzero.serializer()),
+                                    new DeserializingMessage(
+                                            new Message(
+                                                    new InspectWorker(
+                                                            workerId)),
+                                            MessageType.QUERY,
+                                            fluxzero.serializer())),
+                            current -> {
+                                if (DeserializingMessage
+                                        .getMessageBatchIndex() == 0) {
+                                    MessageBatchModelView.stage(
+                                            null,
+                                            new ModelCommitEngine.CommitEvaluation(
+                                                    -1L,
+                                                    List.of(
+                                                            departmentId
+                                                                    .toString()),
+                                                    java.util.Map.of(
+                                                            departmentId
+                                                                    .toString(),
+                                                            Department.class),
+                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                            current,
+                                                            List.of(new ModelCommitEngine.Transition(
+                                                                    departmentId.toString(),
+                                                                    Department.class,
+                                                                    0L, before,
+                                                                    after, null)))),
+                                                    java.util.Map.of(
+                                                            departmentId
+                                                                    .toString(),
+                                                            after)),
+                                            null);
+                                    return;
+                                }
+                                result.set(resolve(
+                                        current, handler,
+                                        handler.getParameters()[1]));
+                            });
+                    return result.get();
+                })
+                .expectResult(new Company(secondCompanyId));
+    }
+
+    @Test
     void ordinaryEventWithoutModelBoundaryDoesNotInjectCurrentModel()
             throws Exception {
         AccountId accountId = new AccountId("ordinary");
@@ -742,6 +823,58 @@ class ModelEntityParameterResolverTest {
                             resolve(
                                     message, handler,
                                     parameter));
+                })
+                .expectResult(new Account(accountId, 20));
+    }
+
+    @Test
+    void staticModelLoadUsesTheCurrentConsumerNamespace() {
+        AccountId accountId = new AccountId("static-namespaced");
+
+        TestFixture.create()
+                .given(fluxzero -> {
+                    Fluxzero.assertAndApply(
+                            new CreateAccount(accountId, 10));
+                    fluxzero.client()
+                            .forNamespace("customer")
+                            .getEventStoreClient()
+                            .commitModels(
+                                    new CommitModels(
+                                            "customer-static-create",
+                                            -1L, List.of(accountId.toString()),
+                                            List.of(ModelCommitStep.builder()
+                                                    .event(new Message(
+                                                            new CreateAccount(
+                                                                    accountId, 20))
+                                                            .serialize(
+                                                                    fluxzero.serializer()))
+                                                    .publishEvent(true)
+                                                    .targets(List.of(
+                                                            ModelCommitTarget.builder()
+                                                                    .modelId(accountId.toString())
+                                                                    .storeEvent(true)
+                                                                    .updateState(true)
+                                                                    .relationships(List.of())
+                                                                    .build()))
+                                                    .build()),
+                                            ModelConflictPolicy.ACCEPT,
+                                            Guarantee.STORED))
+                            .join();
+                })
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage customerEvent =
+                            fluxzero.eventStore()
+                                    .forNamespace("customer")
+                                    .getEvents(accountId)
+                                    .findFirst().orElseThrow();
+                    customerEvent.putContext(
+                            ConsumerConfiguration.class,
+                            ConsumerConfiguration.builder()
+                                    .name("customer-static-events")
+                                    .namespace("customer")
+                                    .build());
+                    return customerEvent.apply(message ->
+                            Fluxzero.loadModel(accountId).get());
                 })
                 .expectResult(new Account(accountId, 20));
     }

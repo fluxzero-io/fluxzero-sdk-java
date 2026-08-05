@@ -3217,10 +3217,21 @@ models, and a primary ID always wins an equal alias.
 
 Automatic model commands in the same tracking batch and ordered routing segment have batch-local read-your-writes.
 A later command evaluates against an earlier staged model change, including changed parent and ancestor relations,
-even if the earlier commit is still in flight. Overlapping commands commit in order: the later command waits for the
-earlier durable outcome and is reevaluated against canonical state before it commits. Unrelated model chains remain
-parallel. This is not one transaction across commands; every command retains its own atomic commit and result, and no
-ordering is implied across consumers or routing segments.
+even if the earlier commit is still in flight. Direct `loadModel`/`loadModels` calls, model injection and current
+`loadGraph` composition use that same batch view, so aliases, creations, deletions and child moves are visible without
+waiting for storage. A graph that moves into a root retains its already durable descendants. Explicit historical
+`loadGraphAt` calls remain fixed to their requested boundary and never include pending state.
+
+Explicit `assertAndApply` operations and stored-event applies started while handling that batch participate in the same
+view. They keep their own commit boundary, but expose their staged output to later messages and wait/re-evaluate when
+they consume an earlier pending value.
+
+Pending reads register a dependency on their producing command. Overlapping commands commit in order: the later
+command waits for the earlier durable outcome and is reevaluated against canonical state before it commits; an
+ordinary handler result that reads pending state is not published before that producer completes. A failed producer
+therefore cannot leave a successful result or dependent model commit based on speculative state. Unrelated model
+chains remain parallel. This is not one transaction across commands; every command retains its own atomic commit and
+result, and no ordering is implied across consumers or routing segments.
 
 For split event/search stores, Fluxzero retains the exact serialized direct-document and snapshot package with the
 authoritative model commit. A retry after SDK or runtime process loss replays that package through monotone

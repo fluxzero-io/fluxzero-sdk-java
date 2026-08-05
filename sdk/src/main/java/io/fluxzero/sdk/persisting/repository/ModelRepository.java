@@ -217,6 +217,8 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
 
     /**
      * Reconstructs a model and every descendant connected through an explicit graph path at one state boundary.
+     * Pending changes from earlier messages in the same ordered tracking segment are included. Use
+     * {@link #loadGraphAt(Id, long)} when an exact durable historical boundary is required.
      */
     default <T> ModelGraph<T> loadGraph(@NonNull Id<T> rootId) {
         return loadGraph(rootId.toString(), rootId.getType(), ModelGraph.Options.DEFAULT);
@@ -247,6 +249,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
 
     /**
      * Reconstructs a model graph using exact persisted identity, root type, and optional caller-imposed limits.
+     * Pending changes from earlier messages in the same ordered tracking segment are included.
      */
     default <T> ModelGraph<T> loadGraph(
             @NonNull String rootId,

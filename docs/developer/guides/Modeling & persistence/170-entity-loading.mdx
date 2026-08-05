@@ -181,6 +181,11 @@ ModelGraph<Order> historical = Fluxzero.get()
 Graph loads have no caller-imposed depth or model-count limit by default. Pass explicit `ModelGraph.Options` when an
 operation intentionally accepts only a bounded graph; use a direct model load when the command needs only one model.
 
+A current graph load inside an ordered tracking batch includes pending model state produced by earlier messages in the
+same routing segment. This includes newly created nodes, changed values and `@ParentId` moves. Moving an existing node
+into the graph also brings along its durable descendants. `loadGraphAt(...)` is deliberately different: it always
+returns the exact requested historical boundary and never overlays pending batch state.
+
 ## Embedded members
 
 A model may still contain `@Member` values:

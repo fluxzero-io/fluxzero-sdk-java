@@ -203,7 +203,14 @@ individual `@Apply`.
 Commands remain separate atomic actions, but automatic model handling provides read-your-writes within one ordered
 consumer segment. If a later command in the same tracking batch reads a model changed by an earlier command, it
 evaluates against the staged value rather than reloading stale durable state. The same applies when the later command
-injects a parent, grandparent or further ancestor whose value or relation changed earlier in that segment.
+injects a parent, grandparent or further ancestor whose value or relation changed earlier in that segment. Direct
+`Fluxzero.loadModel(...)`, batched repository loads and current `loadGraph(...)` composition share the same view;
+aliases, deletions and relationship moves therefore behave consistently across automatic injection and explicit
+loads. Explicit historical graph loads remain isolated at their requested `stateIndex`.
+
+An explicit `Fluxzero.assertAndApply(...)` started from a tracked handler and a stored-event apply participate in the
+same batch view. They remain separate durable commits; if their evaluation reads an earlier pending value, they wait
+for that producer and evaluate again before committing.
 
 Fluxzero preserves both correctness and concurrency:
 
@@ -211,6 +218,9 @@ Fluxzero preserves both correctness and concurrency:
 - an overlapping command waits for its predecessor's durable completion;
 - after that completion, the dependent command is reevaluated against canonical durable state before it commits;
 - a failed predecessor fails the dependent chain instead of committing from speculative state.
+
+An ordinary handler that explicitly reads pending state also delays its result until the producing commit completes.
+This prevents a success response from escaping for state that is subsequently rejected.
 
 This mechanism does **not** combine several commands into one transaction. Each command keeps its own atomic model
 commit, result and conflict policy. It also does not create ordering across different consumers or routing segments;
