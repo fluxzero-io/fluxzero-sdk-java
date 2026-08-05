@@ -72,7 +72,7 @@ public class SessionPool implements AutoCloseable {
      * @param size number of independently routed session slots
      * @param sessionFactory factory receiving {@code null} initially and the previous session on replacement
      */
-    public SessionPool(int size, Function<WebsocketSession, WebsocketSession> sessionFactory) {
+    SessionPool(int size, Function<WebsocketSession, WebsocketSession> sessionFactory) {
         if (size < 1) {
             throw new IllegalArgumentException("Session pool size must be at least 1");
         }
