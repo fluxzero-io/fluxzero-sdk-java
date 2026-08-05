@@ -2420,14 +2420,15 @@ schema hints that cannot be inferred. It can also be placed on fields, parameter
 arguments, for example
 `List<@ApiDoc(description = "Connection item") Connection>` to document array items without OpenAPI-specific
 annotations. Optional schema hints include `type`, `format`, `example`, `defaultValue`, `minimum`, `maximum`,
-`allowableValues`, `required`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
+`allowableValues`, `required`, `exclude`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
 `@Size`, `@Pattern`, and `@Email` are reflected in endpoint parameter and model schemas when present. Use repeatable
 `@ApiDocResponse` annotations for additional error/status responses, or to describe an inferred response without
 repeating its body type; `@ApiDocResponse(status = 400, ref = "error")` references
 `#/components/responses/error`. Array properties in response models are documented as required by default; input models
-only use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` to
-exclude a package, class, method, parameter, field, record component, or type use from generated documentation without
-disabling the runtime endpoint or model. Use `@ApiDocInfo.security` for top-level security requirements and
+only use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` or
+`@ApiDoc(exclude = true)` to exclude a package, class, method, parameter, field, record component, or type use from
+generated documentation without disabling the runtime endpoint or model. The composable `exclude` attribute is also
+available when `@ApiDoc` is nested in another annotation. Use `@ApiDocInfo.security` for top-level security requirements and
 `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI components such as reusable responses or
 security schemes when automatic inference is not enough.
 
@@ -2439,8 +2440,7 @@ root on the response and document each list-valued graph edge next to its canoni
 @HandleGet("/organisations/{id}")
 @ApiDocResponse(
         status = 200,
-        modelGraph = Organisation.class,
-        modelGraphPaths = "locations/connections/meters")
+        modelGraph = Organisation.class)
 JsonNode getOrganisation(@PathParam String id) {
     return loadOrganisationGraph(id);
 }
@@ -2456,14 +2456,25 @@ record Location(
                         required = true))
         String organisationId) {
 }
+
+@Model
+record InternalContract(
+        @EntityId String id,
+        @ParentId(
+                value = Organisation.class,
+                path = "contracts",
+                apiDoc = @ApiDoc(exclude = true))
+        String organisationId) {
+}
 ```
 
 The root schema is inferred from `Organisation`; the `locations` property is rendered as a list of `Location` items.
 Slash-separated paths create nested objects before the final list property, and descendants are followed recursively.
 If the handler returns an array or collection of JSON trees, the response remains an array whose items use the complete
-model-graph schema. By default all graph relationships are included. Use `modelGraphPaths` to select a public subgraph;
+model-graph schema. By default all graph relationships are included except relationships whose nested
+`@ParentId.apiDoc` declares `exclude = true`. Use `modelGraphPaths` only to select an endpoint-specific subgraph;
 ancestors of each selected path are included automatically, while sibling and deeper descendant paths must be selected
-explicitly.
+explicitly. Exclusion and path selection affect documentation only, not the graph returned at runtime.
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
 metadata with the model types registered in the current application, so child models may live in another Maven module.
 

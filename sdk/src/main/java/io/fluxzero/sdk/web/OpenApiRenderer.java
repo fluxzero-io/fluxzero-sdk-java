@@ -428,7 +428,9 @@ public final class OpenApiRenderer {
 
     private static ObjectNode responses(ApiDocEndpoint endpoint, SchemaContext schemaContext) {
         ObjectNode responses = object();
-        Optional<RenderedResponse> defaultResponse = defaultResponse(endpoint, schemaContext);
+        boolean includeDefaultContent = endpoint.responses().stream().noneMatch(
+                descriptor -> descriptor.status() == 200 && replacesDefaultContent(descriptor));
+        Optional<RenderedResponse> defaultResponse = defaultResponse(endpoint, schemaContext, includeDefaultContent);
         defaultResponse.ifPresent(response -> responses.set(response.status(), response.node()));
         for (ApiDocResponseDescriptor descriptor : endpoint.responses()) {
             String status = String.valueOf(descriptor.status());
@@ -445,13 +447,19 @@ public final class OpenApiRenderer {
         return responses;
     }
 
-    private static Optional<RenderedResponse> defaultResponse(ApiDocEndpoint endpoint, SchemaContext schemaContext) {
+    private static boolean replacesDefaultContent(ApiDocResponseDescriptor descriptor) {
+        return !isBlank(descriptor.ref()) || !isNoResponseType(descriptor.modelGraph())
+               || !isNoResponseType(descriptor.type());
+    }
+
+    private static Optional<RenderedResponse> defaultResponse(ApiDocEndpoint endpoint, SchemaContext schemaContext,
+                                                              boolean includeContent) {
         Type responseType = endpoint.responseType();
         if (isNoResponseType(responseType)) {
             return Optional.of(new RenderedResponse("204", object().put("description", "No Content")));
         }
         ObjectNode response = object().put("description", "OK");
-        if (!isDynamicWebResponse(responseType)) {
+        if (includeContent && !isDynamicWebResponse(responseType)) {
             ObjectNode schema = endpoint.executable() instanceof Method method
                     ? responseSchema(method.getAnnotatedReturnType(), schemaContext)
                     : responseSchema(responseType, schemaContext);
@@ -548,6 +556,7 @@ public final class OpenApiRenderer {
                     .forEach(childType -> ModelMetadata.of(childType).parentReferences().stream()
                             .filter(ModelMetadata.ParentReference::automaticallyComposed)
                             .filter(parent -> parentType.equals(parent.parentModelType()))
+                            .filter(parent -> !metadata(parent.apiDoc()).hidden())
                             .forEach(parent -> byPath.computeIfAbsent(parent.path(), ignored -> new ArrayList<>())
                                     .add(new ModelGraphRelation(childType, parent.apiDoc()))));
             if (byPath.isEmpty()) {
@@ -1852,6 +1861,7 @@ public final class OpenApiRenderer {
                                                .filter(value -> !isBlank(value)).toList());
                 required(apiDoc.required());
                 deprecated(apiDoc.deprecated());
+                hidden(apiDoc.exclude());
                 if (!Void.class.equals(apiDoc.implementation())) {
                     implementation = apiDoc.implementation();
                 }

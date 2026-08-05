@@ -554,12 +554,17 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private boolean isExcluded(TypeElement handlerType, ExecutableElement method) {
         for (PackageElement packageElement : packageHierarchy(handlerType)) {
-            if (findAnnotation(packageElement, API_DOC_EXCLUDE) != null) {
+            if (isExcluded(packageElement)) {
                 return true;
             }
         }
-        return findAnnotation(handlerType, API_DOC_EXCLUDE) != null
-               || findAnnotation(method, API_DOC_EXCLUDE) != null;
+        return isExcluded(handlerType) || isExcluded(method);
+    }
+
+    private boolean isExcluded(Element element) {
+        AnnotationMirror apiDoc = findAnnotation(element, API_DOC);
+        return findAnnotation(element, API_DOC_EXCLUDE) != null
+               || apiDoc != null && booleanValue(annotationValues(apiDoc).get("exclude"));
     }
 
     private boolean isDocumented(TypeElement handlerType, ExecutableElement method) {
@@ -860,7 +865,9 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private ObjectNode responses(Endpoint endpoint, SchemaContext schemaContext) {
         ObjectNode responses = object();
-        Optional<RenderedResponse> defaultResponse = defaultResponse(endpoint, schemaContext);
+        boolean includeDefaultContent = endpoint.responses().stream().noneMatch(
+                descriptor -> descriptor.status() == 200 && replacesDefaultContent(descriptor));
+        Optional<RenderedResponse> defaultResponse = defaultResponse(endpoint, schemaContext, includeDefaultContent);
         defaultResponse.ifPresent(response -> responses.set(response.status(), response.node()));
         for (Response descriptor : endpoint.responses()) {
             String status = String.valueOf(descriptor.status());
@@ -877,13 +884,19 @@ public class OpenApiProcessor extends AbstractProcessor {
         return responses;
     }
 
-    private Optional<RenderedResponse> defaultResponse(Endpoint endpoint, SchemaContext schemaContext) {
+    private boolean replacesDefaultContent(Response descriptor) {
+        return !isBlank(descriptor.ref()) || !isNoResponseType(descriptor.modelGraph())
+               || !isNoResponseType(descriptor.type());
+    }
+
+    private Optional<RenderedResponse> defaultResponse(Endpoint endpoint, SchemaContext schemaContext,
+                                                       boolean includeContent) {
         TypeMirror responseType = endpoint.responseType();
         if (isNoResponseType(responseType)) {
             return Optional.of(new RenderedResponse("204", object().put("description", "No Content")));
         }
         ObjectNode response = object().put("description", "OK");
-        if (!isDynamicWebResponse(responseType)) {
+        if (includeContent && !isDynamicWebResponse(responseType)) {
             ObjectNode schema = responseSchema(responseType, schemaContext);
             removeDeclarationApiDocMetadata(schema, endpoint.executable());
             addContent(response, inferMediaType(responseType), schema);
@@ -973,6 +986,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             modelGraphRelations.stream()
                     .filter(relation -> types.isSameType(types.erasure(relation.parentType()),
                                                          types.erasure(parentType.asType())))
+                    .filter(relation -> !metadata(relation.apiDoc()).hidden())
                     .forEach(relation -> byPath.computeIfAbsent(relation.path(), ignored -> new ArrayList<>())
                             .add(relation));
             if (byPath.isEmpty()) {
@@ -2544,6 +2558,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                                                .filter(value -> !isBlank(value)).toList());
                 required(booleanValue(values.get("required")));
                 deprecated(booleanValue(values.get("deprecated")));
+                hidden(booleanValue(values.get("exclude")));
                 TypeMirror implementationValue = typeValue(values.get("implementation"));
                 if (implementationValue != null && !isNoResponseType(implementationValue)) {
                     implementation = implementationValue;

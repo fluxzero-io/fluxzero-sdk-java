@@ -516,19 +516,21 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   It may also document fields, parameters, record components, and type arguments such as
   `List<@ApiDoc(description = "Connection item") Connection>`; prefer this over OpenAPI-specific array annotations.
   For dependency-free schema metadata, use its optional `type`, `format`, `example`, `defaultValue`, `minimum`,
-  `maximum`, `allowableValues`, `required`, and `implementation` attributes instead of Swagger `@Schema`.
+  `maximum`, `allowableValues`, `required`, `exclude`, and `implementation` attributes instead of Swagger `@Schema`.
 - Use repeatable `@ApiDocResponse` annotations for additional status/error responses, or to describe an inferred
   response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
 - For a composed independent-model graph returned as `JsonNode`, select its root with
   `@ApiDocResponse(status = 200, modelGraph = RootModel.class)`. Add
   `apiDoc = @ApiDoc(...)` next to each child model's `@ParentId(path = ...)`; the final path segment is documented as
   a list of that child model and slash-separated prefixes become nested objects. Array and collection return types
-  remain arrays whose items are complete model graphs. Use `modelGraphPaths = {"children/grandchildren"}` to include
-  only selected relationship paths; ancestors are implicit, siblings and deeper descendants are not. An empty
-  selection includes the whole graph. `type` and `modelGraph` are mutually exclusive. Runtime-served docs include
+  remain arrays whose items are complete model graphs. An empty `modelGraphPaths` selection includes every relation
+  except those with `@ParentId(apiDoc = @ApiDoc(exclude = true))`. Use
+  `modelGraphPaths = {"children/grandchildren"}` only for endpoint-specific subgraphs; ancestors are implicit, siblings
+  and deeper descendants are not. `type` and `modelGraph` are mutually exclusive. Runtime-served docs include
   registered child models from other modules.
-- Use `@ApiDocExclude` to exclude package/class/method endpoints or model fields/record components/parameters from
-  generated docs only; it does not disable runtime handling.
+- Use `@ApiDocExclude` or `@ApiDoc(exclude = true)` to exclude package/class/method endpoints or model
+  fields/record components/parameters from generated docs only. The `exclude` attribute also works in nested
+  `@ParentId.apiDoc`; neither form changes runtime handling or returned graph data.
 - Use `@ApiDocInfo` on a package or handler type for document-level metadata such as title, version, description,
   contact, logo, servers, top-level security requirements, shared components via `@ApiDocComponent`, and top-level
   vendor extensions. Prefer this over external Swagger configuration files.

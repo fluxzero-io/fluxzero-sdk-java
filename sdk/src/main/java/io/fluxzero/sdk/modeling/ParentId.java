@@ -70,7 +70,8 @@ public @interface ParentId {
      * The child item schema is inferred from the model that declares this parent reference. Nested path segments are
      * represented as objects, while the final path segment is represented as an array of child models. Structural
      * {@link ApiDoc} hints such as {@link ApiDoc#type()}, {@link ApiDoc#format()}, and {@link ApiDoc#implementation()}
-     * cannot override that inferred array and child type.
+     * cannot override that inferred array and child type. Use {@link ApiDoc#exclude()} to keep this relationship out
+     * of every documented graph while retaining it in the runtime model graph.
      */
     ApiDoc apiDoc() default @ApiDoc;
 }

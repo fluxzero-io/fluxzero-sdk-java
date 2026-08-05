@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -196,9 +197,13 @@ public final class ApiDocExtractor {
     }
 
     private static boolean isExcluded(Class<?> handlerType, Executable executable) {
-        return packages(handlerType).anyMatch(p -> p.isAnnotationPresent(ApiDocExclude.class))
-               || handlerType.isAnnotationPresent(ApiDocExclude.class)
-               || executable.isAnnotationPresent(ApiDocExclude.class);
+        return packages(handlerType).anyMatch(ApiDocExtractor::isExcluded)
+               || isExcluded(handlerType) || isExcluded(executable);
+    }
+
+    private static boolean isExcluded(AnnotatedElement element) {
+        ApiDoc apiDoc = element.getAnnotation(ApiDoc.class);
+        return element.isAnnotationPresent(ApiDocExclude.class) || apiDoc != null && apiDoc.exclude();
     }
 
     private static boolean isDocumented(Class<?> handlerType, Executable executable) {

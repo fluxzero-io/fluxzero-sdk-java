@@ -81,6 +81,7 @@ class ApiDocExtractorTest {
         assertEquals(List.of("/visible"), ApiDocExtractor.extract(PartiallyExcludedHandler.class)
                 .endpoints().stream().map(ApiDocEndpoint::path).toList());
         assertTrue(ApiDocExtractor.extract(ExcludedHandler.class).endpoints().isEmpty());
+        assertTrue(ApiDocExtractor.extract(ApiDocExcludedHandler.class).endpoints().isEmpty());
         assertTrue(ApiDocExtractor.extract(ExcludedApiDocHandler.class).endpoints().isEmpty());
     }
 
@@ -158,10 +159,24 @@ class ApiDocExtractorTest {
         String hidden() {
             return "hidden";
         }
+
+        @ApiDoc(exclude = true)
+        @HandleGet("/also-hidden")
+        String alsoHidden() {
+            return "hidden";
+        }
     }
 
     @ApiDocExclude
     static class ExcludedHandler {
+        @HandleGet("/hidden")
+        String hidden() {
+            return "hidden";
+        }
+    }
+
+    @ApiDoc(exclude = true)
+    static class ApiDocExcludedHandler {
         @HandleGet("/hidden")
         String hidden() {
             return "hidden";

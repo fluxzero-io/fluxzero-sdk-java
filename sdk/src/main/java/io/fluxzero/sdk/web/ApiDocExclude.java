@@ -27,6 +27,7 @@ import java.lang.annotation.Target;
  * This annotation affects documentation generation only. It does not disable or alter the runtime web handler or model.
  * </p>
  *
+ * @see ApiDoc#exclude()
  * @see ApiDocExtractor
  * @see OpenApiProcessor
  */

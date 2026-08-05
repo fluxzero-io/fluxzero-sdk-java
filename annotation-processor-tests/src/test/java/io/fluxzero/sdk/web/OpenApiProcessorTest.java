@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
@@ -62,6 +63,7 @@ class OpenApiProcessorTest {
         assertTrue(paths.has("/processor/meters/{meterId}/{readingId}"));
         assertTrue(paths.has("/processor/meters/{meterId}"));
         assertFalse(paths.has("/processor/internal"));
+        assertFalse(paths.has("/processor/api-doc-excluded"));
         assertFalse(paths.has("/processor/undocumented"));
         assertFalse(paths.has("/processor/socket"));
 
@@ -125,6 +127,7 @@ class OpenApiProcessorTest {
         assertEquals("First paragraph.\n\nSecond paragraph with String link.",
                      accessor.path("javadocParagraphs").path("description").asText());
         assertFalse(accessor.has("secret"));
+        assertFalse(accessor.has("alternateSecret"));
         assertFalse(contains(document.path("components").path("schemas").path("InputDto").path("required"),
                              "tags"));
         JsonNode required = document.path("components").path("schemas").path("AccessorDto").path("required");
@@ -163,11 +166,15 @@ class OpenApiProcessorTest {
         assertEquals("#/components/schemas/ProcessorOrganisation",
                      graphArraySchema.path("items").path("$ref").asText());
         JsonNode graphSchemas = document.path("components").path("schemas");
+        assertFalse(graphSchemas.has("ObjectNode"));
+        assertFalse(graphSchemas.has("JsonNode"));
         JsonNode locations = graphSchemas.path("ProcessorOrganisation").path("properties").path("locations");
         assertEquals("array", locations.path("type").asText());
         assertEquals("Organisation locations", locations.path("description").asText());
         assertEquals("#/components/schemas/ProcessorLocation", locations.path("items").path("$ref").asText());
         assertTrue(contains(graphSchemas.path("ProcessorOrganisation").path("required"), "locations"));
+        assertFalse(graphSchemas.path("ProcessorOrganisation").path("properties").has("hiddenChildren"));
+        assertFalse(graphSchemas.has("ProcessorHiddenChild"));
         JsonNode connections = graphSchemas.path("ProcessorLocation").path("properties")
                 .path("assets").path("properties").path("connections");
         assertEquals("array", connections.path("type").asText());
@@ -245,7 +252,7 @@ class OpenApiProcessorTest {
         @ApiDoc(description = "List processor model graphs")
         @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
         @HandleGet("/model-graphs")
-        List<JsonNode> modelGraphs() {
+        List<ObjectNode> modelGraphs() {
             return null;
         }
 
@@ -267,6 +274,12 @@ class OpenApiProcessorTest {
         @ApiDocExclude
         @HandleGet("/internal")
         String internal() {
+            return "hidden";
+        }
+
+        @ApiDoc(exclude = true)
+        @HandleGet("/api-doc-excluded")
+        String apiDocExcluded() {
             return "hidden";
         }
 
@@ -331,6 +344,8 @@ class OpenApiProcessorTest {
         List<String> uniqueTags;
         @ApiDocExclude
         String secret;
+        @ApiDoc(exclude = true)
+        String alternateSecret;
         List<String> aliases;
         /**
          * First paragraph.
@@ -380,6 +395,14 @@ class OpenApiProcessorTest {
             @ParentId(value = ProcessorLocation.class, path = "assets/connections",
                     apiDoc = @ApiDoc(description = "Location connections"))
             String locationId) {
+    }
+
+    @Model
+    record ProcessorHiddenChild(
+            @EntityId String id,
+            @ParentId(value = ProcessorOrganisation.class, path = "hiddenChildren",
+                    apiDoc = @ApiDoc(exclude = true))
+            String organisationId) {
     }
 
     @Model

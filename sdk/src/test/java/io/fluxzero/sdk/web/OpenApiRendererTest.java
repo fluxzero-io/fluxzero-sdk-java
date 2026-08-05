@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ParentId;
@@ -220,6 +221,7 @@ class OpenApiRendererTest {
         assertEquals("uuid", properties.path("externalId").path("format").asText());
         assertTrue(properties.path("uniqueTags").path("uniqueItems").asBoolean());
         assertFalse(properties.has("secret"));
+        assertFalse(properties.has("alternateSecret"));
         JsonNode required = document.path("components").path("schemas").path("AccessorDto").path("required");
         assertTrue(contains(required, "status"));
         assertTrue(contains(required, "aliases"));
@@ -230,7 +232,8 @@ class OpenApiRendererTest {
     void rendersDocumentedModelGraphForJsonNodeResponse() {
         ApiDocCatalog extracted = ApiDocExtractor.extract(ModelGraphHandler.class);
         ApiDocCatalog catalog = new ApiDocCatalog(
-                extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class));
+                extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
+                                               ContractModel.class));
 
         JsonNode document = OpenApiRenderer.render(catalog);
         JsonNode responseSchema = document.path("paths").path("/organisations/{id}").path("get")
@@ -255,6 +258,8 @@ class OpenApiRendererTest {
                      arrayResponseSchema.path("items").path("$ref").asText());
 
         JsonNode schemas = document.path("components").path("schemas");
+        assertFalse(schemas.has("ObjectNode"));
+        assertFalse(schemas.has("JsonNode"));
         JsonNode organisation = schemas.path("OrganisationModel");
         JsonNode locations = organisation.path("properties").path("locations");
         assertEquals("array", locations.path("type").asText());
@@ -267,6 +272,8 @@ class OpenApiRendererTest {
         assertEquals("array", connections.path("type").asText());
         assertEquals("Physical connections at this location", connections.path("description").asText());
         assertEquals("#/components/schemas/ConnectionModel", connections.path("items").path("$ref").asText());
+        assertFalse(organisation.path("properties").has("contracts"));
+        assertFalse(schemas.has("ContractModel"));
     }
 
     @Test
@@ -390,7 +397,7 @@ class OpenApiRendererTest {
         @ApiDoc(description = "List organisations")
         @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
         @HandleGet("/organisations")
-        List<JsonNode> organisations() {
+        List<ObjectNode> organisations() {
             return null;
         }
 
@@ -438,7 +445,8 @@ class OpenApiRendererTest {
     @Model
     record ContractModel(
             @EntityId String id,
-            @ParentId(value = OrganisationModel.class, path = "contracts") String organisationId) {
+            @ParentId(value = OrganisationModel.class, path = "contracts",
+                    apiDoc = @ApiDoc(exclude = true)) String organisationId) {
     }
 
     static class FormHandler {
@@ -550,6 +558,8 @@ class OpenApiRendererTest {
         List<String> uniqueTags;
         @ApiDocExclude
         String secret;
+        @ApiDoc(exclude = true)
+        String alternateSecret;
         List<String> aliases;
 
         @ApiDoc(description = "Whether this item is active", defaultValue = "true")
