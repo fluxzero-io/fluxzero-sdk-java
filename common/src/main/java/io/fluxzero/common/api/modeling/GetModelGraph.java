@@ -56,12 +56,12 @@ public class GetModelGraph extends Request {
     Long boundaryEventIndex;
 
     /**
-     * Maximum number of child-edge levels below the root.
+     * Maximum number of child-edge levels below the root, or {@code -1} to follow every reachable level.
      */
     int maxDepth;
 
     /**
-     * Maximum number of distinct model nodes, including the root.
+     * Maximum number of distinct model nodes, including the root, or {@code -1} for no caller-imposed limit.
      */
     int maxModels;
 

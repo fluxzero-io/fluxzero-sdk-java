@@ -234,7 +234,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Reconstructs a bounded model graph at an inclusive historical model-state boundary.
+     * Reconstructs a model graph at an inclusive historical model-state boundary with optional caller-imposed limits.
      */
     default <T> ModelGraph<T> loadGraphAt(
             @NonNull Id<T> rootId,
@@ -246,7 +246,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Reconstructs a bounded model graph using exact persisted identity and root type.
+     * Reconstructs a model graph using exact persisted identity, root type, and optional caller-imposed limits.
      */
     default <T> ModelGraph<T> loadGraph(
             @NonNull String rootId,
@@ -257,7 +257,8 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Reconstructs a bounded model graph using exact persisted identity, root type, and inclusive historical boundary.
+     * Reconstructs a model graph using exact persisted identity, root type, an inclusive historical boundary, and
+     * optional caller-imposed limits.
      */
     default <T> ModelGraph<T> loadGraphAt(
             @NonNull String rootId,

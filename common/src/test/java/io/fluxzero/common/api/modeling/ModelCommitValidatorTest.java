@@ -149,6 +149,24 @@ class ModelCommitValidatorTest {
     void validatesTemporalGraphBoundsAndBoundaries() {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 new GetModelGraph("root-1", null, 16, 10_000, 100, 0L, true)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                new GetModelGraph("root-1", null, -1, -1, 100, 0L, true)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                new GetModelGraph(
+                        "root-1", null, Integer.MAX_VALUE, Integer.MAX_VALUE,
+                        100, 0L, true)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        new GetModelGraph(
+                                "root-1", null, -2, 10_000,
+                                100, 0L, true)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        new GetModelGraph(
+                                "root-1", null, 16, -2,
+                                100, 0L, true)));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> ModelCommitValidator.validate(

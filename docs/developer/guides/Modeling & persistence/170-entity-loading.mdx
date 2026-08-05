@@ -178,8 +178,8 @@ ModelGraph<Order> historical = Fluxzero.get()
         .loadGraphAt(orderId, stateIndex);
 ```
 
-Graph loads are bounded by `ModelGraph.Options`; do not use an unbounded graph as a substitute for loading the direct
-model needed by a command.
+Graph loads have no caller-imposed depth or model-count limit by default. Pass explicit `ModelGraph.Options` when an
+operation intentionally accepts only a bounded graph; use a direct model load when the command needs only one model.
 
 ## Embedded members
 

@@ -90,6 +90,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
 import static java.util.Collections.synchronizedMap;
 
 /**
@@ -1743,7 +1744,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         modelIds.add(request.getRootId());
         List<String> frontier = List.of(request.getRootId());
         List<ModelGraphEdge> edges = new ArrayList<>();
-        for (int depth = 0; depth < request.getMaxDepth() && !frontier.isEmpty(); depth++) {
+        for (int depth = 0;
+             !frontier.isEmpty()
+             && (request.getMaxDepth() == UNBOUNDED
+                 || depth < request.getMaxDepth());
+             depth++) {
             Set<String> parents = Set.copyOf(frontier);
             List<String> next = new ArrayList<>();
             for (MutableModelRelationship relation : modelRelationshipHistory) {
@@ -1758,7 +1763,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         relation.relationship.getParentType(), relation.relationship.getPath(),
                         relation.validFrom, relation.validUntil));
                 if (modelIds.add(relation.childId)) {
-                    if (modelIds.size() > request.getMaxModels()) {
+                    if (request.getMaxModels() != UNBOUNDED
+                        && modelIds.size() > request.getMaxModels()) {
                         throw new IllegalArgumentException(
                                 "Model graph exceeds maxModels " + request.getMaxModels());
                     }

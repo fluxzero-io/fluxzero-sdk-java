@@ -19,6 +19,8 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
+
 /**
  * Structural validation for the independent-model wire protocol.
  * <p>
@@ -275,7 +277,7 @@ public final class ModelCommitValidator {
     }
 
     /**
-     * Validates one bounded temporal model-graph request.
+     * Validates one temporal model-graph request, including optional caller-imposed bounds.
      */
     public static void validate(GetModelGraph request) {
         if (request == null) {
@@ -290,7 +292,7 @@ public final class ModelCommitValidator {
                 request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "graph", request.getMaxDepth(), request.getMaxModels(),
-                request.getMaxEventsPerModel(), request.getMaxBytes(), 0, 1, "1");
+                request.getMaxEventsPerModel(), request.getMaxBytes(), 0, 1, "1", true);
     }
 
     /**
@@ -318,7 +320,7 @@ public final class ModelCommitValidator {
                 request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "ancestor", request.getMaxDepth(), request.getMaxModels(),
-                request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count");
+                request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count", false);
     }
 
     private static void validateGraphBounds(
@@ -329,15 +331,29 @@ public final class ModelCommitValidator {
             long maxBytes,
             int minimumDepth,
             int minimumModels,
-            String minimumModelsDescription) {
-        if (maxDepth < minimumDepth || maxDepth > 1_024) {
+            String minimumModelsDescription,
+            boolean unboundedAllowed) {
+        boolean unboundedDepth = unboundedAllowed
+                                 && maxDepth == UNBOUNDED;
+        boolean unboundedModels = unboundedAllowed
+                                  && maxModels == UNBOUNDED;
+        if (!unboundedDepth && (maxDepth < minimumDepth
+                                || !unboundedAllowed && maxDepth > 1_024)) {
             throw new IllegalArgumentException(
-                    "Model %s maxDepth must be between %d and 1024".formatted(description, minimumDepth));
+                    unboundedAllowed
+                            ? "Model %s maxDepth must be at least %d or UNBOUNDED (-1)"
+                                    .formatted(description, minimumDepth)
+                            : "Model %s maxDepth must be between %d and 1024"
+                                    .formatted(description, minimumDepth));
         }
-        if (maxModels < minimumModels || maxModels > 100_000) {
+        if (!unboundedModels && (maxModels < minimumModels
+                                 || !unboundedAllowed && maxModels > 100_000)) {
             throw new IllegalArgumentException(
-                    "Model %s maxModels must be between %s and 100000"
-                            .formatted(description, minimumModelsDescription));
+                    unboundedAllowed
+                            ? "Model %s maxModels must be at least %s or UNBOUNDED (-1)"
+                                    .formatted(description, minimumModelsDescription)
+                            : "Model %s maxModels must be between %s and 100000"
+                                    .formatted(description, minimumModelsDescription));
         }
         if (maxEventsPerModel < 0 || maxEventsPerModel > MAX_GRAPH_EVENTS_PER_MODEL) {
             throw new IllegalArgumentException(

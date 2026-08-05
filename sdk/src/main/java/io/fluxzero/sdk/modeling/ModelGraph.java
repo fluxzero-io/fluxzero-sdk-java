@@ -21,6 +21,8 @@ import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import java.util.List;
 import java.util.Map;
 
+import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
+
 /**
  * Independently reconstructed model nodes composed through explicit relationship paths.
  * <p>
@@ -63,22 +65,24 @@ public record ModelGraph<T>(
     }
 
     /**
-     * Safety limits for graph reconstruction.
+     * Optional caller-imposed limits for graph reconstruction.
      *
-     * @param maxDepth maximum number of child levels below the root
-     * @param maxModels maximum number of distinct independently stored models
+     * @param maxDepth maximum number of child levels below the root, or {@code -1} for no caller-imposed limit
+     * @param maxModels maximum number of distinct independently stored models, or {@code -1} for no caller-imposed
+     *                  limit
      */
     public record Options(int maxDepth, int maxModels) {
-        public static final Options DEFAULT = new Options(64, 10_000);
+        /** Uses no caller-imposed graph limits. */
+        public static final Options DEFAULT = new Options(UNBOUNDED, UNBOUNDED);
 
         public Options {
-            if (maxDepth < 0 || maxDepth > 1_024) {
+            if (maxDepth != UNBOUNDED && maxDepth < 0) {
                 throw new IllegalArgumentException(
-                        "Model graph maxDepth must be between 0 and 1024");
+                        "Model graph maxDepth must be non-negative or UNBOUNDED (-1)");
             }
-            if (maxModels < 1 || maxModels > 100_000) {
+            if (maxModels != UNBOUNDED && maxModels < 1) {
                 throw new IllegalArgumentException(
-                        "Model graph maxModels must be between 1 and 100000");
+                        "Model graph maxModels must be positive or UNBOUNDED (-1)");
             }
         }
     }

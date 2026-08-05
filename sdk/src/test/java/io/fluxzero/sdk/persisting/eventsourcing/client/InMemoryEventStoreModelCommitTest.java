@@ -949,6 +949,12 @@ class InMemoryEventStoreModelCommitTest {
                                 "parent-1", 1L,
                                 1, 10, 0, 0L, false))
                         .getEdges().size());
+        assertEquals(
+                1,
+                store.getModelGraph(new GetModelGraph(
+                                "parent-1", 1L,
+                                -1, -1, 0, 0L, false))
+                        .getEdges().size());
         assertTrue(
                 store.getModelGraph(new GetModelGraph(
                                 "parent-1", 2L,
