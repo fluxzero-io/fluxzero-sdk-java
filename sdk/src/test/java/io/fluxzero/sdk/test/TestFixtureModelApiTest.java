@@ -23,7 +23,9 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -159,6 +162,21 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    @Timeout(5)
+    void consecutiveFixturesCompleteHandlersAwaitingDependentModelCommands() {
+        TestFixture.create()
+                .givenCommands(new CreateFixtureRoot("root"),
+                               new CreateFixtureLocation("root", "location"),
+                               new ImportFixtureModels("root", "location", "parent", "child"));
+
+        TestFixture.create()
+                .givenCommands(new CreateFixtureRoot("root"),
+                               new CreateFixtureLocation("root", "location"))
+                .whenCommand(new ImportFixtureModels("root", "location", "parent", "child"))
+                .expectNoErrors();
+    }
+
+    @Test
     void modelEventsUseTheModelRepositoryWithoutAggregateMetadata() {
         TestFixture fixture = mock(TestFixture.class, CALLS_REAL_METHODS);
         Fluxzero fluxzero = mock(Fluxzero.class);
@@ -211,6 +229,88 @@ class TestFixtureModelApiTest {
         @Apply
         FixtureModel apply(FixtureModel model) {
             return null;
+        }
+    }
+
+    @Model
+    private record FixtureRoot(@EntityId String rootId) {
+    }
+
+    @Model
+    private record FixtureLocation(
+            @EntityId String locationId,
+            @ParentId(value = FixtureRoot.class, path = "locations") String rootId) {
+    }
+
+    @Model
+    private record FixtureParent(
+            @EntityId String parentId,
+            @ParentId(value = FixtureLocation.class, path = "parents") String locationId) {
+    }
+
+    @Model
+    private record FixtureChild(
+            @EntityId String childId,
+            @ParentId(value = FixtureParent.class, path = "children") String parentId) {
+    }
+
+    private record CreateFixtureRoot(String rootId) {
+        @Apply
+        FixtureRoot apply() {
+            return new FixtureRoot(rootId);
+        }
+    }
+
+    private record CreateFixtureLocation(String rootId, String locationId) {
+        @Apply
+        FixtureLocation apply() {
+            return new FixtureLocation(locationId, rootId);
+        }
+    }
+
+    private record CreateFixtureParent(String rootId, String locationId, String parentId) {
+        @AssertLegal
+        void assertRoot(FixtureRoot root) {
+        }
+
+        @AssertLegal
+        void assertLocation(FixtureLocation location) {
+        }
+
+        @Apply
+        FixtureParent apply() {
+            return new FixtureParent(parentId, locationId);
+        }
+    }
+
+    private record CreateFixtureChildren(String rootId, String locationId, String parentId, String childId) {
+        @AssertLegal
+        void assertRoot(FixtureRoot root) {
+        }
+
+        @AssertLegal
+        void assertLocation(FixtureLocation location) {
+        }
+
+        @InterceptApply
+        CreateFixtureChild intercept(FixtureParent parent) {
+            return new CreateFixtureChild(parent.parentId(), childId);
+        }
+    }
+
+    private record CreateFixtureChild(String parentId, String childId) {
+        @Apply
+        FixtureChild apply() {
+            return new FixtureChild(childId, parentId);
+        }
+    }
+
+    private record ImportFixtureModels(String rootId, String locationId, String parentId, String childId) {
+        @HandleCommand
+        CompletableFuture<?> handle() {
+            return CompletableFuture.allOf(
+                    Fluxzero.sendCommand(new CreateFixtureParent(rootId, locationId, parentId)),
+                    Fluxzero.sendCommand(new CreateFixtureChildren(rootId, locationId, parentId, childId)));
         }
     }
 

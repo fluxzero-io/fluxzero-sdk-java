@@ -70,6 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -810,14 +811,33 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             BatchCommitTicket batchTicket,
             ThreadLocalContext.Snapshot context) {
         return batchTicket.executeAfterRelease(
-                () -> batchTicket.dependencyCompletion()
-                        .thenCompose(ignored ->
-                                CompletableFuture.supplyAsync(
-                                        context.wrap(
-                                                () -> evaluate(message))))
+                () -> evaluateAfterDependencies(
+                        message, batchTicket, context)
                         .thenCompose(context.wrap(
                                 evaluation -> executeEvaluation(
                                         message, evaluation))));
+    }
+
+    private CompletableFuture<ModelCommitEngine.CommitEvaluation>
+            evaluateAfterDependencies(
+                    DeserializingMessage message,
+                    BatchCommitTicket batchTicket,
+                    ThreadLocalContext.Snapshot context) {
+        CompletableFuture<Void> dependencies =
+                batchTicket.dependencyCompletion();
+        if (localHandlingEnabled) {
+            /*
+             * The synchronous TestFixture deliberately executes every local handler on the caller thread. Do not
+             * introduce a worker boundary there: its public command future must be complete when local dispatch
+             * returns. Production handling keeps the asynchronous re-evaluation below so a websocket completion
+             * callback can never be blocked by a model load.
+             */
+            return dependencies.thenApply(
+                    context.wrap(ignored -> evaluate(message)));
+        }
+        return dependencies.thenCompose(ignored ->
+                CompletableFuture.supplyAsync(
+                        context.wrap(() -> evaluate(message))));
     }
 
     private CompletableFuture<Object> executeBatched(
@@ -2006,13 +2026,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (!modelTicket.hasBatchDependencies()) {
             return execute(message, modelTicket);
         }
-        CompletableFuture<Object> result =
-                modelTicket.initializationPrerequisite()
-                        .thenComposeAsync(ignored ->
-                                modelTicket.context().supply(
-                                        () -> execute(
-                                                message,
-                                                modelTicket)));
+        Function<Void, CompletableFuture<Object>> operation =
+                ignored -> modelTicket.context().supply(
+                        () -> execute(message, modelTicket));
+        // Preserve the synchronous TestFixture contract; tracked production handlers retain their worker boundary.
+        CompletableFuture<Object> result = localHandlingEnabled
+                ? modelTicket.initializationPrerequisite()
+                        .thenCompose(operation)
+                : modelTicket.initializationPrerequisite()
+                        .thenComposeAsync(operation);
         result.whenComplete((ignored, failure) -> {
             if (failure != null
                 && !modelTicket.initializationDone()) {
