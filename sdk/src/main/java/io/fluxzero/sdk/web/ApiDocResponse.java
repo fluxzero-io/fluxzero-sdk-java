@@ -52,9 +52,9 @@ public @interface ApiDocResponse {
      * Optional reusable response reference.
      * <p>
      * A bare value such as {@code error} is resolved to {@code #/components/responses/error}. A value starting with
-     * {@code #/} is used as-is. When set, {@link #description()}, {@link #type()}, {@link #modelGraph()}, and
-     * {@link #contentType()} are ignored because OpenAPI Reference Objects cannot have response-object siblings in
-     * OpenAPI 3.0.
+     * {@code #/} is used as-is. When set, {@link #description()}, {@link #type()}, {@link #modelGraph()},
+     * {@link #modelGraphPaths()}, and {@link #contentType()} are ignored because OpenAPI Reference Objects cannot have
+     * response-object siblings in OpenAPI 3.0.
      */
     String ref() default "";
 
@@ -74,6 +74,17 @@ public @interface ApiDocResponse {
      * graphs rooted at this model.
      */
     Class<?> modelGraph() default Void.class;
+
+    /**
+     * Optional relationship paths to include in the documented model graph.
+     * <p>
+     * Paths are relative to {@link #modelGraph()} and use the slash-separated values declared by
+     * {@link io.fluxzero.sdk.modeling.ParentId#path() ParentId.path}. Ancestors of a selected path are included
+     * automatically, so selecting {@code locations/connections/meters} includes the {@code locations} and
+     * {@code connections} relationships as well. An empty array preserves the default of including every documented
+     * relationship below the root model.
+     */
+    String[] modelGraphPaths() default {};
 
     /**
      * Optional response content type.

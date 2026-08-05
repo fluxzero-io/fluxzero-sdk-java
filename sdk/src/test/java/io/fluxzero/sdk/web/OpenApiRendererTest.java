@@ -30,6 +30,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OpenApiRendererTest {
@@ -282,7 +283,8 @@ class OpenApiRendererTest {
                             "description": "OK",
                             "content": {"application/json": {"schema": {
                               "$ref": "#/components/schemas/OrganisationModel",
-                              "x-fluxzero-model-graph": "%s"
+                              "x-fluxzero-model-graph": "%s",
+                              "x-fluxzero-model-graph-paths": ["locations/infrastructure/connections"]
                             }}}
                           }
                         }
@@ -301,7 +303,8 @@ class OpenApiRendererTest {
 
         JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
                 OpenApiRenderer.enrichModelGraphs(
-                        generated, List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class),
+                        generated, List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
+                                           ContractModel.class),
                         getClass().getClassLoader()), JsonNode.class);
 
         JsonNode schemas = document.path("components").path("schemas");
@@ -311,8 +314,18 @@ class OpenApiRendererTest {
         assertEquals("Physical connections at this location",
                      schemas.path("LocationModel").path("properties").path("infrastructure")
                              .path("properties").path("connections").path("description").asText());
+        assertFalse(schemas.path("OrganisationModel").path("properties").has("contracts"));
         assertFalse(document.toString().contains("x-fluxzero-java-type"));
         assertFalse(document.toString().contains("x-fluxzero-model-graph"));
+    }
+
+    @Test
+    void rejectsUnknownSelectedModelGraphPath() {
+        ApiDocCatalog extracted = ApiDocExtractor.extract(InvalidModelGraphHandler.class);
+        ApiDocCatalog catalog = new ApiDocCatalog(
+                extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class));
+
+        assertThrows(IllegalArgumentException.class, () -> OpenApiRenderer.render(catalog));
     }
 
     @Test
@@ -389,6 +402,16 @@ class OpenApiRendererTest {
         }
     }
 
+    static class InvalidModelGraphHandler {
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class,
+                modelGraphPaths = "missing")
+        @HandleGet("/invalid-model-graph")
+        JsonNode invalidModelGraph() {
+            return null;
+        }
+    }
+
     @Model
     record OrganisationModel(@EntityId String id, String name) {
     }
@@ -410,6 +433,12 @@ class OpenApiRendererTest {
                     apiDoc = @ApiDoc(description = "Physical connections at this location"))
             String locationId,
             String ean) {
+    }
+
+    @Model
+    record ContractModel(
+            @EntityId String id,
+            @ParentId(value = OrganisationModel.class, path = "contracts") String organisationId) {
     }
 
     static class FormHandler {

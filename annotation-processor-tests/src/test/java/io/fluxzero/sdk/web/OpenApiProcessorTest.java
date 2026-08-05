@@ -173,6 +173,10 @@ class OpenApiProcessorTest {
         assertEquals("array", connections.path("type").asText());
         assertEquals("Location connections", connections.path("description").asText());
         assertEquals("#/components/schemas/ProcessorConnection", connections.path("items").path("$ref").asText());
+        JsonNode selectedSchemas = document.path("components").path("schemas");
+        assertTrue(selectedSchemas.path("SelectedRoot").path("properties").has("children"));
+        assertTrue(selectedSchemas.path("SelectedChild").path("properties").has("leaves"));
+        assertFalse(selectedSchemas.path("SelectedRoot").path("properties").has("excludedChildren"));
     }
 
     @ApiDocInfo(
@@ -246,6 +250,14 @@ class OpenApiProcessorTest {
         @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
         @HandleGet("/model-graphs/array")
         JsonNode[] modelGraphArray() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = SelectedRoot.class,
+                modelGraphPaths = "children/leaves")
+        @HandleGet("/selected-model-graph")
+        JsonNode selectedModelGraph() {
             return null;
         }
 
@@ -362,6 +374,28 @@ class OpenApiProcessorTest {
             @ParentId(value = ProcessorLocation.class, path = "assets/connections",
                     apiDoc = @ApiDoc(description = "Location connections"))
             String locationId) {
+    }
+
+    @Model
+    record SelectedRoot(@EntityId String id) {
+    }
+
+    @Model
+    record SelectedChild(
+            @EntityId String id,
+            @ParentId(value = SelectedRoot.class, path = "children") String rootId) {
+    }
+
+    @Model
+    record SelectedLeaf(
+            @EntityId String id,
+            @ParentId(value = SelectedChild.class, path = "leaves") String childId) {
+    }
+
+    @Model
+    record ExcludedChild(
+            @EntityId String id,
+            @ParentId(value = SelectedRoot.class, path = "excludedChildren") String rootId) {
     }
 
     @lombok.Value

@@ -183,9 +183,15 @@ public final class ApiDocExtractor {
                 throw new IllegalArgumentException(
                         "@ApiDocResponse may declare either type or modelGraph, but not both");
             }
+            if (isBlank(response.ref()) && Void.class.equals(response.modelGraph())
+                && response.modelGraphPaths().length > 0) {
+                throw new IllegalArgumentException(
+                        "@ApiDocResponse.modelGraphPaths requires modelGraph");
+            }
             target.put(response.status(),
                        new ApiDocResponseDescriptor(response.status(), response.description(), response.ref(),
-                                                    response.type(), response.modelGraph(), response.contentType()));
+                                                    response.type(), response.modelGraph(),
+                                                    List.of(response.modelGraphPaths()), response.contentType()));
         }
     }
 

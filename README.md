@@ -2437,7 +2437,10 @@ root on the response and document each list-valued graph edge next to its canoni
 ```java
 @ApiDoc
 @HandleGet("/organisations/{id}")
-@ApiDocResponse(status = 200, modelGraph = Organisation.class)
+@ApiDocResponse(
+        status = 200,
+        modelGraph = Organisation.class,
+        modelGraphPaths = "locations/connections/meters")
 JsonNode getOrganisation(@PathParam String id) {
     return loadOrganisationGraph(id);
 }
@@ -2458,7 +2461,9 @@ record Location(
 The root schema is inferred from `Organisation`; the `locations` property is rendered as a list of `Location` items.
 Slash-separated paths create nested objects before the final list property, and descendants are followed recursively.
 If the handler returns an array or collection of JSON trees, the response remains an array whose items use the complete
-model-graph schema.
+model-graph schema. By default all graph relationships are included. Use `modelGraphPaths` to select a public subgraph;
+ancestors of each selected path are included automatically, while sibling and deeper descendant paths must be selected
+explicitly.
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
 metadata with the model types registered in the current application, so child models may live in another Maven module.
 

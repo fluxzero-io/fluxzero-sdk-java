@@ -535,12 +535,20 @@ public class OpenApiProcessor extends AbstractProcessor {
                                   "@ApiDocResponse may declare either type or modelGraph, but not both",
                                   annotation.getAnnotationType().asElement());
         }
+        List<String> modelGraphPaths = stringList(values.get("modelGraphPaths"));
+        if (isBlank(stringValue(values.get("ref"))) && isNoResponseType(modelGraph)
+            && !modelGraphPaths.isEmpty()) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                                  "@ApiDocResponse.modelGraphPaths requires modelGraph",
+                                  annotation.getAnnotationType().asElement());
+        }
         return new Response(
                 intValue(values.get("status")),
                 stringValue(values.get("description")),
                 stringValue(values.get("ref")),
                 type,
                 modelGraph,
+                modelGraphPaths,
                 stringValue(values.get("contentType")));
     }
 
@@ -892,7 +900,8 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (!isNoResponseType(descriptor.modelGraph())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? "application/json" : descriptor.contentType(),
-                       modelGraphResponseSchema(endpoint.responseType(), descriptor.modelGraph(), schemaContext));
+                       modelGraphResponseSchema(endpoint.responseType(), descriptor.modelGraph(),
+                                                descriptor.modelGraphPaths(), schemaContext));
         } else if (!isNoResponseType(descriptor.type())) {
             addContent(response,
                        isBlank(descriptor.contentType()) ? inferMediaType(descriptor.type())
@@ -903,8 +912,8 @@ public class OpenApiProcessor extends AbstractProcessor {
     }
 
     private ObjectNode modelGraphResponseSchema(TypeMirror responseType, TypeMirror rootType,
-                                                SchemaContext schemaContext) {
-        ObjectNode graphSchema = modelGraphSchema(rootType, schemaContext);
+                                                List<String> selectedPaths, SchemaContext schemaContext) {
+        ObjectNode graphSchema = modelGraphSchema(rootType, selectedPaths, schemaContext);
         if (responseType != null && responseType.getKind() == TypeKind.ARRAY && !isBinaryType(responseType)) {
             return object().put("type", "array").set("items", graphSchema);
         }
@@ -914,28 +923,42 @@ public class OpenApiProcessor extends AbstractProcessor {
         return graphSchema;
     }
 
-    private ObjectNode modelGraphSchema(TypeMirror rootType, SchemaContext schemaContext) {
+    private ObjectNode modelGraphSchema(TypeMirror rootType, List<String> selectedPaths,
+                                        SchemaContext schemaContext) {
         TypeElement root = asTypeElement(rootType);
         if (root == null || findAnnotation(root, MODEL) == null) {
             messager.printMessage(Diagnostic.Kind.ERROR,
                                   "@ApiDocResponse.modelGraph must refer to an @Model type, but found " + rootType);
             return object().put("type", "object");
         }
+        List<String> paths = normalizeModelGraphPaths(selectedPaths);
+        String rootName = qualifiedName(root);
+        List<String> existingSelection = schemaContext.modelGraphSelections.putIfAbsent(rootName, paths);
+        if (existingSelection != null && !existingSelection.equals(paths)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                                  "Conflicting modelGraphPaths selections for " + rootName);
+        }
         ObjectNode result = schemaContext.ref(root, new LinkedHashSet<>(), true);
-        result.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, qualifiedName(root));
+        result.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, rootName);
+        if (!paths.isEmpty()) {
+            ArrayNode pathMarker = result.putArray(OpenApiRenderer.MODEL_GRAPH_PATHS_EXTENSION);
+            paths.forEach(pathMarker::add);
+        }
         schemaContext.markType(root);
-        addModelGraphChildren(root, schemaContext, new LinkedHashSet<>());
+        addModelGraphChildren(root, "", paths, schemaContext, new LinkedHashSet<>());
         return result;
     }
 
-    private void addModelGraphChildren(TypeElement parentType, SchemaContext schemaContext, Set<String> visiting) {
+    private void addModelGraphChildren(TypeElement parentType, String parentPath, List<String> selectedPaths,
+                                       SchemaContext schemaContext, Set<String> visiting) {
         String parentName = qualifiedName(parentType);
         if (!visiting.add(parentName)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
                                   "Documented model graph contains a parent cycle at " + parentName);
             return;
         }
-        if (!schemaContext.expandedModelGraphs.add(parentName)) {
+        String expansion = parentName + "\n" + parentPath + "\n" + String.join("\n", selectedPaths);
+        if (!schemaContext.expandedModelGraphs.add(expansion)) {
             visiting.remove(parentName);
             return;
         }
@@ -951,6 +974,10 @@ public class OpenApiProcessor extends AbstractProcessor {
             }
             ObjectNode parentSchema = schemaContext.schemas.get(schemaContext.name(parentType));
             byPath.forEach((path, relations) -> {
+                String graphPath = parentPath.isEmpty() ? path : parentPath + "/" + path;
+                if (!includesModelGraphPath(graphPath, selectedPaths)) {
+                    return;
+                }
                 AnnotationMirror apiDoc = commonApiDoc(path, parentType, relations);
                 List<TypeElement> childTypes = relations.stream().map(ModelGraphRelation::childType)
                         .collect(java.util.stream.Collectors.toMap(
@@ -961,14 +988,14 @@ public class OpenApiProcessor extends AbstractProcessor {
                     TypeElement childType = childTypes.getFirst();
                     items = schemaContext.ref(childType, new LinkedHashSet<>(), true);
                     schemaContext.markType(childType);
-                    addModelGraphChildren(childType, schemaContext, visiting);
+                    addModelGraphChildren(childType, graphPath, selectedPaths, schemaContext, visiting);
                 } else {
                     items = object();
                     ArrayNode oneOf = items.putArray("oneOf");
                     childTypes.forEach(childType -> {
                         oneOf.add(schemaContext.ref(childType, new LinkedHashSet<>(), true));
                         schemaContext.markType(childType);
-                        addModelGraphChildren(childType, schemaContext, visiting);
+                        addModelGraphChildren(childType, graphPath, selectedPaths, schemaContext, visiting);
                     });
                 }
                 ObjectNode property = object().set("items", items);
@@ -979,6 +1006,30 @@ public class OpenApiProcessor extends AbstractProcessor {
         } finally {
             visiting.remove(parentName);
         }
+    }
+
+    private List<String> normalizeModelGraphPaths(List<String> selectedPaths) {
+        if (selectedPaths == null || selectedPaths.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        for (String path : selectedPaths) {
+            String normalized = path == null ? "" : path.trim();
+            if (normalized.isEmpty() || normalized.startsWith("/") || normalized.endsWith("/")
+                || normalized.contains("//")) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                                      "@ApiDocResponse.modelGraphPaths must contain non-empty relative paths: "
+                                      + path);
+                continue;
+            }
+            result.add(normalized);
+        }
+        return List.copyOf(result);
+    }
+
+    private boolean includesModelGraphPath(String graphPath, List<String> selectedPaths) {
+        return selectedPaths.isEmpty() || selectedPaths.stream()
+                .anyMatch(selected -> selected.equals(graphPath) || selected.startsWith(graphPath + "/"));
     }
 
     private AnnotationMirror commonApiDoc(String path, TypeElement parentType, List<ModelGraphRelation> relations) {
@@ -1021,6 +1072,9 @@ public class OpenApiProcessor extends AbstractProcessor {
         ObjectNode properties = current.withObject("/properties");
         String propertyName = segments[segments.length - 1];
         if (properties.has(propertyName)) {
+            if (properties.get(propertyName).equals(property)) {
+                return;
+            }
             messager.printMessage(Diagnostic.Kind.ERROR, "Graph documentation path collides at " + path);
             return;
         }
@@ -2116,7 +2170,8 @@ public class OpenApiProcessor extends AbstractProcessor {
     }
 
     private record Response(
-            int status, String description, String ref, TypeMirror type, TypeMirror modelGraph, String contentType) {
+            int status, String description, String ref, TypeMirror type, TypeMirror modelGraph,
+            List<String> modelGraphPaths, String contentType) {
     }
 
     private record ModelGraphRelation(
@@ -2350,6 +2405,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         private final Map<String, ObjectNode> schemas = new LinkedHashMap<>();
         private final Set<String> responseSchemas = new LinkedHashSet<>();
         private final Set<String> expandedModelGraphs = new LinkedHashSet<>();
+        private final Map<String, List<String>> modelGraphSelections = new LinkedHashMap<>();
         private final String openApiVersion;
 
         SchemaContext(String openApiVersion) {

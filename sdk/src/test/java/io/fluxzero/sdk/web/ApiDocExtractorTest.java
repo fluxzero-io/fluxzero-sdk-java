@@ -95,6 +95,12 @@ class ApiDocExtractorTest {
                      () -> ApiDocExtractor.extract(AmbiguousResponseHandler.class));
     }
 
+    @Test
+    void rejectsModelGraphPathsWithoutModelGraph() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> ApiDocExtractor.extract(ModelGraphPathsWithoutRootHandler.class));
+    }
+
     private static void assertParameter(ApiDocEndpoint endpoint, String name, WebParameterSource source, Type type) {
         ApiDocParameter parameter = endpoint.parameters().stream()
                 .filter(p -> p.source() == source && p.name().equals(name))
@@ -174,6 +180,15 @@ class ApiDocExtractorTest {
         @ApiDocResponse(status = 200, type = ReadingResponse.class, modelGraph = ReadingResponse.class)
         @HandleGet("/ambiguous")
         Object ambiguous() {
+            return null;
+        }
+    }
+
+    @ApiDoc
+    static class ModelGraphPathsWithoutRootHandler {
+        @ApiDocResponse(status = 200, modelGraphPaths = "children")
+        @HandleGet("/missing-model-graph")
+        Object missingModelGraph() {
             return null;
         }
     }
