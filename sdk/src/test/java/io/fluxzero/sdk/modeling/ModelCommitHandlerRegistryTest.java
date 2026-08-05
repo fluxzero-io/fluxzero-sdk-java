@@ -472,6 +472,67 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void dependentHandlerFlushesReadyTransportBeforeAwaitingPredecessor()
+            throws Exception {
+        Map<String, Object> durable = new ConcurrentHashMap<>();
+        BatchParentId parentId = new BatchParentId("handler-dependent");
+        durable.put(parentId.toString(), new BatchParent(parentId, 0));
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubBatchModelLoads(repository, durable);
+        EventStoreClient eventStoreClient = mock(
+                EventStoreClient.class,
+                withSettings().extraInterfaces(ModelCommitBatchingClient.class));
+        ModelCommitBatchingClient batchingClient =
+                (ModelCommitBatchingClient) eventStoreClient;
+        ModelCommitBatchingClient.ModelCommitBatch transportBatch =
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+        CompletableFuture<CommitModels> firstPrepared = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> firstResponse = new CompletableFuture<>();
+        CompletableFuture<Void> transportFlushed = new CompletableFuture<>();
+        when(batchingClient.beginReadyModelCommitBatch()).thenReturn(transportBatch);
+        when(transportBatch.add(anyInt(), any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(1);
+            firstPrepared.complete(commit);
+            return firstResponse;
+        });
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture(acceptedResult(invocation.getArgument(0))));
+        doAnswer(invocation -> {
+            transportFlushed.complete(null);
+            firstResponse.complete(acceptedResult(firstPrepared.join()));
+            return null;
+        }).when(transportBatch).flush();
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        CompletableFuture<?>[] handling = new CompletableFuture<?>[2];
+        int[] handlingIndex = {0};
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    message(new IncrementBatchParent(parentId, 0), 42),
+                                    message(new IncrementBatchParent(parentId, 1), 42)),
+                            current -> {
+                                int index = handlingIndex[0]++;
+                                handling[index] = subject.handle(current).orElseThrow();
+                                if (index == 1) {
+                                    handling[index].join();
+                                }
+                            }), executor);
+
+            batch.get(5, TimeUnit.SECONDS);
+            transportFlushed.get(5, TimeUnit.SECONDS);
+            assertTrue(handling[0].isDone());
+            assertEquals(new BatchParent(parentId, 2), durable.get(parentId.toString()));
+            verify(transportBatch, times(1)).flush();
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
     void explicitAfterBatchPolicyDefersCommitUntilBatchCompletion()
             throws Exception {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
@@ -1124,6 +1185,14 @@ class ModelCommitHandlerRegistryTest {
     private static String committedModelId(PendingResponse response) {
         return response.commit().getSubsteps().getFirst()
                 .getTargets().getFirst().getModelId();
+    }
+
+    private static CommitModelsResult acceptedResult(CommitModels commit) {
+        String modelId = commit.getSubsteps().getFirst()
+                .getTargets().getFirst().getModelId();
+        return CommitModelsResult.acceptedSingleTarget(
+                commit.getRequestId(), commit.getCommitId(),
+                1L, 1L, modelId, 0L, true);
     }
 
     private static DeserializingMessage message(Object payload) {

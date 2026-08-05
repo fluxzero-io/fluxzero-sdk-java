@@ -696,6 +696,16 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
              * after every producer is ready, while this command intentionally waits for an earlier producer to be
              * durably complete. Detach before entering the coordinator so the predecessor can actually be sent.
              */
+            if (batchTicket.gates() == null
+                && batchTicket.transportBatch() != null) {
+                /*
+                 * Handler-time transport batches release full chunks eagerly but retain their tail until the handler
+                 * batch closes. A handler may itself await this dependent command, so waiting for batch close here
+                 * would deadlock with the predecessor still retained in that tail. Flush only the ready tail; the
+                 * dependent commit is detached below and therefore cannot enter it.
+                 */
+                batchTicket.transportBatch().flush();
+            }
             batchTicket.detachTransport();
         }
         return commitCoordinator.coordinate(

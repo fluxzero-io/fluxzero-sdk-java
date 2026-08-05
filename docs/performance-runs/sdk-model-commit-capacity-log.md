@@ -2147,3 +2147,49 @@ Log SHA-256 in run order: `b96afe84ad64f68b9a25ff5275f1dfaacc7dd2cde7deca7b29cd3
 `0d8953178c1bf2d36ca9481a08ff236d06145c70f41fb1c3b5c9e9eb50af9b23`,
 `e4b6514bc379fb36ac777e50dc2d2c68aec87aac077878f1f3594dde2a89b9cc`,
 `b77884f7cf5ffc82687e2794e2b37de9bb57a6b08e9d9a2ca7a5f31f79d2b6ac`.
+
+### S40 follow-up: handler-awaited dependent commit tail
+
+Flowmaps exposed one circular wait after S40. `ImportEnecoMeters` dispatched and awaited an `UpsertConnection` and a
+dependent `UpsertMeters` from one handler batch. The dependent command correctly waited for the predecessor's durable
+commit, but that predecessor was still retained in the ready WebSocket transport tail until the enclosing handler batch
+closed. The enclosing handler could not close while it was awaiting the dependent command. An exact downstream A/B
+confirmed the regression: the isolated three-test `EnecoTest$ManualMeterPolling` timed out with SDK `c2976a4480c`, passed
+with its direct parent `bd1a58182f5`, and passed again after the fix.
+
+The follow-up flushes only the ready handler-time transport tail immediately before an actually dependent command is
+detached from that transport batch. It does not change independent commands, full transport chunks, explicit
+after-batch gates, commit ordering or the dependent command's canonical reevaluation. A focused regression test awaits
+the second same-model command before batch close and proves that the predecessor is flushed and both durable updates
+complete in order.
+
+Verification:
+
+- full SDK `./mvnw -B install`: success;
+- isolated downstream `EnecoTest$ManualMeterPolling`: 3 tests, 0 failures/errors;
+- full Flowmaps `./mvnw -B test`: app 555 tests (14 skipped), Rebound 1 test and reporting 14 tests (7 skipped),
+  0 failures/errors;
+- three full-route runs each verified exactly 4,194,304 results, stored model events and global events plus all 65,536
+  final model states.
+
+The matched performance sequence compares the fix with exact SDK `c2976a4480c` and Runtime `feee1d9a`. The host was
+still too loaded for an absolute qualification claim, so only the adjacent relative result is used:
+
+| Order | SDK | Warm-up | Measured E2E | p50 / p95 / p99 | Decision |
+| --- | --- | ---: | ---: | ---: | --- |
+| A7 | `c2976a4480c` | 137,478/s | 158,891/s | 323.797 / 617.233 / 699.393 ms | preceding-version control |
+| B8 | dependent-tail fix | 120,011/s | 172,644/s | 293.096 / 605.621 / 832.387 ms | no regression; accept |
+| A8 | `c2976a4480c` | 115,552/s | 155,710/s | 330.030 / 635.632 / 860.464 ms | reverse control |
+
+The candidate is 8.65% and 10.87% above its adjacent controls. This is not claimed as a causal throughput improvement:
+the branch is intentionally narrow and host throughput varied. It does, however, exclude a regression relative to the
+immediately preceding S40 checkpoint. The historical P5 425,606/s pin remains unchanged.
+
+Evidence SHA-256: downstream failing candidate `a31824c1dec0f79c6b6dba882cb364ba0fc09175227e633eb84e9356c0ece3b7`,
+passing parent control `7fb9b6309c5ea6badb967ef2bb0f20981696237bb9440bcb87d773b779c39b42`, passing fixed
+downstream test `73874fa989f911fcabef568c42a7dc7a813187169f38786b1a39a20b4c59322f`, full Flowmaps suite
+`5578d0be48f7a09d4df62b8b1abe5801076a9a8d02e94761c3da07538adfd9cb`, full SDK install
+`9be0af7105b6260be4da20c2c4f0eb6cbf327f3ae901d459d837a3fa049f5e0c`. Benchmark logs in run order:
+`9735ab783e7ef95f68f107b532bcf5eb422624f4a3a0f62e1395c4ade976330b`,
+`07834ed23fbdfcdb403009859e819d16d9eef55bb3521e9bab2b18b427e33ab1`,
+`72918e5d2bcf4ce5161ec446330531a6891805435702d26e69680ec1260f3ef8`.
