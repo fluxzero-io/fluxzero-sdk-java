@@ -16,6 +16,8 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.sdk.modeling.GraphProjection;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 
@@ -30,7 +32,7 @@ import java.lang.annotation.Target;
  * <p>
  * This is a specialization of {@link HandleMessage} for {@link MessageType#DOCUMENT} messages. It allows consuming
  * updates from the document store in near real-time—similar to event tracking. Handlers can either specify a collection
- * name or a document class.
+ * name, a document class, or the materialized graph projection of an independent model.
  * </p>
  *
  * <h2>Document Tracking Semantics</h2>
@@ -107,6 +109,19 @@ public @interface HandleDocument {
      * @see Searchable
      */
     Class<?> documentClass() default Void.class;
+
+    /**
+     * Optional independent-model root whose materialized graph projection should be handled.
+     * <p>
+     * The effective collection is resolved from {@link Model#graphProjection()}, including its derived
+     * {@code <model collection>-graphs} default and any explicit collection override. The model must have an enabled
+     * {@link GraphProjection}. This is useful when a stateful document handler needs to maintain a local view over
+     * complete model graphs rather than over independently stored root documents.
+     * <p>
+     * An explicit {@link #value()} takes precedence. Otherwise this attribute takes precedence over
+     * {@link #documentClass()} and inference from the first handler parameter.
+     */
+    Class<?> modelGraph() default Void.class;
 
     /**
      * If {@code true}, disables this handler during discovery.

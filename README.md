@@ -4714,6 +4714,7 @@ You can subscribe to a document collection using any of the following styles:
 
 - `@HandleDocument` — infers the collection from the **first parameter** of the handler method; this is the preferred style when the document is the first parameter
 - `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation when the document type cannot be inferred from the first parameter
+- `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection, including its derived or explicitly configured graph collection
 - `@HandleDocument("myCollection")` — binds directly to the named collection
 
 ---

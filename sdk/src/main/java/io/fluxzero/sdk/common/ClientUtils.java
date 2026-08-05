@@ -29,6 +29,7 @@ import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -516,6 +517,12 @@ public class ClientUtils {
         return Optional.ofNullable(handleDocument)
                 .filter(h -> !h.disabled())
                 .flatMap(h -> Optional.ofNullable(h.value()).filter(s -> !s.isBlank())
+                        .or(() -> Void.class.equals(h.modelGraph()) ? Optional.empty() :
+                                Optional.of(ModelGraphProjections.configuration(h.modelGraph())
+                                                    .orElseThrow(() -> new IllegalArgumentException(
+                                                            "%s does not enable a materialized model graph projection"
+                                                                    .formatted(h.modelGraph().getName())))
+                                                    .getCollection()))
                         .or(() -> Void.class.equals(h.documentClass()) ? Optional.empty() :
                                 Optional.of(ClientUtils.determineSearchCollection(h.documentClass()))))
                 .or(() -> Arrays.stream(executable.getParameters()).findFirst().map(Parameter::getType).map(

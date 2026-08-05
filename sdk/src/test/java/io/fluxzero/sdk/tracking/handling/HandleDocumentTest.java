@@ -22,7 +22,10 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.search.SearchTest.SomeDocument;
 import io.fluxzero.sdk.test.TestFixture;
@@ -81,6 +84,47 @@ public class HandleDocumentTest {
                 .andThen()
                 .whenExecuting(fc -> Fluxzero.index("foo", "otherDoc").get())
                 .expectOnlyEvents("otherDocument");
+    }
+
+    @Test
+    void handleMaterializedModelGraph() {
+        testFixture.registerHandlers(new Object() {
+                    @HandleDocument(modelGraph = GraphRoot.class)
+                    void handleGraph(Object document) {
+                        Fluxzero.publishEvent("modelGraph");
+                    }
+
+                    @HandleDocument(documentClass = GraphRoot.class)
+                    void handleDirectModel(Object document) {
+                        Fluxzero.publishEvent("directModel");
+                    }
+                }).whenExecuting(fc -> Fluxzero.index("graph", "graph-roots-graphs").get())
+                .expectOnlyEvents("modelGraph")
+                .andThen()
+                .whenExecuting(fc -> Fluxzero.index("direct", "graph-roots").get())
+                .expectOnlyEvents("directModel");
+    }
+
+    @Test
+    void explicitCollectionOverridesModelGraph() {
+        testFixture.registerHandlers(new Object() {
+                    @HandleDocument(value = "overridden", modelGraph = GraphRoot.class)
+                    void handle(Object document) {
+                        Fluxzero.publishEvent("overridden");
+                    }
+                }).whenExecuting(fc -> Fluxzero.index("graph", "overridden").get())
+                .expectOnlyEvents("overridden");
+    }
+
+    @Test
+    void rejectsModelWithoutMaterializedGraph() {
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> testFixture.registerHandlers(new Object() {
+                    @HandleDocument(modelGraph = DirectOnlyModel.class)
+                    void handle(Object document) {
+                    }
+                }));
     }
 
     @Test
@@ -223,6 +267,17 @@ public class HandleDocumentTest {
         public DocumentId(String functionalId) {
             super(functionalId);
         }
+    }
+
+    @Model(
+            searchable = true,
+            collection = "graph-roots",
+            graphProjection = @GraphProjection)
+    record GraphRoot(@EntityId String id) {
+    }
+
+    @Model(searchable = true)
+    record DirectOnlyModel(@EntityId String id) {
     }
 
 }

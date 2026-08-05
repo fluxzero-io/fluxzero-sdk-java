@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
@@ -30,6 +31,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.root.RootConsumerModelCommand;
 import org.junit.jupiter.api.function.Executable;
@@ -803,6 +805,29 @@ class ModelCommitHandlerIntegrationTest {
                                                && stored.equals(
                                                        live);
                                     });
+    }
+
+    @Test
+    void handleDocumentCanTrackMaterializedModelGraph() {
+        ProjectionRootId rootId = new ProjectionRootId("handled");
+        ProjectionChildId childId = new ProjectionChildId("handled-child");
+        AtomicReference<ObjectNode> handled = new AtomicReference<>();
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .registerHandlers(new Object() {
+                    @HandleDocument(modelGraph = ProjectionRoot.class)
+                    void handle(ObjectNode graph) {
+                        handled.set(graph);
+                    }
+                })
+                .givenCommands(new CreateProjectionRoot(rootId))
+                .whenCommand(new CreateProjectionChild(childId, rootId))
+                .expectThat(ignored -> assertEquals(
+                        "handled-child",
+                        handled.get().at("/projectedChildren/0/projectionChildId").asText()));
     }
 
     @Test
