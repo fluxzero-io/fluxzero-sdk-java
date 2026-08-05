@@ -47,6 +47,8 @@ class JdkWebSocketSession implements WebsocketSession {
     private final CompletableFuture<Void> openFuture = new CompletableFuture<>();
     private final AtomicBoolean open = new AtomicBoolean();
     private final AtomicBoolean closeNotified = new AtomicBoolean();
+    private final CompletableFuture<Void> closeHandshakeFuture = new CompletableFuture<>();
+    private final Object closeInitiationLock = new Object();
     private final Object binaryMessageLock = new Object();
     /*
      * Keep calls into java.net.http.WebSocket ordered, but do not hold this monitor while waiting for the returned
@@ -54,6 +56,7 @@ class JdkWebSocketSession implements WebsocketSession {
      */
     private final Object sendInitiationLock = new Object();
     private CompletableFuture<Void> sendTail = CompletableFuture.completedFuture(null);
+    private volatile CompletableFuture<Void> closeSendFuture;
     private volatile ByteArrayOutputStream binaryMessage = new ByteArrayOutputStream();
     private volatile WebSocket webSocket;
 
@@ -147,18 +150,17 @@ class JdkWebSocketSession implements WebsocketSession {
 
     @Override
     public void close(WebsocketCloseReason closeReason) throws IOException {
-        WebSocket webSocket = this.webSocket;
-        if (!closeNotified.compareAndSet(false, true)) {
-            return;
-        }
-        open.set(false);
+        await(initiateClose(closeReason), 0);
+    }
+
+    @Override
+    public CompletableFuture<Void> closeAsync(WebsocketCloseReason closeReason) {
         try {
-            if (webSocket != null && !webSocket.isOutputClosed()) {
-                await(sendClose(webSocket, closeReason), 0);
-            }
-        } finally {
-            connector.removeOpenSession(this);
-            endpoint.onClose(this, closeReason);
+            initiateClose(closeReason);
+            return closeHandshakeFuture;
+        } catch (Throwable e) {
+            closeHandshakeFuture.completeExceptionally(e);
+            return closeHandshakeFuture;
         }
     }
 
@@ -168,6 +170,7 @@ class JdkWebSocketSession implements WebsocketSession {
         if (webSocket != null) {
             webSocket.abort();
         }
+        closeHandshakeFuture.completeExceptionally(new ClosedChannelException());
         notifyClose(closeReason);
     }
 
@@ -180,6 +183,41 @@ class JdkWebSocketSession implements WebsocketSession {
         }
         connector.removeOpenSession(this);
         openFuture.completeExceptionally(new ClosedChannelException());
+        closeHandshakeFuture.completeExceptionally(new ClosedChannelException());
+    }
+
+    private CompletableFuture<Void> initiateClose(WebsocketCloseReason closeReason) {
+        CompletableFuture<Void> result;
+        boolean notifyEndpoint;
+        WebSocket currentWebSocket;
+        synchronized (closeInitiationLock) {
+            if (closeSendFuture != null) {
+                return closeSendFuture;
+            }
+            if (closeHandshakeFuture.isDone()) {
+                closeSendFuture = CompletableFuture.completedFuture(null);
+                return closeSendFuture;
+            }
+            open.set(false);
+            connector.removeOpenSession(this);
+            currentWebSocket = webSocket;
+            result = currentWebSocket == null || currentWebSocket.isOutputClosed()
+                    ? CompletableFuture.completedFuture(null)
+                    : sendClose(currentWebSocket, closeReason).thenApply(ignored -> null);
+            closeSendFuture = result;
+            notifyEndpoint = closeNotified.compareAndSet(false, true);
+        }
+        result.whenComplete((ignored, error) -> {
+            if (error != null) {
+                closeHandshakeFuture.completeExceptionally(error);
+            } else if (currentWebSocket == null || currentWebSocket.isInputClosed()) {
+                closeHandshakeFuture.complete(null);
+            }
+        });
+        if (notifyEndpoint) {
+            endpoint.onClose(this, closeReason);
+        }
+        return result;
     }
 
     private CompletableFuture<WebSocket> sendClose(WebSocket webSocket, WebsocketCloseReason closeReason) {
@@ -273,6 +311,7 @@ class JdkWebSocketSession implements WebsocketSession {
 
     private void notifyClose(WebsocketCloseReason closeReason) {
         open.set(false);
+        closeHandshakeFuture.complete(null);
         if (closeNotified.compareAndSet(false, true)) {
             connector.removeOpenSession(this);
             endpoint.onClose(this, closeReason);

@@ -132,6 +132,7 @@ import static java.util.Optional.ofNullable;
  * @see ResultBatch
  */
 public abstract class AbstractWebsocketClient implements WebsocketEndpoint, AutoCloseable {
+    private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
     protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
     protected static final int CONNECTION_RETRY_LOG_INTERVAL = 10;
     protected static final String CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY =
@@ -651,8 +652,32 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     @SneakyThrows
     protected void abort(WebsocketSession session, String reason) {
         WebsocketCloseReason closeReason = new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, reason);
-        log().warn("Aborting session {} due to {}", getNegotiatedSessionId(session), reason);
-        session.abort(closeReason);
+        log().warn("Closing session {} due to {}", getNegotiatedSessionId(session), reason);
+        CompletableFuture<Void> closeFuture;
+        try {
+            closeFuture = session.closeAsync(closeReason);
+        } catch (Throwable e) {
+            log().warn("Failed to start an orderly close for session {}. Aborting transport.",
+                       getNegotiatedSessionId(session), e);
+            session.abort(closeReason);
+            return;
+        }
+        if (closeFuture == null) {
+            session.abort(closeReason);
+            return;
+        }
+        closeFuture.orTimeout(getCloseHandshakeTimeout().toMillis(), TimeUnit.MILLISECONDS)
+                .whenComplete((ignored, error) -> {
+                    if (error != null) {
+                        log().warn("Orderly close did not complete for session {}. Aborting transport.",
+                                   getNegotiatedSessionId(session), error);
+                        session.abort(closeReason);
+                    }
+                });
+    }
+
+    protected Duration getCloseHandshakeTimeout() {
+        return CLOSE_HANDSHAKE_TIMEOUT;
     }
 
     @Override
