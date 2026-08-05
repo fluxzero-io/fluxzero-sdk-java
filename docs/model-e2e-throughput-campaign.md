@@ -120,6 +120,8 @@ The exact no-model environment and change-by-change regression audit is maintain
 [`model-e2e-no-model-change-log.md`](performance-runs/model-e2e-no-model-change-log.md).
 The generic command/result appender, payload curve and E2E backlog ablation are documented in
 [`model-e2e-message-appender-anatomy.md`](performance-runs/model-e2e-message-appender-anatomy.md).
+The S47 `DELETE`/`TRUNCATE` maintenance comparison, MVCC protocol and pending clean-host gate are documented in
+[`jdbc-staging-cleanup-log.md`](performance-runs/jdbc-staging-cleanup-log.md).
 
 ## Acceptance protocol
 
