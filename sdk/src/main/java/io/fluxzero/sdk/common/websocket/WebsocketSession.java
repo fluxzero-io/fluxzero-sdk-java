@@ -130,6 +130,29 @@ public interface WebsocketSession {
     void close(WebsocketCloseReason closeReason) throws IOException;
 
     /**
+     * Starts an orderly close without blocking the caller.
+     *
+     * <p>The returned future completes when the peer has acknowledged the close, or exceptionally when the close
+     * handshake fails. The default dispatches {@link #close(WebsocketCloseReason)} on a virtual thread and completes
+     * after that method returns; implementations that can observe peer acknowledgement should override it.</p>
+     *
+     * @param closeReason close status and reason to send
+     * @return completion of the orderly close handshake
+     */
+    default CompletableFuture<Void> closeAsync(WebsocketCloseReason closeReason) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Thread.startVirtualThread(() -> {
+            try {
+                close(closeReason);
+                result.complete(null);
+            } catch (Throwable e) {
+                result.completeExceptionally(e);
+            }
+        });
+        return result;
+    }
+
+    /**
      * Immediately aborts the underlying transport and reports the given close reason to the endpoint.
      *
      * @param closeReason synthetic close status and reason to report
