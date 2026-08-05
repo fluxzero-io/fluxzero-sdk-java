@@ -41,8 +41,10 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,6 +67,10 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 class ModelCommitHandlerRegistryTest {
+    private static final LinkedBlockingQueue<Integer> BATCH_PARENT_OBSERVATIONS =
+            new LinkedBlockingQueue<>();
+    private static final LinkedBlockingQueue<Integer> BATCH_INCREMENT_OBSERVATIONS =
+            new LinkedBlockingQueue<>();
 
     @Test
     void localApplyDiscoveryDoesNotTurnSenderOnlyApplicationIntoAHandler() {
@@ -555,6 +561,244 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void batchCommandsObserveEarlierStagedAncestorsBeforeCommitAndReevaluateAfterCommit()
+            throws Exception {
+        Map<String, Object> durable = new ConcurrentHashMap<>();
+        BatchParentId parentId = new BatchParentId("shared");
+        BatchChildId childId = new BatchChildId("shared");
+        String unrelatedId = "unrelated";
+        durable.put(parentId.toString(), new BatchParent(parentId, 0));
+        durable.put(childId.toString(), new BatchChild(childId, parentId, 0));
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubBatchModelLoads(repository, durable);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<CompletableFuture<Object>> handled = new LinkedBlockingQueue<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            PendingResponse response = new PendingResponse(invocation.getArgument(0));
+            started.add(response);
+            return response.result();
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        BATCH_PARENT_OBSERVATIONS.clear();
+        BATCH_INCREMENT_OBSERVATIONS.clear();
+        assertTrue(ModelTargetResolver.resolve(
+                new UpdateBatchChild(childId, 1),
+                ModelMetadata.of(UpdateBatchChild.class).handlerMethods())
+                           .hasAncestorDependencies());
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    message(new IncrementBatchParent(parentId, 0), 42),
+                                    message(new CreateUnrelatedBatchModel(unrelatedId), 42),
+                                    message(new UpdateBatchChild(childId, 1), 42)),
+                            current -> handled.add(
+                                    subject.handle(current).orElseThrow())), executor);
+
+            PendingResponse firstCommit = started.poll(5, TimeUnit.SECONDS);
+            PendingResponse secondCommit = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(firstCommit != null);
+            assertTrue(secondCommit != null);
+            Map<String, PendingResponse> initialCommits = Map.of(
+                    committedModelId(firstCommit), firstCommit,
+                    committedModelId(secondCommit), secondCommit);
+            PendingResponse parentCommit = initialCommits.get(parentId.toString());
+            PendingResponse unrelatedCommit = initialCommits.get(unrelatedId);
+            assertTrue(parentCommit != null);
+            assertTrue(unrelatedCommit != null);
+            assertTrue(handled.poll(5, TimeUnit.SECONDS) != null);
+            assertTrue(handled.poll(5, TimeUnit.SECONDS) != null);
+            CompletableFuture<Object> childHandling = handled.poll(5, TimeUnit.SECONDS);
+            assertTrue(childHandling != null);
+            if (childHandling.isCompletedExceptionally()) {
+                childHandling.join();
+            }
+            Integer firstObservation =
+                    BATCH_PARENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS);
+            if (firstObservation == null
+                && childHandling.isDone()) {
+                childHandling.join();
+            }
+            assertEquals(1, firstObservation);
+            assertTrue(started.isEmpty());
+
+            parentCommit.accept();
+            unrelatedCommit.accept();
+
+            PendingResponse childCommit = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(childCommit != null);
+            assertEquals(childId.toString(), committedModelId(childCommit));
+            assertEquals(1, BATCH_PARENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            childCommit.accept();
+            batch.get(5, TimeUnit.SECONDS);
+
+            assertEquals(new BatchParent(parentId, 1), durable.get(parentId.toString()));
+            assertEquals(new BatchChild(childId, parentId, 1), durable.get(childId.toString()));
+            assertEquals(
+                    new UnrelatedBatchModel(unrelatedId),
+                    durable.get(unrelatedId));
+            assertTrue(BATCH_PARENT_OBSERVATIONS.isEmpty());
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+            BATCH_PARENT_OBSERVATIONS.clear();
+            BATCH_INCREMENT_OBSERVATIONS.clear();
+        }
+    }
+
+    @Test
+    void repeatedModelUpdatesUseTheEarlierStagedValueWithinTheBatch()
+            throws Exception {
+        Map<String, Object> durable = new ConcurrentHashMap<>();
+        BatchParentId parentId = new BatchParentId("repeated");
+        durable.put(parentId.toString(), new BatchParent(parentId, 0));
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubBatchModelLoads(repository, durable);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            PendingResponse response = new PendingResponse(invocation.getArgument(0));
+            started.add(response);
+            return response.result();
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        BATCH_INCREMENT_OBSERVATIONS.clear();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    message(new IncrementBatchParent(parentId, 0), 42),
+                                    message(new IncrementBatchParent(parentId, 1), 42)),
+                            current -> subject.handle(current).orElseThrow()), executor);
+
+            PendingResponse first = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(first != null);
+            assertEquals(0, BATCH_INCREMENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            assertEquals(1, BATCH_INCREMENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            assertTrue(started.isEmpty());
+            first.accept();
+
+            PendingResponse second = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(second != null);
+            assertEquals(1, BATCH_INCREMENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            second.accept();
+            batch.get(5, TimeUnit.SECONDS);
+
+            assertEquals(new BatchParent(parentId, 2), durable.get(parentId.toString()));
+            assertTrue(BATCH_INCREMENT_OBSERVATIONS.isEmpty());
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+            BATCH_INCREMENT_OBSERVATIONS.clear();
+        }
+    }
+
+    @Test
+    void afterBatchPolicyUsesEarlierStagedValuesAndCommitsInOrder()
+            throws Exception {
+        Map<String, Object> durable = new ConcurrentHashMap<>();
+        String modelId = "after-batch";
+        durable.put(modelId, new StagedAfterBatchModel(modelId, 0));
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubBatchModelLoads(repository, durable);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            PendingResponse response = new PendingResponse(invocation.getArgument(0));
+            started.add(response);
+            return response.result();
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        BATCH_INCREMENT_OBSERVATIONS.clear();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    message(new IncrementStagedAfterBatch(modelId, 0), 42),
+                                    message(new IncrementStagedAfterBatch(modelId, 1), 42)),
+                            current -> subject.handle(current).orElseThrow()), executor);
+
+            PendingResponse first = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(first != null);
+            assertEquals(0, BATCH_INCREMENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            assertEquals(1, BATCH_INCREMENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            assertTrue(started.isEmpty());
+            first.accept();
+
+            PendingResponse second = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(second != null);
+            assertEquals(1, BATCH_INCREMENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            second.accept();
+            batch.get(5, TimeUnit.SECONDS);
+
+            assertEquals(
+                    new StagedAfterBatchModel(modelId, 2),
+                    durable.get(modelId));
+            assertTrue(BATCH_INCREMENT_OBSERVATIONS.isEmpty());
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+            BATCH_INCREMENT_OBSERVATIONS.clear();
+        }
+    }
+
+    @Test
+    void batchDependencyFailsWithoutCommittingWhenItsPredecessorFails()
+            throws Exception {
+        Map<String, Object> durable = new ConcurrentHashMap<>();
+        BatchParentId parentId = new BatchParentId("failed");
+        BatchChildId childId = new BatchChildId("failed");
+        durable.put(parentId.toString(), new BatchParent(parentId, 0));
+        durable.put(childId.toString(), new BatchChild(childId, parentId, 0));
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubBatchModelLoads(repository, durable);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            PendingResponse response = new PendingResponse(invocation.getArgument(0));
+            started.add(response);
+            return response.result();
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        BATCH_PARENT_OBSERVATIONS.clear();
+        BATCH_INCREMENT_OBSERVATIONS.clear();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(
+                                    message(new IncrementBatchParent(parentId, 0), 42),
+                                    message(new UpdateBatchChild(childId, 1), 42)),
+                            current -> subject.handle(current).orElseThrow()), executor);
+
+            PendingResponse parentCommit = started.poll(5, TimeUnit.SECONDS);
+            assertTrue(parentCommit != null);
+            assertEquals(1, BATCH_PARENT_OBSERVATIONS.poll(5, TimeUnit.SECONDS));
+            parentCommit.result().completeExceptionally(
+                    new IllegalStateException("predecessor failed"));
+
+            assertTrue(batch.handle((ignored, failure) -> failure != null)
+                               .get(5, TimeUnit.SECONDS));
+            assertTrue(started.isEmpty());
+            assertEquals(new BatchParent(parentId, 0), durable.get(parentId.toString()));
+            assertEquals(new BatchChild(childId, parentId, 0), durable.get(childId.toString()));
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+            BATCH_PARENT_OBSERVATIONS.clear();
+            BATCH_INCREMENT_OBSERVATIONS.clear();
+        }
+    }
+
+    @Test
     void graphProjectionCompletionUsesApplyThenRootThenApplicationPrecedence()
             throws Exception {
         ModelCommitEngine.Transition inherited =
@@ -798,11 +1042,102 @@ class ModelCommitHandlerRegistryTest {
         });
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void stubBatchModelLoads(
+            DefaultModelRepository repository,
+            Map<String, Object> durable) {
+        when(repository.loadContext(
+                any(ModelTargetResolver.Resolution.class),
+                nullable(Long.class), anyMap()))
+                .thenAnswer(invocation -> {
+                    ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
+                    Map<String, Object> staged = invocation.getArgument(2);
+                    LinkedHashMap<String, ModelTargetResolver.ResolvedModel> targets =
+                            new LinkedHashMap<>();
+                    resolution.models().forEach(target ->
+                            ModelTargetResolver.merge(targets, target));
+                    for (ModelTargetResolver.AncestorDependency dependency :
+                            resolution.ancestorDependencies()) {
+                        for (ModelTargetResolver.ResolvedModel target :
+                                resolution.models()) {
+                            Object child = staged.containsKey(target.modelId())
+                                    ? staged.get(target.modelId())
+                                    : durable.get(target.modelId());
+                            if (child == null) {
+                                continue;
+                            }
+                            for (ModelMetadata.ParentReference parent :
+                                    ModelMetadata.validate(child.getClass()).parentReferences()) {
+                                if (parent.parentModelType() == null
+                                    || !dependency.modelType().isAssignableFrom(
+                                            parent.parentModelType())) {
+                                    continue;
+                                }
+                                Object parentId = parent.read(child);
+                                if (parentId != null) {
+                                    ModelTargetResolver.merge(
+                                            targets,
+                                            new ModelTargetResolver.ResolvedModel(
+                                            parentId.toString(),
+                                            dependency.modelType(),
+                                            ModelTargetResolver.Access.READ_ONLY,
+                                            dependency.association() == null
+                                                    ? List.of()
+                                                    : List.of(dependency.association())));
+                                }
+                            }
+                        }
+                    }
+                    LinkedHashMap<String, Entity<?>> loaded = new LinkedHashMap<>();
+                    for (ModelTargetResolver.ResolvedModel target : targets.values()) {
+                        Object value = staged.containsKey(target.modelId())
+                                ? staged.get(target.modelId())
+                                : durable.get(target.modelId());
+                        loaded.put(target.modelId(),
+                                   ImmutableModelRoot.<Object>builder()
+                                           .id(target.modelId())
+                                           .type((Class<Object>) target.modelType())
+                                           .idProperty(ModelMetadata.of(target.modelType())
+                                                   .entityId().orElseThrow().name())
+                                           .value(value)
+                                           .sequenceNumber(value == null ? -1L : 0L)
+                                           .stateIndex(0L)
+                                           .build());
+                    }
+                    return ModelCommitContext.create(
+                            0L,
+                            resolution.withResolvedModels(
+                                    List.copyOf(targets.values())),
+                            loaded);
+                });
+        when(repository.beginLocalCommit(any())).thenReturn(() -> {
+        });
+        doAnswer(invocation -> {
+            List<DefaultModelRepository.CommittedModel> committed = invocation.getArgument(0);
+            committed.forEach(model -> durable.put(
+                    model.modelId(),
+                    model.revisions().getLast().value()));
+            return null;
+        }).when(repository).updateAfterCommit(any());
+    }
+
+    private static String committedModelId(PendingResponse response) {
+        return response.commit().getSubsteps().getFirst()
+                .getTargets().getFirst().getModelId();
+    }
+
     private static DeserializingMessage message(Object payload) {
         return new DeserializingMessage(
                 new Message(payload),
                 MessageType.COMMAND,
                 new JacksonSerializer());
+    }
+
+    private static DeserializingMessage message(
+            Object payload, int segment) {
+        DeserializingMessage result = message(payload);
+        result.getSerializedObject().setSegment(segment);
+        return result;
     }
 
     private static ModelCommitEngine.CommitEvaluation evaluation(
@@ -965,6 +1300,114 @@ class ModelCommitHandlerRegistryTest {
             result.complete(CommitModelsResult.acceptedSingleTarget(
                     commit.getRequestId(), commit.getCommitId(),
                     1L, 1L, modelId, 0L, true));
+        }
+    }
+
+    private static final class BatchParentId extends Id<BatchParent> {
+        private BatchParentId(String id) {
+            super(id, "batch-parent-");
+        }
+    }
+
+    private static final class BatchChildId extends Id<BatchChild> {
+        private BatchChildId(String id) {
+            super(id, "batch-child-");
+        }
+    }
+
+    @Model
+    private record BatchParent(
+            @EntityId BatchParentId id,
+            int version) {
+    }
+
+    @Model
+    private record BatchChild(
+            @EntityId BatchChildId id,
+            @ParentId(path = "children") BatchParentId parentId,
+            int observedParentVersion) {
+    }
+
+    private record IncrementBatchParent(
+            BatchParentId id,
+            int expectedVersion) {
+        @AssertLegal
+        void assertVersion(BatchParent parent) {
+            BATCH_INCREMENT_OBSERVATIONS.add(parent.version());
+            if (parent.version() != expectedVersion) {
+                throw new IllegalStateException(
+                        "Expected parent version " + expectedVersion
+                        + " but found " + parent.version());
+            }
+        }
+
+        @Apply
+        BatchParent apply(BatchParent parent) {
+            return new BatchParent(id, parent.version() + 1);
+        }
+    }
+
+    private record UpdateBatchChild(
+            BatchChildId id,
+            int expectedParentVersion) {
+        @AssertLegal
+        void assertParent(
+                @io.fluxzero.sdk.tracking.handling.Association("children")
+                BatchParent parent) {
+            BATCH_PARENT_OBSERVATIONS.add(parent.version());
+            if (parent.version() != expectedParentVersion) {
+                throw new IllegalStateException(
+                        "Expected parent version " + expectedParentVersion
+                        + " but found " + parent.version());
+            }
+        }
+
+        @Apply
+        BatchChild apply(
+                BatchChild child,
+                @io.fluxzero.sdk.tracking.handling.Association("children")
+                BatchParent parent) {
+            return new BatchChild(
+                    child.id(), child.parentId(), parent.version());
+        }
+    }
+
+    @Model
+    private record UnrelatedBatchModel(
+            @EntityId String id) {
+    }
+
+    private record CreateUnrelatedBatchModel(
+            String id) {
+        @Apply
+        UnrelatedBatchModel apply() {
+            return new UnrelatedBatchModel(id);
+        }
+    }
+
+    @Model(commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
+    private record StagedAfterBatchModel(
+            @EntityId String id,
+            int version) {
+    }
+
+    private record IncrementStagedAfterBatch(
+            String id,
+            int expectedVersion) {
+        @AssertLegal
+        void assertVersion(StagedAfterBatchModel model) {
+            BATCH_INCREMENT_OBSERVATIONS.add(model.version());
+            if (model.version() != expectedVersion) {
+                throw new IllegalStateException(
+                        "Expected model version " + expectedVersion
+                        + " but found " + model.version());
+            }
+        }
+
+        @Apply
+        StagedAfterBatchModel apply(StagedAfterBatchModel model) {
+            return new StagedAfterBatchModel(
+                    id, model.version() + 1);
         }
     }
 

@@ -641,21 +641,34 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             int transportSlot) {
         recordModelRequestStage(message, "model-evaluation-start", 1);
         ModelCommitEngine.CommitEvaluation initialEvaluation =
-                prefetch == null
-                        ? evaluate(message)
+                batchTicket != null
+                && batchTicket.hasBatchModelView()
+                        ? evaluateGeneric(message, batchTicket)
+                        : prefetch == null
+                        ? batchTicket != null
+                          && batchTicket.gates() == null
+                                ? evaluateKnown(
+                                        message,
+                                        batchTicket.prefetchInput())
+                                : evaluate(message)
                         : evaluatePrefetched(
                                 message, prefetch, batchTicket);
         recordModelRequestStage(message, "model-evaluation-complete", 1);
         pipelineDiagnostic("evaluated", EVALUATED_COMMANDS);
         if (batchTicket != null) {
+            batchTicket.stage(initialEvaluation);
             batchTicket.assign(
                     initialEvaluation.readModelIds());
         }
-        return executeRegistered(
+        CompletableFuture<Object> result = executeRegistered(
                 message, initialEvaluation,
                 batchTicket,
                 transportBatch,
                 transportSlot);
+        if (batchTicket != null) {
+            batchTicket.completeInitialization();
+        }
+        return result;
     }
 
     private CompletableFuture<Object> executeRegistered(
@@ -664,19 +677,39 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             BatchCommitTicket batchTicket,
             ModelCommitter.CommitBatch transportBatch,
             int transportSlot) {
-        if (ModelConflictPolicies.resolve(
-                initialEvaluation,
-                conflictPolicy)
-            != ModelConflictPolicy.ACCEPT) {
+        boolean batchDependent = batchTicket != null
+                                 && batchTicket.hasBatchDependencies();
+        if (!batchDependent
+            && ModelConflictPolicies.resolve(
+                    initialEvaluation,
+                    conflictPolicy)
+               != ModelConflictPolicy.ACCEPT) {
             return executeBatched(
                     message, initialEvaluation,
                     batchTicket,
                     transportBatch,
                     transportSlot);
         }
+        if (batchDependent) {
+            /*
+             * A dependent command cannot remain a producer in the shared transport batch: that batch only flushes
+             * after every producer is ready, while this command intentionally waits for an earlier producer to be
+             * durably complete. Detach before entering the coordinator so the predecessor can actually be sent.
+             */
+            batchTicket.detachTransport();
+        }
         return commitCoordinator.coordinate(
                 initialEvaluation.readModelIds(),
                 contended -> {
+                    if (batchDependent) {
+                        ThreadLocalContext.Snapshot context =
+                                executionContext(
+                                        message,
+                                        batchTicket);
+                        return executeBatchDependent(
+                                message, batchTicket,
+                                context);
+                    }
                     if (!contended) {
                         return executeBatched(
                                 message,
@@ -709,6 +742,21 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                                             transportBatch,
                                                             transportSlot)));
                 });
+    }
+
+    private CompletableFuture<Object> executeBatchDependent(
+            DeserializingMessage message,
+            BatchCommitTicket batchTicket,
+            ThreadLocalContext.Snapshot context) {
+        return batchTicket.executeAfterRelease(
+                () -> batchTicket.dependencyCompletion()
+                        .thenCompose(ignored ->
+                                CompletableFuture.supplyAsync(
+                                        context.wrap(
+                                                () -> evaluate(message))))
+                        .thenCompose(context.wrap(
+                                evaluation -> executeEvaluation(
+                                        message, evaluation))));
     }
 
     private CompletableFuture<Object> executeBatched(
@@ -1257,7 +1305,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private ModelCommitEngine.CommitEvaluation evaluate(DeserializingMessage initialMessage) {
-        PrefetchInput input = prefetchInput(initialMessage);
+        return evaluateKnown(
+                initialMessage,
+                prefetchInput(initialMessage));
+    }
+
+    private ModelCommitEngine.CommitEvaluation evaluateKnown(
+            DeserializingMessage initialMessage,
+            PrefetchInput input) {
         if (input != null) {
             PrefetchSlot cached = new PrefetchSlot(
                     input.modelId(),
@@ -1273,6 +1328,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private ModelCommitEngine.CommitEvaluation evaluateGeneric(
             DeserializingMessage initialMessage) {
         return engine.evaluate(initialMessage, new CommitLoader(null));
+    }
+
+    private ModelCommitEngine.CommitEvaluation evaluateGeneric(
+            DeserializingMessage initialMessage,
+            BatchCommitTicket batchTicket) {
+        return engine.evaluate(
+                initialMessage,
+                new CommitLoader(null, false, batchTicket));
     }
 
     private ModelCommitEngine.CommitEvaluation evaluatePrefetched(
@@ -1362,17 +1425,26 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final class CommitLoader implements ModelCommitEngine.SubstepResolver {
         private final Long pinnedStateIndex;
         private final boolean applyOnly;
+        private final BatchCommitTicket batchTicket;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
         private final Map<AncestorPlanKey, List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
                 new LinkedHashMap<>();
 
         private CommitLoader(Long pinnedStateIndex) {
-            this(pinnedStateIndex, false);
+            this(pinnedStateIndex, false, null);
         }
 
         private CommitLoader(Long pinnedStateIndex, boolean applyOnly) {
+            this(pinnedStateIndex, applyOnly, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                BatchCommitTicket batchTicket) {
             this.pinnedStateIndex = pinnedStateIndex;
             this.applyOnly = applyOnly;
+            this.batchTicket = batchTicket;
         }
 
         @Override
@@ -1468,7 +1540,30 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 ModelTargetResolver.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            ModelCommitContext loaded = repository.loadContext(resolution, boundary, stagedValues);
+            Map<String, Object> batchValues =
+                    batchTicket == null
+                            ? Map.of()
+                            : batchTicket.batchValues(resolution);
+            Map<String, Object> effectiveStagedValues;
+            if (batchValues.isEmpty()) {
+                effectiveStagedValues = stagedValues;
+            } else if (stagedValues.isEmpty()) {
+                effectiveStagedValues = batchValues;
+            } else {
+                LinkedHashMap<String, Object> combined =
+                        new LinkedHashMap<>(batchValues);
+                combined.putAll(stagedValues);
+                effectiveStagedValues = combined;
+            }
+            ModelCommitContext loaded = repository.loadContext(
+                    resolution, boundary, effectiveStagedValues);
+            if (batchTicket != null) {
+                Map<String, Object> loadedBatchValues =
+                        batchTicket.batchValues(loaded);
+                if (!loadedBatchValues.isEmpty()) {
+                    loaded = loaded.withValues(loadedBatchValues);
+                }
+            }
             if (boundary != null && loaded.readStateIndex() != boundary) {
                 throw new IllegalStateException(
                         "Model commit requested state index %d but loaded %d"
@@ -1821,10 +1916,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
         CompletableFuture<Object> completion = handlerTicket == null
                 ? execute(message)
-                : handlerTicket.start(() -> execute(
-                        message,
-                        handlerTicket.transportBatch(),
-                        handlerTicket.transportSlot()));
+                : handlerTicket.start(() ->
+                        executeHandlerBatch(
+                                message, handlerTicket));
         if (commitPolicy.awaitAfterBatch()) {
             return awaitAfterHandlerCommitsBeforeResults
                     ? completion : null;
@@ -1835,6 +1929,36 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
          * completion phase can finish.
          */
         return completion.join();
+    }
+
+    private CompletableFuture<Object> executeHandlerBatch(
+            DeserializingMessage message,
+            HandlerCommitTicket handlerTicket) {
+        BatchCommitTicket modelTicket =
+                handlerTicket.modelTicket();
+        if (modelTicket == null) {
+            return execute(
+                    message,
+                    handlerTicket.transportBatch(),
+                    handlerTicket.transportSlot());
+        }
+        if (!modelTicket.hasBatchDependencies()) {
+            return execute(message, modelTicket);
+        }
+        CompletableFuture<Object> result =
+                modelTicket.initializationPrerequisite()
+                        .thenComposeAsync(ignored ->
+                                modelTicket.context().supply(
+                                        () -> execute(
+                                                message,
+                                                modelTicket)));
+        result.whenComplete((ignored, failure) -> {
+            if (failure != null
+                && !modelTicket.initializationDone()) {
+                modelTicket.failInitialization(failure);
+            }
+        });
+        return result;
     }
 
     private static void pipelineDiagnostic(String phase, AtomicLong counter) {
@@ -1895,9 +2019,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     "SDK model commit backlog flush: tickets=%d%n",
                     batch.size());
         }
+        boolean batchModelView = batch.stream()
+                .map(BatchCommitTicket::gates)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(BatchCommitGates::prepareModelView)
+                .reduce(false, Boolean::logicalOr);
         BatchPrefetch prefetch;
         try {
-            prefetch = prefetchBatch(batch);
+            prefetch = batchModelView ? null : prefetchBatch(batch);
         } catch (Throwable batchFailure) {
             batch.forEach(ticket -> {
                 ticket.exclude();
@@ -1912,6 +2042,19 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         for (int index = 0; index < batch.size(); index++) {
             batch.get(index).transport(
                     transportBatch, index);
+        }
+        if (batchModelView) {
+            batch.forEach(ticket -> startAfterDependencies(
+                    ticket, prefetch));
+            return CompletableFuture.allOf(
+                            batch.stream()
+                                    .map(BatchCommitTicket::initialization)
+                                    .toArray(CompletableFuture[]::new))
+                    .handle((ignored, failure) -> {
+                        releaseGates(batch);
+                        markBatchStarted(batch, started);
+                        return null;
+                    });
         }
         if (batch.size() < 256) {
             batch.forEach(ticket -> start(ticket, prefetch));
@@ -2001,6 +2144,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     : execute(ticket.message(), ticket, prefetch));
         } catch (Throwable executionFailure) {
             ticket.exclude();
+            ticket.failInitialization(executionFailure);
             ticket.fail(executionFailure);
             return;
         }
@@ -2012,6 +2156,32 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         ticket.fail(executionFailure);
                     }
                 }));
+    }
+
+    private void startAfterDependencies(
+            BatchCommitTicket ticket,
+            BatchPrefetch prefetch) {
+        ticket.initializationPrerequisite()
+                .whenComplete((ignored, prerequisiteFailure) -> {
+                    if (prerequisiteFailure != null) {
+                        ticket.exclude();
+                        ticket.failInitialization(
+                                prerequisiteFailure);
+                        ticket.fail(prerequisiteFailure);
+                        return;
+                    }
+                    CompletableFuture.runAsync(
+                                    ticket.context().wrap(
+                                            () -> start(
+                                                    ticket,
+                                                    prefetch)))
+                            .exceptionally(failure -> {
+                                ticket.exclude();
+                                ticket.failInitialization(failure);
+                                ticket.fail(failure);
+                                return null;
+                            });
+                });
     }
 
     private BatchPrefetch prefetchBatch(
@@ -2146,10 +2316,55 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 ? secondType : firstType;
     }
 
+    private static boolean planModelDependencies(
+            BatchCommitTicket ticket,
+            ModelTargetResolver.Resolution resolution,
+            Map<String, BatchCommitTicket> lastWriters) {
+        boolean dependent = false;
+        if (resolution.hasAncestorDependencies()) {
+            for (BatchCommitTicket predecessor :
+                    new LinkedHashSet<>(lastWriters.values())) {
+                if (predecessor.segment == ticket.segment) {
+                    ticket.addInitialDependency(predecessor);
+                    dependent = true;
+                }
+            }
+        }
+        for (ModelTargetResolver.ResolvedModel target :
+                resolution.models()) {
+            BatchCommitTicket predecessor =
+                    lastWriters.get(target.modelId());
+            if (predecessor != null) {
+                ticket.addInitialDependency(predecessor);
+                dependent = true;
+            }
+            if (target.access().writes()) {
+                lastWriters.put(
+                        target.modelId(), ticket);
+            }
+        }
+        for (ModelTargetResolver.DeferredWriteTarget target :
+                resolution.deferredWrites()) {
+            for (String modelId :
+                    target.candidateModelIds()) {
+                BatchCommitTicket predecessor =
+                        lastWriters.put(modelId, ticket);
+                if (predecessor != null) {
+                    ticket.addInitialDependency(predecessor);
+                    dependent = true;
+                }
+            }
+        }
+        return dependent;
+    }
+
     private final class HandlerCommitBatch {
         private final List<HandlerCommitTicket> tickets = new ArrayList<>();
         private final ModelCommitter.CommitBatch transportBatch =
                 committer.beginReadyBatch();
+        private final BatchModelView modelView = new BatchModelView();
+        private final Map<String, BatchCommitTicket> lastWriters =
+                new HashMap<>();
         private final FluxzeroJfr.Batch jfrEvent = FluxzeroJfr.startBatch(
                 "sdk.model-handler", "commit-after-handler", MessageType.COMMAND.name(),
                 0, 0L, 0L, 0L);
@@ -2163,14 +2378,46 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         new IllegalStateException(
                                 "Model handler commit batch was already closed"));
             }
+            int slot = tickets.size();
             HandlerCommitTicket ticket = new HandlerCommitTicket(
                     FluxzeroJfr.requestStageEnabled() ? message : null,
-                    transportBatch,
-                    tickets.size());
+                    message,
+                    transportBatch, slot,
+                    commitPolicyFor(
+                            message.getPayloadClass()),
+                    modelView);
+            planDependencies(ticket);
             tickets.add(ticket);
             recordModelRequestStage(
                     message, "model-commit-registered", tickets.size());
             return ticket;
+        }
+
+        private void planDependencies(
+                BatchCommitTicket ticket) {
+            PrefetchInput direct =
+                    prefetchInput(ticket.message());
+            if (direct != null) {
+                ticket.prefetchInput(direct);
+                BatchCommitTicket predecessor =
+                        lastWriters.put(
+                                direct.modelId(), ticket);
+                if (predecessor != null) {
+                    ticket.addInitialDependency(predecessor);
+                }
+                return;
+            }
+            DeserializingMessage message = ticket.message();
+            CommitPlan plan = planFor(
+                    message.getPayloadClass());
+            ModelTargetResolver.Resolution resolution =
+                    targetPlan(
+                            message.getPayloadClass(),
+                            plan, false)
+                            .resolve(message.getPayload());
+            planModelDependencies(
+                    ticket, resolution,
+                    lastWriters);
         }
 
         void close(Throwable failure) {
@@ -2220,27 +2467,34 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
     }
 
-    private static final class HandlerCommitTicket {
+    private static final class HandlerCommitTicket
+            extends BatchCommitTicket {
         private final DeserializingMessage diagnosticMessage;
-        private final ModelCommitter.CommitBatch transportBatch;
-        private final int transportSlot;
-        private final CompletableFuture<Object> execution = new CompletableFuture<>();
         private final AtomicBoolean started = new AtomicBoolean();
 
         private HandlerCommitTicket(
                 DeserializingMessage diagnosticMessage,
+                DeserializingMessage message,
                 ModelCommitter.CommitBatch transportBatch,
-                int transportSlot) {
+                int transportSlot,
+                ModelCommitPolicy commitPolicy,
+                BatchModelView modelView) {
+            super(
+                    null, message,
+                    ThreadLocalContext.capture(),
+                    commitPolicy, transportSlot);
             this.diagnosticMessage = diagnosticMessage;
-            this.transportBatch = transportBatch;
-            this.transportSlot = transportSlot;
+            modelView(modelView);
+            transport(transportBatch, transportSlot);
         }
 
         static HandlerCommitTicket failed(
                 DeserializingMessage message, Throwable failure) {
             HandlerCommitTicket ticket = new HandlerCommitTicket(
                     FluxzeroJfr.requestStageEnabled() ? message : null,
-                    null, -1);
+                    message, null, -1,
+                    ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH,
+                    null);
             ticket.fail(failure);
             return ticket;
         }
@@ -2255,7 +2509,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 startedExecution = Objects.requireNonNull(
                         operation.get(), "Model handler commit returned null");
             } catch (Throwable failure) {
-                execution.completeExceptionally(failure);
+                fail(failure);
                 return execution;
             }
             startedExecution.whenComplete((result, failure) -> {
@@ -2264,9 +2518,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         recordModelRequestStage(
                                 diagnosticMessage, "model-execution-complete", 1);
                     }
-                    execution.complete(result);
+                    complete(result);
                 } else {
-                    execution.completeExceptionally(failure);
+                    fail(failure);
                 }
             });
             return execution;
@@ -2276,16 +2530,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return execution;
         }
 
-        ModelCommitter.CommitBatch transportBatch() {
-            return transportBatch;
+        BatchCommitTicket modelTicket() {
+            return this;
         }
 
-        int transportSlot() {
-            return transportSlot;
-        }
-
+        @Override
         void fail(Throwable failure) {
-            execution.completeExceptionally(failure);
+            super.fail(failure);
+            failInitialization(failure);
         }
     }
 
@@ -2306,6 +2558,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         private final AtomicBoolean diagnosticsCompleted = new AtomicBoolean();
         private volatile long backlogStartNanos;
         private volatile long commitsStartedNanos;
+        private BatchModelView modelView;
 
         private BatchCommitGates() {
             jfrEvent = FluxzeroJfr.startBatch(
@@ -2326,11 +2579,41 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     new BatchCommitTicket(
                             this, message,
                             ThreadLocalContext.capture(),
-                            commitPolicy);
+                            commitPolicy,
+                            registered - 1);
             tickets.add(ticket);
             recordModelRequestStage(
                     message, "model-commit-registered", registered);
             return ticket;
+        }
+
+        synchronized boolean prepareModelView() {
+            if (modelView != null) {
+                return true;
+            }
+            Map<String, BatchCommitTicket> lastWriters =
+                    new HashMap<>();
+            boolean required = false;
+            for (BatchCommitTicket ticket : tickets) {
+                DeserializingMessage message = ticket.message();
+                CommitPlan plan = planFor(
+                        message.getPayloadClass());
+                ModelTargetResolver.Resolution resolution =
+                        targetPlan(
+                                message.getPayloadClass(),
+                                plan, false)
+                                .resolve(message.getPayload());
+                required |= planModelDependencies(
+                        ticket, resolution,
+                        lastWriters);
+            }
+            if (!required) {
+                return false;
+            }
+            modelView = new BatchModelView();
+            tickets.forEach(ticket ->
+                    ticket.modelView(modelView));
+            return true;
         }
 
         synchronized BatchCommitGate assign(
@@ -2726,34 +3009,49 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
     }
 
-    private static final class BatchCommitTicket {
+    private static class BatchCommitTicket {
         private final BatchCommitGates gates;
         private final DeserializingMessage message;
         private final ThreadLocalContext.Snapshot context;
         private final ModelCommitPolicy commitPolicy;
-        private final CompletableFuture<Object> execution =
+        private final int ordinal;
+        private final int segment;
+        protected final CompletableFuture<Object> execution =
                 new CompletableFuture<>();
-        private final AtomicBoolean resolved =
-                new AtomicBoolean();
-        private final AtomicBoolean arrived =
-                new AtomicBoolean();
-        private final AtomicBoolean transportProducerDone =
-                new AtomicBoolean();
+        private volatile CompletableFuture<Void> initialization;
+        private List<BatchCommitTicket> initialDependencies;
+        private volatile Set<BatchCommitTicket> batchDependencies;
+        private boolean initializationFinished;
+        private Throwable initializationFailure;
+        private final AtomicBoolean resolved;
+        private final AtomicBoolean arrived;
+        private boolean transportProducerDone;
         private volatile BatchCommitGate gate;
         private volatile PendingCommit<?> pendingCommit;
         private volatile PrefetchInput prefetchInput;
         private volatile ModelCommitter.CommitBatch transportBatch;
         private volatile int transportSlot = -1;
+        private volatile BatchModelView modelView;
 
-        private BatchCommitTicket(
+        protected BatchCommitTicket(
                 BatchCommitGates gates,
                 DeserializingMessage message,
                 ThreadLocalContext.Snapshot context,
-                ModelCommitPolicy commitPolicy) {
+                ModelCommitPolicy commitPolicy,
+                int ordinal) {
             this.gates = gates;
             this.message = message;
             this.context = context;
             this.commitPolicy = commitPolicy;
+            this.ordinal = ordinal;
+            this.resolved = gates == null
+                    ? null : new AtomicBoolean();
+            this.arrived = gates == null
+                    ? null : new AtomicBoolean();
+            this.segment = Optional.ofNullable(
+                            message.getSerializedObject()
+                                    .getSegment())
+                    .orElse(-1);
         }
 
         static BatchCommitTicket released(
@@ -2762,7 +3060,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return new BatchCommitTicket(
                     null, message,
                     message.captureContext(),
-                    commitPolicy);
+                    commitPolicy, -1);
         }
 
         DeserializingMessage message() {
@@ -2802,6 +3100,147 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
         int transportSlot() {
             return transportSlot;
+        }
+
+        void modelView(BatchModelView modelView) {
+            this.modelView = modelView;
+        }
+
+        boolean hasBatchModelView() {
+            return modelView != null
+                   && hasBatchDependencies();
+        }
+
+        synchronized void addInitialDependency(
+                BatchCommitTicket predecessor) {
+            if (predecessor == this
+                || initialDependencies != null
+                   && initialDependencies.contains(predecessor)) {
+                return;
+            }
+            if (initialDependencies == null) {
+                initialDependencies = new ArrayList<>(1);
+            }
+            initialDependencies.add(predecessor);
+            dependencies().add(predecessor);
+        }
+
+        void addBatchDependency(
+                BatchCommitTicket predecessor) {
+            if (predecessor != this) {
+                dependencies().add(predecessor);
+            }
+        }
+
+        boolean hasBatchDependencies() {
+            Set<BatchCommitTicket> dependencies = batchDependencies;
+            return dependencies != null
+                   && !dependencies.isEmpty();
+        }
+
+        synchronized CompletableFuture<Void> initializationPrerequisite() {
+            if (initialDependencies == null) {
+                return COMPLETED_VOID;
+            }
+            return CompletableFuture.allOf(
+                    initialDependencies.stream()
+                            .map(BatchCommitTicket::initialization)
+                            .toArray(CompletableFuture[]::new));
+        }
+
+        synchronized CompletableFuture<Void> initialization() {
+            CompletableFuture<Void> future = initialization;
+            if (future == null) {
+                future = new CompletableFuture<>();
+                initialization = future;
+                if (initializationFinished) {
+                    if (initializationFailure == null) {
+                        future.complete(null);
+                    } else {
+                        future.completeExceptionally(
+                                initializationFailure);
+                    }
+                }
+            }
+            return future;
+        }
+
+        synchronized boolean initializationDone() {
+            return initializationFinished;
+        }
+
+        synchronized void completeInitialization() {
+            finishInitialization(null);
+        }
+
+        synchronized void failInitialization(Throwable failure) {
+            finishInitialization(failure);
+        }
+
+        CompletableFuture<Void> dependencyCompletion() {
+            Set<BatchCommitTicket> dependencies = batchDependencies;
+            if (dependencies == null
+                || dependencies.isEmpty()) {
+                return COMPLETED_VOID;
+            }
+            return CompletableFuture.allOf(
+                    dependencies.stream()
+                            .map(ticket -> ticket.execution)
+                            .toArray(CompletableFuture[]::new));
+        }
+
+        private Set<BatchCommitTicket> dependencies() {
+            Set<BatchCommitTicket> dependencies = batchDependencies;
+            if (dependencies != null) {
+                return dependencies;
+            }
+            synchronized (this) {
+                dependencies = batchDependencies;
+                if (dependencies == null) {
+                    dependencies = ConcurrentHashMap.newKeySet();
+                    batchDependencies = dependencies;
+                }
+                return dependencies;
+            }
+        }
+
+        private void finishInitialization(Throwable failure) {
+            if (initializationFinished) {
+                return;
+            }
+            initializationFinished = true;
+            initializationFailure = failure;
+            CompletableFuture<Void> future = initialization;
+            if (future != null) {
+                if (failure == null) {
+                    future.complete(null);
+                } else {
+                    future.completeExceptionally(failure);
+                }
+            }
+        }
+
+        void stage(ModelCommitEngine.CommitEvaluation evaluation) {
+            BatchModelView view = modelView;
+            if (view != null) {
+                view.stage(this, evaluation);
+            }
+        }
+
+        Map<String, Object> batchValues(
+                ModelTargetResolver.Resolution requestedResolution) {
+            BatchModelView view = modelView;
+            return view == null
+                    ? Map.of()
+                    : view.valuesFor(this, requestedResolution);
+        }
+
+        Map<String, Object> batchValues(
+                ModelCommitContext context) {
+            BatchModelView view = modelView;
+            return view == null
+                    ? Map.of()
+                    : view.valuesFor(this, context);
         }
 
         CompletableFuture<Object> execute() {
@@ -2885,14 +3324,173 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return pendingCommit;
         }
 
-        private void producerDone() {
+        private synchronized void producerDone() {
             ModelCommitter.CommitBatch batch = transportBatch;
             if (batch != null
-                && transportProducerDone.compareAndSet(
-                        false, true)) {
+                && !transportProducerDone) {
+                transportProducerDone = true;
                 batch.producerDone();
             }
         }
+
+        void detachTransport() {
+            producerDone();
+            transportBatch = null;
+            transportSlot = -1;
+        }
+    }
+
+    /**
+     * Speculative read-your-writes view for one tracking batch. Independent commands only publish their staged state;
+     * lookups enter this view when dependency planning proves an overlap. Durable completion and conflict handling
+     * remain owned by the regular coordinator.
+     */
+    private static final class BatchModelView {
+        private final Map<String, StagedBatchModel> staged =
+                new ConcurrentHashMap<>();
+
+        void stage(
+                BatchCommitTicket ticket,
+                ModelCommitEngine.CommitEvaluation evaluation) {
+            evaluation.finalValues().forEach((modelId, value) ->
+            {
+                Class<?> modelType =
+                        evaluation.readModelTypes().get(modelId);
+                if (modelType == null) {
+                    modelType = value == null
+                            ? Object.class
+                            : value.getClass();
+                }
+                Class<?> stagedModelType = modelType;
+                staged.compute(
+                        modelId,
+                        (ignored, previous) ->
+                                new StagedBatchModel(
+                                        ticket,
+                                        stagedModelType,
+                                        value,
+                                        previous));
+            });
+        }
+
+        Map<String, Object> valuesFor(
+                BatchCommitTicket ticket,
+                ModelTargetResolver.Resolution resolution) {
+            if (staged.isEmpty()) {
+                return Map.of();
+            }
+            LinkedHashMap<String, Object> result =
+                    new LinkedHashMap<>();
+            List<String> pending = new ArrayList<>();
+            resolution.models().forEach(target ->
+                    pending.add(target.modelId()));
+            if (resolution.hasAncestorDependencies()) {
+                staged.forEach((modelId, candidate) -> {
+                    StagedBatchModel visible =
+                            visibleCandidate(
+                                    ticket, candidate,
+                                    ticket.segment);
+                    if (visible != null
+                        && matchesAncestorType(
+                                visible.modelType(),
+                                resolution)) {
+                        result.put(modelId, visible.value());
+                        ticket.addBatchDependency(visible.producer());
+                    }
+                });
+            }
+            for (int index = 0; index < pending.size(); index++) {
+                String modelId = pending.get(index);
+                StagedBatchModel candidate =
+                        visibleCandidate(
+                                ticket,
+                                staged.get(modelId),
+                                null);
+                if (candidate == null
+                    || result.containsKey(modelId)) {
+                    continue;
+                }
+                result.put(modelId, candidate.value());
+                ticket.addBatchDependency(candidate.producer());
+                Object value = candidate.value();
+                if (value == null) {
+                    continue;
+                }
+                for (ModelMetadata.ParentReference parent :
+                        ModelMetadata.validate(value.getClass())
+                                .parentReferences()) {
+                    Object parentId = parent.read(value);
+                    if (parentId != null) {
+                        pending.add(parentId.toString());
+                    }
+                }
+            }
+            return immutable(result);
+        }
+
+        Map<String, Object> valuesFor(
+                BatchCommitTicket ticket,
+                ModelCommitContext context) {
+            if (staged.isEmpty()) {
+                return Map.of();
+            }
+            LinkedHashMap<String, Object> result =
+                    new LinkedHashMap<>();
+            context.entries().forEach(entry -> {
+                String modelId = entry.target().modelId();
+                StagedBatchModel candidate =
+                        visibleCandidate(
+                                ticket,
+                                staged.get(modelId),
+                                null);
+                if (candidate != null) {
+                    result.put(modelId, candidate.value());
+                    ticket.addBatchDependency(candidate.producer());
+                }
+            });
+            return immutable(result);
+        }
+
+        private static StagedBatchModel visibleCandidate(
+                BatchCommitTicket ticket,
+                StagedBatchModel candidate,
+                Integer requiredSegment) {
+            while (candidate != null) {
+                BatchCommitTicket producer =
+                        candidate.producer();
+                if (producer.ordinal < ticket.ordinal
+                    && (requiredSegment == null
+                        || producer.segment == requiredSegment)) {
+                    return candidate;
+                }
+                candidate = candidate.previous();
+            }
+            return null;
+        }
+
+        private static boolean matchesAncestorType(
+                Class<?> modelType,
+                ModelTargetResolver.Resolution resolution) {
+            return resolution.ancestorDependencies().stream()
+                    .map(ModelTargetResolver.AncestorDependency::modelType)
+                    .anyMatch(required ->
+                            required.isAssignableFrom(modelType)
+                            || modelType.isAssignableFrom(required));
+        }
+
+        private static Map<String, Object> immutable(
+                LinkedHashMap<String, Object> values) {
+            return values.isEmpty()
+                    ? Map.of()
+                    : java.util.Collections.unmodifiableMap(values);
+        }
+    }
+
+    private record StagedBatchModel(
+            BatchCommitTicket producer,
+            Class<?> modelType,
+            Object value,
+            StagedBatchModel previous) {
     }
 
     private record BatchPrefetch(

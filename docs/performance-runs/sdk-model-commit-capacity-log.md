@@ -2077,3 +2077,73 @@ Log SHA-256 in run order: `25569dca5d43ed9c85f4ff9d2ba133b734704d570f7b37f1dfb13
 `ec388bd756a9f0dc0769088647904310472f790aafacdf1cffb05575a143fbd5`,
 `d6c47e85eade70f25ed2a27507d3a5f0c97e5eb0b9a74c021aa1767d061b8b0e`,
 `76f633994eaab356c15349b7000d569bc27f47136fb3a7ab1fa13c459d317b2c`.
+
+## S40: batch-local model read-your-writes
+
+SDK parent `bd1a58182f5` did not retain staged independent-model changes across commands in one tracking batch. This could
+make fire-and-forget command sequences observe a durable predecessor instead of the latest earlier staged value, even
+when routing preserved their logical order. The S40 candidate attaches one speculative model view to the tracking
+batch. It records exact command ordinals and routing segments, makes direct models and resolved ancestors visible only
+to later commands, and records causal commit dependencies. A dependent command waits for its predecessor's real
+durable result, then reevaluates completely against canonical durable state before committing. Predecessor failure
+fails the dependent without a commit. Independent chains retain their existing parallel path.
+
+Focused tests cover same-model updates, parent/ancestor injection, predecessor failure, and both the default
+`ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH` and explicit `ASYNC_AFTER_BATCH` lifecycles. The full `sdk -am` run passed 451
+common and 2,079 SDK tests. Every benchmark run below also verified exactly 4,194,304 ordinary results, stored model
+events and global events plus all 65,536 final model states.
+
+The first correct implementation paid for dependency futures, concurrent sets and a per-segment staged index on every
+command. Its adjacent pair lost 1.31%, so it was not accepted. The final implementation creates dependency state only
+for actual overlap and scans the staged map only on the uncommon ancestor-resolution path. Under the same loaded host
+state, two current-candidate runs bracketed by parent controls were both faster:
+
+| Order | SDK | Warm-up | Measured E2E | p50 / p95 / p99 | Decision |
+| --- | --- | ---: | ---: | ---: | --- |
+| B1 | initial correct candidate | 119,305/s | 155,545/s | 322.676 / 682.324 / 933.417 ms | reject hot-path cost |
+| A1 | parent `bd1a58182f5` | 135,575/s | 157,614/s | 317.231 / 736.105 / 928.854 ms | matched control |
+| B2 | allocation-light candidate | 124,389/s | 173,556/s | 302.708 / 538.352 / 652.098 ms | promising intermediate |
+| A2 | parent `bd1a58182f5` | 99,522/s | 160,665/s | 321.235 / 650.072 / 787.971 ms | reverse control |
+| B3 | allocation-light candidate | 125,379/s | 177,234/s | 291.613 / 572.146 / 696.725 ms | confirm intermediate |
+
+Adversarial review then added the interleaved `parent -> unrelated model -> child` case. The first implementation had
+remembered only the latest writer in a routing segment, which was insufficient when an unrelated writer initialized
+before an earlier parent. The corrected planner waits for initialization of all preceding possible writers in that
+segment, then retains durable dependencies only for staged models of a required ancestor type. It does not serialize
+ordinary direct commands. Two new matched pairs on that exact code were neutral but not yet convincingly positive:
+
+| Pair | Candidate | Parent | Effect |
+| --- | ---: | ---: | ---: |
+| B4 / A3 | 142,204/s | 141,379/s | +0.58% |
+| B5 / A4 | 133,483/s | 135,059/s | -1.17% |
+
+The combined geometric effect was approximately -0.30%, so that form was not accepted. The remaining newly introduced
+cost was structural: every default command had both a handler ticket and a model ticket, each with its own execution
+future and completion administration. The final form makes the handler ticket itself the model ticket and allocates
+gate atomics only for explicit after-batch gates. It removes no result, commit or durability barrier. Two alternating
+full-route pairs on this final source were both decisively positive:
+
+| Pair | Final candidate | Parent | Effect | Candidate p50 / p95 / p99 |
+| --- | ---: | ---: | ---: | ---: |
+| B6 / A5 | 235,440/s | 178,006/s | +32.27% | 234.515 / 353.784 / 440.938 ms |
+| B7 / A6 | 242,851/s | 193,944/s | +25.22% | 222.364 / 361.126 / 433.912 ms |
+
+The final candidate geometric mean is **239,117/s** versus **185,804/s** for its adjacent parent controls, or
+**+28.69%**. Absolute throughput is far below the historical P5 425,606/s pin because this laptop state is not a clean
+absolute qualification environment. The acceptance claim is deliberately narrower: on the exact full route, with
+identical Runtime `feee1d9a`, database, Java 25 process and benchmark settings, batch-local consistency introduces no
+regression relative to its direct SDK parent. The historical P5 pin remains unchanged.
+
+Log SHA-256 in run order: `b96afe84ad64f68b9a25ff5275f1dfaacc7dd2cde7deca7b29cd3936cf0eb506`,
+`43d75e1e0d4322f811c2cc05c9f777d7d75d0fdbbce16eaa534c445252c185d9`,
+`f79de494677ebaf73e3e348e6296f074dbba3ffe585374fe4ee1d05d862b9534`,
+`47a80e1aaf993eae20d4be2434a4ec293fa58c24070d2a2673d5368a211385a2`,
+`da277216bb09d9ba779b79a90cb6224ee2e4b812937633ae1469a7e805aba8bd`,
+`94e68ce13c28cb402ffe355e1fab69c190e700c63c2726900cb2f0c7f7db565b`,
+`ee683d93f97758624a88ec14279208714e9fd5bc166c8a62e69492b39d6eece4`,
+`7182cf850154c28c819e521f74bcb2351d8dfd4e8d933f76e47a88c3f8d40d2e`,
+`a3b031bffda284f1cfb5d6b27846483f4e3992aa1edcce111a4e326ae89cda41`,
+`a2988679166273878c28cb5e8c16b8044c3e100e70d454c5e8a5453d2b6fc37f`,
+`0d8953178c1bf2d36ca9481a08ff236d06145c70f41fb1c3b5c9e9eb50af9b23`,
+`e4b6514bc379fb36ac777e50dc2d2c68aec87aac077878f1f3594dde2a89b9cc`,
+`b77884f7cf5ffc82687e2794e2b37de9bb57a6b08e9d9a2ca7a5f31f79d2b6ac`.
