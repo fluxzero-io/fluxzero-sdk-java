@@ -63,6 +63,22 @@
     "varArgs" : false,
     "documentation" : " Closes the session with a specific close reason.\n\n @param closeReason close status and reason to send\n @throws IOException when the close frame cannot be sent\n"
   }, {
+    "name" : "closeAsync",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#closeAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an orderly close without blocking the caller.\n\n <p>The returned future completes when the peer has acknowledged the close, or exceptionally when the close\n handshake fails. The default dispatches {@link #close(WebsocketCloseReason)} on a virtual thread and completes\n after that method returns; implementations that can observe peer acknowledgement should override it.</p>\n\n @param closeReason close status and reason to send\n @return completion of the orderly close handshake\n"
+  }, {
     "name" : "getHandshakeResponseHeaders",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#getHandshakeResponseHeaders",
     "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",

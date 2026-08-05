@@ -32,6 +32,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "replacedSessionId",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator.replacedSessionId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "runtimeSessionId",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator.runtimeSessionId",
     "type" : "java.lang.String",

@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " A thread-safe pool of reusable {@link WebsocketSession} objects, supporting concurrent access and routing.\n <p>\n This class provides a mechanism to manage multiple active WebSocket sessions, either round-robin or keyed by a\n {@code routingKey}. It lazily initializes sessions on demand using a configurable {@link Supplier}, ensuring that\n each session slot is kept active unless the pool is shutting down or explicitly closed.\n <p>\n The session pool is particularly useful in high-throughput scenarios, where multiple sessions are used to distribute\n load, improve parallelism, or isolate message streams.\n\n <h2>Usage Modes:</h2>\n <ul>\n     <li><strong>Round-robin</strong>: Calling {@link #get()} will return the next available session, cycling through\n     the pool.</li>\n     <li><strong>Hash-based routing</strong>: Calling {@link #get(String)} with a routing key returns the session\n     consistently mapped to that key, based on consistent hashing.</li>\n </ul>\n\n <p>\n If a session is closed or unavailable, it is automatically replaced using the provided {@code sessionFactory}.\n All sessions are closed when {@link #close()} is called.\n\n <p><strong>Note:</strong> This class is used by Fluxzero WebSocket clients such as {@link AbstractWebsocketClient} to\n manage their underlying connections to the Fluxzero Runtime.\n\n @see AbstractWebsocketClient\n",
+  "documentation" : " A thread-safe pool of reusable {@link WebsocketSession} objects, supporting concurrent access and routing.\n <p>\n This class provides a mechanism to manage multiple active WebSocket sessions, either round-robin or keyed by a\n {@code routingKey}. It lazily initializes sessions on demand using a configurable factory, ensuring that each\n session slot is kept active unless the pool is shutting down or explicitly closed. A replacement-aware factory\n receives the previous closed session so a new handshake can identify which server-side session it supersedes.\n <p>\n The session pool is particularly useful in high-throughput scenarios, where multiple sessions are used to distribute\n load, improve parallelism, or isolate message streams.\n\n <h2>Usage Modes:</h2>\n <ul>\n     <li><strong>Round-robin</strong>: Calling {@link #get()} will return the next available session, cycling through\n     the pool.</li>\n     <li><strong>Hash-based routing</strong>: Calling {@link #get(String)} with a routing key returns the session\n     consistently mapped to that key, based on consistent hashing.</li>\n </ul>\n\n <p>\n If a session is closed or unavailable, it is automatically replaced using the provided {@code sessionFactory}.\n All sessions are closed when {@link #close()} is called.\n\n <p><strong>Note:</strong> This class is used by Fluxzero WebSocket clients such as {@link AbstractWebsocketClient} to\n manage their underlying connections to the Fluxzero Runtime.\n\n @see AbstractWebsocketClient\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "java.lang.AutoCloseable" ],
@@ -23,7 +23,7 @@
   }, {
     "name" : "sessionFactory",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionFactory",
-    "type" : "java.util.function.Supplier<io.fluxzero.sdk.common.websocket.WebsocketSession>",
+    "type" : "java.util.function.Function<io.fluxzero.sdk.common.websocket.WebsocketSession,io.fluxzero.sdk.common.websocket.WebsocketSession>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -62,6 +62,26 @@
     "constantValue" : null
   } ],
   "constructors" : [ {
+    "name" : "SessionPool",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#SessionPool",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionFactory",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.websocket.WebsocketSession,io.fluxzero.sdk.common.websocket.WebsocketSession>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a session pool whose factory receives the previous closed session when replacing a slot.\n\n @param size number of independently routed session slots\n @param sessionFactory factory receiving {@code null} initially and the previous session on replacement\n"
+  }, {
     "name" : "SessionPool",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#SessionPool",
     "modifiers" : [ "public" ],

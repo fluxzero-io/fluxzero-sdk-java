@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "CLOSE_HANDSHAKE_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CLOSE_HANDSHAKE_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "CONNECTION_RETRY_LOG_INTERVAL",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CONNECTION_RETRY_LOG_INTERVAL",
     "type" : "int",
@@ -497,6 +505,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "connectToServer",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#connectToServer",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "connector",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnector",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endpointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previousSession",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createConnectionRetryConfiguration",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#createConnectionRetryConfiguration",
     "returnType" : "io.fluxzero.common.RetryConfiguration",
@@ -534,6 +568,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createConnectionSetup",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#createConnectionSetup",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ConnectionSetup",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "replacedSessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "executeResultCallback",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#executeResultCallback",
     "returnType" : "void",
@@ -551,6 +606,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCloseHandshakeTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getCloseHandshakeTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

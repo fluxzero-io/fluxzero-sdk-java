@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : "Fluxzero-Client-Session-Id"
   }, {
+    "name" : "REPLACES_SESSION_ID_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.REPLACES_SESSION_ID_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Replaces-Session-Id"
+  }, {
     "name" : "RUNTIME_SESSION_ID_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER",
     "type" : "java.lang.String",
@@ -202,6 +210,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the most preferred websocket transport format advertised via request headers, if available.\n"
+  }, {
+    "name" : "getReplacedSessionId",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getReplacedSessionId",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "getRuntimeSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeSessionId",
