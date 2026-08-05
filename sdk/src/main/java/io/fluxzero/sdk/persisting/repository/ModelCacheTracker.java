@@ -273,6 +273,16 @@ final class ModelCacheTracker implements AutoCloseable {
                 cacheOutcome("stale-unmaterialized");
                 return null;
             }
+            if (entry.pendingLocalCommits.get() > 0) {
+                /*
+                 * The accepted local revision will seed this entry when its commit completes. A refresh deliberately
+                 * skips entries with a pending local commit, so waiting for that refresh here would make a handler
+                 * processing the same message batch wait on its own commit. Bypass the cache until the authoritative
+                 * local result has been published; the repository's message-batch view can still supply staged values.
+                 */
+                cacheOutcome("stale-pending-local");
+                return null;
+            }
             staleModelIds.add(modelId);
             scheduleRefresh();
             CompletableFuture<Void> refresh =

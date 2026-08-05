@@ -536,6 +536,9 @@ class ModelCacheTrackerTest {
                     "sample-1",
                     SampleModel.class,
                     10L);
+            assertSame(committed, awaitCurrent(
+                    tracker, "sample-1",
+                    SampleModel.class));
             Runnable localCommitComplete =
                     tracker.beginLocalCommit(
                             List.of(
@@ -555,6 +558,13 @@ class ModelCacheTrackerTest {
                                                             1L,
                                                             true))))));
             awaitNext(polls);
+
+            assertNull(assertTimeoutPreemptively(
+                    Duration.ofSeconds(1L),
+                    () -> tracker.current(
+                            "sample-1",
+                            SampleModel.class)));
+            assertEquals(0, refreshCount.get());
 
             tracker.committed(
                     "sample-1",
