@@ -38,6 +38,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelGraphDocumentStitcherTest {
 
     @Test
+    void composesCompleteGraphWithoutImplicitLimits() {
+        ModelGraphComposition composition =
+                ModelGraphComposition.builder().build();
+
+        assertEquals(ModelGraphComposition.UNBOUNDED, composition.getMaxDepth());
+        assertEquals(ModelGraphComposition.UNBOUNDED, composition.getMaxModels());
+        assertEquals(ModelGraphComposition.UNBOUNDED, composition.getMaxPlacements());
+        assertEquals(ModelGraphComposition.UNBOUNDED, composition.getMaxCollections());
+        assertEquals(ModelGraphComposition.UNBOUNDED, composition.getMaxBytes());
+    }
+
+    @Test
     void stitchesChildrenAndGrandchildrenInStableModelIdOrder() {
         SerializedDocument root =
                 document("root", "roots", "name",
@@ -160,6 +172,24 @@ class ModelGraphDocumentStitcherTest {
                 result.getEntryAtPath(
                                 "projected/items/1/name")
                         .orElseThrow().getValue());
+    }
+
+    @Test
+    void explicitDepthLimitFailsInsteadOfReturningAPartialGraph() {
+        SerializedDocument root = document("root", "roots", "name", "root");
+        SerializedDocument child = document("child", "children", "name", "child");
+        SerializedDocument grandchild = document("grandchild", "grandchildren", "name", "grandchild");
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelGraphDocumentStitcher.stitch(
+                        List.of(root),
+                        List.of(edge("child", "root", "children"),
+                                edge("grandchild", "child", "grandchildren")),
+                        Map.of("root", root, "child", child, "grandchild", grandchild),
+                        ModelGraphComposition.builder().maxDepth(1).build()));
+
+        assertTrue(failure.getMessage().contains("maxDepth 1"));
     }
 
     @Test

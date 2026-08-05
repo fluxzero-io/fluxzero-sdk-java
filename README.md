@@ -3179,6 +3179,23 @@ JSON graph view: it uses a configured materialized projection and otherwise stit
 routes. `searchable = false` suppresses only the address's own search collection: an explicit
 `@ParentId(path = "...")` still gives graph composition an internal current document.
 
+Enable the durable materialized form directly on its searchable root:
+
+```java
+@Model(
+        searchable = true,
+        collection = "users",
+        graphProjection = @GraphProjection)
+public record User(@EntityId UserId userId, String name) {
+}
+```
+
+The graph collection is `users-graphs` by default. Set `GraphProjection.collection` only when a custom durable name is
+needed. Projection is asynchronous unless completion is explicitly configured otherwise. Both live and materialized
+composition follow the complete finite graph by default; lower-level `ModelGraphComposition` maxima are optional
+advanced guardrails and use `UNBOUNDED` (`-1`) when absent. An explicit guardrail fails instead of publishing a partial
+graph.
+
 Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
 stored and published. `@Model` defaults `eventPublication` to `IF_MODIFIED`, so returning unchanged state does not

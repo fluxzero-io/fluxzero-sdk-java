@@ -185,8 +185,10 @@ public @interface Model {
      * <p>
      * Enabling this requires {@link #searchable()} so the root keeps its synchronous direct document. Only the
      * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
+     * An explicit {@link GraphProjection} enables it and derives {@code <resolved model collection>-graphs} unless a
+     * custom collection is supplied.
      */
-    GraphProjection graphProjection() default @GraphProjection;
+    GraphProjection graphProjection() default @GraphProjection(enabled = false);
 
     /**
      * Collection in which the model is indexed. Defaults to the model class name when blank.

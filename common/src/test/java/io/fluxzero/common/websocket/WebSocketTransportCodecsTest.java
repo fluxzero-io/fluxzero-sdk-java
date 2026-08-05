@@ -904,6 +904,45 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
+    void unboundedModelGraphCompositionRoundTrips()
+            throws Exception {
+        SearchModelGraphDocuments request =
+                new SearchModelGraphDocuments(
+                        SearchDocuments.builder()
+                                .query(SearchQuery.builder()
+                                               .collection("orders")
+                                               .build())
+                                .build(),
+                        List.of(),
+                        ModelGraphComposition.builder().build(),
+                        List.of());
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            SearchModelGraphDocuments decoded =
+                    assertInstanceOf(
+                            SearchModelGraphDocuments.class,
+                            roundTrip(codec, request));
+
+            assertEquals(
+                    ModelGraphComposition.UNBOUNDED,
+                    decoded.getComposition().getMaxDepth());
+            assertEquals(
+                    ModelGraphComposition.UNBOUNDED,
+                    decoded.getComposition().getMaxModels());
+            assertEquals(
+                    ModelGraphComposition.UNBOUNDED,
+                    decoded.getComposition().getMaxPlacements());
+            assertEquals(
+                    ModelGraphComposition.UNBOUNDED,
+                    decoded.getComposition().getMaxCollections());
+            assertEquals(
+                    ModelGraphComposition.UNBOUNDED,
+                    decoded.getComposition().getMaxBytes());
+        }
+    }
+
+    @Test
     void materializedModelGraphProjectionUsesDistinctWireActions()
             throws Exception {
         RegisterModelGraphProjection registration =

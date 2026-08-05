@@ -184,10 +184,6 @@ public final class ModelGraphDocumentStitcher {
                     serialized.bytes());
             Document direct =
                     serialized.deserializeDocument();
-            if (depth >= bounds.composition
-                    .getMaxDepth()) {
-                return direct;
-            }
             Map<String, List<ModelGraphEdge>> byPath =
                     new LinkedHashMap<>();
             for (ModelGraphEdge edge :
@@ -204,6 +200,15 @@ public final class ModelGraphDocumentStitcher {
             }
             if (byPath.isEmpty()) {
                 return direct;
+            }
+            if (bounds.composition.getMaxDepth()
+                != ModelGraphComposition.UNBOUNDED
+                && depth >= bounds.composition
+                        .getMaxDepth()) {
+                throw new IllegalArgumentException(
+                        "Model graph composition exceeds maxDepth "
+                        + bounds.composition.getMaxDepth()
+                        + "; narrow the result or remove the explicit composition limit");
             }
             validatePaths(
                     modelId, direct, byPath.keySet());
@@ -421,8 +426,11 @@ public final class ModelGraphDocumentStitcher {
         }
 
         private void addPlacement() {
-            if (++placements
-                > composition.getMaxPlacements()) {
+            placements++;
+            if (composition.getMaxPlacements()
+                != ModelGraphComposition.UNBOUNDED
+                && placements
+                   > composition.getMaxPlacements()) {
                 throw new IllegalArgumentException(
                         "Model graph composition exceeds maxPlacements "
                         + composition
@@ -433,6 +441,10 @@ public final class ModelGraphDocumentStitcher {
 
         private void reserveSourceBytes(
                 long additional) {
+            if (composition.getMaxBytes()
+                == ModelGraphComposition.UNBOUNDED) {
+                return;
+            }
             reservedBytes = add(
                     reservedBytes, additional);
             verifyTotalBytes();
@@ -440,6 +452,10 @@ public final class ModelGraphDocumentStitcher {
 
         private void reservePrefix(
                 String prefix, String path) {
+            if (composition.getMaxBytes()
+                == ModelGraphComposition.UNBOUNDED) {
+                return;
+            }
             long additional =
                     utf8Length(prefix)
                     + (path == null || path.isEmpty()
@@ -478,6 +494,10 @@ public final class ModelGraphDocumentStitcher {
 
         private void verifyOutputBytes(
                 long additional) {
+            if (composition.getMaxBytes()
+                == ModelGraphComposition.UNBOUNDED) {
+                return;
+            }
             outputBytes = add(
                     outputBytes, additional);
             verifyTotalBytes();

@@ -1229,8 +1229,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         List<String> frontier =
                 List.copyOf(modelIds);
         for (int depth = 0;
-             depth < maxDepth
-             && !frontier.isEmpty();
+             !frontier.isEmpty()
+             && (maxDepth
+                 == ModelGraphComposition.UNBOUNDED
+                 || depth < maxDepth);
              depth++) {
             Set<String> children =
                     Set.copyOf(frontier);
@@ -1254,6 +1256,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                             LinkedHashSet::new));
             result.addAll(parents);
             frontier = List.copyOf(parents);
+        }
+        if (!frontier.isEmpty()
+            && maxDepth
+               != ModelGraphComposition.UNBOUNDED) {
+            Set<String> children = Set.copyOf(frontier);
+            boolean hasMore = modelRelationshipHistory.stream()
+                    .filter(relation -> children.contains(
+                            relation.childId))
+                    .filter(relation -> relation.isValidAt(
+                            stateIndex))
+                    .anyMatch(relation -> relation.relationship
+                            .getPath() != null);
+            if (hasMore) {
+                throw new IllegalArgumentException(
+                        "Model graph projection exceeds maxDepth "
+                        + maxDepth);
+            }
         }
         return Set.copyOf(result);
     }
@@ -1965,8 +1984,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             throw new IllegalArgumentException(
                     "Model graph roots are required");
         }
-        if (modelIds.size()
-            > composition.getMaxModels()) {
+        if (composition.getMaxModels()
+            != ModelGraphComposition.UNBOUNDED
+            && modelIds.size()
+               > composition.getMaxModels()) {
             throw new IllegalArgumentException(
                     "Model graph roots exceed maxModels "
                     + composition.getMaxModels());
@@ -1975,9 +1996,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 List.copyOf(modelIds);
         List<ModelGraphEdge> edges =
                 new ArrayList<>();
-        for (int depth = 0;
-             depth < composition.getMaxDepth()
-             && !frontier.isEmpty();
+        int depth = 0;
+        for (;
+             !frontier.isEmpty()
+             && (composition.getMaxDepth()
+                 == ModelGraphComposition.UNBOUNDED
+                 || depth < composition.getMaxDepth());
              depth++) {
             Set<String> parents =
                     Set.copyOf(frontier);
@@ -2024,9 +2048,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         relation.validUntil));
                 if (modelIds.add(
                         relation.childId)) {
-                    if (modelIds.size()
-                        > composition
-                                .getMaxModels()) {
+                    if (composition.getMaxModels()
+                        != ModelGraphComposition.UNBOUNDED
+                        && modelIds.size()
+                           > composition.getMaxModels()) {
                         throw new IllegalArgumentException(
                                 "Model graph exceeds maxModels "
                                 + composition
@@ -2038,6 +2063,22 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 }
             }
             frontier = next;
+        }
+        if (!frontier.isEmpty()
+            && composition.getMaxDepth()
+               != ModelGraphComposition.UNBOUNDED) {
+            Set<String> parents = Set.copyOf(frontier);
+            boolean hasMore = modelRelationshipHistory.stream()
+                    .filter(relation -> parents.contains(
+                            relation.relationship.getParentId()))
+                    .filter(relation -> relation.isValidAt(modelStateIndex))
+                    .anyMatch(relation -> relation.relationship.getPath() != null);
+            if (hasMore) {
+                throw new IllegalArgumentException(
+                        "Model graph exceeds maxDepth "
+                        + composition.getMaxDepth()
+                        + "; narrow the result or remove the explicit composition limit");
+            }
         }
         return List.copyOf(edges);
     }

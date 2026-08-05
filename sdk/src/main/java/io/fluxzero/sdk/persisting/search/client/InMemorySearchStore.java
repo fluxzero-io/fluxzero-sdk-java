@@ -273,6 +273,10 @@ public class InMemorySearchStore implements SearchClient {
         }
         SearchDocuments graphSearch =
                 request.getSearch();
+        int maxModels = request.getComposition().getMaxModels();
+        Integer candidateLimit = maxModels == ModelGraphComposition.UNBOUNDED
+                || maxModels == Integer.MAX_VALUE ? null : maxModels + 1;
+        int candidateFetchSize = candidateLimit == null ? Integer.MAX_VALUE : candidateLimit;
         SearchDocuments candidateSearch =
                 SearchDocuments.builder()
                         .query(SearchQuery.builder()
@@ -282,30 +286,22 @@ public class InMemorySearchStore implements SearchClient {
                                        .build())
                         .documentIds(
                                 graphSearch.getDocumentIds())
-                        .maxSize(
-                                request.getComposition()
-                                        .getMaxModels()
-                                + 1)
+                        .maxSize(candidateLimit)
                         .build();
         List<SerializedDocument> roots =
                 (request.getRelations().isEmpty()
                         ? search(
                                 candidateSearch,
-                                request.getComposition()
-                                        .getMaxModels()
-                                + 1)
+                                candidateFetchSize)
                         : searchModels(
                                 new SearchModelDocuments(
                                         candidateSearch,
                                         request.getRelations()),
-                                request.getComposition()
-                                        .getMaxModels()
-                                + 1))
+                                candidateFetchSize))
                         .map(SearchHit::getValue)
                         .toList();
-        if (roots.size()
-            > request.getComposition()
-                    .getMaxModels()) {
+        if (maxModels != ModelGraphComposition.UNBOUNDED
+            && roots.size() > maxModels) {
             throw new IllegalArgumentException(
                     "Model graph search exceeds maxModels "
                     + request.getComposition()
@@ -346,9 +342,11 @@ public class InMemorySearchStore implements SearchClient {
                 graphDocuments.values().stream()
                         .map(SerializedDocument::getCollection)
                         .distinct().count();
-        if (collectionCount
-            > request.getComposition()
-                    .getMaxCollections()) {
+        if (request.getComposition().getMaxCollections()
+                != ModelGraphComposition.UNBOUNDED
+            && collectionCount
+                    > request.getComposition()
+                            .getMaxCollections()) {
             throw new IllegalArgumentException(
                     "Model graph composition exceeds maxCollections "
                     + request.getComposition()
@@ -765,9 +763,11 @@ public class InMemorySearchStore implements SearchClient {
                                          ::getCollection)
                             .distinct()
                             .count();
-            if (collectionCount
-                > configuration.getComposition()
-                        .getMaxCollections()) {
+            if (configuration.getComposition().getMaxCollections()
+                != ModelGraphComposition.UNBOUNDED
+                && collectionCount
+                   > configuration.getComposition()
+                           .getMaxCollections()) {
                 throw new IllegalArgumentException(
                         "Model graph projection exceeds maxCollections "
                         + configuration

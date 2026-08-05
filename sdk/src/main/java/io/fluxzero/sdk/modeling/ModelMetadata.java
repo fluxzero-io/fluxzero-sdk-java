@@ -379,25 +379,20 @@ public final class ModelMetadata {
     private void validateGraphProjection(Model annotation) {
         GraphProjection projection =
                 annotation.graphProjection();
-        if (projection.collection().isEmpty()) {
+        if (!projection.enabled()) {
             return;
         }
         if (!annotation.searchable()) {
             throw invalid("%s enables a graph projection but is not searchable"
                                   .formatted(type.getName()));
         }
-        if (projection.collection().isBlank()
-            || !projection.collection().equals(
-                projection.collection().trim())) {
+        if (!projection.collection().isEmpty()
+            && (projection.collection().isBlank()
+                || !projection.collection().equals(
+                projection.collection().trim()))) {
             throw invalid("Graph projection collection on %s must not be blank or have surrounding whitespace"
                                   .formatted(type.getName()));
         }
-        new io.fluxzero.common.api.search.ModelGraphComposition(
-                projection.maxDepth(),
-                projection.maxModels(),
-                projection.maxPlacements(),
-                projection.maxCollections(),
-                projection.maxBytes());
         LinkedHashSet<String> paths =
                 new LinkedHashSet<>();
         LinkedHashSet<String> projectionPaths =

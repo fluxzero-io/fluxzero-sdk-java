@@ -42,7 +42,8 @@ Important settings:
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
 - `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `graphProjection`: optional durable whole-tree read model.
+- `graphProjection`: optional durable whole-tree read model. Opt in with `@GraphProjection`; its collection defaults to
+  `<resolved model collection>-graphs` and materializes the complete finite graph without implicit size limits.
 
 `eventSourced = false` does not disable event storage or publication. It means current state loads from the direct
 document. Historical event-boundary loads still use stored model events.
@@ -307,7 +308,10 @@ List<Task> tasks = Fluxzero.search(Task.class)
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use `searchGraph(Root.class)` for a complete
 graph-shaped JSON result. It reads a configured `@GraphProjection` by default and otherwise stitches current direct
-documents live; `searchGraph(Root.class, true)` forces live composition.
+documents live; `searchGraph(Root.class, true)` forces live composition. Enable materialization with
+`@Model(searchable = true, graphProjection = @GraphProjection)`. A blank projection collection derives
+`<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
+graph.
 
 ## Conflict policy
 

@@ -108,7 +108,7 @@ class ModelMetadataTest {
                 "projected-graphs",
                 configuration.getCollection());
         assertEquals(
-                7,
+                io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED,
                 configuration.getComposition()
                         .getMaxDepth());
         assertEquals(
@@ -120,6 +120,14 @@ class ModelMetadataTest {
                 IllegalStateException.class,
                 () -> ModelMetadata.validate(
                         UnsearchableProjectedModel.class));
+        assertEquals(
+                "default-projected-models-graphs",
+                ModelGraphProjections.configuration(DefaultProjectedModel.class)
+                        .orElseThrow().getCollection());
+        assertTrue(ModelGraphProjections.configuration(ParentModel.class).isEmpty());
+        assertThrows(
+                IllegalStateException.class,
+                () -> ModelGraphProjections.configuration(ConflictingProjectionCollection.class));
     }
 
     @Test
@@ -285,7 +293,6 @@ class ModelMetadataTest {
             collection = "projected-models",
             graphProjection = @GraphProjection(
                     collection = "projected-graphs",
-                    maxDepth = 7,
                     pathOverrides = @GraphPathOverride(
                             path = "children",
                             projectionPath = "items")))
@@ -297,6 +304,23 @@ class ModelMetadataTest {
             graphProjection = @GraphProjection(
                     collection = "invalid-graphs"))
     private record UnsearchableProjectedModel(
+            @EntityId String id) {
+    }
+
+    @Model(
+            searchable = true,
+            collection = "default-projected-models",
+            graphProjection = @GraphProjection)
+    private record DefaultProjectedModel(
+            @EntityId String id) {
+    }
+
+    @Model(
+            searchable = true,
+            collection = "same-collection",
+            graphProjection = @GraphProjection(
+                    collection = "same-collection"))
+    private record ConflictingProjectionCollection(
             @EntityId String id) {
     }
 

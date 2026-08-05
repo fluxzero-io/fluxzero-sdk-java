@@ -20,10 +20,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Configures an opt-in asynchronous materialized search document containing a complete bounded model graph.
+ * Configures an opt-in asynchronous materialized search document containing a complete model graph.
  * <p>
- * A blank {@link #collection()} disables materialization. The collection must be explicit because it is a durable
- * public search contract and must differ from the model's synchronous direct-document collection.
+ * When enabled without an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model
+ * collection. An explicit collection remains available when that durable public search contract needs a custom name.
  */
 @Documented
 @Target({})
@@ -31,39 +31,23 @@ import java.lang.annotation.Target;
 public @interface GraphProjection {
 
     /**
+     * Whether this materialized graph projection is enabled.
+     * <p>
+     * Explicit {@code @GraphProjection} declarations enable projection by default. The enclosing
+     * {@link Model#graphProjection()} default disables it for models that do not opt in.
+     */
+    boolean enabled() default true;
+
+    /**
      * Default result-completion behavior for commits affecting this root projection.
      */
     GraphProjectionCompletion completion() default GraphProjectionCompletion.DEFAULT;
 
     /**
-     * Distinct collection receiving materialized graph documents. Blank disables the projection.
+     * Distinct collection receiving materialized graph documents. Blank derives
+     * {@code <resolved direct-model collection>-graphs}.
      */
     String collection() default "";
-
-    /**
-     * Maximum relationship depth below a root.
-     */
-    int maxDepth() default 16;
-
-    /**
-     * Maximum distinct models in one root graph.
-     */
-    int maxModels() default 10_000;
-
-    /**
-     * Maximum placements, including repeated shared-DAG descendants.
-     */
-    int maxPlacements() default 25_000;
-
-    /**
-     * Maximum number of direct-model collections read while composing one root.
-     */
-    int maxCollections() default 128;
-
-    /**
-     * Maximum serialized output bytes for one materialized root.
-     */
-    long maxBytes() default 64L * 1024L * 1024L;
 
     /**
      * Optional projection-local replacements for canonical relationship paths.

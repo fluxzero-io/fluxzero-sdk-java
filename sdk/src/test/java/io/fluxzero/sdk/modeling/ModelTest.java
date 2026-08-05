@@ -57,6 +57,7 @@ class ModelTest {
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
         assertFalse(model.searchable());
+        assertFalse(model.graphProjection().enabled());
         assertEquals("", model.collection());
         assertEquals("", model.timestampPath());
         assertEquals("", model.endPath());

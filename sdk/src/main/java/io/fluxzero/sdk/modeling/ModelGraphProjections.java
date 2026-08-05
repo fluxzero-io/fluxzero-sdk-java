@@ -45,8 +45,7 @@ public final class ModelGraphProjections {
         if (model.kind()
             != ModelMetadata.RootKind.MODEL
             || model.graphProjection() == null
-            || model.graphProjection()
-                    .collection().isEmpty()) {
+            || !model.graphProjection().enabled()) {
             return Optional.empty();
         }
         GraphProjection projection =
@@ -57,21 +56,20 @@ public final class ModelGraphProjections {
                         : ApplicationProperties
                                 .substituteProperties(
                                         model.collection());
-        String collection =
-                ApplicationProperties
-                        .substituteProperties(
-                                projection.collection());
+        String collection = projection.collection().isEmpty()
+                ? rootCollection + "-graphs"
+                : ApplicationProperties.substituteProperties(projection.collection());
+        if (rootCollection.equals(collection)) {
+            throw new IllegalStateException(
+                    "Graph projection collection on %s must differ from its direct-model collection '%s'"
+                            .formatted(modelType.getName(), rootCollection));
+        }
         return Optional.of(
                 new ModelGraphProjectionConfiguration(
                         modelType.getName(),
                         rootCollection,
                         collection,
-                        new ModelGraphComposition(
-                                projection.maxDepth(),
-                                projection.maxModels(),
-                                projection.maxPlacements(),
-                                projection.maxCollections(),
-                                projection.maxBytes()),
+                        ModelGraphComposition.builder().build(),
                         Arrays.stream(
                                         projection.pathOverrides())
                                 .map(override ->
