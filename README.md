@@ -3137,6 +3137,18 @@ repository boundary; document-loaded targets remain current-only direct-document
 `@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
 `@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
 
+Annotate a model property with `@Alias` when callers need to load the same independently stored model through an
+alternative identity. `Fluxzero.loadModel(alias)` first tries a primary model ID and then a current alias. The complete
+alias set is replaced atomically with every model transition, aliases must be globally unique across independent
+models, and a primary ID always wins an equal alias.
+
+Automatic model commands in the same tracking batch and ordered routing segment have batch-local read-your-writes.
+A later command evaluates against an earlier staged model change, including changed parent and ancestor relations,
+even if the earlier commit is still in flight. Overlapping commands commit in order: the later command waits for the
+earlier durable outcome and is reevaluated against canonical state before it commits. Unrelated model chains remain
+parallel. This is not one transaction across commands; every command retains its own atomic commit and result, and no
+ordering is implied across consumers or routing segments.
+
 For split event/search stores, Fluxzero retains the exact serialized direct-document and snapshot package with the
 authoritative model commit. A retry after SDK or runtime process loss replays that package through monotone
 `stateIndex` fences and never re-evaluates application code. Direct model search therefore remains synchronous with a

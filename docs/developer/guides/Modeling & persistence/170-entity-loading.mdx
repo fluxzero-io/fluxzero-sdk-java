@@ -50,6 +50,29 @@ An untyped ID can be loaded by supplying the model class explicitly:
 Order order = Fluxzero.loadModel("order-123", Order.class).get();
 ```
 
+## Alternative model identifiers
+
+Use `@Alias` when an independently stored model must also be addressable by a current business or external identifier:
+
+```java
+@Model
+record Customer(
+        @EntityId CustomerId customerId,
+        @Alias(prefix = "email:") String email,
+        String name) {
+}
+
+Customer customer = Fluxzero.loadModel(
+        "email:info@example.com", Customer.class).get();
+```
+
+Fluxzero stores the complete alias set atomically with every model transition. When the annotated value changes, the
+old alias stops resolving after the commit; logical or physical deletion removes the current aliases as well.
+
+Aliases for independent models are global identities and must be unique across those models. A primary model ID is
+always resolved before an equal alias. Keep tree-local alternative identifiers on embedded aggregate members instead
+of exposing them as global independent-model aliases.
+
 ## Event-sourced loading
 
 Event sourcing is the default:

@@ -198,6 +198,24 @@ If evaluation fails, no target is committed. Conflict handling applies to the co
 Configure a default through `FluxzeroBuilder` or `fluxzero.model.conflictPolicy`, and override it on `@Model` or an
 individual `@Apply`.
 
+## Consecutive commands in one tracking batch
+
+Commands remain separate atomic actions, but automatic model handling provides read-your-writes within one ordered
+consumer segment. If a later command in the same tracking batch reads a model changed by an earlier command, it
+evaluates against the staged value rather than reloading stale durable state. The same applies when the later command
+injects a parent, grandparent or further ancestor whose value or relation changed earlier in that segment.
+
+Fluxzero preserves both correctness and concurrency:
+
+- independent model chains continue evaluating and committing in parallel;
+- an overlapping command waits for its predecessor's durable completion;
+- after that completion, the dependent command is reevaluated against canonical durable state before it commits;
+- a failed predecessor fails the dependent chain instead of committing from speculative state.
+
+This mechanism does **not** combine several commands into one transaction. Each command keeps its own atomic model
+commit, result and conflict policy. It also does not create ordering across different consumers or routing segments;
+use a shared consumer and routing key when application-level command order matters.
+
 ## Apply interceptors
 
 `@InterceptApply` can reject, replace or expand an incoming update before applies run:

@@ -86,6 +86,9 @@ Compatibility checks are inferred:
 Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
 Use an explicit handler only for real orchestration and call `Fluxzero.assertAndApply(command)` once.
 
+When the handler itself should remain asynchronous, return `Fluxzero.assertAndApplyAsync(command)` and let the handler
+future represent the durable model commit.
+
 ## Assertions and interceptors
 
 ```kotlin
@@ -151,6 +154,18 @@ fun debit(
 ) = source.debit(amount)
 ```
 
+## Batch-local command consistency
+
+Automatic model commands in one tracking batch and ordered routing segment have read-your-writes. A later command sees
+an earlier staged model update, including changed parent and ancestor relations, before the earlier commit completes.
+When their read/write sets overlap, the later command waits for the predecessor's durable result and is then
+reevaluated against canonical state before committing. Predecessor failure fails the dependent chain. Unrelated model
+chains remain parallel.
+
+This is not one transaction across commands: every command retains its own atomic commit, result and conflict policy.
+Different consumers or routing segments have no implied ordering; configure a shared consumer and routing key when
+that order is a domain requirement.
+
 ## Relationships
 
 ```kotlin
@@ -212,6 +227,23 @@ val project = entity.get()
 val graph: ModelGraph<Project> =
     Fluxzero.modelRepository().loadGraph(projectId)
 ```
+
+Use `@Alias` for a current alternative identity of an independently stored model:
+
+```kotlin
+@Model
+data class Project(
+    @EntityId val projectId: ProjectId,
+    @Alias(prefix = "external:") val externalId: String
+)
+
+val project = Fluxzero.loadModel(
+    "external:123", Project::class.java
+).get()
+```
+
+The complete alias set is replaced atomically with each transition. Independent-model aliases are global and must be
+unique; primary model IDs take precedence over equal aliases.
 
 Current loads use the model cache and its long-polling update tracker. Event handlers use the exact commit boundary:
 

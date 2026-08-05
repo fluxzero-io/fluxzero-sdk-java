@@ -105,7 +105,7 @@ Use an explicit handler only for real orchestration:
 @HandleCommand
 CompletableFuture<Void> handle(ImportProject command) {
     // Orchestrate external work, then execute one model commit.
-    return Fluxzero.assertAndApply(command);
+    return Fluxzero.assertAndApplyAsync(command);
 }
 ```
 
@@ -178,6 +178,18 @@ Account apply(@Association("sourceId") Account source) {
 }
 ```
 
+## Batch-local command consistency
+
+Automatic model commands in one tracking batch and ordered routing segment have read-your-writes. A later command sees
+an earlier staged model update, including changed parent and ancestor relations, before the earlier commit completes.
+When their read/write sets overlap, the later command waits for the predecessor's durable result and is then
+reevaluated against canonical state before committing. Predecessor failure fails the dependent chain. Unrelated model
+chains remain parallel.
+
+Do not treat this as one transaction across commands: each command retains its own atomic commit, result and conflict
+policy. Different consumers or routing segments have no implied ordering; configure a shared consumer and routing key
+when that order is a domain requirement.
+
 ## Relationships
 
 Use `@ParentId` on the child:
@@ -241,6 +253,21 @@ Project project = entity.get();
 ModelGraph<Project> graph =
         Fluxzero.modelRepository().loadGraph(projectId);
 ```
+
+Use `@Alias` for a current alternative identity of an independently stored model:
+
+```java
+@Model
+record Project(
+        @EntityId ProjectId projectId,
+        @Alias(prefix = "external:") String externalId) {
+}
+
+Project project = Fluxzero.loadModel("external:123", Project.class).get();
+```
+
+The complete alias set is replaced atomically with each transition. Independent-model aliases are global and must be
+unique; primary model IDs take precedence over equal aliases.
 
 Current loads use the model cache and its long-polling update tracker. Event handlers use the event's exact model-commit
 boundary:
