@@ -237,8 +237,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                                                                  Math.max(1, numberOfSessions)));
         this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
-        this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
-                () -> connectToServer(connector, endpointUri),
+        this.sessionPool = new SessionPool(numberOfSessions, previousSession -> retryOnFailure(
+                () -> connectToServer(connector, endpointUri, previousSession),
                 createConnectionRetryConfiguration(endpointUri, reconnectDelay)));
     }
 
@@ -275,7 +275,20 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected WebsocketSession connectToServer(WebsocketConnector connector, URI endpointUri) throws Exception {
-        ConnectionSetup connectionSetup = createConnectionSetup(clientConfig);
+        return connectToServer(connector, endpointUri, null);
+    }
+
+    protected WebsocketSession connectToServer(WebsocketConnector connector, URI endpointUri,
+                                               WebsocketSession previousSession) throws Exception {
+        String replacedSessionId = null;
+        if (previousSession != null) {
+            try {
+                replacedSessionId = getNegotiatedSessionId(previousSession);
+            } catch (RuntimeException e) {
+                log().debug("Could not determine the replaced websocket session id", e);
+            }
+        }
+        ConnectionSetup connectionSetup = createConnectionSetup(clientConfig, replacedSessionId);
         return TimingUtils.callAndWait(
                 () -> connector.connect(this, connectionSetup.options(), endpointUri),
                 clientConfig.getConnectionTimeout().plus(getConnectionTimeoutFailsafeGrace()));
@@ -869,8 +882,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected static ConnectionSetup createConnectionSetup(ClientConfig clientConfig) {
+        return createConnectionSetup(clientConfig, null);
+    }
+
+    protected static ConnectionSetup createConnectionSetup(ClientConfig clientConfig, String replacedSessionId) {
         ClientHandshakeConfigurator configurator = new ClientHandshakeConfigurator(
-                WebSocketCapabilities.newShortSessionId(), clientConfig);
+                WebSocketCapabilities.newShortSessionId(), clientConfig, replacedSessionId);
         Map<String, List<String>> headers = new java.util.LinkedHashMap<>();
         configurator.beforeRequest(headers);
         Map<String, Object> userProperties = Map.of(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
@@ -926,6 +943,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         @Getter
         private final String clientSessionId;
         private final ClientConfig clientConfig;
+        private final String replacedSessionId;
         @Getter
         private volatile String runtimeSessionId;
         @Getter
@@ -937,6 +955,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
         public void beforeRequest(Map<String, List<String>> headers) {
             headers.put(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, new ArrayList<>(List.of(clientSessionId)));
+            if (replacedSessionId != null && !replacedSessionId.isBlank()) {
+                headers.put(WebSocketCapabilities.REPLACES_SESSION_ID_HEADER,
+                            new ArrayList<>(List.of(replacedSessionId)));
+            }
             SdkVersion.version().ifPresent(sdkVersion ->
                                                    headers.put(WebSocketCapabilities.CLIENT_SDK_VERSION_HEADER,
                                                                new ArrayList<>(List.of(sdkVersion))));

@@ -170,6 +170,20 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void replacementConnectionIdentifiesThePreviousNegotiatedSession() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+
+        AbstractWebsocketClient.ConnectionSetup connectionSetup =
+                AbstractWebsocketClient.createConnectionSetup(clientConfig, "old-client_old-runtime");
+
+        assertEquals("old-client_old-runtime", WebSocketCapabilities.getReplacedSessionId(
+                connectionSetup.options().headers()).orElseThrow());
+    }
+
+    @Test
     void connectionOptionsPublishConfiguredJdkConnectionTimeout() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
