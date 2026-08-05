@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.testserver.TestServer;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
@@ -144,6 +145,43 @@ class FluxzeroLogbackAppenderTest {
                         && String.class.getName().equals(message.getMetadata().get("$trigger"))
                         && MessageType.COMMAND.name().equals(message.getMetadata().get("$triggerType"))
                         && "rene".equals(message.getMetadata().get("$trace.user"))));
+    }
+
+    @Test
+    void testConsoleErrorDoesNotInheritPublisherInvocation() {
+        Message trigger = new Message(
+                "trigger", Metadata.of("$handler", "PublisherHandler", "$invocation", "publisher-invocation"),
+                "trigger-message", Instant.now());
+
+        new DeserializingMessage(trigger, MessageType.COMMAND, fluxzero.serializer()).run(
+                __ -> log.error("error outside an active handler invocation"));
+
+        verify(fluxzero.client().getGatewayClient(MessageType.ERROR), timeout(1_000)).append(
+                any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
+                        ConsoleError.class.getName().equals(message.getData().getType())
+                        && "trigger-message".equals(message.getMetadata().get("$correlationId"))
+                        && !message.getMetadata().containsKey("$handler")
+                        && !message.getMetadata().containsKey("$invocation")));
+    }
+
+    @Test
+    void testConsoleErrorUsesActiveInvocation() {
+        Message trigger = new Message(
+                "trigger", Metadata.of("$handler", "PublisherHandler", "$invocation", "publisher-invocation"),
+                "trigger-message", Instant.now());
+
+        new DeserializingMessage(trigger, MessageType.COMMAND, fluxzero.serializer()).run(__ ->
+                Invocation.performInvocation(() -> {
+                    log.error("error inside an active handler invocation");
+                    return null;
+                }));
+
+        verify(fluxzero.client().getGatewayClient(MessageType.ERROR), timeout(1_000)).append(
+                any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
+                        ConsoleError.class.getName().equals(message.getData().getType())
+                        && message.getMetadata().containsKey("$invocation")
+                        && !"publisher-invocation".equals(message.getMetadata().get("$invocation"))
+                        && !message.getMetadata().containsKey("$handler")));
     }
 
     @Test

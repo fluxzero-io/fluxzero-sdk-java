@@ -335,7 +335,41 @@ class MetadataTest {
         assertThrows(IllegalArgumentException.class,
                      () -> Metadata.fromData(new Data<>(new byte[4], Metadata.DATA_TYPE, 1, Metadata.DATA_FORMAT)));
     }
+    @Test
+    void deserializesObjectsAndMapsStringsAndInvalidJson() {
+        SampleValue objectValue = new SampleValue("object");
+        SampleValue mappedValue = new SampleValue("mapped");
+        Metadata metadata = Metadata.of("object", objectValue)
+                .with("text", "user-123")
+                .with("openObject", "{invalid")
+                .with("invalidObject", "{invalid}")
+                .with("invalidArray", "[invalid]")
+                .with("trailingObject", "{\"value\":\"ignored\"}{}")
+                .withNull("null");
 
+        assertEquals(objectValue, metadata.get("object", SampleValue.class, value -> mappedValue));
+        assertEquals(mappedValue, metadata.get("text", SampleValue.class, value -> mappedValue));
+        assertEquals(mappedValue, metadata.get("openObject", SampleValue.class, value -> mappedValue));
+        assertEquals(mappedValue, metadata.get("invalidObject", SampleValue.class, value -> mappedValue));
+        assertEquals(mappedValue, metadata.get("invalidArray", SampleValue.class, value -> mappedValue));
+        assertEquals(mappedValue, metadata.get("trailingObject", SampleValue.class, value -> mappedValue));
+        assertNull(metadata.get("null", SampleValue.class, value -> mappedValue));
+        assertNull(metadata.get("missing", SampleValue.class, value -> mappedValue));
+    }
+
+    @Test
+    void propagatesMappingFailureForValidJson() {
+        Metadata metadata = Metadata.of("object", "{\"value\":\"not-a-number\"}");
+
+        assertThrows(IllegalStateException.class,
+                     () -> metadata.get("object", NumericValue.class, value -> new NumericValue(1)));
+    }
+
+    private record SampleValue(String value) {
+    }
+
+    private record NumericValue(int value) {
+    }
 
     private enum TestState {
         ACTIVE

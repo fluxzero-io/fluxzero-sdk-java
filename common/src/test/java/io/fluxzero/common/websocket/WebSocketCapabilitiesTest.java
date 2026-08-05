@@ -61,4 +61,12 @@ class WebSocketCapabilitiesTest {
 
         assertEquals(JSON, WebSocketCapabilities.getSelectedTransportFormat(headers).orElseThrow());
     }
+
+    @Test
+    void replacedSessionIdIsParsedCaseInsensitivelyByHeaderName() {
+        Map<String, List<String>> headers = Map.of(
+                WebSocketCapabilities.REPLACES_SESSION_ID_HEADER.toLowerCase(), List.of("old-client_old-runtime"));
+
+        assertEquals("old-client_old-runtime", WebSocketCapabilities.getReplacedSessionId(headers).orElseThrow());
+    }
 }

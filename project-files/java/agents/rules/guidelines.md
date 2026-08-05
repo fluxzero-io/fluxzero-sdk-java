@@ -29,6 +29,13 @@ Prefer model/DDD fidelity over fast breadth. Do not begin with endpoints; begin 
 
 Use this tree to find the correct manual for your current task, ordered by the recommended workflow:
 
+### 0. Running The Project Locally
+
+- **"I need to start, stop, inspect, or configure the local development environment"**
+    - -> [Local Development](development.md)
+- **"I need to create or edit `.fluxzero/dev.yaml`"**
+    - -> Run `fz dev config`, as explained in [Local Development](development.md)
+
 ### 1. Defining the API
 
 - **"I need to define a new Command or Query payload"**
@@ -147,6 +154,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 | [Runtime Interaction](runtime-interaction.md) | Cross-app message flow, delivery semantics, and scaling.     |
 | [Search](search.md)                           | Leveraging the built-in search engine and document store.    |
 | [Testing](testing.md)                         | Writing fast, reliable tests with `TestFixture`.             |
+| [Local Development](development.md)           | Version-aligned CLI and dev-server configuration guidance.   |
 | [Validation](validation.md)                   | Authorization, access control, and payload validation.       |
 | [Serialization](serialization.md)             | Versioning, upcasting, and schema evolution.                 |
 | [Configuration](configuration.md)             | Setting up and tuning your Fluxzero application.             |

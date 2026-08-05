@@ -79,6 +79,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -203,6 +204,20 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void replacementConnectionIdentifiesThePreviousNegotiatedSession() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+
+        AbstractWebsocketClient.ConnectionSetup connectionSetup =
+                AbstractWebsocketClient.createConnectionSetup(clientConfig, "old-client_old-runtime");
+
+        assertEquals("old-client_old-runtime", WebSocketCapabilities.getReplacedSessionId(
+                connectionSetup.options().headers()).orElseThrow());
+    }
+
+    @Test
     void connectionOptionsPublishConfiguredJdkConnectionTimeout() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -313,7 +328,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void sendBatchAbortsSessionWhenTransportSendFails() throws Exception {
+    void sendBatchClosesSessionWhenTransportSendFails() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -336,14 +351,14 @@ class AbstractWebsocketClientTest {
             List<Request> requests = List.of(new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE));
             assertDoesNotThrow(() -> sendBatch.invoke(client, requests, session));
 
-            verify(session).abort(any());
+            verify(session).closeAsync(any());
         } finally {
             client.close();
         }
     }
 
     @Test
-    void sendBatchAbortsSessionWhenTransportSendTimesOut() throws Exception {
+    void sendBatchClosesSessionWhenTransportSendTimesOut() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -366,7 +381,51 @@ class AbstractWebsocketClientTest {
             List<Request> requests = List.of(new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE));
             assertTimeout(Duration.ofSeconds(2), () -> assertDoesNotThrow(() -> sendBatch.invoke(client, requests, session)));
 
-            verify(session).abort(any());
+            verify(session).closeAsync(any());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void abortStartsOrderlyCloseAndDoesNotAbortAfterPeerAcknowledgement() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        CloseObservingClient client = new CloseObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mockSession("client123_runtime456");
+        CompletableFuture<Void> closeHandshake = new CompletableFuture<>();
+        when(session.closeAsync(any())).thenReturn(closeHandshake);
+
+        try {
+            client.abortForTest(session, "Ping failed");
+
+            verify(session).closeAsync(any());
+            verify(session, never()).abort(any());
+            closeHandshake.complete(null);
+            Thread.sleep(150);
+            verify(session, never()).abort(any());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void abortFallsBackToTransportAbortWhenPeerDoesNotAcknowledgeClose() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        CloseObservingClient client = new CloseObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.closeAsync(any())).thenReturn(new CompletableFuture<>());
+
+        try {
+            client.abortForTest(session, "Ping failed");
+
+            verify(session).closeAsync(any());
+            verify(session, timeout(1000)).abort(any());
         } finally {
             client.close();
         }
@@ -855,6 +914,21 @@ class AbstractWebsocketClientTest {
 
         void publishTestMetric(Append append) {
             tryPublishMetrics(append, Metadata.empty());
+        }
+    }
+
+    private static class CloseObservingClient extends TestClient {
+        CloseObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        void abortForTest(WebsocketSession session, String reason) {
+            abort(session, reason);
+        }
+
+        @Override
+        protected Duration getCloseHandshakeTimeout() {
+            return Duration.ofMillis(100);
         }
     }
 

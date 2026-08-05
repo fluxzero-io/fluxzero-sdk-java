@@ -2134,6 +2134,7 @@ class ProxyServerTest {
                                      resp.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
                         assertEquals("true",
                                      resp.headers().firstValue("Access-Control-Allow-Credentials").orElse(null));
+                        assertEquals("Origin", resp.headers().firstValue("Vary").orElse(null));
                         assertEquals("ok", resp.body());
                     });
         }
@@ -2188,7 +2189,7 @@ class ProxyServerTest {
         }
 
         @Test
-        void proxyCorsHeadersOverrideDifferentApplicationCorsHeaders() {
+        void applicationCorsHeadersTakePrecedenceOverProxyPolicy() {
             testFixture.registerHandlers(new Object() {
                 @HandleGet("/different-application-cors")
                 WebResponse response() {
@@ -2208,11 +2209,66 @@ class ProxyServerTest {
                     .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
                     .verifyResult(resp -> {
                         assertEquals(200, resp.statusCode());
+                        assertEquals(List.of("https://application.example.com"),
+                                     resp.headers().allValues("Access-Control-Allow-Origin"));
+                        assertEquals(List.of("false"),
+                                     resp.headers().allValues("Access-Control-Allow-Credentials"));
+                        assertEquals("ok", resp.body());
+                    });
+        }
+
+        @Test
+        void proxyOwnsCorsPolicyWhenApplicationDoesNotSetAllowedOrigin() {
+            testFixture.registerHandlers(new Object() {
+                @HandleGet("/partial-application-cors")
+                WebResponse response() {
+                    return WebResponse.builder()
+                            .header("Access-Control-Expose-Headers", "X-Trace-Id")
+                            .header("Access-Control-Allow-Credentials", "false")
+                            .payload("ok")
+                            .build();
+                }
+            });
+
+            var request = newRequest("/partial-application-cors")
+                    .GET()
+                    .header("Origin", "https://app.example.com")
+                    .build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(200, resp.statusCode());
+                        assertEquals(List.of("X-Trace-Id"),
+                                     resp.headers().allValues("Access-Control-Expose-Headers"));
                         assertEquals(List.of("https://app.example.com"),
                                      resp.headers().allValues("Access-Control-Allow-Origin"));
                         assertEquals(List.of("true"),
                                      resp.headers().allValues("Access-Control-Allow-Credentials"));
+                        assertEquals("Origin", resp.headers().firstValue("Vary").orElse(null));
                         assertEquals("ok", resp.body());
+                    });
+        }
+
+        @Test
+        void proxyCorsPolicyPreservesExistingVaryHeaders() {
+            testFixture.registerHandlers(new Object() {
+                @HandleGet("/vary")
+                WebResponse response() {
+                    return WebResponse.builder()
+                            .header("Vary", "Accept-Encoding")
+                            .payload("ok")
+                            .build();
+                }
+            });
+
+            var request = newRequest("/vary").GET().header("Origin", "https://app.example.com").build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(200, resp.statusCode());
+                        assertEquals("Accept-Encoding, Origin", resp.headers().firstValue("Vary").orElse(null));
+                        assertEquals("https://app.example.com",
+                                     resp.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
                     });
         }
 

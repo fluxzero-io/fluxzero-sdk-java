@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -28,8 +29,9 @@ import java.util.stream.IntStream;
  * A thread-safe pool of reusable {@link WebsocketSession} objects, supporting concurrent access and routing.
  * <p>
  * This class provides a mechanism to manage multiple active WebSocket sessions, either round-robin or keyed by a
- * {@code routingKey}. It lazily initializes sessions on demand using a configurable {@link Supplier}, ensuring that
- * each session slot is kept active unless the pool is shutting down or explicitly closed.
+ * {@code routingKey}. It lazily initializes sessions on demand using a configurable factory, ensuring that each
+ * session slot is kept active unless the pool is shutting down or explicitly closed. A replacement-aware factory
+ * receives the previous closed session so a new handshake can identify which server-side session it supersedes.
  * <p>
  * The session pool is particularly useful in high-throughput scenarios, where multiple sessions are used to distribute
  * load, improve parallelism, or isolate message streams.
@@ -57,10 +59,20 @@ public class SessionPool implements AutoCloseable {
     private final Object[] sessionLocks;
     private final int size;
     private final AtomicInteger counter = new AtomicInteger();
-    private final Supplier<WebsocketSession> sessionFactory;
+    private final Function<WebsocketSession, WebsocketSession> sessionFactory;
     private final AtomicBoolean shuttingDown = new AtomicBoolean();
 
     public SessionPool(int size, Supplier<WebsocketSession> sessionFactory) {
+        this(size, previousSession -> sessionFactory.get());
+    }
+
+    /**
+     * Creates a session pool whose factory receives the previous closed session when replacing a slot.
+     *
+     * @param size number of independently routed session slots
+     * @param sessionFactory factory receiving {@code null} initially and the previous session on replacement
+     */
+    SessionPool(int size, Function<WebsocketSession, WebsocketSession> sessionFactory) {
         if (size < 1) {
             throw new IllegalArgumentException("Session pool size must be at least 1");
         }
@@ -95,7 +107,7 @@ public class SessionPool implements AutoCloseable {
                 if (shuttingDown.get()) {
                     throw new ClientClosedException();
                 }
-                s = sessionFactory.get();
+                s = sessionFactory.apply(s);
             }
             sessionMap.put(index, s);
             return s;

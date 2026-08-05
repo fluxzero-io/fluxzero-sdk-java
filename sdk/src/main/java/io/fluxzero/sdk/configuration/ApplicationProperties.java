@@ -128,6 +128,14 @@ public class ApplicationProperties {
      *         <td>Handlers without an explicit consumer share one generated consumer per exact handler package and
      *         message type. Explicit class/package consumers and custom configurations remain more specific.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.08.04}</td>
+     *         <td>{@code fluxzero.auth.useUserIdMetadata = true}</td>
+     *         <td>{@link io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider} writes {@code $system}
+     *         for the system user and {@link java.security.Principal#getName()} for regular users. It resolves
+     *         {@code $system} to the system user and other values through {@code getUserById}. Existing applications can
+     *         keep serialized user objects with {@code fluxzero.auth.useUserIdMetadata = false}.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with

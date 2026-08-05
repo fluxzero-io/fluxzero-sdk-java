@@ -39,6 +39,7 @@ public final class WebSocketCapabilities {
     public static final String SELECTED_TRANSPORT_FORMAT_HEADER =
             "Fluxzero-Selected-Transport-Format";
     public static final String CLIENT_SESSION_ID_HEADER = "Fluxzero-Client-Session-Id";
+    public static final String REPLACES_SESSION_ID_HEADER = "Fluxzero-Replaces-Session-Id";
     public static final String CLIENT_SDK_VERSION_HEADER = "Fluxzero-Client-Sdk-Version";
     public static final String RUNTIME_SESSION_ID_HEADER = "Fluxzero-Runtime-Session-Id";
     public static final String RUNTIME_VERSION_HEADER = "Fluxzero-Runtime-Version";
@@ -143,6 +144,10 @@ public final class WebSocketCapabilities {
 
     public static Optional<String> getClientSessionId(Map<String, List<String>> headers) {
         return getHeaderValue(headers, CLIENT_SESSION_ID_HEADER);
+    }
+
+    public static Optional<String> getReplacedSessionId(Map<String, List<String>> headers) {
+        return getHeaderValue(headers, REPLACES_SESSION_ID_HEADER);
     }
 
     public static Optional<String> getClientSdkVersion(Map<String, List<String>> headers) {

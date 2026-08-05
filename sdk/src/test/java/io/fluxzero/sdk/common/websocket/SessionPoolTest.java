@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -93,6 +94,25 @@ class SessionPoolTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void replacementFactoryReceivesTheClosedSession() {
+        WebsocketSession first = mock(WebsocketSession.class);
+        when(first.isOpen()).thenReturn(true, false, false);
+        WebsocketSession replacement = openSession();
+        AtomicReference<WebsocketSession> replacedSession = new AtomicReference<>();
+        SessionPool sessionPool = new SessionPool(1, previousSession -> {
+            if (previousSession == null) {
+                return first;
+            }
+            replacedSession.set(previousSession);
+            return replacement;
+        });
+
+        assertSame(first, sessionPool.get());
+        assertSame(replacement, sessionPool.get());
+        assertSame(first, replacedSession.get());
     }
 
     @Test

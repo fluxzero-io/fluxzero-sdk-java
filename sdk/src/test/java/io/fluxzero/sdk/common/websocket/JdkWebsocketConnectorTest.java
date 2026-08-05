@@ -436,6 +436,30 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
+    void asynchronousCloseWaitsForPeerAfterLogicallyClosingSession() throws Exception {
+        try (TestWebSocketServer server = TestWebSocketServer.start()) {
+            JdkWebsocketConnector connector = new JdkWebsocketConnector();
+            RecordingEndpoint endpoint = new RecordingEndpoint();
+            WebsocketSession session = connector.connect(endpoint, null, server.uri());
+            WebsocketCloseReason closeReason =
+                    new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "Ping failed");
+
+            CompletableFuture<Void> closeHandshake = session.closeAsync(closeReason);
+
+            assertFalse(session.isOpen());
+            assertTrue(session.getOpenSessions().isEmpty());
+            assertTrue(endpoint.awaitClose());
+            assertFalse(closeHandshake.isDone());
+            assertFrame(new Frame(0x8, closePayload(closeReason.code(), closeReason.reason())), server.readFrame());
+
+            server.sendFrame(true, 0x8, closePayload(closeReason.code(), closeReason.reason()));
+
+            closeHandshake.get(5, TimeUnit.SECONDS);
+            assertEquals(1, endpoint.closeCount.get());
+        }
+    }
+
+    @Test
     void abortRemovesOpenSessionAndNotifiesEndpointOnce() throws Exception {
         try (TestWebSocketServer server = TestWebSocketServer.start()) {
             JdkWebsocketConnector connector = new JdkWebsocketConnector();
