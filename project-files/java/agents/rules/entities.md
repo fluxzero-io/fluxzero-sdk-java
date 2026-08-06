@@ -264,6 +264,12 @@ children, descendants, history or staged updates. Resolving the graph itself cos
 injection; relationships are fetched only when traversed. Every child is itself a graph, so `parent()`, `root()`,
 `previous()`, `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)` remain available at every placement.
 
+Use `optional()`, `map(...)`, `mapIfPresent(...)` or `filterPresent()` for wrapper/value handling that must not load
+relationships. `stream()` walks every placement lazily in deterministic order; `find(idOrAlias)` and
+`find(idOrAlias, ModelType.class)` search primary IDs and `@Alias` values without hard-coding paths. For event-driven
+before/after logic, use `previous()`, `hasChanged(selector)`, `previousValue(selector)` or `revisions()`. These APIs keep
+`Entity<T>` as a persistence/legacy-aggregate detail rather than a normal handler parameter.
+
 Returning a `Graph<T>` from a handler serializes the current model plus all explicitly named relationship paths.
 Pathless relations remain queryable through the typed graph API but are intentionally absent from that JSON shape.
 

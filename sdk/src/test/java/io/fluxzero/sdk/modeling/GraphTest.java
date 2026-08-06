@@ -22,7 +22,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.sdk.modeling.ModelTargetResolver.Access.READ_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -77,6 +80,63 @@ class GraphTest {
     }
 
     @Test
+    void optionalAndRevisionConveniencesDoNotMaterializeRelationships() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root value = new Root(new RootId("convenience"), "current");
+        Root previousValue = new Root(value.id(), "previous");
+        Entity<Root> current = entity(value.id().toString(), Root.class, value);
+        Entity<Root> previous = entity(previousValue.id().toString(), Root.class, previousValue);
+        when(current.previous()).thenReturn(previous);
+        when(current.lastEventIndex()).thenReturn(null);
+        when(previous.lastEventIndex()).thenReturn(91L);
+
+        Graph<Root> graph = Graphs.lazy(current, 42L, repository);
+
+        assertEquals(Optional.of(value), graph.optional());
+        assertEquals(Optional.of(graph), graph.mapGraph(currentGraph -> currentGraph));
+        assertEquals(Optional.of(graph), graph.filterGraph(currentGraph -> currentGraph.type() == Root.class));
+        assertEquals(Optional.of(graph), graph.filterPresent());
+        assertEquals(Optional.of("current"), graph.mapIfPresent(currentGraph -> currentGraph.get().name()));
+        assertEquals(Optional.of("current"), graph.map(Root::name));
+        assertSame(value, graph.orElse(new Root(new RootId("fallback"), "fallback")));
+        assertSame(value, graph.orElseGet(() -> new Root(new RootId("fallback"), "fallback")));
+        assertSame(value, graph.orElseThrow());
+        assertSame(graph, graph.ifPresent(currentGraph -> currentGraph));
+        assertEquals(91L, graph.highestEventIndex());
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void emptyGraphConveniencesPreserveWrapperSemanticsWithoutLoadingRelationships() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Entity<Root> missing = entity("graph-root-missing", Root.class, null);
+        Graph<Root> graph = Graphs.lazy(missing, 42L, repository);
+        Root fallback = new Root(new RootId("fallback"), "fallback");
+        AtomicBoolean invoked = new AtomicBoolean();
+
+        assertEquals(Optional.empty(), graph.optional());
+        assertEquals(Optional.of(graph), graph.mapGraph(currentGraph -> currentGraph));
+        assertEquals(Optional.of(graph), graph.filterGraph(currentGraph -> currentGraph.isEmpty()));
+        assertEquals(Optional.empty(), graph.filterPresent());
+        assertEquals(Optional.empty(), graph.mapIfPresent(currentGraph -> {
+            invoked.set(true);
+            return currentGraph;
+        }));
+        assertEquals(Optional.empty(), graph.map(Root::name));
+        assertSame(fallback, graph.orElse(fallback));
+        assertSame(fallback, graph.orElseGet(() -> fallback));
+        assertThrows(NoSuchElementException.class, graph::orElseThrow);
+        assertThrows(IllegalStateException.class,
+                     () -> graph.orElseThrow(() -> new IllegalStateException("missing")));
+        assertSame(graph, graph.ifPresent(currentGraph -> {
+            invoked.set(true);
+            return currentGraph;
+        }));
+        assertFalse(invoked.get());
+        verifyNoInteractions(repository);
+    }
+
+    @Test
     void relationshipNavigationMaterializesOnceAndRemainsTyped() {
         ModelRepository repository = mock(ModelRepository.class);
         Root rootValue = new Root(new RootId("root"), "root");
@@ -99,9 +159,46 @@ class GraphTest {
         verifyNoInteractions(repository);
         assertEquals(List.of(childValue), graph.childModels("children", Child.class));
         assertEquals(List.of(childValue), graph.childModels("children", Child.class));
-        assertSame(graph.children("children", Child.class).getFirst().root().get(), graph.get());
+        Graph<Child> childGraph = graph.children("children", Child.class).getFirst();
+        assertTrue(graph.isRoot());
+        assertFalse(childGraph.isRoot());
+        assertEquals(Optional.of(rootValue), childGraph.parentModel(Root.class));
+        assertEquals(Optional.of(rootValue), childGraph.ancestorModel(Root.class));
+        assertSame(childGraph.root().get(), graph.get());
         verify(repository).loadGraph(
                 rootValue.id().toString(), Root.class, Graph.Options.DEFAULT);
+    }
+
+    @Test
+    void genericTraversalAndLookupMaterializeOnceAndPreferPrimaryIdentity() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("lookup"), "root");
+        Child childValue = new Child(new ChildId("primary"), rootValue.id(), "child");
+        Entity<Root> root = entity(rootValue.id().toString(), Root.class, rootValue, List.of("shared"));
+        Entity<Child> child = entity(childValue.id().toString(), Child.class, childValue,
+                                     List.of("shared", "child-alias"));
+        Graph<Root> complete = Graphs.compose(
+                rootValue.id().toString(), 7L,
+                Map.of(rootValue.id().toString(), root, childValue.id().toString(), child),
+                List.of(new ModelGraphEdge(
+                        childValue.id().toString(), rootValue.id().toString(),
+                        Root.class.getName(), "children", 0L, null)),
+                repository, false);
+        when(repository.loadGraph(rootValue.id().toString(), Root.class, Graph.Options.DEFAULT))
+                .thenReturn(complete);
+        Graph<Root> graph = Graphs.lazy(root, 7L, repository);
+
+        graph.stream();
+        assertEquals(rootValue, graph.find(candidate -> candidate == graph).orElseThrow().get());
+        verifyNoInteractions(repository);
+        assertEquals(List.of(rootValue, childValue), graph.stream().map(Graph::get).toList());
+        assertEquals(rootValue, graph.find("shared").orElseThrow().get());
+        assertEquals(childValue, graph.find("child-alias").orElseThrow().get());
+        assertEquals(childValue, graph.find(childValue.id().toString()).orElseThrow().get());
+        assertEquals(rootValue, graph.find("lookup", Root.class).orElseThrow().get());
+        assertEquals(childValue, graph.find("primary", Child.class).orElseThrow().get());
+        assertEquals(childValue, graph.find(candidate -> candidate.type() == Child.class).orElseThrow().get());
+        verify(repository).loadGraph(rootValue.id().toString(), Root.class, Graph.Options.DEFAULT);
     }
 
     @Test
@@ -242,6 +339,7 @@ class GraphTest {
 
         assertEquals(rootValue, graph.ancestor(Root.class).orElseThrow().get());
         assertEquals(otherValue, graph.ancestor(OtherRoot.class).orElseThrow().get());
+        assertEquals(List.of(rootValue, otherValue), graph.parents().stream().map(Graph::get).toList());
         assertThrows(IllegalStateException.class, graph::parent);
         verifyNoInteractions(repository);
     }
@@ -262,10 +360,16 @@ class GraphTest {
 
     @SuppressWarnings("unchecked")
     private static <T> Entity<T> entity(Object id, Class<T> type, T value) {
+        return entity(id, type, value, List.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Entity<T> entity(Object id, Class<T> type, T value, List<?> aliases) {
         Entity<T> entity = mock(Entity.class);
         when(entity.id()).thenReturn(id);
         when(entity.type()).thenReturn(type);
         when(entity.get()).thenReturn(value);
+        doReturn(aliases).when(entity).aliases();
         return entity;
     }
 

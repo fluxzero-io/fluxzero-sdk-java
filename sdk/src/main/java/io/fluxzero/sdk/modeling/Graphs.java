@@ -297,6 +297,11 @@ public final class Graphs {
         }
 
         @Override
+        public Collection<?> aliases() {
+            return entity().aliases();
+        }
+
+        @Override
         public String relationshipPath() {
             return placement.path;
         }
@@ -350,6 +355,11 @@ public final class Graphs {
                                 .formatted(placement.modelId));
             }
             return parents.stream().findFirst();
+        }
+
+        @Override
+        public List<Graph<?>> parents() {
+            return allDirectParents();
         }
 
         @Override
@@ -884,6 +894,7 @@ public final class Graphs {
 
         @Override public Object id() { return delegate.id(); }
         @Override public Class<T> type() { return delegate.type(); }
+        @Override public Collection<?> aliases() { return delegate.aliases(); }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
@@ -893,6 +904,9 @@ public final class Graphs {
         @Override public Graph<?> root() { return context.view(delegate.root()); }
         @Override public Optional<Graph<?>> parent() {
             return delegate.parent().map(context::view).map(graph -> (Graph<?>) graph);
+        }
+        @Override public List<Graph<?>> parents() {
+            return delegate.parents().stream().<Graph<?>>map(context::view).toList();
         }
         @Override public <P> Optional<Graph<P>> parent(Class<P> parentType) {
             return delegate.parent(parentType).map(context::view);

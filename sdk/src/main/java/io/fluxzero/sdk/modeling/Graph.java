@@ -24,14 +24,22 @@ import io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer;
 import jakarta.annotation.Nullable;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
 
@@ -62,11 +70,75 @@ public interface Graph<T> {
         return get() == null;
     }
 
+    /** Returns the current model value as an optional without loading relationship context. */
+    default Optional<T> optional() {
+        return Optional.ofNullable(get());
+    }
+
+    /** Maps this graph itself without loading relationship context. */
+    default <R> Optional<R> mapGraph(Function<? super Graph<T>, ? extends R> mapper) {
+        Objects.requireNonNull(mapper, "mapper");
+        return Optional.ofNullable(mapper.apply(this));
+    }
+
+    /** Returns this graph when it matches the supplied condition. */
+    default Optional<Graph<T>> filterGraph(Predicate<? super Graph<T>> predicate) {
+        Objects.requireNonNull(predicate, "predicate");
+        return Optional.of(this).filter(predicate);
+    }
+
+    /** Returns this graph only when its current model value is present. */
+    default Optional<Graph<T>> filterPresent() {
+        return isPresent() ? Optional.of(this) : Optional.empty();
+    }
+
+    /** Maps this graph only when its current model value is present. */
+    default <R> Optional<R> mapIfPresent(Function<? super Graph<T>, ? extends R> mapper) {
+        Objects.requireNonNull(mapper, "mapper");
+        return isPresent() ? Optional.ofNullable(mapper.apply(this)) : Optional.empty();
+    }
+
+    /** Maps the current model value when present without loading relationship context. */
+    default <R> Optional<R> map(Function<? super T, ? extends R> mapper) {
+        return optional().map(mapper);
+    }
+
+    /** Returns the current model value or the supplied fallback. */
+    default T orElse(T fallback) {
+        return optional().orElse(fallback);
+    }
+
+    /** Returns the current model value or obtains a fallback lazily. */
+    default T orElseGet(Supplier<? extends T> fallback) {
+        return optional().orElseGet(fallback);
+    }
+
+    /** Returns the current model value or throws when this graph is empty. */
+    default T orElseThrow() {
+        return optional().orElseThrow();
+    }
+
+    /** Returns the current model value or throws the supplied exception when this graph is empty. */
+    default <X extends Throwable> T orElseThrow(Supplier<? extends X> exceptionSupplier) throws X {
+        return optional().orElseThrow(exceptionSupplier);
+    }
+
+    /** Applies a graph operation only when a current model value is present. */
+    default Graph<T> ifPresent(UnaryOperator<Graph<T>> operation) {
+        Objects.requireNonNull(operation, "operation");
+        return isPresent() ? operation.apply(this) : this;
+    }
+
     /** Returns the functional identifier object carried by the model wrapper. */
     Object id();
 
     /** Returns the concrete model type. */
     Class<T> type();
+
+    /** Returns the model aliases without loading relationship context. */
+    default Collection<?> aliases() {
+        return List.of();
+    }
 
     /** Returns the parent-relative relationship path, or {@code null} for a pathless, standalone, or root view. */
     @Nullable
@@ -92,14 +164,37 @@ public interface Graph<T> {
     /** Returns the outer graph root. On a root graph this returns {@code this}. */
     Graph<?> root();
 
+    /** Returns whether this graph is the outer root of its current graph view. */
+    default boolean isRoot() {
+        return root() == this;
+    }
+
     /** Returns the parent of this concrete graph placement, if one exists. */
     Optional<Graph<?>> parent();
+
+    /**
+     * Returns all direct parents of this model. A concrete placement normally has one parent, while a directly loaded
+     * model may expose multiple declared {@link ParentId} relationships.
+     */
+    default List<Graph<?>> parents() {
+        return parent().stream().toList();
+    }
 
     /** Returns the closest parent assignable to the requested type. */
     <P> Optional<Graph<P>> parent(Class<P> parentType);
 
+    /** Returns the value of the closest parent assignable to the requested type. */
+    default <P> Optional<P> parentModel(Class<P> parentType) {
+        return parent(parentType).map(Graph::get);
+    }
+
     /** Returns the closest ancestor, including the current graph, assignable to the requested type. */
     <A> Optional<Graph<A>> ancestor(Class<A> ancestorType);
+
+    /** Returns the value of the closest ancestor, including the current model, assignable to the requested type. */
+    default <A> Optional<A> ancestorModel(Class<A> ancestorType) {
+        return ancestor(ancestorType).map(Graph::get);
+    }
 
     /** Returns all direct children in deterministic relationship-path order. */
     List<Graph<?>> children();
@@ -136,6 +231,114 @@ public interface Graph<T> {
         return descendants(path, descendantType).stream().map(Graph::get).filter(Objects::nonNull).toList();
     }
 
+    /**
+     * Lazily traverses this graph in deterministic pre-order, including this graph itself. Relationship context is
+     * loaded only when the returned stream is consumed.
+     */
+    default Stream<Graph<?>> stream() {
+        Iterator<Graph<?>> iterator = new Iterator<>() {
+            private final Deque<Iterator<Graph<?>>> remaining = new ArrayDeque<>();
+            private Graph<?> next = Graph.this;
+            private Graph<?> expandAfterReturn;
+
+            @Override
+            public boolean hasNext() {
+                if (next != null) {
+                    return true;
+                }
+                if (expandAfterReturn != null) {
+                    remaining.addLast(expandAfterReturn.children().iterator());
+                    expandAfterReturn = null;
+                }
+                while (!remaining.isEmpty()) {
+                    Iterator<Graph<?>> siblings = remaining.peekLast();
+                    if (siblings.hasNext()) {
+                        next = siblings.next();
+                        return true;
+                    }
+                    remaining.removeLast();
+                }
+                return false;
+            }
+
+            @Override
+            public Graph<?> next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                Graph<?> result = next;
+                next = null;
+                expandAfterReturn = result;
+                return result;
+            }
+        };
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED | Spliterator.NONNULL), false);
+    }
+
+    /** Finds the first graph in deterministic graph order matching the supplied condition. */
+    default Optional<Graph<?>> find(Predicate<? super Graph<?>> predicate) {
+        Objects.requireNonNull(predicate, "predicate");
+        return stream().filter(predicate).findFirst();
+    }
+
+    /**
+     * Finds a graph by exact persisted identity or alias. Exact identities take precedence over aliases throughout
+     * the complete graph, even when an earlier graph owns a colliding alias.
+     */
+    default Optional<Graph<?>> find(Object idOrAlias) {
+        if (idOrAlias == null) {
+            return Optional.empty();
+        }
+        String requested = idOrAlias.toString();
+        Graph<?> aliasMatch = null;
+        var iterator = stream().iterator();
+        while (iterator.hasNext()) {
+            Graph<?> candidate = iterator.next();
+            if (candidate.id() != null && requested.equals(candidate.id().toString())) {
+                return Optional.of(candidate);
+            }
+            if (aliasMatch == null && matchesAlias(candidate, requested)) {
+                aliasMatch = candidate;
+            }
+        }
+        return Optional.ofNullable(aliasMatch);
+    }
+
+    /**
+     * Finds a graph by functional identity or alias and expected model type. The expected type applies the same
+     * {@link EntityId} and nested {@link Id} affixes as a typed model load.
+     */
+    default <M> Optional<Graph<M>> find(Object idOrAlias, Class<M> modelType) {
+        if (idOrAlias == null) {
+            return Optional.empty();
+        }
+        Objects.requireNonNull(modelType, "modelType");
+        String requested = idOrAlias.toString();
+        String repositoryId = ModelMetadata.of(modelType).repositoryId(idOrAlias);
+        Graph<M> aliasMatch = null;
+        var iterator = stream().iterator();
+        while (iterator.hasNext()) {
+            Graph<?> candidate = iterator.next();
+            if (!modelType.isAssignableFrom(candidate.type())) {
+                continue;
+            }
+            @SuppressWarnings("unchecked") Graph<M> typed = (Graph<M>) candidate;
+            if (candidate.id() != null && repositoryId.equals(candidate.id().toString())) {
+                return Optional.of(typed);
+            }
+            if (aliasMatch == null && matchesAlias(candidate, requested)) {
+                aliasMatch = typed;
+            }
+        }
+        return Optional.ofNullable(aliasMatch);
+    }
+
+    private static boolean matchesAlias(Graph<?> graph, String requested) {
+        return graph.aliases().stream().filter(Objects::nonNull)
+                .map(Object::toString).anyMatch(requested::equals);
+    }
+
     /** Applies one update to this graph's current model and returns the staged resulting graph. */
     Graph<T> apply(Object update);
 
@@ -169,6 +372,21 @@ public interface Graph<T> {
     /** Verifies and applies the supplied update with explicit metadata. */
     Graph<T> assertAndApply(Object update, Metadata metadata);
 
+    /** Verifies and applies the supplied updates in order. */
+    default Graph<T> assertAndApply(Object... updates) {
+        return assertAndApply(List.of(updates));
+    }
+
+    /** Verifies and applies the supplied updates in order. */
+    default Graph<T> assertAndApply(Collection<?> updates) {
+        Objects.requireNonNull(updates, "updates");
+        Graph<T> result = this;
+        for (Object update : updates) {
+            result = result.assertAndApply(update);
+        }
+        return result;
+    }
+
     /**
      * Returns the preceding model revision as a lazy graph, or {@code null} when none is retained.
      * Surrounding models and relationships are resolved immediately before the current revision became effective.
@@ -181,6 +399,19 @@ public interface Graph<T> {
     /** Returns current and retained preceding revisions, newest first. */
     default Stream<Graph<T>> revisions() {
         return Stream.iterate(this, Objects::nonNull, Graph::previous);
+    }
+
+    /** Returns the newest event index retained by this graph's revision history. */
+    @Nullable
+    default Long highestEventIndex() {
+        Graph<T> revision = this;
+        while (revision != null) {
+            if (revision.lastEventIndex() != null) {
+                return revision.lastEventIndex();
+            }
+            revision = revision.previous();
+        }
+        return null;
     }
 
     /** Returns the same model graph reconstructed at the requested durable state boundary. */

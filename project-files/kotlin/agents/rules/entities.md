@@ -237,6 +237,12 @@ descendants, history or staged updates. Resolving the graph itself costs the sam
 relationships are fetched only when traversed. Every child remains a graph with `parent()`, `root()`, `previous()`,
 `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)`.
 
+Use `optional()`, `map(...)`, `mapIfPresent(...)` or `filterPresent()` for wrapper/value handling without relationship
+loads. `stream()` walks every placement lazily in deterministic order; `find(idOrAlias)` and
+`find(idOrAlias, ModelType::class.java)` search primary IDs and `@Alias` values without hard-coded paths. For
+event-driven before/after logic, use `previous()`, `hasChanged(selector)`, `previousValue(selector)` or `revisions()`.
+Normal application handlers therefore need `T` or `Graph<T>`, not the persistence-oriented `Entity<T>` wrapper.
+
 Returning a `Graph<T>` from a handler serializes the current model plus all explicitly named relationship paths.
 Pathless relations remain queryable through the typed graph API but are absent from that JSON shape.
 
