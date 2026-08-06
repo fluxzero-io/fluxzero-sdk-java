@@ -101,6 +101,7 @@ import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
 import io.fluxzero.sdk.tracking.handling.MetadataParameterResolver;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import io.fluxzero.sdk.tracking.handling.RepositoryProvider;
+import io.fluxzero.sdk.tracking.handling.RequestGraphResponseInterceptor;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.TimestampParameterResolver;
 import io.fluxzero.sdk.tracking.handling.TriggerParameterResolver;
@@ -911,6 +912,13 @@ public class DefaultFluxzero implements Fluxzero {
                 ContentFilterInterceptor interceptor = new ContentFilterInterceptor(serializer);
                 EnumSet.allOf(MessageType.class).stream().filter(MessageType::isRequest).forEach(
                         type -> handlerChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor)));
+            }
+
+            // Convert typed Graph handler results only after graph-aware content filtering.
+            {
+                RequestGraphResponseInterceptor interceptor = new RequestGraphResponseInterceptor(serializer);
+                EnumSet.allOf(MessageType.class).stream().filter(MessageType::isRequest).forEach(
+                        type -> handlerChains.computeIfPresent(type, (t, i) -> interceptor.andThen(i)));
             }
 
             //enable message correlation
