@@ -2,6 +2,11 @@
 
 Date: 2026-07-28
 
+> Follow-up (2026-08-07): graph search now returns typed lazy `Graph<Root>` values by default. The raw `ObjectNode`
+> representation described in this checkpoint remains explicitly available through `fetchJsonGraphs(...)`; constraints
+> and route selection are unchanged. Materialized and live graph documents carry a hidden versioned placement manifest
+> so types and DAG placements are reconstructed without path-based guessing.
+
 ## Outcome
 
 The provisional `Search.includeModelGraph()` modifier is replaced by the explicit

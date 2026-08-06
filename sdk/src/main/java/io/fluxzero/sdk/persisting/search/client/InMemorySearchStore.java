@@ -47,6 +47,7 @@ import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.common.search.ModelGraphDocumentSearch;
 import io.fluxzero.common.search.ModelGraphDocumentStitcher;
+import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -102,6 +103,7 @@ public class InMemorySearchStore implements SearchClient {
     private final Map<String, SerializedDocument> documents = new ConcurrentHashMap<>();
     private final Map<String, Long> modelDocumentStateIndices =
             new ConcurrentHashMap<>();
+    private volatile long modelStateIndex = -1L;
     private final Map<String, Long>
             modelGraphProjectionStateIndices =
             new ConcurrentHashMap<>();
@@ -357,7 +359,8 @@ public class InMemorySearchStore implements SearchClient {
                         ModelGraphDocumentStitcher.stitch(
                                 roots, edges,
                                 graphDocuments,
-                                request.getComposition()),
+                                request.getComposition(),
+                                modelStateIndex),
                         graphSearch)
                 .stream().map(
                 SearchHit::fromDocument);
@@ -572,6 +575,8 @@ public class InMemorySearchStore implements SearchClient {
                             .getTargets();
             ModelCommitStepResult assigned =
                     assignedSubsteps.get(substep);
+            modelStateIndex = Math.max(
+                    modelStateIndex, assigned.getStateIndex());
             for (int targetIndex = 0;
                  targetIndex < targets.size();
                  targetIndex++) {
@@ -781,7 +786,8 @@ public class InMemorySearchStore implements SearchClient {
                                     edges,
                                     graphDocuments,
                                     configuration
-                                            .getComposition())
+                                            .getComposition(),
+                                    stateIndex)
                             .getFirst()
                             .withCollection(
                                     configuration
@@ -892,6 +898,15 @@ public class InMemorySearchStore implements SearchClient {
     protected SerializedMessage asSerializedMessage(SerializedDocument document) {
         long index = nextIndex.updateAndGet(IndexUtils::nextIndex);
         Metadata metadata = Metadata.of("$start", document.getTimestamp(), "$end", document.getEnd());
+        if (ModelGraphDocumentManifest.isGraphDocument(document)) {
+            Object manifest = document.getMetadata().get(
+                    ModelGraphDocumentManifest.METADATA_KEY);
+            if (manifest != null) {
+                metadata = metadata.with(
+                        ModelGraphDocumentManifest.METADATA_KEY,
+                        manifest);
+            }
+        }
         var result = new SerializedMessage(document.getDocument(), metadata, document.getId(),
                                            IndexUtils.millisFromIndex(index));
         result.setIndex(index);

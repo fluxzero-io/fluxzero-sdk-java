@@ -3173,9 +3173,10 @@ public record Address(
 
 Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
-`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` searches a complete
-JSON graph view: it uses a configured materialized projection and otherwise stitches current direct documents live;
-`searchGraph(User.class, true)` forces live stitching. Graph constraints have the same full-document meaning on both
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` returns complete typed,
+lazy `Graph<User>` results: it uses a configured materialized projection and otherwise stitches current direct
+documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetchJsonGraphs(...)` only at a boundary
+that explicitly needs raw `ObjectNode` documents. Graph constraints have the same full-document meaning on both
 routes. `searchable = false` suppresses only the address's own search collection: an explicit
 `@ParentId(path = "...")` still gives graph composition an internal current document.
 
@@ -3221,7 +3222,9 @@ not materialize intermediate parent values. `optional()`,
 without manually enumerating model types or relationship paths. `hasChanged(...)`, `previousValue(...)` and
 `revisions()` cover common before/after and revision use cases. Returning a graph from a handler serializes the model
 tree through explicitly named `@ParentId(path = "...")` edges. Pathless relations remain available for typed traversal
-and lifecycle handling but do not invent a JSON field name.
+and lifecycle handling but do not invent a JSON field name. The serializer emits every known named relationship as an
+array, including a stable empty `[]`. `selectPaths(...)` creates a lazy immutable response view containing only selected
+branches and their ancestors without copying model values.
 
 Logical deletion follows model ownership by default. When a parent is finally deleted, every child relation whose
 `@ParentId` keeps `deleteOnParentDeletion = true` recursively deletes that child, including pathless relations and
@@ -4744,7 +4747,7 @@ You can subscribe to a document collection using any of the following styles:
 
 - `@HandleDocument` — infers the collection from the **first parameter** of the handler method; this is the preferred style when the document is the first parameter
 - `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation when the document type cannot be inferred from the first parameter
-- `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection, including its derived or explicitly configured graph collection
+- `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection and can inject a typed lazy `Graph<MyModel>`, including its derived or explicitly configured graph collection
 - `@HandleDocument("myCollection")` — binds directly to the named collection
 
 ---

@@ -67,6 +67,7 @@ import io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
+import io.fluxzero.sdk.persisting.search.MaterializedGraphParameterResolver;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.client.InMemorySearchStore;
@@ -1017,6 +1018,9 @@ public class DefaultFluxzero implements Fluxzero {
                 Create components
              */
 
+            AtomicReference<ModelRepository> graphRepository =
+                    new AtomicReference<>();
+
             ResultGateway webResponseGateway = new WebResponseGateway(
                     client, serializer, dispatchChains.get(WEBRESPONSE), webResponseMapper);
 
@@ -1039,6 +1043,12 @@ public class DefaultFluxzero implements Fluxzero {
                                               new TimestampParameterResolver(),
                                               new WebPayloadParameterResolver(
                                                       !disablePayloadValidation, userProvider != null),
+                                              new MaterializedGraphParameterResolver(
+                                                      documentSerializer,
+                                                      graphRepository::get,
+                                                      () -> modelCommitHandlerRegistry == null
+                                                              ? List.of()
+                                                              : modelCommitHandlerRegistry.knownModelTypes()),
                                               new PayloadParameterResolver(),
                                               new JsonPayloadParameterResolver(),
                                               new ModelEntityParameterResolver(),
@@ -1088,6 +1098,7 @@ public class DefaultFluxzero implements Fluxzero {
                                     disablePayloadValidation),
                             snapshotSerializer, modelCache,
                             runtimeParameterResolvers);
+            graphRepository.set(commandModelRepository);
             modelCommitHandlerRegistry = new ModelCommitHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),
                     serializer, snapshotSerializer,
@@ -1099,6 +1110,11 @@ public class DefaultFluxzero implements Fluxzero {
                     configuredMaxModelConflictRetries(),
                     configuredAutomaticModelHandling(),
                     configuredGraphProjectionCompletion());
+            if (runtimeDocumentStore instanceof DefaultDocumentStore defaultDocumentStore) {
+                defaultDocumentStore.configureModelGraphSupport(
+                        commandModelRepository,
+                        modelCommitHandlerRegistry::knownModelTypes);
+            }
 
             //create gateways
             RequestHandler defaultRequestHandler = new DefaultRequestHandler(client, RESULT);
@@ -1171,7 +1187,7 @@ public class DefaultFluxzero implements Fluxzero {
                         }
                         if (m == WEBREQUEST) {
                             handlerFactory.withModelGraphTypes(
-                                    modelCommitHandlerRegistry::registeredModelTypes);
+                                    modelCommitHandlerRegistry::knownModelTypes);
                         }
                         return new DefaultTracking(
                                 m,
@@ -1538,7 +1554,7 @@ public class DefaultFluxzero implements Fluxzero {
                     !disableTrackingMetrics, this.serializer);
             if (messageType == WEBREQUEST) {
                 handlerFactory.withModelGraphTypes(
-                        modelCommitHandlerRegistry::registeredModelTypes);
+                        modelCommitHandlerRegistry::knownModelTypes);
             }
             var result = new LocalHandlerRegistry(handlerFactory, dispatchInterceptors.get(messageType));
             if (messageType == EVENT) {

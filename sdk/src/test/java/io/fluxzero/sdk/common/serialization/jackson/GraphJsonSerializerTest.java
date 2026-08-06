@@ -35,6 +35,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +65,35 @@ class GraphJsonSerializerTest {
         assertEquals("root/visible", document.path("children").get(0).path("value").asText());
         assertEquals(0, document.path("children").get(0)
                 .path("details").path("leaves").size());
+    }
+
+    @Test
+    void selectsAnImmutableRelationshipViewWithoutCopyingModels() {
+        Graph<Root> graph = graph();
+
+        Graph<Root> directChildren = graph.selectPaths("children");
+        Graph<Root> completeBranch = graph.selectPaths(
+                "children/details/leaves");
+
+        assertSame(graph.get(), directChildren.get());
+        assertSame(graph.childModels(Child.class).getFirst(),
+                   directChildren.childModels(Child.class).getFirst());
+        assertSame(directChildren,
+                   directChildren.children().getFirst().root());
+        assertSame(directChildren,
+                   directChildren.children().getFirst().parent().orElseThrow());
+
+        JsonNode directDocument = serializer.getObjectMapper()
+                .valueToTree(directChildren);
+        assertEquals(1, directDocument.path("children").size());
+        assertFalse(directDocument.path("children").get(0)
+                            .path("details").has("leaves"));
+
+        JsonNode completeDocument = serializer.getObjectMapper()
+                .valueToTree(completeBranch);
+        assertEquals("leaf", completeDocument.path("children").get(0)
+                .path("details").path("leaves").get(0)
+                .path("value").asText());
     }
 
     @Test

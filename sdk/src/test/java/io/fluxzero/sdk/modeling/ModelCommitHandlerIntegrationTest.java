@@ -25,6 +25,7 @@ import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -52,6 +53,7 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -871,6 +873,11 @@ class ModelCommitHandlerIntegrationTest {
                                 grandchildId, childId,
                                 childId))
                 .whenApplying(fluxzero -> {
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> Fluxzero.searchGraph(FamilyRoot.class)
+                                    .includeOnly("children")
+                                    .fetchGraphs(1));
                     List<com.fasterxml.jackson.databind.node.ObjectNode>
                             graphs =
                             Fluxzero.searchGraph(
@@ -879,7 +886,7 @@ class ModelCommitHandlerIntegrationTest {
                                     "composed", true,
                                     "children/primaryGrandchildren/familyGrandchildId"))
                             .includeOnly("children")
-                            .fetch(1);
+                            .fetchJsonGraphs(1);
                     var document =
                             graphs.getFirst();
                     return List.of(
@@ -964,24 +971,32 @@ class ModelCommitHandlerIntegrationTest {
                                             .isEmpty())
                 .expectTrue(fluxzero ->
                                     {
-                                        List<com.fasterxml.jackson.databind.node.ObjectNode>
-                                                stored =
+                                        List<Graph<ProjectionRoot>> stored =
                                                 Fluxzero.searchGraph(
                                                                 ProjectionRoot.class)
-                                                        .fetch(1);
-                                        List<com.fasterxml.jackson.databind.node.ObjectNode>
-                                                live =
+                                                        .fetchGraphs(1);
+                                        List<Graph<ProjectionRoot>> live =
                                                 Fluxzero.searchGraph(
                                                                 ProjectionRoot.class,
                                                                 true)
-                                                        .fetch(1);
+                                                        .fetchGraphs(1);
                                         return "payload"
                                                        .equals(
                                                                stored.getFirst()
-                                                                       .at("/projectedChildren/0/projectionChildId")
-                                                                       .asText())
-                                               && stored.equals(
-                                                       live);
+                                                                       .childModels(
+                                                                               "projectedChildren",
+                                                                               ProjectionChild.class)
+                                                                       .getFirst()
+                                                                       .projectionChildId()
+                                                                       .getId())
+                                               && "payload".equals(
+                                                       live.getFirst()
+                                                               .childModels(
+                                                                       "projectedChildren",
+                                                                       ProjectionChild.class)
+                                                               .getFirst()
+                                                               .projectionChildId()
+                                                               .getId());
                                     });
     }
 
@@ -989,7 +1004,8 @@ class ModelCommitHandlerIntegrationTest {
     void handleDocumentCanTrackMaterializedModelGraph() {
         ProjectionRootId rootId = new ProjectionRootId("handled");
         ProjectionChildId childId = new ProjectionChildId("handled-child");
-        AtomicReference<ObjectNode> handled = new AtomicReference<>();
+        AtomicReference<Graph<ProjectionRoot>> handled =
+                new AtomicReference<>();
 
         TestFixture.create(
                         DefaultFluxzero.builder()
@@ -997,7 +1013,7 @@ class ModelCommitHandlerIntegrationTest {
                                         GraphProjectionCompletion.AWAIT))
                 .registerHandlers(new Object() {
                     @HandleDocument(modelGraph = ProjectionRoot.class)
-                    void handle(ObjectNode graph) {
+                    void handle(Graph<ProjectionRoot> graph) {
                         handled.set(graph);
                     }
                 })
@@ -1005,7 +1021,80 @@ class ModelCommitHandlerIntegrationTest {
                 .whenCommand(new CreateProjectionChild(childId, rootId))
                 .expectThat(ignored -> assertEquals(
                         "handled-child",
-                        handled.get().at("/projectedChildren/0/projectionChildId").asText()));
+                        handled.get()
+                                .childModels(
+                                        "projectedChildren",
+                                        ProjectionChild.class)
+                                .getFirst()
+                                .projectionChildId().getId()));
+    }
+
+    @Test
+    void typedMaterializedGraphSerializesDeclaredEmptyChildPaths() {
+        ProjectionRootId populatedRoot =
+                new ProjectionRootId("populated");
+        ProjectionRootId emptyRoot =
+                new ProjectionRootId("empty");
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .givenCommands(
+                        new CreateProjectionRoot(populatedRoot),
+                        new CreateProjectionChild(
+                                new ProjectionChildId("known"),
+                                populatedRoot))
+                .whenCommand(new CreateProjectionRoot(emptyRoot))
+                .expectThat(fluxzero -> {
+                    Graph<ProjectionRoot> graph =
+                            Fluxzero.searchGraph(ProjectionRoot.class)
+                                    .fetchAllGraphs().stream()
+                                    .filter(candidate -> emptyRoot.equals(
+                                            candidate.get().projectionRootId()))
+                                    .findFirst().orElseThrow();
+                    Graph<ProjectionRoot> filtered =
+                            fluxzero.serializer().filterContent(graph, null);
+                    ObjectNode document = fluxzero.serializer()
+                            .convert(filtered, ObjectNode.class);
+                    assertEquals(emptyRoot, graph.get().projectionRootId());
+                    assertTrue(graph.childModels(
+                            "projectedChildren",
+                            ProjectionChild.class).isEmpty());
+                    assertEquals(List.of("projectedChildren"),
+                                 graph.childPaths());
+                    assertTrue(document.path("projectedChildren").isArray(),
+                               document::toPrettyString);
+                    assertTrue(document.path("projectedChildren").isEmpty(),
+                               document::toPrettyString);
+                });
+    }
+
+    @Test
+    void filtersMaterializedGraphWithNodeAndRootContext() {
+        ProjectionRootId rootId =
+                new ProjectionRootId("filtered");
+        ProjectionChildId childId =
+                new ProjectionChildId("filtered");
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .givenCommands(new CreateProjectionRoot(rootId))
+                .whenCommand(new CreateProjectionChild(childId, rootId))
+                .expectTrue(fluxzero -> {
+                    Graph<ProjectionRoot> graph = Fluxzero.searchGraph(
+                                    ProjectionRoot.class)
+                            .fetchAllGraphs().getFirst();
+                    Graph<ProjectionRoot> filtered =
+                            fluxzero.serializer().filterContent(graph, null);
+                    return filtered.childModels(
+                                    "projectedChildren",
+                                    ProjectionChild.class)
+                            .stream().map(ProjectionChild::projectionChildId)
+                            .toList().equals(List.of(childId));
+                });
     }
 
     @Test
@@ -2458,6 +2547,16 @@ class ModelCommitHandlerIntegrationTest {
             @EntityId ProjectionChildId projectionChildId,
             @ParentId(path = "children")
             ProjectionRootId projectionRootId) {
+
+        @FilterContent
+        ProjectionChild filter(
+                Graph<ProjectionChild> child,
+                Graph<ProjectionRoot> root) {
+            return child.get() == this
+                   && projectionRootId.equals(
+                           root.get().projectionRootId())
+                    ? this : null;
+        }
     }
 
     private static final class ProjectionChildId

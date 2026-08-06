@@ -76,6 +76,9 @@ public final class GraphJsonSerializer extends JsonSerializer<Graph<?>> {
             }
             childrenByPath.computeIfAbsent(path, ignored -> new ArrayList<>()).add(child);
         }
+        for (String path : graph.childPaths()) {
+            childrenByPath.computeIfAbsent(path, ignored -> new ArrayList<>());
+        }
         for (Map.Entry<String, List<Graph<?>>> entry : childrenByPath.entrySet()) {
             ArrayNode values = object.arrayNode();
             for (Graph<?> child : entry.getValue()) {

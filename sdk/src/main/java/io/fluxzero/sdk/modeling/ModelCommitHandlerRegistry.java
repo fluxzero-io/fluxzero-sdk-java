@@ -139,7 +139,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
     private final EventStoreClient eventStoreClient;
-    private final List<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Class<?>> knownModelTypes = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations =
             new ConcurrentHashMap<>();
@@ -166,6 +167,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
      */
     public List<Class<?>> registeredModelTypes() {
         return List.copyOf(registeredModelTypes);
+    }
+
+    /**
+     * Returns model types that were either registered as handlers or observed as concrete model-commit targets.
+     * Unlike {@link #registeredModelTypes()}, this list is structural metadata and must not be used to discover
+     * handlers.
+     */
+    public List<Class<?>> knownModelTypes() {
+        return List.copyOf(knownModelTypes);
     }
 
     /** Creates the automatic model-commit registry. */
@@ -528,7 +538,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (!ModelMetadata.of(targetType).isModel()) {
             return Registration.noOp();
         }
-        registeredModelTypes.add(targetType);
+        registeredModelTypes.addIfAbsent(targetType);
+        knownModelTypes.addIfAbsent(targetType);
         projectionRoots(targetType).forEach(this::registerGraphProjection);
         clearPlans();
         return () -> {
@@ -2085,6 +2096,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             List<ModelMetadata.HandlerMethod> applies = handlers.stream()
                     .filter(handler -> handler.kind() == ModelMetadata.HandlerKind.APPLY)
                     .toList();
+            applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
+                    .forEach(knownModelTypes::addIfAbsent);
             ModelCommitEngine.DirectSingleTargetApply directApply =
                     handlers.size() == 1 && applies.size() == 1
                             ? ModelCommitEngine.directSingleTargetApply(

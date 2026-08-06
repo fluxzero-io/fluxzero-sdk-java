@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.persisting.search;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.BulkUpdate;
@@ -41,11 +40,14 @@ import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
+import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -62,12 +64,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -76,7 +80,6 @@ import static java.util.function.UnaryOperator.identity;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
-@AllArgsConstructor
 @Slf4j
 public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> implements DocumentStore, HasLocalHandlers {
 
@@ -86,6 +89,38 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     private final DocumentSerializer serializer;
     @Delegate
     private final HasLocalHandlers handlerRegistry;
+    private volatile Supplier<ModelRepository> modelRepositorySupplier = () -> null;
+    private volatile Supplier<List<Class<?>>> modelTypesSupplier = List::of;
+
+    public DefaultDocumentStore(
+            Client client,
+            DocumentSerializer serializer,
+            HasLocalHandlers handlerRegistry) {
+        this.client = client;
+        this.serializer = serializer;
+        this.handlerRegistry = handlerRegistry;
+    }
+
+    private DefaultDocumentStore(
+            Client client,
+            DocumentSerializer serializer,
+            HasLocalHandlers handlerRegistry,
+            Supplier<ModelRepository> modelRepositorySupplier,
+            Supplier<List<Class<?>>> modelTypesSupplier) {
+        this(client, serializer, handlerRegistry);
+        this.modelRepositorySupplier = modelRepositorySupplier;
+        this.modelTypesSupplier = modelTypesSupplier;
+    }
+
+    /** Configures typed materialized-graph reconstruction after the model subsystem has initialized. */
+    public void configureModelGraphSupport(
+            ModelRepository modelRepository,
+            Supplier<List<Class<?>>> modelTypesSupplier) {
+        this.modelRepositorySupplier = () -> Objects.requireNonNull(
+                modelRepository, "modelRepository");
+        this.modelTypesSupplier = Objects.requireNonNull(
+                modelTypesSupplier, "modelTypesSupplier");
+    }
 
     @Getter(lazy = true)
     private final SearchClient searchClient = client.getSearchClient();
@@ -189,8 +224,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     }
 
     @Override
-    public GraphSearch searchGraph(
-            Class<?> rootModelType,
+    public <T> GraphSearch<T> searchGraph(
+            Class<T> rootModelType,
             boolean forceAdHoc) {
         ModelMetadata.RootConfiguration root =
                 ModelMetadata.validate(rootModelType)
@@ -241,10 +276,19 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                                 ::getPathOverrides)
                                 .orElseGet(List::of)
                         : List.of();
+        Map<String, String> projectionPathOverrides =
+                new LinkedHashMap<>();
+        projection.ifPresent(configuration ->
+                configuration.getPathOverrides().forEach(override ->
+                        projectionPathOverrides.put(
+                                override.getPath(),
+                                override.getProjectionPath())));
         return new DefaultGraphSearch(
                 SearchQuery.builder()
                         .collection(collection),
-                composition, pathOverrides);
+                rootModelType, composition,
+                projectionPathOverrides,
+                pathOverrides);
     }
 
     @Override
@@ -348,7 +392,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         HasLocalHandlers namespacedHandlerRegistry = handlerRegistry instanceof LocalDocumentHandlerRegistry local
                 ? local.forNamespace(namespace) : handlerRegistry;
         return namespacedClient == client && namespacedHandlerRegistry == handlerRegistry ? this
-                : new DefaultDocumentStore(namespacedClient, serializer, namespacedHandlerRegistry);
+                : new DefaultDocumentStore(
+                        namespacedClient, serializer,
+                        namespacedHandlerRegistry,
+                        () -> modelRepositorySupplier.get()
+                                .forNamespace(namespace),
+                        modelTypesSupplier);
     }
 
     @RequiredArgsConstructor
@@ -555,22 +604,31 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @SuppressWarnings("unchecked")
-        private <T> Function<SerializedDocument, T>
+        protected <T> Function<SerializedDocument, T>
                 converter(Class<T> type) {
             Class<?> effectiveType =
                     type == null
                             ? defaultResultType()
                             : type;
+            return document -> (T) convert(
+                    document, effectiveType);
+        }
+
+        protected Object convert(
+                SerializedDocument document,
+                Class<?> effectiveType) {
             return effectiveType == null
-                    ? serializer::fromDocument
-                    : document ->
-                            (T) serializer.fromDocument(
-                                    document,
-                                    effectiveType);
+                    ? serializer.fromDocument(document)
+                    : serializer.fromDocument(
+                            document, effectiveType);
         }
 
         protected Class<?> defaultResultType() {
             return null;
+        }
+
+        protected boolean hasPathFilters() {
+            return !pathFilters.isEmpty();
         }
 
         @Override
@@ -589,14 +647,19 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         public List<FacetStats> facetStats() {
             requireOrdinarySearch("facet statistics");
             return getSearchClient().fetchFacetStats(queryBuilder.build())
-                    .stream().filter(s -> !s.getName().startsWith("$metadata/")).toList();
+                    .stream().filter(this::isPublicFacet).toList();
         }
 
         @Override
         public CompletableFuture<List<FacetStats>> facetStatsAsync() {
             requireOrdinarySearch("facet statistics");
             return getSearchClient().fetchFacetStatsAsync(queryBuilder.build())
-                    .thenApply(stats -> stats.stream().filter(s -> !s.getName().startsWith("$metadata/")).toList());
+                    .thenApply(stats -> stats.stream().filter(this::isPublicFacet).toList());
+        }
+
+        private boolean isPublicFacet(FacetStats stats) {
+            return !stats.getName().startsWith("$metadata/")
+                   && !ModelGraphDocumentManifest.FACET_NAME.equals(stats.getName());
         }
 
         @Override
@@ -653,24 +716,85 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
     }
 
-    protected class DefaultGraphSearch
+    protected class DefaultGraphSearch<T>
             extends DefaultSearch
-            implements GraphSearch {
+            implements GraphSearch<T> {
+
+        private final Class<T> rootModelType;
+        private final Map<String, String> pathOverrides;
 
         protected DefaultGraphSearch(
                 SearchQuery.Builder queryBuilder,
+                Class<T> rootModelType,
                 ModelGraphComposition composition,
+                Map<String, String> pathOverrides,
                 List<ModelGraphPathOverride>
-                        pathOverrides) {
+                        requestPathOverrides) {
             super(queryBuilder);
+            this.rootModelType = rootModelType;
+            this.pathOverrides = Map.copyOf(pathOverrides);
             this.graphComposition = composition;
             this.graphPathOverrides =
-                    List.copyOf(pathOverrides);
+                    List.copyOf(requestPathOverrides);
+        }
+
+        @Override public GraphSearch<T> since(Instant start, boolean inclusive) {
+            super.since(start, inclusive); return this;
+        }
+        @Override public GraphSearch<T> before(Instant end, boolean inclusive) {
+            super.before(end, inclusive); return this;
+        }
+        @Override public GraphSearch<T> inPeriod(
+                Instant start, boolean startInclusive, Instant end, boolean endInclusive) {
+            super.inPeriod(start, startInclusive, end, endInclusive); return this;
+        }
+        @Override public GraphSearch<T> constraint(Constraint... constraints) {
+            super.constraint(constraints); return this;
+        }
+        @Override public GraphSearch<T> relation(ModelRelationConstraint... constraints) {
+            super.relation(constraints); return this;
+        }
+        @Override public GraphSearch<T> sortByTimestamp(boolean descending) {
+            super.sortByTimestamp(descending); return this;
+        }
+        @Override public GraphSearch<T> sortByScore() {
+            super.sortByScore(); return this;
+        }
+        @Override public GraphSearch<T> sortBy(String path, boolean descending) {
+            super.sortBy(path, descending); return this;
+        }
+        @Override public GraphSearch<T> exclude(String... paths) {
+            super.exclude(paths); return this;
+        }
+        @Override public GraphSearch<T> includeOnly(String... paths) {
+            super.includeOnly(paths); return this;
+        }
+        @Override public GraphSearch<T> skip(Integer n) {
+            super.skip(n); return this;
         }
 
         @Override
         protected Class<?> defaultResultType() {
-            return ObjectNode.class;
+            return Graph.class;
+        }
+
+        @Override
+        protected Object convert(
+                SerializedDocument document,
+                Class<?> effectiveType) {
+            if (Graph.class.equals(effectiveType)) {
+                if (hasPathFilters()) {
+                    throw new IllegalStateException(
+                            "Typed Graph results require complete model documents; "
+                            + "use fetchJsonGraphs when includeOnly or exclude is configured");
+                }
+                return MaterializedGraphFactory.create(
+                        document, rootModelType, serializer,
+                        modelRepositorySupplier,
+                        modelTypesSupplier.get(),
+                        pathOverrides);
+            }
+            return super.convert(document, effectiveType);
         }
     }
 }

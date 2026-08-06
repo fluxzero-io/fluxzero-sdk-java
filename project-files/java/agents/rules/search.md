@@ -132,9 +132,10 @@ List<Task> results = Fluxzero.search(Task.class)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
-and further traversal. `searchGraph(Root.class)` returns complete graph-shaped JSON through explicit
-`@ParentId(path = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches live;
-pass `true` as the second argument to force live composition. Full-graph constraints mean the same on both routes.
+and further traversal. `searchGraph(Root.class).fetchGraphs(...)` returns typed lazy `Graph<Root>` values through
+explicit `@ParentId(path = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches
+live; pass `true` as the second argument to force live composition. Use `fetchJsonGraphs(...)` only for an explicit raw
+JSON boundary. Full-graph constraints mean the same on both routes.
 
 <a name="temporal-filters"></a>
 

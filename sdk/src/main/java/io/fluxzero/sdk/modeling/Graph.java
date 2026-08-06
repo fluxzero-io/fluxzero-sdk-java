@@ -28,6 +28,7 @@ import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -198,6 +199,33 @@ public interface Graph<T> {
 
     /** Returns all direct children in deterministic relationship-path order. */
     List<Graph<?>> children();
+
+    /**
+     * Returns the declared serialized child paths in deterministic order, including paths that currently have no
+     * children. Pathless relationships are deliberately absent because they are graph context rather than JSON
+     * structure.
+     */
+    default List<String> childPaths() {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        children().stream().map(Graph::relationshipPath)
+                .filter(path -> path != null && !path.isBlank())
+                .forEach(result::add);
+        return List.copyOf(result);
+    }
+
+    /**
+     * Returns an immutable graph view containing only the selected serialized relationship paths and their ancestors.
+     * Model values and graph nodes are shared with this graph; no models are copied or loaded merely by creating the
+     * view. An empty selection returns this complete graph.
+     */
+    default Graph<T> selectPaths(String... paths) {
+        return Graphs.selectPaths(this, List.of(paths));
+    }
+
+    /** See {@link #selectPaths(String...)}. */
+    default Graph<T> selectPaths(Collection<String> paths) {
+        return Graphs.selectPaths(this, paths);
+    }
 
     /** Returns direct children of the requested type. */
     <C> List<Graph<C>> children(Class<C> childType);

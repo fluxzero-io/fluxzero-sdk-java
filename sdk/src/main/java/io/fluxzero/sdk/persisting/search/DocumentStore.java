@@ -379,8 +379,8 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * A configured materialized graph collection is used by default. If the root has no materialized projection, the
      * current graph is composed live from direct documents and explicit parent paths.
      */
-    default GraphSearch searchGraph(
-            @NonNull Class<?> rootModelType) {
+    default <T> GraphSearch<T> searchGraph(
+            @NonNull Class<T> rootModelType) {
         return searchGraph(
                 rootModelType, false);
     }
@@ -391,8 +391,8 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * @param rootModelType root model class
      * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
      */
-    default GraphSearch searchGraph(
-            @NonNull Class<?> rootModelType,
+    default <T> GraphSearch<T> searchGraph(
+            @NonNull Class<T> rootModelType,
             boolean forceAdHoc) {
         throw new UnsupportedOperationException(
                 "Independent-model graph search is not supported by this document store");

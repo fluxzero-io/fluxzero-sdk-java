@@ -2,6 +2,10 @@
 
 Date: 2026-07-26
 
+> Follow-up (2026-08-07): the later public `Graph<T>` API supersedes the provisional raw-JSON default below.
+> `searchGraph(Root.class)` now returns typed lazy graphs; `fetchJsonGraphs(...)` retains the exact JSON route where an
+> explicit document boundary needs it.
+
 - Graph-search implementation: SDK `7c83d714573`, runtime `619ceeee`
 - Graph-composition implementation: SDK `e4de8597314`, runtime `f95cb5c4`
 - Materialized-graph implementation: SDK `304756a3f70`, runtime `a236277c`

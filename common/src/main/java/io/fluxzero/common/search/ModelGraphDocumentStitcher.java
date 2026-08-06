@@ -16,6 +16,7 @@ package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -35,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static io.fluxzero.common.search.JacksonInverter.isMetadataPath;
+import static io.fluxzero.common.search.JacksonInverter.metadataPath;
 
 /**
  * Deterministically composes direct current model documents using explicit relationship paths.
@@ -61,6 +63,18 @@ public final class ModelGraphDocumentStitcher {
             Collection<ModelGraphEdge> edges,
             Map<String, SerializedDocument> documents,
             ModelGraphComposition composition) {
+        return stitch(roots, edges, documents, composition, -1L);
+    }
+
+    /**
+     * Composes every root document and records the exact model-state boundary in its hidden graph manifest.
+     */
+    public static List<SerializedDocument> stitch(
+            List<SerializedDocument> roots,
+            Collection<ModelGraphEdge> edges,
+            Map<String, SerializedDocument> documents,
+            ModelGraphComposition composition,
+            long stateIndex) {
         Objects.requireNonNull(roots, "Root documents");
         Objects.requireNonNull(edges, "Model graph edges");
         Objects.requireNonNull(documents, "Model documents");
@@ -91,12 +105,17 @@ public final class ModelGraphDocumentStitcher {
         for (SerializedDocument root : roots) {
             SerializedDocument available =
                     documents.get(root.getId());
+            SerializedDocument rootDocument =
+                    available == null ? root : available;
             Document composed = compose(
                     root.getId(),
-                    available == null
-                            ? root : available,
+                    rootDocument,
                     children, documents, bounds, 0,
                     new LinkedHashSet<>());
+            composed = withManifest(
+                    composed,
+                    manifest(rootDocument, children,
+                             documents, stateIndex));
             SerializedDocument serialized =
                     new SerializedDocument(composed);
             bounds.verifyOutputBytes(
@@ -104,6 +123,130 @@ public final class ModelGraphDocumentStitcher {
             result.add(serialized);
         }
         return List.copyOf(result);
+    }
+
+    private static ModelGraphDocumentManifest manifest(
+            SerializedDocument root,
+            Map<String, List<ModelGraphEdge>> children,
+            Map<String, SerializedDocument> documents,
+            long stateIndex) {
+        List<String> types = new ArrayList<>();
+        Map<String, Integer> typeIndexes = new LinkedHashMap<>();
+        List<String> paths = new ArrayList<>();
+        Map<String, Integer> pathIndexes = new LinkedHashMap<>();
+        List<ModelGraphDocumentManifest.Node> nodes = new ArrayList<>();
+        appendManifestNode(
+                root.getId(), root, -1, null, 0, children,
+                documents, types, typeIndexes,
+                paths, pathIndexes, nodes,
+                new LinkedHashSet<>());
+        return new ModelGraphDocumentManifest(
+                stateIndex, types, paths, nodes);
+    }
+
+    private static void appendManifestNode(
+            String modelId,
+            SerializedDocument root,
+            int parent,
+            String relationshipPath,
+            int ordinal,
+            Map<String, List<ModelGraphEdge>> children,
+            Map<String, SerializedDocument> documents,
+            List<String> types,
+            Map<String, Integer> typeIndexes,
+            List<String> paths,
+            Map<String, Integer> pathIndexes,
+            List<ModelGraphDocumentManifest.Node> nodes,
+            Set<String> ancestry) {
+        if (!ancestry.add(modelId)) {
+            throw new IllegalArgumentException(
+                    "Model graph composition encountered a cycle at "
+                    + modelId);
+        }
+        try {
+            SerializedDocument document = parent < 0
+                    ? root : documents.get(modelId);
+            if (document == null) {
+                return;
+            }
+            int nodeIndex = nodes.size();
+            String type = document.deserializeDocument().getType();
+            int typeIndex = typeIndexes.computeIfAbsent(type, key -> {
+                types.add(key);
+                return types.size() - 1;
+            });
+            int pathIndex = relationshipPath == null ? -1
+                    : pathIndexes.computeIfAbsent(relationshipPath, key -> {
+                        paths.add(key);
+                        return paths.size() - 1;
+                    });
+            nodes.add(new ModelGraphDocumentManifest.Node(
+                    modelId, typeIndex, parent,
+                    pathIndex, ordinal));
+            Map<String, List<ModelGraphEdge>> byPath =
+                    new LinkedHashMap<>();
+            children.getOrDefault(modelId, List.of()).stream()
+                    .filter(edge -> documents.containsKey(
+                            edge.getChildId()))
+                    .forEach(edge -> byPath.computeIfAbsent(
+                                    edge.getPath(), ignored ->
+                                            new ArrayList<>())
+                            .add(edge));
+            byPath.forEach((path, pathEdges) -> {
+                pathEdges.sort(Comparator.comparing(
+                        ModelGraphEdge::getChildId));
+                for (int childOrdinal = 0;
+                     childOrdinal < pathEdges.size(); childOrdinal++) {
+                    ModelGraphEdge edge = pathEdges.get(childOrdinal);
+                    appendManifestNode(
+                            edge.getChildId(), root, nodeIndex, path, childOrdinal,
+                            children, documents,
+                            types, typeIndexes,
+                            paths, pathIndexes,
+                            nodes, ancestry);
+                }
+            });
+        } finally {
+            ancestry.remove(modelId);
+        }
+    }
+
+    private static Document withManifest(
+            Document document,
+            ModelGraphDocumentManifest manifest) {
+        Map<Document.Entry, List<Document.Path>> entries =
+                new LinkedHashMap<>();
+        String manifestPath = metadataPath(
+                ModelGraphDocumentManifest.METADATA_KEY);
+        document.getEntries().forEach((entry, paths) -> {
+            List<Document.Path> retained = paths.stream()
+                    .filter(path -> !path.getValue().equals(manifestPath)
+                                    && !path.getValue().startsWith(
+                            manifestPath + "/"))
+                    .toList();
+            if (!retained.isEmpty()) {
+                entries.put(entry, new ArrayList<>(retained));
+            }
+        });
+        new JacksonInverter().addMetadataEntries(
+                entries,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+        LinkedHashSet<FacetEntry> facets = new LinkedHashSet<>(
+                document.getFacets());
+        facets.add(new FacetEntry(
+                ModelGraphDocumentManifest.FACET_NAME,
+                "1"));
+        return document.toBuilder()
+                .entries(entries)
+                .facets(Collections.unmodifiableSet(facets))
+                .build();
+    }
+
+    private static String joinPath(
+            String prefix, String path) {
+        return prefix == null || prefix.isEmpty()
+                ? path : append(prefix, path);
     }
 
     /**

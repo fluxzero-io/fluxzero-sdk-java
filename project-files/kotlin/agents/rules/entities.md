@@ -298,9 +298,10 @@ val related = Fluxzero.search(Task::class.java)
     .fetchAll(Task::class.java)
 ```
 
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use `searchGraph(Root::class.java)` for a
-complete graph-shaped JSON result. It reads a configured `@GraphProjection` by default and otherwise stitches current
-direct documents live; pass `true` as the second argument to force live composition. Enable materialization with
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
+`searchGraph(Root::class.java).fetchGraphs(...)` for complete typed lazy `Graph<Root>` results. It reads a configured
+`@GraphProjection` by default and otherwise stitches current direct documents live; pass `true` as the second argument
+to force live composition. Use `fetchJsonGraphs(...)` for explicit raw JSON. Enable materialization with
 `@Model(searchable = true, graphProjection = GraphProjection())`. A blank projection collection derives
 `<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
 graph.

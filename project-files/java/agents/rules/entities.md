@@ -329,9 +329,10 @@ List<Task> tasks = Fluxzero.search(Task.class)
         .fetchAll(Task.class);
 ```
 
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use `searchGraph(Root.class)` for a complete
-graph-shaped JSON result. It reads a configured `@GraphProjection` by default and otherwise stitches current direct
-documents live; `searchGraph(Root.class, true)` forces live composition. Enable materialization with
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
+`searchGraph(Root.class).fetchGraphs(...)` for complete typed lazy `Graph<Root>` results. It reads a configured
+`@GraphProjection` by default and otherwise stitches current direct documents live; `searchGraph(Root.class, true)`
+forces live composition. Use `fetchJsonGraphs(...)` for explicit raw JSON. Enable materialization with
 `@Model(searchable = true, graphProjection = @GraphProjection)`. A blank projection collection derives
 `<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
 graph.

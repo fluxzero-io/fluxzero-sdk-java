@@ -123,6 +123,87 @@ class ModelGraphDocumentStitcherTest {
     }
 
     @Test
+    void preservesExactTypedPlacementsInHiddenManifest() {
+        SerializedDocument root = typedDocument(
+                "root", "roots", "example.Root",
+                "name", "root");
+        SerializedDocument child = typedDocument(
+                "child", "children", "example.Child",
+                "name", "child");
+        SerializedDocument shared = typedDocument(
+                "shared", "details", "example.Detail",
+                "name", "detail");
+
+        SerializedDocument stitched =
+                ModelGraphDocumentStitcher.stitch(
+                                List.of(root),
+                                List.of(
+                                        edge("child", "root", "children"),
+                                        edge("shared", "root", "details"),
+                                        edge("shared", "child", "details")),
+                                Map.of("root", root, "child", child,
+                                       "shared", shared),
+                                ModelGraphComposition.builder().build(),
+                                42L)
+                        .getFirst();
+
+        ModelGraphDocumentManifest manifest =
+                ModelGraphDocumentManifest.from(stitched)
+                        .orElseThrow();
+        assertEquals(ModelGraphDocumentManifest.CURRENT_VERSION,
+                     manifest.version());
+        assertEquals(42L, manifest.stateIndex());
+        assertEquals(List.of("example.Root", "example.Child",
+                             "example.Detail"),
+                     manifest.types());
+        assertEquals(List.of("children", "details"),
+                     manifest.relationshipPaths());
+        assertEquals(List.of(
+                new ModelGraphDocumentManifest.Node(
+                        "root", 0, -1, -1, 0),
+                new ModelGraphDocumentManifest.Node(
+                        "child", 1, 0, 0, 0),
+                new ModelGraphDocumentManifest.Node(
+                        "shared", 2, 1, 1, 0),
+                new ModelGraphDocumentManifest.Node(
+                        "shared", 2, 0, 1, 0)),
+                     manifest.nodes());
+        assertTrue(stitched.deserializeDocument()
+                           .getMatchingEntries(path ->
+                                   path.getValue().startsWith(
+                                           "$metadata/"
+                                           + ModelGraphDocumentManifest.METADATA_KEY))
+                           .findAny().isPresent());
+    }
+
+    @Test
+    void manifestUsesSuppliedRootWhenItIsAbsentFromDocumentMap() {
+        SerializedDocument root = typedDocument(
+                "root", "roots", "example.Root",
+                "name", "root");
+        SerializedDocument child = typedDocument(
+                "child", "children", "example.Child",
+                "name", "child");
+
+        SerializedDocument stitched = ModelGraphDocumentStitcher.stitch(
+                        List.of(root),
+                        List.of(edge("child", "root", "children")),
+                        Map.of("child", child),
+                        ModelGraphComposition.builder().build(),
+                        12L)
+                .getFirst();
+
+        ModelGraphDocumentManifest manifest =
+                ModelGraphDocumentManifest.from(stitched).orElseThrow();
+        assertEquals(List.of("example.Root", "example.Child"),
+                     manifest.types());
+        assertEquals(List.of("root", "child"),
+                     manifest.nodes().stream()
+                             .map(ModelGraphDocumentManifest.Node::id)
+                             .toList());
+    }
+
+    @Test
     void appliesProjectionPathOverridesWithoutChangingChildListSemantics() {
         List<ModelGraphEdge> edges =
                 ModelGraphDocumentStitcher
@@ -258,7 +339,7 @@ class ModelGraphDocumentStitcherTest {
                             .anyMatch(path ->
                                               path.getValue()
                                                       .contains(
-                                                              "$metadata")));
+                                                              "$metadata/token")));
     }
 
     @Test
@@ -453,6 +534,18 @@ class ModelGraphDocumentStitcherTest {
                                 "rank", "sortable")))
                 .build();
         return new SerializedDocument(document);
+    }
+
+    private static SerializedDocument typedDocument(
+            String id,
+            String collection,
+            String type,
+            String path,
+            String value) {
+        return new SerializedDocument(
+                document(id, collection, path, value)
+                        .deserializeDocument().toBuilder()
+                        .type(type).build());
     }
 
     private static ModelGraphEdge edge(
