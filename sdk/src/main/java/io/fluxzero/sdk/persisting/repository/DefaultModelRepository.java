@@ -22,6 +22,7 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
@@ -500,6 +501,112 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 rootId, rootType, stateIndex, options, false);
     }
 
+    @Override
+    public <T> Graph<T> loadGraphAtCommit(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            @NonNull String commitId,
+            int substep,
+            @NonNull Graph.Options options) {
+        return loadGraphAtBoundary(
+                rootId, rootType, resolvedStateIndex,
+                ModelEventBatchLoader.Boundary.commit(
+                        commitId, substep), options);
+    }
+
+    @Override
+    public <T> Graph<T> loadGraphAtEvent(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            long eventIndex,
+            @NonNull Graph.Options options) {
+        return loadGraphAtBoundary(
+                rootId, rootType, resolvedStateIndex,
+                ModelEventBatchLoader.Boundary.event(
+                        eventIndex), options);
+    }
+
+    @Override
+    public <T> Graph<T> loadGraphBefore(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long stateIndex,
+            @NonNull Graph.Options options) {
+        return loadGraphBeforeBoundary(
+                rootId, rootType, stateIndex,
+                ModelEventBatchLoader.Boundary.at(
+                        stateIndex), options);
+    }
+
+    @Override
+    public <T> Graph<T> loadGraphBeforeCommit(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            @NonNull String commitId,
+            int substep,
+            @NonNull Graph.Options options) {
+        return loadGraphBeforeBoundary(
+                rootId, rootType, resolvedStateIndex,
+                ModelEventBatchLoader.Boundary.commit(
+                        commitId, substep), options);
+    }
+
+    @Override
+    public <T> Graph<T> loadGraphBeforeEvent(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            long eventIndex,
+            @NonNull Graph.Options options) {
+        return loadGraphBeforeBoundary(
+                rootId, rootType, resolvedStateIndex,
+                ModelEventBatchLoader.Boundary.event(
+                        eventIndex), options);
+    }
+
+    private <T> Graph<T> loadGraphAtBoundary(
+            String rootId,
+            Class<T> rootType,
+            long resolvedStateIndex,
+            ModelEventBatchLoader.Boundary boundary,
+            Graph.Options options) {
+        requireEventReconstruction();
+        ModelMetadata.validate(rootType);
+        ReconstructedGraph<T> graph = loadGraph(
+                rootId, rootType, options,
+                boundary, null, false);
+        return Graphs.compose(
+                rootId, graph.stateIndex(), graph.models(),
+                graph.edges(), this, true);
+    }
+
+    private <T> Graph<T> loadGraphBeforeBoundary(
+            String rootId,
+            Class<T> rootType,
+            long resolvedStateIndex,
+            ModelEventBatchLoader.Boundary boundary,
+            Graph.Options options) {
+        requireEventReconstruction();
+        ModelMetadata.validate(rootType);
+        GetModelGraphResult response =
+                client.getEventStoreClient()
+                        .getModelGraphBefore(
+                                new GetModelGraphBefore(
+                                        graphRequest(
+                                                rootId, boundary,
+                                                options)));
+        ReconstructedGraph<T> graph =
+                reconstructGraphResponse(
+                        response, rootId, rootType,
+                        boundary, true);
+        return Graphs.compose(
+                rootId, graph.stateIndex(), graph.models(),
+                graph.edges(), this, true);
+    }
+
     /**
      * Reconstructs a graph at an exact durable boundary and overlays pending values from earlier messages in the
      * current message batch. This is used by atomic model planning that must retain read-your-writes semantics without
@@ -543,48 +650,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             ModelEventStateBoundary handlerBoundary,
             boolean includeMessageBatch) {
         GetModelGraphResult graph = client.getEventStoreClient().getModelGraph(
-                new GetModelGraph(
-                        rootId, boundary.stateIndex(),
-                        boundary.commitId(),
-                        boundary.substep(),
-                        boundary.eventIndex(),
-                        options.maxDepth(), options.maxModels(),
-                        0, 0L, false));
+                graphRequest(rootId, boundary, options));
         pin(handlerBoundary, graph.getStateIndex());
-        List<ModelTargetResolver.ResolvedModel> targets =
-                new ArrayList<>(graph.getStreams().size());
-        for (ModelEventStream stream : graph.getStreams()) {
-            Class<?> modelType = graphModelType(
-                    stream, rootId, rootType);
-            targets.add(new ModelTargetResolver.ResolvedModel(
-                    stream.getModelId(), modelType,
-                    ModelTargetResolver.Access.READ_ONLY,
-                    List.of(ModelMetadata.validate(modelType)
-                                    .entityId().orElseThrow().name())));
-        }
-        ReconstructionBatch reconstructed =
-                reconstructGraph(
-                        targets, graph.getStateIndex(),
-                        !boundary.historical());
-        if (reconstructed.stateIndex() != graph.getStateIndex()) {
-            throw new EventSourcingException(
-                    "Model graph moved from state index %d to %d during reconstruction"
-                            .formatted(graph.getStateIndex(), reconstructed.stateIndex()));
-        }
+        ReconstructedGraph<T> durable =
+                reconstructGraphResponse(
+                        graph, rootId, rootType,
+                        boundary, false);
         Map<String, MessageBatchModelView.StagedModel> staged =
                 includeMessageBatch
                         ? MessageBatchModelView.currentValues(
                                 messageBatchNamespace())
                         : Map.of();
-        Map<String, Entity<?>> durableModels =
-                reconstructed.entities();
         MessageBatchModelView.StagedModel stagedRoot =
                 staged.get(rootId);
         if (stagedRoot != null
             && !stagedRoot.existedBefore()
-            && !durableModels.containsKey(rootId)) {
+            && !durable.models().containsKey(rootId)) {
             LinkedHashMap<String, Entity<?>> withEmptyRoot =
-                    new LinkedHashMap<>(durableModels);
+                    new LinkedHashMap<>(durable.models());
             withEmptyRoot.put(
                     rootId,
                     ImmutableModelRoot.builder()
@@ -597,15 +680,224 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                                 .name())
                             .value(null)
                             .build());
-            durableModels = withEmptyRoot;
+            durable = composeGraph(
+                    rootId, durable.stateIndex(),
+                    withEmptyRoot, durable.edges());
         }
-        ReconstructedGraph<T> durable = composeGraph(
-                rootId, graph.getStateIndex(),
-                durableModels, graph.getEdges());
         return includeMessageBatch
                 ? overlayMessageBatchGraph(
                         durable, rootId, rootType, options, staged)
                 : durable;
+    }
+
+    private static GetModelGraph graphRequest(
+            String rootId,
+            ModelEventBatchLoader.Boundary boundary,
+            Graph.Options options) {
+        return new GetModelGraph(
+                rootId, boundary.stateIndex(),
+                boundary.commitId(), boundary.substep(),
+                boundary.eventIndex(), options.maxDepth(),
+                options.maxModels(), 0, 0L, false);
+    }
+
+    private <T> ReconstructedGraph<T>
+            reconstructGraphResponse(
+                    GetModelGraphResult graph,
+                    String rootId,
+                    Class<T> rootType,
+                    ModelEventBatchLoader.Boundary boundary,
+                    boolean beforeBoundary) {
+        List<ModelTargetResolver.ResolvedModel> targets =
+                new ArrayList<>(graph.getStreams().size());
+        LinkedHashMap<String, ModelHeadState> heads =
+                new LinkedHashMap<>();
+        for (ModelEventStream stream : graph.getStreams()) {
+            Class<?> modelType = graphModelType(
+                    stream, rootId, rootType);
+            targets.add(new ModelTargetResolver.ResolvedModel(
+                    stream.getModelId(), modelType,
+                    ModelTargetResolver.Access.READ_ONLY,
+                    List.of(ModelMetadata.validate(modelType)
+                                    .entityId().orElseThrow().name())));
+            heads.put(stream.getModelId(), stream.getHead());
+        }
+        List<ModelTargetResolver.ResolvedModel> eventTargets =
+                new ArrayList<>();
+        List<ModelTargetResolver.ResolvedModel> documentTargets =
+                new ArrayList<>();
+        for (ModelTargetResolver.ResolvedModel target :
+                targets) {
+            Model model = ModelMetadata.validate(
+                            target.modelType())
+                    .model().orElseThrow();
+            (model.eventSourced()
+                    ? eventTargets
+                    : documentTargets).add(target);
+        }
+        LinkedHashMap<String, Entity<?>> reconstructedModels =
+                new LinkedHashMap<>();
+        if (!eventTargets.isEmpty()) {
+            ReconstructionBatch reconstructed =
+                    reconstructGraph(
+                            eventTargets,
+                            graph.getStateIndex(),
+                            !boundary.historical());
+            if (reconstructed.stateIndex()
+                != graph.getStateIndex()) {
+                throw new EventSourcingException(
+                        "Model graph moved from state index %d to %d during reconstruction"
+                                .formatted(
+                                        graph.getStateIndex(),
+                                        reconstructed.stateIndex()));
+            }
+            reconstructedModels.putAll(
+                    reconstructed.entities());
+        }
+        if (!documentTargets.isEmpty()) {
+            reconstructedModels.putAll(
+                    loadGraphDocumentsAtHeads(
+                            documentTargets, heads));
+        }
+        Map<String, Entity<?>> durableModels;
+        if (beforeBoundary) {
+            LinkedHashMap<String, Entity<?>> before =
+                    new LinkedHashMap<>();
+            reconstructedModels.forEach(
+                    (modelId, entity) -> before.put(
+                            modelId,
+                            beforeBoundary(
+                                    entity,
+                                    graph.getStateIndex())));
+            durableModels = before;
+        } else {
+            durableModels = reconstructedModels;
+        }
+        return composeGraph(
+                rootId, graph.getStateIndex(),
+                durableModels, graph.getEdges());
+    }
+
+    private Map<String, Entity<?>> loadGraphDocumentsAtHeads(
+            List<ModelTargetResolver.ResolvedModel> targets,
+            Map<String, ModelHeadState> expectedHeads) {
+        LinkedHashMap<String, Entity<?>> loaded =
+                new LinkedHashMap<>();
+        for (ModelTargetResolver.ResolvedModel target :
+                targets) {
+            ModelMetadata metadata =
+                    ModelMetadata.validate(
+                            target.modelType());
+            Model model = metadata.model().orElseThrow();
+            Entity<?> entity = loadDocumentUnchecked(
+                    target.modelId(), target.modelType(),
+                    metadata, model);
+            ModelHeadState expected =
+                    expectedHeads.get(target.modelId());
+            if (expected == null) {
+                if (entity.isPresent()) {
+                    throw new EventSourcingException(
+                            "Model graph has no head for document model "
+                            + target.modelId());
+                }
+                loaded.put(target.modelId(), entity);
+                continue;
+            }
+            loaded.put(
+                    target.modelId(),
+                    withDocumentHead(entity, expected));
+        }
+
+        GetModelEventsResult current =
+                client.getEventStoreClient()
+                        .getModelEvents(
+                                new GetModelEvents(
+                                        targets.stream()
+                                                .map(target ->
+                                                        new ModelEventStreamRequest(
+                                                                target.modelId(),
+                                                                -1L, 0))
+                                                .toList(),
+                                        null, 0L));
+        LinkedHashMap<String, ModelHeadState> currentHeads =
+                new LinkedHashMap<>();
+        for (ModelEventStream stream :
+                current.getStreams()) {
+            ModelHeadState replaced = currentHeads.put(
+                    stream.getModelId(), stream.getHead());
+            if (replaced != null) {
+                throw new EventSourcingException(
+                        "Event store returned duplicate document-model head for '%s'"
+                                .formatted(
+                                        stream.getModelId()));
+            }
+        }
+        for (ModelTargetResolver.ResolvedModel target :
+                targets) {
+            ModelHeadState expected = expectedHeads.get(
+                    target.modelId());
+            ModelHeadState actual = currentHeads.get(
+                    target.modelId());
+            if (!Objects.equals(expected, actual)) {
+                throw new EventSourcingException(
+                        "Document model '%s' moved while reconstructing graph boundary"
+                                .formatted(
+                                        target.modelId()));
+            }
+        }
+        return Collections.unmodifiableMap(loaded);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Entity<?> withDocumentHead(
+            Entity<?> entity,
+            ModelHeadState head) {
+        if (head.isDeleted() != entity.isEmpty()) {
+            throw new EventSourcingException(
+                    "Document model '%s' has document presence=%s but its head reports deletion=%s"
+                            .formatted(
+                                    head.getModelId(),
+                                    entity.isPresent(),
+                                    head.isDeleted()));
+        }
+        return ImmutableModelRoot.<Object>builder()
+                .id(entity.id())
+                .type((Class<Object>) entity.type())
+                .idProperty(entity.idProperty())
+                .value(entity.get())
+                .entityHelper(entityHelper)
+                .serializer(serializer)
+                .sequenceNumber(
+                        head.getSequenceNumber())
+                .stateIndex(head.getStateIndex())
+                .timestamp(entity.timestamp())
+                .build();
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Entity<?> beforeBoundary(
+            Entity<?> entity,
+            long stateIndex) {
+        if (!(entity instanceof ModelRoot<?> root)
+            || root.stateIndex() != stateIndex) {
+            return entity;
+        }
+        Entity<?> previous = root.previous();
+        if (previous != null) {
+            return previous;
+        }
+        return ImmutableModelRoot.builder()
+                .id(entity.id())
+                .type((Class) entity.type())
+                .idProperty(ModelMetadata.validate(
+                                entity.type())
+                                    .entityId()
+                                    .orElseThrow()
+                                    .name())
+                .entityHelper(entityHelper)
+                .serializer(serializer)
+                .value(null)
+                .build();
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

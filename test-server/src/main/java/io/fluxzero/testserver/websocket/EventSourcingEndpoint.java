@@ -31,6 +31,7 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -129,6 +130,13 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     GetModelGraphResult handle(
             GetModelGraph request) {
         return eventStore.getModelGraph(
+                request);
+    }
+
+    @Handle
+    GetModelGraphResult handle(
+            GetModelGraphBefore request) {
+        return eventStore.getModelGraphBefore(
                 request);
     }
 

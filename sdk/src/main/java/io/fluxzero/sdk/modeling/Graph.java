@@ -169,7 +169,12 @@ public interface Graph<T> {
     /** Verifies and applies the supplied update with explicit metadata. */
     Graph<T> assertAndApply(Object update, Metadata metadata);
 
-    /** Returns the preceding model revision as a lazy graph, or {@code null} when none is retained. */
+    /**
+     * Returns the preceding model revision as a lazy graph, or {@code null} when none is retained.
+     * Surrounding models and relationships are resolved immediately before the current revision became effective.
+     * This keeps children added after the preceding root revision visible while excluding changes made by the update
+     * whose before-state is being observed.
+     */
     @Nullable
     Graph<T> previous();
 

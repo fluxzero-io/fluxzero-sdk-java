@@ -283,4 +283,81 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
         throw new UnsupportedOperationException(
                 "Historical independent model graph reconstruction is not supported by this repository");
     }
+
+    /**
+     * Reconstructs a model graph at an exact durable commit substep.
+     * <p>
+     * The resolved state index is supplied as a compatibility fallback for repositories that only distinguish global
+     * state boundaries. Repositories that support multi-substep model commits should override this method so sibling
+     * substeps sharing one state index remain distinguishable.
+     */
+    default <T> Graph<T> loadGraphAtCommit(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            @NonNull String commitId,
+            int substep,
+            @NonNull Graph.Options options) {
+        return loadGraphAt(
+                rootId, rootType,
+                resolvedStateIndex, options);
+    }
+
+    /**
+     * Reconstructs a model graph at the state boundary represented by a published event index.
+     * <p>
+     * The resolved state index is supplied as a compatibility fallback for repositories that do not retain the exact
+     * event-to-model-state mapping.
+     */
+    default <T> Graph<T> loadGraphAtEvent(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            long eventIndex,
+            @NonNull Graph.Options options) {
+        return loadGraphAt(
+                rootId, rootType,
+                resolvedStateIndex, options);
+    }
+
+    /**
+     * Reconstructs the model graph that was current immediately before an opaque state boundary.
+     */
+    default <T> Graph<T> loadGraphBefore(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long stateIndex,
+            @NonNull Graph.Options options) {
+        throw new UnsupportedOperationException(
+                "Exclusive before-state model graph reconstruction is not supported by this repository");
+    }
+
+    /**
+     * Reconstructs the model graph that was current immediately before an exact durable commit substep.
+     */
+    default <T> Graph<T> loadGraphBeforeCommit(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            @NonNull String commitId,
+            int substep,
+            @NonNull Graph.Options options) {
+        return loadGraphBefore(
+                rootId, rootType,
+                resolvedStateIndex, options);
+    }
+
+    /**
+     * Reconstructs the model graph that was current immediately before a published event's state boundary.
+     */
+    default <T> Graph<T> loadGraphBeforeEvent(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long resolvedStateIndex,
+            long eventIndex,
+            @NonNull Graph.Options options) {
+        return loadGraphBefore(
+                rootId, rootType,
+                resolvedStateIndex, options);
+    }
 }

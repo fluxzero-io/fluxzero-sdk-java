@@ -652,8 +652,23 @@ class ModelCommitHandlerIntegrationTest {
         FamilyGrandchildId grandchildId = new FamilyGrandchildId("cascade");
         String pathlessId = "pathless-cascade";
         String retainedId = "retained-cascade";
+        AtomicReference<List<FamilyChild>> beforeDeletion =
+                new AtomicReference<>();
 
         TestFixture.create()
+                .registerHandlers(new Object() {
+                    @HandleEvent
+                    void observe(
+                            DeleteFamilyRoot event,
+                            Graph<FamilyRoot> graph) {
+                        Graph<FamilyRoot> previous = graph.previous();
+                        beforeDeletion.set(previous == null
+                                ? List.of()
+                                : previous.childModels(
+                                        "children",
+                                        FamilyChild.class));
+                    }
+                })
                 .givenCommands(
                         new CreateFamilyRoot(rootId, "root"),
                         new CreateFamilyChild(childId, rootId, "child"),
@@ -684,6 +699,35 @@ class ModelCommitHandlerIntegrationTest {
                     assertTrue(fluxzero.eventStore().getEvents(grandchildId.toString())
                                        .anyMatch(event -> event.getPayload()
                                                instanceof CascadedModelDeletion));
+                    assertEquals(
+                            Set.of(
+                                    new FamilyChild(
+                                            childId, rootId,
+                                            "child"),
+                                    new FamilyChild(
+                                            secondChildId, rootId,
+                                            "second-child")),
+                            Set.copyOf(beforeDeletion.get()));
+                });
+    }
+
+    @Test
+    void parentDeletionCascadesToDocumentModels() {
+        FamilyRootId rootId = new FamilyRootId("document-cascade");
+        DocumentFamilyChildId childId =
+                new DocumentFamilyChildId("document-cascade");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateDocumentFamilyChild(childId, rootId, "child"))
+                .whenCommand(new DeleteFamilyRoot(rootId))
+                .expectThat(fluxzero -> {
+                    ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                            fluxzero.modelRepository()).invalidateModels(List.of(
+                            rootId.toString(), childId.toString()));
+                    assertTrue(fluxzero.modelRepository().load(rootId).isEmpty());
+                    assertTrue(fluxzero.modelRepository().load(childId).isEmpty());
                 });
     }
 
@@ -2217,6 +2261,32 @@ class ModelCommitHandlerIntegrationTest {
         FamilyChild apply() {
             return new FamilyChild(
                     familyChildId, familyRootId, name);
+        }
+    }
+
+    @Model(eventSourced = false, searchable = true)
+    private record DocumentFamilyChild(
+            @EntityId DocumentFamilyChildId documentFamilyChildId,
+            @ParentId(path = "documentChildren")
+            FamilyRootId familyRootId,
+            String name) {
+    }
+
+    private static final class DocumentFamilyChildId
+            extends Id<DocumentFamilyChild> {
+        private DocumentFamilyChildId(String id) {
+            super(id, "document-family-child-");
+        }
+    }
+
+    private record CreateDocumentFamilyChild(
+            DocumentFamilyChildId documentFamilyChildId,
+            FamilyRootId familyRootId,
+            String name) {
+        @Apply
+        DocumentFamilyChild apply() {
+            return new DocumentFamilyChild(
+                    documentFamilyChildId, familyRootId, name);
         }
     }
 

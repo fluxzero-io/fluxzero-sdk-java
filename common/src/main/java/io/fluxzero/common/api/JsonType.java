@@ -35,6 +35,7 @@ import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -140,6 +141,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = TrackModelUpdates.class, name = "trackModelUpdates"),
         @JsonSubTypes.Type(value = TrackModelUpdatesResult.class, name = "trackModelUpdatesResult"),
         @JsonSubTypes.Type(value = GetModelGraph.class, name = "getModelGraph"),
+        @JsonSubTypes.Type(value = GetModelGraphBefore.class, name = "getModelGraphBefore"),
         @JsonSubTypes.Type(value = GetModelGraphResult.class, name = "getModelGraphResult"),
         @JsonSubTypes.Type(value = GetModelAncestors.class, name = "getModelAncestors"),
         @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),

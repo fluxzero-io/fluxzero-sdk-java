@@ -25,6 +25,7 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -1782,6 +1783,83 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return new GetModelGraphResult(
                 request.getRequestId(), boundary, List.copyOf(edges),
                 events.getPayloads(), events.getStreams());
+    }
+
+    @Override
+    public synchronized GetModelGraphResult getModelGraphBefore(
+            GetModelGraphBefore before) {
+        GetModelGraph request = before.getRequest();
+        ModelCommitValidator.validate(request);
+        long boundary = modelBoundary(
+                request.getMaxStateIndex(),
+                request.getBoundaryCommitId(),
+                request.getBoundarySubstep(),
+                request.getBoundaryEventIndex());
+        if (boundary < 0L || boundary > modelStateIndex) {
+            throw new IllegalArgumentException(
+                    "Model before-state boundary %d is outside visible range 0..%d"
+                            .formatted(
+                                    boundary, modelStateIndex));
+        }
+        LinkedHashSet<String> modelIds =
+                new LinkedHashSet<>();
+        modelIds.add(request.getRootId());
+        List<String> frontier =
+                List.of(request.getRootId());
+        List<ModelGraphEdge> edges =
+                new ArrayList<>();
+        for (int depth = 0;
+             !frontier.isEmpty()
+             && (request.getMaxDepth() == UNBOUNDED
+                 || depth < request.getMaxDepth());
+             depth++) {
+            Set<String> parents = Set.copyOf(frontier);
+            List<String> next = new ArrayList<>();
+            for (MutableModelRelationship relation :
+                    modelRelationshipHistory) {
+                if (!parents.contains(
+                        relation.relationship.getParentId())
+                    || relation.validFrom >= boundary
+                    || relation.validUntil != null
+                       && relation.validUntil < boundary
+                    || request.isComposableOnly()
+                       && relation.relationship.getPath() == null) {
+                    continue;
+                }
+                edges.add(new ModelGraphEdge(
+                        relation.childId,
+                        relation.relationship.getParentId(),
+                        relation.relationship.getParentType(),
+                        relation.relationship.getPath(),
+                        relation.validFrom,
+                        relation.validUntil));
+                if (modelIds.add(relation.childId)) {
+                    if (request.getMaxModels() != UNBOUNDED
+                        && modelIds.size()
+                           > request.getMaxModels()) {
+                        throw new IllegalArgumentException(
+                                "Model graph exceeds maxModels "
+                                + request.getMaxModels());
+                    }
+                    next.add(relation.childId);
+                }
+            }
+            frontier = next;
+        }
+        GetModelEventsResult events = getModelEvents(
+                new GetModelEvents(
+                        modelIds.stream()
+                                .map(id ->
+                                        new ModelEventStreamRequest(
+                                                id, -1L,
+                                                request.getMaxEventsPerModel()))
+                                .toList(),
+                        boundary,
+                        request.getMaxBytes()));
+        return new GetModelGraphResult(
+                before.getRequestId(), boundary,
+                List.copyOf(edges), events.getPayloads(),
+                events.getStreams());
     }
 
     @Override

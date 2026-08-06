@@ -39,6 +39,7 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -753,6 +754,39 @@ class WebSocketTransportCodecsTest {
             assertSerializedMessage(
                     result.getPayloads().getFirst().getEvent(),
                     decodedResult.getPayloads().getFirst().getEvent());
+        }
+    }
+
+    @Test
+    void modelGraphBeforeRequestRoundTripsWithoutChangingRegularGraphRequest() throws Exception {
+        GetModelGraphBefore request =
+                new GetModelGraphBefore(
+                        new GetModelGraph(
+                                "order-1", null,
+                                "commit-991", 3,
+                                12, 1_000, 128,
+                                8_388_608L, true));
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            GetModelGraphBefore decoded =
+                    assertInstanceOf(
+                            GetModelGraphBefore.class,
+                            roundTrip(codec, request));
+            assertEquals(
+                    request.getRequestId(),
+                    decoded.getRequestId());
+            assertEquals(
+                    "order-1",
+                    decoded.getRequest().getRootId());
+            assertEquals(
+                    "commit-991",
+                    decoded.getRequest()
+                            .getBoundaryCommitId());
+            assertEquals(
+                    3,
+                    decoded.getRequest()
+                            .getBoundarySubstep());
         }
     }
 

@@ -25,6 +25,7 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -117,6 +118,15 @@ public interface EventStoreClient extends AutoCloseable {
      */
     default GetModelGraphResult getModelGraph(GetModelGraph request) {
         throw new UnsupportedOperationException("Independent model graph loading is not supported by this event store");
+    }
+
+    /**
+     * Loads the bounded temporal model graph immediately before the request's selected state boundary.
+     */
+    default GetModelGraphResult getModelGraphBefore(
+            GetModelGraphBefore request) {
+        throw new UnsupportedOperationException(
+                "Independent model before-state graph loading is not supported by this event store");
     }
 
     /**
