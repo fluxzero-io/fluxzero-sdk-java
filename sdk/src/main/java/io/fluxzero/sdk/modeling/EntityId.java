@@ -24,7 +24,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a property (field or getter) as the unique identifier of an entity within an aggregate structure.
+ * Marks a property (field or getter) as the unique identifier of an entity or independently stored model.
  * <p>
  * The presence of this annotation enables automatic routing of updates to the correct entity instance inside an
  * aggregate, based on identifier matching.
@@ -33,7 +33,10 @@ import java.lang.annotation.Target;
  * containing a list of {@code Task} entities. The framework uses the {@code @EntityId}-annotated property to match
  * update messages with their corresponding entity.
  * <p>
- * You can annotate either a field or its getter method.
+ * You can annotate either a field or its getter method. Optional affixes only affect the persisted identifier and
+ * repository lookups; the property itself retains its functional value. They wrap any repository prefix already
+ * supplied by an {@link Id}. For example, an ID whose repository value is {@code connection-123} combined with
+ * {@code @EntityId(prefix = "move-")} is stored as {@code move-connection-123}.
  *
  * @see Aggregate for how to define aggregates and their structure.
  */
@@ -43,4 +46,9 @@ import java.lang.annotation.Target;
 @Inherited
 @Association
 public @interface EntityId {
+    /** Prefix added outside the identifier's own repository representation. */
+    String prefix() default "";
+
+    /** Postfix added outside the identifier's own repository representation. */
+    String postfix() default "";
 }

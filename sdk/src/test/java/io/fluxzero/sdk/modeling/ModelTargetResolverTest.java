@@ -57,6 +57,15 @@ class ModelTargetResolverTest {
     }
 
     @Test
+    void appliesEntityIdAffixOutsideTypedIdPrefix() {
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
+                        RenameAffixed.class, ModelMetadata.of(Affixed.class).handlerMethods())
+                .resolve(new RenameAffixed(new AffixedId("1")));
+
+        assertEquals("move-affixed-1", resolution.models().getFirst().modelId());
+    }
+
+    @Test
     void resolvesGetterOnlyPayloadProperties() {
         ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
                         GetterOnlyRename.class, ModelMetadata.of(Product.class).handlerMethods())
@@ -266,6 +275,23 @@ class ModelTargetResolverTest {
     private record RenameProductByTarget(ProductId target) {
     }
 
+    @Model
+    private record Affixed(@EntityId(prefix = "move-") AffixedId affixedId) {
+        @Apply
+        Affixed rename(RenameAffixed command) {
+            return this;
+        }
+    }
+
+    private static class AffixedId extends Id<Affixed> {
+        AffixedId(String id) {
+            super(id, "affixed-");
+        }
+    }
+
+    private record RenameAffixed(AffixedId affixedId) {
+    }
+
     private static class GetterOnlyRename {
         private final String rawId;
 
@@ -375,7 +401,7 @@ class ModelTargetResolverTest {
     }
 
     @Model
-    private record Other(@EntityId String id) {
+    private record Other(@EntityId(prefix = "product-") String id) {
     }
 
     private record SameStringId(String product, String other) {

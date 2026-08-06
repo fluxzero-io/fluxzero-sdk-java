@@ -371,6 +371,16 @@ final class ModelCacheTracker implements AutoCloseable {
         start();
     }
 
+    CompletableFuture<Boolean> readiness() {
+        if (start()) {
+            return CompletableFuture.completedFuture(true);
+        }
+        CompletableFuture<Boolean> current = bootstrap;
+        return current == null
+                ? CompletableFuture.completedFuture(false)
+                : current;
+    }
+
     /**
      * Publishes a freshly loaded current value and its inclusive runtime read boundary.
      */

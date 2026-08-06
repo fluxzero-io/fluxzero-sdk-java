@@ -142,13 +142,7 @@ public final class ModelTargetResolver {
         if (idValue == null) {
             return Optional.empty();
         }
-        String modelId = idValue.toString();
-        if (modelId == null) {
-            throw new IllegalArgumentException(
-                    "Payload property '%s' returned a null ID string for %s model"
-                            .formatted(property.name, modelType.getName()));
-        }
-        return Optional.of(modelId);
+        return Optional.of(repositoryId(idValue, modelType, property.name, null));
     }
 
     /**
@@ -187,15 +181,7 @@ public final class ModelTargetResolver {
             if (idValue == null) {
                 continue;
             }
-            String modelId = idValue.toString();
-            if (modelId == null) {
-                throw new IllegalArgumentException(
-                        "Payload property '%s' returned a null ID string for %s model"
-                                .formatted(
-                                        property.name,
-                                        modelType.get()
-                                                .getName()));
-            }
+            String modelId = repositoryId(idValue, modelType.get(), property.name, null);
             merge(resolved, new ResolvedModel(
                     modelId, modelType.get(), Access.READ_ONLY, List.of(property.name)));
         }
@@ -434,13 +420,26 @@ public final class ModelTargetResolver {
         }
 
         private static String modelId(Object idValue, SlotPlan slot) {
-            String result = idValue.toString();
-            if (result == null) {
-                throw new IllegalArgumentException(
-                        "Payload property '%s' returned a null ID string for %s model required by %s"
-                                .formatted(slot.property.name, slot.modelType.getName(), slot.handler));
-            }
-            return result;
+            return repositoryId(
+                    idValue, slot.metadata, slot.modelType,
+                    slot.property.name, slot.handler);
+        }
+    }
+
+    private static String repositoryId(
+            Object idValue, Class<?> modelType, String property, String handler) {
+        return repositoryId(idValue, ModelMetadata.of(modelType), modelType, property, handler);
+    }
+
+    private static String repositoryId(
+            Object idValue, ModelMetadata metadata, Class<?> modelType, String property, String handler) {
+        try {
+            return metadata.repositoryId(idValue);
+        } catch (RuntimeException e) {
+            String requirement = handler == null ? "" : " required by " + handler;
+            throw new IllegalArgumentException(
+                    "Payload property '%s' has an invalid ID for %s model%s"
+                            .formatted(property, modelType.getName(), requirement), e);
         }
     }
 
@@ -582,7 +581,8 @@ public final class ModelTargetResolver {
     }
 
     private record SlotPlan(
-            Class<?> modelType, PayloadProperty property, int access, String handler) {
+            Class<?> modelType, ModelMetadata metadata,
+            PayloadProperty property, int access, String handler) {
     }
 
     private record DeferredWritePlan(Class<?> modelType, List<Integer> candidateSlotIndexes, String handler) {
@@ -608,7 +608,7 @@ public final class ModelTargetResolver {
         }
 
         private SlotPlan freeze() {
-            return new SlotPlan(modelType, property, access, handler);
+            return new SlotPlan(modelType, ModelMetadata.of(modelType), property, access, handler);
         }
     }
 

@@ -59,6 +59,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -131,6 +132,23 @@ class DefaultModelRepositoryTest {
                                                 request.getModelId())
                                         && request.getCascade()
                                            == ModelDeletionCascade.DESCENDANTS));
+    }
+
+    @Test
+    void deletionPlanningComposesEntityIdAndTypedIdAffixes() {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ModelDeletionPlan expected = new ModelDeletionPlan(
+                1L, "move-affixed-1-state", ModelDeletionCascade.NONE,
+                0, 1, 1L, "fingerprint", 1, 0, 1L, 0L,
+                List.of("move-affixed-1-state"));
+        when(client.getEventStoreClient()).thenReturn(eventStore);
+        when(eventStore.planModelDeletion(any())).thenReturn(expected);
+
+        assertEquals(expected, repository.planDeletion(
+                new AffixedDeletionId("1"), ModelDeletionCascade.NONE));
+        verify(eventStore).planModelDeletion(
+                org.mockito.ArgumentMatchers.argThat(request ->
+                        "move-affixed-1-state".equals(request.getModelId())));
     }
 
     @Test
@@ -643,27 +661,63 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Test
-    void acceptedLocalCommitSeedsCacheWithoutPerLoadHeadChecks() {
-        AccountId id = new AccountId("cached");
-        LocalClient localClient = LocalClient.newInstance(null);
-        EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
-        LocalClient client = spy(localClient);
-        doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
-                .disableKeepalive()
-                .disableShutdownHook()
-                .replaceCache(testCache())
-                .build(client))) {
-            fluxzero.executeModelCommit(
-                    new Message(new CreateAccount(id, 5))).join();
-            clearInvocations(eventStoreClient);
+    @Nested
+    class CacheFastPathTests {
+        @Test
+        void acceptedLocalCommitSeedsCacheWithoutPerLoadHeadChecks() {
+            AccountId id = new AccountId("cached");
+            LocalClient localClient = LocalClient.newInstance(null);
+            EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
+            LocalClient client = spy(localClient);
+            doReturn(eventStoreClient).when(client).getEventStoreClient();
+            try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                    .disableKeepalive()
+                    .disableShutdownHook()
+                    .replaceCache(testCache())
+                    .build(client))) {
+                assertTrue(((DefaultModelRepository) fluxzero.modelRepository())
+                                   .cacheTrackingReadiness().join());
+                fluxzero.executeModelCommit(
+                        new Message(new CreateAccount(id, 5))).join();
+                clearInvocations(eventStoreClient);
 
-            assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
-            assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
+                assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
+                assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
 
-            verify(eventStoreClient, times(0))
-                    .getCompactModelEvents(any());
+                verify(eventStoreClient, times(0))
+                        .getCompactModelEvents(any());
+            }
+        }
+
+        @Test
+        void acceptedLocalCommitSeedsTheNextAutomaticApplyWithoutAStoreReload() {
+            AccountId id = new AccountId("cached-apply");
+            LocalClient localClient = LocalClient.newInstance(null);
+            EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
+            LocalClient client = spy(localClient);
+            doReturn(eventStoreClient).when(client).getEventStoreClient();
+            try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                    .disableKeepalive()
+                    .disableShutdownHook()
+                    .replaceCache(testCache())
+                    .build(client))) {
+                assertTrue(((DefaultModelRepository) fluxzero.modelRepository())
+                                   .cacheTrackingReadiness().join());
+                fluxzero.executeModelCommit(
+                        new Message(new CreateAccount(id, 5))).join();
+                clearInvocations(eventStoreClient);
+
+                fluxzero.executeModelCommit(
+                        new Message(new ChangeAccount(id, 2))).join();
+
+                assertEquals(
+                        new Account(id, 7),
+                        fluxzero.modelRepository().load(id).get());
+                verify(eventStoreClient, times(0))
+                        .getCompactModelEvents(any());
+                verify(eventStoreClient, times(1))
+                        .commitModels(any());
+            }
         }
     }
 
@@ -700,35 +754,6 @@ class DefaultModelRepositoryTest {
                             "second-code", AliasAccount.class));
             assertEquals(id.toString(), renamed.id());
             assertEquals("second-code", renamed.get().code());
-        }
-    }
-
-    @Test
-    void acceptedLocalCommitSeedsTheNextAutomaticApplyWithoutAStoreReload() {
-        AccountId id = new AccountId("cached-apply");
-        LocalClient localClient = LocalClient.newInstance(null);
-        EventStoreClient eventStoreClient = spy(localClient.getEventStoreClient());
-        LocalClient client = spy(localClient);
-        doReturn(eventStoreClient).when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
-                .disableKeepalive()
-                .disableShutdownHook()
-                .replaceCache(testCache())
-                .build(client))) {
-            fluxzero.executeModelCommit(
-                    new Message(new CreateAccount(id, 5))).join();
-            clearInvocations(eventStoreClient);
-
-            fluxzero.executeModelCommit(
-                    new Message(new ChangeAccount(id, 2))).join();
-
-            assertEquals(
-                    new Account(id, 7),
-                    fluxzero.modelRepository().load(id).get());
-            verify(eventStoreClient, times(0))
-                    .getCompactModelEvents(any());
-            verify(eventStoreClient, times(1))
-                    .commitModels(any());
         }
     }
 
@@ -1702,6 +1727,17 @@ class DefaultModelRepositoryTest {
     private static class ProductId extends Id<Product> {
         ProductId(String id) {
             super(id, "product-");
+        }
+    }
+
+    @Model
+    private record AffixedDeletion(
+            @EntityId(prefix = "move-", postfix = "-state") AffixedDeletionId id) {
+    }
+
+    private static class AffixedDeletionId extends Id<AffixedDeletion> {
+        private AffixedDeletionId(String id) {
+            super(id, "affixed-");
         }
     }
 

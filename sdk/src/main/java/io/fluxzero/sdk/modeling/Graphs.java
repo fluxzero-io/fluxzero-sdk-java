@@ -224,7 +224,7 @@ public final class Graphs {
                     Object parentId = parent.read(value);
                     if (parentId != null && !parent.path().isEmpty()) {
                         mergedEdges.add(new ModelGraphEdge(
-                                modelId, parentId.toString(),
+                                modelId, parent.repositoryId(parentId),
                                 parent.parentModelType() == null
                                         ? null : parent.parentModelType().getName(),
                                 parent.path(), -1L, null));
@@ -396,7 +396,7 @@ public final class Graphs {
                 if (parentId == null || parentType == null) {
                     continue;
                 }
-                String persistedParentId = parentId.toString();
+                String persistedParentId = reference.repositoryId(parentId);
                 Entity<?> parent = context.models.get(persistedParentId);
                 if (parent != null && !parentType.isAssignableFrom(parent.type())) {
                     parent = null;

@@ -35,8 +35,8 @@ import java.lang.annotation.Target;
  * entities declared with {@link Member @Member}; those members share the model's stream, cache, search document,
  * snapshots, and lifecycle.
  * <p>
- * Model identity is the string representation of its {@link EntityId @EntityId}. The annotation deliberately has no
- * separate name or key prefix.
+ * Model identity is the repository representation of its {@link EntityId @EntityId}. Applications can use a typed
+ * {@link Id}, annotation-level prefix/postfix affixes, or both to isolate otherwise equal functional identifiers.
  * <p>
  * An {@link Apply @Apply} method targets a model by returning that model. Returning {@code null} deletes the targeted
  * model while retaining the applied event according to the configured publication settings. Returning {@code void} is

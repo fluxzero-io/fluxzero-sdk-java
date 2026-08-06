@@ -1005,8 +1005,9 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Loads the independently stored model identified by the given typed ID.
      * <p>
-     * The persisted key is exactly {@link Id#toString()}; no model name is prefixed or concatenated. When no primary
-     * model has that identity, a current {@link Alias @Alias} value may resolve the model instead.
+     * The typed ID's repository representation is wrapped in any prefix or postfix declared by the model's
+     * {@link EntityId @EntityId}. When no primary model has that identity, a current {@link Alias @Alias} value may
+     * resolve the model instead.
      */
     static <T> Entity<T> loadModel(Id<T> modelId) {
         return currentModelRepository().load(modelId);
@@ -1127,8 +1128,8 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> Entity<T> loadEntity(Object entityId) {
-        if (entityId instanceof Id<?> id && id.getType().isAnnotationPresent(Model.class)) {
-            return (Entity<T>) loadModel(id);
+        if (entityId instanceof Id<?> id) {
+            return (Entity<T>) loadEntity(id);
         }
         try {
             Entity<T> aggregateEntity = (Entity<T>) loadAggregateFor(entityId).getEntity(entityId)
@@ -1164,7 +1165,20 @@ public interface Fluxzero extends AutoCloseable {
         if (entityId.getType().isAnnotationPresent(Model.class)) {
             return loadModel(entityId);
         }
-        return loadAggregateFor(entityId).<T>getEntity(entityId).orElseGet(() -> loadAggregate(entityId));
+        return loadEntity(entityId, entityId.getType());
+    }
+
+    /**
+     * Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for
+     * independent models and entities embedded in legacy aggregates.
+     */
+    static <T> Entity<T> loadEntity(Object entityId, Class<T> entityType) {
+        if (entityType.isAnnotationPresent(Model.class)) {
+            return loadModel(entityId, entityType);
+        }
+        String repositoryId = io.fluxzero.sdk.modeling.ModelMetadata.of(entityType).repositoryId(entityId);
+        return loadAggregateFor(repositoryId).getEntity(entityId, entityType)
+                .orElseGet(() -> loadAggregate(entityId, entityType));
     }
 
     private static <T> Entity<T> legacyModelEntity(
@@ -1217,7 +1231,12 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings("unchecked")
     static <T> T loadEntityValue(Id<T> entityId) {
-        return (T) loadAggregateFor(entityId).getEntity(entityId).map(Entity::get).orElse(null);
+        return loadEntity(entityId).get();
+    }
+
+    /** Loads an entity value by functional ID and expected type. */
+    static <T> T loadEntityValue(Object entityId, Class<T> entityType) {
+        return loadEntity(entityId, entityType).get();
     }
 
     /**

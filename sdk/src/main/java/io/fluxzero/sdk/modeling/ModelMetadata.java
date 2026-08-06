@@ -65,6 +65,8 @@ public final class ModelMetadata {
     private final Aggregate aggregate;
     private final RootConfiguration rootConfiguration;
     private final Property entityId;
+    private final String entityIdPrefix;
+    private final String entityIdPostfix;
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
@@ -141,7 +143,12 @@ public final class ModelMetadata {
             throw invalid("%s must declare exactly one @EntityId property, but found %d"
                                   .formatted(type.getName(), entityIds.size()));
         }
-        this.entityId = entityIds.isEmpty() ? null : property(entityIds.getFirst());
+        AccessibleObject entityIdMember = entityIds.isEmpty() ? null : entityIds.getFirst();
+        this.entityId = entityIdMember == null ? null : property(entityIdMember);
+        EntityId entityIdAnnotation = entityIdMember == null ? null
+                : ReflectionUtils.getAnnotationAs(entityIdMember, EntityId.class, EntityId.class).orElseThrow();
+        this.entityIdPrefix = entityIdAnnotation == null ? "" : entityIdAnnotation.prefix();
+        this.entityIdPostfix = entityIdAnnotation == null ? "" : entityIdAnnotation.postfix();
         if (model != null) {
             validateScalarId(entityId, "@EntityId");
         }
@@ -192,6 +199,56 @@ public final class ModelMetadata {
 
     public Optional<Property> entityId() {
         return Optional.ofNullable(entityId);
+    }
+
+    /**
+     * Returns the exact repository identity for a functional identifier of this type.
+     * <p>
+     * When the entity property is an {@link Id} subtype, a String input is interpreted as that ID's functional value,
+     * so the ID's own repository prefix is applied before the outer {@link EntityId} affixes.
+     */
+    public String repositoryId(Object functionalId) {
+        Objects.requireNonNull(functionalId, "Entity ID must not be null");
+        String nested = nestedRepositoryId(functionalId);
+        if (nested == null) {
+            throw new IllegalArgumentException("Entity ID returned a null repository value for " + type.getName());
+        }
+        if (entityIdPrefix.isEmpty() && entityIdPostfix.isEmpty()) {
+            return nested;
+        }
+        if (entityIdPrefix.isEmpty()) {
+            return nested + entityIdPostfix;
+        }
+        if (entityIdPostfix.isEmpty()) {
+            return entityIdPrefix + nested;
+        }
+        return entityIdPrefix + nested + entityIdPostfix;
+    }
+
+    /** Returns the exact repository identity read from this type's {@link EntityId} property. */
+    public String repositoryIdOf(Object value) {
+        if (entityId == null) {
+            throw new IllegalStateException(type.getName() + " does not declare an @EntityId property");
+        }
+        Object id = entityId.read(Objects.requireNonNull(value, "Entity value must not be null"));
+        return repositoryId(id);
+    }
+
+    private String nestedRepositoryId(Object functionalId) {
+        if (entityId == null || !Id.class.isAssignableFrom(entityId.type())
+            || entityId.type().isInstance(functionalId)) {
+            return functionalId.toString();
+        }
+        String value = functionalId instanceof Id<?> id ? id.getFunctionalId() : functionalId.toString();
+        try {
+            return ReflectionUtils.getTypeMetadata(entityId.type())
+                    .invoker(entityId.type().getDeclaredConstructor(String.class), true)
+                    .invoke(null, value).toString();
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException(
+                    "@EntityId type %s must declare a single String constructor to support functional String lookup"
+                            .formatted(entityId.type().getName()), e);
+        }
     }
 
     /**
@@ -715,6 +772,13 @@ public final class ModelMetadata {
     public record ParentReference(Property property, String path, Class<?> parentModelType, ApiDoc apiDoc) {
         public Object read(Object target) {
             return property.read(target);
+        }
+
+        /** Returns the parent's exact persisted identity for a functional parent ID value. */
+        public String repositoryId(Object parentId) {
+            return parentModelType == null
+                    ? Objects.requireNonNull(parentId, "Parent ID must not be null").toString()
+                    : ModelMetadata.of(parentModelType).repositoryId(parentId);
         }
 
         public boolean automaticallyComposed() {

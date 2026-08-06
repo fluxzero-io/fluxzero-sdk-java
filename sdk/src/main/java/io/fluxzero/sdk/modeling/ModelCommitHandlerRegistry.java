@@ -1904,7 +1904,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     if (parentId != null) {
                         parents.add(new ParentRelationship(
                                 Objects.requireNonNull(
-                                        parentId.toString(),
+                                        parent.repositoryId(parentId),
                                         "Parent ID string"),
                                 parent.parentModelType(),
                                 parent.path()));
@@ -3711,7 +3711,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 .parentReferences()) {
                     Object parentId = parent.read(value);
                     if (parentId != null) {
-                        pending.add(parentId.toString());
+                        pending.add(parent.repositoryId(parentId));
                     }
                 }
             }

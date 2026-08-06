@@ -388,7 +388,8 @@ final class ModelCommitEngine {
             Object resultId = ModelMetadata.of(result.getClass())
                     .entityId().orElseThrow().read(result);
             if (resultId == null
-                || !expectedTargetId.equals(resultId.toString())) {
+                || !expectedTargetId.equals(
+                        ModelMetadata.of(result.getClass()).repositoryId(resultId))) {
                 throw new IllegalStateException(
                         "Apply %s returned model '%s', which is not replay target '%s'"
                                 .formatted(
@@ -581,13 +582,12 @@ final class ModelCommitEngine {
                                            result.getClass().getName(), targetType.getName()));
             }
             Object id = ModelMetadata.of(result.getClass()).entityId().orElseThrow().read(result);
-            String idString = id == null ? null : id.toString();
-            if (idString == null) {
+            if (id == null) {
                 throw new IllegalStateException(
                         "Apply %s returned a model with a null ID"
                                 .formatted(handler.executable().toGenericString()));
             }
-            return idString;
+            return ModelMetadata.of(result.getClass()).repositoryId(id);
         }
 
         Entity<?> receiver = handler.receiverModelType() == null

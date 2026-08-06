@@ -80,6 +80,18 @@ class ModelMetadataTest {
     }
 
     @Test
+    void composesEntityIdAffixesOutsideTypedIdRepositoryPrefix() {
+        ModelMetadata metadata = ModelMetadata.validate(AffixedModel.class);
+        AffixedModelId id = new AffixedModelId("123");
+
+        assertEquals("move-model-123-state", metadata.repositoryId(id));
+        assertEquals("move-model-123-state", metadata.repositoryId("123"));
+        assertEquals("move-model-123-state", metadata.repositoryIdOf(new AffixedModel(id)));
+        assertEquals("123", id.getFunctionalId());
+        assertEquals("model-123", id.toString());
+    }
+
+    @Test
     void exposesAggregateNeutralRootConfiguration() {
         ModelMetadata.RootConfiguration model = ModelMetadata.of(ConfiguredModel.class)
                 .rootConfiguration().orElseThrow();
@@ -364,6 +376,17 @@ class ModelMetadataTest {
     private static class ChildModelId extends Id<ChildModel> {
         ChildModelId(String id) {
             super(id, "child-");
+        }
+    }
+
+    @Model
+    private record AffixedModel(
+            @EntityId(prefix = "move-", postfix = "-state") AffixedModelId id) {
+    }
+
+    private static class AffixedModelId extends Id<AffixedModel> {
+        AffixedModelId(String id) {
+            super(id, "model-");
         }
     }
 

@@ -53,6 +53,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
@@ -201,7 +202,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return client.getEventStoreClient()
                 .planModelDeletion(
                         new PlanModelDeletion(
-                                modelId.toString(),
+                                exactModelId(modelId),
                                 cascade));
     }
 
@@ -225,8 +226,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     new IllegalArgumentException(
                             "DESCENDANTS hard deletion requires a confirmed plan from planDeletion"));
         }
-        String exactId =
-                modelId.toString();
+        String exactId = exactModelId(modelId);
         return executeDeletion(
                 DeleteModel.builder()
                         .deletionId(
@@ -289,6 +289,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     }
                     return result;
                 });
+    }
+
+    private static String exactModelId(Object modelId) {
+        Objects.requireNonNull(modelId, "Model ID must not be null");
+        return modelId instanceof Id<?> id
+                ? ModelMetadata.of(id.getType()).repositoryId(id)
+                : modelId.toString();
     }
 
     @Override
@@ -434,7 +441,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         LinkedHashSet<String> uniqueIds = new LinkedHashSet<>();
         List<String> ids = modelIds.stream()
                 .map(modelId -> Objects.requireNonNull(
-                        modelId, "Model ID must not be null").toString())
+                        modelId, "Model ID must not be null"))
+                .map(metadata::repositoryId)
                 .peek(modelId -> {
                     if (!uniqueIds.add(modelId)) {
                         throw new IllegalArgumentException(
@@ -617,7 +625,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 Object parentId = parent.read(value);
                 if (parentId != null) {
                     edges.add(new ModelGraphEdge(
-                            model.modelId(), parentId.toString(),
+                            model.modelId(), parent.repositoryId(parentId),
                             parent.parentModelType() == null
                                     ? null
                                     : parent.parentModelType().getName(),
@@ -1626,7 +1634,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         continue;
                     }
                     String parentIdString = Objects.requireNonNull(
-                            parentId.toString(),
+                            parent.repositoryId(parentId),
                             () -> "@ParentId "
                                   + parent.property().name()
                                   + " returned a null ID string");
@@ -1985,7 +1993,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             return current;
         }
         return committedEntity(
-                committed, committed.entityId(),
+                committed, ModelMetadata.of(committed.modelType()),
                 committed.model(), current);
     }
 
@@ -2029,6 +2037,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         .beginLocalCommit(modelIds);
     }
 
+    CompletableFuture<Boolean> cacheTrackingReadiness() {
+        return modelCacheTracker == null
+                ? CompletableFuture.completedFuture(false)
+                : modelCacheTracker.readiness();
+    }
+
     /**
      * Removes commit-scoped entries before a strict-policy retry reload.
      */
@@ -2044,9 +2058,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     @SuppressWarnings("unchecked")
     private Entity<?> committedEntity(
             CommittedModel committed,
-            ModelMetadata.Property entityId,
+            ModelMetadata metadata,
             ModelMetadata.RootConfiguration model,
             Entity<?> previous) {
+        ModelMetadata.Property entityId = metadata.entityId().orElseThrow();
         Entity<?> result = previous;
         for (int index = 0;
              index < committed.revisionCount(); index++) {
@@ -2054,7 +2069,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                     committed.revision(index);
             if (!committed.valueIdsValidated()) {
                 validateValueId(
-                        committed.modelId(), entityId, revision.value());
+                        committed.modelId(), metadata, revision.value());
             }
             result = ImmutableModelRoot.committed(
                     committed.modelId(),
@@ -2228,17 +2243,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
     private static void validateValueId(
             String modelId, ModelMetadata metadata, Object value) {
-        validateValueId(
-                modelId, metadata.entityId().orElseThrow(), value);
-    }
-
-    private static void validateValueId(
-            String modelId, ModelMetadata.Property entityId, Object value) {
         if (value == null) {
             return;
         }
-        Object storedId = entityId.read(value);
-        if (storedId == null || !Objects.equals(modelId, storedId.toString())) {
+        Object storedId = metadata.entityId().orElseThrow().read(value);
+        if (storedId == null || !Objects.equals(modelId, metadata.repositoryId(storedId))) {
             throw new EventSourcingException(
                     "Stored model document '%s' reports @EntityId '%s'"
                             .formatted(modelId, storedId));

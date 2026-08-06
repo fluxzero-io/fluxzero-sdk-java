@@ -613,6 +613,34 @@ public interface Entity<T> {
     }
 
     /**
+     * Retrieves an entity by functional ID and expected type.
+     * <p>
+     * The expected type makes {@link EntityId} affixes available during lookup while the entity value itself keeps
+     * carrying its unmodified functional ID.
+     */
+    @SuppressWarnings("unchecked")
+    default <C> Optional<Entity<C>> getEntity(Object entityId, Class<C> entityType) {
+        if (entityId == null) {
+            return Optional.empty();
+        }
+        Objects.requireNonNull(entityType, "entityType");
+        String functionalId = entityId.toString();
+        String repositoryId = ModelMetadata.of(entityType).repositoryId(entityId);
+        List<Entity<?>> entities = allEntities()
+                .filter(entity -> entity.type() != null && entityType.isAssignableFrom(entity.type()))
+                .toList();
+        return entities.stream()
+                .filter(entity -> entity.aliases().stream()
+                        .anyMatch(alias -> alias != null && functionalId.equals(alias.toString())))
+                .findFirst()
+                .or(() -> entities.stream()
+                        .filter(entity -> entity.id() != null
+                                && repositoryId.equals(repositoryIdentity(entity)))
+                        .findFirst())
+                .map(entity -> (Entity<C>) entity);
+    }
+
+    /**
      * Retrieves the set of relationships between the aggregate root and all its entities.
      * <p>
      * If the current entity is not a root entity, this method delegates to the root entity's relationships. If the root
@@ -631,10 +659,18 @@ public interface Entity<T> {
         String id = id().toString();
         String type = type().getName();
         return allEntities().filter(e -> e.id() != null)
-                .flatMap(e -> Stream.concat(Stream.of(e.id()), e.aliases().stream()))
+                .flatMap(e -> Stream.concat(
+                        Stream.of(repositoryIdentity(e)),
+                        e.aliases().stream().filter(Objects::nonNull).map(Object::toString)))
                 .map(entityId -> Relationship.builder()
-                        .entityId(entityId.toString()).aggregateType(type).aggregateId(id).build())
+                        .entityId(entityId).aggregateType(type).aggregateId(id).build())
                 .collect(Collectors.toSet());
+    }
+
+    private static String repositoryIdentity(Entity<?> entity) {
+        return entity.type().isAnnotationPresent(Model.class)
+                ? entity.id().toString()
+                : ModelMetadata.of(entity.type()).repositoryId(entity.id());
     }
 
     /**

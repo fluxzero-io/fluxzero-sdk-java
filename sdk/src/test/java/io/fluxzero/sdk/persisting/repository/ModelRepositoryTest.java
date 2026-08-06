@@ -17,8 +17,11 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -56,6 +59,50 @@ class ModelRepositoryTest {
         assertSame(expected, result);
         assertEquals("model-123", actualId.get());
         assertSame(TestModel.class, actualType.get());
+    }
+
+    @Test
+    void affixedModelLoadsByTypedIdAndFunctionalString() {
+        AtomicReference<String> actualId = new AtomicReference<>();
+        Entity<AffixedModel> expected = entity();
+        when(expected.isPresent()).thenReturn(true);
+        ModelRepository repository = new ModelRepository() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> Entity<T> load(String modelId, Class<T> modelType) {
+                actualId.set(modelId);
+                return (Entity<T>) expected;
+            }
+        };
+
+        repository.load(new AffixedId("123"));
+        assertEquals("move-model-123-state", actualId.get());
+
+        repository.load((Object) "123", AffixedModel.class);
+        assertEquals("move-model-123-state", actualId.get());
+    }
+
+    @Test
+    void affixedModelStillFallsBackToAnUndecoratedAlias() {
+        java.util.ArrayList<String> actualIds = new java.util.ArrayList<>();
+        Entity<AffixedModel> missing = entity();
+        Entity<AffixedModel> expected = entity();
+        when(missing.isPresent()).thenReturn(false);
+        when(expected.isPresent()).thenReturn(true);
+        ModelRepository repository = new ModelRepository() {
+            @Override
+            public <T> Entity<T> load(String modelId, Class<T> modelType) {
+                actualIds.add(modelId);
+                @SuppressWarnings("unchecked")
+                Entity<T> result = (Entity<T>) ("legacy-code".equals(modelId) ? expected : missing);
+                return result;
+            }
+        };
+
+        Entity<AffixedModel> result = repository.load((Object) "legacy-code", AffixedModel.class);
+
+        assertSame(expected, result);
+        assertEquals(java.util.List.of("move-model-legacy-code-state", "legacy-code"), actualIds);
     }
 
     @Test
@@ -110,6 +157,18 @@ class ModelRepositoryTest {
 
     private static class TestModelId extends Id<TestModel> {
         TestModelId(String id) {
+            super(id, "model-");
+        }
+    }
+
+    @Model
+    private record AffixedModel(
+            @EntityId(prefix = "move-", postfix = "-state") AffixedId id,
+            @Alias String code) {
+    }
+
+    private static class AffixedId extends Id<AffixedModel> {
+        AffixedId(String id) {
             super(id, "model-");
         }
     }

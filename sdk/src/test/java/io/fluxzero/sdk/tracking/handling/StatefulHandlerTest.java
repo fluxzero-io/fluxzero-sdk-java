@@ -1371,6 +1371,21 @@ public class StatefulHandlerTest {
         }
 
         @Test
+        void entityIdAffixWrapsTypedIdForStatefulStorage() {
+            CountingRepository repository = new CountingRepository();
+            StatefulId id = new StatefulId("one");
+
+            statefulHandler(AffixedStateful.class, repository)
+                    .getInvoker(message(new CreateAffixedStateful(id)))
+                    .orElseThrow()
+                    .invoke();
+
+            assertEquals(new AffixedStateful(id), repository.get("state-handler-one-snapshot"));
+            assertEquals("one", id.getFunctionalId());
+            assertEquals("handler-one", id.toString());
+        }
+
+        @Test
         void multipleListMemberMutationsInOneRootAreStoredOnce() {
             CountingRepository repository = new CountingRepository()
                     .add("customer-1", new ListCountingCustomer("customer-1", List.of(
@@ -1528,6 +1543,24 @@ public class StatefulHandlerTest {
             PlainCountingCustomer handle(PlainCountingCustomerChanged event) {
                 return new PlainCountingCustomer(customerId, handledCount + 1);
             }
+        }
+
+        @Stateful
+        record AffixedStateful(
+                @EntityId(prefix = "state-", postfix = "-snapshot") StatefulId id) {
+            @HandleEvent
+            AffixedStateful(CreateAffixedStateful event) {
+                this(event.id());
+            }
+        }
+
+        private static final class StatefulId extends Id<AffixedStateful> {
+            private StatefulId(String id) {
+                super(id, "handler-");
+            }
+        }
+
+        record CreateAffixedStateful(StatefulId id) {
         }
 
         @Stateful

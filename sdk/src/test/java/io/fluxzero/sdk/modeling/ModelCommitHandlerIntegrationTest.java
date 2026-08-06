@@ -19,6 +19,7 @@ package io.fluxzero.sdk.modeling;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,6 +76,40 @@ class ModelCommitHandlerIntegrationTest {
                 .expectTrue(fluxzero -> fluxzero.documentStore()
                         .search(Account.class).fetchAll(Account.class)
                                 .equals(java.util.List.of(new Account(accountId, 42))));
+    }
+
+    @Test
+    void entityIdAffixesApplyToModelLoadsAndParentRelationships() {
+        AffixedRootId rootId = new AffixedRootId("one");
+        AffixedChildId childId = new AffixedChildId("one");
+
+        TestFixture.create()
+                .givenCommands(new CreateAffixedRoot(rootId))
+                .whenCommand(new CreateAffixedChild(childId, rootId))
+                .expectThat(fluxzero -> {
+                    Entity<AffixedRoot> root = fluxzero.modelRepository().load(rootId);
+                    assertEquals(
+                            new AffixedRoot(rootId),
+                            root.get());
+                    assertEquals(
+                            new AffixedRoot(rootId),
+                            fluxzero.modelRepository().load((Object) "one", AffixedRoot.class).get());
+                    assertEquals(
+                            new AffixedChild(childId, rootId),
+                            fluxzero.modelRepository().load(childId).get());
+                    assertEquals(
+                            List.of(new AffixedChild(childId, rootId)),
+                            fluxzero.modelRepository().loadGraph(rootId)
+                                    .childModels("children", AffixedChild.class));
+                    assertEquals("one", rootId.getFunctionalId());
+                    assertEquals("root-one", rootId.toString());
+                    assertEquals(
+                            Set.of("move-root-one-state"),
+                            root.relationships().stream()
+                                    .map(Relationship::getEntityId)
+                                    .collect(java.util.stream.Collectors.toSet()));
+                    assertEquals(root, root.getEntity(rootId, AffixedRoot.class).orElseThrow());
+                });
     }
 
     @Test
@@ -1933,6 +1969,45 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         FamilyRoot apply() {
             return new FamilyRoot(familyRootId, name);
+        }
+    }
+
+    @Model(searchable = true)
+    private record AffixedRoot(
+            @EntityId(prefix = "move-", postfix = "-state") AffixedRootId affixedRootId) {
+    }
+
+    private static final class AffixedRootId extends Id<AffixedRoot> {
+        private AffixedRootId(String id) {
+            super(id, "root-");
+        }
+    }
+
+    private record CreateAffixedRoot(AffixedRootId affixedRootId) {
+        @Apply
+        AffixedRoot apply() {
+            return new AffixedRoot(affixedRootId);
+        }
+    }
+
+    @Model
+    private record AffixedChild(
+            @EntityId(prefix = "nested-") AffixedChildId affixedChildId,
+            @ParentId(path = "children") AffixedRootId affixedRootId) {
+    }
+
+    private static final class AffixedChildId extends Id<AffixedChild> {
+        private AffixedChildId(String id) {
+            super(id, "child-");
+        }
+    }
+
+    private record CreateAffixedChild(
+            AffixedChildId affixedChildId,
+            AffixedRootId affixedRootId) {
+        @Apply
+        AffixedChild apply() {
+            return new AffixedChild(affixedChildId, affixedRootId);
         }
     }
 

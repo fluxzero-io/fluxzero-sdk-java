@@ -172,7 +172,7 @@ public final class ModelEventReplayer {
                             .read(result);
             if (id == null
                 || !targetModelId.equals(
-                        id.toString())) {
+                        ModelMetadata.of(result.getClass()).repositoryId(id))) {
                 throw new IllegalStateException(
                         "Apply %s returned model '%s', which is not replay target '%s'"
                                 .formatted(

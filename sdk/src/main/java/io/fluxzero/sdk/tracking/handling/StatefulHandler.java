@@ -35,6 +35,7 @@ import io.fluxzero.sdk.modeling.HasEntity;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AccessLevel;
@@ -287,6 +288,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
 
     private Object computeId(Object handler, Entry<?> currentEntry, DeserializingMessage message) {
         return getAnnotatedPropertyValue(handler, EntityId.class)
+                .map(id -> ModelMetadata.of(handler.getClass()).repositoryId(id))
                 .or(() -> ofNullable(currentEntry).map(Entry::getId))
                 .orElseGet(() -> message == null ? null : message.getMessageId());
     }
@@ -859,7 +861,9 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         private Object computeMemberId(Entity<?> target, Object value) {
-            return getAnnotatedPropertyValue(value, EntityId.class).orElse(target.id());
+            return getAnnotatedPropertyValue(value, EntityId.class)
+                    .<Object>map(id -> ModelMetadata.of(value.getClass()).repositoryId(id))
+                    .orElse(target.id());
         }
     }
 

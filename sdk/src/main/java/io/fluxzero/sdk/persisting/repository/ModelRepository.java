@@ -27,6 +27,7 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
+import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
@@ -37,8 +38,9 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Repository for loading independently stored {@link Model models}.
  * <p>
- * Model identity is always the exact {@link Object#toString()} value of its {@code @EntityId}; a model type or
- * annotation name is never concatenated into the persisted key. Loads first match that primary identity and then, when
+ * Model identity combines the repository representation of its {@code @EntityId} value with any explicit
+ * {@link io.fluxzero.sdk.modeling.EntityId#prefix() prefix} and
+ * {@link io.fluxzero.sdk.modeling.EntityId#postfix() postfix}. Loads first match that primary identity and then, when
  * no such model exists, a current value declared with {@link Alias @Alias}.
  */
 public interface ModelRepository extends Namespaced<ModelRepository> {
@@ -57,7 +59,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * Loads a model using the type carried by a typed identifier.
      */
     default <T> Entity<T> load(@NonNull Id<T> modelId) {
-        return load(modelId.toString(), modelId.getType());
+        return load((Object) modelId, modelId.getType());
     }
 
     /**
@@ -70,8 +72,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      */
     @SuppressWarnings("unchecked")
     default <T> Entity<T> load(@NotNull Object modelId) {
-        return (Entity<T>) load(modelId.toString(),
-                                modelId instanceof Id<?> id ? (Class<Object>) id.getType() : Object.class);
+        return (Entity<T>) (modelId instanceof Id<?> id
+                ? load((Object) id, (Class<Object>) id.getType())
+                : load(modelId.toString(), Object.class));
     }
 
     /**
@@ -79,7 +82,13 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * model has that identity.
      */
     default <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
-        return load(modelId.toString(), modelType);
+        String functionalId = modelId.toString();
+        ModelMetadata metadata = ModelMetadata.of(modelType);
+        String primaryId = metadata.entityId().isEmpty()
+                ? functionalId : metadata.repositoryId(modelId);
+        Entity<T> result = load(primaryId, modelType);
+        return result.isPresent() || primaryId.equals(functionalId) || !metadata.hasAliases()
+                ? result : load(functionalId, modelType);
     }
 
     /**
@@ -221,7 +230,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * {@link #loadGraphAt(Id, long)} when an exact durable historical boundary is required.
      */
     default <T> Graph<T> loadGraph(@NonNull Id<T> rootId) {
-        return loadGraph(rootId.toString(), rootId.getType(), Graph.Options.DEFAULT);
+        return loadGraph(
+                ModelMetadata.of(rootId.getType()).repositoryId(rootId),
+                rootId.getType(), Graph.Options.DEFAULT);
     }
 
     /**
@@ -243,7 +254,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             long stateIndex,
             @NonNull Graph.Options options) {
         return loadGraphAt(
-                rootId.toString(), rootId.getType(),
+                ModelMetadata.of(rootId.getType()).repositoryId(rootId), rootId.getType(),
                 stateIndex, options);
     }
 

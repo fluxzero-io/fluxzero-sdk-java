@@ -1123,8 +1123,9 @@ final class ModelCommitter {
             if (parentId == null) {
                 continue;
             }
+            String parentRepositoryId = parent.repositoryId(parentId);
             ModelRelationship relationship = ModelRelationship.builder()
-                    .parentId(parentId.toString())
+                    .parentId(parentRepositoryId)
                     .parentType(parent.parentModelType() == null
                                         ? null : parent.parentModelType().getName())
                     .path(parent.path().isEmpty() ? null : parent.path())
