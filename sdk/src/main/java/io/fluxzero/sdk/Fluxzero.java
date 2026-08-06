@@ -47,6 +47,7 @@ import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.DelegatingEntity;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
@@ -1028,6 +1029,38 @@ public interface Fluxzero extends AutoCloseable {
      */
     static <T> Entity<T> loadModel(Object modelId, Class<T> modelType) {
         return currentModelRepository().load(modelId, modelType);
+    }
+
+    /**
+     * Lazily loads the independently stored model identified by the typed ID as a relationship graph.
+     * <p>
+     * The model value itself costs the same direct load as {@link #loadModel(Id)}. Relationship state is reconstructed
+     * only when graph navigation or graph serialization requests it.
+     */
+    static <T> Graph<T> loadGraph(Id<T> modelId) {
+        Entity<T> entity = loadModel(modelId);
+        long stateIndex = entity instanceof io.fluxzero.sdk.modeling.ModelRoot<?> root
+                ? root.stateIndex() : -1L;
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                entity, stateIndex, currentModelRepository());
+    }
+
+    /**
+     * Lazily loads an independently stored model by ID and expected type as a relationship graph.
+     */
+    static <T> Graph<T> loadGraph(Object modelId, Class<T> modelType) {
+        Entity<T> entity = loadModel(modelId, modelType);
+        long stateIndex = entity instanceof io.fluxzero.sdk.modeling.ModelRoot<?> root
+                ? root.stateIndex() : -1L;
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                entity, stateIndex, currentModelRepository());
+    }
+
+    /**
+     * Reconstructs a complete historical graph at the requested durable model-state boundary.
+     */
+    static <T> Graph<T> loadGraphAt(Id<T> modelId, long stateIndex) {
+        return currentModelRepository().loadGraphAt(modelId, stateIndex);
     }
 
     /**

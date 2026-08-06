@@ -51,11 +51,12 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelEventReplayer;
-import io.fluxzero.sdk.modeling.ModelGraph;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.MessageBatchModelView;
 import io.fluxzero.sdk.modeling.ModelMetadata;
@@ -463,42 +464,48 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     @Override
-    public <T> ModelGraph<T> loadGraph(
+    public <T> Graph<T> loadGraph(
             @NonNull String rootId,
             @NonNull Class<T> rootType,
-            @NonNull ModelGraph.Options options) {
+            @NonNull Graph.Options options) {
         requireEventReconstruction();
         ModelMetadata.validate(rootType);
         ModelEventStateBoundary handlerBoundary =
                 handlerBoundary();
-        return loadGraph(
+        ReconstructedGraph<T> graph = loadGraph(
                 rootId, rootType, options,
                 boundary(handlerBoundary),
                 handlerBoundary, true);
+        return Graphs.compose(
+                rootId, graph.stateIndex(), graph.models(),
+                graph.edges(), this, false);
     }
 
     @Override
-    public <T> ModelGraph<T> loadGraphAt(
+    public <T> Graph<T> loadGraphAt(
             @NonNull String rootId,
             @NonNull Class<T> rootType,
             long stateIndex,
-            @NonNull ModelGraph.Options options) {
+            @NonNull Graph.Options options) {
         if (stateIndex < -1L) {
             throw new IllegalArgumentException(
                     "Model graph stateIndex must be at least -1");
         }
         requireEventReconstruction();
         ModelMetadata.validate(rootType);
-        return loadGraph(
+        ReconstructedGraph<T> graph = loadGraph(
                 rootId, rootType, options,
                 ModelEventBatchLoader.Boundary.at(stateIndex), null,
                 false);
+        return Graphs.compose(
+                rootId, graph.stateIndex(), graph.models(),
+                graph.edges(), this, true);
     }
 
-    private <T> ModelGraph<T> loadGraph(
+    private <T> ReconstructedGraph<T> loadGraph(
             String rootId,
             Class<T> rootType,
-            ModelGraph.Options options,
+            Graph.Options options,
             ModelEventBatchLoader.Boundary boundary,
             ModelEventStateBoundary handlerBoundary,
             boolean includeMessageBatch) {
@@ -559,7 +566,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             .build());
             durableModels = withEmptyRoot;
         }
-        ModelGraph<T> durable = composeGraph(
+        ReconstructedGraph<T> durable = composeGraph(
                 rootId, graph.getStateIndex(),
                 durableModels, graph.getEdges());
         return includeMessageBatch
@@ -569,11 +576,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private <T> ModelGraph<T> overlayMessageBatchGraph(
-            ModelGraph<T> durable,
+    private <T> ReconstructedGraph<T> overlayMessageBatchGraph(
+            ReconstructedGraph<T> durable,
             String rootId,
             Class<T> rootType,
-            ModelGraph.Options options,
+            Graph.Options options,
             Map<String, MessageBatchModelView.StagedModel> staged) {
         if (staged.isEmpty()) {
             return durable;
@@ -628,9 +635,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 || !candidate.existedBefore()) {
                 continue;
             }
-            ModelGraph<?> supplemental = loadGraph(
+            ReconstructedGraph<?> supplemental = loadGraph(
                     modelId, (Class) candidate.modelType(),
-                    ModelGraph.Options.DEFAULT,
+                    Graph.Options.DEFAULT,
                     ModelEventBatchLoader.Boundary.at(
                             durable.stateIndex()),
                     null, false);
@@ -693,7 +700,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     private static GraphSelection selectGraph(
             String rootId,
             Collection<ModelGraphEdge> edges,
-            ModelGraph.Options options) {
+            Graph.Options options) {
         LinkedHashMap<String, List<ModelGraphEdge>> byParent =
                 new LinkedHashMap<>();
         for (ModelGraphEdge edge : edges) {
@@ -1105,15 +1112,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
     }
 
     @SuppressWarnings("unchecked")
-    private <T> ModelGraph<T> composeGraph(
+    private <T> ReconstructedGraph<T> composeGraph(
             String rootId,
             long stateIndex,
             Map<String, Entity<?>> models,
             List<ModelGraphEdge> edges) {
         GraphComposer composer = new GraphComposer(models, edges);
-        ModelGraph.Node<T> root =
-                (ModelGraph.Node<T>) composer.node(rootId);
-        return new ModelGraph<>(
+        ReconstructedNode<T> root =
+                (ReconstructedNode<T>) composer.node(rootId);
+        return new ReconstructedGraph<>(
                 stateIndex, root,
                 Collections.unmodifiableMap(new LinkedHashMap<>(models)),
                 edges);
@@ -1123,7 +1130,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         private final Map<String, Entity<?>> models;
         private final Map<String, List<ModelGraphEdge>> edgesByParent =
                 new LinkedHashMap<>();
-        private final Map<String, ModelGraph.Node<?>> nodes =
+        private final Map<String, ReconstructedNode<?>> nodes =
                 new LinkedHashMap<>();
         private final LinkedHashSet<String> visiting = new LinkedHashSet<>();
 
@@ -1141,8 +1148,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})
-        private ModelGraph.Node<?> node(String modelId) {
-            ModelGraph.Node<?> known = nodes.get(modelId);
+        private ReconstructedNode<?> node(String modelId) {
+            ReconstructedNode<?> known = nodes.get(modelId);
             if (known != null) {
                 return known;
             }
@@ -1155,7 +1162,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 throw new EventSourcingException(
                         "Model graph contains a cycle through " + modelId);
             }
-            LinkedHashMap<String, List<ModelGraph.Node<?>>> children =
+            LinkedHashMap<String, List<ReconstructedNode<?>>> children =
                     new LinkedHashMap<>();
             for (ModelGraphEdge edge :
                     edgesByParent.getOrDefault(modelId, List.of())) {
@@ -1164,15 +1171,27 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         .add(node(edge.getChildId()));
             }
             visiting.remove(modelId);
-            LinkedHashMap<String, List<ModelGraph.Node<?>>> immutable =
+            LinkedHashMap<String, List<ReconstructedNode<?>>> immutable =
                     new LinkedHashMap<>();
             children.forEach((path, values) ->
                                      immutable.put(path, List.copyOf(values)));
-            ModelGraph.Node<?> result = new ModelGraph.Node(
+            ReconstructedNode<?> result = new ReconstructedNode(
                     model, Collections.unmodifiableMap(immutable));
             nodes.put(modelId, result);
             return result;
         }
+    }
+
+    private record ReconstructedGraph<T>(
+            long stateIndex,
+            ReconstructedNode<T> root,
+            Map<String, Entity<?>> models,
+            List<ModelGraphEdge> edges) {
+    }
+
+    private record ReconstructedNode<T>(
+            Entity<T> model,
+            Map<String, List<ReconstructedNode<?>>> children) {
     }
 
     /**

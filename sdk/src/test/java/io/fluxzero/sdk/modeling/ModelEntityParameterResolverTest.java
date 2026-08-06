@@ -213,6 +213,37 @@ class ModelEntityParameterResolverTest {
     }
 
     @Test
+    void injectsLazyGraphWithCurrentValueAndHistoryIntoCommandHandler()
+            throws Exception {
+        AccountId accountId = new AccountId("command-graph");
+        Method handler = Handler.class.getDeclaredMethod(
+                "onGraph", InspectAccount.class, Graph.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(accountId, 10),
+                        new ChangeAccount(accountId, 20))
+                .whenApplying(fluxzero ->
+                        new DeserializingMessage(
+                                new Message(new InspectAccount(accountId)),
+                                MessageType.COMMAND,
+                                fluxzero.serializer())
+                                .apply(message -> {
+                                    @SuppressWarnings("unchecked")
+                                    Graph<Account> graph = (Graph<Account>) resolve(
+                                            message, handler, handler.getParameters()[1]);
+                                    return new GraphResolution(
+                                            graph.get(), graph.previous().get(), graph.stateIndex());
+                                }))
+                .expectResult((Predicate<GraphResolution>) result -> {
+                    assertEquals(new Account(accountId, 20), result.current());
+                    assertEquals(new Account(accountId, 10), result.previous());
+                    assertTrue(result.stateIndex() >= 1L);
+                    return true;
+                });
+    }
+
+    @Test
     void injectsCurrentModelsIntoEveryNonEventHandlerKind()
             throws Exception {
         AccountId accountId =
@@ -901,6 +932,10 @@ class ModelEntityParameterResolverTest {
             String method, MessageType type) {
     }
 
+    private record GraphResolution(
+            Account current, Account previous, long stateIndex) {
+    }
+
     @Model
     private record Account(
             @EntityId AccountId accountId, int balance) {
@@ -1144,6 +1179,12 @@ class ModelEntityParameterResolverTest {
         void onCommand(
                 InspectAccount command,
                 Account account) {
+        }
+
+        @HandleCommand
+        void onGraph(
+                InspectAccount command,
+                Graph<Account> account) {
         }
 
         @HandleQuery

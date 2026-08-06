@@ -65,14 +65,14 @@ class ModelTest {
 
     @Test
     void liveModelGraphsAreUnboundedByDefault() {
-        assertEquals(-1, ModelGraph.Options.DEFAULT.maxDepth());
-        assertEquals(-1, ModelGraph.Options.DEFAULT.maxModels());
-        assertDoesNotThrow(() -> new ModelGraph.Options(
+        assertEquals(-1, Graph.Options.DEFAULT.maxDepth());
+        assertEquals(-1, Graph.Options.DEFAULT.maxModels());
+        assertDoesNotThrow(() -> new Graph.Options(
                 Integer.MAX_VALUE, Integer.MAX_VALUE));
         assertThrows(IllegalArgumentException.class,
-                     () -> new ModelGraph.Options(-2, 1));
+                     () -> new Graph.Options(-2, 1));
         assertThrows(IllegalArgumentException.class,
-                     () -> new ModelGraph.Options(1, 0));
+                     () -> new Graph.Options(1, 0));
     }
 
     @Test

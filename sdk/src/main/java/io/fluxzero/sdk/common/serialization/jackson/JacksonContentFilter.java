@@ -35,9 +35,13 @@ import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.serialization.ContentFilter;
 import io.fluxzero.sdk.common.serialization.FilterContent;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.tracking.handling.InputParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.CurrentUserParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -45,6 +49,9 @@ import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -131,6 +138,7 @@ public class JacksonContentFilter implements ContentFilter {
     public <T> T filterContent(T value, User viewer) {
         return switch (value) {
             case null -> null;
+            case Graph<?> graph -> (T) filterGraph(graph, viewer);
             case Optional<?> optional -> (T) optional.map(v -> filterContent(v, viewer));
             case Collection<?> collection -> (T) collection.stream().flatMap(
                     v -> v == null ? Stream.of((Object) null)
@@ -154,6 +162,40 @@ public class JacksonContentFilter implements ContentFilter {
         };
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Graph<?> filterGraph(Graph<?> graph, User viewer) {
+        Graph<?> root = graph.root();
+        return Graphs.mapValues((Graph) graph, node -> filterGraphValue(node, root, viewer));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object filterGraphValue(Graph<?> graph, Graph<?> root, User viewer) {
+        Object value = graph.get();
+        if (value == null) {
+            return null;
+        }
+        Object previousRoot = FilteringSerializer.rootValue.get();
+        Graph<?> previousGraph = FilteringSerializer.currentGraph.get();
+        FilteringSerializer.rootValue.set(root);
+        FilteringSerializer.currentGraph.set(graph);
+        try {
+            return viewer == null
+                    ? mapper.convertValue(value, (Class<Object>) value.getClass())
+                    : viewer.apply(() -> mapper.convertValue(value, (Class<Object>) value.getClass()));
+        } finally {
+            restore(FilteringSerializer.currentGraph, previousGraph);
+            restore(FilteringSerializer.rootValue, previousRoot);
+        }
+    }
+
+    private static <T> void restore(ThreadLocal<T> context, T previous) {
+        if (previous == null) {
+            context.remove();
+        } else {
+            context.set(previous);
+        }
+    }
+
     /**
      * Custom Jackson serializer that attempts to invoke a {@link FilterContent} handler method during serialization.
      * <p>
@@ -173,9 +215,11 @@ public class JacksonContentFilter implements ContentFilter {
             implements ContextualSerializer, ResolvableSerializer {
 
         protected static final ThreadLocal<Object> rootValue = new ThreadLocal<>();
+        protected static final ThreadLocal<Graph<?>> currentGraph = new ThreadLocal<>();
 
         private final Function<Class<?>, HandlerMatcher<Object, Object>> matcherCache = memoize(
                 type -> HandlerInspector.inspect(type, List.of(new CurrentUserParameterResolver(),
+                                                               new GraphParameterResolver(),
                                                                new InputParameterResolver()), FilterContent.class));
         private final JsonSerializer<Object> defaultSerializer;
 
@@ -273,6 +317,48 @@ public class JacksonContentFilter implements ContentFilter {
             if (defaultSerializer instanceof ResolvableSerializer resolvableSerializer) {
                 resolvableSerializer.resolve(provider);
             }
+        }
+    }
+
+    private static final class GraphParameterResolver implements ParameterResolver<Object> {
+        @Override
+        public Function<Object, Object> resolve(Parameter parameter, Annotation methodAnnotation) {
+            Class<?> modelType = graphModelType(parameter);
+            if (modelType == null) {
+                return null;
+            }
+            return ignored -> resolve(modelType);
+        }
+
+        @Override
+        public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
+            Class<?> modelType = graphModelType(parameter);
+            return modelType != null && resolve(modelType) != null;
+        }
+
+        @Override
+        public boolean mayApply(java.lang.reflect.Executable method, Class<?> targetClass) {
+            return java.util.Arrays.stream(method.getParameters())
+                    .anyMatch(parameter -> Graph.class.isAssignableFrom(parameter.getType()));
+        }
+
+        private static Graph<?> resolve(Class<?> modelType) {
+            Graph<?> graph = FilteringSerializer.currentGraph.get();
+            if (graph == null) {
+                return null;
+            }
+            if (modelType.isAssignableFrom(graph.type())) {
+                return graph;
+            }
+            return graph.ancestor(modelType).orElse(null);
+        }
+
+        private static Class<?> graphModelType(Parameter parameter) {
+            if (!Graph.class.isAssignableFrom(parameter.getType())) {
+                return null;
+            }
+            List<Type> arguments = ReflectionUtils.getTypeArguments(parameter.getParameterizedType());
+            return arguments.size() == 1 ? ReflectionUtils.rawClass(arguments.getFirst()) : Object.class;
         }
     }
 }

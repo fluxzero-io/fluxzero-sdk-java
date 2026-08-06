@@ -80,7 +80,8 @@ public class ModelEntityParameterResolver
         return modelParameter == null
                 ? null
                 : input -> value(parameter, modelParameter,
-                                 resolveEntity(input, plan, modelParameter));
+                                 resolveEntity(input, plan, modelParameter),
+                                 input, plan);
     }
 
     @Override
@@ -103,6 +104,7 @@ public class ModelEntityParameterResolver
                     modelParameter.associationProperty());
             return entity != null
                    && (modelParameter.entityWrapped()
+                       || modelParameter.graphWrapped()
                        || entity.isPresent()
                        || isNullable(parameter));
         }
@@ -131,6 +133,7 @@ public class ModelEntityParameterResolver
                     modelParameter.associationProperty());
             if (entity == null
                 || !modelParameter.entityWrapped()
+                   && !modelParameter.graphWrapped()
                    && !entity.isPresent()
                    && !isNullable(parameter)) {
                 return null;
@@ -141,7 +144,8 @@ public class ModelEntityParameterResolver
         }
         return invocation -> value(
                 parameter, modelParameter,
-                resolveEntity(invocation, plan, modelParameter));
+                resolveEntity(invocation, plan, modelParameter),
+                invocation, plan);
     }
 
     @Override
@@ -152,9 +156,28 @@ public class ModelEntityParameterResolver
     private static Object value(
             Parameter parameter,
             ModelMetadata.ModelParameter modelParameter,
-            Entity<?> entity) {
+            Entity<?> entity,
+            Object input,
+            HandlerPlan plan) {
         if (modelParameter.entityWrapped()) {
             return entity;
+        }
+        if (modelParameter.graphWrapped()) {
+            if (entity == null) {
+                return null;
+            }
+            ModelCommitContext context = commitContext(input)
+                    .orElseGet(() -> input instanceof DeserializingMessage message
+                            ? context(message, plan) : null);
+            DeserializingMessage message = input instanceof DeserializingMessage deserializingMessage
+                    ? deserializingMessage : DeserializingMessage.getOptionally().orElse(null);
+            ModelRepository repository = message == null
+                    ? Fluxzero.get().modelRepository() : currentRepository(message);
+            if (context != null) {
+                return Graphs.lazy(entity, context, repository);
+            }
+            long stateIndex = entity instanceof ModelRoot<?> root ? root.stateIndex() : -1L;
+            return Graphs.lazy(entity, stateIndex, repository);
         }
         if (entity == null || !entity.isPresent()) {
             if (isNullable(parameter)) {

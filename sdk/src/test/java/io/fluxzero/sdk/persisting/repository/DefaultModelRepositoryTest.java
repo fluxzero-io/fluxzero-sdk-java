@@ -49,7 +49,7 @@ import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelGraph;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ParentId;
@@ -1367,61 +1367,56 @@ class DefaultModelRepositoryTest {
             fluxzero.commandGateway().send(
                     new CreateUnplacedChild(unplacedId, firstRootId)).join();
 
-            ModelGraph<GraphRoot> first =
+            Graph<GraphRoot> first =
                     fluxzero.modelRepository().loadGraph(firstRootId);
 
             assertEquals(
                     new GraphRoot(firstRootId, "first"),
-                    first.root().model().get());
+                    first.get());
             assertEquals(
                     List.of(new GraphChild(childId, firstRootId, "child")),
-                    first.root().children("children").stream()
-                            .map(node -> node.model().get()).toList());
+                    first.childModels("children", GraphChild.class));
             assertEquals(
                     List.of(new GraphGrandchild(
                             grandchildId, childId, "grandchild")),
-                    first.root().children("children").getFirst()
-                            .children("grandchildren").stream()
-                            .map(node -> node.model().get()).toList());
-            assertEquals(3, first.models().size());
-            assertFalse(first.models().containsKey(unplacedId.toString()));
+                    first.children("children", GraphChild.class).getFirst()
+                            .childModels("grandchildren", GraphGrandchild.class));
+            assertEquals(2, first.descendants(Object.class).size());
+            assertFalse(first.descendants(Object.class).stream()
+                                .anyMatch(node -> node.id().equals(unplacedId.toString())));
 
             fluxzero.commandGateway().send(
                     new MoveGraphChild(childId, secondRootId)).join();
 
-            ModelGraph<GraphRoot> historical =
+            Graph<GraphRoot> historical =
                     fluxzero.modelRepository().loadGraphAt(
                             firstRootId,
                             first.stateIndex());
-            ModelGraph<GraphRoot> oldRoot =
+            Graph<GraphRoot> oldRoot =
                     fluxzero.modelRepository().loadGraph(firstRootId);
-            ModelGraph<GraphRoot> newRoot =
+            Graph<GraphRoot> newRoot =
                     fluxzero.modelRepository().loadGraph(secondRootId);
             assertEquals(
                     new GraphChild(
                             childId, firstRootId, "child"),
-                    historical.root()
-                            .children("children")
-                            .getFirst().model().get());
+                    historical.children("children", GraphChild.class)
+                            .getFirst().get());
             assertEquals(
                     new GraphGrandchild(
                             grandchildId, childId,
                             "grandchild"),
-                    historical.root()
-                            .children("children")
+                    historical.children("children", GraphChild.class)
                             .getFirst()
-                            .children("grandchildren")
-                            .getFirst().model().get());
-            assertEquals(List.of(), oldRoot.root().children("children"));
+                            .children("grandchildren", GraphGrandchild.class)
+                            .getFirst().get());
+            assertEquals(List.of(), oldRoot.children("children", GraphChild.class));
             assertEquals(
                     new GraphChild(childId, secondRootId, "child"),
-                    newRoot.root().children("children").getFirst()
-                            .model().get());
+                    newRoot.children("children", GraphChild.class).getFirst().get());
             assertEquals(
                     new GraphGrandchild(grandchildId, childId, "grandchild"),
-                    newRoot.root().children("children").getFirst()
-                            .children("grandchildren").getFirst()
-                            .model().get());
+                    newRoot.children("children", GraphChild.class).getFirst()
+                            .children("grandchildren", GraphGrandchild.class).getFirst().get());
         }
     }
 

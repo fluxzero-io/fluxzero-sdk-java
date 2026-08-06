@@ -1059,7 +1059,7 @@ class ModelCommitHandlerIntegrationTest {
                         new CreateFamilyGrandchild(
                                 grandchildId, firstChildId, firstChildId))
                 .whenApplying(fluxzero -> {
-                    ModelGraph<FamilyRoot> durable =
+                    Graph<FamilyRoot> durable =
                             fluxzero.modelRepository().loadGraph(firstRootId);
                     DeserializingMessage moveMessage =
                             new DeserializingMessage(
@@ -1096,41 +1096,42 @@ class ModelCommitHandlerIntegrationTest {
                                         after,
                                         fluxzero.modelRepository()
                                                 .load(firstChildId).get());
-                                ModelGraph<FamilyRoot> oldGraph =
+                                Graph<FamilyRoot> oldGraph =
                                         fluxzero.modelRepository()
                                                 .loadGraph(firstRootId);
-                                ModelGraph<FamilyRoot> newGraph =
+                                Graph<FamilyRoot> newGraph =
                                         fluxzero.modelRepository()
                                                 .loadGraph(secondRootId);
-                                ModelGraph<FamilyRoot> historical =
+                                Graph<FamilyRoot> historical =
                                         fluxzero.modelRepository().loadGraphAt(
                                                 firstRootId,
                                                 durable.stateIndex());
 
                                 assertEquals(
                                         List.of(),
-                                        oldGraph.root().children("children"));
+                                        oldGraph.children("children", FamilyChild.class));
                                 assertEquals(
                                         List.of("existing", "moving"),
-                                        newGraph.root().children("children")
+                                        newGraph.children("children", FamilyChild.class)
                                                 .stream()
-                                                .map(node -> ((FamilyChild) node.model().get()).name())
+                                                .map(Graph::get)
+                                                .map(FamilyChild::name)
                                                 .sorted()
                                                 .toList());
-                                ModelGraph.Node<?> moved =
-                                        newGraph.root().children("children")
+                                Graph<FamilyChild> moved =
+                                        newGraph.children("children", FamilyChild.class)
                                                 .stream()
-                                                .filter(node -> node.model().id()
+                                                .filter(node -> node.id()
                                                         .equals(firstChildId.toString()))
                                                 .findFirst().orElseThrow();
                                 assertEquals(
                                         grandchildId.toString(),
-                                        moved.children("primaryGrandchildren")
-                                                .getFirst().model().id());
+                                        moved.children("primaryGrandchildren", FamilyGrandchild.class)
+                                                .getFirst().id());
                                 assertEquals(
                                         firstChildId.toString(),
-                                        historical.root().children("children")
-                                                .getFirst().model().id());
+                                        historical.children("children", FamilyChild.class)
+                                                .getFirst().id());
                             });
                     return null;
                 })
@@ -1183,13 +1184,13 @@ class ModelCommitHandlerIntegrationTest {
                                             null);
                                     return;
                                 }
-                                ModelGraph<FamilyRoot> graph =
+                                Graph<FamilyRoot> graph =
                                         fluxzero.modelRepository().loadGraph(rootId);
-                                assertEquals(root, graph.root().model().get());
+                                assertEquals(root, graph.get());
                                 assertEquals(
                                         child,
-                                        graph.root().children("children")
-                                                .getFirst().model().get());
+                                        graph.children("children", FamilyChild.class)
+                                                .getFirst().get());
                             });
                     return null;
                 })
@@ -1212,7 +1213,7 @@ class ModelCommitHandlerIntegrationTest {
                         new CreateFamilyChild(
                                 childId, rootId, "child"))
                 .whenApplying(fluxzero -> {
-                    ModelGraph<FamilyRoot> durable =
+                    Graph<FamilyRoot> durable =
                             fluxzero.modelRepository()
                                     .loadGraph(rootId);
                     DeserializingMessage.forEachInBatch(
@@ -1249,30 +1250,26 @@ class ModelCommitHandlerIntegrationTest {
                                             null);
                                     return;
                                 }
-                                ModelGraph<FamilyRoot> currentGraph =
+                                Graph<FamilyRoot> currentGraph =
                                         fluxzero.modelRepository()
                                                 .loadGraph(rootId);
-                                ModelGraph<FamilyRoot> historical =
+                                Graph<FamilyRoot> historical =
                                         fluxzero.modelRepository()
                                                 .loadGraphAt(
                                                         rootId,
                                                         durable.stateIndex());
 
                                 assertTrue(
-                                        currentGraph.root()
-                                                .model().isEmpty());
+                                        currentGraph.isEmpty());
                                 assertTrue(
-                                        currentGraph.root()
-                                                .children().isEmpty());
+                                        currentGraph.children().isEmpty());
                                 assertEquals(
                                         root,
-                                        historical.root()
-                                                .model().get());
+                                        historical.get());
                                 assertEquals(
                                         childId.toString(),
-                                        historical.root()
-                                                .children("children")
-                                                .getFirst().model().id());
+                                        historical.children("children", FamilyChild.class)
+                                                .getFirst().id());
                             });
                     return null;
                 })

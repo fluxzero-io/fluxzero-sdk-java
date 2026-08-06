@@ -23,10 +23,10 @@ import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
-import io.fluxzero.sdk.modeling.ModelGraph;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
@@ -220,28 +220,28 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * Pending changes from earlier messages in the same ordered tracking segment are included. Use
      * {@link #loadGraphAt(Id, long)} when an exact durable historical boundary is required.
      */
-    default <T> ModelGraph<T> loadGraph(@NonNull Id<T> rootId) {
-        return loadGraph(rootId.toString(), rootId.getType(), ModelGraph.Options.DEFAULT);
+    default <T> Graph<T> loadGraph(@NonNull Id<T> rootId) {
+        return loadGraph(rootId.toString(), rootId.getType(), Graph.Options.DEFAULT);
     }
 
     /**
      * Reconstructs a model graph at an inclusive historical model-state boundary.
      */
-    default <T> ModelGraph<T> loadGraphAt(
+    default <T> Graph<T> loadGraphAt(
             @NonNull Id<T> rootId,
             long stateIndex) {
         return loadGraphAt(
                 rootId, stateIndex,
-                ModelGraph.Options.DEFAULT);
+                Graph.Options.DEFAULT);
     }
 
     /**
      * Reconstructs a model graph at an inclusive historical model-state boundary with optional caller-imposed limits.
      */
-    default <T> ModelGraph<T> loadGraphAt(
+    default <T> Graph<T> loadGraphAt(
             @NonNull Id<T> rootId,
             long stateIndex,
-            @NonNull ModelGraph.Options options) {
+            @NonNull Graph.Options options) {
         return loadGraphAt(
                 rootId.toString(), rootId.getType(),
                 stateIndex, options);
@@ -251,10 +251,10 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * Reconstructs a model graph using exact persisted identity, root type, and optional caller-imposed limits.
      * Pending changes from earlier messages in the same ordered tracking segment are included.
      */
-    default <T> ModelGraph<T> loadGraph(
+    default <T> Graph<T> loadGraph(
             @NonNull String rootId,
             @NonNull Class<T> rootType,
-            @NonNull ModelGraph.Options options) {
+            @NonNull Graph.Options options) {
         throw new UnsupportedOperationException(
                 "Independent model graph reconstruction is not supported by this repository");
     }
@@ -263,11 +263,11 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * Reconstructs a model graph using exact persisted identity, root type, an inclusive historical boundary, and
      * optional caller-imposed limits.
      */
-    default <T> ModelGraph<T> loadGraphAt(
+    default <T> Graph<T> loadGraphAt(
             @NonNull String rootId,
             @NonNull Class<T> rootType,
             long stateIndex,
-            @NonNull ModelGraph.Options options) {
+            @NonNull Graph.Options options) {
         throw new UnsupportedOperationException(
                 "Historical independent model graph reconstruction is not supported by this repository");
     }

@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.common.serialization;
 
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 
 import java.lang.annotation.ElementType;
@@ -34,6 +35,8 @@ import java.lang.annotation.Target;
  * <ul>
  *   <li>{@link User} – the current user performing the access</li>
  *   <li>Root object – the top-level object being filtered (useful for context when filtering nested values)</li>
+ *   <li>{@link Graph}{@code <T>} – while filtering a model graph, the current model graph or a typed ancestor graph;
+ *       resolving it reuses the graph that is already being serialized</li>
  * </ul>
  * Any other arguments will be ignored.
  *

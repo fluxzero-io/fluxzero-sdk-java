@@ -278,7 +278,8 @@ public final class ModelMetadata {
             }
         }
         return Optional.of(new ModelParameter(
-                parameter, parameterType.modelType(), parameterType.entityWrapped(), associationProperty,
+                parameter, parameterType.modelType(), parameterType.entityWrapped(), parameterType.graphWrapped(),
+                associationProperty,
                 association != null
                 && association.excludeMetadata()));
     }
@@ -606,9 +607,11 @@ public final class ModelMetadata {
 
     private static Optional<ParameterType> modelParameterType(Parameter parameter) {
         if (isModelType(parameter.getType())) {
-            return Optional.of(new ParameterType(parameter.getType(), false));
+            return Optional.of(new ParameterType(parameter.getType(), false, false));
         }
-        if (!Entity.class.isAssignableFrom(parameter.getType())) {
+        boolean entity = Entity.class.isAssignableFrom(parameter.getType());
+        boolean graph = Graph.class.isAssignableFrom(parameter.getType());
+        if (!entity && !graph) {
             return Optional.empty();
         }
         List<Type> arguments = ReflectionUtils.getTypeArguments(parameter.getParameterizedType());
@@ -616,7 +619,9 @@ public final class ModelMetadata {
             return Optional.empty();
         }
         Class<?> entityType = concreteType(arguments.getFirst());
-        return isModelType(entityType) ? Optional.of(new ParameterType(entityType, true)) : Optional.empty();
+        return isModelType(entityType)
+                ? Optional.of(new ParameterType(entityType, entity, graph))
+                : Optional.empty();
     }
 
     private static Class<?> concreteType(Type type) {
@@ -748,7 +753,8 @@ public final class ModelMetadata {
      * @param associationExcludeMetadata whether the explicit qualifier must ignore message metadata
      */
     public record ModelParameter(
-            Parameter parameter, Class<?> modelType, boolean entityWrapped, String associationProperty,
+            Parameter parameter, Class<?> modelType, boolean entityWrapped, boolean graphWrapped,
+            String associationProperty,
             boolean associationExcludeMetadata) {
     }
 
@@ -813,7 +819,7 @@ public final class ModelMetadata {
     private record ParentProperty(Property property, ParentId annotation) {
     }
 
-    private record ParameterType(Class<?> modelType, boolean entityWrapped) {
+    private record ParameterType(Class<?> modelType, boolean entityWrapped, boolean graphWrapped) {
     }
 
     private static final class ParentGraphValidation {

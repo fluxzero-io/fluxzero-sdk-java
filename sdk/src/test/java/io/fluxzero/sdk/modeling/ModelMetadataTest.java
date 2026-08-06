@@ -206,8 +206,28 @@ class ModelMetadataTest {
     }
 
     @Test
+    void recognizesGraphAsALazyModelDependency() throws Exception {
+        var parameter = GraphDependency.class
+                .getDeclaredMethod("handle", Graph.class)
+                .getParameters()[0];
+
+        ModelMetadata.ModelParameter dependency =
+                ModelMetadata.inspectModelParameter(parameter).orElseThrow();
+
+        assertSame(ParentModel.class, dependency.modelType());
+        assertFalse(dependency.entityWrapped());
+        assertTrue(dependency.graphWrapped());
+    }
+
+    @Test
     void doesNotTreatNestedHelperTypeAsModel() {
         assertFalse(ModelMetadata.of(OuterModel.NestedHelper.class).isModel());
+    }
+
+    private static class GraphDependency {
+        @SuppressWarnings("unused")
+        void handle(Graph<ParentModel> graph) {
+        }
     }
 
     @Test
