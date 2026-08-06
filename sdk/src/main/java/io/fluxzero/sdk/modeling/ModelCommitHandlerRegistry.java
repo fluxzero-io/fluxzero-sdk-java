@@ -1255,10 +1255,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         .orElse(
                                 GraphProjectionCompletion.DEFAULT);
             }
-            Apply apply =
-                    transition.handler()
-                            .getAnnotation(
-                                    Apply.class);
+            Apply apply = transition.handler() == null
+                    ? null
+                    : transition.handler().getAnnotation(
+                            Apply.class);
             GraphProjectionCompletion applyPolicy =
                     apply == null
                             ? GraphProjectionCompletion.DEFAULT

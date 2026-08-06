@@ -1123,6 +1123,28 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void cascadedDeletionWithoutApplyHandlerUsesProjectionDefaults() {
+        ModelCommitEngine.Transition cascadedDeletion =
+                new ModelCommitEngine.Transition(
+                        "cascade-child",
+                        ProjectionChild.class,
+                        0L,
+                        null,
+                        new Object(),
+                        null,
+                        null,
+                        true);
+
+        assertEquals(
+                java.util.Set.of("awaited-graphs"),
+                subject(
+                        AutomaticModelHandling.ENABLED,
+                        GraphProjectionCompletion.ASYNC)
+                        .awaitedGraphProjections(
+                                evaluation(cascadedDeletion)));
+    }
+
+    @Test
     void awaitDominatesAsyncForTheSameAffectedRoot()
             throws Exception {
         ModelCommitHandlerRegistry subject =
