@@ -135,12 +135,22 @@ final class ModelCacheTracker implements AutoCloseable {
                                 && cache.get(
                                         eviction.getId())
                                    == null) {
-                                entries.remove(
-                                        eviction.getId()
-                                                .toString());
+                                Entry removed =
+                                        entries.remove(
+                                                eviction.getId()
+                                                        .toString());
                                 staleModelIds.remove(
                                         eviction.getId()
                                                 .toString());
+                                if (removed != null
+                                    && removed.refresh != null) {
+                                    /*
+                                     * A current lookup may already be waiting for this stale entry to refresh.
+                                     * Eviction deliberately makes that refresh ineligible, so release the waiter;
+                                     * it will observe the still-stale detached entry and use the repository path.
+                                     */
+                                    removed.refresh.complete(null);
+                                }
                             }
                         });
     }

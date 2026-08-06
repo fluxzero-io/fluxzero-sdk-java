@@ -375,6 +375,97 @@ class ModelCacheTrackerTest {
     }
 
     @Test
+    void evictionReleasesLookupWaitingForStaleRefresh()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> before = entity(SampleModel.class);
+        cache.put("sample-1", before);
+        CountDownLatch refreshStarted = new CountDownLatch(1);
+        CountDownLatch continueRefresh = new CountDownLatch(1);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshStarted.countDown();
+                                 try {
+                                     assertTrue(continueRefresh.await(
+                                             5L, TimeUnit.SECONDS));
+                                 } catch (InterruptedException failure) {
+                                     Thread.currentThread().interrupt();
+                                     throw new RuntimeException(failure);
+                                 }
+                                 return new ModelCacheTracker
+                                         .RefreshedBatch(safeStateIndex);
+                             })) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            CompletableFuture<TrackModelUpdatesResult> firstPoll =
+                    awaitNext(polls);
+            assertSame(
+                    before,
+                    awaitCurrent(
+                            tracker, "sample-1",
+                            SampleModel.class));
+
+            firstPoll.complete(
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "commit-1", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelCommitTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            assertTrue(refreshStarted.await(
+                    5L, TimeUnit.SECONDS));
+
+            AtomicReference<Thread> lookupThread =
+                    new AtomicReference<>();
+            CompletableFuture<Entity<?>> lookup =
+                    new CompletableFuture<>();
+            Thread.ofVirtual().start(() -> {
+                lookupThread.set(Thread.currentThread());
+                try {
+                    lookup.complete(
+                            tracker.current(
+                                    "sample-1",
+                                    SampleModel.class));
+                } catch (Throwable failure) {
+                    lookup.completeExceptionally(failure);
+                }
+            });
+            long deadline =
+                    System.nanoTime()
+                    + TimeUnit.SECONDS.toNanos(5L);
+            while ((lookupThread.get() == null
+                    || lookupThread.get().getState()
+                       != Thread.State.WAITING)
+                   && System.nanoTime() < deadline) {
+                Thread.onSpinWait();
+            }
+            assertEquals(
+                    Thread.State.WAITING,
+                    lookupThread.get().getState());
+
+            cache.remove("sample-1");
+
+            assertNull(lookup.get(1L, TimeUnit.SECONDS));
+        } finally {
+            continueRefresh.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
     void pendingDocumentUpdateFencesNowAndRefreshesAfterMaterialization()
             throws Exception {
         EventStoreClient eventStore =
