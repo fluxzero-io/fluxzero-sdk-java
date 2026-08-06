@@ -103,7 +103,8 @@ import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
  * Current document-based models use their synchronously maintained direct document. Event-sourced and historical
  * loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.
  */
-public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> implements ModelRepository {
+public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
+        implements ModelRepository, ModelAncestorResolver {
     private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
     private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
     private static final int MAX_PARALLEL_GRAPH_RECONSTRUCTIONS = 8;
@@ -489,6 +490,101 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         return Graphs.compose(
                 rootId, graph.stateIndex(), graph.models(),
                 graph.edges(), this, false);
+    }
+
+    @Override
+    public <A> Optional<Graph<A>> loadAncestorGraph(
+            String modelId,
+            Class<?> modelType,
+            Class<A> ancestorType,
+            ModelAncestorResolver.Boundary boundary) {
+        requireEventReconstruction();
+        ModelMetadata sourceMetadata = ModelMetadata.validate(modelType);
+        ModelTargetResolver.ResolvedModel source =
+                new ModelTargetResolver.ResolvedModel(
+                        modelId, modelType,
+                        ModelTargetResolver.Access.READ_ONLY,
+                        List.of(sourceMetadata.entityId()
+                                        .orElseThrow().name()));
+        ModelTargetResolver.Resolution request =
+                new ModelTargetResolver.Resolution(
+                        List.of(source), List.of(),
+                        List.of(new ModelTargetResolver.AncestorDependency(
+                                ancestorType, null,
+                                "Graph.ancestor(%s)".formatted(
+                                        ancestorType.getName()))));
+        Map<String, Object> stagedValues;
+        if (!boundary.includeMessageBatch()) {
+            stagedValues = Map.of();
+        } else {
+            Map<String, MessageBatchModelView.StagedModel> staged =
+                    MessageBatchModelView.currentValues(
+                            messageBatchNamespace());
+            if (staged.isEmpty()) {
+                stagedValues = Map.of();
+            } else {
+                LinkedHashMap<String, Object> values =
+                        new LinkedHashMap<>(staged.size());
+                staged.forEach((id, value) ->
+                        values.put(id, value.value()));
+                stagedValues = values;
+            }
+        }
+        AncestorResolution resolved = resolveAncestors(
+                request,
+                ancestorBoundary(boundary),
+                stagedValues, boundary.includeMessageBatch(),
+                false, true,
+                UNBOUNDED, UNBOUNDED);
+        ModelTargetResolver.ResolvedModel target =
+                resolved.resolution().models().stream()
+                        .filter(candidate ->
+                                !candidate.modelId().equals(modelId))
+                        .filter(candidate ->
+                                ancestorType.isAssignableFrom(
+                                        candidate.modelType()))
+                        .findFirst().orElse(null);
+        if (target == null) {
+            return Optional.empty();
+        }
+        Graph.Options rootOnly = new Graph.Options(0, 1);
+        @SuppressWarnings("unchecked") Class<A> targetType =
+                (Class<A>) target.modelType();
+        Graph<A> result;
+        if (boundary.commitId() != null) {
+            result = loadGraphAtCommit(
+                    target.modelId(), targetType,
+                    resolved.stateIndex(), boundary.commitId(),
+                    boundary.substep(), rootOnly);
+        } else if (boundary.eventIndex() != null) {
+            result = loadGraphAtEvent(
+                    target.modelId(), targetType,
+                    resolved.stateIndex(), boundary.eventIndex(),
+                    rootOnly);
+        } else if (boundary.includeMessageBatch()) {
+            result = loadGraphAtIncludingMessageBatch(
+                    target.modelId(), targetType,
+                    resolved.stateIndex(), rootOnly);
+        } else {
+            result = loadGraphAt(
+                    target.modelId(), targetType,
+                    resolved.stateIndex(), rootOnly);
+        }
+        return Optional.of(result);
+    }
+
+    private static ModelEventBatchLoader.Boundary ancestorBoundary(
+            ModelAncestorResolver.Boundary boundary) {
+        if (boundary.commitId() != null) {
+            return ModelEventBatchLoader.Boundary.commit(
+                    boundary.commitId(), boundary.substep());
+        }
+        if (boundary.eventIndex() != null) {
+            return ModelEventBatchLoader.Boundary.event(
+                    boundary.eventIndex());
+        }
+        return ModelEventBatchLoader.Boundary.at(
+                boundary.stateIndex());
     }
 
     @Override
@@ -1908,6 +2004,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             ModelEventBatchLoader.Boundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
+        return resolveAncestors(
+                resolution, boundary, stagedValues,
+                includeMessageBatch, true, false,
+                COMMIT_ANCESTOR_MAX_DEPTH,
+                COMMIT_ANCESTOR_MAX_MODELS);
+    }
+
+    private AncestorResolution resolveAncestors(
+            ModelTargetResolver.Resolution resolution,
+            ModelEventBatchLoader.Boundary boundary,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            boolean requireAncestors,
+            boolean closestAncestorsOnly,
+            int maxDepth,
+            int maxModels) {
         if (resolution.models().isEmpty()) {
             throw new IllegalStateException(
                     "Ancestor injection requires at least one direct model target from which to traverse");
@@ -1920,10 +2032,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         List<ModelGraphEdge> stagedEdges;
         GetModelGraphResult graph;
         for (int expansion = 0; ; expansion++) {
-            if (expansion > COMMIT_ANCESTOR_MAX_DEPTH) {
+            if (maxDepth != UNBOUNDED
+                && expansion > maxDepth) {
                 throw new IllegalStateException(
                         "Message-batch ancestor overlay exceeds maximum depth "
-                        + COMMIT_ANCESTOR_MAX_DEPTH);
+                        + maxDepth);
             }
             LinkedHashSet<String> requestRoots =
                     new LinkedHashSet<>(roots);
@@ -1962,11 +2075,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 }
             }
             if (requestRoots.size()
-                > COMMIT_ANCESTOR_MAX_MODELS) {
+                > maxModels
+                && maxModels != UNBOUNDED) {
                 throw new IllegalStateException(
                         "Model commit requires more than %d ancestor traversal roots"
                                 .formatted(
-                                        COMMIT_ANCESTOR_MAX_MODELS));
+                                        maxModels));
             }
 
             graph = client.getEventStoreClient().getModelAncestors(
@@ -1976,8 +2090,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             boundary.commitId(),
                             boundary.substep(),
                             boundary.eventIndex(),
-                            COMMIT_ANCESTOR_MAX_DEPTH,
-                            COMMIT_ANCESTOR_MAX_MODELS,
+                            maxDepth, maxModels,
                             0, 0L));
             if (!includeMessageBatch
                 || !addPendingAncestorValues(
@@ -1994,8 +2107,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             edges.addAll(stagedEdges);
         }
         GraphReachability reachable = reachableAncestors(
-                roots, edges, COMMIT_ANCESTOR_MAX_DEPTH,
-                COMMIT_ANCESTOR_MAX_MODELS);
+                roots, edges, maxDepth, maxModels);
 
         Map<String, ModelHeadState> heads = new LinkedHashMap<>();
         graph.getStreams().forEach(stream ->
@@ -2040,7 +2152,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                                                .anyMatch(edge -> dependency.association()
                                                        .equals(edge.getPath())))
                     .toList();
+            if (closestAncestorsOnly && candidates.size() > 1) {
+                int closestDepth = candidates.stream()
+                        .mapToInt(reachable.depths()::get)
+                        .min().orElseThrow();
+                candidates = candidates.stream()
+                        .filter(candidate -> reachable.depths().get(candidate) == closestDepth)
+                        .toList();
+            }
             if (candidates.isEmpty()) {
+                if (!requireAncestors) {
+                    continue;
+                }
                 throw new IllegalStateException(
                         "No reachable ancestor of type %s%s was found for %s from model roots %s"
                                 .formatted(
@@ -2126,13 +2249,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                 edge.getChildId(), ignored -> new ArrayList<>()).add(edge));
         LinkedHashSet<String> visited = new LinkedHashSet<>(roots);
         LinkedHashSet<String> ancestors = new LinkedHashSet<>();
+        LinkedHashMap<String, Integer> depths = new LinkedHashMap<>();
         LinkedHashMap<String, List<ModelGraphEdge>> incoming =
                 new LinkedHashMap<>();
         LinkedHashMap<String, List<ModelGraphEdge>> reachableOutgoing =
                 new LinkedHashMap<>();
         List<String> frontier = List.copyOf(roots);
         for (int depth = 0; !frontier.isEmpty(); depth++) {
-            if (depth >= maxDepth) {
+            if (maxDepth != UNBOUNDED
+                && depth >= maxDepth) {
                 boolean hasMore = frontier.stream()
                         .anyMatch(id -> !outgoing
                                 .getOrDefault(id, List.of()).isEmpty());
@@ -2155,7 +2280,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             parent, ignored -> new ArrayList<>()).add(edge);
                     ancestors.add(parent);
                     if (visited.add(parent)) {
-                        if (visited.size() > maxModels) {
+                        depths.put(parent, depth + 1);
+                        if (maxModels != UNBOUNDED
+                            && visited.size() > maxModels) {
                             throw new IllegalStateException(
                                     "Model ancestor graph exceeds maxModels "
                                     + maxModels);
@@ -2169,7 +2296,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         assertAcyclic(roots, reachableOutgoing);
         return new GraphReachability(
                 List.copyOf(ancestors),
-                Collections.unmodifiableMap(incoming));
+                Collections.unmodifiableMap(incoming),
+                Collections.unmodifiableMap(depths));
     }
 
     private void assertAcyclic(
@@ -3929,7 +4057,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
 
     private record GraphReachability(
             List<String> ancestorIds,
-            Map<String, List<ModelGraphEdge>> incoming) {
+            Map<String, List<ModelGraphEdge>> incoming,
+            Map<String, Integer> depths) {
     }
 
     private record StoredEvent(

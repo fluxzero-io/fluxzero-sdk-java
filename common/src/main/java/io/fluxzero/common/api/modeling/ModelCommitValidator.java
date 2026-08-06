@@ -325,7 +325,7 @@ public final class ModelCommitValidator {
                 request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "ancestor", request.getMaxDepth(), request.getMaxModels(),
-                request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count", false);
+                request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count", true);
     }
 
     private static void validateGraphBounds(

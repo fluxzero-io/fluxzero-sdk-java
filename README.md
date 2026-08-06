@@ -3212,8 +3212,10 @@ repository boundary; document-loaded targets remain current-only direct-document
 
 `Graph<T>` is the public context view around a model. `get()` returns the value; `parent()`, `root()`, `children(...)`
 and `descendants(...)` navigate relationships; `previous()`, `atStateIndex(...)` and `playBackToEvent(...)` expose
-history; and `apply(...)` or `assertAndApply(...)` stage model transitions. Graph creation itself performs only the same
-direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested. `optional()`,
+history; and `apply(...)`, `assertAndApply(...)` or `delete()` stage model transitions. Graph creation itself performs
+only the same direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested.
+Typed ancestor navigation resolves relationship identities first and loads only the selected ancestor value; it does
+not materialize intermediate parent values. `optional()`,
 `map(...)`, `mapIfPresent(...)` and `filterPresent()` provide value/wrapper conveniences without traversing relations;
 `stream()` traverses the complete graph lazily and `find(idOrAlias[, type])` resolves a primary identity or `@Alias`
 without manually enumerating model types or relationship paths. `hasChanged(...)`, `previousValue(...)` and

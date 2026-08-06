@@ -1881,7 +1881,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         List<String> frontier = List.copyOf(modelIds);
         List<ModelGraphEdge> edges = new ArrayList<>();
         for (int depth = 0;
-             depth < request.getMaxDepth() && !frontier.isEmpty();
+             !frontier.isEmpty()
+             && (request.getMaxDepth() == UNBOUNDED
+                 || depth < request.getMaxDepth());
              depth++) {
             Set<String> children = Set.copyOf(frontier);
             List<String> next = new ArrayList<>();
@@ -1916,7 +1918,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         relation.validFrom, relation.validUntil));
                 if (modelIds.add(
                         relation.relationship.getParentId())) {
-                    if (modelIds.size() > request.getMaxModels()) {
+                    if (request.getMaxModels() != UNBOUNDED
+                        && modelIds.size() > request.getMaxModels()) {
                         throw new IllegalArgumentException(
                                 "Model ancestor graph exceeds maxModels "
                                 + request.getMaxModels());
@@ -1926,7 +1929,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             frontier = next;
         }
-        if (!frontier.isEmpty()) {
+        if (request.getMaxDepth() != UNBOUNDED
+            && !frontier.isEmpty()) {
             Set<String> truncatedChildren = Set.copyOf(frontier);
             boolean truncated = modelRelationshipHistory.stream()
                     .anyMatch(relation ->

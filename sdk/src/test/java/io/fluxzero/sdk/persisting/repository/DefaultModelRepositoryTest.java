@@ -23,6 +23,8 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
@@ -1448,6 +1450,70 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void lazyAncestorNavigationLoadsOnlyTheSelectedAncestorValue() {
+        GraphRootId rootId = new GraphRootId("lazy-ancestor");
+        GraphChildId childId = new GraphChildId("lazy-ancestor");
+        GraphGrandchildId grandchildId =
+                new GraphGrandchildId("lazy-ancestor");
+        LocalClient localClient = LocalClient.newInstance(null);
+        EventStoreClient eventStoreClient =
+                spy(localClient.getEventStoreClient());
+        LocalClient client = spy(localClient);
+        doReturn(eventStoreClient).when(client).getEventStoreClient();
+        try (Fluxzero fluxzero = withModelHandlers(
+                     DefaultFluxzero.builder()
+                             .disableKeepalive()
+                             .disableShutdownHook()
+                             .disableAutomaticModelCaching()
+                             .build(client))) {
+            fluxzero.commandGateway().send(
+                    new CreateGraphRoot(rootId, "root")).join();
+            fluxzero.commandGateway().send(
+                    new CreateGraphChild(childId, rootId, "child")).join();
+            fluxzero.commandGateway().send(
+                    new CreateGraphGrandchild(
+                            grandchildId, childId,
+                            "grandchild")).join();
+            fluxzero.commandGateway().send(
+                    new RenameGraphRoot(rootId, "updated root")).join();
+
+            Graph<GraphGrandchild> graph = fluxzero.apply(
+                    ignored -> Fluxzero.loadGraph(grandchildId));
+            clearInvocations(eventStoreClient);
+
+            Graph<GraphRoot> root =
+                    graph.ancestor(GraphRoot.class).orElseThrow();
+
+            assertEquals(
+                    new GraphRoot(rootId, "updated root"), root.get());
+            var ancestors = org.mockito.ArgumentCaptor.forClass(
+                    GetModelAncestors.class);
+            verify(eventStoreClient).getModelAncestors(
+                    ancestors.capture());
+            assertEquals(
+                    List.of(grandchildId.toString()),
+                    ancestors.getValue().getModelIds());
+            assertEquals(0,
+                         ancestors.getValue().getMaxEventsPerModel());
+            assertEquals(0L,
+                         ancestors.getValue().getMaxBytes());
+            assertEquals(-1,
+                         ancestors.getValue().getMaxDepth());
+            assertEquals(-1,
+                         ancestors.getValue().getMaxModels());
+
+            var loaded = org.mockito.ArgumentCaptor.forClass(
+                    GetModelGraph.class);
+            verify(eventStoreClient).getModelGraph(
+                    loaded.capture());
+            assertEquals(rootId.toString(),
+                         loaded.getValue().getRootId());
+            assertEquals(0, loaded.getValue().getMaxDepth());
+            assertEquals(1, loaded.getValue().getMaxModels());
+        }
+    }
+
+    @Test
     void currentGraphReusesCachedModelsAtItsPinnedBoundary() {
         GraphRootId rootId =
                 new GraphRootId("cached");
@@ -2131,6 +2197,13 @@ class DefaultModelRepositoryTest {
         @Apply
         GraphRoot apply() {
             return new GraphRoot(graphRootId, name);
+        }
+    }
+
+    private record RenameGraphRoot(GraphRootId graphRootId, String name) {
+        @Apply
+        GraphRoot apply(GraphRoot root) {
+            return new GraphRoot(root.graphRootId(), name);
         }
     }
 

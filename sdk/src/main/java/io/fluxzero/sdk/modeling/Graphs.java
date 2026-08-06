@@ -16,11 +16,13 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 
 import java.time.Instant;
@@ -56,7 +58,10 @@ public final class Graphs {
             Entity<T> entity,
             long stateIndex,
             ModelRepository repository) {
-        return lazy(entity, stateIndex, repository, Map.of(entity.id().toString(), entity), false);
+        return lazy(
+                entity, stateIndex, repository,
+                Map.of(entity.id().toString(), entity),
+                false, false);
     }
 
     /** Creates a lazy graph that reuses every model already loaded for the same handler boundary. */
@@ -66,7 +71,9 @@ public final class Graphs {
             ModelRepository repository) {
         LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>();
         commitContext.entries().forEach(entry -> models.put(entry.target().modelId(), entry.entity()));
-        return lazy(entity, commitContext.readStateIndex(), repository, models, false);
+        return lazy(
+                entity, commitContext.readStateIndex(), repository,
+                models, false, true);
     }
 
     private static <T> Graph<T> lazy(
@@ -74,12 +81,14 @@ public final class Graphs {
             long stateIndex,
             ModelRepository repository,
             Map<String, Entity<?>> models,
-            boolean historical) {
+            boolean historical,
+            boolean exactBoundary) {
         Objects.requireNonNull(entity, "entity");
         Context context = new Context(
                 stateIndex,
                 Collections.unmodifiableMap(new LinkedHashMap<>(models)),
                 List.of(), repository, false, historical,
+                exactBoundary,
                 Boundary.current(stateIndex));
         Placement root = context.detached(entity.id().toString());
         context.root = root;
@@ -98,6 +107,7 @@ public final class Graphs {
                 stateIndex,
                 Collections.unmodifiableMap(new LinkedHashMap<>(models)),
                 List.copyOf(edges), repository, true, historical,
+                true,
                 Boundary.state(stateIndex));
         Map<String, List<ModelGraphEdge>> byParent = new LinkedHashMap<>();
         for (ModelGraphEdge edge : edges) {
@@ -146,6 +156,7 @@ public final class Graphs {
         private final ModelRepository repository;
         private final boolean complete;
         private final boolean historical;
+        private final boolean exactBoundary;
         private final Boundary boundary;
         private final Map<String, Placement> detachedPlacements = new ConcurrentHashMap<>();
         private final Map<String, Graph<?>> expansions = new ConcurrentHashMap<>();
@@ -158,6 +169,7 @@ public final class Graphs {
                 ModelRepository repository,
                 boolean complete,
                 boolean historical,
+                boolean exactBoundary,
                 Boundary boundary) {
             this.stateIndex = stateIndex;
             this.models = models;
@@ -165,6 +177,7 @@ public final class Graphs {
             this.repository = Objects.requireNonNull(repository, "repository");
             this.complete = complete;
             this.historical = historical;
+            this.exactBoundary = exactBoundary;
             this.boundary = Objects.requireNonNull(
                     boundary, "boundary");
         }
@@ -242,7 +255,9 @@ public final class Graphs {
         private <T> Graph<T> replace(Entity<T> entity, long replacementStateIndex) {
             LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(models);
             updated.put(entity.id().toString(), entity);
-            return Graphs.lazy(entity, replacementStateIndex, repository, updated, historical);
+            return Graphs.lazy(
+                    entity, replacementStateIndex, repository,
+                    updated, historical, exactBoundary);
         }
     }
 
@@ -420,7 +435,7 @@ public final class Graphs {
                             context.view(context.detached(persistedParentId)));
                     continue;
                 }
-                if (context.historical) {
+                if (context.historical || context.exactBoundary) {
                     Graph<?> historicalParent = context.boundary.load(
                             context.repository, persistedParentId,
                             parentType, true);
@@ -442,6 +457,21 @@ public final class Graphs {
         @Override
         public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
             Objects.requireNonNull(ancestorType, "ancestorType");
+            if (ancestorType.isAssignableFrom(type())) {
+                return Optional.of(cast(this));
+            }
+            if (!context.complete
+                && placement.parent == null
+                && context.models.size() == 1
+                && !context.boundary.before
+                && context.repository instanceof ModelAncestorResolver resolver) {
+                return resolver.loadAncestorGraph(
+                        placement.modelId, type(), ancestorType,
+                        context.boundary.ancestorBoundary(
+                                context.stateIndex,
+                                context.exactBoundary,
+                                context.historical));
+            }
             List<Graph<?>> level = List.of(this);
             Set<String> visited = new LinkedHashSet<>();
             while (!level.isEmpty()) {
@@ -690,7 +720,7 @@ public final class Graphs {
             return entity().playBackToEvent(eventIndex, eventId)
                     .map(previous -> Graphs.lazy(
                             previous, stateIndex(previous, context.stateIndex), context.repository,
-                            Map.of(previous.id().toString(), previous), true));
+                            Map.of(previous.id().toString(), previous), true, true));
         }
 
         @Override
@@ -722,6 +752,7 @@ public final class Graphs {
                 Collections.unmodifiableMap(
                         new LinkedHashMap<>(models)),
                 List.of(), repository, false, historical,
+                true,
                 boundary);
         Placement root = context.detached(
                 entity.id().toString());
@@ -735,12 +766,13 @@ public final class Graphs {
             Integer substep,
             Long eventIndex,
             boolean before,
-            Metadata messageMetadata) {
+            Metadata messageMetadata,
+            boolean eventMessage) {
 
         private static Boundary state(long stateIndex) {
             return new Boundary(
                     stateIndex, null, null, null,
-                    false, null);
+                    false, null, false);
         }
 
         private static Boundary current(long stateIndex) {
@@ -751,7 +783,11 @@ public final class Graphs {
                     : new Boundary(
                             stateIndex, null, null,
                             null, false,
-                            message.getMetadata());
+                            message.getMetadata(),
+                            message.getMessageType()
+                            == MessageType.EVENT
+                            || message.getMessageType()
+                               == MessageType.NOTIFICATION);
         }
 
         private Boundary asBefore() {
@@ -762,7 +798,8 @@ public final class Graphs {
                             resolved.commitId,
                             resolved.substep,
                             resolved.eventIndex,
-                            true, null);
+                            true, null,
+                            resolved.eventMessage);
         }
 
         private Graph<?> load(
@@ -829,11 +866,36 @@ public final class Graphs {
                 return new Boundary(
                         stateIndex, id,
                         parseSubstep(step), null,
-                        before, null);
+                        before, null,
+                        eventMessage);
             }
             return new Boundary(
                     stateIndex, null, null, null,
-                    before, null);
+                    before, null,
+                    eventMessage);
+        }
+
+        private ModelAncestorResolver.Boundary ancestorBoundary(
+                long fallbackStateIndex,
+                boolean exact,
+                boolean historical) {
+            if (!exact) {
+                return ModelAncestorResolver.Boundary.current();
+            }
+            Boundary resolved = resolve();
+            if (resolved.commitId != null) {
+                return ModelAncestorResolver.Boundary.commit(
+                        resolved.commitId, resolved.substep);
+            }
+            if (resolved.eventIndex != null) {
+                return ModelAncestorResolver.Boundary.event(
+                        resolved.eventIndex);
+            }
+            return ModelAncestorResolver.Boundary.state(
+                    resolved.stateIndex >= -1L
+                            ? resolved.stateIndex
+                            : fallbackStateIndex,
+                    !historical && !resolved.eventMessage);
         }
 
         private static int parseSubstep(Object value) {

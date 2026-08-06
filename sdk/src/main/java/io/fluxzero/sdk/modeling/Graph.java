@@ -360,6 +360,14 @@ public interface Graph<T> {
     /** Updates the current value directly. Prefer {@link #apply(Object)} for domain updates. */
     Graph<T> update(UnaryOperator<T> update);
 
+    /**
+     * Marks this model as deleted and returns the staged resulting graph. Return it from model handling so it joins the
+     * surrounding commit, or call {@link #commit()} for an explicit graph operation.
+     */
+    default Graph<T> delete() {
+        return update(ignored -> null);
+    }
+
     /** Explicitly commits staged changes. Normal handler processing commits automatically. */
     Graph<T> commit();
 

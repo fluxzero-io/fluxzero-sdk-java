@@ -196,6 +196,16 @@ class ModelCommitValidatorTest {
                         new GetModelAncestors(
                                 List.of("child-1", "child-2"), null,
                                 1, 1, 100, 0L)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                new GetModelAncestors(
+                        List.of("child-1"), null,
+                        -1, -1, 0, 0L)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        new GetModelAncestors(
+                                List.of("child-1"), null,
+                                -2, -1, 0, 0L)));
     }
 
     @Test

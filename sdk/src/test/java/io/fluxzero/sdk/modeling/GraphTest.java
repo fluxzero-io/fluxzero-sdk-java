@@ -16,7 +16,13 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +31,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 
 import static io.fluxzero.sdk.modeling.ModelTargetResolver.Access.READ_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -314,6 +322,39 @@ class GraphTest {
     }
 
     @Test
+    void parentNavigationOutsideTheLoadedCommitContextUsesItsExactBoundary() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("boundary"), "root");
+        Child childValue = new Child(new ChildId("boundary"), rootValue.id(), "child");
+        Entity<Child> child = entity(
+                childValue.id().toString(), Child.class, childValue);
+        @SuppressWarnings("unchecked")
+        Graph<Root> parent = mock(Graph.class);
+        when(parent.isPresent()).thenReturn(true);
+        when(parent.type()).thenReturn(Root.class);
+        ModelTargetResolver.ResolvedModel childTarget =
+                new ModelTargetResolver.ResolvedModel(
+                        childValue.id().toString(), Child.class,
+                        READ_ONLY, List.of("id"));
+        ModelCommitContext commitContext = ModelCommitContext.create(
+                11L,
+                new ModelTargetResolver.Resolution(
+                        List.of(childTarget), List.of(), List.of()),
+                Map.of(childValue.id().toString(), child));
+        when(repository.loadGraphAt(
+                rootValue.id().toString(), Root.class,
+                11L, Graph.Options.DEFAULT)).thenReturn(parent);
+
+        Graph<Child> graph = Graphs.lazy(child, commitContext, repository);
+
+        assertSame(parent, graph.parent(Root.class).orElseThrow());
+        verify(repository).loadGraphAt(
+                rootValue.id().toString(), Root.class,
+                11L, Graph.Options.DEFAULT);
+        verify(repository, never()).load(rootValue.id(), Root.class);
+    }
+
+    @Test
     void typedAncestorNavigationDisambiguatesMultipleParentBranches() {
         ModelRepository repository = mock(ModelRepository.class);
         Root rootValue = new Root(new RootId("multi"), "root");
@@ -342,6 +383,107 @@ class GraphTest {
         assertEquals(List.of(rootValue, otherValue), graph.parents().stream().map(Graph::get).toList());
         assertThrows(IllegalStateException.class, graph::parent);
         verifyNoInteractions(repository);
+    }
+
+    @Test
+    void detachedAncestorNavigationUsesIdentityResolverWithoutLoadingIntermediateValues() {
+        @SuppressWarnings("unchecked")
+        Entity<Grandchild> source = mock(Entity.class);
+        @SuppressWarnings("unchecked")
+        Graph<Root> ancestor = mock(Graph.class);
+        when(source.id()).thenReturn("grandchild");
+        when(source.type()).thenReturn(Grandchild.class);
+        AncestorRepository repository = new AncestorRepository(ancestor);
+
+        Graph<Grandchild> graph = Graphs.lazy(source, 42L, repository);
+
+        assertSame(ancestor, graph.ancestor(Root.class).orElseThrow());
+        assertEquals("grandchild", repository.modelId);
+        assertEquals(Grandchild.class, repository.modelType);
+        assertEquals(Root.class, repository.ancestorType);
+        assertNull(repository.boundary.stateIndex());
+        assertTrue(repository.boundary.includeMessageBatch());
+        verify(source, never()).get();
+    }
+
+    @Test
+    void commitContextAncestorNavigationRetainsItsExactBoundary() {
+        @SuppressWarnings("unchecked")
+        Entity<Grandchild> source = mock(Entity.class);
+        @SuppressWarnings("unchecked")
+        Graph<Root> ancestor = mock(Graph.class);
+        when(source.id()).thenReturn("grandchild");
+        when(source.type()).thenReturn(Grandchild.class);
+        ModelTargetResolver.ResolvedModel target =
+                new ModelTargetResolver.ResolvedModel(
+                        "grandchild", Grandchild.class,
+                        READ_ONLY, List.of("id"));
+        ModelCommitContext context = ModelCommitContext.create(
+                42L,
+                new ModelTargetResolver.Resolution(
+                        List.of(target), List.of(), List.of()),
+                Map.of("grandchild", source));
+        AncestorRepository repository = new AncestorRepository(ancestor);
+
+        Graph<Grandchild> graph = Graphs.lazy(source, context, repository);
+
+        assertSame(ancestor, graph.ancestor(Root.class).orElseThrow());
+        assertEquals(42L, repository.boundary.stateIndex());
+        assertTrue(repository.boundary.includeMessageBatch());
+        verify(source, never()).get();
+    }
+
+    @Test
+    void modelEventAncestorNavigationRetainsItsExactCommitSubstep() {
+        @SuppressWarnings("unchecked")
+        Entity<Grandchild> source = mock(Entity.class);
+        @SuppressWarnings("unchecked")
+        Graph<Root> ancestor = mock(Graph.class);
+        when(source.id()).thenReturn("grandchild");
+        when(source.type()).thenReturn(Grandchild.class);
+        ModelTargetResolver.ResolvedModel target =
+                new ModelTargetResolver.ResolvedModel(
+                        "grandchild", Grandchild.class,
+                        READ_ONLY, List.of("id"));
+        ModelCommitContext context = ModelCommitContext.create(
+                42L,
+                new ModelTargetResolver.Resolution(
+                        List.of(target), List.of(), List.of()),
+                Map.of("grandchild", source));
+        AncestorRepository repository = new AncestorRepository(ancestor);
+        Metadata metadata = Metadata.of(
+                ModelEventMetadata.COMMIT_ID, "commit-1",
+                ModelEventMetadata.SUBSTEP, 3);
+        DeserializingMessage event = new DeserializingMessage(
+                new Message(new Object(), metadata),
+                MessageType.EVENT, null);
+
+        Graph<Grandchild> graph = event.apply(
+                ignored -> Graphs.lazy(source, context, repository));
+
+        assertSame(ancestor, graph.ancestor(Root.class).orElseThrow());
+        assertEquals("commit-1", repository.boundary.commitId());
+        assertEquals(3, repository.boundary.substep());
+        assertFalse(repository.boundary.includeMessageBatch());
+        verify(source, never()).get();
+    }
+
+    @Test
+    void deleteIsTheNullUpdateConvenience() {
+        Root value = new Root(new RootId("delete"), "before");
+        Entity<Root> current = entity(value.id().toString(), Root.class, value);
+        Entity<Root> deleted = entity(value.id().toString(), Root.class, null);
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<UnaryOperator<Root>> update =
+                org.mockito.ArgumentCaptor.forClass(UnaryOperator.class);
+        when(current.update(any())).thenReturn(deleted);
+
+        Graph<Root> result = Graphs.lazy(
+                current, 42L, mock(ModelRepository.class)).delete();
+
+        verify(current).update(update.capture());
+        assertNull(update.getValue().apply(value));
+        assertTrue(result.isEmpty());
     }
 
     @Test
@@ -410,6 +552,37 @@ class GraphTest {
     private static final class ChildId extends Id<Child> {
         private ChildId(String id) {
             super(id, "graph-child-");
+        }
+    }
+
+    private static final class AncestorRepository
+            implements ModelRepository, ModelAncestorResolver {
+        private final Graph<?> result;
+        private String modelId;
+        private Class<?> modelType;
+        private Class<?> ancestorType;
+        private ModelAncestorResolver.Boundary boundary;
+
+        private AncestorRepository(Graph<?> result) {
+            this.result = result;
+        }
+
+        @Override
+        public <T> Entity<T> load(String modelId, Class<T> modelType) {
+            throw new AssertionError("Ancestor identity resolution must not load intermediate models");
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <A> Optional<Graph<A>> loadAncestorGraph(
+                String modelId, Class<?> modelType,
+                Class<A> ancestorType,
+                ModelAncestorResolver.Boundary boundary) {
+            this.modelId = modelId;
+            this.modelType = modelType;
+            this.ancestorType = ancestorType;
+            this.boundary = boundary;
+            return Optional.of((Graph<A>) result);
         }
     }
 }

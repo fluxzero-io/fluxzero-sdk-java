@@ -261,8 +261,12 @@ Graph<Project> previous = graph.previous();
 
 Prefer direct `T` injection when only the current value is needed. Inject `Graph<T>` when code needs parents,
 children, descendants, history or staged updates. Resolving the graph itself costs the same model load as direct value
-injection; relationships are fetched only when traversed. Every child is itself a graph, so `parent()`, `root()`,
+injection; relationships are fetched only when traversed. Typed ancestor lookup follows relationship identities first
+and loads only the selected ancestor value. Every child is itself a graph, so `parent()`, `root()`,
 `previous()`, `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)` remain available at every placement.
+
+Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
+according to the surrounding handler contract.
 
 Use `optional()`, `map(...)`, `mapIfPresent(...)` or `filterPresent()` for wrapper/value handling that must not load
 relationships. `stream()` walks every placement lazily in deterministic order; `find(idOrAlias)` and

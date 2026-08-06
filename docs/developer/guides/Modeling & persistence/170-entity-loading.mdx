@@ -51,10 +51,12 @@ List<LineItem> lines = graph.childModels("lines", LineItem.class);
 - `previous()` returns the retained previous revision when `cachingDepth` permits it;
 - `sequenceNumber()` is the position within this model's own stream;
 - `root()`, `parent()`, `children(...)` and `descendants(...)` navigate the temporal model graph;
-- `apply(...)`, `update(...)` and `assertAndApply(...)` stage model changes.
+- `apply(...)`, `update(...)`, `assertAndApply(...)` and `delete()` stage model changes.
 
 Creating the graph does not load the complete tree. It starts with the same direct model load as value injection and
-fetches relationship state only when navigation is requested.
+fetches relationship state only when navigation is requested. Typed ancestor navigation follows persisted relationship
+identities and materializes only the selected ancestor value, so `graph.ancestorModel(Organisation.class)` need not
+load intervening location or connection values.
 
 An untyped ID can be loaded by supplying the model class explicitly:
 
