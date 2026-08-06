@@ -183,7 +183,10 @@ data class Task(
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
-- `path` is a stable public graph-placement contract. Omit it if automatic tree stitching/projection is not wanted.
+- `path` is a stable public graph-placement and serialization contract. A pathless relation remains available through
+  typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
+- A child is logically deleted by default when any parent referenced by that `@ParentId` is finally deleted. Set
+  `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 
 Inject parents and further ancestors:
@@ -221,13 +224,21 @@ Choose this only if members always load, search, move, retain and disappear with
 ## Loading and event parameters
 
 ```kotlin
-val entity: Entity<Project> =
-    Fluxzero.loadModel(projectId)
-val project = entity.get()
+val project = Fluxzero.loadModel(projectId).get()
 
-val graph: ModelGraph<Project> =
-    Fluxzero.modelRepository().loadGraph(projectId)
+val graph: Graph<Project> = Fluxzero.loadGraph(projectId)
+val sameProject = graph.get()
+val tasks = graph.childModels("tasks", Task::class.java)
+val previous = graph.previous()
 ```
+
+Prefer direct `T` injection when only the current value is needed. Inject `Graph<T>` for parents, children,
+descendants, history or staged updates. Resolving the graph itself costs the same model load as direct value injection;
+relationships are fetched only when traversed. Every child remains a graph with `parent()`, `root()`, `previous()`,
+`atStateIndex(...)`, `apply(...)` and `assertAndApply(...)`.
+
+Returning a `Graph<T>` from a handler serializes the current model plus all explicitly named relationship paths.
+Pathless relations remain queryable through the typed graph API but are absent from that JSON shape.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 
@@ -253,14 +264,14 @@ Current loads use the model cache and its long-polling update tracker. Event han
 fun on(
     event: RenameProject,
     project: Project,
-    entity: Entity<Project>
+    graph: Graph<Project>
 ) {
     // Exact state after this event.
 }
 ```
 
-Use `Entity<T>` to observe an absent model after logical deletion. Ordinary events without model-commit metadata do not
-receive model injection.
+Use `Graph<T>` to observe an absent model after logical deletion or compare `get()` with `previous()`. Ordinary events
+without model-commit metadata do not receive model injection.
 
 ## Search and graph composition
 
@@ -292,9 +303,11 @@ graph.
 - `RETRY`: reload and rerun assertions/interceptors/applies.
 - `FAIL`: return the conflict.
 
-Returning `null` is logical deletion. `modelRepository().deleteModel(id, NONE)` physically erases modelstream, direct
-document, snapshots and cache state. Descendant cascade requires an explicit plan. Erasure fences prevent delayed
-writes from resurrecting data.
+Returning `null` is logical deletion. Parent deletion recursively deletes children whose relevant `@ParentId` keeps
+the default `deleteOnParentDeletion = true`, including pathless and shared-DAG descendants. Moving a child away in the
+same atomic commit preserves it. `modelRepository().deleteModel(id, NONE)` physically erases modelstream, direct
+document, snapshots and cache state. Physical descendant erasure still requires an explicit plan. Erasure fences
+prevent delayed writes from resurrecting data.
 
 ## Testing
 

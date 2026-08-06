@@ -1406,8 +1406,10 @@ class DefaultModelRepositoryTest {
                             grandchildId, childId, "grandchild")),
                     first.children("children", GraphChild.class).getFirst()
                             .childModels("grandchildren", GraphGrandchild.class));
-            assertEquals(2, first.descendants(Object.class).size());
-            assertFalse(first.descendants(Object.class).stream()
+            assertEquals(3, first.descendants(Object.class).size());
+            assertTrue(first.descendants(Object.class).stream()
+                               .anyMatch(node -> node.id().equals(unplacedId.toString())));
+            assertFalse(first.children("children", Object.class).stream()
                                 .anyMatch(node -> node.id().equals(unplacedId.toString())));
 
             fluxzero.commandGateway().send(

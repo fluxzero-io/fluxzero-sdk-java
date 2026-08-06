@@ -92,7 +92,8 @@ OrderId orderId
 ```
 
 When `path` is omitted, Fluxzero still stores and traverses the relation, but it does not automatically stitch that edge
-into a search document. This keeps package and class renames from silently changing public document structure.
+into a search or serialized graph document. Typed `Graph` traversal and parent-deletion lifecycle handling still follow
+it. This keeps package and class renames from silently changing public document structure.
 
 Current graph documents can be assembled on demand:
 
@@ -110,12 +111,12 @@ stream typed `SearchHit<ObjectNode>` values when transport or index details are 
 Or reconstructed as typed models:
 
 ```java
-ModelGraph<Order> graph = Fluxzero.get()
-        .modelRepository()
-        .loadGraph(orderId);
+Graph<Order> graph = Fluxzero.loadGraph(orderId);
+List<LineItem> lines = graph.childModels("lines", LineItem.class);
 ```
 
-All nodes and edges are pinned to one `stateIndex`.
+The root is available immediately. Relationships are loaded lazily on first traversal, with all returned nodes and
+edges pinned to one `stateIndex`.
 
 ## Injecting parents and grandparents
 
@@ -238,8 +239,19 @@ Promote a member to its own `@Model` when any of these statements stops being tr
 
 ## Deletion and detached descendants
 
-A logical delete returns `null` from an apply and retains model history. Explicit hard deletion removes the selected
-model's stream, cache, snapshots and direct document.
+A logical delete returns `null` from an apply and retains model history. By default it recursively deletes children
+whose relevant `@ParentId` keeps `deleteOnParentDeletion = true`. This ownership rule follows pathless relations and
+shared-DAG descendants too. Opt out for independently retained children:
+
+```java
+@ParentId(path = "auditEntries", deleteOnParentDeletion = false)
+OrderId orderId
+```
+
+A child moved to another parent in the same atomic commit survives. An intermediate delete followed by recreation in
+that commit does not activate the cascade.
+
+Explicit hard deletion removes the selected model's stream, cache, snapshots and direct document.
 
 Descendant hard deletion is never guessed:
 

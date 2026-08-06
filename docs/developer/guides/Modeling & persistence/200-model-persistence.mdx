@@ -201,8 +201,13 @@ uncommon case where multiple writers race on the same model.
 Returning `null` from `@Apply` logically deletes a model. Its current document and relations close, but its event
 history remains and the same ID may later be recreated.
 
-Explicit hard deletion removes the selected model stream, heads, snapshots, cache and direct document. A descendant
-cascade must first be planned and confirmed. Detached descendants remain discoverable through former-parent lineage
+Logical parent deletion recursively deletes children whose relevant `@ParentId` keeps the default
+`deleteOnParentDeletion = true`, including pathless and shared-DAG descendants. Moving a child away or recreating the
+parent in the same atomic commit prevents that lifecycle cascade.
+
+Explicit hard deletion removes the selected model stream, heads, snapshots, cache and direct document. This is a
+separate destructive operation: a physical descendant cascade must first be planned and confirmed. Detached
+descendants remain discoverable through former-parent lineage
 for lifecycle and GDPR cleanup.
 
 Published audit events are not erased implicitly. Apply the application's event-log retention and data-protection

@@ -392,11 +392,8 @@ Most commands should load only their direct targets. A query that needs the whol
 current graph:
 
 ```java
-ModelGraph<Project> graph =
-        Fluxzero.modelRepository().loadGraph(projectId);
-
-List<ModelGraph.Node<?>> tasks =
-        graph.root().children("tasks");
+Graph<Project> graph = Fluxzero.loadGraph(projectId);
+List<Task> tasks = graph.childModels("tasks", Task.class);
 ```
 
 Search returns the complete graph as JSON. It uses a configured materialized projection and otherwise stitches direct

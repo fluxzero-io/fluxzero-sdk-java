@@ -164,6 +164,32 @@ class GraphTest {
     }
 
     @Test
+    void retainsPathlessRelationshipsForGeneralNavigation() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("pathless"), "root");
+        Child childValue = new Child(new ChildId("pathless"), rootValue.id(), "child");
+        Grandchild grandchildValue = new Grandchild("pathless-leaf", childValue.id());
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id().toString(), 7L,
+                Map.of(rootValue.id().toString(), entity(rootValue.id(), Root.class, rootValue),
+                       childValue.id().toString(), entity(childValue.id(), Child.class, childValue),
+                       grandchildValue.id(), entity(grandchildValue.id(), Grandchild.class, grandchildValue)),
+                List.of(
+                        new ModelGraphEdge(
+                                childValue.id().toString(), rootValue.id().toString(),
+                                Root.class.getName(), null, 0L, null),
+                        new ModelGraphEdge(
+                                grandchildValue.id(), childValue.id().toString(),
+                                Child.class.getName(), null, 0L, null)),
+                repository, false);
+
+        assertEquals(List.of(childValue), graph.childModels(Child.class));
+        assertEquals(List.of(childValue, grandchildValue), graph.descendantModels(Object.class));
+        assertEquals(List.of(), graph.descendantModels("children", Child.class));
+        assertNull(graph.children(Child.class).getFirst().relationshipPath());
+    }
+
+    @Test
     void parentNavigationReusesTheAlreadyLoadedCommitContext() {
         ModelRepository repository = mock(ModelRepository.class);
         Root rootValue = new Root(new RootId("context"), "root");

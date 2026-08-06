@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Value;
 
@@ -44,4 +45,13 @@ public class ModelRelationship {
      * Explicit graph composition path, or {@code null} when composition is not configured.
      */
     String path;
+
+    /**
+     * Whether deletion of this parent also owns the child model's lifecycle.
+     * <p>
+     * Missing values from older clients remain {@code false}; only clients which explicitly send this relationship
+     * contract can request runtime-validated cascade deletion.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean deleteOnParentDeletion;
 }

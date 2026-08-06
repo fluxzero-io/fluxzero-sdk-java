@@ -388,7 +388,8 @@ public final class ModelMetadata {
                                       .formatted(path, type.getName(), parentProperty.property().name()));
             }
             result.add(new ParentReference(
-                    parentProperty.property(), path, parentModelType, annotation.apiDoc()));
+                    parentProperty.property(), path, parentModelType, annotation.apiDoc(),
+                    annotation.deleteOnParentDeletion()));
         }
         return List.copyOf(result);
     }
@@ -768,8 +769,14 @@ public final class ModelMetadata {
      * @param path            optional parent-relative automatic composition path
      * @param parentModelType inferred or explicitly declared parent model type, or {@code null} for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
+     * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
      */
-    public record ParentReference(Property property, String path, Class<?> parentModelType, ApiDoc apiDoc) {
+    public record ParentReference(
+            Property property,
+            String path,
+            Class<?> parentModelType,
+            ApiDoc apiDoc,
+            boolean deleteOnParentDeletion) {
         public Object read(Object target) {
             return property.read(target);
         }

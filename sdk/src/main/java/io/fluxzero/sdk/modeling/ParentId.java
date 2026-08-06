@@ -44,6 +44,11 @@ import java.lang.annotation.Target;
  * {@link #apiDoc()} optionally describes the list-valued property created at that path when the graph is used as a
  * documented web response. It has no effect unless {@link #path()} is set.
  * <p>
+ * By default the relationship also owns the child's lifecycle: deleting the referenced parent deletes this model and
+ * its likewise owned descendants in the same atomic model commit. Set {@link #deleteOnParentDeletion()} to
+ * {@code false} for a shared or independently retained child. This lifecycle rule does not require a graph path and
+ * moving a child by changing its parent ID does not count as parent deletion.
+ * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
  *
  * @see Model
@@ -74,4 +79,12 @@ public @interface ParentId {
      * of every documented graph while retaining it in the runtime model graph.
      */
     ApiDoc apiDoc() default @ApiDoc;
+
+    /**
+     * Whether this model is deleted when the referenced parent is logically deleted.
+     * <p>
+     * The default expresses ordinary parent-owned child lifecycle. Opt out for shared graph edges or models which must
+     * remain independently addressable after their parent disappears.
+     */
+    boolean deleteOnParentDeletion() default true;
 }

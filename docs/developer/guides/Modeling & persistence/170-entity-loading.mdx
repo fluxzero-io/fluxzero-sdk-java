@@ -25,24 +25,36 @@ model type without storing the type as part of the identity.
 <Tabs>
   <TabItem label="Java">
     ```java
-    Entity<Order> entity = Fluxzero.loadModel(orderId);
-    Order order = entity.get();
+    Order order = Fluxzero.loadModel(orderId).get();
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    val entity: Entity<Order> = Fluxzero.loadModel(orderId)
-    val order: Order? = entity.get()
+    val order: Order? = Fluxzero.loadModel(orderId).get()
     ```
   </TabItem>
 </Tabs>
 
-`Entity<T>` carries more than the value:
+Load a lazy `Graph<T>` when code also needs relationship context, history or transition operations:
+
+```java
+Graph<Order> graph = Fluxzero.loadGraph(orderId);
+Order order = graph.get();
+Graph<Order> previous = graph.previous();
+List<LineItem> lines = graph.childModels("lines", LineItem.class);
+```
+
+`Graph<T>` carries:
 
 - `isPresent()` distinguishes an existing model from an empty or logically deleted model;
 - `id()` and `type()` expose its persisted identity and type;
 - `previous()` returns the retained previous revision when `cachingDepth` permits it;
-- `sequenceNumber()` is the position within this model's own stream.
+- `sequenceNumber()` is the position within this model's own stream;
+- `root()`, `parent()`, `children(...)` and `descendants(...)` navigate the temporal model graph;
+- `apply(...)`, `update(...)` and `assertAndApply(...)` stage model changes.
+
+Creating the graph does not load the complete tree. It starts with the same direct model load as value injection and
+fetches relationship state only when navigation is requested.
 
 An untyped ID can be loaded by supplying the model class explicitly:
 
@@ -89,7 +101,7 @@ suffix of that model's stream. Events are replayed through their `@Apply` method
 ```mermaid
 flowchart LR
     LOAD["loadModel(id)"] --> CACHE{"Current cache entry?"}
-    CACHE -->|fresh| RETURN["Return Entity"]
+    CACHE -->|fresh| RETURN["Return current model"]
     CACHE -->|missing or stale| SNAPSHOT["Load snapshot/checkpoint"]
     SNAPSHOT --> EVENTS["Load missing model events"]
     EVENTS --> APPLY["Replay @Apply methods"]
@@ -123,7 +135,7 @@ was produced by a model commit, Fluxzero pins those loads to that action's persi
 
 ```java
 @HandleEvent
-void on(ItemReserved event, Order order, Entity<Inventory> inventory) {
+void on(ItemReserved event, Order order, Graph<Inventory> inventory) {
     // order and inventory are exactly as they existed for this event
 }
 ```
@@ -134,8 +146,8 @@ Parameter injection uses the ID properties in the event:
 - otherwise one unique typed `Id<Model>`;
 - `@Association("sourceId")` when two IDs refer to the same model type.
 
-Both `T` and `Entity<T>` are supported. A deleted target can be injected as an empty `Entity<T>`; a non-null bare `T`
-matches only when the model exists. `@Association` first checks metadata unless `excludeMetadata = true`.
+Both `T` and `Graph<T>` are supported. A deleted target can be injected as an empty graph; a non-null bare `T` matches
+only when the model exists. `@Association` first checks metadata unless `excludeMetadata = true`.
 
 Parents, grandparents and further ancestors can be injected without repeating their IDs:
 
@@ -164,22 +176,25 @@ Relations declared with `@ParentId` can be traversed without turning the models 
 boundary:
 
 ```java
-ModelGraph<Order> graph = Fluxzero.get()
-        .modelRepository()
-        .loadGraph(orderId);
+Graph<Order> graph = Fluxzero.loadGraph(orderId);
 ```
 
-The runtime pins one `stateIndex`, finds the nodes and edges belonging to the root at that boundary, reconstructs the
-models in batches and places children at their declared paths. Use `loadGraphAt(...)` for an historical graph:
+The root value is loaded immediately; the runtime pins one `stateIndex` and reconstructs related nodes in batches on
+the first traversal. Every returned child is itself a graph with its own parent, root and history operations. Use
+`loadGraphAt(...)` for an historical graph:
 
 ```java
-ModelGraph<Order> historical = Fluxzero.get()
+Graph<Order> historical = Fluxzero.get()
         .modelRepository()
         .loadGraphAt(orderId, stateIndex);
 ```
 
-Graph loads have no caller-imposed depth or model-count limit by default. Pass explicit `ModelGraph.Options` when an
+Graph loads have no caller-imposed depth or model-count limit by default. Pass explicit `Graph.Options` when an
 operation intentionally accepts only a bounded graph; use a direct model load when the command needs only one model.
+
+Returning `Graph<T>` from a message or web handler serializes the root and descendants placed through explicit
+`@ParentId(path = "...")` edges. Pathless relationships remain available through typed `children(...)` and
+`descendants(...)`, but do not invent a public JSON property name.
 
 A current graph load inside an ordered tracking batch includes pending model state produced by earlier messages in the
 same routing segment. This includes newly created nodes, changed values and `@ParentId` moves. Moving an existing node

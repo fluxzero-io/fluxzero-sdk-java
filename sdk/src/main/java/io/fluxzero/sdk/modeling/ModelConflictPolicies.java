@@ -79,8 +79,9 @@ final class ModelConflictPolicies {
     private static ModelConflictPolicy transitionPolicy(
             ModelCommitEngine.Transition transition,
             ModelConflictPolicy application) {
-        Apply apply = transition.handler()
-                .getAnnotation(Apply.class);
+        Apply apply = transition.handler() == null
+                ? null
+                : transition.handler().getAnnotation(Apply.class);
         ModelConflictPolicy policy = apply == null
                 ? ModelConflictPolicy.DEFAULT
                 : apply.conflictPolicy();

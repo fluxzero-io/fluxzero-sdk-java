@@ -3203,12 +3203,25 @@ produce an event; use `ALWAYS` explicitly for intentional no-op domain notificat
 synchronous with model-commit completion.
 
 Load current state with `Fluxzero.loadModel(id)`. Any selected message handler can inject directly addressed models and
-their parents, grandparents or further ancestors as `T` or `Entity<T>`. Event and notification handlers receive the
+their parents, grandparents or further ancestors as `T` or lazy `Graph<T>`. Event and notification handlers receive the
 exact state and relations at that event's model-commit boundary; command, query, schedule, result, error, metrics,
 document, custom and web handlers use one current handler load context. Event-sourced targets share its pinned
 repository boundary; document-loaded targets remain current-only direct-document reads. Use
 `@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
 `@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
+
+`Graph<T>` is the public context view around a model. `get()` returns the value; `parent()`, `root()`, `children(...)`
+and `descendants(...)` navigate relationships; `previous()`, `atStateIndex(...)` and `playBackToEvent(...)` expose
+history; and `apply(...)` or `assertAndApply(...)` stage model transitions. Graph creation itself performs only the same
+direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested. Returning a graph
+from a handler serializes the model tree through explicitly named `@ParentId(path = "...")` edges. Pathless relations
+remain available for typed traversal and lifecycle handling but do not invent a JSON field name.
+
+Logical deletion follows model ownership by default. When a parent is finally deleted, every child relation whose
+`@ParentId` keeps `deleteOnParentDeletion = true` recursively deletes that child, including pathless relations and
+shared-DAG descendants. Set it to `false` for independently retained children. A child moved away in the same atomic
+commit survives, and an intermediate delete followed by recreation does not trigger the cascade. Physical erasure is
+still a separately planned and confirmed operation.
 
 Annotate a model property with `@Alias` when callers need to load the same independently stored model through an
 alternative identity. `Fluxzero.loadModel(alias)` first tries a primary model ID and then a current alias. The complete

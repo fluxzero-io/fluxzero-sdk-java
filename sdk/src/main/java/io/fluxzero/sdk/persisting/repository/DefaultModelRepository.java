@@ -49,6 +49,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.CascadedModelDeletion;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Graph;
@@ -495,6 +496,30 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             @NonNull Class<T> rootType,
             long stateIndex,
             @NonNull Graph.Options options) {
+        return loadGraphAt(
+                rootId, rootType, stateIndex, options, false);
+    }
+
+    /**
+     * Reconstructs a graph at an exact durable boundary and overlays pending values from earlier messages in the
+     * current message batch. This is used by atomic model planning that must retain read-your-writes semantics without
+     * advancing beyond its already pinned durable boundary.
+     */
+    public <T> Graph<T> loadGraphAtIncludingMessageBatch(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            long stateIndex,
+            @NonNull Graph.Options options) {
+        return loadGraphAt(
+                rootId, rootType, stateIndex, options, true);
+    }
+
+    private <T> Graph<T> loadGraphAt(
+            String rootId,
+            Class<T> rootType,
+            long stateIndex,
+            Graph.Options options,
+            boolean includeMessageBatch) {
         if (stateIndex < -1L) {
             throw new IllegalArgumentException(
                     "Model graph stateIndex must be at least -1");
@@ -504,7 +529,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         ReconstructedGraph<T> graph = loadGraph(
                 rootId, rootType, options,
                 ModelEventBatchLoader.Boundary.at(stateIndex), null,
-                false);
+                includeMessageBatch);
         return Graphs.compose(
                 rootId, graph.stateIndex(), graph.models(),
                 graph.edges(), this, true);
@@ -524,7 +549,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                         boundary.substep(),
                         boundary.eventIndex(),
                         options.maxDepth(), options.maxModels(),
-                        0, 0L, true));
+                        0, 0L, false));
         pin(handlerBoundary, graph.getStateIndex());
         List<ModelTargetResolver.ResolvedModel> targets =
                 new ArrayList<>(graph.getStreams().size());
@@ -619,9 +644,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             for (ModelMetadata.ParentReference parent :
                     ModelMetadata.validate(model.modelType())
                             .parentReferences()) {
-                if (parent.path().isEmpty()) {
-                    continue;
-                }
                 Object parentId = parent.read(value);
                 if (parentId != null) {
                     edges.add(new ModelGraphEdge(
@@ -629,7 +651,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
                             parent.parentModelType() == null
                                     ? null
                                     : parent.parentModelType().getName(),
-                            parent.path(), -1L, null));
+                            parent.path().isEmpty() ? null : parent.path(), -1L, null));
                 }
             }
         });
@@ -712,11 +734,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
         LinkedHashMap<String, List<ModelGraphEdge>> byParent =
                 new LinkedHashMap<>();
         for (ModelGraphEdge edge : edges) {
-            if (edge.getPath() != null) {
-                byParent.computeIfAbsent(
-                                edge.getParentId(), ignored -> new ArrayList<>())
-                        .add(edge);
-            }
+            byParent.computeIfAbsent(
+                            edge.getParentId(), ignored -> new ArrayList<>())
+                    .add(edge);
         }
         LinkedHashSet<String> modelIds = new LinkedHashSet<>();
         modelIds.add(rootId);
@@ -3163,6 +3183,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository> 
             for (PreparedReplay preparedReplay : prepared) {
                 DeserializingMessage event = preparedReplay.event();
                 Class<?> payloadType = event.getPayloadClass();
+                if (event.getPayload() instanceof CascadedModelDeletion) {
+                    result = updateValue(result, null);
+                    continue;
+                }
                 ReplayPlan plan = preparedReplay.plan();
                 List<ModelMetadata.HandlerMethod> handlers = plan.handlers();
                 if (handlers.isEmpty()) {

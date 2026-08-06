@@ -98,9 +98,7 @@ public final class Graphs {
                 List.copyOf(edges), repository, true, historical);
         Map<String, List<ModelGraphEdge>> byParent = new LinkedHashMap<>();
         for (ModelGraphEdge edge : edges) {
-            if (edge.getPath() != null) {
-                byParent.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>()).add(edge);
-            }
+            byParent.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>()).add(edge);
         }
         context.root = build(rootId, null, null, context.models, byParent, new LinkedHashSet<>());
         return context.view(context.root);
@@ -222,12 +220,12 @@ public final class Graphs {
                 for (ModelMetadata.ParentReference parent :
                         ModelMetadata.of(known.type()).parentReferences()) {
                     Object parentId = parent.read(value);
-                    if (parentId != null && !parent.path().isEmpty()) {
+                    if (parentId != null) {
                         mergedEdges.add(new ModelGraphEdge(
                                 modelId, parent.repositoryId(parentId),
                                 parent.parentModelType() == null
                                         ? null : parent.parentModelType().getName(),
-                                parent.path(), -1L, null));
+                                parent.path().isEmpty() ? null : parent.path(), -1L, null));
                     }
                 }
             });
@@ -531,13 +529,16 @@ public final class Graphs {
             while (!remaining.isEmpty()) {
                 PathPlacement candidate = remaining.removeFirst();
                 Graph<?> graph = context.view(candidate.placement());
-                if ((selectedPath == null || selectedPath.equals(candidate.path()))
+                if ((selectedPath == null || Objects.equals(selectedPath, candidate.path()))
                     && descendantType.isAssignableFrom(graph.type())) {
                     result.add(cast(graph));
                 }
-                if (selectedPath == null || selectedPath.startsWith(candidate.path() + '/')) {
+                if (selectedPath == null
+                    || candidate.path() != null
+                    && selectedPath.startsWith(candidate.path() + '/')) {
                     candidate.placement().children.forEach((childPath, children) -> {
-                        String descendantPath = candidate.path() + '/' + childPath;
+                        String descendantPath = candidate.path() == null || childPath == null
+                                ? null : candidate.path() + '/' + childPath;
                         children.forEach(child -> remaining.addLast(
                                 new PathPlacement(child, descendantPath)));
                     });
@@ -564,12 +565,6 @@ public final class Graphs {
         }
 
         private record PathPlacement(Placement placement, String path) {
-            private PathPlacement {
-                if (path == null || path.isBlank()) {
-                    throw new IllegalStateException(
-                            "Graph child %s has no relationship path".formatted(placement.modelId));
-                }
-            }
         }
 
         private Graph<?> expanded() {

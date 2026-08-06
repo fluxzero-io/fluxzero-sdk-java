@@ -146,6 +146,23 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void acceptsCascadeDeletionButRejectsCascadeWithoutDeletion() {
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(commit(
+                List.of("order-1"),
+                target("order-1").toBuilder()
+                        .delete(true)
+                        .cascadeDelete(true)
+                        .updateRelationships(true)
+                        .build())));
+        assertThrows(IllegalArgumentException.class, () ->
+                ModelCommitValidator.validate(commit(
+                        List.of("order-1"),
+                        target("order-1").toBuilder()
+                                .cascadeDelete(true)
+                                .build())));
+    }
+
+    @Test
     void validatesTemporalGraphBoundsAndBoundaries() {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 new GetModelGraph("root-1", null, 16, 10_000, 100, 0L, true)));

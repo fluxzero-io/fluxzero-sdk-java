@@ -119,6 +119,7 @@ public final class ModelCommitValidator {
                                         .formatted(target.getModelId()));
                     }
                     if (target.isDelete() || target.isUpdateRelationships()
+                        || target.isCascadeDelete()
                         || target.getDocument() != null || target.getSnapshot() != null
                         || target.getRelationships() == null || !target.getRelationships().isEmpty()
                         || target.getAliases() != null) {
@@ -140,6 +141,10 @@ public final class ModelCommitValidator {
                 if (target.isDelete() && !target.isUpdateRelationships()) {
                     throw new IllegalArgumentException(
                             "Deleted target model %s must update relationships".formatted(target.getModelId()));
+                }
+                if (target.isCascadeDelete() && !target.isDelete()) {
+                    throw new IllegalArgumentException(
+                            "Cascade target model %s must be deleted".formatted(target.getModelId()));
                 }
                 if (target.isDelete() && target.getAliases() != null
                     && !target.getAliases().isEmpty()) {

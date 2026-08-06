@@ -147,6 +147,7 @@ public final class ModelCommitWireCodec {
             ModelCommitTarget target = step.getTargets().getFirst();
             if (target.getDocument() != null
                     || target.getSnapshot() != null
+                    || target.isCascadeDelete()
                     || target.isUpdateRelationships()
                     || !target.getRelationships().isEmpty()
                     || target.getAliases() != null) {

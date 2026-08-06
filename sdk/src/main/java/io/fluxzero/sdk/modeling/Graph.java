@@ -68,7 +68,7 @@ public interface Graph<T> {
     /** Returns the concrete model type. */
     Class<T> type();
 
-    /** Returns the parent-relative relationship path of this placement, or {@code null} for a standalone/root view. */
+    /** Returns the parent-relative relationship path, or {@code null} for a pathless, standalone, or root view. */
     @Nullable
     String relationshipPath();
 

@@ -2322,3 +2322,40 @@ Evidence SHA-256: E746 `3a2157c96490baf9a27cd2b67a3a130d31c0e33a42d7d910c6708ef7
 Final verification evidence: focused message-batch/model suite 156 tests
 `2433758d072d620edbb1e2814ceaf2c457af398ad1754ce653883f75131996a0`; last exact full SDK reactor install
 `e120caae549a504899e549d8ff15f0883253d77ee7df5cfcd2389da20d15030a`.
+
+### S57 — lazy pathless graphs and owned descendant deletion
+
+The S57 candidate adds pathless graph traversal and logical descendant deletion for owned `@ParentId` relationships.
+The initial implementation made two complete additional normal-route scans: the SDK rediscovered cascade roots after
+the cascade planner had already identified them, and the Runtime scanned every prepared model batch before deciding
+whether cascade validation was needed. E753-E755 retained those scans. On the consistently overloaded host, their
+candidate geometric mean was **144,957/s** versus **150,229/s** for the bracketed parent (**-3.51%**), so that
+implementation was rejected rather than checkpointed.
+
+The corrected implementation carries cascade roots out of the existing SDK evaluation pass and records the Runtime's
+`hasCascadeDeletes` bit while it already filters duplicate commits. The normal update route therefore performs no
+second cascade-discovery scan, while actual deletes still reconstruct and validate the owned graph. E756-E758 use the
+same canonical route, Java 25 runtime, PostgreSQL instance, command count, warmup, caches and message-store settings as
+the parent:
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E753 | canonical | full command -> model -> event + result | SDK `c208e89f` + Runtime `ed543cd8` | first cascade implementation | 4,194,304 | 262,144 | none | 150,229/s | 139,030/s | false | exclude absolute result: Spotlight and host load | diagnostic-only |
+| E754 | canonical | full command -> model -> event + result | SDK `c208e89f` + Runtime `ed543cd8` | parent control | 4,194,304 | 262,144 | none | 150,229/s | n/a | false | loaded-host parent for rejected first candidate | diagnostic-only |
+| E755 | canonical | full command -> model -> event + result | SDK `c208e89f` + Runtime `ed543cd8` | first cascade implementation | 4,194,304 | 262,144 | none | 150,229/s | 151,137/s | false | first implementation geometric mean -3.51% | diagnostic-only |
+| E756 | canonical | full command -> model -> event + result | SDK `c208e89f` + Runtime `ed543cd8` | cascade hot-path correction | 4,194,304 | 262,144 | none | 142,032/s | 165,554/s | true | +16.56% versus following parent | accepted |
+| E757 | canonical | full command -> model -> event + result | SDK `c208e89f` + Runtime `ed543cd8` | parent control | 4,194,304 | 262,144 | none | 142,032/s | n/a | true | bracketed loaded-host parent control | diagnostic-only |
+| E758 | canonical | full command -> model -> event + result | SDK `c208e89f` + Runtime `ed543cd8` | cascade hot-path correction | 4,194,304 | 262,144 | none | 142,032/s | 174,438/s | true | +22.82% versus preceding parent | accepted |
+
+The corrected candidate observations have a geometric mean of **169,938/s**, or **+19.65%** versus their shared
+adjacent parent. Every run completed exactly 4,194,304 command results, stored model events and global events and
+verified all 65,536 final model states. This accepts the absence of a normal-route regression; it does not replace the
+clean-host P5 absolute pin of **425,606/s**. Spotlight, Contacts, Chrome rendering and WindowServer remained active, so
+all absolute E753-E758 throughput and latency observations are non-qualifying.
+
+Evidence SHA-256: E753 `76bdeaa40f0d7ecd9b9835dd55b3c73d96b989c0dd89e6322a51b380a5786e56`, E754
+`d553727968d5865a9f0fb2de2c3f4eea941ddc6a061d5a513de8b1c4990fc9e2`, E755
+`ef50f8e705d5a9deba24172b84ed41e6fb7e8e91c6f71336942258b4515b2ece`, E756
+`835d8a97bf1c5eb3b2bd60caa5664a20f11f95470cd18f0eee4a4536da9244b9`, E757
+`e35364ca1477a068feaf37ad7c3c4510445a69253c0fd11daffb3e2bb951d397`, E758
+`54b262949c32b428caf26d9211f2786c9bbc5c1fe4bdd23768ac05c2d4d791e5`.

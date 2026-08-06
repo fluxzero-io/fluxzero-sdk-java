@@ -645,6 +645,101 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void parentDeletionCascadesAcrossPathsAndRetainsOptedOutChildren() {
+        FamilyRootId rootId = new FamilyRootId("cascade");
+        FamilyChildId childId = new FamilyChildId("cascade");
+        FamilyChildId secondChildId = new FamilyChildId("cascade-second");
+        FamilyGrandchildId grandchildId = new FamilyGrandchildId("cascade");
+        String pathlessId = "pathless-cascade";
+        String retainedId = "retained-cascade";
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateFamilyChild(childId, rootId, "child"),
+                        new CreateFamilyChild(secondChildId, rootId, "second-child"),
+                        new CreateFamilyGrandchild(grandchildId, childId, secondChildId),
+                        new CreatePathlessFamilyChild(pathlessId, rootId),
+                        new CreateRetainedFamilyChild(retainedId, rootId))
+                .whenCommand(new DeleteFamilyRoot(rootId))
+                .expectThat(fluxzero -> {
+                    ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                            fluxzero.modelRepository()).invalidateModels(List.of(
+                            rootId.toString(), childId.toString(), secondChildId.toString(),
+                            grandchildId.toString(),
+                            pathlessId, retainedId));
+                    assertTrue(fluxzero.modelRepository().load(rootId).isEmpty());
+                    assertTrue(fluxzero.modelRepository().load(childId).isEmpty());
+                    assertTrue(fluxzero.modelRepository().load(secondChildId).isEmpty());
+                    assertTrue(fluxzero.modelRepository().load(grandchildId).isEmpty());
+                    assertTrue(fluxzero.modelRepository()
+                                       .load(pathlessId, PathlessFamilyChild.class).isEmpty());
+                    assertEquals(
+                            new RetainedFamilyChild(retainedId, rootId),
+                            fluxzero.modelRepository()
+                                    .load(retainedId, RetainedFamilyChild.class).get());
+                    assertTrue(fluxzero.eventStore().getEvents(childId.toString())
+                                       .anyMatch(event -> event.getPayload()
+                                               instanceof CascadedModelDeletion));
+                    assertTrue(fluxzero.eventStore().getEvents(grandchildId.toString())
+                                       .anyMatch(event -> event.getPayload()
+                                               instanceof CascadedModelDeletion));
+                });
+    }
+
+    @Test
+    void childMovedWhileDeletingItsParentSurvivesUnderTheNewParent() {
+        FamilyRootId deletedRootId = new FamilyRootId("move-delete-old");
+        FamilyRootId retainedRootId = new FamilyRootId("move-delete-new");
+        FamilyChildId childId = new FamilyChildId("move-delete");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(deletedRootId, "old"),
+                        new CreateFamilyRoot(retainedRootId, "new"),
+                        new CreateFamilyChild(childId, deletedRootId, "child"))
+                .whenCommand(new DeleteRootAndMoveChild(
+                        deletedRootId, childId, retainedRootId))
+                .expectThat(fluxzero -> {
+                    var repository = (io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                            fluxzero.modelRepository();
+                    repository.invalidateModels(List.of(
+                            deletedRootId.toString(), retainedRootId.toString(), childId.toString()));
+                    assertTrue(repository.load(deletedRootId).isEmpty());
+                    assertEquals(
+                            new FamilyChild(childId, retainedRootId, "child"),
+                            repository.load(childId).get());
+                    assertFalse(fluxzero.eventStore().getEvents(childId.toString())
+                                        .anyMatch(event -> event.getPayload()
+                                                instanceof CascadedModelDeletion));
+                });
+    }
+
+    @Test
+    void deletingAndRecreatingAParentInOneCommitDoesNotCascade() {
+        FamilyRootId rootId = new FamilyRootId("replace");
+        FamilyChildId childId = new FamilyChildId("replace");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(rootId, "before"),
+                        new CreateFamilyChild(childId, rootId, "child"))
+                .whenCommand(new ReplaceFamilyRoot(rootId, "after"))
+                .expectThat(fluxzero -> {
+                    var repository = (io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                            fluxzero.modelRepository();
+                    repository.invalidateModels(List.of(rootId.toString(), childId.toString()));
+                    assertEquals(new FamilyRoot(rootId, "after"), repository.load(rootId).get());
+                    assertEquals(
+                            new FamilyChild(childId, rootId, "child"),
+                            repository.load(childId).get());
+                    assertFalse(fluxzero.eventStore().getEvents(childId.toString())
+                                        .anyMatch(event -> event.getPayload()
+                                                instanceof CascadedModelDeletion));
+                });
+    }
+
+    @Test
     void searchesModelsByCurrentGrandparentDocument() {
         FamilyRootId wantedRoot =
                 new FamilyRootId("search-wanted");
@@ -1142,6 +1237,14 @@ class ModelCommitHandlerIntegrationTest {
                                         fluxzero.modelRepository().loadGraphAt(
                                                 firstRootId,
                                                 durable.stateIndex());
+                                Graph<FamilyRoot> pinnedWithBatch =
+                                        ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                fluxzero.modelRepository())
+                                                .loadGraphAtIncludingMessageBatch(
+                                                        secondRootId.toString(),
+                                                        FamilyRoot.class,
+                                                        durable.stateIndex(),
+                                                        Graph.Options.DEFAULT);
 
                                 assertEquals(
                                         List.of(),
@@ -1168,6 +1271,14 @@ class ModelCommitHandlerIntegrationTest {
                                         firstChildId.toString(),
                                         historical.children("children", FamilyChild.class)
                                                 .getFirst().id());
+                                assertEquals(
+                                        List.of("existing", "moving"),
+                                        pinnedWithBatch.children("children", FamilyChild.class)
+                                                .stream()
+                                                .map(Graph::get)
+                                                .map(FamilyChild::name)
+                                                .sorted()
+                                                .toList());
                             });
                     return null;
                 })
@@ -1969,6 +2080,78 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         FamilyRoot apply() {
             return new FamilyRoot(familyRootId, name);
+        }
+    }
+
+    private record DeleteFamilyRoot(FamilyRootId familyRootId) {
+        @Apply
+        FamilyRoot apply(FamilyRoot current) {
+            return null;
+        }
+    }
+
+    private record MoveFamilyChild(
+            FamilyChildId familyChildId,
+            FamilyRootId familyRootId) {
+        @Apply
+        FamilyChild apply(FamilyChild current) {
+            return new FamilyChild(
+                    current.familyChildId(), familyRootId,
+                    current.name());
+        }
+    }
+
+    private record DeleteRootAndMoveChild(
+            FamilyRootId familyRootId,
+            FamilyChildId familyChildId,
+            FamilyRootId newFamilyRootId) {
+        @InterceptApply
+        List<Object> intercept() {
+            return List.of(
+                    new DeleteFamilyRoot(familyRootId),
+                    new MoveFamilyChild(familyChildId, newFamilyRootId));
+        }
+    }
+
+    private record ReplaceFamilyRoot(
+            FamilyRootId familyRootId,
+            String name) {
+        @InterceptApply
+        List<Object> intercept() {
+            return List.of(
+                    new DeleteFamilyRoot(familyRootId),
+                    new CreateFamilyRoot(familyRootId, name));
+        }
+    }
+
+    @Model
+    private record PathlessFamilyChild(
+            @EntityId String id,
+            @ParentId FamilyRootId familyRootId) {
+    }
+
+    private record CreatePathlessFamilyChild(
+            String id,
+            FamilyRootId familyRootId) {
+        @Apply
+        PathlessFamilyChild apply() {
+            return new PathlessFamilyChild(id, familyRootId);
+        }
+    }
+
+    @Model
+    private record RetainedFamilyChild(
+            @EntityId String id,
+            @ParentId(deleteOnParentDeletion = false)
+            FamilyRootId familyRootId) {
+    }
+
+    private record CreateRetainedFamilyChild(
+            String id,
+            FamilyRootId familyRootId) {
+        @Apply
+        RetainedFamilyChild apply() {
+            return new RetainedFamilyChild(id, familyRootId);
         }
     }
 

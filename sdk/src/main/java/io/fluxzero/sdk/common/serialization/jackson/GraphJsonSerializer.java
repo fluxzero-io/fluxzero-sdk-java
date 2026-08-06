@@ -72,10 +72,7 @@ public final class GraphJsonSerializer extends JsonSerializer<Graph<?>> {
         for (Graph<?> child : graph.children()) {
             String path = child.relationshipPath();
             if (path == null || path.isBlank()) {
-                throw JsonMappingException.from(
-                        generator,
-                        "Child model %s below %s has no relationship path"
-                                .formatted(child.type().getName(), graph.type().getName()));
+                continue;
             }
             childrenByPath.computeIfAbsent(path, ignored -> new ArrayList<>()).add(child);
         }

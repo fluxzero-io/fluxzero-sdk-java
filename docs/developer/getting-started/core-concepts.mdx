@@ -265,8 +265,8 @@ The invoice and lines above intentionally share one stream, cache entry, documen
 Load current state by typed ID:
 
 ```java
-Entity<Project> entity = Fluxzero.loadModel(projectId);
-Project project = entity.get();
+Project project = Fluxzero.loadModel(projectId).get();
+Graph<Project> graph = Fluxzero.loadGraph(projectId);
 ```
 
 In an event or notification handler, a directly affected model can be injected:
@@ -275,14 +275,15 @@ In an event or notification handler, a directly affected model can be injected:
 @HandleEvent
 void on(RenameProject event,
         Project project,
-        Entity<Project> entity) {
+        Graph<Project> graph) {
     // Both represent the project exactly after this event's model-commit substep.
 }
 ```
 
 This is historical event-boundary injection, not an arbitrary current-state lookup. It only applies to events carrying
-a model-commit boundary. `Entity<T>` is useful for logical delete events because it can represent an absent value; a
-bare non-null `T` only matches while the model exists.
+a model-commit boundary. `Graph<T>` is useful for logical delete events because it can represent an absent value and
+exposes `previous()`; a bare non-null `T` only matches while the model exists. Relationship traversal on a graph is
+lazy, so injecting it does not load parents or descendants unless the handler requests them.
 
 ## Queries and search
 

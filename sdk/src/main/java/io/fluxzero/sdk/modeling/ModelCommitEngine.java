@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -741,11 +742,24 @@ final class ModelCommitEngine {
             List<String> readModelIds,
             Map<String, Class<?>> readModelTypes,
             List<AppliedSubstep> substeps,
-            Map<String, Object> finalValues) {
+            Map<String, Object> finalValues,
+            Set<String> cascadeRootIds) {
+        CommitEvaluation(
+                long readStateIndex,
+                List<String> readModelIds,
+                Map<String, Class<?>> readModelTypes,
+                List<AppliedSubstep> substeps,
+                Map<String, Object> finalValues) {
+            this(
+                    readStateIndex, readModelIds, readModelTypes,
+                    substeps, finalValues, Set.of());
+        }
+
         CommitEvaluation {
             readModelIds = List.copyOf(readModelIds);
             readModelTypes = Map.copyOf(readModelTypes);
             substeps = List.copyOf(substeps);
+            cascadeRootIds = Set.copyOf(cascadeRootIds);
             if (finalValues.isEmpty()) {
                 finalValues = Map.of();
             } else if (finalValues.size() == 1) {
@@ -805,7 +819,21 @@ final class ModelCommitEngine {
             Long beforeLastEventIndex,
             Object before,
             Object after,
-            Executable handler) {
+            Executable handler,
+            boolean cascadedDeletion) {
+        Transition(
+                String modelId,
+                Class<?> modelType,
+                long beforeSequenceNumber,
+                Long beforeLastEventIndex,
+                Object before,
+                Object after,
+                Executable handler) {
+            this(
+                    modelId, modelType, beforeSequenceNumber,
+                    beforeLastEventIndex, before, after, handler, false);
+        }
+
         Transition(
                 String modelId,
                 Class<?> modelType,
@@ -815,7 +843,7 @@ final class ModelCommitEngine {
                 Executable handler) {
             this(
                     modelId, modelType, beforeSequenceNumber,
-                    null, before, after, handler);
+                    null, before, after, handler, false);
         }
     }
 

@@ -1588,15 +1588,17 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private ModelCommitEngine.CommitEvaluation evaluateGeneric(
             DeserializingMessage initialMessage) {
-        return engine.evaluate(initialMessage, new CommitLoader(null));
+        return expandCascadeDeletes(
+                engine.evaluate(initialMessage, new CommitLoader(null)));
     }
 
     private ModelCommitEngine.CommitEvaluation evaluateGeneric(
             DeserializingMessage initialMessage,
             BatchCommitTicket batchTicket) {
-        return engine.evaluate(
-                initialMessage,
-                new CommitLoader(null, false, batchTicket));
+        return expandCascadeDeletes(
+                engine.evaluate(
+                        initialMessage,
+                        new CommitLoader(null, false, batchTicket)));
     }
 
     private ModelCommitEngine.CommitEvaluation evaluatePrefetched(
@@ -1664,7 +1666,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 new LinkedHashMap<>(1);
         finalValues.put(
                 input.modelId(), after);
-        return new ModelCommitEngine.CommitEvaluation(
+        return expandCascadeDeletes(new ModelCommitEngine.CommitEvaluation(
                 prefetched.stateIndex,
                 List.of(input.modelId()),
                 Map.of(
@@ -1674,7 +1676,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         new ModelCommitEngine.AppliedSubstep(
                                 message,
                                 List.of(transition))),
-                finalValues);
+                finalValues));
     }
 
     private ModelCommitEngine.CommitEvaluation rebase(
@@ -1682,9 +1684,227 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             long stateIndex) {
         return MessageBatchModelView.withMessageDependency(
                 messages.getFirst(),
-                () -> engine.rebase(
-                        messages,
-                        new CommitLoader(stateIndex)));
+                () -> expandCascadeDeletes(engine.rebase(
+                        messages.stream()
+                                .filter(message -> !(message.getPayload()
+                                        instanceof CascadedModelDeletion))
+                                .toList(),
+                        new CommitLoader(stateIndex))));
+    }
+
+    /**
+     * Adds one internal, non-published delete substep for descendants owned through {@link ParentId} relationships.
+     * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
+     * actual logical deletions.
+     */
+    private ModelCommitEngine.CommitEvaluation expandCascadeDeletes(
+            ModelCommitEngine.CommitEvaluation evaluation) {
+        LinkedHashSet<String> explicitlyDeleted = null;
+        for (ModelCommitEngine.AppliedSubstep substep : evaluation.substeps()) {
+            for (ModelCommitEngine.Transition transition : substep.transitions()) {
+                if (transition.before() != null
+                    && transition.after() == null
+                    && evaluation.finalValues().get(transition.modelId()) == null) {
+                    if (explicitlyDeleted == null) {
+                        explicitlyDeleted = new LinkedHashSet<>();
+                    }
+                    explicitlyDeleted.add(transition.modelId());
+                }
+            }
+        }
+        if (explicitlyDeleted == null) {
+            return evaluation;
+        }
+
+        LinkedHashMap<String, ModelCommitEngine.Transition> latestTransitions =
+                new LinkedHashMap<>();
+        for (ModelCommitEngine.AppliedSubstep substep : evaluation.substeps()) {
+            for (ModelCommitEngine.Transition transition : substep.transitions()) {
+                latestTransitions.put(transition.modelId(), transition);
+            }
+        }
+        LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
+        LinkedHashSet<String> expanded = new LinkedHashSet<>();
+        java.util.ArrayDeque<String> pendingExpansion =
+                new java.util.ArrayDeque<>(explicitlyDeleted);
+        LinkedHashSet<String> deleted = new LinkedHashSet<>(explicitlyDeleted);
+        LinkedHashSet<String> cascaded = new LinkedHashSet<>();
+
+        while (true) {
+            while (!pendingExpansion.isEmpty()) {
+                String rootId = pendingExpansion.removeFirst();
+                if (!expanded.add(rootId)) {
+                    continue;
+                }
+                Class<?> rootType = modelType(
+                        rootId, evaluation, latestTransitions, nodes);
+                if (rootType == null) {
+                    continue;
+                }
+                Graph<?> graph = repository.loadGraphAtIncludingMessageBatch(
+                        rootId, rootType,
+                        evaluation.readStateIndex(),
+                        Graph.Options.DEFAULT);
+                addCascadeNode(nodes, graph);
+                graph.descendants(Object.class).forEach(
+                        descendant -> addCascadeNode(nodes, descendant));
+            }
+
+            overlayFinalValues(
+                    evaluation, latestTransitions, nodes);
+            boolean changed = false;
+            for (CascadeNode node : List.copyOf(nodes.values())) {
+                if (deleted.contains(node.modelId())
+                    || node.value() == null) {
+                    continue;
+                }
+                ModelMetadata metadata =
+                        ModelMetadata.validate(node.modelType());
+                boolean ownedByDeletedParent =
+                        ownedByDeletedParent(
+                                metadata, node.value(), deleted);
+                if (ownedByDeletedParent && deleted.add(node.modelId())) {
+                    cascaded.add(node.modelId());
+                    pendingExpansion.addLast(node.modelId());
+                    changed = true;
+                }
+            }
+            if (!changed && pendingExpansion.isEmpty()) {
+                break;
+            }
+        }
+        if (cascaded.isEmpty()) {
+            return new ModelCommitEngine.CommitEvaluation(
+                    evaluation.readStateIndex(),
+                    evaluation.readModelIds(),
+                    evaluation.readModelTypes(),
+                    evaluation.substeps(),
+                    evaluation.finalValues(),
+                    explicitlyDeleted);
+        }
+
+        List<ModelCommitEngine.Transition> transitions = cascaded.stream()
+                .map(nodes::get)
+                .filter(Objects::nonNull)
+                .map(node -> new ModelCommitEngine.Transition(
+                        node.modelId(), node.modelType(),
+                        node.sequenceNumber(), node.lastEventIndex(),
+                        node.value(), null, null, true))
+                .toList();
+        DeserializingMessage source =
+                evaluation.substeps().getFirst().message();
+        DeserializingMessage cascadeMessage = source.withMessage(
+                new Message(
+                        new CascadedModelDeletion(
+                                List.copyOf(explicitlyDeleted)),
+                        source.getMetadata(), null,
+                        source.getTimestamp()));
+        List<ModelCommitEngine.AppliedSubstep> substeps =
+                new ArrayList<>(evaluation.substeps());
+        substeps.add(new ModelCommitEngine.AppliedSubstep(
+                cascadeMessage, transitions));
+        LinkedHashSet<String> readModelIds =
+                new LinkedHashSet<>(evaluation.readModelIds());
+        Map<String, Class<?>> readModelTypes =
+                new LinkedHashMap<>(evaluation.readModelTypes());
+        Map<String, Object> finalValues =
+                new LinkedHashMap<>(evaluation.finalValues());
+        transitions.forEach(transition -> {
+            readModelIds.add(transition.modelId());
+            readModelTypes.putIfAbsent(
+                    transition.modelId(), transition.modelType());
+            finalValues.put(transition.modelId(), null);
+        });
+        return new ModelCommitEngine.CommitEvaluation(
+                evaluation.readStateIndex(),
+                List.copyOf(readModelIds),
+                readModelTypes,
+                substeps,
+                finalValues,
+                explicitlyDeleted);
+    }
+
+    private static void addCascadeNode(
+            Map<String, CascadeNode> nodes,
+            Graph<?> graph) {
+        nodes.putIfAbsent(
+                graph.id().toString(),
+                new CascadeNode(
+                        graph.id().toString(), graph.type(), graph.get(),
+                        graph.sequenceNumber(), graph.lastEventIndex()));
+    }
+
+    private static boolean ownedByDeletedParent(
+            ModelMetadata metadata,
+            Object value,
+            Set<String> deleted) {
+        for (ModelMetadata.ParentReference parent :
+                metadata.parentReferences()) {
+            if (!parent.deleteOnParentDeletion()) {
+                continue;
+            }
+            Object parentId = parent.read(value);
+            if (parentId != null
+                && deleted.contains(
+                        parent.repositoryId(parentId))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void overlayFinalValues(
+            ModelCommitEngine.CommitEvaluation evaluation,
+            Map<String, ModelCommitEngine.Transition> latestTransitions,
+            Map<String, CascadeNode> nodes) {
+        evaluation.finalValues().forEach((modelId, value) -> {
+            if (value == null) {
+                return;
+            }
+            ModelCommitEngine.Transition transition =
+                    latestTransitions.get(modelId);
+            CascadeNode known = nodes.get(modelId);
+            Class<?> type = transition == null
+                    ? evaluation.readModelTypes().get(modelId)
+                    : transition.modelType();
+            if (type == null) {
+                type = value.getClass();
+            }
+            nodes.put(
+                    modelId,
+                    new CascadeNode(
+                            modelId, type, value,
+                            known != null ? known.sequenceNumber()
+                                    : transition == null ? -1L
+                                    : transition.beforeSequenceNumber(),
+                            known != null ? known.lastEventIndex()
+                                    : transition == null ? null
+                                    : transition.beforeLastEventIndex()));
+        });
+    }
+
+    private static Class<?> modelType(
+            String modelId,
+            ModelCommitEngine.CommitEvaluation evaluation,
+            Map<String, ModelCommitEngine.Transition> transitions,
+            Map<String, CascadeNode> nodes) {
+        CascadeNode node = nodes.get(modelId);
+        if (node != null) {
+            return node.modelType();
+        }
+        ModelCommitEngine.Transition transition =
+                transitions.get(modelId);
+        return transition == null
+                ? evaluation.readModelTypes().get(modelId)
+                : transition.modelType();
+    }
+
+    private record CascadeNode(
+            String modelId,
+            Class<?> modelType,
+            Object value,
+            long sequenceNumber,
+            Long lastEventIndex) {
     }
 
     private final class CommitLoader implements ModelCommitEngine.SubstepResolver {

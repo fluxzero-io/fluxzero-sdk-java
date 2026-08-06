@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -96,6 +97,8 @@ final class ModelCommitter {
     private final PendingCommitIndex pendingCommits;
     private final Registration resultBatchRegistration;
     private final ConcurrentHashMap<Executable, ConcurrentHashMap<Class<?>, TransitionPlan>> transitionPlans =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Class<?>, TransitionPlan> cascadeTransitionPlans =
             new ConcurrentHashMap<>();
     private volatile CachedTransitionPlan recentTransitionPlan;
 
@@ -237,8 +240,12 @@ final class ModelCommitter {
                                                             boundary)));
                         }
                         PreparedCommit nextPrepared =
-                                prepareRebased(
-                                        commitId, original, next);
+                                original.hasCascadedDeletion()
+                                        ? prepare(
+                                                commitId, next,
+                                                ModelConflictPolicy.ACCEPT)
+                                        : prepareRebased(
+                                                commitId, original, next);
                         return commitAcceptingRebase(
                                 commitId, next, original,
                                 nextPrepared, rebaseEvaluator,
@@ -597,6 +604,7 @@ final class ModelCommitter {
         List<DeserializingMessage> messages = new ArrayList<>();
         Map<String, Long> nextSequences =
                 new LinkedHashMap<>();
+        Set<String> cascadeRoots = evaluation.cascadeRootIds();
         for (int evaluatedSubstep = 0;
              evaluatedSubstep < evaluation.substeps().size();
              evaluatedSubstep++) {
@@ -613,7 +621,10 @@ final class ModelCommitter {
             boolean eventRequired = publishEvent
                                     || transitions.stream().anyMatch(EffectiveTransition::storeEvent);
             SerializedMessage event = eventRequired
-                    ? serialize(appliedSubstep.message(), commitId, evaluatedSubstep)
+                    ? serialize(
+                            appliedSubstep.message(), commitId, evaluatedSubstep,
+                            transitions.stream().anyMatch(
+                                    transition -> transition.transition().cascadedDeletion()))
                     : null;
             if (event != null) {
                 event.setSource(source);
@@ -625,7 +636,9 @@ final class ModelCommitter {
             for (EffectiveTransition transition : transitions) {
                 targets.add(target(
                         transition, appliedSubstep.message(),
-                        nextSequences));
+                        nextSequences,
+                        cascadeRoots.contains(
+                                transition.transition().modelId())));
             }
             substeps.add(new ModelCommitStep(
                     event, publishEvent,
@@ -663,7 +676,9 @@ final class ModelCommitter {
         boolean eventRequired = effective.publishEvent()
                                 || effective.storeEvent();
         SerializedMessage event = eventRequired
-                ? serialize(appliedSubstep.message(), commitId, 0) : null;
+                ? serialize(
+                        appliedSubstep.message(), commitId, 0,
+                        transition.cascadedDeletion()) : null;
         String eventMessageId = null;
         if (event != null) {
             event.setSource(source);
@@ -682,7 +697,9 @@ final class ModelCommitter {
         ModelCommitTarget target = target(
                 effective,
                 appliedSubstep.message(),
-                nextSequence);
+                nextSequence,
+                evaluation.cascadeRootIds().contains(
+                        transition.modelId()));
         ModelCommitStep step = new ModelCommitStep(
                 event, effective.publishEvent(),
                 List.of(target));
@@ -781,7 +798,8 @@ final class ModelCommitter {
                         effectiveTransition);
                 targets.add(target(
                         effectiveTransition, rebased.message(),
-                        nextSequences));
+                        nextSequences,
+                        originalTarget.isCascadeDelete()));
                 effective.add(effectiveTransition);
             }
             if (!transitionsById.isEmpty()) {
@@ -813,19 +831,22 @@ final class ModelCommitter {
     private ModelCommitTarget target(
             EffectiveTransition effective,
             DeserializingMessage message,
-            Map<String, Long> nextSequences) {
+            Map<String, Long> nextSequences,
+            boolean cascadeDelete) {
         return target(
                 effective,
                 message,
                 nextSequence(
                         effective.transition(), effective,
-                        nextSequences));
+                        nextSequences),
+                cascadeDelete);
     }
 
     private ModelCommitTarget target(
             EffectiveTransition effective,
             DeserializingMessage message,
-            long nextSequence) {
+            long nextSequence,
+            boolean cascadeDelete) {
         ModelCommitEngine.Transition transition = effective.transition();
         DirectDocumentCandidate documentCandidate = effective.updateState()
                 ? directDocument(
@@ -859,6 +880,9 @@ final class ModelCommitter {
                 effective.updateState(),
                 effective.updateState()
                 && transition.after() == null,
+                cascadeDelete
+                && effective.updateState()
+                && transition.after() == null,
                 documentMutation,
                 snapshot,
                 relationships.update(),
@@ -867,7 +891,10 @@ final class ModelCommitter {
     }
 
     private SerializedMessage serialize(
-            DeserializingMessage message, String commitId, int substep) {
+            DeserializingMessage message,
+            String commitId,
+            int substep,
+            boolean internalLifecycleEvent) {
         SerializedMessage source = message.getSerializedObject(serializer);
         io.fluxzero.sdk.common.Message logicalMessage =
                 message.toMessage();
@@ -879,13 +906,15 @@ final class ModelCommitter {
          * data is shared: transport/tracking fields intentionally stay behind on the
          * command and event dispatch interceptors still receive an independent message.
          */
-        SerializedMessage serialized = dispatchInterceptor.modifySerializedMessage(
-                new SerializedMessage(
-                        source,
-                        logicalMessage.getMetadata(),
-                        logicalMessage.getMessageId(),
-                        logicalMessage.getTimestamp().toEpochMilli()),
-                logicalMessage, EVENT, null);
+        SerializedMessage candidate = new SerializedMessage(
+                source,
+                logicalMessage.getMetadata(),
+                logicalMessage.getMessageId(),
+                logicalMessage.getTimestamp().toEpochMilli());
+        SerializedMessage serialized = internalLifecycleEvent
+                ? candidate
+                : dispatchInterceptor.modifySerializedMessage(
+                        candidate, logicalMessage, EVENT, null);
         if (serialized == null) {
             throw new IllegalStateException(
                     "Serialized model event was suppressed after @Apply evaluation; "
@@ -936,6 +965,16 @@ final class ModelCommitter {
 
     private Optional<EffectiveTransition> effectiveTransition(ModelCommitEngine.Transition transition) {
         TransitionPlan plan = transitionPlan(transition);
+        if (transition.cascadedDeletion()) {
+            EffectiveTransition result = new EffectiveTransition(
+                    transition,
+                    plan.model().eventSourced(),
+                    false,
+                    true,
+                    plan);
+            validateCompleteHistory(result);
+            return Optional.of(result);
+        }
         Publication publication = plan.publication();
         boolean compareState =
                 publication.eventPublication()
@@ -1008,6 +1047,11 @@ final class ModelCommitter {
 
     private TransitionPlan transitionPlan(
             ModelCommitEngine.Transition transition) {
+        if (transition.cascadedDeletion()) {
+            return cascadeTransitionPlans.computeIfAbsent(
+                    transition.modelType(),
+                    modelType -> createTransitionPlan(null, modelType));
+        }
         CachedTransitionPlan recent = recentTransitionPlan;
         if (recent != null
             && recent.handler() == transition.handler()
@@ -1033,7 +1077,7 @@ final class ModelCommitter {
         ModelMetadata.RootConfiguration model = metadata
                 .rootConfiguration().orElseThrow(() -> new IllegalStateException(
                         modelType.getName() + " is not an independent model"));
-        Apply apply = handler.getAnnotation(Apply.class);
+        Apply apply = handler == null ? null : handler.getAnnotation(Apply.class);
         EventPublication eventPublication =
                 apply != null && apply.eventPublication() != EventPublication.DEFAULT
                         ? apply.eventPublication()
@@ -1129,13 +1173,22 @@ final class ModelCommitter {
                     .parentType(parent.parentModelType() == null
                                         ? null : parent.parentModelType().getName())
                     .path(parent.path().isEmpty() ? null : parent.path())
+                    .deleteOnParentDeletion(parent.deleteOnParentDeletion())
                     .build();
             if (modelId.equals(relationship.getParentId())) {
                 throw new IllegalStateException(
                         "Model '%s' cannot be its own parent".formatted(modelId));
             }
-            result.putIfAbsent(new RelationshipKey(
-                    relationship.getParentId(), relationship.getParentType(), relationship.getPath()), relationship);
+            RelationshipKey key = new RelationshipKey(
+                    relationship.getParentId(), relationship.getParentType(), relationship.getPath());
+            result.merge(
+                    key, relationship,
+                    (existing, duplicate) -> existing.isDeleteOnParentDeletion()
+                            || !duplicate.isDeleteOnParentDeletion()
+                            ? existing
+                            : existing.toBuilder()
+                                    .deleteOnParentDeletion(true)
+                                    .build());
         }
         return List.copyOf(result.values());
     }
@@ -1223,6 +1276,10 @@ final class ModelCommitter {
             List<List<EffectiveTransition>> transitionGroups,
             List<DeserializingMessage> messages,
             String singleEventMessageId) {
+        boolean hasCascadedDeletion() {
+            return transitionGroups.stream().flatMap(List::stream)
+                    .anyMatch(transition -> transition.transition().cascadedDeletion());
+        }
     }
 
     final class CommitBatch {

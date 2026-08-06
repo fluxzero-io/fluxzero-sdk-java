@@ -208,7 +208,10 @@ public record Task(
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
-- `path` is a stable public graph-placement contract. Omit it if automatic tree stitching/projection is not wanted.
+- `path` is a stable public graph-placement and serialization contract. A pathless relation remains available through
+  typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
+- A child is logically deleted by default when any parent referenced by that `@ParentId` is finally deleted. Set
+  `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 
 Inject parents and further ancestors into assertions, interceptors and applies:
@@ -248,12 +251,21 @@ addressed or erasable child should be its own `@Model`.
 ## Loading
 
 ```java
-Entity<Project> entity = Fluxzero.loadModel(projectId);
-Project project = entity.get();
+Project project = Fluxzero.loadModel(projectId).get();
 
-ModelGraph<Project> graph =
-        Fluxzero.modelRepository().loadGraph(projectId);
+Graph<Project> graph = Fluxzero.loadGraph(projectId);
+Project sameProject = graph.get();
+List<Task> tasks = graph.childModels("tasks", Task.class);
+Graph<Project> previous = graph.previous();
 ```
+
+Prefer direct `T` injection when only the current value is needed. Inject `Graph<T>` when code needs parents,
+children, descendants, history or staged updates. Resolving the graph itself costs the same model load as direct value
+injection; relationships are fetched only when traversed. Every child is itself a graph, so `parent()`, `root()`,
+`previous()`, `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)` remain available at every placement.
+
+Returning a `Graph<T>` from a handler serializes the current model plus all explicitly named relationship paths.
+Pathless relations remain queryable through the typed graph API but are intentionally absent from that JSON shape.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 
@@ -277,13 +289,14 @@ boundary:
 @HandleEvent
 void on(RenameProject event,
         Project project,
-        Entity<Project> entity) {
+        Graph<Project> graph) {
     // Exact state after this event, not latest state.
 }
 ```
 
-Directly affected event/notification models support `T` and `Entity<T>`. `Entity<T>` is required to observe an absent
-model after logical deletion. Ordinary events without model-commit metadata do not receive model injection.
+Directly affected event/notification models support `T` and `Graph<T>`. Use `Graph<T>` to observe an absent model after
+logical deletion or to compare `get()` with `previous()`. Ordinary events without model-commit metadata do not receive
+model injection.
 
 ## Search and graph composition
 
@@ -327,9 +340,13 @@ If multiple applies request different policies, the stricter applicable policy w
 ## Deletion
 
 - Returning `null` from `@Apply` is logical deletion and preserves history.
+- Logical parent deletion recursively deletes children whose relevant `@ParentId` keeps the default
+  `deleteOnParentDeletion = true`. This follows pathless relations and shared descendants too; a shared descendant is
+  deleted when any owning parent disappears. Moving a child away in the same atomic commit preserves it.
 - `modelRepository().deleteModel(id, NONE)` physically erases that model's stream, current document, snapshots and
   cache state while leaving the global event log untouched.
-- Descendant cascade requires `planDeletion(...)` followed by confirmation/execution of that exact plan.
+- Physical descendant erasure remains a separate destructive operation and requires `planDeletion(...)` followed by
+  confirmation/execution of that exact plan.
 - Erasure fences prevent delayed document, snapshot or projection writes from resurrecting deleted data.
 - Detached descendants remain discoverable through deleted-parent lineage for later GDPR/lifecycle erasure.
 

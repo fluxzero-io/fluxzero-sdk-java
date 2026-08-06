@@ -55,7 +55,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
         - [Intercept or rewrite updates (@InterceptApply)](entities.md#intercept-apply)
         - [Apply state changes (@Apply)](entities.md#apply)
         - [Implement permission checks (@AssertLegal)](entities.md#assertlegal)
-        - [Load entities (Id, @Alias, Entity<T>)](entities.md#loading-entities)
+        - [Load models and lazy graphs (Id, @Alias, Graph<T>)](entities.md#loading)
 - **"I need to search for data or work with documents"**
     - → [Search & Documents](search.md)
         - [Configure search indexing (@Searchable)](search.md#configuration)

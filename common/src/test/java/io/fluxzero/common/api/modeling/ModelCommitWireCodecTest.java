@@ -248,6 +248,22 @@ class ModelCommitWireCodecTest {
                 base.getPossibleDuplicate());
         assertNull(ModelCommitWireCodec.tryEncode(
                 new RequestBatch<>(List.of(withAliases))));
+
+        CommitModels cascade = commit("cascade", false);
+        ModelCommitStep cascadeStep = cascade.getSubsteps().getFirst();
+        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(
+                new CommitModels(
+                        cascade.getCommitId(), cascade.getReadStateIndex(),
+                        cascade.getReadModelIds(),
+                        List.of(cascadeStep.toBuilder()
+                                .targets(List.of(cascadeStep.getTargets().getFirst()
+                                        .toBuilder()
+                                        .delete(true)
+                                        .cascadeDelete(true)
+                                        .build()))
+                                .build()),
+                        cascade.getConflictPolicy(), cascade.getGuarantee(),
+                        cascade.getPossibleDuplicate())))));
     }
 
     @Test

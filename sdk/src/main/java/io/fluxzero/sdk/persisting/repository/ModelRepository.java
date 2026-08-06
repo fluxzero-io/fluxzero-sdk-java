@@ -225,7 +225,8 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Reconstructs a model and every descendant connected through an explicit graph path at one state boundary.
+     * Reconstructs a model and every related descendant at one state boundary. Pathless relationships participate in
+     * typed traversal but remain absent from serialized graph documents.
      * Pending changes from earlier messages in the same ordered tracking segment are included. Use
      * {@link #loadGraphAt(Id, long)} when an exact durable historical boundary is required.
      */

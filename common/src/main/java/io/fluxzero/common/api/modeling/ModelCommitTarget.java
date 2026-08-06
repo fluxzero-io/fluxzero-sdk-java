@@ -71,6 +71,15 @@ public class ModelCommitTarget {
     boolean delete;
 
     /**
+     * Whether the runtime must verify that every current child relationship owned by this target is represented by a
+     * deletion target in the same atomic commit.
+     * <p>
+     * This remains false for older clients, preserving their existing detach-on-parent-deletion behavior.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean cascadeDelete;
+
+    /**
      * Optional direct current-document mutation produced by this transition.
      * <p>
      * The runtime applies it with the same assigned state index as this target. A missing mutation means that the model

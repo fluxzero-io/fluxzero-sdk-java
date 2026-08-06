@@ -66,6 +66,24 @@ class GraphJsonSerializerTest {
                 .path("details").path("leaves").size());
     }
 
+    @Test
+    void doesNotSerializePathlessRelationships() {
+        Root rootValue = new Root("root-id", "root");
+        Child childValue = new Child("child-id", rootValue.id(), "hidden");
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id(), 5L,
+                Map.of(rootValue.id(), entity(rootValue.id(), Root.class, rootValue),
+                       childValue.id(), entity(childValue.id(), Child.class, childValue)),
+                List.of(new ModelGraphEdge(
+                        childValue.id(), rootValue.id(), Root.class.getName(), null, 0L, null)),
+                mock(ModelRepository.class), false);
+
+        JsonNode document = serializer.getObjectMapper().valueToTree(graph);
+
+        assertEquals(List.of(childValue), graph.childModels(Child.class));
+        assertFalse(document.has("children"));
+    }
+
     private static Graph<Root> graph() {
         Root rootValue = new Root("root-id", "root");
         Child childValue = new Child("child-id", rootValue.id(), "visible");
