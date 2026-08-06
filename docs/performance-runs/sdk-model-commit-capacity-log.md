@@ -2387,10 +2387,40 @@ canonical 1,048,576-entry command cache. The host changed state too strongly for
 
 The 100,417/s to 178,073/s source reversal, alongside concurrent IDE, UI, dev-server and renderer activity, makes
 neither pair canonical-comparable. The runs are retained as exact correctness evidence and are not averaged. The
-historical clean-host P5 pin remains **425,606/s**. A future quiet-host repin may update the absolute observation, but
-these additive methods do not add executable work to the already qualified ordinary injection/update route.
+historical clean-host P5 pin remains **425,606/s**. Source inspection shows that the added Graph defaults are not
+invoked by the B0 route and that the cache change runs only from its existing eviction listener, but this does not by
+itself prove throughput equivalence. Because both invalid pairs happened to favour the parent, the performance gate
+remains open pending a quiet-host repin.
 
 Evidence SHA-256: E759 `3b8448bcd3f68b048d6d206732ca3552d0960c163de7ff54c4b93d44ebb1d921`, E760
 `e4864a7e5206749ccf708b2d3fe5622228ccdbe4edeef42eac4c968f59a282fb`, E761
 `dbb55120a2686217bc8117b81ec5eaaca8a87faa0fd7573a4ca4857b619835b0`, E762
 `29164995ef5de8b9a0f8ff2051ab2eb8fd35d1b48db9e10f8a076632412bf184`.
+
+The loaded-host E763-E768 causal screen deliberately reversed the source order and split the candidate into direct
+parent `a871fe2f7cf`, cache-eviction fix only `70aa36d7918` and complete Graph ergonomics `2848311dafe`. It used Java
+25, Runtime `f274bee8`, the same database, 1,048,576-entry command cache, 65,536 models and 262,144 warmup updates, but
+only 1,048,576 measured commands per run. Chrome renderers consumed roughly 28-78% CPU before most runs and load
+averages varied from 6.99 to 12.99, so all six observations are `smoke` and `diagnostic-only`:
+
+| run | source | throughput | exact route result |
+| --- | --- | ---: | --- |
+| E763 | complete candidate | 149,490/s | 1,048,576 results and both event kinds; 65,536 states |
+| E764 | direct parent | 115,454/s | exact |
+| E765 | cache fix only | 127,934/s | exact |
+| E766 | complete candidate | 151,079/s | exact |
+| E767 | cache fix only | 157,136/s | exact |
+| E768 | direct parent | 144,695/s | exact |
+
+The complete candidate was stable at 149,490-151,079/s and exceeded both parent observations. Its geometric mean was
+150,282/s versus 129,250/s for the parent (+16.27%). This directly disproves that the earlier parent advantage is a
+stable consequence of the candidate binary. The cache-only observations ranged from 127,934 to 157,136/s, so this
+loaded screen cannot attribute a smaller effect to either commit and does not close the non-regression gate. The next
+qualifying step remains an alternating full 4,194,304-command series on a quiet host; production code is unchanged.
+
+Log SHA-256: E763 `6843add1040917a9d169c019247a4f72f3723907016b77dcb3e7fe5c29457e6c`, E764
+`2a9abad22d4b3d141a1574c193300577073e0be1d47f83fc66d29b114737dc8e`, E765
+`7a773a3de49509204b6237e78a4d03be5b5978b6e901a7dc9c7245d83d43299a`, E766
+`4e22130423677fcb3bb4458839dd2d5d5770350085d5b605ae7794cd9680f5a0`, E767
+`3b2e559ff9ea7cf4ea88601c684a39a278a0d003136e3c4132aa8ec5c82e99d8`, E768
+`686ab5ea0132e41f9ebfadb6587b7c09645c5a41584e24d967ca92a374882df7`.
