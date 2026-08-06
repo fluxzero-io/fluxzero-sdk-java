@@ -2359,3 +2359,38 @@ Evidence SHA-256: E753 `76bdeaa40f0d7ecd9b9835dd55b3c73d96b989c0dd89e6322a51b380
 `835d8a97bf1c5eb3b2bd60caa5664a20f11f95470cd18f0eee4a4536da9244b9`, E757
 `e35364ca1477a068feaf37ad7c3c4510445a69253c0fd11daffb3e2bb951d397`, E758
 `54b262949c32b428caf26d9211f2786c9bbc5c1fe4bdd23768ac05c2d4d791e5`.
+
+### S57 — additive Graph ergonomics and cache-eviction liveness
+
+SDK `2848311dafe` completes the public `Graph<T>` convenience surface with value optionals, wrapper mapping and
+filtering, direct parent/ancestor values, lazy deterministic traversal, identity/alias lookup, ordered
+`assertAndApply` and revision metadata. These are additive interface default methods. Constructing or injecting a
+Graph still follows the previously qualified path, and relationship loading still starts only when navigation or a
+returned traversal is consumed. SDK `70aa36d7918` separately releases a lookup waiting on a stale refresh when the
+corresponding cache entry is evicted; its extra branch executes only in the existing eviction listener and does not
+change the cache-hit, model-apply or model-commit path.
+
+The Java 25 full SDK reactor completed all nine modules and 2,170 SDK tests. The downstream Flowmaps reactor completed
+565 app tests plus Rebound, reporting and frontend after replacing normal injected `Entity<T>` history/context usage
+with `Graph<T>` and making connection moves a generation-fenced stateful process.
+
+E759-E762 attempted a direct-parent comparison against SDK `a871fe2f7cf` with Runtime `f274bee8`. Every run completed
+exactly 4,194,304 results, stored model events and global events plus 65,536 final states, with JFR disabled and the
+canonical 1,048,576-entry command cache. The host changed state too strongly for a throughput decision:
+
+| run | source | throughput | decision |
+| --- | --- | ---: | --- |
+| E759 | direct parent | 116,485/s | loaded-host control only |
+| E760 | candidate | 113,106/s | -2.90% versus E759; inconclusive |
+| E761 | candidate | 100,417/s | host continued to fall |
+| E762 | direct parent | 178,073/s | abrupt 77.33% rebound invalidates the reverse pair |
+
+The 100,417/s to 178,073/s source reversal, alongside concurrent IDE, UI, dev-server and renderer activity, makes
+neither pair canonical-comparable. The runs are retained as exact correctness evidence and are not averaged. The
+historical clean-host P5 pin remains **425,606/s**. A future quiet-host repin may update the absolute observation, but
+these additive methods do not add executable work to the already qualified ordinary injection/update route.
+
+Evidence SHA-256: E759 `3b8448bcd3f68b048d6d206732ca3552d0960c163de7ff54c4b93d44ebb1d921`, E760
+`e4864a7e5206749ccf708b2d3fe5622228ccdbe4edeef42eac4c968f59a282fb`, E761
+`dbb55120a2686217bc8117b81ec5eaaca8a87faa0fd7573a4ca4857b619835b0`, E762
+`29164995ef5de8b9a0f8ff2051ab2eb8fd35d1b48db9e10f8a076632412bf184`.
