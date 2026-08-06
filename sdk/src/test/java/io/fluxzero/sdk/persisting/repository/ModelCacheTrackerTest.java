@@ -327,8 +327,8 @@ class ModelCacheTrackerTest {
                     awaitNext(polls);
             assertSame(
                     before,
-                    tracker.current(
-                            "sample-1",
+                    awaitCurrent(
+                            tracker, "sample-1",
                             SampleModel.class));
 
             firstPoll.complete(
@@ -412,6 +412,11 @@ class ModelCacheTrackerTest {
                     "sample-1",
                     SampleModel.class,
                     10L);
+            assertSame(
+                    before,
+                    awaitCurrent(
+                            tracker, "sample-1",
+                            SampleModel.class));
             completeNext(
                     polls,
                     new TrackModelUpdatesResult(
@@ -485,6 +490,11 @@ class ModelCacheTrackerTest {
                     "sample-1",
                     SampleModel.class,
                     10L);
+            assertSame(
+                    committed,
+                    awaitCurrent(
+                            tracker, "sample-1",
+                            SampleModel.class));
             completeNext(
                     polls,
                     new TrackModelUpdatesResult(
