@@ -50,6 +50,8 @@ import java.lang.annotation.Target;
  * moving a child by changing its parent ID does not count as parent deletion.
  * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
+ * A one-to-one companion model may annotate the same property with {@link EntityId}; entity-ID affixes affect only
+ * the companion's repository identity and do not alter the parent reference value.
  *
  * @see Model
  * @see EntityId

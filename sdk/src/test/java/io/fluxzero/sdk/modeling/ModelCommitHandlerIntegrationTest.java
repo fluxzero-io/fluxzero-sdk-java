@@ -146,6 +146,27 @@ class ModelCommitHandlerIntegrationTest {
                 });
     }
 
+    @Test
+    void interceptorStagesOrdinaryGraphUpdateInTheSameCommit() {
+        FamilyRootId rootId = new FamilyRootId("staged-update");
+        FamilyChildId childId = new FamilyChildId("staged-update");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(rootId, "before-root"),
+                        new CreateFamilyChild(childId, rootId, "before-child"))
+                .whenCommand(new RenameFamily(rootId, childId))
+                .expectThat(fluxzero -> {
+                    Graph<FamilyRoot> graph = fluxzero.modelRepository()
+                            .loadGraph(rootId);
+                    assertEquals("after-root", graph.get().name());
+                    assertEquals(
+                            "after-child",
+                            graph.childModels("children", FamilyChild.class)
+                                    .getFirst().name());
+                });
+    }
+
     private static void assertMovedChildGraphs(
             List<Graph<FamilyRoot>> graphs,
             FamilyRootId firstRootId,
@@ -199,8 +220,10 @@ class ModelCommitHandlerIntegrationTest {
         AffixedChildId childId = new AffixedChildId("one");
 
         TestFixture.create()
-                .givenCommands(new CreateAffixedRoot(rootId))
-                .whenCommand(new CreateAffixedChild(childId, rootId))
+                .givenCommands(
+                        new CreateAffixedRoot(rootId),
+                        new CreateAffixedChild(childId, rootId))
+                .whenCommand(new CreateAffixedCompanion(rootId, "online"))
                 .expectThat(fluxzero -> {
                     Entity<AffixedRoot> root = fluxzero.modelRepository().load(rootId);
                     assertEquals(
@@ -216,6 +239,13 @@ class ModelCommitHandlerIntegrationTest {
                             List.of(new AffixedChild(childId, rootId)),
                             fluxzero.modelRepository().loadGraph(rootId)
                                     .childModels("children", AffixedChild.class));
+                    assertEquals(
+                            new AffixedCompanion(rootId, "online"),
+                            fluxzero.modelRepository().load(rootId, AffixedCompanion.class).get());
+                    assertEquals(
+                            List.of(new AffixedCompanion(rootId, "online")),
+                            fluxzero.modelRepository().loadGraph(rootId)
+                                    .childModels("companion", AffixedCompanion.class));
                     assertEquals("one", rootId.getFunctionalId());
                     assertEquals("root-one", rootId.toString());
                     assertEquals(
@@ -2350,6 +2380,25 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
+    private record RenameFamily(
+            FamilyRootId familyRootId,
+            FamilyChildId familyChildId) {
+        @InterceptApply
+        List<?> intercept(Graph<FamilyChild> child) {
+            return List.of(
+                    this,
+                    child.update(current -> new FamilyChild(
+                            current.familyChildId(),
+                            current.familyRootId(),
+                            "after-child")));
+        }
+
+        @Apply
+        FamilyRoot apply(FamilyRoot current) {
+            return new FamilyRoot(current.familyRootId(), "after-root");
+        }
+    }
+
     private record DeleteRootAndMoveChild(
             FamilyRootId familyRootId,
             FamilyChildId familyChildId,
@@ -2440,6 +2489,23 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         AffixedChild apply() {
             return new AffixedChild(affixedChildId, affixedRootId);
+        }
+    }
+
+    @Model
+    private record AffixedCompanion(
+            @EntityId(prefix = "companion-")
+            @ParentId(path = "companion")
+            AffixedRootId affixedRootId,
+            String status) {
+    }
+
+    private record CreateAffixedCompanion(
+            AffixedRootId affixedRootId,
+            String status) {
+        @Apply
+        AffixedCompanion apply() {
+            return new AffixedCompanion(affixedRootId, status);
         }
     }
 

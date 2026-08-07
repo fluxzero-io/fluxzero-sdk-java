@@ -154,18 +154,18 @@ final class ModelCommitEngine {
                             "Model commit exceeded %d interceptor substeps".formatted(MAX_SUBSTEPS));
                 }
                 PendingSubstep current = pending.removeFirst();
-                GraphDeletionMessage graphDeletionMessage =
-                        current.message() instanceof GraphDeletionMessage deletionMessage
-                                ? deletionMessage : null;
+                GraphChangeMessage graphChangeMessage =
+                        current.message() instanceof GraphChangeMessage changeMessage
+                                ? changeMessage : null;
                 ResolvedSubstep resolved = Objects.requireNonNull(
-                        graphDeletionMessage == null
+                        graphChangeMessage == null
                                 ? resolver.resolve(
                                         current.message(),
                                         stateIndexPinned ? readStateIndex : null,
                                         stagedValues)
                                 : resolver.resolveGraph(
-                                        graphDeletionMessage.deletion.modelId(),
-                                        graphDeletionMessage.deletion.modelType(),
+                                        graphChangeMessage.change.modelId(),
+                                        graphChangeMessage.change.modelType(),
                                         stateIndexPinned ? readStateIndex : null,
                                         stagedValues),
                         "Substep resolver returned null");
@@ -185,13 +185,14 @@ final class ModelCommitEngine {
                             entry.target().modelId(),
                             entry.target().modelType());
                 });
-                if (graphDeletionMessage != null) {
-                    AppliedSubstep deletion = evaluateGraphDeletion(
-                            graphDeletionMessage.deletion,
+                if (graphChangeMessage != null) {
+                    AppliedSubstep change = evaluateGraphChange(
+                            graphChangeMessage.change,
                             resolved.context(), readStateIndex);
                     stagedValues.put(
-                            deletion.transitions().getFirst().modelId(), null);
-                    mergeAppliedSubstep(appliedSubsteps, deletion);
+                            change.transitions().getFirst().modelId(),
+                            change.transitions().getFirst().after());
+                    mergeAppliedSubstep(appliedSubsteps, change);
                     continue;
                 }
                 List<ModelMetadata.HandlerMethod> interceptors =
@@ -255,17 +256,17 @@ final class ModelCommitEngine {
         }
     }
 
-    private static AppliedSubstep evaluateGraphDeletion(
-            StagedGraphDeletion deletion,
+    private static AppliedSubstep evaluateGraphChange(
+            StagedGraphChange change,
             ModelCommitContext context,
             long readStateIndex) {
-        String modelId = deletion.modelId();
-        Class<?> modelType = deletion.modelType();
-        if (deletion.expectedStateIndex() != null
-            && deletion.expectedStateIndex() != readStateIndex) {
+        String modelId = change.modelId();
+        Class<?> modelType = change.modelType();
+        if (change.expectedStateIndex() != null
+            && change.expectedStateIndex() != readStateIndex) {
             throw new IllegalStateException(
                     "Staged graph '%s' was loaded at state index %d while the commit is pinned at %d"
-                            .formatted(modelId, deletion.expectedStateIndex(), readStateIndex));
+                            .formatted(modelId, change.expectedStateIndex(), readStateIndex));
         }
         ModelCommitContext.Entry target = context.entry(modelId);
         if (target == null || !context.mayWrite(modelId, modelType, null)) {
@@ -273,15 +274,19 @@ final class ModelCommitEngine {
                     "Staged graph '%s' of type %s is not a resolved write target"
                             .formatted(modelId, modelType.getName()));
         }
+        Object after = change.expectedStateIndex() == null
+                ? change.replay().apply(target.entity()).get()
+                : change.after();
         Transition transition = new Transition(
                 modelId, modelType,
                 target.entity() instanceof ModelRoot<?> modelRoot
                         ? modelRoot.sequenceNumber() : -1L,
                 target.entity() instanceof ModelRoot<?> modelRoot
                         ? modelRoot.lastEventIndex() : null,
-                target.entity().get(), null, null);
+                target.entity().get(), after, null,
+                change.replay(), false);
         return new AppliedSubstep(
-                deletion.eventMessage(), List.of(transition));
+                change.eventMessage(), List.of(transition));
     }
 
     private static void mergeAppliedSubstep(
@@ -322,10 +327,10 @@ final class ModelCommitEngine {
         }
         Deque<PendingSubstep> pending = new ArrayDeque<>(appliedMessages.size());
         appliedMessages.forEach(message -> {
-            if (message instanceof GraphDeletionMessage deletionMessage) {
+            if (message instanceof GraphChangeMessage changeMessage) {
                 pending.add(new PendingSubstep(
-                        new GraphDeletionMessage(
-                                deletionMessage.deletion.forRebase()),
+                        new GraphChangeMessage(
+                                changeMessage.change.forRebase()),
                         false));
             } else {
                 pending.add(new PendingSubstep(message, false));
@@ -791,9 +796,11 @@ final class ModelCommitEngine {
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
         }
         if (output instanceof Graph<?> graph) {
-            StagedGraphDeletion deletion = stagedDeletion(graph, source);
-            pending.addFirst(new PendingSubstep(
-                    new GraphDeletionMessage(deletion), false));
+            List<StagedGraphChange> changes = stagedChanges(graph, source);
+            for (int index = changes.size() - 1; index >= 0; index--) {
+                pending.addFirst(new PendingSubstep(
+                        new GraphChangeMessage(changes.get(index)), false));
+            }
             return;
         }
         DeserializingMessage emitted = emittedMessage(
@@ -803,14 +810,21 @@ final class ModelCommitEngine {
         pending.addFirst(new PendingSubstep(emitted, reintercept));
     }
 
-    private static StagedGraphDeletion stagedDeletion(
+    private static List<StagedGraphChange> stagedChanges(
             Graph<?> graph,
             DeserializingMessage eventMessage) {
         Objects.requireNonNull(graph, "graph");
+        List<Graphs.StagedModelChange> staged =
+                Graphs.stagedChanges(graph);
+        if (!staged.isEmpty()) {
+            return staged.stream().map(change -> new StagedGraphChange(
+                    change.modelId(), change.modelType(),
+                    change.expectedStateIndex(), change.after(),
+                    change.replay(), eventMessage)).toList();
+        }
         if (graph.get() != null) {
             throw new IllegalStateException(
-                    "@InterceptApply may return a Graph only after delete(); "
-                    + "return domain updates for ordinary model changes");
+                    "@InterceptApply returned an unchanged Graph; call apply(), update(), or delete() first");
         }
         String modelId = Objects.requireNonNull(
                 graph.id(), "A staged graph deletion must have a model ID").toString();
@@ -821,9 +835,10 @@ final class ModelCommitEngine {
                     "Staged graph deletion target %s is not an independent @Model"
                             .formatted(modelType.getName()));
         }
-        return new StagedGraphDeletion(
-                modelId, modelType, graph.stateIndex(),
-                Objects.requireNonNull(eventMessage, "eventMessage"));
+        return List.of(new StagedGraphChange(
+                modelId, modelType, graph.stateIndex(), null,
+                current -> current.update(ignored -> null),
+                Objects.requireNonNull(eventMessage, "eventMessage")));
     }
 
     @FunctionalInterface
@@ -916,29 +931,35 @@ final class ModelCommitEngine {
         }
     }
 
-    record StagedGraphDeletion(
+    record StagedGraphChange(
             String modelId,
             Class<?> modelType,
             Long expectedStateIndex,
+            Object after,
+            Graphs.StagedReplay replay,
             DeserializingMessage eventMessage) {
-        StagedGraphDeletion {
+        StagedGraphChange {
             Objects.requireNonNull(modelId, "modelId");
             Objects.requireNonNull(modelType, "modelType");
             Objects.requireNonNull(eventMessage, "eventMessage");
+            Objects.requireNonNull(replay, "replay");
         }
 
-        StagedGraphDeletion forRebase() {
-            return new StagedGraphDeletion(
-                    modelId, modelType, null, eventMessage);
+        StagedGraphChange forRebase() {
+            return new StagedGraphChange(
+                    modelId, modelType, null, null,
+                    replay, eventMessage);
         }
     }
 
-    static DeserializingMessage graphDeletionReplay(
+    static DeserializingMessage graphChangeReplay(
             DeserializingMessage eventMessage,
             String modelId,
-            Class<?> modelType) {
-        return new GraphDeletionMessage(new StagedGraphDeletion(
-                modelId, modelType, null, eventMessage));
+            Class<?> modelType,
+            Graphs.StagedReplay replay) {
+        return new GraphChangeMessage(new StagedGraphChange(
+                modelId, modelType, null, null,
+                replay, eventMessage));
     }
 
     record Evaluation(
@@ -966,6 +987,7 @@ final class ModelCommitEngine {
             Object before,
             Object after,
             Executable handler,
+            Graphs.StagedReplay stagedReplay,
             boolean cascadedDeletion) {
         Transition(
                 String modelId,
@@ -977,7 +999,22 @@ final class ModelCommitEngine {
                 Executable handler) {
             this(
                     modelId, modelType, beforeSequenceNumber,
-                    beforeLastEventIndex, before, after, handler, false);
+                    beforeLastEventIndex, before, after, handler, null, false);
+        }
+
+        Transition(
+                String modelId,
+                Class<?> modelType,
+                long beforeSequenceNumber,
+                Long beforeLastEventIndex,
+                Object before,
+                Object after,
+                Executable handler,
+                boolean cascadedDeletion) {
+            this(
+                    modelId, modelType, beforeSequenceNumber,
+                    beforeLastEventIndex, before, after, handler,
+                    null, cascadedDeletion);
         }
 
         Transition(
@@ -989,16 +1026,16 @@ final class ModelCommitEngine {
                 Executable handler) {
             this(
                     modelId, modelType, beforeSequenceNumber,
-                    null, before, after, handler, false);
+                    null, before, after, handler, null, false);
         }
     }
 
-    private static final class GraphDeletionMessage extends DeserializingMessage {
-        private final StagedGraphDeletion deletion;
+    private static final class GraphChangeMessage extends DeserializingMessage {
+        private final StagedGraphChange change;
 
-        private GraphDeletionMessage(StagedGraphDeletion deletion) {
-            super(deletion.eventMessage());
-            this.deletion = deletion;
+        private GraphChangeMessage(StagedGraphChange change) {
+            super(change.eventMessage());
+            this.change = change;
         }
     }
 

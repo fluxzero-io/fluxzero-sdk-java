@@ -33,6 +33,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -426,14 +427,58 @@ class ModelCommitEngineTest {
         ModelCommitEngine.CommitEvaluation rebased = engine.rebase(
                 List.of(
                         result.substeps().getFirst().message(),
-                        ModelCommitEngine.graphDeletionReplay(
+                        ModelCommitEngine.graphChangeReplay(
                                 deletionEvent,
-                                inventoryId.toString(), Inventory.class)),
+                                inventoryId.toString(), Inventory.class,
+                                result.substeps().getFirst().transitions().stream()
+                                        .filter(transition -> transition.modelId()
+                                                .equals(inventoryId.toString()))
+                                        .findFirst().orElseThrow().stagedReplay())),
                 resolver);
 
         assertEquals(1, rebased.substeps().size());
         assertEquals(2, rebased.substeps().getFirst().transitions().size());
         assertNull(rebased.finalValues().get(inventoryId.toString()));
+    }
+
+    @Test
+    void interceptorMayStageGraphUpdateAndReplayItAgainstAConflictBoundary() {
+        OrderId orderId = new OrderId("graph-update");
+        InventoryId inventoryId = new InventoryId("graph-update");
+        Entity<Order> order = entity(orderId, new Order(orderId, "pending"));
+        Entity<Inventory> inventory = entity(
+                inventoryId, new Inventory(inventoryId, 5));
+        Graph<Inventory> inventoryGraph = Graphs.lazy(
+                inventory, 77L, mock(ModelRepository.class));
+        AdjustInventoryGraph command = new AdjustInventoryGraph(
+                orderId, inventoryGraph, 2);
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
+                message(command), graphResolver(
+                        77L, Map.of(orderId.toString(), order,
+                                    inventoryId.toString(), inventory)));
+
+        assertEquals(7, ((Inventory) result.finalValues()
+                .get(inventoryId.toString())).available());
+        ModelCommitEngine.Transition graphTransition = result.substeps()
+                .getFirst().transitions().stream()
+                .filter(transition -> transition.modelId()
+                        .equals(inventoryId.toString()))
+                .findFirst().orElseThrow();
+        assertNotNull(graphTransition.stagedReplay());
+
+        Entity<Inventory> concurrent = entity(
+                inventoryId, new Inventory(inventoryId, 9));
+        DeserializingMessage event = result.substeps().getFirst().message();
+        ModelCommitEngine.CommitEvaluation rebased = engine.rebase(
+                List.of(event, ModelCommitEngine.graphChangeReplay(
+                        event, inventoryId.toString(), Inventory.class,
+                        graphTransition.stagedReplay())),
+                graphResolver(
+                        88L, Map.of(orderId.toString(), order,
+                                    inventoryId.toString(), concurrent)));
+
+        assertEquals(11, ((Inventory) rebased.finalValues()
+                .get(inventoryId.toString())).available());
     }
 
     @Test
@@ -631,6 +676,46 @@ class ModelCommitEngineTest {
         }
         return new ModelCommitEngine.ResolvedSubstep(
                 ModelCommitContext.create(stateIndex, resolution, loaded), handlers);
+    }
+
+    private static ModelCommitEngine.SubstepResolver graphResolver(
+            long stateIndex,
+            Map<String, Entity<?>> stored) {
+        return new ModelCommitEngine.SubstepResolver() {
+            @Override
+            public ModelCommitEngine.ResolvedSubstep resolve(
+                    DeserializingMessage substep,
+                    Long requestedStateIndex,
+                    Map<String, Object> stagedValues) {
+                return resolveSubstep(
+                        substep,
+                        requestedStateIndex == null
+                                ? stateIndex : requestedStateIndex,
+                        stored);
+            }
+
+            @Override
+            public ModelCommitEngine.ResolvedSubstep resolveGraph(
+                    String modelId,
+                    Class<?> modelType,
+                    Long requestedStateIndex,
+                    Map<String, Object> stagedValues) {
+                ModelTargetResolver.Resolution resolution =
+                        new ModelTargetResolver.Resolution(
+                                List.of(new ModelTargetResolver.ResolvedModel(
+                                        modelId, modelType,
+                                        ModelTargetResolver.Access.READ_WRITE,
+                                        List.of())),
+                                List.of());
+                return new ModelCommitEngine.ResolvedSubstep(
+                        ModelCommitContext.create(
+                                requestedStateIndex == null
+                                        ? stateIndex : requestedStateIndex,
+                                resolution,
+                                Map.of(modelId, stored.get(modelId))),
+                        List.of());
+            }
+        };
     }
 
     private static ModelCommitContext context(
@@ -835,6 +920,22 @@ class ModelCommitEngineTest {
         @InterceptApply
         List<?> expand() {
             return List.of(this, inventory.delete());
+        }
+
+        @Apply
+        Order retain(Order order) {
+            return order;
+        }
+    }
+
+    private record AdjustInventoryGraph(
+            OrderId orderId,
+            Graph<Inventory> inventory,
+            int delta) {
+        @InterceptApply
+        List<?> expand() {
+            return List.of(this, inventory.update(value -> new Inventory(
+                    value.inventoryId(), value.available() + delta)));
         }
 
         @Apply

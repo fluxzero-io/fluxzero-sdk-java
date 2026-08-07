@@ -109,13 +109,25 @@ public final class Graphs {
             Map<String, Entity<?>> models,
             boolean historical,
             boolean exactBoundary) {
+        return lazy(entity, stateIndex, repository, models, historical,
+                    exactBoundary, Map.of());
+    }
+
+    private static <T> Graph<T> lazy(
+            Entity<T> entity,
+            long stateIndex,
+            ModelRepository repository,
+            Map<String, Entity<?>> models,
+            boolean historical,
+            boolean exactBoundary,
+            Map<String, StagedModelChange> stagedChanges) {
         Objects.requireNonNull(entity, "entity");
         Context context = new Context(
                 stateIndex,
                 Collections.unmodifiableMap(new LinkedHashMap<>(models)),
                 List.of(), repository, false, historical,
                 exactBoundary,
-                Boundary.current(stateIndex));
+                Boundary.current(stateIndex), stagedChanges);
         Placement root = context.detached(entity.id().toString());
         context.root = root;
         return context.view(root);
@@ -129,18 +141,70 @@ public final class Graphs {
             List<ModelGraphEdge> edges,
             ModelRepository repository,
             boolean historical) {
+        return compose(rootId, stateIndex, models, edges, repository,
+                       historical, Map.of());
+    }
+
+    private static <T> Graph<T> compose(
+            String rootId,
+            long stateIndex,
+            Map<String, Entity<?>> models,
+            List<ModelGraphEdge> edges,
+            ModelRepository repository,
+            boolean historical,
+            Map<String, StagedModelChange> stagedChanges) {
         Context context = new Context(
                 stateIndex,
                 Collections.unmodifiableMap(new LinkedHashMap<>(models)),
                 List.copyOf(edges), repository, true, historical,
                 true,
-                Boundary.state(stateIndex));
+                Boundary.state(stateIndex), stagedChanges);
         Map<String, List<ModelGraphEdge>> byParent = new LinkedHashMap<>();
         for (ModelGraphEdge edge : edges) {
             byParent.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>()).add(edge);
         }
         context.root = build(rootId, null, null, context.models, byParent, new LinkedHashSet<>());
         return context.view(context.root);
+    }
+
+    static List<StagedModelChange> stagedChanges(Graph<?> graph) {
+        Graph<?> unwrapped = graph;
+        while (true) {
+            if (unwrapped instanceof DefaultGraph<?> value) {
+                return List.copyOf(value.context.stagedChanges.values());
+            }
+            if (unwrapped instanceof MappedGraph<?> value) {
+                unwrapped = value.delegate;
+                continue;
+            }
+            if (unwrapped instanceof ChangeGraph<?> value) {
+                unwrapped = value.delegate;
+                continue;
+            }
+            if (unwrapped instanceof SelectedGraph<?> value) {
+                unwrapped = value.delegate;
+                continue;
+            }
+            return List.of();
+        }
+    }
+
+    @FunctionalInterface
+    interface StagedReplay {
+        Entity<?> apply(Entity<?> current);
+    }
+
+    record StagedModelChange(
+            String modelId,
+            Class<?> modelType,
+            long expectedStateIndex,
+            Object after,
+            StagedReplay replay) {
+        StagedModelChange {
+            Objects.requireNonNull(modelId, "modelId");
+            Objects.requireNonNull(modelType, "modelType");
+            Objects.requireNonNull(replay, "replay");
+        }
     }
 
     /** Returns a lazy graph view whose model values are transformed independently on first access. */
@@ -256,6 +320,7 @@ public final class Graphs {
         private final boolean historical;
         private final boolean exactBoundary;
         private final Boundary boundary;
+        private final Map<String, StagedModelChange> stagedChanges;
         private final Map<String, Placement> detachedPlacements = new ConcurrentHashMap<>();
         private final Map<String, Graph<?>> expansions = new ConcurrentHashMap<>();
         private Placement root;
@@ -269,6 +334,20 @@ public final class Graphs {
                 boolean historical,
                 boolean exactBoundary,
                 Boundary boundary) {
+            this(stateIndex, models, edges, repository, complete, historical,
+                 exactBoundary, boundary, Map.of());
+        }
+
+        private Context(
+                long stateIndex,
+                Map<String, Entity<?>> models,
+                List<ModelGraphEdge> edges,
+                ModelRepository repository,
+                boolean complete,
+                boolean historical,
+                boolean exactBoundary,
+                Boundary boundary,
+                Map<String, StagedModelChange> stagedChanges) {
             this.stateIndex = stateIndex;
             this.models = models;
             this.edges = edges;
@@ -278,6 +357,10 @@ public final class Graphs {
             this.exactBoundary = exactBoundary;
             this.boundary = Objects.requireNonNull(
                     boundary, "boundary");
+            this.stagedChanges = stagedChanges.isEmpty()
+                    ? Map.of()
+                    : Collections.unmodifiableMap(
+                            new LinkedHashMap<>(stagedChanges));
         }
 
         private Placement detached(String modelId) {
@@ -347,15 +430,39 @@ public final class Graphs {
             });
             return Graphs.compose(
                     rootId, stateIndex, mergedModels, List.copyOf(mergedEdges),
-                    repository, historical);
+                    repository, historical, stagedChanges);
         }
 
-        private <T> Graph<T> replace(Entity<T> entity, long replacementStateIndex) {
+        private <T> Graph<T> replace(
+                Entity<T> entity,
+                long replacementStateIndex,
+                StagedReplay replay) {
+            LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(models);
+            String modelId = entity.id().toString();
+            updated.put(modelId, entity);
+            LinkedHashMap<String, StagedModelChange> changes =
+                    new LinkedHashMap<>(stagedChanges);
+            StagedModelChange previous = changes.get(modelId);
+            StagedReplay combined = previous == null
+                    ? replay
+                    : current -> replay.apply(previous.replay().apply(current));
+            changes.put(modelId, new StagedModelChange(
+                    modelId, entity.type(),
+                    previous == null ? stateIndex : previous.expectedStateIndex(),
+                    entity.get(), combined));
+            return Graphs.lazy(
+                    entity, replacementStateIndex, repository,
+                    updated, historical, exactBoundary, changes);
+        }
+
+        private <T> Graph<T> replaceUnstaged(
+                Entity<T> entity,
+                long replacementStateIndex) {
             LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(models);
             updated.put(entity.id().toString(), entity);
             return Graphs.lazy(
                     entity, replacementStateIndex, repository,
-                    updated, historical, exactBoundary);
+                    updated, historical, exactBoundary, Map.of());
         }
     }
 
@@ -727,42 +834,46 @@ public final class Graphs {
 
         @Override
         public Graph<T> apply(Object update) {
-            return next(entity().apply(update));
+            return unstaged(current -> current.apply(update));
         }
 
         @Override
         public Graph<T> apply(Object update, Metadata metadata) {
-            return next(entity().apply(update, metadata));
+            return unstaged(current -> current.apply(update, metadata));
         }
 
         @Override
         public Graph<T> apply(DeserializingMessage update) {
-            return next(entity().apply(update));
+            return unstaged(current -> current.apply(update));
         }
 
         @Override
         public Graph<T> apply(Message update) {
-            return next(entity().apply(update));
+            return unstaged(current -> current.apply(update));
         }
 
         @Override
         public Graph<T> apply(Object... updates) {
-            return next(entity().apply(updates));
+            Object[] stable = updates.clone();
+            return unstaged(current -> current.apply(stable));
         }
 
         @Override
         public Graph<T> apply(Collection<?> updates) {
-            return next(entity().apply(updates));
+            List<?> stable = List.copyOf(updates);
+            return unstaged(current -> current.apply(stable));
         }
 
         @Override
         public Graph<T> update(UnaryOperator<T> update) {
-            return next(entity().update(update));
+            Objects.requireNonNull(update, "update");
+            return stage(current -> current.update(update));
         }
 
         @Override
         public Graph<T> commit() {
-            return next(entity().commit());
+            return context.replaceUnstaged(
+                    entity().commit(), context.stateIndex);
         }
 
         @Override
@@ -773,19 +884,34 @@ public final class Graphs {
 
         @Override
         public Graph<T> assertAndApply(Object update) {
-            return next(entity().assertAndApply(update));
+            return unstaged(current -> current.assertAndApply(update));
         }
 
         @Override
         public Graph<T> assertAndApply(Object update, Metadata metadata) {
-            return next(entity().assertAndApply(update, metadata));
+            return unstaged(current -> current.assertAndApply(update, metadata));
         }
 
-        private Graph<T> next(Entity<T> next) {
+        private Graph<T> unstaged(
+                Function<Entity<T>, Entity<T>> operation) {
+            return context.replaceUnstaged(
+                    operation.apply(entity()), context.stateIndex);
+        }
+
+        private Graph<T> stage(
+                Function<Entity<T>, Entity<T>> operation) {
+            Entity<T> next = operation.apply(entity());
             // Applying an in-memory update does not establish a new durable boundary. In particular, a child model
             // can have an older own state index than the complete root graph from which it was obtained. Retain that
             // graph boundary so returning child.delete() from an interceptor remains part of the same atomic commit.
-            return context.replace(next, context.stateIndex);
+            return context.replace(
+                    next, context.stateIndex,
+                    current -> operation.apply(castEntity(current)));
+        }
+
+        @SuppressWarnings("unchecked")
+        private Entity<T> castEntity(Entity<?> entity) {
+            return (Entity<T>) entity;
         }
 
         @Override

@@ -689,6 +689,54 @@ class GraphTest {
     }
 
     @Test
+    void stagedUpdatesRetainAReplayableOperation() {
+        ModelRepository repository = mock(ModelRepository.class);
+        RootId id = new RootId("staged-update");
+        Graph<Root> graph = Graphs.lazy(
+                ImmutableEntity.<Root>builder()
+                        .id(id.toString()).type(Root.class)
+                        .value(new Root(id, "before")).build(),
+                42L, repository);
+
+        Graph<Root> staged = graph
+                .update(value -> new Root(value.id(), value.name() + "-one"))
+                .update(value -> new Root(value.id(), value.name() + "-two"));
+        Graphs.StagedModelChange change = Graphs.stagedChanges(staged).getFirst();
+        Entity<Root> concurrent = ImmutableEntity.<Root>builder()
+                .id(id.toString()).type(Root.class)
+                .value(new Root(id, "concurrent")).build();
+
+        assertEquals(new Root(id, "before-one-two"), staged.get());
+        assertEquals(42L, change.expectedStateIndex());
+        assertEquals(
+                new Root(id, "concurrent-one-two"),
+                change.replay().apply(concurrent).get());
+    }
+
+    @Test
+    void committingAStagedGraphClearsItsReplayMetadata() {
+        Root value = new Root(new RootId("committed-update"), "before");
+        Entity<Root> current = entity(value.id().toString(), Root.class, value);
+        Entity<Root> stagedEntity = entity(
+                value.id().toString(), Root.class,
+                new Root(value.id(), "after"));
+        Entity<Root> committedEntity = entity(
+                value.id().toString(), Root.class,
+                new Root(value.id(), "after"));
+        when(current.update(any())).thenReturn(stagedEntity);
+        when(stagedEntity.commit()).thenReturn(committedEntity);
+
+        Graph<Root> staged = Graphs.lazy(
+                current, 42L, mock(ModelRepository.class))
+                .update(ignored -> new Root(value.id(), "after"));
+        Graph<Root> committed = staged.commit();
+
+        assertEquals(1, Graphs.stagedChanges(staged).size());
+        assertTrue(Graphs.stagedChanges(committed).isEmpty());
+        assertEquals(new Root(value.id(), "after"), committed.get());
+    }
+
+    @Test
     void missingModelRetainsAnEmptyGraphWithoutExposingEntity() {
         ModelRepository repository = mock(ModelRepository.class);
         Entity<Root> missing = entity("root-missing", Root.class, null);

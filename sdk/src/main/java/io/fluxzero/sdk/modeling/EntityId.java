@@ -38,6 +38,10 @@ import java.lang.annotation.Target;
  * supplied by an {@link Id}. For example, an ID whose repository value is {@code connection-123} combined with
  * {@code @EntityId(prefix = "move-")} is stored as {@code move-connection-123}.
  * <p>
+ * A one-to-one companion model may use the same property as both its {@code @EntityId} and a {@link ParentId}. The
+ * functional property value then identifies the parent relationship, while these affixes still give the companion
+ * its own globally unique repository identity.
+ * <p>
  * A model whose functional identifier is unique only below its parent can set {@link #parentScoped()} to
  * {@code true}. Its persisted identity then combines the one non-null declared {@link ParentId} with the functional
  * identifier. The model property keeps the functional value and graph-local {@link Graph#find(Object, Class)} lookup

@@ -43,8 +43,10 @@ import java.util.Collection;
  *     <li>The original update (no change)</li>
  *     <li>{@code null} or {@code void} to suppress the update</li>
  *     <li>An {@link java.util.Optional}, {@link Collection}, or {@link java.util.stream.Stream} to emit zero or more updates</li>
- *     <li>A deleted {@link io.fluxzero.sdk.modeling.Graph} returned by
- *         {@link io.fluxzero.sdk.modeling.Graph#delete()} to delete that independently stored model in the same commit</li>
+ *     <li>A staged {@link io.fluxzero.sdk.modeling.Graph} returned by
+ *         {@link io.fluxzero.sdk.modeling.Graph#update(java.util.function.UnaryOperator)} or
+ *         {@link io.fluxzero.sdk.modeling.Graph#delete()} to change that independently stored model in the same
+ *         commit</li>
  *     <li>A different object to replace the update</li>
  * </ul>
  *
@@ -102,16 +104,19 @@ import java.util.Collection;
  * }
  * }</pre>
  *
- * <h3>4. Delete a graph child in the same commit</h3>
+ * <h3>4. Change graph models in the same commit</h3>
  * <pre>{@code
  * @InterceptApply
- * List<?> unlink(Graph<Order> order) {
- *     return List.of(this, order.find(lineId, OrderLine.class)
- *             .orElseThrow().delete());
+ * List<?> move(Graph<Order> order) {
+ *     Graph<OrderLine> line = order.find(lineId, OrderLine.class)
+ *             .orElseThrow();
+ *     return List.of(this, line.update(value -> value.withOrderId(targetOrderId)));
  * }
  * }</pre>
- * The original domain update remains the stored event for the deleted model. Ordinary graph updates should still be
- * expressed as domain updates; only a graph returned after {@code delete()} is a supported interceptor result.
+ * The original domain update remains the stored event shared by every changed model. Direct graph updates are replayed
+ * against a fresh pinned state after an accepted conflict, so their update function must be deterministic and free of
+ * external side effects. Return ordinary domain updates when their {@link Apply @Apply} publication configuration
+ * should govern the transition; returning a graph produced by {@code apply(...)} is deliberately unsupported.
  *
  * <h3>5. Recursive interception</h3>
  * <p>

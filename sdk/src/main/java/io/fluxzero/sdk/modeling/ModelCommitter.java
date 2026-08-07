@@ -1277,42 +1277,48 @@ final class ModelCommitter {
             List<DeserializingMessage> messages,
             String singleEventMessageId) {
         List<DeserializingMessage> rebaseMessages() {
-            boolean hasGraphDeletion = transitionGroups.stream()
+            boolean hasGraphChange = transitionGroups.stream()
                     .flatMap(List::stream)
                     .map(EffectiveTransition::transition)
-                    .anyMatch(transition ->
-                            transition.handler() == null
-                            && !transition.cascadedDeletion());
-            if (!hasGraphDeletion) {
+                    .anyMatch(PreparedCommit::isGraphChange);
+            if (!hasGraphChange) {
                 return messages;
             }
             List<DeserializingMessage> result = new ArrayList<>(
                     messages.size() + 1);
             for (int i = 0; i < transitionGroups.size(); i++) {
                 List<EffectiveTransition> group = transitionGroups.get(i);
-                boolean graphDeletion = group.stream()
+                boolean graphChange = group.stream()
                         .map(EffectiveTransition::transition)
-                        .anyMatch(transition ->
-                                transition.handler() == null
-                                && !transition.cascadedDeletion());
-                if (!graphDeletion) {
+                        .anyMatch(PreparedCommit::isGraphChange);
+                if (!graphChange) {
                     result.add(messages.get(i));
                     continue;
                 }
                 DeserializingMessage eventMessage = messages.get(i);
                 if (group.stream().map(EffectiveTransition::transition)
-                        .anyMatch(transition -> transition.handler() != null)) {
+                        .anyMatch(transition -> !isGraphChange(transition))) {
                     result.add(eventMessage);
                 }
                 group.stream().map(EffectiveTransition::transition)
-                        .filter(transition -> transition.handler() == null)
-                        .filter(transition -> !transition.cascadedDeletion())
-                        .map(transition -> ModelCommitEngine.graphDeletionReplay(
+                        .filter(PreparedCommit::isGraphChange)
+                        .map(transition -> ModelCommitEngine.graphChangeReplay(
                                 eventMessage,
-                                transition.modelId(), transition.modelType()))
+                                transition.modelId(), transition.modelType(),
+                                transition.stagedReplay() == null
+                                        ? current -> current.update(ignored -> null)
+                                        : transition.stagedReplay()))
                         .forEach(result::add);
             }
             return List.copyOf(result);
+        }
+
+        private static boolean isGraphChange(
+                ModelCommitEngine.Transition transition) {
+            return !transition.cascadedDeletion()
+                   && (transition.stagedReplay() != null
+                       || transition.handler() == null
+                          && transition.after() == null);
         }
 
         boolean hasCascadedDeletion() {

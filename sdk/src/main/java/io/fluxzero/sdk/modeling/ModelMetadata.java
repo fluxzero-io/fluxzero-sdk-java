@@ -486,10 +486,6 @@ public final class ModelMetadata {
         List<ParentReference> result = new ArrayList<>();
         for (ParentProperty parentProperty : properties.values()) {
             validateScalarId(parentProperty.property(), "@ParentId");
-            if (entityId != null && entityId.name().equals(parentProperty.property().name())) {
-                throw invalid("Property %s.%s cannot be both @EntityId and @ParentId"
-                                      .formatted(type.getName(), entityId.name()));
-            }
             ParentId annotation = parentProperty.annotation();
             String path = validateParentPath(parentProperty.property(), annotation.path());
             Class<?> inferredType = inferIdTarget(

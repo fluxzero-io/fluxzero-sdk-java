@@ -508,7 +508,12 @@ public interface Graph<T> {
     /** Applies the supplied updates in order. */
     Graph<T> apply(Collection<?> updates);
 
-    /** Updates the current value directly. Prefer {@link #apply(Object)} for domain updates. */
+    /**
+     * Updates the current value directly. When returned by an apply interceptor, the staged update joins that
+     * interceptor's atomic model commit and is replayed against fresh state after an accepted conflict. The operator
+     * must therefore be deterministic and free of external side effects. Prefer {@link #apply(Object)} for domain
+     * updates whose apply-specific event publication settings should govern the transition.
+     */
     Graph<T> update(UnaryOperator<T> update);
 
     /**
