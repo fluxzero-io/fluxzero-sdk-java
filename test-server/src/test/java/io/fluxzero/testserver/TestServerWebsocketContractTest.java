@@ -21,6 +21,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -450,6 +451,12 @@ class TestServerWebsocketContractTest {
                                                   + UUID.randomUUID(),
                                                   -1L,
                                                   root)));
+            var rootChange = eventStore.getModelChange(
+                    new GetModelChange(rootResult.getCommitId(), 0));
+            assertEquals(rootResult.getCommitId(), rootChange.getCommitId());
+            assertEquals(rootResult.getSubsteps().getFirst().getStateIndex(), rootChange.getStateIndex());
+            assertEquals(rootId, rootChange.getTargets().getFirst().getModelId());
+            assertEquals(rootType, rootChange.getTargets().getFirst().getModelType());
 
             ModelCommitTarget child =
                     modelTarget(
