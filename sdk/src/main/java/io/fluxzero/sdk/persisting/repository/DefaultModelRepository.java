@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
@@ -51,6 +52,7 @@ import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.CascadedModelDeletion;
+import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Graph;
@@ -3630,6 +3632,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             for (PreparedReplay preparedReplay : prepared) {
                 DeserializingMessage event = preparedReplay.event();
                 Class<?> payloadType = event.getPayloadClass();
+                if (event.getPayload() instanceof DirectModelUpdate update) {
+                    Data<byte[]> state = update.target(target.modelId()).getState();
+                    result = updateValue(
+                            result,
+                            state == null ? null : serializer.deserialize(state));
+                    continue;
+                }
                 if (event.getPayload() instanceof CascadedModelDeletion) {
                     result = updateValue(result, null);
                     continue;

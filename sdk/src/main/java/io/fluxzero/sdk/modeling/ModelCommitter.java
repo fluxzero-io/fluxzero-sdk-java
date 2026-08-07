@@ -593,12 +593,46 @@ final class ModelCommitter {
         Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
         if (evaluation.substeps().size() == 1
-            && evaluation.substeps().getFirst().transitions().size() == 1) {
+            && evaluation.substeps().getFirst().transitions().size() == 1
+            && !isGraphChange(evaluation.substeps().getFirst()
+                                      .transitions().getFirst())) {
             return prepareSingle(
                     commitId, evaluation, conflictPolicy,
                     evaluation.substeps().getFirst());
         }
 
+        List<List<EffectiveTransition>> evaluatedGroups =
+                new ArrayList<>(evaluation.substeps().size());
+        Map<String, List<EffectiveTransition>> graphPublications =
+                new LinkedHashMap<>();
+        Set<String> ordinaryEventIds = new java.util.HashSet<>();
+        for (ModelCommitEngine.AppliedSubstep appliedSubstep : evaluation.substeps()) {
+            List<EffectiveTransition> transitions = appliedSubstep.transitions().stream()
+                    .map(this::effectiveTransition)
+                    .flatMap(Optional::stream)
+                    .toList();
+            evaluatedGroups.add(transitions);
+            if (transitions.isEmpty()) {
+                continue;
+            }
+            boolean direct = directGraphGroup(transitions);
+            if (!direct && transitions.stream().anyMatch(
+                    transition -> isGraphChange(transition.transition()))) {
+                throw new IllegalStateException(
+                        "Direct graph changes must occupy their own evaluated model substep");
+            }
+            String messageId = appliedSubstep.message().getMessageId();
+            if (direct) {
+                List<EffectiveTransition> published = transitions.stream()
+                        .filter(EffectiveTransition::publishEvent).toList();
+                if (!published.isEmpty()) {
+                    graphPublications.computeIfAbsent(
+                            messageId, ignored -> new ArrayList<>()).addAll(published);
+                }
+            } else {
+                ordinaryEventIds.add(messageId);
+            }
+        }
         List<ModelCommitStep> substeps = new ArrayList<>();
         List<List<EffectiveTransition>> transitionGroups = new ArrayList<>();
         List<DeserializingMessage> messages = new ArrayList<>();
@@ -610,30 +644,59 @@ final class ModelCommitter {
              evaluatedSubstep++) {
             ModelCommitEngine.AppliedSubstep appliedSubstep =
                     evaluation.substeps().get(evaluatedSubstep);
-            List<EffectiveTransition> transitions = appliedSubstep.transitions().stream()
-                    .map(this::effectiveTransition)
-                    .flatMap(Optional::stream)
-                    .toList();
+            List<EffectiveTransition> transitions =
+                    evaluatedGroups.get(evaluatedSubstep);
             if (transitions.isEmpty()) {
                 continue;
             }
-            boolean publishEvent = transitions.stream().anyMatch(EffectiveTransition::publishEvent);
+            boolean direct = directGraphGroup(transitions);
+            List<EffectiveTransition> committedTransitions = direct
+                    ? transitions.stream().map(transition -> new EffectiveTransition(
+                            transition.transition(), transition.storeEvent(), false,
+                            transition.updateState(), transition.plan())).toList()
+                    : transitions;
+            List<EffectiveTransition> graphPublished = graphPublications.getOrDefault(
+                    appliedSubstep.message().getMessageId(), List.of());
+            if (direct && !graphPublished.isEmpty()
+                && !ordinaryEventIds.contains(appliedSubstep.message().getMessageId())) {
+                SerializedMessage publication = serialize(
+                        appliedSubstep.message(), commitId, substeps.size(), false);
+                publication.setSource(source);
+                applyEventRouting(publication, graphPublished);
+                publication = SerializedMessage.encode(publication);
+                substeps.add(new ModelCommitStep(
+                        publication, true, List.of()));
+                transitionGroups.add(List.of());
+                messages.add(appliedSubstep.message());
+            }
+            boolean publishEvent = !direct
+                                   && (transitions.stream().anyMatch(EffectiveTransition::publishEvent)
+                                       || !graphPublished.isEmpty());
             boolean eventRequired = publishEvent
-                                    || transitions.stream().anyMatch(EffectiveTransition::storeEvent);
-            SerializedMessage event = eventRequired
-                    ? serialize(
-                            appliedSubstep.message(), commitId, evaluatedSubstep,
+                                    || committedTransitions.stream()
+                                            .anyMatch(EffectiveTransition::storeEvent);
+            SerializedMessage event = !eventRequired ? null
+                    : direct ? serializeDirectModelUpdate(
+                            appliedSubstep.message(), committedTransitions,
+                            commitId, substeps.size())
+                    : serialize(
+                            appliedSubstep.message(), commitId, substeps.size(),
                             transitions.stream().anyMatch(
-                                    transition -> transition.transition().cascadedDeletion()))
-                    : null;
+                                    transition -> transition.transition().cascadedDeletion()));
             if (event != null) {
                 event.setSource(source);
-                applyEventRouting(event, transitions);
+                if (!direct) {
+                    List<EffectiveTransition> routingTransitions =
+                            new ArrayList<>(transitions.size() + graphPublished.size());
+                    routingTransitions.addAll(transitions);
+                    routingTransitions.addAll(graphPublished);
+                    applyEventRouting(event, routingTransitions);
+                }
                 event = SerializedMessage.encode(event);
             }
 
-            List<ModelCommitTarget> targets = new ArrayList<>(transitions.size());
-            for (EffectiveTransition transition : transitions) {
+            List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
+            for (EffectiveTransition transition : committedTransitions) {
                 targets.add(target(
                         transition, appliedSubstep.message(),
                         nextSequences,
@@ -643,7 +706,7 @@ final class ModelCommitter {
             substeps.add(new ModelCommitStep(
                     event, publishEvent,
                     List.copyOf(targets)));
-            transitionGroups.add(transitions);
+            transitionGroups.add(committedTransitions);
             messages.add(appliedSubstep.message());
         }
         if (substeps.isEmpty()) {
@@ -726,25 +789,30 @@ final class ModelCommitter {
             throw new IllegalArgumentException(
                     "Cannot rebase an empty model commit");
         }
-        if (evaluation.substeps().size()
-            != original.commit().getSubsteps().size()) {
+        long expectedEvaluationSubsteps = original.transitionGroups().stream()
+                .filter(group -> !group.isEmpty()).count();
+        if (evaluation.substeps().size() != expectedEvaluationSubsteps) {
             throw new IllegalStateException(
                     "Apply-only rebase changed the number of model commit substeps");
         }
         List<ModelCommitStep> substeps =
-                new ArrayList<>(evaluation.substeps().size());
+                new ArrayList<>(original.commit().getSubsteps().size());
         List<List<EffectiveTransition>> transitionGroups =
-                new ArrayList<>(evaluation.substeps().size());
+                new ArrayList<>(original.commit().getSubsteps().size());
         Map<String, Long> nextSequences =
                 new LinkedHashMap<>();
+        int evaluationSubstep = 0;
         for (int substepIndex = 0;
-             substepIndex < evaluation.substeps().size();
+             substepIndex < original.commit().getSubsteps().size();
              substepIndex++) {
+            ModelCommitStep source = original.commit().getSubsteps().get(substepIndex);
+            if (original.transitionGroups().get(substepIndex).isEmpty()) {
+                substeps.add(source);
+                transitionGroups.add(List.of());
+                continue;
+            }
             ModelCommitEngine.AppliedSubstep rebased =
-                    evaluation.substeps().get(substepIndex);
-            ModelCommitStep source =
-                    original.commit().getSubsteps().get(
-                            substepIndex);
+                    evaluation.substeps().get(evaluationSubstep++);
             LinkedHashMap<String, ModelCommitEngine.Transition>
                     transitionsById = new LinkedHashMap<>();
             for (ModelCommitEngine.Transition transition :
@@ -807,12 +875,24 @@ final class ModelCommitter {
                         "Apply-only rebase introduced new targets "
                         + transitionsById.keySet());
             }
+            List<EffectiveTransition> effectiveTransitions =
+                    List.copyOf(effective);
+            SerializedMessage event = directGraphGroup(effectiveTransitions)
+                    && source.getEvent() != null
+                    ? serializeDirectModelUpdate(
+                            rebased.message(), effectiveTransitions,
+                            commitId, substepIndex)
+                    : source.getEvent();
+            if (event != null && event != source.getEvent()) {
+                event.setSource(this.source);
+                event = SerializedMessage.encode(event);
+            }
             substeps.add(new ModelCommitStep(
-                    source.getEvent(),
+                    event,
                     source.isPublishEvent(),
                     List.copyOf(targets)));
             transitionGroups.add(
-                    List.copyOf(effective));
+                    effectiveTransitions);
         }
         CommitModels commit = new CommitModels(
                 commitId, evaluation.readStateIndex(),
@@ -924,6 +1004,49 @@ final class ModelCommitter {
                 ModelEventMetadata.COMMIT_ID, commitId,
                 ModelEventMetadata.SUBSTEP, substep));
         return serialized;
+    }
+
+    private SerializedMessage serializeDirectModelUpdate(
+            DeserializingMessage sourceMessage,
+            List<EffectiveTransition> transitions,
+            String commitId,
+            int substep) {
+        List<DirectModelUpdate.Target> targets = transitions.stream()
+                .filter(EffectiveTransition::storeEvent)
+                .map(transition -> new DirectModelUpdate.Target(
+                        transition.transition().modelId(),
+                        transition.transition().after() == null
+                                ? null
+                                : serializer.serialize(
+                                        transition.transition().after())))
+                .toList();
+        if (targets.isEmpty()) {
+            return null;
+        }
+        io.fluxzero.sdk.common.Message logical = sourceMessage.toMessage();
+        DeserializingMessage direct = new DeserializingMessage(
+                new io.fluxzero.sdk.common.Message(
+                        new DirectModelUpdate(targets),
+                        logical.getMetadata(),
+                        logical.getMessageId() + "$direct-model-update",
+                        logical.getTimestamp()),
+                EVENT, null, serializer);
+        return serialize(direct, commitId, substep, true);
+    }
+
+    private static boolean directGraphGroup(
+            List<EffectiveTransition> transitions) {
+        return !transitions.isEmpty()
+               && transitions.stream().allMatch(
+                       transition -> isGraphChange(transition.transition()));
+    }
+
+    private static boolean isGraphChange(
+            ModelCommitEngine.Transition transition) {
+        return !transition.cascadedDeletion()
+               && (transition.stagedReplay() != null
+                   || transition.handler() == null
+                      && transition.after() == null);
     }
 
     private static Boolean possibleDuplicate(
@@ -1280,7 +1403,7 @@ final class ModelCommitter {
             boolean hasGraphChange = transitionGroups.stream()
                     .flatMap(List::stream)
                     .map(EffectiveTransition::transition)
-                    .anyMatch(PreparedCommit::isGraphChange);
+                    .anyMatch(ModelCommitter::isGraphChange);
             if (!hasGraphChange) {
                 return messages;
             }
@@ -1288,9 +1411,12 @@ final class ModelCommitter {
                     messages.size() + 1);
             for (int i = 0; i < transitionGroups.size(); i++) {
                 List<EffectiveTransition> group = transitionGroups.get(i);
+                if (group.isEmpty()) {
+                    continue;
+                }
                 boolean graphChange = group.stream()
                         .map(EffectiveTransition::transition)
-                        .anyMatch(PreparedCommit::isGraphChange);
+                        .anyMatch(ModelCommitter::isGraphChange);
                 if (!graphChange) {
                     result.add(messages.get(i));
                     continue;
@@ -1301,7 +1427,7 @@ final class ModelCommitter {
                     result.add(eventMessage);
                 }
                 group.stream().map(EffectiveTransition::transition)
-                        .filter(PreparedCommit::isGraphChange)
+                        .filter(ModelCommitter::isGraphChange)
                         .map(transition -> ModelCommitEngine.graphChangeReplay(
                                 eventMessage,
                                 transition.modelId(), transition.modelType(),
@@ -1311,14 +1437,6 @@ final class ModelCommitter {
                         .forEach(result::add);
             }
             return List.copyOf(result);
-        }
-
-        private static boolean isGraphChange(
-                ModelCommitEngine.Transition transition) {
-            return !transition.cascadedDeletion()
-                   && (transition.stagedReplay() != null
-                       || transition.handler() == null
-                          && transition.after() == null);
         }
 
         boolean hasCascadedDeletion() {

@@ -448,7 +448,10 @@ public final class Graphs {
                     : current -> replay.apply(previous.replay().apply(current));
             changes.put(modelId, new StagedModelChange(
                     modelId, entity.type(),
-                    previous == null ? stateIndex : previous.expectedStateIndex(),
+                    previous == null
+                            ? entity instanceof ModelRoot<?> root
+                                    ? root.stateIndex() : stateIndex
+                            : previous.expectedStateIndex(),
                     entity.get(), combined));
             return Graphs.lazy(
                     entity, replacementStateIndex, repository,

@@ -262,11 +262,13 @@ final class ModelCommitEngine {
             long readStateIndex) {
         String modelId = change.modelId();
         Class<?> modelType = change.modelType();
+        long targetStateIndex = targetStateIndex(
+                context.entry(change.modelId()), readStateIndex);
         if (change.expectedStateIndex() != null
-            && change.expectedStateIndex() != readStateIndex) {
+            && change.expectedStateIndex() != targetStateIndex) {
             throw new IllegalStateException(
-                    "Staged graph '%s' was loaded at state index %d while the commit is pinned at %d"
-                            .formatted(modelId, change.expectedStateIndex(), readStateIndex));
+                    "Staged graph '%s' was loaded at model state index %d while the commit resolved model state index %d"
+                            .formatted(modelId, change.expectedStateIndex(), targetStateIndex));
         }
         ModelCommitContext.Entry target = context.entry(modelId);
         if (target == null || !context.mayWrite(modelId, modelType, null)) {
@@ -286,7 +288,14 @@ final class ModelCommitEngine {
                 target.entity().get(), after, null,
                 change.replay(), false);
         return new AppliedSubstep(
-                change.eventMessage(), List.of(transition));
+                new GraphChangeMessage(change), List.of(transition));
+    }
+
+    private static long targetStateIndex(
+            ModelCommitContext.Entry target,
+            long fallback) {
+        return target != null && target.entity() instanceof ModelRoot<?> root
+                ? root.stateIndex() : fallback;
     }
 
     private static void mergeAppliedSubstep(
@@ -296,7 +305,9 @@ final class ModelCommitEngine {
         for (int i = appliedSubsteps.size() - 1; i >= 0; i--) {
             AppliedSubstep existing = appliedSubsteps.get(i);
             if (!Objects.equals(
-                    existing.message().getMessageId(), eventMessageId)) {
+                    existing.message().getMessageId(), eventMessageId)
+                || (existing.message() instanceof GraphChangeMessage)
+                   != (addition.message() instanceof GraphChangeMessage)) {
                 continue;
             }
             List<Transition> transitions = new ArrayList<>(

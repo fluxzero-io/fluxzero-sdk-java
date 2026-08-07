@@ -91,8 +91,14 @@ class ModelCommitterTest {
 
         assertEquals(1, commit.getSubsteps().size());
         assertEquals(
-                RemoveStoredOnly.class.getName(),
+                DirectModelUpdate.class.getName(),
                 commit.getSubsteps().getFirst().getEvent().getType());
+        DirectModelUpdate update = assertInstanceOf(
+                DirectModelUpdate.class,
+                serializer.deserializeMessage(
+                        commit.getSubsteps().getFirst().getEvent(),
+                        MessageType.EVENT).getPayload());
+        assertNull(update.target(id.toString()).getState());
         assertFalse(commit.getSubsteps().getFirst().isPublishEvent());
         assertTrue(commit.getSubsteps().getFirst()
                            .getTargets().getFirst().isStoreEvent());
@@ -106,27 +112,42 @@ class ModelCommitterTest {
         StoredOnly stored = new StoredOnly(storedId);
         PublishedOnly published = new PublishedOnly(publishedId);
         MixedUpdate event = new MixedUpdate(storedId, publishedId);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(event), MessageType.EVENT, null);
         var evaluation = evaluation(
                 List.of(storedId.toString(), publishedId.toString()),
-                substep(
-                        event,
-                        transition(
-                                publishedId, PublishedOnly.class,
-                                published, published,
-                                MixedUpdate.class, "apply", PublishedOnly.class),
-                        new ModelCommitEngine.Transition(
-                                storedId.toString(), StoredOnly.class, 0L,
-                                stored, null, null)),
+                List.of(
+                        new ModelCommitEngine.AppliedSubstep(
+                                message, List.of(
+                                transition(
+                                        publishedId, PublishedOnly.class,
+                                        published, published,
+                                        MixedUpdate.class, "apply", PublishedOnly.class))),
+                        new ModelCommitEngine.AppliedSubstep(
+                                message, List.of(
+                                new ModelCommitEngine.Transition(
+                                        storedId.toString(), StoredOnly.class, 0L,
+                                        stored, null, null)))),
                 Map.of(publishedId.toString(), published));
 
         ModelCommitter.PreparedCommit prepared =
                 committer.prepare("shared-event-delete", evaluation);
 
-        assertEquals(1, prepared.commit().getSubsteps().size());
-        assertEquals(2, prepared.commit().getSubsteps().getFirst()
+        assertEquals(2, prepared.commit().getSubsteps().size());
+        assertEquals(1, prepared.commit().getSubsteps().getFirst()
                 .getTargets().size());
         assertEquals(MixedUpdate.class.getName(), prepared.commit()
                 .getSubsteps().getFirst().getEvent().getType());
+        assertTrue(prepared.commit().getSubsteps().getFirst().isPublishEvent());
+        assertEquals(DirectModelUpdate.class.getName(), prepared.commit()
+                .getSubsteps().getLast().getEvent().getType());
+        assertFalse(prepared.commit().getSubsteps().getLast().isPublishEvent());
+        DirectModelUpdate direct = assertInstanceOf(
+                DirectModelUpdate.class,
+                serializer.deserializeMessage(
+                        prepared.commit().getSubsteps().getLast().getEvent(),
+                        MessageType.EVENT).getPayload());
+        assertNull(direct.target(storedId.toString()).getState());
         List<DeserializingMessage> rebaseMessages =
                 prepared.rebaseMessages();
         assertEquals(2, rebaseMessages.size());
@@ -135,6 +156,99 @@ class ModelCommitterTest {
         assertEquals(
                 rebaseMessages.getFirst().getMessageId(),
                 rebaseMessages.getLast().getMessageId());
+    }
+
+    @Test
+    void publishesAStandaloneGraphUpdateWithoutStoringTheDomainEventAsItsReplay() {
+        OrderId id = new OrderId("standalone-graph");
+        Order before = new Order(id, null, "before", Instant.EPOCH);
+        Order after = new Order(id, null, "after", Instant.EPOCH.plusSeconds(1));
+        UpdateOrder event = new UpdateOrder(id);
+        var transition = new ModelCommitEngine.Transition(
+                id.toString(), Order.class, 0L, null,
+                before, after, null, current -> current, false);
+        var evaluation = evaluation(
+                List.of(id.toString()), substep(event, transition),
+                Map.of(id.toString(), after));
+
+        ModelCommitter.PreparedCommit prepared =
+                committer.prepare("standalone-graph", evaluation);
+
+        assertEquals(2, prepared.commit().getSubsteps().size());
+        var publication = prepared.commit().getSubsteps().getFirst();
+        assertEquals(UpdateOrder.class.getName(), publication.getEvent().getType());
+        assertTrue(publication.isPublishEvent());
+        assertTrue(publication.getTargets().isEmpty());
+        var storage = prepared.commit().getSubsteps().getLast();
+        assertEquals(DirectModelUpdate.class.getName(), storage.getEvent().getType());
+        assertFalse(storage.isPublishEvent());
+        assertEquals(id.toString(), storage.getTargets().getFirst().getModelId());
+        assertTrue(storage.getTargets().getFirst().isStoreEvent());
+        DirectModelUpdate direct = assertInstanceOf(
+                DirectModelUpdate.class,
+                serializer.deserializeMessage(
+                        storage.getEvent(), MessageType.EVENT).getPayload());
+        assertEquals(
+                after,
+                serializer.deserialize(direct.target(id.toString()).getState()));
+        assertEquals(1, prepared.rebaseMessages().size());
+        assertSame(event, prepared.rebaseMessages().getFirst().getPayload());
+    }
+
+    @Test
+    void standaloneGraphUpdateRegeneratesItsReplayStateAfterAcceptRebase() {
+        OrderId id = new OrderId("standalone-rebase");
+        Order before = new Order(id, null, "before", Instant.EPOCH);
+        Order stale = new Order(id, null, "stale", Instant.EPOCH.plusSeconds(1));
+        Order merged = new Order(id, null, "merged", Instant.EPOCH.plusSeconds(2));
+        UpdateOrder event = new UpdateOrder(id);
+        var original = evaluation(
+                List.of(id.toString()),
+                substep(event, new ModelCommitEngine.Transition(
+                        id.toString(), Order.class, 0L, null,
+                        before, stale, null, current -> current, false)),
+                Map.of(id.toString(), stale));
+        var rebased = new ModelCommitEngine.CommitEvaluation(
+                51L, List.of(id.toString()), Map.of(id.toString(), Order.class),
+                List.of(substep(event, new ModelCommitEngine.Transition(
+                        id.toString(), Order.class, 0L, null,
+                        before, merged, null, current -> current, false))),
+                Map.of(id.toString(), merged));
+        AtomicInteger commits = new AtomicInteger();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels request = invocation.getArgument(0);
+            if (commits.getAndIncrement() == 0) {
+                return CompletableFuture.completedFuture(
+                        CommitModelsResult.rebase(
+                                request.getRequestId(), request.getCommitId(),
+                                List.of(new ModelCommitConflict(
+                                        id.toString(), 51L, 0L)), 51L));
+            }
+            return CompletableFuture.completedFuture(result(request));
+        });
+
+        var accepted = committer.commitAcceptingRebase(
+                "standalone-rebase", original,
+                (messages, boundary) -> {
+                    assertEquals(51L, boundary);
+                    assertEquals(1, messages.size());
+                    return CompletableFuture.completedFuture(rebased);
+                }).join();
+
+        assertTrue(accepted.orElseThrow().isAccepted());
+        ArgumentCaptor<CommitModels> requests =
+                ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient, times(2)).commitModels(requests.capture());
+        CommitModels retried = requests.getAllValues().getLast();
+        assertEquals(2, retried.getSubsteps().size());
+        DirectModelUpdate direct = assertInstanceOf(
+                DirectModelUpdate.class,
+                serializer.deserializeMessage(
+                        retried.getSubsteps().getLast().getEvent(),
+                        MessageType.EVENT).getPayload());
+        assertEquals(
+                merged,
+                serializer.deserialize(direct.target(id.toString()).getState()));
     }
 
     @Test
@@ -1006,6 +1120,13 @@ class ModelCommitterTest {
             List<String> readModelIds,
             ModelCommitEngine.AppliedSubstep substep,
             Map<String, Object> finalValues) {
+        return evaluation(readModelIds, List.of(substep), finalValues);
+    }
+
+    private static ModelCommitEngine.CommitEvaluation evaluation(
+            List<String> readModelIds,
+            List<ModelCommitEngine.AppliedSubstep> substeps,
+            Map<String, Object> finalValues) {
         return new ModelCommitEngine.CommitEvaluation(
                 41L, readModelIds,
                 finalValues.entrySet().stream()
@@ -1015,7 +1136,7 @@ class ModelCommitterTest {
                                 Map.Entry::getKey,
                                 entry -> entry.getValue()
                                         .getClass())),
-                List.of(substep), finalValues);
+                substeps, finalValues);
     }
 
     private static ModelCommitEngine.AppliedSubstep substep(

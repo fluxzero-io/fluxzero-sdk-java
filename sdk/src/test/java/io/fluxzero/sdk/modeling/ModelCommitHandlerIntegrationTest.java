@@ -157,6 +157,9 @@ class ModelCommitHandlerIntegrationTest {
                         new CreateFamilyChild(childId, rootId, "before-child"))
                 .whenCommand(new RenameFamily(rootId, childId))
                 .expectThat(fluxzero -> {
+                    ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                            fluxzero.modelRepository()).invalidateModels(
+                            List.of(rootId.toString(), childId.toString()));
                     Graph<FamilyRoot> graph = fluxzero.modelRepository()
                             .loadGraph(rootId);
                     assertEquals("after-root", graph.get().name());
@@ -164,6 +167,10 @@ class ModelCommitHandlerIntegrationTest {
                             "after-child",
                             graph.childModels("children", FamilyChild.class)
                                     .getFirst().name());
+                    assertTrue(fluxzero.eventStore()
+                                       .getEvents(childId.toString())
+                                       .anyMatch(event -> event.getPayload()
+                                               instanceof DirectModelUpdate));
                 });
     }
 

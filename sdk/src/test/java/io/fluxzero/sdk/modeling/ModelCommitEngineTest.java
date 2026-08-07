@@ -417,8 +417,9 @@ class ModelCommitEngineTest {
         assertEquals(
                 List.of(orderId.toString(), inventoryId.toString()),
                 result.readModelIds());
-        assertEquals(1, result.substeps().size());
-        assertEquals(2, result.substeps().getFirst().transitions().size());
+        assertEquals(2, result.substeps().size());
+        assertEquals(1, result.substeps().getFirst().transitions().size());
+        assertEquals(1, result.substeps().getLast().transitions().size());
         assertSame(command, result.substeps().getFirst().message().getPayload());
         assertNull(result.finalValues().get(inventoryId.toString()));
 
@@ -430,14 +431,15 @@ class ModelCommitEngineTest {
                         ModelCommitEngine.graphChangeReplay(
                                 deletionEvent,
                                 inventoryId.toString(), Inventory.class,
-                                result.substeps().getFirst().transitions().stream()
+                                result.substeps().getLast().transitions().stream()
                                         .filter(transition -> transition.modelId()
                                                 .equals(inventoryId.toString()))
                                         .findFirst().orElseThrow().stagedReplay())),
                 resolver);
 
-        assertEquals(1, rebased.substeps().size());
-        assertEquals(2, rebased.substeps().getFirst().transitions().size());
+        assertEquals(2, rebased.substeps().size());
+        assertEquals(1, rebased.substeps().getFirst().transitions().size());
+        assertEquals(1, rebased.substeps().getLast().transitions().size());
         assertNull(rebased.finalValues().get(inventoryId.toString()));
     }
 
@@ -460,7 +462,7 @@ class ModelCommitEngineTest {
         assertEquals(7, ((Inventory) result.finalValues()
                 .get(inventoryId.toString())).available());
         ModelCommitEngine.Transition graphTransition = result.substeps()
-                .getFirst().transitions().stream()
+                .getLast().transitions().stream()
                 .filter(transition -> transition.modelId()
                         .equals(inventoryId.toString()))
                 .findFirst().orElseThrow();
@@ -479,6 +481,7 @@ class ModelCommitEngineTest {
 
         assertEquals(11, ((Inventory) rebased.finalValues()
                 .get(inventoryId.toString())).available());
+        assertEquals(2, rebased.substeps().size());
     }
 
     @Test
