@@ -388,6 +388,7 @@ final class MaterializedGraphFactory {
             return node.relationshipPath;
         }
         @Override public long stateIndex() { return context.stateIndex; }
+        @Override public long revisionStateIndex() { return durable().revisionStateIndex(); }
         @Override public String lastEventId() { return durable().lastEventId(); }
         @Override public Long lastEventIndex() { return durable().lastEventIndex(); }
         @Override public long sequenceNumber() { return durable().sequenceNumber(); }

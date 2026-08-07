@@ -171,6 +171,16 @@ public interface Graph<T> {
     /** Returns the pinned namespace-wide model-state boundary. */
     long stateIndex();
 
+    /**
+     * Returns the namespace-wide state boundary at which this concrete model revision became current.
+     * <p>
+     * Unlike {@link #stateIndex()}, which describes the pinned boundary shared by the complete graph, this value can
+     * differ between nodes and therefore provides a stable ordering for otherwise ambiguous functional-ID lookups.
+     */
+    default long revisionStateIndex() {
+        return stateIndex();
+    }
+
     /** Returns the last globally published event identifier visible to this model revision. */
     @Nullable
     String lastEventId();
@@ -382,15 +392,29 @@ public interface Graph<T> {
      * {@link EntityId} and nested {@link Id} affixes as a typed model load.
      */
     default <M> Optional<Graph<M>> find(Object idOrAlias, Class<M> modelType) {
+        return find(idOrAlias, modelType, GraphLookupPolicy.MOST_RECENT);
+    }
+
+    /**
+     * Finds a graph by functional identity or alias and expected model type using the supplied ambiguity policy.
+     * Exact identities take precedence over aliases throughout the complete graph.
+     */
+    default <M> Optional<Graph<M>> find(
+            Object idOrAlias, Class<M> modelType,
+            GraphLookupPolicy lookupPolicy) {
         if (idOrAlias == null) {
             return Optional.empty();
         }
         Objects.requireNonNull(modelType, "modelType");
+        Objects.requireNonNull(lookupPolicy, "lookupPolicy");
         String requested = idOrAlias.toString();
         ModelMetadata metadata = ModelMetadata.of(modelType);
         String repositoryId = metadata.parentScopedEntityId()
                 ? null : metadata.repositoryId(idOrAlias);
+        Graph<M> identityMatch = null;
         Graph<M> aliasMatch = null;
+        int identityMatches = 0;
+        int aliasMatches = 0;
         var iterator = stream().iterator();
         while (iterator.hasNext()) {
             Graph<?> candidate = iterator.next();
@@ -402,17 +426,62 @@ public interface Graph<T> {
                 Object value = candidate.get();
                 if (value != null
                     && requested.equals(Objects.toString(metadata.functionalIdOf(value), null))) {
-                    return Optional.of(typed);
+                    identityMatches++;
+                    identityMatch = selectLookupMatch(
+                            identityMatch, typed);
                 }
             } else if (candidate.id() != null
                        && repositoryId.equals(candidate.id().toString())) {
                 return Optional.of(typed);
             }
-            if (aliasMatch == null && matchesAlias(candidate, requested)) {
-                aliasMatch = typed;
+            if (matchesAlias(candidate, requested)) {
+                aliasMatches++;
+                aliasMatch = selectLookupMatch(
+                        aliasMatch, typed);
             }
         }
+        if (identityMatch != null) {
+            validateLookupAmbiguity(
+                    identityMatches, requested, modelType,
+                    lookupPolicy);
+            return Optional.of(identityMatch);
+        }
+        validateLookupAmbiguity(
+                aliasMatches, requested, modelType,
+                lookupPolicy);
         return Optional.ofNullable(aliasMatch);
+    }
+
+    private static <M> Graph<M> selectLookupMatch(
+            Graph<M> existing, Graph<M> candidate) {
+        if (existing == null) {
+            return candidate;
+        }
+        long existingStateIndex = existing.revisionStateIndex();
+        long candidateStateIndex = candidate.revisionStateIndex();
+        if (candidateStateIndex != existingStateIndex) {
+            return candidateStateIndex > existingStateIndex
+                    ? candidate : existing;
+        }
+        Instant existingTimestamp = existing.timestamp();
+        Instant candidateTimestamp = candidate.timestamp();
+        if (existingTimestamp == null) {
+            return candidate;
+        }
+        return candidateTimestamp != null
+               && candidateTimestamp.compareTo(existingTimestamp) >= 0
+                ? candidate : existing;
+    }
+
+    private static void validateLookupAmbiguity(
+            int matches, String requested, Class<?> modelType,
+            GraphLookupPolicy lookupPolicy) {
+        if (matches > 1
+            && lookupPolicy == GraphLookupPolicy.FAIL_ON_AMBIGUITY) {
+            throw new IllegalStateException(
+                    "Graph contains multiple %s models matching '%s'"
+                            .formatted(modelType.getName(), requested));
+        }
     }
 
     private static boolean matchesAlias(Graph<?> graph, String requested) {

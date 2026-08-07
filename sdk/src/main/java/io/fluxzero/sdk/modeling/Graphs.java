@@ -425,6 +425,12 @@ public final class Graphs {
         }
 
         @Override
+        public long revisionStateIndex() {
+            return entity() instanceof ModelRoot<?> root
+                    ? root.stateIndex() : context.stateIndex;
+        }
+
+        @Override
         public String lastEventId() {
             return entity().lastEventId();
         }
@@ -922,6 +928,11 @@ public final class Graphs {
         }
 
         @Override
+        public long revisionStateIndex() {
+            return delegate().revisionStateIndex();
+        }
+
+        @Override
         public String lastEventId() {
             return delegate().lastEventId();
         }
@@ -1324,6 +1335,7 @@ public final class Graphs {
         }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
+        @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
         @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
         @Override public long sequenceNumber() { return delegate.sequenceNumber(); }
@@ -1475,6 +1487,7 @@ public final class Graphs {
         }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
+        @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
         @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
         @Override public long sequenceNumber() { return delegate.sequenceNumber(); }
@@ -1702,6 +1715,7 @@ public final class Graphs {
         }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
+        @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
         @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
         @Override public long sequenceNumber() { return delegate.sequenceNumber(); }

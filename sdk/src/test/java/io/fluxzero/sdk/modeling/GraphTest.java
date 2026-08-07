@@ -26,6 +26,7 @@ import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -234,6 +235,63 @@ class GraphTest {
         assertSame(graph, graph.find(rootValue.id(), Root.class).orElseThrow());
         verify(root, never()).get();
         verify(root, never()).aliases();
+    }
+
+    @Test
+    void parentScopedLookupSelectsTheMostRecentRevisionOrFailsOnAmbiguity() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("scoped-lookup"), "root");
+        Child olderParent = new Child(
+                new ChildId("older-parent"), rootValue.id(), "older");
+        Child newerParent = new Child(
+                new ChildId("newer-parent"), rootValue.id(), "newer");
+        ScopedLeaf older = new ScopedLeaf("shared", olderParent.id());
+        ScopedLeaf newer = new ScopedLeaf("shared", newerParent.id());
+        String olderId = ModelMetadata.of(ScopedLeaf.class)
+                .repositoryId("shared", olderParent.id(), Child.class);
+        String newerId = ModelMetadata.of(ScopedLeaf.class)
+                .repositoryId("shared", newerParent.id(), Child.class);
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id().toString(), 21L,
+                Map.of(
+                        rootValue.id().toString(), entity(
+                                rootValue.id().toString(), Root.class, rootValue),
+                        olderParent.id().toString(), entity(
+                                olderParent.id().toString(), Child.class, olderParent),
+                        newerParent.id().toString(), entity(
+                                newerParent.id().toString(), Child.class, newerParent),
+                        olderId, modelEntity(
+                                olderId, ScopedLeaf.class, older, 12L,
+                                Instant.parse("2026-08-07T10:00:00Z")),
+                        newerId, modelEntity(
+                                newerId, ScopedLeaf.class, newer, 20L,
+                                Instant.parse("2026-08-07T11:00:00Z"))),
+                List.of(
+                        new ModelGraphEdge(
+                                olderParent.id().toString(), rootValue.id().toString(),
+                                Root.class.getName(), "children", 0L, null),
+                        new ModelGraphEdge(
+                                newerParent.id().toString(), rootValue.id().toString(),
+                                Root.class.getName(), "children", 0L, null),
+                        new ModelGraphEdge(
+                                olderId, olderParent.id().toString(),
+                                Child.class.getName(), "scopedLeaves", 0L, null),
+                        new ModelGraphEdge(
+                                newerId, newerParent.id().toString(),
+                                Child.class.getName(), "scopedLeaves", 0L, null)),
+                repository, false);
+
+        Graph<ScopedLeaf> selected = graph.find(
+                "shared", ScopedLeaf.class).orElseThrow();
+
+        assertEquals(newerId, selected.id());
+        assertEquals(20L, selected.revisionStateIndex());
+        assertThrows(
+                IllegalStateException.class,
+                () -> graph.find(
+                        "shared", ScopedLeaf.class,
+                        GraphLookupPolicy.FAIL_ON_AMBIGUITY));
+        verifyNoInteractions(repository);
     }
 
     @Test
@@ -674,6 +732,22 @@ class GraphTest {
         return entity;
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T> Entity<T> modelEntity(
+            Object id, Class<T> type, T value,
+            long stateIndex, Instant timestamp) {
+        ModelRoot<T> entity = mock(ModelRoot.class);
+        when(entity.id()).thenReturn(id);
+        when(entity.type()).thenReturn(type);
+        when(entity.get()).thenReturn(value);
+        when(entity.isPresent()).thenReturn(value != null);
+        when(entity.isEmpty()).thenReturn(value == null);
+        when(entity.aliases()).thenReturn(List.of());
+        when(entity.stateIndex()).thenReturn(stateIndex);
+        when(entity.timestamp()).thenReturn(timestamp);
+        return entity;
+    }
+
     @Model
     private record Root(@EntityId RootId id, String name) {
     }
@@ -701,6 +775,12 @@ class GraphTest {
     private record ScopedChild(
             @EntityId(parentScoped = true) String id,
             @ParentId(value = Root.class, path = "scopedChildren") RootId rootId) {
+    }
+
+    @Model
+    private record ScopedLeaf(
+            @EntityId(parentScoped = true) String id,
+            @ParentId(value = Child.class, path = "scopedLeaves") ChildId childId) {
     }
 
     @Model

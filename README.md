@@ -3195,6 +3195,10 @@ record Line(
 Graph<Line> line = Fluxzero.loadGraph(orderId, Order.class, "one", Line.class);
 ```
 
+If a composed graph contains the same functional child ID below multiple parents, `find(functionalId, Line.class)`
+returns the revision with the highest `revisionStateIndex()`, matching ordinary latest-entity lookup semantics. Use
+`find(functionalId, Line.class, GraphLookupPolicy.FAIL_ON_AMBIGUITY)` when the caller requires graph-wide uniqueness.
+
 Use parent-scoped identity only for parent-owned models. Changing that parent changes the persisted model identity;
 ordinary movable children should retain a globally stable model ID.
 
