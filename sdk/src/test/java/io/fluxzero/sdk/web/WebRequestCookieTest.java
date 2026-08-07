@@ -136,6 +136,37 @@ class WebRequestCookieTest {
         assertFalse(request.toBuilder().toString().contains("secret-cookie-value"));
     }
 
+    @Test
+    void builderCopyHasIndependentCookieHeaderValues() {
+        WebRequest original = WebRequest.get("/test")
+                .header("Cookie", "first=one")
+                .build();
+        assertEquals(List.of("first=one"), describe(original.getCookies()));
+
+        WebRequest copy = original.toBuilder()
+                .header("Cookie", "second=two")
+                .build();
+
+        assertEquals(List.of("first=one"), original.getHeaders("Cookie"));
+        assertEquals(List.of("first=one"), describe(original.getCookies()));
+        assertEquals(List.of("first=one", "second=two"), copy.getHeaders("Cookie"));
+        assertEquals(List.of("first=one", "second=two"), describe(copy.getCookies()));
+    }
+
+    @Test
+    void builderCopiesProvidedImmutableHeaderValues() {
+        WebRequest original = WebRequest.get("/test")
+                .headers(Map.of("Cookie", List.of("first=one")))
+                .build();
+
+        WebRequest copy = original.toBuilder()
+                .header("Cookie", "second=two")
+                .build();
+
+        assertEquals(List.of("first=one"), original.getHeaders("Cookie"));
+        assertEquals(List.of("first=one", "second=two"), copy.getHeaders("Cookie"));
+    }
+
     private static List<String> describe(List<HttpCookie> cookies) {
         return cookies.stream().map(c -> c.getName() + "=" + c.getValue()).toList();
     }

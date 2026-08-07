@@ -405,7 +405,7 @@ public class WebRequest extends Message {
                 .stream().filter(c -> Objects.equals(c.getName(), name)).findFirst();
     }
 
-    private static List<HttpCookie> parseCookieHeaders(List<String> cookieHeaders) {
+    static List<HttpCookie> parseCookieHeaders(List<String> cookieHeaders) {
         return switch (cookieHeaders.size()) {
             case 0 -> List.of();
             case 1 -> WebUtils.parseRequestCookieHeader(cookieHeaders.getFirst());
@@ -453,7 +453,6 @@ public class WebRequest extends Message {
         protected Builder(Metadata metadata) {
             method(WebRequest.getMethod(metadata));
             url(WebRequest.getUrl(metadata));
-            WebRequest.getHeaders(metadata).forEach((k, v) -> headers.put(k, new ArrayList<>(v)));
             headers(WebRequest.getHeaders(metadata));
         }
 
@@ -486,7 +485,7 @@ public class WebRequest extends Message {
         }
 
         public Builder headers(Map<String, List<String>> headers) {
-            this.headers.putAll(headers);
+            headers.forEach((key, values) -> this.headers.put(key, new ArrayList<>(values)));
             return this;
         }
 

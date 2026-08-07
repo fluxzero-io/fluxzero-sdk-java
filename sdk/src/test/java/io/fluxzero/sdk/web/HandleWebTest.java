@@ -2537,6 +2537,17 @@ public class HandleWebTest {
         }
 
         @Test
+        void cookieParamFindsCookieInLaterHeader() {
+            TestFixture.create(new Object() {
+                        @HandleGet("/checkCookieParam")
+                        String check(@CookieParam("second") String second) {
+                            return second;
+                        }
+                    }).withHeader("Cookie", "first=one", "second=two")
+                    .whenGet("/checkCookieParam").expectResult("two");
+        }
+
+        @Test
         void returnedCookieIsUsed() {
             TestFixture.create(new Object() {
                 @HandlePost("/signIn")
