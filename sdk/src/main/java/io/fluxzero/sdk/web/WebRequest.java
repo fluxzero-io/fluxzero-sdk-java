@@ -296,7 +296,7 @@ public class WebRequest extends Message {
     }
 
     /**
-     * The HTTP headers as a case-sensitive map. Header values are lists to support repeated headers.
+     * The HTTP headers as a case-insensitive map. Header values are lists to support repeated headers.
      */
     public @NonNull Map<String, List<String>> getHeaders() {
         return headers;
