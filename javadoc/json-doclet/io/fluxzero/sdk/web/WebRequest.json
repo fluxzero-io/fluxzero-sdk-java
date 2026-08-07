@@ -36,7 +36,7 @@
       "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
       "values" : {}
     } ],
-    "documentation" : " Lazily parsed list of HTTP cookies, derived from the \"Cookie\" header.\n",
+    "documentation" : " Returns all request cookies from every {@code Cookie} header value in logical wire order.\n <p>\n Each header value is parsed as a semicolon-separated sequence. Cookies with the same name are not collapsed.\n Header names are case-insensitive, while cookie names remain case-sensitive.\n\n @return all request cookies, or an empty list when none are present\n",
     "constantValue" : null
   }, {
     "name" : "headers",
@@ -360,7 +360,44 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Finds a cookie by name.\n\n @param name the cookie name\n @return optional cookie\n"
+    "documentation" : " Finds the first cookie with the given name in logical wire order.\n <p>\n This method retains its first-match behavior and is equivalent to calling\n {@link #getCookie(String, CookieValueConflictPolicy)} with {@link CookieValueConflictPolicy#DEFAULT}. Cookies in\n later {@code Cookie} header values are now included in the lookup.\n\n @param name the case-sensitive cookie name\n @return the first matching cookie, or empty if it is absent\n"
+  }, {
+    "name" : "getCookie",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#getCookie",
+    "returnType" : "java.util.Optional<java.net.HttpCookie>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.sdk.web.CookieValueConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds a cookie with the given name using the requested conflict policy.\n <p>\n Identical repeated values are accepted by both policies. {@link CookieValueConflictPolicy#REJECT_CONFLICTING_VALUES}\n throws a redacted {@link CookieConflictException} when at least one matching value differs.\n\n @param name           the case-sensitive cookie name\n @param conflictPolicy the policy for matching cookies with different values\n @return the first matching cookie, or empty if it is absent\n @throws CookieConflictException if conflicting values are present and rejection is requested\n"
+  }, {
+    "name" : "getCookies",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#getCookies",
+    "returnType" : "java.util.List<java.net.HttpCookie>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns all cookies with the given name in logical wire order, without collapsing duplicates.\n\n @param name the case-sensitive cookie name\n @return all matching cookies, possibly empty\n"
   }, {
     "name" : "getHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#getHeader",
@@ -411,7 +448,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " The HTTP headers as a case-sensitive map. Header values are lists to support repeated headers.\n"
+    "documentation" : " The HTTP headers as a case-insensitive map. Header values are lists to support repeated headers.\n"
   }, {
     "name" : "getHeaders",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#getHeaders",
@@ -539,6 +576,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Extracts the request path from the provided Metadata object.\n\n @param metadata the metadata object containing the request path information\n @return the request path as a string\n @throws IllegalStateException if the request path information is missing in the metadata\n"
+  }, {
+    "name" : "parseCookieHeaders",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#parseCookieHeaders",
+    "returnType" : "java.util.List<java.net.HttpCookie>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cookieHeaders",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "patch",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#patch",
@@ -720,6 +773,11 @@
     "annotations" : [ {
       "annotationType" : "lombok.Data",
       "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString",
+      "values" : {
+        "exclude" : "\"headers\",\"cookies\",\"metadata\""
+      }
     }, {
       "annotationType" : "lombok.NoArgsConstructor",
       "values" : {}

@@ -100,10 +100,20 @@
     "qualifiedName" : "io.fluxzero.sdk.web.BodyParam",
     "kind" : "annotation_type"
   }, {
+    "file" : "CookieConflictException.json",
+    "name" : "CookieConflictException",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieConflictException",
+    "kind" : "class"
+  }, {
     "file" : "CookieParam.json",
     "name" : "CookieParam",
     "qualifiedName" : "io.fluxzero.sdk.web.CookieParam",
     "kind" : "annotation_type"
+  }, {
+    "file" : "CookieValueConflictPolicy.json",
+    "name" : "CookieValueConflictPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy",
+    "kind" : "enum"
   }, {
     "file" : "DefaultSocketSession.json",
     "name" : "DefaultSocketSession",

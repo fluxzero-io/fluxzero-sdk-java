@@ -8,6 +8,11 @@
     "annotationType" : "lombok.Data",
     "values" : {}
   }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "exclude" : "\"headers\",\"cookies\",\"metadata\""
+    }
+  }, {
     "annotationType" : "lombok.NoArgsConstructor",
     "values" : {}
   }, {
@@ -191,6 +196,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cookies",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#cookies",
+    "returnType" : "java.util.List<java.net.HttpCookie>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
