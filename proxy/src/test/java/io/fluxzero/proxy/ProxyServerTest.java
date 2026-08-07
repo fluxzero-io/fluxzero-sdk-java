@@ -238,6 +238,28 @@ class ProxyServerTest {
         }
 
         @Test
+        void http2CookieCrumbsReachWebRequestInOrder() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/cookie-headers")
+                        String cookies(WebRequest request) {
+                            return request.getCookies().stream()
+                                    .map(cookie -> cookie.getName() + "=" + cookie.getValue())
+                                    .collect(java.util.stream.Collectors.joining(","));
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/cookie-headers", proxyPort)))
+                                    .version(HttpClient.Version.HTTP_2)
+                                    .header("Cookie", "first=one; shared=same")
+                                    .header("Cookie", "second=two; shared=same")
+                                    .GET().build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(HttpClient.Version.HTTP_2, response.version());
+                        assertEquals("first=one,shared=same,second=two,shared=same", response.body());
+                    });
+        }
+
+        @Test
         @ResourceLock(ProxyRequestHandler.SEGMENT_HEADER_PROPERTY)
         void requestSegmentCanBeSelectedFromConfiguredHeader() throws Exception {
             String previousValue = System.getProperty(ProxyRequestHandler.SEGMENT_HEADER_PROPERTY);

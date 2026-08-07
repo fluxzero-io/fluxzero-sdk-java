@@ -2525,6 +2525,18 @@ public class HandleWebTest {
         }
 
         @Test
+        void testWithRepeatedCookieHeaders() {
+            TestFixture.create(new Object() {
+                        @HandleGet("/checkCookies")
+                        List<String> check(WebRequest request) {
+                            return request.getCookies().stream()
+                                    .map(cookie -> cookie.getName() + "=" + cookie.getValue()).toList();
+                        }
+                    }).withHeader("Cookie", "first=one", "second=two")
+                    .whenGet("/checkCookies").expectResult(List.of("first=one", "second=two"));
+        }
+
+        @Test
         void returnedCookieIsUsed() {
             TestFixture.create(new Object() {
                 @HandlePost("/signIn")
