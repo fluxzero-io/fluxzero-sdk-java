@@ -3180,6 +3180,24 @@ that explicitly needs raw `ObjectNode` documents. Graph constraints have the sam
 routes. `searchable = false` suppresses only the address's own search collection: an explicit
 `@ParentId(path = "...")` still gives graph composition an internal current document.
 
+When a child identifier is only unique within its owning parent, use `@EntityId(parentScoped = true)`. Fluxzero keeps
+the field's functional value unchanged but composes a collision-safe persisted identity from the selected parent and
+child IDs. Automatic apply routing uses the deepest non-null parent relation in the payload, graph-local
+`find(functionalId, Child.class)` remains natural, and an explicit load supplies the parent:
+
+```java
+@Model
+record Line(
+        @EntityId(parentScoped = true) String lineId,
+        @ParentId(value = Order.class, path = "lines") OrderId orderId) {
+}
+
+Graph<Line> line = Fluxzero.loadGraph(orderId, Order.class, "one", Line.class);
+```
+
+Use parent-scoped identity only for parent-owned models. Changing that parent changes the persisted model identity;
+ordinary movable children should retain a globally stable model ID.
+
 Enable the durable materialized form directly on its searchable root:
 
 ```java
@@ -3211,7 +3229,9 @@ repository boundary; document-loaded targets remain current-only direct-document
 `@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
 `@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
 
-`Graph<T>` is the public context view around a model. `get()` returns the value; `parent()`, `root()`, `children(...)`
+`Graph<T>` is the public context view around a model. A typed `loadGraph` is source-lazy: typed ancestor resolution
+need not load the source value or intermediate parents. A typed `Id` or explicit parent-scoped load also makes `id()`
+available immediately; an alias lookup resolves the source before reporting its true primary ID. `get()` returns the value; `parent()`, `root()`, `children(...)`
 and `descendants(...)` navigate relationships; `previous()`, `atStateIndex(...)` and `playBackToEvent(...)` expose
 history; and `apply(...)`, `assertAndApply(...)` or `delete()` stage model transitions. Graph creation itself performs
 only the same direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested.

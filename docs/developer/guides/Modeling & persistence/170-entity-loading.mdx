@@ -53,10 +53,11 @@ List<LineItem> lines = graph.childModels("lines", LineItem.class);
 - `root()`, `parent()`, `children(...)` and `descendants(...)` navigate the temporal model graph;
 - `apply(...)`, `update(...)`, `assertAndApply(...)` and `delete()` stage model changes.
 
-Creating the graph does not load the complete tree. It starts with the same direct model load as value injection and
-fetches relationship state only when navigation is requested. Typed ancestor navigation follows persisted relationship
-identities and materializes only the selected ancestor value, so `graph.ancestorModel(Organisation.class)` need not
-load intervening location or connection values.
+Creating a typed graph by ID does not load the source model or complete tree. A typed `Id` makes `id()` available
+immediately; an untyped value may be an alias and therefore resolves the source before reporting its true primary ID.
+`get()`, history and relationship contents load only when requested. Typed ancestor navigation follows persisted
+relationship identities and materializes only the selected ancestor value, so
+`graph.ancestorModel(Organisation.class)` need not load the source or intervening location and connection values.
 
 An untyped ID can be loaded by supplying the model class explicitly:
 
@@ -86,6 +87,31 @@ old alias stops resolving after the commit; logical or physical deletion removes
 Aliases for independent models are global identities and must be unique across those models. A primary model ID is
 always resolved before an equal alias. Keep tree-local alternative identifiers on embedded aggregate members instead
 of exposing them as global independent-model aliases.
+
+## Parent-scoped model identifiers
+
+Use `@EntityId(parentScoped = true)` when a parent-owned child ID is intentionally unique only inside one parent:
+
+```java
+@Model
+record Line(
+        @EntityId(parentScoped = true) String lineId,
+        @ParentId(value = Order.class, path = "lines") OrderId orderId) {
+}
+```
+
+The field remains `"one"`; Fluxzero only scopes the persisted model identity. Automatic apply routing selects the
+deepest non-null parent relation present in the payload. Within a loaded graph,
+`order.find("one", Line.class)` therefore keeps using the functional child ID. An explicit direct load includes the
+parent identity and type:
+
+```java
+Graph<Line> line = Fluxzero.loadGraph(
+        orderId, Order.class, "one", Line.class);
+```
+
+All non-null parents must resolve to one unambiguous nearest parent. Parent-scoped identity is unsuitable for a model
+that moves while retaining its identity, because changing the parent changes the persisted identity.
 
 ## Event-sourced loading
 
@@ -207,8 +233,8 @@ boundary:
 Graph<Order> graph = Fluxzero.loadGraph(orderId);
 ```
 
-The root value is loaded immediately; the runtime pins one `stateIndex` and reconstructs related nodes in batches on
-the first traversal. Every returned child is itself a graph with its own parent, root and history operations. Use
+The source value remains lazy; the runtime pins one `stateIndex` when model state is first required and reconstructs
+related nodes in batches on the first traversal. Every returned child is itself a graph with its own parent, root and history operations. Use
 `loadGraphAt(...)` for an historical graph:
 
 ```java

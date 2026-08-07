@@ -798,22 +798,25 @@ class ModelCommitHandlerIntegrationTest {
                             rootId.toString(), childId.toString(), secondChildId.toString(),
                             grandchildId.toString(),
                             pathlessId, retainedId));
-                    assertTrue(fluxzero.modelRepository().load(rootId).isEmpty());
-                    assertTrue(fluxzero.modelRepository().load(childId).isEmpty());
-                    assertTrue(fluxzero.modelRepository().load(secondChildId).isEmpty());
-                    assertTrue(fluxzero.modelRepository().load(grandchildId).isEmpty());
+                    assertTrue(fluxzero.modelRepository().load(rootId).isEmpty(), "root should be deleted");
+                    assertTrue(fluxzero.modelRepository().load(childId).isEmpty(), "first child should be deleted");
+                    assertTrue(fluxzero.modelRepository().load(secondChildId).isEmpty(), "second child should be deleted");
+                    assertTrue(fluxzero.modelRepository().load(grandchildId).isEmpty(), "grandchild should be deleted");
                     assertTrue(fluxzero.modelRepository()
-                                       .load(pathlessId, PathlessFamilyChild.class).isEmpty());
+                                       .load(pathlessId, PathlessFamilyChild.class).isEmpty(),
+                               "pathless child should be deleted");
                     assertEquals(
                             new RetainedFamilyChild(retainedId, rootId),
                             fluxzero.modelRepository()
                                     .load(retainedId, RetainedFamilyChild.class).get());
                     assertTrue(fluxzero.eventStore().getEvents(childId.toString())
                                        .anyMatch(event -> event.getPayload()
-                                               instanceof CascadedModelDeletion));
+                                               instanceof CascadedModelDeletion),
+                               "first child should record the cascade event");
                     assertTrue(fluxzero.eventStore().getEvents(grandchildId.toString())
                                        .anyMatch(event -> event.getPayload()
-                                               instanceof CascadedModelDeletion));
+                                               instanceof CascadedModelDeletion),
+                               "grandchild should record the cascade event");
                     assertEquals(
                             Set.of(
                                     new FamilyChild(

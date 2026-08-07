@@ -177,6 +177,25 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    void parentScopedModelsKeepFunctionalIdsAndRemainUniqueBelowTheirParents() {
+        TestFixture.create()
+                .givenCommands(new CreateFixtureRoot("root-a"),
+                               new CreateFixtureRoot("root-b"),
+                               new PutScopedFixtureChild("root-a", "shared"),
+                               new PutScopedFixtureChild("root-b", "shared"))
+                .whenApplying(ignored -> Fluxzero.loadGraph("root-a", FixtureRoot.class)
+                        .find("shared", ScopedFixtureChild.class)
+                        .map(graph -> graph.get().rootId())
+                        .orElse(null))
+                .expectResult("root-a")
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.loadModel(
+                        "root-b", FixtureRoot.class,
+                        "shared", ScopedFixtureChild.class).get())
+                .expectResult(new ScopedFixtureChild("shared", "root-b"));
+    }
+
+    @Test
     void modelEventsUseTheModelRepositoryWithoutAggregateMetadata() {
         TestFixture fixture = mock(TestFixture.class, CALLS_REAL_METHODS);
         Fluxzero fluxzero = mock(Fluxzero.class);
@@ -254,6 +273,12 @@ class TestFixtureModelApiTest {
             @ParentId(value = FixtureParent.class, path = "children") String parentId) {
     }
 
+    @Model
+    private record ScopedFixtureChild(
+            @EntityId(parentScoped = true) String childId,
+            @ParentId(value = FixtureRoot.class, path = "scopedChildren") String rootId) {
+    }
+
     private record CreateFixtureRoot(String rootId) {
         @Apply
         FixtureRoot apply() {
@@ -265,6 +290,13 @@ class TestFixtureModelApiTest {
         @Apply
         FixtureLocation apply() {
             return new FixtureLocation(locationId, rootId);
+        }
+    }
+
+    private record PutScopedFixtureChild(String rootId, String childId) {
+        @Apply
+        ScopedFixtureChild apply() {
+            return new ScopedFixtureChild(childId, rootId);
         }
     }
 

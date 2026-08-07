@@ -141,6 +141,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final EventStoreClient eventStoreClient;
     private final CopyOnWriteArrayList<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<Class<?>> knownModelTypes = new CopyOnWriteArrayList<>();
+    private volatile boolean registeredModelTypesDiscovered;
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations =
             new ConcurrentHashMap<>();
@@ -175,7 +176,23 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
      * handlers.
      */
     public List<Class<?>> knownModelTypes() {
+        discoverRegisteredModelTypes();
         return List.copyOf(knownModelTypes);
+    }
+
+    private void discoverRegisteredModelTypes() {
+        if (registeredModelTypesDiscovered) {
+            return;
+        }
+        synchronized (knownModelTypes) {
+            if (registeredModelTypesDiscovered) {
+                return;
+            }
+            ReflectionUtils.getRegisteredTypes().stream()
+                    .filter(type -> ReflectionUtils.getTypeMetadata(type).typeAnnotation(Model.class) != null)
+                    .forEach(knownModelTypes::addIfAbsent);
+            registeredModelTypesDiscovered = true;
+        }
     }
 
     /** Creates the automatic model-commit registry. */

@@ -92,6 +92,27 @@ class ModelMetadataTest {
     }
 
     @Test
+    void parentScopedIdentitySelectsTheDeepestNonNullParentFromAPayload() {
+        ModelMetadata metadata = ModelMetadata.validate(ScopedLeafModel.class);
+        ScopedTargetPayload payload = new ScopedTargetPayload("root", "branch", "leaf");
+
+        assertEquals(
+                metadata.repositoryId("leaf", "branch", ScopedBranchModel.class),
+                metadata.repositoryId("leaf", payload));
+    }
+
+    @Test
+    void parentScopedIdentityRequiresOneUnambiguousParent() {
+        assertThrows(IllegalStateException.class,
+                     () -> ModelMetadata.validate(ParentlessScopedModel.class));
+
+        ModelMetadata metadata = ModelMetadata.validate(AmbiguousScopedModel.class);
+        assertThrows(IllegalArgumentException.class,
+                     () -> metadata.repositoryIdOf(
+                             new AmbiguousScopedModel("leaf", "first", "second")));
+    }
+
+    @Test
     void exposesAggregateNeutralRootConfiguration() {
         ModelMetadata.RootConfiguration model = ModelMetadata.of(ConfiguredModel.class)
                 .rootConfiguration().orElseThrow();
@@ -388,6 +409,42 @@ class ModelMetadataTest {
         AffixedModelId(String id) {
             super(id, "model-");
         }
+    }
+
+    @Model
+    private record ScopedRootModel(@EntityId String rootId) {
+    }
+
+    @Model
+    private record ScopedBranchModel(
+            @EntityId String branchId,
+            @ParentId(value = ScopedRootModel.class, path = "branches") String rootId) {
+    }
+
+    @Model
+    private record ScopedLeafModel(
+            @EntityId(parentScoped = true) String leafId,
+            @ParentId(value = ScopedRootModel.class, path = "leaves") String rootId,
+            @ParentId(value = ScopedBranchModel.class, path = "leaves") String branchId) {
+    }
+
+    private record ScopedTargetPayload(String rootId, String branchId, String leafId) {
+    }
+
+    @Model
+    private record ParentlessScopedModel(
+            @EntityId(parentScoped = true) String id) {
+    }
+
+    @Model
+    private record OtherScopedRootModel(@EntityId String rootId) {
+    }
+
+    @Model
+    private record AmbiguousScopedModel(
+            @EntityId(parentScoped = true) String leafId,
+            @ParentId(value = ScopedRootModel.class, path = "leaves") String firstRootId,
+            @ParentId(value = OtherScopedRootModel.class, path = "leaves") String secondRootId) {
     }
 
     private interface ParentLink {

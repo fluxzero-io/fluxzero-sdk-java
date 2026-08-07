@@ -2710,7 +2710,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return;
         }
         Object storedId = metadata.entityId().orElseThrow().read(value);
-        if (storedId == null || !Objects.equals(modelId, metadata.repositoryId(storedId))) {
+        String repositoryId = storedId == null ? null
+                : metadata.parentScopedEntityId()
+                ? metadata.repositoryId(storedId, value)
+                : metadata.repositoryId(storedId);
+        if (!Objects.equals(modelId, repositoryId)) {
             throw new EventSourcingException(
                     "Stored model document '%s' reports @EntityId '%s'"
                             .formatted(modelId, storedId));

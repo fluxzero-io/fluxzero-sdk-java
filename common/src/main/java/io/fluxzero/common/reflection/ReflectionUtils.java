@@ -147,6 +147,11 @@ public class ReflectionUtils {
     private static final Function<String, Optional<Class<?>>> classForFqnCache
             = memoize(ReflectionUtils::computeClassForFqn);
     private static final Supplier<TypeRegistry> typeRegistrySupplier = memoize(() -> new DefaultTypeRegistry());
+    private static final Supplier<List<Class<?>>> registeredTypesSupplier = memoize(() ->
+            typeRegistrySupplier.get().getTypeNames().stream()
+                    .map(classForFqnCache)
+                    .flatMap(Optional::stream)
+                    .toList());
     private static final Function<String, Optional<Class<?>>> classForNameCache
             = memoize(ReflectionUtils::computeClassForName);
     private static final BiFunction<Package, Boolean, Collection<? extends Annotation>> packageAnnotationsCache =
@@ -1838,6 +1843,15 @@ public class ReflectionUtils {
         }
         int lastSeparatorIndex = Math.max(fullyQualifiedName.lastIndexOf('.'), fullyQualifiedName.lastIndexOf('$'));
         return (lastSeparatorIndex == -1) ? fullyQualifiedName : fullyQualifiedName.substring(lastSeparatorIndex + 1);
+    }
+
+    /**
+     * Returns the loadable types from the generated application type registry.
+     * <p>
+     * The result is resolved once and uses the same class cache as {@link #getClass(String)}.
+     */
+    public static List<Class<?>> getRegisteredTypes() {
+        return registeredTypesSupplier.get();
     }
 
     @SneakyThrows

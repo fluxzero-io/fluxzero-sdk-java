@@ -210,6 +210,33 @@ class GraphTest {
     }
 
     @Test
+    void lookupTreatsNullAliasesFromLegacyEntityImplementationsAsEmpty() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("null-aliases"), "root");
+        Entity<Root> root = entity(rootValue.id().toString(), Root.class, rootValue, null);
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id().toString(), 7L,
+                Map.of(rootValue.id().toString(), root), List.of(), repository, false);
+
+        assertEquals(rootValue, graph.find("null-aliases", Root.class).orElseThrow().get());
+        assertTrue(graph.find("missing").isEmpty());
+    }
+
+    @Test
+    void typedPrimaryIdentityLookupDoesNotMaterializeOrdinaryModelValues() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("identity-only"), "root");
+        Entity<Root> root = entity(rootValue.id().toString(), Root.class, rootValue, List.of("alias"));
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id().toString(), 7L,
+                Map.of(rootValue.id().toString(), root), List.of(), repository, false);
+
+        assertSame(graph, graph.find(rootValue.id(), Root.class).orElseThrow());
+        verify(root, never()).get();
+        verify(root, never()).aliases();
+    }
+
+    @Test
     void relationshipExpansionRetainsAStagedModelValue() {
         ModelRepository repository = mock(ModelRepository.class);
         Root before = new Root(new RootId("staged"), "before");
@@ -415,6 +442,78 @@ class GraphTest {
     }
 
     @Test
+    void identityOnlyGraphResolvesAnAncestorWithoutLoadingItsSourceModel() {
+        @SuppressWarnings("unchecked")
+        Graph<Root> ancestor = mock(Graph.class);
+        AncestorRepository repository = new AncestorRepository(ancestor);
+
+        Graph<Grandchild> graph = Graphs.lazy("grandchild", Grandchild.class, repository);
+
+        assertSame(ancestor, graph.ancestor(Root.class).orElseThrow());
+        assertEquals("grandchild", repository.modelId);
+        assertEquals(Grandchild.class, repository.modelType);
+        assertEquals(Root.class, repository.ancestorType);
+        assertNull(repository.boundary.stateIndex());
+        assertTrue(repository.boundary.includeMessageBatch());
+        assertFalse(repository.sourceLoaded);
+    }
+
+    @Test
+    void parentScopedIdentityGraphDoesNotLoadItsSourceToResolveThePrimaryId() {
+        ModelRepository repository = mock(ModelRepository.class);
+        RootId rootId = new RootId("scoped");
+        String primaryId = ModelMetadata.of(ScopedChild.class)
+                .repositoryId("child", rootId, Root.class);
+        ScopedChild value = new ScopedChild("child", rootId);
+        Entity<ScopedChild> entity = entity(primaryId, ScopedChild.class, value);
+        when(repository.load(primaryId, ScopedChild.class))
+                .thenReturn(entity);
+
+        Graph<ScopedChild> graph = Graphs.lazy(
+                rootId, Root.class, "child", ScopedChild.class, repository);
+
+        assertEquals(primaryId, graph.id());
+        verifyNoInteractions(repository);
+        assertSame(value, graph.get());
+        verify(repository).load(primaryId, ScopedChild.class);
+    }
+
+    @Test
+    void identityOnlyGraphFallsBackToModelRelationshipsWhenTheIdentityIndexLags() {
+        Root rootValue = new Root(new RootId("fallback"), "root");
+        Child childValue = new Child(new ChildId("fallback"), rootValue.id(), "child");
+        Grandchild sourceValue = new Grandchild("fallback", childValue.id());
+        FallbackAncestorRepository repository = new FallbackAncestorRepository(Map.of(
+                sourceValue.id(), entity(sourceValue.id(), Grandchild.class, sourceValue),
+                childValue.id().toString(), entity(childValue.id().toString(), Child.class, childValue),
+                rootValue.id().toString(), entity(rootValue.id().toString(), Root.class, rootValue)));
+
+        Graph<Grandchild> graph = Graphs.lazy(sourceValue.id(), Grandchild.class, repository);
+
+        assertEquals(rootValue, graph.ancestorModel(Root.class).orElseThrow());
+        assertTrue(repository.sourceLoaded);
+        assertEquals(2, repository.identityLookups);
+    }
+
+    @Test
+    void identityOnlyGraphFallsBackToAliasLoadingForAncestorNavigation() {
+        Root rootValue = new Root(new RootId("alias-root"), "root");
+        AliasedChild sourceValue = new AliasedChild(
+                "actual-child", "child-alias", rootValue.id());
+        @SuppressWarnings("unchecked")
+        Graph<Root> ancestor = mock(Graph.class);
+        AliasAncestorRepository repository = new AliasAncestorRepository(
+                entity(sourceValue.id(), AliasedChild.class, sourceValue), ancestor);
+
+        Graph<AliasedChild> graph = Graphs.lazy(
+                sourceValue.alias(), AliasedChild.class, repository);
+
+        assertSame(ancestor, graph.ancestor(Root.class).orElseThrow());
+        assertTrue(repository.sourceLoaded);
+        assertEquals(List.of("child-alias", "actual-child"), repository.identityLookups);
+    }
+
+    @Test
     void commitContextAncestorNavigationRetainsItsExactBoundary() {
         @SuppressWarnings("unchecked")
         Entity<Grandchild> source = mock(Entity.class);
@@ -495,6 +594,43 @@ class GraphTest {
     }
 
     @Test
+    void deletingAChildRetainsTheContainingGraphStateBoundary() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("delete-child"), "root");
+        Child childValue = new Child(
+                new ChildId("delete-child"), rootValue.id(), "child");
+        Entity<Root> root = entity(
+                rootValue.id().toString(), Root.class, rootValue);
+        @SuppressWarnings("unchecked")
+        ModelRoot<Child> child = mock(ModelRoot.class);
+        @SuppressWarnings("unchecked")
+        ModelRoot<Child> deleted = mock(ModelRoot.class);
+        when(child.id()).thenReturn(childValue.id().toString());
+        when(child.type()).thenReturn(Child.class);
+        when(child.get()).thenReturn(childValue);
+        when(child.stateIndex()).thenReturn(41L);
+        when(child.update(any())).thenReturn(deleted);
+        when(deleted.id()).thenReturn(childValue.id().toString());
+        when(deleted.type()).thenReturn(Child.class);
+        when(deleted.get()).thenReturn(null);
+        when(deleted.stateIndex()).thenReturn(41L);
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id().toString(), 42L,
+                Map.of(rootValue.id().toString(), root,
+                       childValue.id().toString(), child),
+                List.of(new ModelGraphEdge(
+                        childValue.id().toString(), rootValue.id().toString(),
+                        Root.class.getName(), "children", 0L, null)),
+                repository, false);
+
+        Graph<Child> stagedDeletion = graph.children(
+                "children", Child.class).getFirst().delete();
+
+        assertTrue(stagedDeletion.isEmpty());
+        assertEquals(42L, stagedDeletion.stateIndex());
+    }
+
+    @Test
     void missingModelRetainsAnEmptyGraphWithoutExposingEntity() {
         ModelRepository repository = mock(ModelRepository.class);
         Entity<Root> missing = entity("root-missing", Root.class, null);
@@ -508,6 +644,19 @@ class GraphTest {
                            .noneMatch(method -> method.getName().equals("entity")));
     }
 
+    @Test
+    void missingUntypedModelHasNoAncestors() {
+        FallbackAncestorRepository repository =
+                new FallbackAncestorRepository(Map.of());
+        Entity<Object> missing = entity("unknown", Object.class, null);
+
+        Graph<Object> graph = Graphs.lazy(missing, -1L, repository);
+
+        assertTrue(graph.ancestor(Root.class).isEmpty());
+        assertFalse(repository.sourceLoaded);
+        assertEquals(0, repository.identityLookups);
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> Entity<T> entity(Object id, Class<T> type, T value) {
         return entity(id, type, value, List.of());
@@ -519,6 +668,8 @@ class GraphTest {
         when(entity.id()).thenReturn(id);
         when(entity.type()).thenReturn(type);
         when(entity.get()).thenReturn(value);
+        when(entity.isPresent()).thenReturn(value != null);
+        when(entity.isEmpty()).thenReturn(value == null);
         doReturn(aliases).when(entity).aliases();
         return entity;
     }
@@ -547,6 +698,19 @@ class GraphTest {
     }
 
     @Model
+    private record ScopedChild(
+            @EntityId(parentScoped = true) String id,
+            @ParentId(value = Root.class, path = "scopedChildren") RootId rootId) {
+    }
+
+    @Model
+    private record AliasedChild(
+            @EntityId String id,
+            @Alias String alias,
+            @ParentId(value = Root.class, path = "aliasedChildren") RootId rootId) {
+    }
+
+    @Model
     private record OtherRoot(@EntityId String id, String name) {
     }
 
@@ -570,6 +734,7 @@ class GraphTest {
         private Class<?> modelType;
         private Class<?> ancestorType;
         private ModelAncestorResolver.Boundary boundary;
+        private boolean sourceLoaded;
 
         private AncestorRepository(Graph<?> result) {
             this.result = result;
@@ -577,6 +742,7 @@ class GraphTest {
 
         @Override
         public <T> Entity<T> load(String modelId, Class<T> modelType) {
+            sourceLoaded = true;
             throw new AssertionError("Ancestor identity resolution must not load intermediate models");
         }
 
@@ -591,6 +757,67 @@ class GraphTest {
             this.ancestorType = ancestorType;
             this.boundary = boundary;
             return Optional.of((Graph<A>) result);
+        }
+    }
+
+    private static final class FallbackAncestorRepository
+            implements ModelRepository, ModelAncestorResolver {
+        private final Map<String, Entity<?>> models;
+        private boolean sourceLoaded;
+        private int identityLookups;
+
+        private FallbackAncestorRepository(Map<String, Entity<?>> models) {
+            this.models = models;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> Entity<T> load(String modelId, Class<T> modelType) {
+            sourceLoaded = true;
+            return (Entity<T>) models.get(modelId);
+        }
+
+        @Override
+        public <A> Optional<Graph<A>> loadAncestorGraph(
+                String modelId, Class<?> modelType,
+                Class<A> ancestorType,
+                ModelAncestorResolver.Boundary boundary) {
+            identityLookups++;
+            return Optional.empty();
+        }
+    }
+
+    private static final class AliasAncestorRepository
+            implements ModelRepository, ModelAncestorResolver {
+        private final Entity<AliasedChild> source;
+        private final Graph<Root> ancestor;
+        private final java.util.ArrayList<String> identityLookups = new java.util.ArrayList<>();
+        private boolean sourceLoaded;
+
+        private AliasAncestorRepository(
+                Entity<AliasedChild> source,
+                Graph<Root> ancestor) {
+            this.source = source;
+            this.ancestor = ancestor;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> Entity<T> load(String modelId, Class<T> modelType) {
+            sourceLoaded = true;
+            return (Entity<T>) source;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <A> Optional<Graph<A>> loadAncestorGraph(
+                String modelId, Class<?> modelType,
+                Class<A> ancestorType,
+                ModelAncestorResolver.Boundary boundary) {
+            identityLookups.add(modelId);
+            return modelId.equals(source.id())
+                    ? Optional.of((Graph<A>) ancestor)
+                    : Optional.empty();
         }
     }
 }

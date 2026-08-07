@@ -464,11 +464,13 @@ final class ModelCommitEngine {
                                         result.getClass().getName(),
                                         targetType.getName()));
             }
-            Object resultId = ModelMetadata.of(result.getClass())
-                    .entityId().orElseThrow().read(result);
+            ModelMetadata resultMetadata = ModelMetadata.of(result.getClass());
+            Object resultId = resultMetadata.entityId().orElseThrow().read(result);
             if (resultId == null
                 || !expectedTargetId.equals(
-                        ModelMetadata.of(result.getClass()).repositoryId(resultId))) {
+                        resultMetadata.parentScopedEntityId()
+                                ? resultMetadata.repositoryId(resultId, result)
+                                : resultMetadata.repositoryId(resultId))) {
                 throw new IllegalStateException(
                         "Apply %s returned model '%s', which is not replay target '%s'"
                                 .formatted(
@@ -660,13 +662,16 @@ final class ModelCommitEngine {
                                 .formatted(handler.executable().toGenericString(),
                                            result.getClass().getName(), targetType.getName()));
             }
-            Object id = ModelMetadata.of(result.getClass()).entityId().orElseThrow().read(result);
+            ModelMetadata resultMetadata = ModelMetadata.of(result.getClass());
+            Object id = resultMetadata.entityId().orElseThrow().read(result);
             if (id == null) {
                 throw new IllegalStateException(
                         "Apply %s returned a model with a null ID"
                                 .formatted(handler.executable().toGenericString()));
             }
-            return ModelMetadata.of(result.getClass()).repositoryId(id);
+            return resultMetadata.parentScopedEntityId()
+                    ? resultMetadata.repositoryId(id, result)
+                    : resultMetadata.repositoryId(id);
         }
 
         Entity<?> receiver = handler.receiverModelType() == null

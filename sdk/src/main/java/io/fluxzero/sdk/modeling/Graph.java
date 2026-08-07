@@ -47,8 +47,9 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
 /**
  * A typed view of one independently stored model and its lazily available relationship context.
  * <p>
- * Merely resolving a graph loads no more state than resolving the corresponding model value. Parent, child and
- * descendant state is loaded only when it is requested, at the same pinned model-state boundary. Every returned child
+ * Merely resolving a detached graph by ID does not load its model value. A typed ancestor can be resolved directly
+ * from relationship identities without loading either the source or intermediate parents. The source value, children,
+ * history and update context are loaded only when requested, at one pinned model-state boundary. Every returned child
  * is itself a graph view, so root, parent, history and update operations remain available without exposing the
  * persistence-only {@link Entity} wrapper.
  * <p>
@@ -95,6 +96,24 @@ public interface Graph<T> {
     /** Returns this graph only when its current model value is present. */
     default Optional<Graph<T>> filterPresent() {
         return isPresent() ? Optional.of(this) : Optional.empty();
+    }
+
+    /**
+     * Returns an immutable graph view carrying typed response context for graph-derived properties.
+     * <p>
+     * Context is shared by the complete graph view, including its parents, children and historical revisions. It does
+     * not become part of model state and is not loaded or persisted by the SDK. This makes it suitable for one
+     * response-wide, already-batched lookup that several {@link GraphProperty @GraphProperty} methods consume without
+     * introducing per-node I/O.
+     */
+    default Graph<T> withContext(Object... values) {
+        return Graphs.withContext(this, List.of(values));
+    }
+
+    /** Returns response context assignable to the requested type, if attached to this graph view. */
+    default <C> Optional<C> context(Class<C> contextType) {
+        Objects.requireNonNull(contextType, "contextType");
+        return Optional.empty();
     }
 
     /** Maps this graph only when its current model value is present. */
@@ -368,7 +387,9 @@ public interface Graph<T> {
         }
         Objects.requireNonNull(modelType, "modelType");
         String requested = idOrAlias.toString();
-        String repositoryId = ModelMetadata.of(modelType).repositoryId(idOrAlias);
+        ModelMetadata metadata = ModelMetadata.of(modelType);
+        String repositoryId = metadata.parentScopedEntityId()
+                ? null : metadata.repositoryId(idOrAlias);
         Graph<M> aliasMatch = null;
         var iterator = stream().iterator();
         while (iterator.hasNext()) {
@@ -377,7 +398,14 @@ public interface Graph<T> {
                 continue;
             }
             @SuppressWarnings("unchecked") Graph<M> typed = (Graph<M>) candidate;
-            if (candidate.id() != null && repositoryId.equals(candidate.id().toString())) {
+            if (metadata.parentScopedEntityId()) {
+                Object value = candidate.get();
+                if (value != null
+                    && requested.equals(Objects.toString(metadata.functionalIdOf(value), null))) {
+                    return Optional.of(typed);
+                }
+            } else if (candidate.id() != null
+                       && repositoryId.equals(candidate.id().toString())) {
                 return Optional.of(typed);
             }
             if (aliasMatch == null && matchesAlias(candidate, requested)) {
@@ -388,7 +416,8 @@ public interface Graph<T> {
     }
 
     private static boolean matchesAlias(Graph<?> graph, String requested) {
-        return graph.aliases().stream().filter(Objects::nonNull)
+        Collection<?> aliases = graph.aliases();
+        return aliases != null && aliases.stream().filter(Objects::nonNull)
                 .map(Object::toString).anyMatch(requested::equals);
     }
 

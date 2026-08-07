@@ -2509,3 +2509,43 @@ Evidence SHA-256: E769 `fd88c6886346b93c810b9b2225007380f56e507d05753d9411d9c4e7
 `782e5e7ea4374624d1b207897d6026b48f44c5d387248be7863faed02aae502a`, E784
 `bbc24760e694b1bae34010dc53eabd731f272c992af7c1f2b4f47d968fbb69d2`, E785-E788
 `bf20737c4bb234c31731b2a00f839cf40abdbd4a9039f6a0da040c68361068d9`.
+
+### S57 — complete typed-Graph Flowmaps rebuild
+
+F18 makes typed graphs identity-lazy, adds opt-in parent-scoped child identity, exposes response-wide typed graph context
+and discovers registered model relationship declarations for stable empty arrays. The full B0 route does not navigate a
+graph or use parent-scoped models, but it does exercise ordinary model target resolution and apply-result validation.
+
+The first complete candidate accidentally read every ordinary apply result's `@EntityId` twice: once to validate the
+result and again through the new parent-scoped convenience. E789-E792 consistently favoured the parent and were
+therefore not accepted even though the host was strongly loaded. The corrected implementation restores the exact
+single-read ordinary-model path and branches into parent resolution only for a type with
+`@EntityId(parentScoped = true)`.
+
+E793-E796 repeat the full 65,536-model, 262,144-warmup and 4,194,304-command route in candidate-parent-candidate-parent
+order, without JFR. Every run completed exactly 4,194,304 results, stored model events and global events and verified
+all final model states. The first final pair is effectively neutral at -1.82%; the reverse pair is +24.91%. Final
+candidate geometric mean is 181,685/s versus 164,062/s for the adjacent parent controls, or **+10.74%**. The host moved
+between the two pairs and absolute throughput remains far below the clean P5 **425,606/s** pin, so these observations
+only accept the absence of a regression against direct SDK parent `708dcbfec7b`; they do not establish a new absolute
+pin.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E789 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | first F18 parent-scoped identity path | 4,194,304 | 262,144 | none | 138,247/s following control | 124,191/s | false | reject double reflective ID read; host also moved | reverted |
+| E790 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | parent control | 4,194,304 | 262,144 | none | 138,247/s | n/a | false | warmup jumped from 107,410/s to 166,872/s | diagnostic-only |
+| E791 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | first F18 parent-scoped identity path | 4,194,304 | 262,144 | none | 148,159/s following control | 146,762/s | false | confirms no upside; remove duplicate ID read | reverted |
+| E792 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | parent control | 4,194,304 | 262,144 | none | 148,159/s | n/a | false | loaded-host control | diagnostic-only |
+| E793 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | final F18 single-read ordinary path, pair 1 | 4,194,304 | 262,144 | none | 146,558/s following control | 143,889/s | true | -1.82%; require reverse pair | accepted |
+| E794 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | parent control, pair 1 | 4,194,304 | 262,144 | none | 146,558/s | n/a | true | adjacent parent control | diagnostic-only |
+| E795 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | final F18 single-read ordinary path, pair 2 | 4,194,304 | 262,144 | none | 183,656/s following control | 229,410/s | true | +24.91%; aggregate no-regression gate passes | accepted |
+| E796 | canonical | full command -> model -> event + result | SDK `708dcbfec7b` | parent control, pair 2 | 4,194,304 | 262,144 | none | 183,656/s | n/a | true | reverse parent control | diagnostic-only |
+
+Evidence SHA-256: E789 `c8e2d1fbaa37b27f75d5f3026c98a1621f239a77f6d6d5b279f74a91ea952c4e`, E790
+`80301abf6514223f20e4697ba899ecab45f8d7674d4ae51f89f09150f89a66a1`, E791
+`e2e09b158ff314ebfb7760250c0cee1259cb792a78c532606849996c9d1588bb`, E792
+`5de60a01ebf6b0155cd0b4e4e4736c0e50e045589a866e5db6355ef92f4ef4db`, E793
+`1e63e568d10a566de1906eeead920333520be0037e94119eaa621e95c47ab586`, E794
+`45cf3860fc65d3d1b278d1cf6624031c103e26994f22572add601b3dc83d2492`, E795
+`3dd06b7c5e2c8550a8b1a7ddbe886a1f06f13fe2b67da3b8ec218703de622a6a`, E796
+`b38b9182fbab0aa9296811b9c6e8b194e8d572e15cb72b71d7808173773474a4`.

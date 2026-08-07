@@ -67,6 +67,7 @@ public final class ModelMetadata {
     private final Property entityId;
     private final String entityIdPrefix;
     private final String entityIdPostfix;
+    private final boolean parentScopedEntityId;
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
@@ -149,6 +150,7 @@ public final class ModelMetadata {
                 : ReflectionUtils.getAnnotationAs(entityIdMember, EntityId.class, EntityId.class).orElseThrow();
         this.entityIdPrefix = entityIdAnnotation == null ? "" : entityIdAnnotation.prefix();
         this.entityIdPostfix = entityIdAnnotation == null ? "" : entityIdAnnotation.postfix();
+        this.parentScopedEntityId = entityIdAnnotation != null && entityIdAnnotation.parentScoped();
         if (model != null) {
             validateScalarId(entityId, "@EntityId");
         }
@@ -166,6 +168,20 @@ public final class ModelMetadata {
         this.parentReferences = inspectParentReferences(typeMetadata);
         if (model == null && !parentReferences.isEmpty()) {
             throw invalid("@ParentId is only supported on @Model types, but was found on %s".formatted(type.getName()));
+        }
+        if (parentScopedEntityId) {
+            if (model == null) {
+                throw invalid("@EntityId(parentScoped = true) is only supported on @Model types, but was found on %s"
+                                      .formatted(type.getName()));
+            }
+            if (parentReferences.isEmpty()) {
+                throw invalid("@EntityId(parentScoped = true) on %s requires at least one @ParentId"
+                                      .formatted(type.getName()));
+            }
+            if (parentReferences.stream().anyMatch(reference -> reference.parentModelType() == null)) {
+                throw invalid("Every @ParentId on parent-scoped model %s must declare or infer its parent model type"
+                                      .formatted(type.getName()));
+            }
         }
         this.handlerMethods = inspectHandlerMethods(typeMetadata);
         Map<Parameter, ModelParameter> modelParameters = new LinkedHashMap<>();
@@ -208,6 +224,15 @@ public final class ModelMetadata {
      * so the ID's own repository prefix is applied before the outer {@link EntityId} affixes.
      */
     public String repositoryId(Object functionalId) {
+        if (parentScopedEntityId) {
+            throw new IllegalArgumentException(
+                    "%s has a parent-scoped @EntityId; supply its parent identity or resolve it from a Graph"
+                            .formatted(type.getName()));
+        }
+        return unscopedRepositoryId(functionalId);
+    }
+
+    private String unscopedRepositoryId(Object functionalId) {
         Objects.requireNonNull(functionalId, "Entity ID must not be null");
         String nested = nestedRepositoryId(functionalId);
         if (nested == null) {
@@ -231,7 +256,105 @@ public final class ModelMetadata {
             throw new IllegalStateException(type.getName() + " does not declare an @EntityId property");
         }
         Object id = entityId.read(Objects.requireNonNull(value, "Entity value must not be null"));
-        return repositoryId(id);
+        return parentScopedEntityId
+                ? scopedRepositoryId(id, parentValues(value))
+                : unscopedRepositoryId(id);
+    }
+
+    /** Returns whether this model's persisted identity is scoped by a parent relationship. */
+    public boolean parentScopedEntityId() {
+        return parentScopedEntityId;
+    }
+
+    /** Returns the functional value held by this type's {@link EntityId} property. */
+    public Object functionalIdOf(Object value) {
+        if (entityId == null) {
+            throw new IllegalStateException(type.getName() + " does not declare an @EntityId property");
+        }
+        return entityId.read(Objects.requireNonNull(value, "Entity value must not be null"));
+    }
+
+    /**
+     * Resolves a parent-scoped primary identity from a functional child ID and explicit parent.
+     */
+    public String repositoryId(Object functionalId, Object parentId, Class<?> parentType) {
+        if (!parentScopedEntityId) {
+            return unscopedRepositoryId(functionalId);
+        }
+        Objects.requireNonNull(parentId, "Parent ID must not be null");
+        List<ParentValue> matches = parentReferences.stream()
+                .filter(reference -> parentType == null
+                        || reference.parentModelType().equals(parentType))
+                .map(reference -> new ParentValue(reference, parentId))
+                .toList();
+        if (matches.size() != 1) {
+            throw new IllegalArgumentException(
+                    "Expected exactly one @ParentId on %s for parent type %s, but found %d"
+                            .formatted(type.getName(), parentType == null ? "<unspecified>" : parentType.getName(),
+                                       matches.size()));
+        }
+        return scopedRepositoryId(functionalId, matches);
+    }
+
+    /**
+     * Returns the repository identity for a known functional ID, reading parent scope from the supplied source only
+     * when this model explicitly opted into parent-scoped identity.
+     */
+    public String repositoryId(Object functionalId, Object source) {
+        return parentScopedEntityId
+                ? scopedRepositoryId(functionalId, parentValues(source))
+                : repositoryId(functionalId);
+    }
+
+    private List<ParentValue> parentValues(Object source) {
+        List<ParentValue> result = new ArrayList<>();
+        for (ParentReference reference : parentReferences) {
+            Object value = type.isInstance(source)
+                    ? reference.read(source)
+                    : ReflectionUtils.readProperty(reference.property().name(), source).orElse(null);
+            if (value != null) {
+                result.add(new ParentValue(reference, value));
+            }
+        }
+        List<ParentValue> candidates = List.copyOf(result);
+        return candidates.size() < 2 ? candidates : candidates.stream()
+                .filter(candidate -> candidates.stream().noneMatch(other -> other != candidate
+                        && isAncestor(candidate.reference().parentModelType(),
+                                      other.reference().parentModelType(), new LinkedHashSet<>())))
+                .toList();
+    }
+
+    private static boolean isAncestor(
+            Class<?> candidateAncestor, Class<?> descendant,
+            Set<Class<?>> visited) {
+        if (!visited.add(descendant)) {
+            return false;
+        }
+        for (ParentReference parent : ModelMetadata.of(descendant).parentReferences()) {
+            Class<?> parentType = parent.parentModelType();
+            if (candidateAncestor.equals(parentType)
+                || parentType != null && isAncestor(candidateAncestor, parentType, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String scopedRepositoryId(Object functionalId, List<ParentValue> parents) {
+        if (parents.size() != 1) {
+            throw new IllegalArgumentException(
+                    "Parent-scoped model %s requires exactly one non-null @ParentId, but found %d"
+                            .formatted(type.getName(), parents.size()));
+        }
+        ParentValue parent = parents.getFirst();
+        String parentType = parent.reference().parentModelType().getName();
+        String parentId = parent.reference().repositoryId(parent.value());
+        String childId = unscopedRepositoryId(functionalId);
+        return "@%d:%s:%d:%s:%s".formatted(
+                parentType.length(), parentType, parentId.length(), parentId, childId);
+    }
+
+    private record ParentValue(ParentReference reference, Object value) {
     }
 
     private String nestedRepositoryId(Object functionalId) {

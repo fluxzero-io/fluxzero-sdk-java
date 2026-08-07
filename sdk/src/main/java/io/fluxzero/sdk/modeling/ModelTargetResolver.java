@@ -142,7 +142,7 @@ public final class ModelTargetResolver {
         if (idValue == null) {
             return Optional.empty();
         }
-        return Optional.of(repositoryId(idValue, modelType, property.name, null));
+        return Optional.of(repositoryId(idValue, modelType, property.name, null, value));
     }
 
     /**
@@ -181,7 +181,7 @@ public final class ModelTargetResolver {
             if (idValue == null) {
                 continue;
             }
-            String modelId = repositoryId(idValue, modelType.get(), property.name, null);
+            String modelId = repositoryId(idValue, modelType.get(), property.name, null, value);
             merge(resolved, new ResolvedModel(
                     modelId, modelType.get(), Access.READ_ONLY, List.of(property.name)));
         }
@@ -333,7 +333,7 @@ public final class ModelTargetResolver {
             if (idValue == null) {
                 throw nullId(slot);
             }
-            return modelId(idValue, slot);
+            return modelId(idValue, slot, value);
         }
 
         Class<?> singleModelType() {
@@ -366,7 +366,7 @@ public final class ModelTargetResolver {
                 }
                 return new Resolution(
                         List.of(new ResolvedModel(
-                                modelId(idValue, slot), slot.modelType, Access.from(slot.access),
+                                modelId(idValue, slot, value), slot.modelType, Access.from(slot.access),
                                 List.of(slot.property.name))),
                         List.of(), ancestorDependencies);
             }
@@ -380,7 +380,7 @@ public final class ModelTargetResolver {
                 if (idValue == null) {
                     throw nullId(slot);
                 }
-                String modelId = modelId(idValue, slot);
+                String modelId = modelId(idValue, slot, value);
                 if (idsBySlot != null) {
                     idsBySlot[i] = modelId;
                 }
@@ -419,22 +419,25 @@ public final class ModelTargetResolver {
                             .formatted(slot.property.name, slot.modelType.getName(), slot.handler));
         }
 
-        private static String modelId(Object idValue, SlotPlan slot) {
+        private static String modelId(Object idValue, SlotPlan slot, Object source) {
             return repositoryId(
                     idValue, slot.metadata, slot.modelType,
-                    slot.property.name, slot.handler);
+                    slot.property.name, slot.handler, source);
         }
     }
 
     private static String repositoryId(
-            Object idValue, Class<?> modelType, String property, String handler) {
-        return repositoryId(idValue, ModelMetadata.of(modelType), modelType, property, handler);
+            Object idValue, Class<?> modelType, String property, String handler, Object source) {
+        return repositoryId(idValue, ModelMetadata.of(modelType), modelType, property, handler, source);
     }
 
     private static String repositoryId(
-            Object idValue, ModelMetadata metadata, Class<?> modelType, String property, String handler) {
+            Object idValue, ModelMetadata metadata, Class<?> modelType, String property, String handler,
+            Object source) {
         try {
-            return metadata.repositoryId(idValue);
+            return metadata.parentScopedEntityId()
+                    ? metadata.repositoryId(idValue, source)
+                    : metadata.repositoryId(idValue);
         } catch (RuntimeException e) {
             String requirement = handler == null ? "" : " required by " + handler;
             throw new IllegalArgumentException(

@@ -165,14 +165,13 @@ public final class ModelEventReplayer {
                                         result.getClass().getName(),
                                         targetType.getName()));
             }
-            Object id =
-                    ModelMetadata.of(
-                                    result.getClass())
-                            .entityId().orElseThrow()
-                            .read(result);
+            ModelMetadata resultMetadata = ModelMetadata.of(result.getClass());
+            Object id = resultMetadata.entityId().orElseThrow().read(result);
             if (id == null
                 || !targetModelId.equals(
-                        ModelMetadata.of(result.getClass()).repositoryId(id))) {
+                        resultMetadata.parentScopedEntityId()
+                                ? resultMetadata.repositoryId(id, result)
+                                : resultMetadata.repositoryId(id))) {
                 throw new IllegalStateException(
                         "Apply %s returned model '%s', which is not replay target '%s'"
                                 .formatted(

@@ -37,6 +37,12 @@ import java.lang.annotation.Target;
  * repository lookups; the property itself retains its functional value. They wrap any repository prefix already
  * supplied by an {@link Id}. For example, an ID whose repository value is {@code connection-123} combined with
  * {@code @EntityId(prefix = "move-")} is stored as {@code move-connection-123}.
+ * <p>
+ * A model whose functional identifier is unique only below its parent can set {@link #parentScoped()} to
+ * {@code true}. Its persisted identity then combines the one non-null declared {@link ParentId} with the functional
+ * identifier. The model property keeps the functional value and graph-local {@link Graph#find(Object, Class)} lookup
+ * therefore remains natural. Parent-scoped identity is intended for parent-owned values: moving such a model to a
+ * different parent changes its persisted identity.
  *
  * @see Aggregate for how to define aggregates and their structure.
  */
@@ -51,4 +57,7 @@ public @interface EntityId {
 
     /** Postfix added outside the identifier's own repository representation. */
     String postfix() default "";
+
+    /** Whether the persisted model identity is scoped by its one non-null declared parent. */
+    boolean parentScoped() default false;
 }

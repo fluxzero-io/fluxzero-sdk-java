@@ -144,6 +144,18 @@ class GraphJsonSerializerTest {
     }
 
     @Test
+    void sharesTypedResponseContextAcrossAFilteredGraphWithoutCopyingModels() {
+        Graph<Root> graph = graph().withContext(new DerivedContext("response"));
+
+        Graph<Root> filtered = serializer.filterContent(graph, new MockUser("normal"));
+        Graph<Child> child = filtered.children(Child.class).getFirst();
+
+        assertEquals("response", filtered.context(DerivedContext.class).orElseThrow().value());
+        assertEquals("response", child.context(DerivedContext.class).orElseThrow().value());
+        assertSame(graph.get(), filtered.get());
+    }
+
+    @Test
     void doesNotSerializePathlessRelationships() {
         Root rootValue = new Root("root-id", "root");
         Child childValue = new Child("child-id", rootValue.id(), "hidden");
@@ -237,5 +249,8 @@ class GraphJsonSerializerTest {
         Leaf filter(User user) {
             return user.hasRole("admin") ? this : null;
         }
+    }
+
+    private record DerivedContext(String value) {
     }
 }

@@ -1033,13 +1033,31 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Loads a parent-scoped model by functional child ID and explicit parent type.
+     */
+    static <T> Entity<T> loadModel(
+            Object parentId, Class<?> parentType,
+            Object modelId, Class<T> modelType) {
+        return currentModelRepository().load(parentId, parentType, modelId, modelType);
+    }
+
+    /**
      * Lazily loads the independently stored model identified by the typed ID as a relationship graph.
      * <p>
-     * The model value itself costs the same direct load as {@link #loadModel(Id)}. Relationship state is reconstructed
-     * only when graph navigation or graph serialization requests it.
+     * The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor
+     * lookup can normally resolve directly from stored relationship identities.
      */
     static <T> Graph<T> loadGraph(Id<T> modelId) {
-        Entity<T> entity = loadModel(modelId);
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                modelId, modelId.getType(), currentModelRepository());
+    }
+
+    /**
+     * Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The source must be
+     * loaded once to discover that type; subsequent relationship navigation uses the ordinary graph API.
+     */
+    static Graph<?> loadGraph(Object modelId) {
+        Entity<?> entity = loadModel(modelId);
         long stateIndex = entity instanceof io.fluxzero.sdk.modeling.ModelRoot<?> root
                 ? root.stateIndex() : -1L;
         return io.fluxzero.sdk.modeling.Graphs.lazy(
@@ -1050,11 +1068,18 @@ public interface Fluxzero extends AutoCloseable {
      * Lazily loads an independently stored model by ID and expected type as a relationship graph.
      */
     static <T> Graph<T> loadGraph(Object modelId, Class<T> modelType) {
-        Entity<T> entity = loadModel(modelId, modelType);
-        long stateIndex = entity instanceof io.fluxzero.sdk.modeling.ModelRoot<?> root
-                ? root.stateIndex() : -1L;
         return io.fluxzero.sdk.modeling.Graphs.lazy(
-                entity, stateIndex, currentModelRepository());
+                modelId, modelType, currentModelRepository());
+    }
+
+    /**
+     * Lazily loads a parent-scoped model by functional child ID and explicit parent type as a relationship graph.
+     */
+    static <T> Graph<T> loadGraph(
+            Object parentId, Class<?> parentType,
+            Object modelId, Class<T> modelType) {
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                parentId, parentType, modelId, modelType, currentModelRepository());
     }
 
     /**

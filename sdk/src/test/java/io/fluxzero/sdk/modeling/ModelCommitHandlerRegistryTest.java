@@ -24,6 +24,7 @@ import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.handling.HandlerFilter;
+import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -76,6 +77,15 @@ class ModelCommitHandlerRegistryTest {
             new LinkedBlockingQueue<>();
     private static final LinkedBlockingQueue<Integer> BATCH_INCREMENT_OBSERVATIONS =
             new LinkedBlockingQueue<>();
+
+    @Test
+    void registeredModelsContributeStructuralGraphMetadataWithoutBecomingHandlers() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+
+        assertTrue(subject.knownModelTypes().contains(RegistryKnownModel.class));
+        assertFalse(subject.registeredModelTypes().contains(RegistryKnownModel.class));
+    }
 
     @Test
     void localApplyDiscoveryDoesNotTurnSenderOnlyApplicationIntoAHandler() {
@@ -1853,6 +1863,12 @@ class ModelCommitHandlerRegistryTest {
                     collection = "async-graphs",
                     completion = GraphProjectionCompletion.ASYNC))
     private record AsyncProjectionRoot(
+            @EntityId String id) {
+    }
+
+    @Model
+    @RegisterType
+    private record RegistryKnownModel(
             @EntityId String id) {
     }
 

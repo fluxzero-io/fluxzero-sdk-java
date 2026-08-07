@@ -64,6 +64,32 @@ public final class Graphs {
                 false, false);
     }
 
+    /**
+     * Creates a detached graph whose source model is loaded only when its value, relationships, history or update
+     * operations are requested. A typed ancestor lookup can use {@link ModelAncestorResolver} directly from the
+     * supplied identity and therefore need not materialize the source or intermediate parent values.
+     */
+    public static <T> Graph<T> lazy(
+            Object modelId,
+            Class<T> modelType,
+            ModelRepository repository) {
+        return new IdentityGraph<>(modelId, null, modelType, repository);
+    }
+
+    /**
+     * Creates a detached graph for a parent-scoped model without eagerly loading its source value.
+     */
+    public static <T> Graph<T> lazy(
+            Object parentId,
+            Class<?> parentType,
+            Object modelId,
+            Class<T> modelType,
+            ModelRepository repository) {
+        String primaryId = ModelMetadata.validate(modelType)
+                .repositoryId(modelId, parentId, parentType);
+        return new IdentityGraph<>(modelId, primaryId, modelType, repository);
+    }
+
     /** Creates a lazy graph that reuses every model already loaded for the same handler boundary. */
     static <T> Graph<T> lazy(
             Entity<T> entity,
@@ -121,8 +147,20 @@ public final class Graphs {
     public static <T> Graph<T> mapValues(
             Graph<T> graph,
             Function<? super Graph<?>, ?> mapper) {
-        return new MappedContext(Objects.requireNonNull(mapper, "mapper"))
+        return new MappedContext(Objects.requireNonNull(mapper, "mapper"), List.of())
                 .view(Objects.requireNonNull(graph, "graph"));
+    }
+
+    /** Returns an immutable graph view carrying response-wide typed context. */
+    public static <T> Graph<T> withContext(
+            Graph<T> graph,
+            Collection<?> values) {
+        Objects.requireNonNull(graph, "graph");
+        Objects.requireNonNull(values, "values");
+        if (values.isEmpty()) {
+            return graph;
+        }
+        return new MappedContext(Graph::get, values).view(graph);
     }
 
     /** Returns a graph view containing matching branches and the ancestors required to reach them. */
@@ -524,13 +562,17 @@ public final class Graphs {
                 && placement.parent == null
                 && context.models.size() == 1
                 && !context.boundary.before
+                && ModelMetadata.of(type()).isModel()
                 && context.repository instanceof ModelAncestorResolver resolver) {
-                return resolver.loadAncestorGraph(
+                Optional<Graph<A>> resolved = resolver.loadAncestorGraph(
                         placement.modelId, type(), ancestorType,
                         context.boundary.ancestorBoundary(
                                 context.stateIndex,
                                 context.exactBoundary,
                                 context.historical));
+                if (resolved.isPresent()) {
+                    return resolved;
+                }
             }
             List<Graph<?>> level = List.of(this);
             Set<String> visited = new LinkedHashSet<>();
@@ -734,7 +776,10 @@ public final class Graphs {
         }
 
         private Graph<T> next(Entity<T> next) {
-            return context.replace(next, stateIndex(next, context.stateIndex));
+            // Applying an in-memory update does not establish a new durable boundary. In particular, a child model
+            // can have an older own state index than the complete root graph from which it was obtained. Retain that
+            // graph boundary so returning child.delete() from an interceptor remains part of the same atomic commit.
+            return context.replace(next, context.stateIndex);
         }
 
         @Override
@@ -796,6 +841,247 @@ public final class Graphs {
         private static long stateIndex(Entity<?> entity, long fallback) {
             return entity instanceof ModelRoot<?> root && root.stateIndex() >= -1L
                     ? root.stateIndex() : fallback;
+        }
+    }
+
+    /** Detached identity-only graph used by the public loadGraph conveniences. */
+    private static final class IdentityGraph<T> implements Graph<T> {
+        private final Object requestedId;
+        private final String primaryId;
+        private final Object lookupId;
+        private final boolean primaryIdKnown;
+        private final Class<T> modelType;
+        private final ModelRepository repository;
+        private final Boundary boundary;
+        private volatile Graph<T> delegate;
+
+        private IdentityGraph(
+                Object requestedId,
+                String primaryId,
+                Class<T> modelType,
+                ModelRepository repository) {
+            this.requestedId = Objects.requireNonNull(requestedId, "Model ID must not be null");
+            this.modelType = Objects.requireNonNull(modelType, "Model type must not be null");
+            this.repository = Objects.requireNonNull(repository, "Model repository must not be null");
+            ModelMetadata metadata = ModelMetadata.validate(modelType);
+            this.primaryId = primaryId == null ? metadata.repositoryId(requestedId) : primaryId;
+            this.lookupId = primaryId == null ? requestedId : primaryId;
+            this.primaryIdKnown = primaryId != null || requestedId instanceof Id<?> || !metadata.hasAliases();
+            this.boundary = Boundary.current(-1L);
+        }
+
+        private Graph<T> delegate() {
+            Graph<T> result = delegate;
+            if (result == null) {
+                synchronized (this) {
+                    result = delegate;
+                    if (result == null) {
+                        Entity<T> entity = primaryIdKnown
+                                ? repository.load(primaryId, modelType)
+                                : repository.load(lookupId, modelType);
+                        long stateIndex = entity instanceof ModelRoot<?> root
+                                ? root.stateIndex() : -1L;
+                        delegate = result = Graphs.lazy(
+                                entity, stateIndex, repository,
+                                Map.of(entity.id().toString(), entity),
+                                false, false);
+                    }
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public T get() {
+            return delegate().get();
+        }
+
+        @Override
+        public Object id() {
+            return primaryIdKnown ? primaryId : delegate().id();
+        }
+
+        @Override
+        public Class<T> type() {
+            return modelType;
+        }
+
+        @Override
+        public Collection<?> aliases() {
+            return delegate().aliases();
+        }
+
+        @Override
+        public String relationshipPath() {
+            return null;
+        }
+
+        @Override
+        public long stateIndex() {
+            return delegate().stateIndex();
+        }
+
+        @Override
+        public String lastEventId() {
+            return delegate().lastEventId();
+        }
+
+        @Override
+        public Long lastEventIndex() {
+            return delegate().lastEventIndex();
+        }
+
+        @Override
+        public long sequenceNumber() {
+            return delegate().sequenceNumber();
+        }
+
+        @Override
+        public Instant timestamp() {
+            return delegate().timestamp();
+        }
+
+        @Override
+        public Graph<?> root() {
+            return delegate().root();
+        }
+
+        @Override
+        public Optional<Graph<?>> parent() {
+            return delegate().parent();
+        }
+
+        @Override
+        public List<Graph<?>> parents() {
+            return delegate().parents();
+        }
+
+        @Override
+        public <P> Optional<Graph<P>> parent(Class<P> parentType) {
+            return delegate().parent(parentType);
+        }
+
+        @Override
+        public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
+            Objects.requireNonNull(ancestorType, "ancestorType");
+            if (ancestorType.isAssignableFrom(modelType)) {
+                return Optional.of(cast(this));
+            }
+            Graph<T> materialized = delegate;
+            if (materialized != null) {
+                return materialized.ancestor(ancestorType);
+            }
+            if (repository instanceof ModelAncestorResolver resolver) {
+                ModelAncestorResolver.Boundary ancestorBoundary = boundary.ancestorBoundary(
+                        -1L, false, false);
+                Optional<Graph<A>> result = resolver.loadAncestorGraph(
+                        primaryId, modelType, ancestorType, ancestorBoundary);
+                if (result.isPresent()) {
+                    return result;
+                }
+            }
+            return delegate().ancestor(ancestorType);
+        }
+
+        @Override
+        public List<Graph<?>> children() {
+            return delegate().children();
+        }
+
+        @Override
+        public <C> List<Graph<C>> children(Class<C> childType) {
+            return delegate().children(childType);
+        }
+
+        @Override
+        public <C> List<Graph<C>> children(String path, Class<C> childType) {
+            return delegate().children(path, childType);
+        }
+
+        @Override
+        public <D> List<Graph<D>> descendants(Class<D> descendantType) {
+            return delegate().descendants(descendantType);
+        }
+
+        @Override
+        public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
+            return delegate().descendants(path, descendantType);
+        }
+
+        @Override
+        public Graph<T> apply(Object update) {
+            return delegate().apply(update);
+        }
+
+        @Override
+        public Graph<T> apply(Object update, Metadata metadata) {
+            return delegate().apply(update, metadata);
+        }
+
+        @Override
+        public Graph<T> apply(DeserializingMessage update) {
+            return delegate().apply(update);
+        }
+
+        @Override
+        public Graph<T> apply(Message update) {
+            return delegate().apply(update);
+        }
+
+        @Override
+        public Graph<T> apply(Object... updates) {
+            return delegate().apply(updates);
+        }
+
+        @Override
+        public Graph<T> apply(Collection<?> updates) {
+            return delegate().apply(updates);
+        }
+
+        @Override
+        public Graph<T> update(UnaryOperator<T> update) {
+            return delegate().update(update);
+        }
+
+        @Override
+        public Graph<T> commit() {
+            return delegate().commit();
+        }
+
+        @Override
+        public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
+            delegate().assertLegal(update);
+            return this;
+        }
+
+        @Override
+        public Graph<T> assertAndApply(Object update) {
+            return delegate().assertAndApply(update);
+        }
+
+        @Override
+        public Graph<T> assertAndApply(Object update, Metadata metadata) {
+            return delegate().assertAndApply(update, metadata);
+        }
+
+        @Override
+        public Graph<T> previous() {
+            return delegate().previous();
+        }
+
+        @Override
+        public Graph<T> atStateIndex(long stateIndex) {
+            return delegate().atStateIndex(stateIndex);
+        }
+
+        @Override
+        public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
+            return delegate().playBackToEvent(eventIndex, eventId);
+        }
+
+        @Override
+        public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
+            return delegate().playBackToCondition(condition);
         }
     }
 
@@ -976,10 +1262,25 @@ public final class Graphs {
 
     private static final class MappedContext {
         private final Function<? super Graph<?>, ?> mapper;
+        private final List<?> values;
         private final Map<Graph<?>, MappedGraph<?>> views = new IdentityHashMap<>();
 
-        private MappedContext(Function<? super Graph<?>, ?> mapper) {
+        private MappedContext(Function<? super Graph<?>, ?> mapper, Collection<?> values) {
             this.mapper = mapper;
+            this.values = List.copyOf(values);
+        }
+
+        private <C> Optional<C> value(Class<C> contextType) {
+            List<C> matches = values.stream()
+                    .filter(Objects::nonNull)
+                    .filter(contextType::isInstance)
+                    .map(contextType::cast).toList();
+            if (matches.size() > 1) {
+                throw new IllegalStateException(
+                        "Graph context contains multiple values assignable to %s"
+                                .formatted(contextType.getName()));
+            }
+            return matches.stream().findFirst();
         }
 
         @SuppressWarnings("unchecked")
@@ -1017,6 +1318,10 @@ public final class Graphs {
         @Override public Object id() { return delegate.id(); }
         @Override public Class<T> type() { return delegate.type(); }
         @Override public Collection<?> aliases() { return delegate.aliases(); }
+        @Override public <C> Optional<C> context(Class<C> contextType) {
+            Objects.requireNonNull(contextType, "contextType");
+            return context.value(contextType).or(() -> delegate.context(contextType));
+        }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
@@ -1165,6 +1470,9 @@ public final class Graphs {
         @Override public Object id() { return delegate.id(); }
         @Override public Class<T> type() { return delegate.type(); }
         @Override public Collection<?> aliases() { return delegate.aliases(); }
+        @Override public <C> Optional<C> context(Class<C> contextType) {
+            return delegate.context(contextType);
+        }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
@@ -1389,6 +1697,9 @@ public final class Graphs {
         @Override public Object id() { return delegate.id(); }
         @Override public Class<T> type() { return delegate.type(); }
         @Override public Collection<?> aliases() { return delegate.aliases(); }
+        @Override public <C> Optional<C> context(Class<C> contextType) {
+            return delegate.context(contextType);
+        }
         @Override public String relationshipPath() { return delegate.relationshipPath(); }
         @Override public long stateIndex() { return delegate.stateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }

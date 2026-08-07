@@ -67,6 +67,11 @@ public class DefaultTypeRegistry implements TypeRegistry {
     }
 
     @Override
+    public List<String> getTypeNames() {
+        return List.copyOf(fullTypeNames);
+    }
+
+    @Override
     public Optional<String> getTypeName(String alias) {
         return Optional.ofNullable(types.get(alias)).or(() -> {
             var suffix = (alias.startsWith(".") ? alias : "." + alias);

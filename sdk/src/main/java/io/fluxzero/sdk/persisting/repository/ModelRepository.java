@@ -92,6 +92,20 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
+     * Loads a parent-scoped model by its functional child ID and explicit parent type.
+     * <p>
+     * Ordinary model types ignore the parent and retain their normal identity. A parent-scoped model uses the same
+     * collision-safe persisted identity as automatic apply handling.
+     */
+    default <T> Entity<T> load(
+            @NonNull Object parentId, @NonNull Class<?> parentType,
+            @NonNull Object modelId, @NonNull Class<T> modelType) {
+        String primaryId = ModelMetadata.of(modelType)
+                .repositoryId(modelId, parentId, parentType);
+        return load(primaryId, modelType);
+    }
+
+    /**
      * Loads a model by primary ID or current alias and expected type. A primary model ID always takes precedence over
      * an alias with the same value.
      *
