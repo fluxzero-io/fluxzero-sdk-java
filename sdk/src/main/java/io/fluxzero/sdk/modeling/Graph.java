@@ -231,6 +231,27 @@ public interface Graph<T> {
         return Graphs.selectPaths(this, paths);
     }
 
+    /**
+     * Returns an immutable, lazy view whose model values are retained only when the supplied predicate accepts their
+     * graph placement. Rejected descendants remain structurally addressable as empty graphs but are omitted during
+     * graph serialization; accepted values are shared and never copied. A caller that retains a deep descendant should
+     * also retain its serialized ancestors.
+     */
+    default Graph<T> filterNodes(Predicate<? super Graph<?>> predicate) {
+        Objects.requireNonNull(predicate, "predicate");
+        return Graphs.mapValues(this, graph -> predicate.test(graph) ? graph.get() : null);
+    }
+
+    /**
+     * Returns an immutable response view containing every matching placement, its complete descendant branch and the
+     * ancestors needed to preserve its serialized path. This is useful for selecting independently addressed branches:
+     * matching a parent retains its whole subtree, while matching a leaf retains only that leaf and its ancestors.
+     * The graph is traversed once; retained model values are shared and never copied.
+     */
+    default Graph<T> filterBranches(Predicate<? super Graph<?>> predicate) {
+        return Graphs.filterBranches(this, predicate);
+    }
+
     /** Returns direct children of the requested type. */
     <C> List<Graph<C>> children(Class<C> childType);
 

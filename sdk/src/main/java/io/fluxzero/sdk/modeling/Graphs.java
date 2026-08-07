@@ -125,6 +125,33 @@ public final class Graphs {
                 .view(Objects.requireNonNull(graph, "graph"));
     }
 
+    /** Returns a graph view containing matching branches and the ancestors required to reach them. */
+    public static <T> Graph<T> filterBranches(
+            Graph<T> graph,
+            Predicate<? super Graph<?>> predicate) {
+        Objects.requireNonNull(graph, "graph");
+        Objects.requireNonNull(predicate, "predicate");
+        Set<Graph<?>> retained = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<Graph<?>, Boolean> insideMatchedBranch = new IdentityHashMap<>();
+        graph.stream().forEach(node -> {
+            boolean matches = node.isPresent() && predicate.test(node);
+            boolean inside = matches || node.parent()
+                    .map(parent -> Boolean.TRUE.equals(insideMatchedBranch.get(parent)))
+                    .orElse(false);
+            insideMatchedBranch.put(node, inside);
+            if (inside) {
+                retained.add(node);
+            }
+            if (matches) {
+                Graph<?> ancestor = node;
+                while ((ancestor = ancestor.parent().orElse(null)) != null) {
+                    retained.add(ancestor);
+                }
+            }
+        });
+        return mapValues(graph, node -> retained.contains(node) ? node.get() : null);
+    }
+
     /** Returns a lazy immutable view containing only selected serialized relationship paths. */
     public static <T> Graph<T> selectPaths(
             Graph<T> graph,

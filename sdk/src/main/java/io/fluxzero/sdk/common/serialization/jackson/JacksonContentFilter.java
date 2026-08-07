@@ -89,6 +89,10 @@ import static java.util.stream.Collectors.toMap;
 public class JacksonContentFilter implements ContentFilter {
 
     private final ObjectMapper mapper;
+    private final Function<Class<?>, HandlerMatcher<Object, Object>> graphMatcherCache = memoize(
+            type -> HandlerInspector.inspect(type, List.of(new CurrentUserParameterResolver(),
+                                                           new GraphParameterResolver(),
+                                                           new InputParameterResolver()), FilterContent.class));
 
     /**
      * Creates a new content filter using the provided {@link ObjectMapper}.
@@ -165,10 +169,12 @@ public class JacksonContentFilter implements ContentFilter {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private Graph<?> filterGraph(Graph<?> graph, User viewer) {
         Graph<?> root = graph.root();
-        return Graphs.mapValues((Graph) graph, node -> filterGraphValue(node, root, viewer));
+        Graph<?> filtered = Graphs.mapValues((Graph) graph, node -> filterGraphValue(node, root, viewer));
+        return filtered.isEmpty() ? null : filtered;
     }
 
     @SuppressWarnings("unchecked")
+    @SneakyThrows
     private Object filterGraphValue(Graph<?> graph, Graph<?> root, User viewer) {
         Object value = graph.get();
         if (value == null) {
@@ -179,9 +185,11 @@ public class JacksonContentFilter implements ContentFilter {
         FilteringSerializer.rootValue.set(root);
         FilteringSerializer.currentGraph.set(graph);
         try {
-            return viewer == null
-                    ? mapper.convertValue(value, (Class<Object>) value.getClass())
-                    : viewer.apply(() -> mapper.convertValue(value, (Class<Object>) value.getClass()));
+            Optional<HandlerInvoker> invoker = graphMatcherCache.apply(value.getClass()).getInvoker(value, root);
+            if (invoker.isEmpty()) {
+                return value;
+            }
+            return viewer == null ? invoker.get().invoke() : viewer.apply(invoker.get()::invoke);
         } finally {
             restore(FilteringSerializer.currentGraph, previousGraph);
             restore(FilteringSerializer.rootValue, previousRoot);

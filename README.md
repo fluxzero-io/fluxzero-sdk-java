@@ -3224,7 +3224,26 @@ without manually enumerating model types or relationship paths. `hasChanged(...)
 tree through explicitly named `@ParentId(path = "...")` edges. Pathless relations remain available for typed traversal
 and lifecycle handling but do not invent a JSON field name. The serializer emits every known named relationship as an
 array, including a stable empty `[]`. `selectPaths(...)` creates a lazy immutable response view containing only selected
-branches and their ancestors without copying model values.
+branches and their ancestors without copying model values. `filterNodes(...)` likewise creates a lazy immutable view
+that omits rejected placements while sharing every accepted model value. `filterBranches(...)` is the safer choice for
+tree selection: a matched parent retains its subtree, while a matched leaf automatically retains the ancestors needed
+to serialize its path.
+
+Use `@GraphProperty` for a value that belongs to the serialized graph rather than to one independently stored model:
+
+```java
+@GraphProperty
+BigDecimal total(Graph<Order> graph) {
+    return graph.childModels("lines", OrderLine.class).stream()
+            .map(OrderLine::amount).reduce(ZERO, BigDecimal::add);
+}
+```
+
+The method runs only when a `Graph` is serialized. Its typed `Graph<T>` parameters resolve the current node or an
+ancestor from the graph already in memory, so defining a derived property performs no repository load by itself.
+Graph properties are also added to generated response schemas for `@ApiDocResponse(modelGraph = ...)`; they are never
+added to request schemas. Annotate a graph-property method with `@ApiDoc` to describe it or with `@ApiDocExclude` (or
+`@ApiDoc(exclude = true)`) to keep it out of API documentation without changing serialized responses.
 
 An event or notification handler with only one unqualified `Graph<T>` parameter subscribes to durable changes anywhere
 below that root:
@@ -5131,6 +5150,10 @@ If a nested object returns `null` from filtering:
 
 - It is **removed from a list**
 - It is **excluded from a map**
+
+For a `Graph<T>`, filtering is applied independently to every typed model placement. A filter method may inject the
+current `Graph<T>` and any typed parent or root graph for context; the already loaded graph is reused and accepted
+model values are not copied.
 
 ### Root Context Injection
 

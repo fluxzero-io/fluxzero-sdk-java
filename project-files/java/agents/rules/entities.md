@@ -276,6 +276,10 @@ before/after logic, use `previous()`, `hasChanged(selector)`, `previousValue(sel
 
 Returning a `Graph<T>` from a handler serializes the current model plus all explicitly named relationship paths.
 Pathless relations remain queryable through the typed graph API but are intentionally absent from that JSON shape.
+Use `selectPaths(...)`, `filterNodes(...)` or ancestor-preserving `filterBranches(...)` for immutable response views;
+accepted model values are shared.
+Annotate a model method with `@GraphProperty` when a serialized property is derived from the current graph or a typed
+ancestor graph. It is evaluated only during graph serialization and reuses the graph already in memory.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 

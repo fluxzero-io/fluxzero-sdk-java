@@ -17,6 +17,8 @@ package io.fluxzero.sdk.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProperty;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
@@ -266,6 +268,9 @@ class OpenApiRendererTest {
         assertEquals("Locations belonging to the organisation", locations.path("description").asText());
         assertEquals("#/components/schemas/LocationModel", locations.path("items").path("$ref").asText());
         assertTrue(contains(organisation.path("required"), "locations"));
+        assertEquals("integer", organisation.path("properties").path("locationCount").path("type").asText());
+        assertEquals("Number of locations", organisation.path("properties").path("locationCount")
+                .path("description").asText());
 
         JsonNode connections = schemas.path("LocationModel").path("properties")
                 .path("infrastructure").path("properties").path("connections");
@@ -333,6 +338,14 @@ class OpenApiRendererTest {
                 extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class));
 
         assertThrows(IllegalArgumentException.class, () -> OpenApiRenderer.render(catalog));
+    }
+
+    @Test
+    void excludesGraphPropertiesFromRequestSchemas() {
+        JsonNode document = OpenApiRenderer.render(ApiDocExtractor.extract(ModelGraphRequestHandler.class));
+
+        assertFalse(document.path("components").path("schemas").path("OrganisationModel")
+                            .path("properties").has("locationCount"));
     }
 
     @Test
@@ -419,8 +432,20 @@ class OpenApiRendererTest {
         }
     }
 
+    static class ModelGraphRequestHandler {
+        @ApiDoc
+        @HandlePost("/organisations")
+        void create(OrganisationModel organisation) {
+        }
+    }
+
     @Model
     record OrganisationModel(@EntityId String id, String name) {
+        @GraphProperty
+        @ApiDoc(description = "Number of locations")
+        int locationCount(Graph<OrganisationModel> graph) {
+            return graph.childModels(LocationModel.class).size();
+        }
     }
 
     @Model

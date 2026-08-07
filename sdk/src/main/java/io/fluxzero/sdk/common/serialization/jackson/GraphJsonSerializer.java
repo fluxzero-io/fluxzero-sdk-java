@@ -26,9 +26,16 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.reflection.DefaultMemberInvoker;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProperty;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +75,8 @@ public final class GraphJsonSerializer extends JsonSerializer<Graph<?>> {
                             .formatted(graph.type().getName(), model.getNodeType()));
         }
 
+        addGraphProperties(graph, object, mapper, generator);
+
         Map<String, List<Graph<?>>> childrenByPath = new LinkedHashMap<>();
         for (Graph<?> child : graph.children()) {
             String path = child.relationshipPath();
@@ -90,6 +99,61 @@ public final class GraphJsonSerializer extends JsonSerializer<Graph<?>> {
             set(object, entry.getKey(), values, generator);
         }
         return object;
+    }
+
+    private static void addGraphProperties(
+            Graph<?> graph,
+            ObjectNode document,
+            ObjectMapper mapper,
+            JsonGenerator generator) throws JsonMappingException {
+        for (Method method : ReflectionUtils.getTypeMetadata(graph.type()).annotatedMethods(GraphProperty.class)) {
+            GraphProperty annotation = method.getAnnotation(GraphProperty.class);
+            String property = annotation.value().isBlank()
+                    ? ReflectionUtils.getPropertyName(method) : annotation.value();
+            if (Modifier.isStatic(method.getModifiers())
+                || method.getReturnType() == void.class || method.getParameterCount() == 0) {
+                throw JsonMappingException.from(generator,
+                        "@GraphProperty method %s must be an instance method that returns a value and declares at "
+                        + "least one Graph parameter"
+                                .formatted(method.toGenericString()));
+            }
+            Parameter[] parameters = method.getParameters();
+            Object[] arguments = new Object[parameters.length];
+            for (int i = 0; i < parameters.length; i++) {
+                arguments[i] = resolveGraphParameter(graph, parameters[i], method, generator);
+            }
+            try {
+                Object value = DefaultMemberInvoker.asInvoker(method).invoke(graph.get(), arguments);
+                document.set(property, mapper.valueToTree(value));
+            } catch (RuntimeException e) {
+                throw JsonMappingException.from(generator,
+                        "Failed to evaluate @GraphProperty '%s' using %s"
+                                .formatted(property, method.toGenericString()), e);
+            }
+        }
+    }
+
+    private static Graph<?> resolveGraphParameter(
+            Graph<?> graph,
+            Parameter parameter,
+            Method method,
+            JsonGenerator generator) throws JsonMappingException {
+        if (!Graph.class.isAssignableFrom(parameter.getType())) {
+            throw JsonMappingException.from(generator,
+                    "@GraphProperty method %s may only declare Graph parameters"
+                            .formatted(method.toGenericString()));
+        }
+        List<Type> arguments = ReflectionUtils.getTypeArguments(parameter.getParameterizedType());
+        Class<?> modelType = arguments.size() == 1
+                ? ReflectionUtils.rawClass(arguments.getFirst()) : Object.class;
+        Graph<?> resolved = modelType.isAssignableFrom(graph.type())
+                ? graph : graph.ancestor(modelType).orElse(null);
+        if (resolved == null) {
+            throw JsonMappingException.from(generator,
+                    "Could not resolve Graph<%s> for @GraphProperty method %s"
+                            .formatted(modelType.getName(), method.toGenericString()));
+        }
+        return resolved;
     }
 
     private static void set(

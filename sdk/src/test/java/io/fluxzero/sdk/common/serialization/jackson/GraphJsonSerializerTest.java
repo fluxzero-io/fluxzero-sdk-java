@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProperty;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ParentId;
@@ -32,10 +33,12 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,19 +55,32 @@ class GraphJsonSerializerTest {
         assertEquals("visible", document.path("children").get(0).path("value").asText());
         assertEquals("leaf", document.path("children").get(0)
                 .path("details").path("leaves").get(0).path("value").asText());
+        assertEquals(2, document.path("childCount").asInt());
+        assertEquals("root/visible", document.path("children").get(0).path("qualifiedValue").asText());
+        assertFalse(serializer.getObjectMapper().valueToTree(graph.get()).has("childCount"));
         assertFalse(document.has("stateIndex"));
         assertFalse(document.has("present"));
     }
 
     @Test
     void filtersEveryModelWithItsOwnAndItsParentGraphContext() {
-        Graph<Root> filtered = serializer.filterContent(graph(), new MockUser("normal"));
+        Graph<Root> graph = graph();
+        Graph<Root> filtered = serializer.filterContent(graph, new MockUser("normal"));
 
         JsonNode document = serializer.getObjectMapper().valueToTree(filtered);
 
+        assertSame(graph.get(), filtered.get());
         assertEquals("root/visible", document.path("children").get(0).path("value").asText());
         assertEquals(0, document.path("children").get(0)
                 .path("details").path("leaves").size());
+    }
+
+    @Test
+    void removesAGraphWhoseRootContentFilterRejectsItFromACollection() {
+        Graph<Root> filtered = serializer.filterContent(graph(), new MockUser("hidden"));
+
+        assertEquals(null, filtered);
+        assertEquals(List.of(), serializer.filterContent(List.of(graph()), new MockUser("hidden")));
     }
 
     @Test
@@ -85,7 +101,7 @@ class GraphJsonSerializerTest {
 
         JsonNode directDocument = serializer.getObjectMapper()
                 .valueToTree(directChildren);
-        assertEquals(1, directDocument.path("children").size());
+        assertEquals(2, directDocument.path("children").size());
         assertFalse(directDocument.path("children").get(0)
                             .path("details").has("leaves"));
 
@@ -94,6 +110,37 @@ class GraphJsonSerializerTest {
         assertEquals("leaf", completeDocument.path("children").get(0)
                 .path("details").path("leaves").get(0)
                 .path("value").asText());
+    }
+
+    @Test
+    void filtersGraphNodesLazilyWithoutCopyingAcceptedModels() {
+        Graph<Root> graph = graph();
+
+        Graph<Root> filtered = graph.filterNodes(node -> node.type() != Leaf.class);
+
+        assertSame(graph.get(), filtered.get());
+        assertSame(graph.childModels(Child.class).getFirst(), filtered.childModels(Child.class).getFirst());
+        assertEquals(List.of(), filtered.descendantModels(Leaf.class));
+        JsonNode document = serializer.getObjectMapper().valueToTree(filtered);
+        assertEquals(0, document.path("children").get(0).path("details").path("leaves").size());
+    }
+
+    @Test
+    void filtersCompleteBranchesAndRetainsTheirAncestors() {
+        Graph<Root> graph = graph();
+        AtomicInteger evaluations = new AtomicInteger();
+
+        Graph<Root> filtered = graph.filterBranches(node -> {
+            evaluations.incrementAndGet();
+            return node.type() == Leaf.class;
+        });
+
+        assertEquals(4, evaluations.get());
+        assertSame(graph.get(), filtered.get());
+        assertSame(graph.childModels(Child.class).getFirst(), filtered.childModels(Child.class).getFirst());
+        assertEquals(1, filtered.childModels(Child.class).size());
+        assertSame(graph.descendantModels(Leaf.class).getFirst(), filtered.descendantModels(Leaf.class).getFirst());
+        assertTrue(graph.filterBranches(node -> false).isEmpty());
     }
 
     @Test
@@ -117,20 +164,26 @@ class GraphJsonSerializerTest {
     private static Graph<Root> graph() {
         Root rootValue = new Root("root-id", "root");
         Child childValue = new Child("child-id", rootValue.id(), "visible");
+        Child siblingValue = new Child("sibling-id", rootValue.id(), "sibling");
         Leaf leafValue = new Leaf("leaf-id", childValue.id(), "leaf");
         Entity<Root> root = entity(rootValue.id(), Root.class, rootValue);
         Entity<Child> child = entity(childValue.id(), Child.class, childValue);
+        Entity<Child> sibling = entity(siblingValue.id(), Child.class, siblingValue);
         Entity<Leaf> leaf = entity(leafValue.id(), Leaf.class, leafValue);
         return Graphs.compose(
                 rootValue.id(), 5L,
-                Map.of(rootValue.id(), root, childValue.id(), child, leafValue.id(), leaf),
+                Map.of(rootValue.id(), root, childValue.id(), child,
+                       siblingValue.id(), sibling, leafValue.id(), leaf),
                 List.of(
                         new ModelGraphEdge(
                                 childValue.id(), rootValue.id(), Root.class.getName(),
                                 "children", 0L, null),
                         new ModelGraphEdge(
                                 leafValue.id(), childValue.id(), Child.class.getName(),
-                                "details/leaves", 0L, null)),
+                                "details/leaves", 0L, null),
+                        new ModelGraphEdge(
+                                siblingValue.id(), rootValue.id(), Root.class.getName(),
+                                "children", 0L, null)),
                 mock(ModelRepository.class), false);
     }
 
@@ -145,6 +198,16 @@ class GraphJsonSerializerTest {
 
     @Model
     private record Root(@EntityId String id, String name) {
+
+        @GraphProperty
+        int childCount(Graph<Root> graph) {
+            return graph.childModels(Child.class).size();
+        }
+
+        @FilterContent
+        Root filter(User user) {
+            return user.hasRole("hidden") ? null : this;
+        }
     }
 
     @Model
@@ -156,6 +219,11 @@ class GraphJsonSerializerTest {
         @FilterContent
         Child filter(Graph<Child> child, Graph<Root> root) {
             return new Child(id, rootId, root.get().name() + "/" + child.get().value());
+        }
+
+        @GraphProperty
+        String qualifiedValue(Graph<Child> child, Graph<Root> root) {
+            return root.get().name() + "/" + child.get().value();
         }
     }
 

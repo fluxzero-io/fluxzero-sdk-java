@@ -18,7 +18,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProperty;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 
 import java.io.InputStream;
@@ -959,6 +962,7 @@ public final class OpenApiRenderer {
                     required.add(component.getName());
                 }
             }
+            addMethodProperties(methods(type), properties, required, visiting, schemaContext, responseSchema);
             addRequired(node, required);
             addPolymorphism(node, type, visiting, schemaContext, responseSchema);
             return node;
@@ -984,21 +988,8 @@ public final class OpenApiRenderer {
                 required.add(field.getName());
             }
         }
-        for (Method method : inheritedSchema ? List.of(type.getDeclaredMethods()) : methods(type)) {
-            Optional<String> propertyName = beanPropertyName(method);
-            if (propertyName.isEmpty() || properties.has(propertyName.get()) || !isDocumentedAccessor(method)) {
-                continue;
-            }
-            ObjectNode property = implementationType(method)
-                    .map(methodType -> schema(methodType, visiting, schemaContext, responseSchema))
-                    .orElseGet(() -> schema(method.getAnnotatedReturnType(), visiting, schemaContext,
-                                            responseSchema));
-            applySchemaMetadata(property, metadata(method), schemaContext);
-            properties.set(propertyName.get(), property);
-            if (isRequired(method) || responseSchema && isRequiredArrayProperty(property)) {
-                required.add(propertyName.get());
-            }
-        }
+        addMethodProperties(inheritedSchema ? List.of(type.getDeclaredMethods()) : methods(type),
+                            properties, required, visiting, schemaContext, responseSchema);
         addRequired(propertySchema, required);
         if (inheritedSchema) {
             ArrayNode allOf = node.putArray("allOf");
@@ -1009,6 +1000,57 @@ public final class OpenApiRenderer {
         }
         addPolymorphism(node, type, visiting, schemaContext, responseSchema);
         return node;
+    }
+
+    private static void addMethodProperties(
+            List<Method> methods,
+            ObjectNode properties,
+            ArrayNode required,
+            Set<Type> visiting,
+            SchemaContext schemaContext,
+            boolean responseSchema) {
+        for (Method method : methods) {
+            Optional<String> propertyName = beanPropertyName(method);
+            if (propertyName.isEmpty() || !isDocumentedAccessor(method)) {
+                continue;
+            }
+            addMethodProperty(method, propertyName.get(), properties, required,
+                              visiting, schemaContext, responseSchema);
+        }
+        if (!responseSchema) {
+            return;
+        }
+        for (Method method : methods) {
+            GraphProperty graphProperty = method.getAnnotation(GraphProperty.class);
+            if (graphProperty == null || !isDocumentedGraphProperty(method)) {
+                continue;
+            }
+            String propertyName = graphProperty.value().isBlank()
+                    ? ReflectionUtils.getPropertyName(method) : graphProperty.value();
+            addMethodProperty(method, propertyName, properties, required, visiting, schemaContext, true);
+        }
+    }
+
+    private static void addMethodProperty(
+            Method method,
+            String propertyName,
+            ObjectNode properties,
+            ArrayNode required,
+            Set<Type> visiting,
+            SchemaContext schemaContext,
+            boolean responseSchema) {
+        if (properties.has(propertyName)) {
+            return;
+        }
+        ObjectNode property = implementationType(method)
+                .map(methodType -> schema(methodType, visiting, schemaContext, responseSchema))
+                .orElseGet(() -> schema(method.getAnnotatedReturnType(), visiting, schemaContext,
+                                        responseSchema));
+        applySchemaMetadata(property, metadata(method), schemaContext);
+        properties.set(propertyName, property);
+        if (isRequired(method) || responseSchema && isRequiredArrayProperty(property)) {
+            required.add(propertyName);
+        }
     }
 
     private static Optional<ObjectNode> jsonValueSchema(Class<?> type, Set<Type> visiting,
@@ -1072,6 +1114,15 @@ public final class OpenApiRenderer {
                && (method.isAnnotationPresent(ApiDoc.class)
                    || annotation(method, "io.swagger.v3.oas.annotations.media.Schema") != null
                    || annotation(method, "io.swagger.v3.oas.annotations.media.ArraySchema") != null);
+    }
+
+    private static boolean isDocumentedGraphProperty(Method method) {
+        return !method.isSynthetic()
+               && !Modifier.isStatic(method.getModifiers())
+               && method.getParameterCount() > 0
+               && Arrays.stream(method.getParameterTypes()).allMatch(Graph.class::isAssignableFrom)
+               && !Void.TYPE.equals(method.getReturnType())
+               && !isHidden(method);
     }
 
     private static boolean isJsonValue(AnnotatedElement element) {
