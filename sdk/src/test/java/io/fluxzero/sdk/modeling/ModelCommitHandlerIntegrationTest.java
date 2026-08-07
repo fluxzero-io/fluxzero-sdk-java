@@ -120,6 +120,18 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void explicitGraphCommitReloadsFixedIdsByRepositoryIdentity() {
+        TestFixture.create(FixedDocument.class)
+                .whenExecuting(ignored -> Fluxzero.loadGraph(new FixedDocumentId())
+                        .update(current -> new FixedDocument(42))
+                        .commit())
+                .expectNoEvents()
+                .expectThat(fluxzero -> assertEquals(
+                        new FixedDocument(42),
+                        fluxzero.modelRepository().load(new FixedDocumentId()).get()));
+    }
+
+    @Test
     void graphOnlyHandlersObserveEveryAffectedRootWithCompletePreviousGraph() {
         FamilyRootId firstRootId = new FamilyRootId("change-first");
         FamilyRootId secondRootId = new FamilyRootId("change-second");
@@ -2236,6 +2248,20 @@ class ModelCommitHandlerIntegrationTest {
         Inventory apply(Inventory inventory) {
             return new Inventory(
                     inventoryId, inventory.available() + delta);
+        }
+    }
+
+    @Model(eventSourced = false)
+    private record FixedDocument(
+            @EntityId FixedDocumentId id, int value) {
+        private FixedDocument(int value) {
+            this(new FixedDocumentId(), value);
+        }
+    }
+
+    private static final class FixedDocumentId extends Id<FixedDocument> {
+        private FixedDocumentId() {
+            super("fixed-document");
         }
     }
 

@@ -899,7 +899,9 @@ public final class Graphs {
                 && Fluxzero.getOptionally().isPresent()
                 && ModelMetadata.of(type()).isModel()) {
                 Fluxzero.assertAndApply(new DirectGraphCommit(this));
-                return Fluxzero.loadGraph(id(), type());
+                @SuppressWarnings("unchecked")
+                Graph<T> committed = (Graph<T>) Fluxzero.loadGraph(id().toString());
+                return committed;
             }
             return context.replaceUnstaged(
                     entity().commit(), context.stateIndex);
