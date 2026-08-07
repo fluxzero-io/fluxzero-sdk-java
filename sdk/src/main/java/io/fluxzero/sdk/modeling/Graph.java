@@ -51,6 +51,10 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * descendant state is loaded only when it is requested, at the same pinned model-state boundary. Every returned child
  * is itself a graph view, so root, parent, history and update operations remain available without exposing the
  * persistence-only {@link Entity} wrapper.
+ * <p>
+ * As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and
+ * any descendant. The handler runs once per affected root. {@link #previous()} then returns the complete graph directly
+ * before the change; a child move therefore invokes the handler once for the old root and once for the new root.
  *
  * @param <T> model value type at the current graph placement
  */

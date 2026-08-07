@@ -22,6 +22,8 @@ import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -31,6 +33,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelCommitValidator;
+import io.fluxzero.common.api.modeling.ModelChangeTarget;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
@@ -1954,6 +1957,31 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 request.getRequestId(), boundary,
                 List.copyOf(edges), events.getPayloads(),
                 events.getStreams());
+    }
+
+    @Override
+    public synchronized GetModelChangeResult getModelChange(
+            GetModelChange request) {
+        ModelCommitValidator.validate(request);
+        CommitModelsResult commit = modelCommits.get(request.getCommitId());
+        if (commit == null || request.getSubstep() >= commit.getSubsteps().size()) {
+            throw new IllegalArgumentException(
+                    "Model commit boundary %s[%d] is not visible"
+                            .formatted(request.getCommitId(), request.getSubstep()));
+        }
+        ModelCommitStepResult step = commit.getSubsteps().get(request.getSubstep());
+        List<ModelChangeTarget> targets = step.getTargets().stream()
+                .map(target -> {
+                    ModelStreamHead head = modelHeadHistory
+                            .getOrDefault(target.getModelId(), List.of()).stream()
+                            .filter(candidate -> candidate.stateIndex() <= step.getStateIndex())
+                            .reduce((first, second) -> second).orElse(null);
+                    return new ModelChangeTarget(
+                            target.getModelId(), head == null ? null : head.modelType());
+                }).toList();
+        return new GetModelChangeResult(
+                request.getRequestId(), request.getCommitId(), request.getSubstep(),
+                step.getStateIndex(), step.getEventIndex(), targets);
     }
 
     /**

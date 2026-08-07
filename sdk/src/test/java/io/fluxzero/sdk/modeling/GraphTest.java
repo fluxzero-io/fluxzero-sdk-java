@@ -266,6 +266,14 @@ class GraphTest {
                 List.of(grandchildValue),
                 graph.descendantModels("children/details/grandchildren", Grandchild.class));
         assertEquals(List.of(), graph.descendantModels("details/grandchildren", Grandchild.class));
+
+        Graph<Root> changed = Graphs.withPrevious(graph, graph);
+        assertEquals(
+                List.of(grandchildValue),
+                changed.descendantModels(
+                        "children/details/grandchildren",
+                        Grandchild.class));
+        assertSame(graph, changed.previous());
     }
 
     @Test

@@ -2424,3 +2424,24 @@ Log SHA-256: E763 `6843add1040917a9d169c019247a4f72f3723907016b77dcb3e7fe5c29457
 `4e22130423677fcb3bb4458839dd2d5d5770350085d5b605ae7794cd9680f5a0`, E767
 `3b2e559ff9ea7cf4ea88601c684a39a278a0d003136e3c4132aa8ec5c82e99d8`, E768
 `686ab5ea0132e41f9ebfadb6587b7c09645c5a41584e24d967ca92a374882df7`.
+
+### S57 — complete graph-change handlers
+
+The graph-change candidate adds an explicitly cold route for handlers whose sole domain parameter is an unqualified
+`Graph<T>`. Registration scans those methods once. A handler class without such a method returns the exact existing
+prepared handler object, and an ordinary event handler or an explicit `(event, Graph<T>)` handler retains its existing
+selection and injection path. The canonical benchmark's automatic command handler therefore executes no new branch,
+receipt lookup, graph load or allocation because of this feature.
+
+On the actual graph-change route, the SDK resolves the exact durable commit receipt only after event selection. It
+loads and deduplicates every current and previous root affected by the substep, including both roots of a child move,
+then supplies a complete `previous()` graph. Focused in-memory integration covers moves, multi-target cascade deletes,
+event and notification handlers, creation/deletion boundaries and rejection of ordinary events without model-commit
+metadata. The JDBC Runtime test proves exact target IDs, types, event/state boundaries and persistence across restart.
+The full Java 25 SDK and Runtime reactors are green.
+
+No throughput run was started for this checkpoint. At qualification time `mediaanalysisd`, `contactsd` and
+`mds_stores` each consumed roughly 48-61% of a CPU, alongside long-running Java/dev processes. That host state matches
+the already excluded E759-E768 regime and cannot replace the clean P5 **425,606/s** pin. The quiet-host alternating
+4,194,304-command performance gate therefore remains open; this checkpoint makes no absolute or matched throughput
+claim.

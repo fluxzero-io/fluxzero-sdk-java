@@ -498,6 +498,28 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Class<?> modelType,
             Class<A> ancestorType,
             ModelAncestorResolver.Boundary boundary) {
+        return loadAncestorGraphs(
+                modelId, modelType, ancestorType,
+                boundary, false).stream().findFirst();
+    }
+
+    @Override
+    public <A> List<Graph<A>> loadAncestorGraphs(
+            String modelId,
+            Class<?> modelType,
+            Class<A> ancestorType,
+            ModelAncestorResolver.Boundary boundary) {
+        return loadAncestorGraphs(
+                modelId, modelType, ancestorType,
+                boundary, true);
+    }
+
+    private <A> List<Graph<A>> loadAncestorGraphs(
+            String modelId,
+            Class<?> modelType,
+            Class<A> ancestorType,
+            ModelAncestorResolver.Boundary boundary,
+            boolean all) {
         requireEventReconstruction();
         ModelMetadata sourceMetadata = ModelMetadata.validate(modelType);
         ModelTargetResolver.ResolvedModel source =
@@ -534,43 +556,41 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 request,
                 ancestorBoundary(boundary),
                 stagedValues, boundary.includeMessageBatch(),
-                false, true,
+                false, !all, all,
                 UNBOUNDED, UNBOUNDED);
-        ModelTargetResolver.ResolvedModel target =
+        List<ModelTargetResolver.ResolvedModel> targets =
                 resolved.resolution().models().stream()
                         .filter(candidate ->
                                 !candidate.modelId().equals(modelId))
                         .filter(candidate ->
                                 ancestorType.isAssignableFrom(
                                         candidate.modelType()))
-                        .findFirst().orElse(null);
-        if (target == null) {
-            return Optional.empty();
-        }
+                        .toList();
         Graph.Options rootOnly = new Graph.Options(0, 1);
-        @SuppressWarnings("unchecked") Class<A> targetType =
-                (Class<A>) target.modelType();
-        Graph<A> result;
-        if (boundary.commitId() != null) {
-            result = loadGraphAtCommit(
-                    target.modelId(), targetType,
-                    resolved.stateIndex(), boundary.commitId(),
-                    boundary.substep(), rootOnly);
-        } else if (boundary.eventIndex() != null) {
-            result = loadGraphAtEvent(
-                    target.modelId(), targetType,
-                    resolved.stateIndex(), boundary.eventIndex(),
-                    rootOnly);
-        } else if (boundary.includeMessageBatch()) {
-            result = loadGraphAtIncludingMessageBatch(
+        return targets.stream().map(target -> {
+            @SuppressWarnings("unchecked") Class<A> targetType =
+                    (Class<A>) target.modelType();
+            if (boundary.commitId() != null) {
+                return loadGraphAtCommit(
+                        target.modelId(), targetType,
+                        resolved.stateIndex(), boundary.commitId(),
+                        boundary.substep(), rootOnly);
+            }
+            if (boundary.eventIndex() != null) {
+                return loadGraphAtEvent(
+                        target.modelId(), targetType,
+                        resolved.stateIndex(), boundary.eventIndex(),
+                        rootOnly);
+            }
+            if (boundary.includeMessageBatch()) {
+                return loadGraphAtIncludingMessageBatch(
+                        target.modelId(), targetType,
+                        resolved.stateIndex(), rootOnly);
+            }
+            return loadGraphAt(
                     target.modelId(), targetType,
                     resolved.stateIndex(), rootOnly);
-        } else {
-            result = loadGraphAt(
-                    target.modelId(), targetType,
-                    resolved.stateIndex(), rootOnly);
-        }
-        return Optional.of(result);
+        }).toList();
     }
 
     private static ModelEventBatchLoader.Boundary ancestorBoundary(
@@ -2006,7 +2026,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch) {
         return resolveAncestors(
                 resolution, boundary, stagedValues,
-                includeMessageBatch, true, false,
+                includeMessageBatch, true, false, false,
                 COMMIT_ANCESTOR_MAX_DEPTH,
                 COMMIT_ANCESTOR_MAX_MODELS);
     }
@@ -2018,6 +2038,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch,
             boolean requireAncestors,
             boolean closestAncestorsOnly,
+            boolean allowMultipleAncestors,
             int maxDepth,
             int maxModels) {
         if (resolution.models().isEmpty()) {
@@ -2174,7 +2195,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                                   + dependency.association() + "'",
                                         dependency.handler(), roots));
             }
-            if (candidates.size() > 1) {
+            if (candidates.size() > 1
+                && !allowMultipleAncestors) {
                 throw new IllegalStateException(
                         "Multiple reachable ancestors of type %s%s were found for %s: %s. "
                                 .formatted(
@@ -2186,22 +2208,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                         dependency.handler(), candidates)
                         + "Qualify the parameter with @Association(\"parentPath\").");
             }
-            String modelId = candidates.getFirst();
-            Class<?> modelType = knownTypes.get(modelId);
-            if (modelType == null) {
-                modelType = dependency.modelType();
+            for (String modelId : candidates) {
+                Class<?> modelType = knownTypes.get(modelId);
+                if (modelType == null) {
+                    modelType = dependency.modelType();
+                }
+                ModelMetadata.validate(modelType);
+                String sourceProperty = dependency.association() == null
+                        ? ModelMetadata.validate(modelType)
+                                .entityId().orElseThrow().name()
+                        : dependency.association();
+                ModelTargetResolver.merge(
+                        selected,
+                        new ModelTargetResolver.ResolvedModel(
+                                modelId, modelType,
+                                ModelTargetResolver.Access.READ_ONLY,
+                                List.of(sourceProperty)));
             }
-            ModelMetadata.validate(modelType);
-            String sourceProperty = dependency.association() == null
-                    ? ModelMetadata.validate(modelType)
-                            .entityId().orElseThrow().name()
-                    : dependency.association();
-            ModelTargetResolver.merge(
-                    selected,
-                    new ModelTargetResolver.ResolvedModel(
-                            modelId, modelType,
-                            ModelTargetResolver.Access.READ_ONLY,
-                            List.of(sourceProperty)));
         }
         return new AncestorResolution(
                 graph.getStateIndex(),

@@ -148,6 +148,16 @@ public final class Graphs {
         return new SelectedContext(Set.copyOf(normalized)).root(graph);
     }
 
+    /**
+     * Returns a graph-change view whose {@link Graph#previous()} graph is pinned explicitly.
+     * Model nodes are shared; only the lightweight graph placement views are wrapped.
+     */
+    static <T> Graph<T> withPrevious(
+            Graph<T> current,
+            Graph<T> previous) {
+        return new ChangeContext(current, previous).root();
+    }
+
     private static Placement build(
             String modelId,
             Placement parent,
@@ -1047,6 +1057,216 @@ public final class Graphs {
         }
         @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
             return delegate.playBackToEvent(eventIndex, eventId).map(context::view);
+        }
+        @Override public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
+            Objects.requireNonNull(condition, "condition");
+            Graph<T> result = this;
+            while (result != null && !condition.test(result)) {
+                result = result.previous();
+            }
+            return Optional.ofNullable(result);
+        }
+    }
+
+    private static final class ChangeContext {
+        private final Graph<?> currentRoot;
+        private final Graph<?> previousRoot;
+        private final Map<Graph<?>, ChangeGraph<?>> views = new IdentityHashMap<>();
+        private ChangeGraph<?> root;
+
+        private ChangeContext(Graph<?> currentRoot, Graph<?> previousRoot) {
+            this.currentRoot = Objects.requireNonNull(currentRoot, "current graph");
+            this.previousRoot = previousRoot;
+        }
+
+        @SuppressWarnings("unchecked")
+        private synchronized <T> Graph<T> root() {
+            if (root == null) {
+                root = new ChangeGraph<>(this, (Graph<Object>) currentRoot, null);
+                views.put(currentRoot, root);
+            }
+            return (Graph<T>) root;
+        }
+
+        @SuppressWarnings("unchecked")
+        private synchronized <T> Graph<T> view(Graph<T> graph) {
+            return (Graph<T>) views.computeIfAbsent(
+                    graph, ignored -> new ChangeGraph<>(this, graph, null));
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> Graph<T> previous(Graph<T> graph) {
+            if (previousRoot == null) {
+                return null;
+            }
+            if (graph == currentRoot) {
+                return (Graph<T>) previousRoot;
+            }
+            return previousRoot.find(graph.id(), graph.type())
+                    .map(candidate -> (Graph<T>) candidate)
+                    .orElse(null);
+        }
+    }
+
+    private static final class ChangeGraph<T> implements Graph<T> {
+        private final ChangeContext context;
+        private final Graph<T> delegate;
+        private final Graph<?> parent;
+
+        private ChangeGraph(
+                ChangeContext context,
+                Graph<T> delegate,
+                Graph<?> parent) {
+            this.context = context;
+            this.delegate = delegate;
+            this.parent = parent;
+        }
+
+        private <C> Graph<C> child(Graph<C> child) {
+            synchronized (context) {
+                @SuppressWarnings("unchecked") ChangeGraph<C> result =
+                        (ChangeGraph<C>) context.views.get(child);
+                if (result == null) {
+                    result = new ChangeGraph<>(context, child, this);
+                    context.views.put(child, result);
+                }
+                return result;
+            }
+        }
+
+        @Override public T get() { return delegate.get(); }
+        @Override public Object id() { return delegate.id(); }
+        @Override public Class<T> type() { return delegate.type(); }
+        @Override public Collection<?> aliases() { return delegate.aliases(); }
+        @Override public String relationshipPath() { return delegate.relationshipPath(); }
+        @Override public long stateIndex() { return delegate.stateIndex(); }
+        @Override public String lastEventId() { return delegate.lastEventId(); }
+        @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
+        @Override public long sequenceNumber() { return delegate.sequenceNumber(); }
+        @Override public Instant timestamp() { return delegate.timestamp(); }
+        @Override public Graph<?> root() { return context.root(); }
+        @Override public Optional<Graph<?>> parent() {
+            if (parent != null) {
+                return Optional.of(parent);
+            }
+            return delegate.parent().map(this::child).map(graph -> (Graph<?>) graph);
+        }
+        @Override public List<Graph<?>> parents() {
+            if (parent != null) {
+                return List.of(parent);
+            }
+            return delegate.parents().stream().<Graph<?>>map(this::child).toList();
+        }
+        @Override public <P> Optional<Graph<P>> parent(Class<P> parentType) {
+            List<Graph<P>> matches = parents().stream()
+                    .filter(candidate -> parentType.isAssignableFrom(candidate.type()))
+                    .map(Graphs::<P>cast).toList();
+            if (matches.size() > 1) {
+                throw new IllegalStateException(
+                        "Model %s has multiple parents assignable to %s"
+                                .formatted(id(), parentType.getName()));
+            }
+            return matches.stream().findFirst();
+        }
+        @Override public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
+            Graph<?> candidate = this;
+            while (candidate != null) {
+                if (ancestorType.isAssignableFrom(candidate.type())) {
+                    return Optional.of(Graphs.cast(candidate));
+                }
+                candidate = candidate.parent().orElse(null);
+            }
+            return Optional.empty();
+        }
+        @Override public List<Graph<?>> children() {
+            return delegate.children().stream().<Graph<?>>map(this::child).toList();
+        }
+        @Override public List<String> childPaths() { return delegate.childPaths(); }
+        @Override public <C> List<Graph<C>> children(Class<C> childType) {
+            return delegate.children(childType).stream().map(this::child).toList();
+        }
+        @Override public <C> List<Graph<C>> children(String path, Class<C> childType) {
+            return delegate.children(path, childType).stream().map(this::child).toList();
+        }
+        @Override public <D> List<Graph<D>> descendants(Class<D> descendantType) {
+            return stream().skip(1)
+                    .filter(candidate -> descendantType.isAssignableFrom(candidate.type()))
+                    .map(Graphs::<D>cast).toList();
+        }
+        @Override public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
+            String selectedPath = normalizePath(path);
+            List<Graph<D>> result = new ArrayList<>();
+            Deque<PathGraph> remaining = new ArrayDeque<>();
+            children().forEach(child -> remaining.addLast(
+                    new PathGraph(child, child.relationshipPath())));
+            while (!remaining.isEmpty()) {
+                PathGraph candidate = remaining.removeFirst();
+                if ((selectedPath == null
+                     || Objects.equals(selectedPath, candidate.path()))
+                    && descendantType.isAssignableFrom(
+                        candidate.graph().type())) {
+                    result.add(cast(candidate.graph()));
+                }
+                if (selectedPath == null
+                    || candidate.path() != null
+                    && selectedPath.startsWith(
+                        candidate.path() + '/')) {
+                    candidate.graph().children().forEach(child -> {
+                        String descendantPath = candidate.path() == null
+                                                || child.relationshipPath() == null
+                                ? null
+                                : candidate.path() + '/'
+                                  + child.relationshipPath();
+                        remaining.addLast(new PathGraph(
+                                child, descendantPath));
+                    });
+                }
+            }
+            return List.copyOf(result);
+        }
+
+        private static String normalizePath(String path) {
+            if (path == null) {
+                return null;
+            }
+            String result = path.strip();
+            while (result.startsWith("/")) {
+                result = result.substring(1);
+            }
+            while (result.endsWith("/")) {
+                result = result.substring(0, result.length() - 1);
+            }
+            if (result.isEmpty() || result.contains("//")) {
+                throw new IllegalArgumentException(
+                        "Graph descendant path must contain non-empty segments");
+            }
+            return result;
+        }
+
+        private record PathGraph(Graph<?> graph, String path) {
+        }
+        @Override public Graph<T> apply(Object update) { return delegate.apply(update); }
+        @Override public Graph<T> apply(Object update, Metadata metadata) {
+            return delegate.apply(update, metadata);
+        }
+        @Override public Graph<T> apply(DeserializingMessage update) { return delegate.apply(update); }
+        @Override public Graph<T> apply(Message update) { return delegate.apply(update); }
+        @Override public Graph<T> apply(Object... updates) { return delegate.apply(updates); }
+        @Override public Graph<T> apply(Collection<?> updates) { return delegate.apply(updates); }
+        @Override public Graph<T> update(UnaryOperator<T> update) { return delegate.update(update); }
+        @Override public Graph<T> commit() { return delegate.commit(); }
+        @Override public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
+            delegate.assertLegal(update);
+            return this;
+        }
+        @Override public Graph<T> assertAndApply(Object update) { return delegate.assertAndApply(update); }
+        @Override public Graph<T> assertAndApply(Object update, Metadata metadata) {
+            return delegate.assertAndApply(update, metadata);
+        }
+        @Override public Graph<T> previous() { return context.previous(delegate); }
+        @Override public Graph<T> atStateIndex(long stateIndex) { return delegate.atStateIndex(stateIndex); }
+        @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
+            return delegate.playBackToEvent(eventIndex, eventId);
         }
         @Override public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
             Objects.requireNonNull(condition, "condition");

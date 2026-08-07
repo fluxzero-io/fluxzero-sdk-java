@@ -34,6 +34,8 @@ import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
@@ -144,6 +146,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetModelGraphBefore.class, name = "getModelGraphBefore"),
         @JsonSubTypes.Type(value = GetModelGraphResult.class, name = "getModelGraphResult"),
         @JsonSubTypes.Type(value = GetModelAncestors.class, name = "getModelAncestors"),
+        @JsonSubTypes.Type(value = GetModelChange.class, name = "getModelChange"),
+        @JsonSubTypes.Type(value = GetModelChangeResult.class, name = "getModelChangeResult"),
         @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),
         @JsonSubTypes.Type(value = GetModelGraphProjectionStatus.class, name = "getModelGraphProjectionStatus"),
         @JsonSubTypes.Type(value = AwaitModelGraphProjection.class, name = "awaitModelGraphProjection"),

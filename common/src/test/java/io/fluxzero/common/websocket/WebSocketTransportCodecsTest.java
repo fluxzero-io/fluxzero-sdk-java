@@ -38,6 +38,8 @@ import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
@@ -49,6 +51,7 @@ import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelChangeTarget;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
@@ -815,6 +818,42 @@ class WebSocketTransportCodecsTest {
             assertEquals(1_000, decoded.getMaxModels());
             assertEquals(
                     2, decoded.toMetric().getRootCount());
+        }
+    }
+
+    @Test
+    void modelChangeRoundTripsExactTargetsAndBoundary()
+            throws Exception {
+        GetModelChange request = new GetModelChange(
+                "commit-991", 3);
+        GetModelChangeResult result = new GetModelChangeResult(
+                request.getRequestId(), "commit-991", 3,
+                91L, 72L,
+                List.of(
+                        new ModelChangeTarget(
+                                "line-1", "example.Line"),
+                        new ModelChangeTarget(
+                                "order-1", "example.Order")));
+
+        for (WebSocketTransportCodec codec :
+                List.of(jsonCodec, cborCodec)) {
+            GetModelChange decodedRequest = assertInstanceOf(
+                    GetModelChange.class,
+                    roundTrip(codec, request));
+            assertEquals("commit-991", decodedRequest.getCommitId());
+            assertEquals(3, decodedRequest.getSubstep());
+
+            GetModelChangeResult decodedResult = assertInstanceOf(
+                    GetModelChangeResult.class,
+                    roundTrip(codec, result));
+            assertEquals(91L, decodedResult.getStateIndex());
+            assertEquals(72L, decodedResult.getEventIndex());
+            assertEquals(
+                    List.of("line-1", "order-1"),
+                    decodedResult.getTargets().stream()
+                            .map(ModelChangeTarget::getModelId)
+                            .toList());
+            assertEquals(2, decodedResult.toMetric().getTargetCount());
         }
     }
 

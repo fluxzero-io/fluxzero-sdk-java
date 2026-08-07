@@ -70,6 +70,7 @@ All metric messages are published by the SDK, except for `ConnectEvent` and `Dis
 | **GetModelEvents** | Batch-loads modelstream memberships at one state boundary. |
 | **GetModelEventsResult$Metric** | Reports stream, payload, membership and byte counts. |
 | **GetModelGraph / GetModelGraphResult$Metric** | Loads a bounded current or historical model graph. |
+| **GetModelChange / GetModelChangeResult$Metric** | Resolves the target count and exact boundary of one durable model-commit substep for a graph-change handler. |
 | **GetModelAncestors** | Resolves bounded temporal ancestor dependencies. |
 | **PlanModelDeletion / DeleteModel** | Plans or executes model hard deletion. |
 

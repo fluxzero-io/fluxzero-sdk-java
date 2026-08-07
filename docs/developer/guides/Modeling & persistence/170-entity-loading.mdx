@@ -172,6 +172,32 @@ parameter rules. They share one current handler load context: event-sourced targ
 while document-loaded targets remain current-only direct-document reads. Handler selection itself performs no
 repository I/O.
 
+## Handling complete graph changes
+
+Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one of
+its descendants:
+
+```java
+@HandleEvent
+void organisationChanged(Graph<Organisation> graph) {
+    Graph<Organisation> before = graph.previous();
+}
+```
+
+Fluxzero reads the affected model identities from the exact durable model-commit substep, so the published event does
+not need to repeat the root ID. Each affected root is invoked once, even when several models in that graph changed in
+one atomic action. `graph.previous()` is the complete graph immediately before that action, independent of the model
+cache depth.
+
+- creation supplies the new graph and no previous graph;
+- deletion supplies an empty current graph and the complete deleted graph through `previous()`;
+- moving a child invokes the handler for both the old and the new root;
+- `@HandleNotification void changed(Graph<Organisation> graph)` has the same graph semantics without regular consumer
+  segmentation.
+
+A handler that also declares the explicit event payload remains an ordinary payload handler. Its `Graph<T>` parameter
+keeps the direct or ancestor-injection semantics described above.
+
 ## Loading a complete model graph
 
 Relations declared with `@ParentId` can be traversed without turning the models back into one permanent consistency

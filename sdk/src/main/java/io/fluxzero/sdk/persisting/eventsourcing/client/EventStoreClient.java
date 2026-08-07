@@ -22,6 +22,8 @@ import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -135,6 +137,12 @@ public interface EventStoreClient extends AutoCloseable {
     default GetModelGraphResult getModelAncestors(GetModelAncestors request) {
         throw new UnsupportedOperationException(
                 "Independent model ancestor loading is not supported by this event store");
+    }
+
+    /** Resolves the durable targets of one model-commit substep. */
+    default GetModelChangeResult getModelChange(GetModelChange request) {
+        throw new UnsupportedOperationException(
+                "Independent model change lookup is not supported by this event store");
     }
 
     /**

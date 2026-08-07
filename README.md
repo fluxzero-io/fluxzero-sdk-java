@@ -3226,6 +3226,21 @@ and lifecycle handling but do not invent a JSON field name. The serializer emits
 array, including a stable empty `[]`. `selectPaths(...)` creates a lazy immutable response view containing only selected
 branches and their ancestors without copying model values.
 
+An event or notification handler with only one unqualified `Graph<T>` parameter subscribes to durable changes anywhere
+below that root:
+
+```java
+@HandleEvent
+void organisationChanged(Graph<Organisation> graph) {
+    Graph<Organisation> before = graph.previous();
+}
+```
+
+The SDK resolves affected roots from the exact durable model-commit substep, rather than requiring IDs in the event
+payload. One root is delivered once even when several descendants changed atomically. Creation has no previous graph,
+deletion supplies an empty current graph plus its complete previous graph, and a child move delivers both the old and
+new roots. Ordinary handlers that also declare an event payload keep their existing direct model-injection semantics.
+
 Logical deletion follows model ownership by default. When a parent is finally deleted, every child relation whose
 `@ParentId` keeps `deleteOnParentDeletion = true` recursively deletes that child, including pathless relations and
 shared-DAG descendants. Set it to `false` for independently retained children. A child moved away in the same atomic

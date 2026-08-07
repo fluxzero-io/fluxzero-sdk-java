@@ -209,6 +209,20 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void validatesModelChangeBoundary() {
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                new GetModelChange("commit-1", 0)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        new GetModelChange(" ", 0)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        new GetModelChange("commit-1", -1)));
+    }
+
+    @Test
     void validatesDeletionBounds() {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 new PlanModelDeletion("root-1", ModelDeletionCascade.NONE)));

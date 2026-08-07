@@ -19,6 +19,7 @@ package io.fluxzero.sdk.persisting.repository;
 import io.fluxzero.sdk.modeling.Graph;
 
 import java.util.Optional;
+import java.util.List;
 
 /**
  * Optional repository capability for resolving a typed ancestor from relationship identities before loading model
@@ -96,4 +97,19 @@ public interface ModelAncestorResolver {
             Class<?> modelType,
             Class<A> ancestorType,
             Boundary boundary);
+
+    /**
+     * Resolves every reachable ancestor assignable to {@code ancestorType} at one boundary.
+     * <p>
+     * The singular method remains the ergonomic default for normal graph traversal. Change subscriptions use this
+     * form because one changed model may be shared by multiple roots.
+     */
+    default <A> List<Graph<A>> loadAncestorGraphs(
+            String modelId,
+            Class<?> modelType,
+            Class<A> ancestorType,
+            Boundary boundary) {
+        return loadAncestorGraph(modelId, modelType, ancestorType, boundary)
+                .stream().toList();
+    }
 }

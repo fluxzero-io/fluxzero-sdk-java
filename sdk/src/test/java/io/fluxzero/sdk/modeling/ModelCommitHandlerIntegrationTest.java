@@ -36,6 +36,7 @@ import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.root.RootConsumerModelCommand;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,6 +63,117 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class ModelCommitHandlerIntegrationTest {
+
+    @Test
+    void graphOnlyHandlersObserveEveryAffectedRootWithCompletePreviousGraph() {
+        FamilyRootId firstRootId = new FamilyRootId("change-first");
+        FamilyRootId secondRootId = new FamilyRootId("change-second");
+        FamilyChildId childId = new FamilyChildId("change-child");
+        List<Graph<FamilyRoot>> events = new CopyOnWriteArrayList<>();
+        List<Graph<FamilyRoot>> notifications = new CopyOnWriteArrayList<>();
+
+        TestFixture.create()
+                .registerHandlers(
+                        new Object() {
+                            @HandleEvent
+                            void handle(Graph<FamilyRoot> graph) {
+                                events.add(graph);
+                            }
+                        },
+                        new Object() {
+                            @HandleNotification
+                            void handle(Graph<FamilyRoot> graph) {
+                                notifications.add(graph);
+                            }
+                        })
+                .givenCommands(
+                        new CreateFamilyRoot(firstRootId, "first"),
+                        new CreateFamilyRoot(secondRootId, "second"),
+                        new CreateFamilyChild(childId, firstRootId, "child"))
+                .whenApplying(fluxzero -> {
+                    events.clear();
+                    notifications.clear();
+                    return fluxzero.commandGateway().sendAndWait(
+                            new MoveFamilyChild(childId, secondRootId));
+                })
+                .expectThat(ignored -> {
+                    assertMovedChildGraphs(
+                            events, firstRootId, secondRootId, childId);
+                    assertMovedChildGraphs(
+                            notifications, firstRootId, secondRootId, childId);
+                });
+    }
+
+    @Test
+    void graphOnlyHandlerDeduplicatesCascadeTargetsAndRetainsDeletedGraphHistory() {
+        FamilyRootId rootId = new FamilyRootId("change-delete");
+        FamilyChildId firstChild = new FamilyChildId("change-delete-first");
+        FamilyChildId secondChild = new FamilyChildId("change-delete-second");
+        List<Graph<FamilyRoot>> events = new CopyOnWriteArrayList<>();
+
+        TestFixture.create()
+                .registerHandlers(new Object() {
+                    @HandleEvent
+                    void handle(Graph<FamilyRoot> graph) {
+                        events.add(graph);
+                    }
+                })
+                .givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateFamilyChild(firstChild, rootId, "first"),
+                        new CreateFamilyChild(secondChild, rootId, "second"),
+                        new CreateFamilyGrandchild(
+                                new FamilyGrandchildId("change-delete"),
+                                firstChild, secondChild))
+                .whenApplying(fluxzero -> {
+                    events.clear();
+                    return fluxzero.commandGateway().sendAndWait(
+                            new DeleteFamilyRoot(rootId));
+                })
+                .expectThat(ignored -> {
+                    assertEquals(1, events.size());
+                    Graph<FamilyRoot> deleted = events.getFirst();
+                    assertTrue(deleted.isEmpty());
+                    assertEquals(
+                            Set.of(firstChild, secondChild),
+                            Set.copyOf(deleted.previous()
+                                               .childModels(
+                                                       "children",
+                                                       FamilyChild.class)
+                                               .stream()
+                                               .map(FamilyChild::familyChildId)
+                                               .toList()));
+                });
+    }
+
+    private static void assertMovedChildGraphs(
+            List<Graph<FamilyRoot>> graphs,
+            FamilyRootId firstRootId,
+            FamilyRootId secondRootId,
+            FamilyChildId childId) {
+        assertEquals(2, graphs.size());
+        Graph<FamilyRoot> first = graphs.stream()
+                .filter(graph -> firstRootId.equals(
+                        graph.get().familyRootId()))
+                .findFirst().orElseThrow();
+        Graph<FamilyRoot> second = graphs.stream()
+                .filter(graph -> secondRootId.equals(
+                        graph.get().familyRootId()))
+                .findFirst().orElseThrow();
+
+        assertTrue(first.childModels("children", FamilyChild.class).isEmpty());
+        assertEquals(
+                List.of(childId),
+                first.previous().childModels("children", FamilyChild.class)
+                        .stream().map(FamilyChild::familyChildId).toList());
+        assertEquals(
+                List.of(childId),
+                second.childModels("children", FamilyChild.class)
+                        .stream().map(FamilyChild::familyChildId).toList());
+        assertTrue(second.previous()
+                           .childModels("children", FamilyChild.class)
+                           .isEmpty());
+    }
 
     @Test
     void payloadApplyCommitsModelAndDirectSearchBeforeCommandCompletion() {

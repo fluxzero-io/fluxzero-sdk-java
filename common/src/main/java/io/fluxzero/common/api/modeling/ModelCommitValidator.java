@@ -328,6 +328,19 @@ public final class ModelCommitValidator {
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count", true);
     }
 
+    /** Validates one durable model-change lookup. */
+    public static void validate(GetModelChange request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Model change request is required");
+        }
+        if (request.getCommitId() == null || request.getCommitId().isBlank()) {
+            throw new IllegalArgumentException("Model commit ID is required");
+        }
+        if (request.getSubstep() < 0) {
+            throw new IllegalArgumentException("Model commit substep must be non-negative");
+        }
+    }
+
     private static void validateGraphBounds(
             String description,
             int maxDepth,
