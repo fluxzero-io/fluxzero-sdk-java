@@ -2428,6 +2428,41 @@ disabling the runtime endpoint or model. Use `@ApiDocInfo.security` for top-leve
 `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI components such as reusable responses or
 security schemes when automatic inference is not enough.
 
+#### Request Cookies
+
+[HTTP/2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.3) and
+[HTTP/3](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2.1) can split one logical `Cookie` field over multiple
+field lines for compression. `WebRequest` parses all received `Cookie` values in logical wire order, whether the HTTP
+layer preserves those field lines or combines them with `; `. Commas are cookie-value data, not cookie-pair separators.
+
+```java
+List<HttpCookie> allCookies = request.getCookies();
+List<HttpCookie> sessions = request.getCookies("session");
+Optional<HttpCookie> firstSession = request.getCookie("session");
+```
+
+`getCookies()` returns every cookie without collapsing duplicate names. `getCookies(name)` uses an exact,
+case-sensitive name match. HTTP header names remain case-insensitive, so `Cookie` and `cookie` identify the same header;
+cookie names such as `Session` and `session` remain distinct.
+
+`getCookie(name)` retains its existing first-match behavior and uses `CookieValueConflictPolicy.DEFAULT`, which is
+`ALLOW_CONFLICTING_VALUES` in this release. It now also finds a first match in a later cookie field. Callers that need
+every value should use `getCookies(name)` instead of splitting raw headers.
+
+For security-sensitive cookies, reject conflicting values explicitly:
+
+```java
+HttpCookie session = request
+        .getCookie("session", CookieValueConflictPolicy.REJECT_CONFLICTING_VALUES)
+        .orElseThrow();
+```
+
+`REJECT_CONFLICTING_VALUES` accepts repeated cookies when their parsed values are exactly equal and throws a redacted
+`CookieConflictException` when any value differs. The exception contains no cookie name or value. Use this policy for
+session, authentication, authorization, flow-binding, and CSRF cookies so different processing layers cannot select
+different values from the same request. Cookie headers and values are excluded from `WebRequest` and builder
+`toString()` output.
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:
