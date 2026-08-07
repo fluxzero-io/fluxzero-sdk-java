@@ -65,6 +65,61 @@ import static org.mockito.Mockito.verify;
 class ModelCommitHandlerIntegrationTest {
 
     @Test
+    void explicitGraphUpdateCreatesAndReplaysAnIndependentModel() {
+        AccountId accountId = new AccountId("direct-graph-create");
+
+        TestFixture.create(Account.class)
+                .whenExecuting(ignored -> Fluxzero.loadGraph(accountId)
+                        .update(current -> new Account(accountId, 41))
+                        .commit())
+                .expectNoEvents()
+                .expectThat(fluxzero -> {
+                    assertEquals(1L, fluxzero.eventStore()
+                            .getEvents(accountId.toString()).count());
+                    fluxzero.cache().clear();
+                    assertEquals(new Account(accountId, 41),
+                                 fluxzero.modelRepository().load(accountId).get());
+                });
+    }
+
+    @Test
+    void explicitGraphUpdateCommitsAnExistingIndependentModel() {
+        AccountId accountId = new AccountId("direct-graph-update");
+
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(accountId, 41))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(accountId)
+                        .update(current -> new Account(accountId, current.balance() + 1))
+                        .commit())
+                .expectNoEvents()
+                .expectThat(fluxzero -> {
+                    assertEquals(2L, fluxzero.eventStore()
+                            .getEvents(accountId.toString()).count());
+                    fluxzero.cache().clear();
+                    assertEquals(new Account(accountId, 42),
+                                 fluxzero.modelRepository().load(accountId).get());
+                });
+    }
+
+    @Test
+    void explicitGraphUpdateCommitsAnExistingDocumentModel() {
+        InventoryId inventoryId = new InventoryId("direct-document-update");
+
+        TestFixture.create(Inventory.class)
+                .givenCommands(new CreateInventory(inventoryId, 41))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(inventoryId)
+                        .update(current -> new Inventory(
+                                inventoryId, current.available() + 1))
+                        .commit())
+                .expectNoEvents()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(new Inventory(inventoryId, 42),
+                                 fluxzero.modelRepository().load(inventoryId).get());
+                });
+    }
+
+    @Test
     void graphOnlyHandlersObserveEveryAffectedRootWithCompletePreviousGraph() {
         FamilyRootId firstRootId = new FamilyRootId("change-first");
         FamilyRootId secondRootId = new FamilyRootId("change-second");

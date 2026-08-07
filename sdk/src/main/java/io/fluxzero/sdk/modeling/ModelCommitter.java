@@ -623,8 +623,13 @@ final class ModelCommitter {
             }
             String messageId = appliedSubstep.message().getMessageId();
             if (direct) {
-                List<EffectiveTransition> published = transitions.stream()
-                        .filter(EffectiveTransition::publishEvent).toList();
+                List<EffectiveTransition> published =
+                        appliedSubstep.message().getPayload()
+                                instanceof DirectGraphCommit
+                                ? List.of()
+                                : transitions.stream()
+                                        .filter(EffectiveTransition::publishEvent)
+                                        .toList();
                 if (!published.isEmpty()) {
                     graphPublications.computeIfAbsent(
                             messageId, ignored -> new ArrayList<>()).addAll(published);

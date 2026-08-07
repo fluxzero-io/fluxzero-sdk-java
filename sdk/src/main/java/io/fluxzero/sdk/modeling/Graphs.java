@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
@@ -189,6 +190,23 @@ public final class Graphs {
         }
     }
 
+    static List<Graph<?>> refreshStaged(Graph<?> graph) {
+        return stagedChanges(graph).stream()
+                .map(Graphs::refreshStaged)
+                .toList();
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Graph<?> refreshStaged(StagedModelChange change) {
+        Graph current = Fluxzero.loadGraph(change.modelId(), change.modelType());
+        return current.update(value -> change.replay().apply(
+                ImmutableEntity.builder()
+                        .id(change.modelId())
+                        .type((Class) change.modelType())
+                        .value(value)
+                        .build()).get());
+    }
+
     @FunctionalInterface
     interface StagedReplay {
         Entity<?> apply(Entity<?> current);
@@ -197,7 +215,7 @@ public final class Graphs {
     record StagedModelChange(
             String modelId,
             Class<?> modelType,
-            long expectedStateIndex,
+            Long expectedStateIndex,
             Object after,
             StagedReplay replay) {
         StagedModelChange {
@@ -450,7 +468,9 @@ public final class Graphs {
                     modelId, entity.type(),
                     previous == null
                             ? entity instanceof ModelRoot<?> root
-                                    ? root.stateIndex() : stateIndex
+                                      && root.stateIndex() >= 0
+                                    ? root.stateIndex()
+                                    : stateIndex >= 0 ? stateIndex : null
                             : previous.expectedStateIndex(),
                     entity.get(), combined));
             return Graphs.lazy(
@@ -875,6 +895,12 @@ public final class Graphs {
 
         @Override
         public Graph<T> commit() {
+            if (!context.stagedChanges.isEmpty()
+                && Fluxzero.getOptionally().isPresent()
+                && ModelMetadata.of(type()).isModel()) {
+                Fluxzero.assertAndApply(new DirectGraphCommit(this));
+                return Fluxzero.loadGraph(id(), type());
+            }
             return context.replaceUnstaged(
                     entity().commit(), context.stateIndex);
         }
