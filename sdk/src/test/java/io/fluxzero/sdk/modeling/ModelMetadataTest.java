@@ -231,6 +231,15 @@ class ModelMetadataTest {
     }
 
     @Test
+    void resolvesApplyTargetFromGenericHandlerContract() {
+        ModelMetadata.HandlerMethod handler = ModelMetadata.of(DeleteParentModel.class)
+                .applyMethods().getFirst();
+
+        assertEquals(List.of(ParentModel.class), handler.targetModelTypes());
+        assertEquals(DeleteModel.class, handler.executable().getDeclaringClass());
+    }
+
+    @Test
     void capturesModelReceiverDependencies() {
         List<ModelMetadata.HandlerMethod> handlers = ModelMetadata.of(ReceiverModel.class).handlerMethods();
 
@@ -471,6 +480,9 @@ class ModelMetadataTest {
         Object intercept(ParentModel parent) {
             return this;
         }
+    }
+
+    private record DeleteParentModel(ParentModelId parentId) implements DeleteModel<ParentModel> {
     }
 
     @Model

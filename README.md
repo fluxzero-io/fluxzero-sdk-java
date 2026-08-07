@@ -3225,6 +3225,16 @@ stored and published. `@Model` defaults `eventPublication` to `IF_MODIFIED`, so 
 produce an event; use `ALWAYS` explicitly for intentional no-op domain notifications. Direct searchable documents are
 synchronous with model-commit completion.
 
+For an update whose sole model transition is deletion, implement `DeleteModel<T>` instead of repeating an
+`@Apply` method that returns `null`:
+
+```java
+record DeleteUser(UserId userId) implements DeleteModel<User> {
+}
+```
+
+Normal target resolution, assertions, interceptors, event publication and atomic multi-model handling still apply.
+
 Load current state with `Fluxzero.loadModel(id)`. Any selected message handler can inject directly addressed models and
 their parents, grandparents or further ancestors as `T` or lazy `Graph<T>`. Event and notification handlers receive the
 exact state and relations at that event's model-commit boundary; command, query, schedule, result, error, metrics,

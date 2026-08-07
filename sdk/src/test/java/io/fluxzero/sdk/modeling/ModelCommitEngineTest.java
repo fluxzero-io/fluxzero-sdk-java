@@ -107,6 +107,20 @@ class ModelCommitEngineTest {
     }
 
     @Test
+    void genericDeleteContractStagesLogicalDelete() {
+        DeleteOrderContract command = new DeleteOrderContract(new OrderId("1"));
+        List<ModelMetadata.HandlerMethod> handlers = ModelMetadata.of(DeleteOrderContract.class).handlerMethods();
+        Entity<Order> order = entity(command.orderId(), new Order(command.orderId(), "pending"));
+        ModelCommitContext begin = context(command, handlers, order);
+
+        ModelCommitEngine.Evaluation result = engine.evaluate(message(command), begin, handlers);
+
+        assertEquals(1, result.transitions().size());
+        assertNull(result.transitions().getFirst().after());
+        assertNull(result.resultingState().resolve(Order.class, null).get());
+    }
+
+    @Test
     void createsWriteOnlyTargetFromReturnedModel() {
         CreateOrder command = new CreateOrder(new OrderId("new"));
         List<ModelMetadata.HandlerMethod> handlers =
@@ -838,6 +852,9 @@ class ModelCommitEngineTest {
         Order delete(Order order) {
             return null;
         }
+    }
+
+    private record DeleteOrderContract(OrderId orderId) implements DeleteModel<Order> {
     }
 
     private record CreateOrder(OrderId orderId) {

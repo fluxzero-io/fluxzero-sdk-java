@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
+import io.fluxzero.common.reflection.GenericTypeResolver;
 import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -659,10 +660,11 @@ public final class ModelMetadata {
         }
     }
 
-    private static List<Class<?>> inspectApplyTargets(Executable executable) {
+    private List<Class<?>> inspectApplyTargets(Executable executable) {
         Class<?> resultType = switch (executable) {
             case Constructor<?> constructor -> constructor.getDeclaringClass();
-            case Method method -> method.getReturnType();
+            case Method method -> ReflectionUtils.rawClass(GenericTypeResolver.resolve(
+                    method.getGenericReturnType(), type, method.getDeclaringClass()));
             default -> Object.class;
         };
         return isModelType(resultType) ? List.of(resultType) : List.of();

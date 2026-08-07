@@ -55,7 +55,14 @@ public class GenericTypeResolver {
         return resolveType(clazz, target, new HashMap<>());
     }
 
-    static Type resolve(Type type, Class<?> contextType, Class<?> declaringType) {
+    /**
+     * Resolves a type declared by {@code declaringType} in the generic context of {@code contextType}.
+     *
+     * @param type          declared type to resolve
+     * @param contextType   concrete subtype that supplies the type arguments
+     * @param declaringType type that declares {@code type}
+     */
+    public static Type resolve(Type type, Class<?> contextType, Class<?> declaringType) {
         if (contextType.equals(declaringType)) {
             return type;
         }
