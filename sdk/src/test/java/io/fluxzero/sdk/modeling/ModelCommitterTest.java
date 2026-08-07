@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelCommitValidator;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -174,11 +175,16 @@ class ModelCommitterTest {
         ModelCommitter.PreparedCommit prepared =
                 committer.prepare("standalone-graph", evaluation);
 
+        ModelCommitValidator.validate(prepared.commit());
         assertEquals(2, prepared.commit().getSubsteps().size());
         var publication = prepared.commit().getSubsteps().getFirst();
         assertEquals(UpdateOrder.class.getName(), publication.getEvent().getType());
         assertTrue(publication.isPublishEvent());
-        assertTrue(publication.getTargets().isEmpty());
+        assertEquals(1, publication.getTargets().size());
+        assertEquals(id.toString(), publication.getTargets().getFirst().getModelId());
+        assertNull(publication.getTargets().getFirst().getExpectedSequenceNumber());
+        assertFalse(publication.getTargets().getFirst().isStoreEvent());
+        assertFalse(publication.getTargets().getFirst().isUpdateState());
         var storage = prepared.commit().getSubsteps().getLast();
         assertEquals(DirectModelUpdate.class.getName(), storage.getEvent().getType());
         assertFalse(storage.isPublishEvent());

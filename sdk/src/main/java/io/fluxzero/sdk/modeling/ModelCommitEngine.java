@@ -188,7 +188,9 @@ final class ModelCommitEngine {
                 if (graphChangeMessage != null) {
                     AppliedSubstep change = evaluateGraphChange(
                             graphChangeMessage.change,
-                            resolved.context(), readStateIndex);
+                            context, readStateIndex,
+                            stagedValues.containsKey(
+                                    graphChangeMessage.change.modelId()));
                     stagedValues.put(
                             change.transitions().getFirst().modelId(),
                             change.transitions().getFirst().after());
@@ -259,7 +261,8 @@ final class ModelCommitEngine {
     private static AppliedSubstep evaluateGraphChange(
             StagedGraphChange change,
             ModelCommitContext context,
-            long readStateIndex) {
+            long readStateIndex,
+            boolean alreadyStaged) {
         String modelId = change.modelId();
         Class<?> modelType = change.modelType();
         long targetStateIndex = targetStateIndex(
@@ -276,7 +279,7 @@ final class ModelCommitEngine {
                     "Staged graph '%s' of type %s is not a resolved write target"
                             .formatted(modelId, modelType.getName()));
         }
-        Object after = change.expectedStateIndex() == null
+        Object after = change.expectedStateIndex() == null || alreadyStaged
                 ? change.replay().apply(target.entity()).get()
                 : change.after();
         Transition transition = new Transition(
@@ -310,16 +313,47 @@ final class ModelCommitEngine {
                    != (addition.message() instanceof GraphChangeMessage)) {
                 continue;
             }
-            List<Transition> transitions = new ArrayList<>(
-                    existing.transitions().size()
-                    + addition.transitions().size());
-            transitions.addAll(existing.transitions());
-            transitions.addAll(addition.transitions());
+            LinkedHashMap<String, Transition> transitions =
+                    new LinkedHashMap<>();
+            existing.transitions().forEach(
+                    transition -> mergeGraphTransition(
+                            transitions, transition));
+            addition.transitions().forEach(
+                    transition -> mergeGraphTransition(
+                            transitions, transition));
             appliedSubsteps.set(i, new AppliedSubstep(
-                    existing.message(), transitions));
+                    existing.message(), List.copyOf(transitions.values())));
             return;
         }
         appliedSubsteps.add(addition);
+    }
+
+    private static void mergeGraphTransition(
+            Map<String, Transition> transitions,
+            Transition addition) {
+        Transition previous = transitions.get(addition.modelId());
+        if (previous == null) {
+            transitions.put(addition.modelId(), addition);
+            return;
+        }
+        if (!Objects.equals(previous.modelType(), addition.modelType())) {
+            throw new IllegalStateException(
+                    "Graph changes target repository id '%s' as both %s and %s"
+                            .formatted(
+                                    addition.modelId(),
+                                    previous.modelType().getName(),
+                                    addition.modelType().getName()));
+        }
+        Graphs.StagedReplay previousReplay = Objects.requireNonNull(
+                previous.stagedReplay(), "Merged graph transition has no replay");
+        Graphs.StagedReplay additionReplay = Objects.requireNonNull(
+                addition.stagedReplay(), "Merged graph transition has no replay");
+        transitions.put(addition.modelId(), new Transition(
+                previous.modelId(), previous.modelType(),
+                previous.beforeSequenceNumber(), previous.beforeLastEventIndex(),
+                previous.before(), addition.after(), addition.handler(),
+                current -> additionReplay.apply(previousReplay.apply(current)),
+                addition.cascadedDeletion()));
     }
 
     /**

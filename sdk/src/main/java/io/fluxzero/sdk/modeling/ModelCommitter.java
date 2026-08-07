@@ -669,8 +669,16 @@ final class ModelCommitter {
                 publication.setSource(source);
                 applyEventRouting(publication, graphPublished);
                 publication = SerializedMessage.encode(publication);
+                EffectiveTransition anchor = graphPublished.getFirst();
+                ModelCommitTarget publicationTarget = target(
+                        new EffectiveTransition(
+                                anchor.transition(), false, true,
+                                false, anchor.plan()),
+                        appliedSubstep.message(),
+                        anchor.transition().beforeSequenceNumber(), false)
+                        .toBuilder().expectedSequenceNumber(null).build();
                 substeps.add(new ModelCommitStep(
-                        publication, true, List.of()));
+                        publication, true, List.of(publicationTarget)));
                 transitionGroups.add(List.of());
                 messages.add(appliedSubstep.message());
             }

@@ -485,6 +485,49 @@ class ModelCommitEngineTest {
     }
 
     @Test
+    void combinesRepeatedGraphUpdatesToOneModelInTheSameCommitSubstep() {
+        OrderId orderId = new OrderId("repeated-graph-update");
+        InventoryId inventoryId = new InventoryId("repeated-graph-update");
+        Entity<Order> order = entity(orderId, new Order(orderId, "pending"));
+        Entity<Inventory> inventory = entity(
+                inventoryId, new Inventory(inventoryId, 5));
+        Graph<Inventory> first = Graphs.lazy(
+                inventory, 77L, mock(ModelRepository.class));
+        Graph<Inventory> second = Graphs.lazy(
+                inventory, 77L, mock(ModelRepository.class));
+        AdjustInventoryGraphs command = new AdjustInventoryGraphs(
+                orderId, first, second);
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
+                message(command), graphResolver(
+                        77L, Map.of(orderId.toString(), order,
+                                    inventoryId.toString(), inventory)));
+
+        assertEquals(8, ((Inventory) result.finalValues()
+                .get(inventoryId.toString())).available());
+        assertEquals(2, result.substeps().size());
+        assertEquals(1, result.substeps().getLast().transitions().size());
+        ModelCommitEngine.Transition combined =
+                result.substeps().getLast().transitions().getFirst();
+        assertEquals(new Inventory(inventoryId, 5), combined.before());
+        assertEquals(new Inventory(inventoryId, 8), combined.after());
+
+        Entity<Inventory> concurrent = entity(
+                inventoryId, new Inventory(inventoryId, 9));
+        DeserializingMessage event = result.substeps().getFirst().message();
+        ModelCommitEngine.CommitEvaluation rebased = engine.rebase(
+                List.of(event, ModelCommitEngine.graphChangeReplay(
+                        event, inventoryId.toString(), Inventory.class,
+                        combined.stagedReplay())),
+                graphResolver(
+                        88L, Map.of(orderId.toString(), order,
+                                    inventoryId.toString(), concurrent)));
+
+        assertEquals(12, ((Inventory) rebased.finalValues()
+                .get(inventoryId.toString())).available());
+        assertEquals(1, rebased.substeps().getLast().transitions().size());
+    }
+
+    @Test
     void rejectsSubstepLoadedAtAnotherStateBoundary() {
         InventoryId id = new InventoryId("one");
         BulkInventoryUpdate command =
@@ -939,6 +982,26 @@ class ModelCommitEngineTest {
         List<?> expand() {
             return List.of(this, inventory.update(value -> new Inventory(
                     value.inventoryId(), value.available() + delta)));
+        }
+
+        @Apply
+        Order retain(Order order) {
+            return order;
+        }
+    }
+
+    private record AdjustInventoryGraphs(
+            OrderId orderId,
+            Graph<Inventory> first,
+            Graph<Inventory> second) {
+        @InterceptApply
+        List<?> expand() {
+            return List.of(
+                    this,
+                    first.update(value -> new Inventory(
+                            value.inventoryId(), value.available() + 1)),
+                    second.update(value -> new Inventory(
+                            value.inventoryId(), value.available() + 2)));
         }
 
         @Apply

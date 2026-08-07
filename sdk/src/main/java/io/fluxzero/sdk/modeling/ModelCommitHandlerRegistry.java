@@ -1548,6 +1548,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     committed.prepared().transitionGroups().get(substep);
             var substepResult = committed.result().getSubsteps().get(substep);
             var commitStep = committed.prepared().commit().getSubsteps().get(substep);
+            if (commitStep.getTargets().size()
+                != substepResult.getTargets().size()) {
+                throw new IllegalStateException(
+                        "Model commit returned a different number of targets than requested");
+            }
+            if (transitions.isEmpty()) {
+                continue;
+            }
             if (transitions.size() != substepResult.getTargets().size()) {
                 throw new IllegalStateException(
                         "Model commit returned a different number of targets than requested");
