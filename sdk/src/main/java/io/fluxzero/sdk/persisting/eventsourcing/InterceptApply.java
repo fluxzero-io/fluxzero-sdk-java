@@ -43,6 +43,8 @@ import java.util.Collection;
  *     <li>The original update (no change)</li>
  *     <li>{@code null} or {@code void} to suppress the update</li>
  *     <li>An {@link java.util.Optional}, {@link Collection}, or {@link java.util.stream.Stream} to emit zero or more updates</li>
+ *     <li>A deleted {@link io.fluxzero.sdk.modeling.Graph} returned by
+ *         {@link io.fluxzero.sdk.modeling.Graph#delete()} to delete that independently stored model in the same commit</li>
  *     <li>A different object to replace the update</li>
  * </ul>
  *
@@ -52,7 +54,7 @@ import java.util.Collection;
  *     <li>The current entity (if it exists)</li>
  *     <li>Any parent or ancestor entity in the aggregate</li>
  *     <li>Any independently stored {@link io.fluxzero.sdk.modeling.Model @Model} loaded for the current model commit,
- *         either as its value or as {@link io.fluxzero.sdk.modeling.Entity}{@code <T>}</li>
+ *         either as its value or as a lazy {@link io.fluxzero.sdk.modeling.Graph}{@code <T>}</li>
  *     <li>The update object (if defined on the entity side)</li>
  *     <li>Context like {@link io.fluxzero.common.api.Metadata}, {@link io.fluxzero.sdk.common.Message}, or
  *         {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>
@@ -100,7 +102,18 @@ import java.util.Collection;
  * }
  * }</pre>
  *
- * <h3>4. Recursive interception</h3>
+ * <h3>4. Delete a graph child in the same commit</h3>
+ * <pre>{@code
+ * @InterceptApply
+ * List<?> unlink(Graph<Order> order) {
+ *     return List.of(this, order.find(lineId, OrderLine.class)
+ *             .orElseThrow().delete());
+ * }
+ * }</pre>
+ * The original domain update remains the stored event for the deleted model. Ordinary graph updates should still be
+ * expressed as domain updates; only a graph returned after {@code delete()} is a supported interceptor result.
+ *
+ * <h3>5. Recursive interception</h3>
  * <p>
  * If the result of one {@code @InterceptApply} method is a new update object, Fluxzero will look for matching
  * interceptors for the new value as well — continuing recursively until no further changes occur.

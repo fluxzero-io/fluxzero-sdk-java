@@ -3215,6 +3215,10 @@ repository boundary; document-loaded targets remain current-only direct-document
 and `descendants(...)` navigate relationships; `previous()`, `atStateIndex(...)` and `playBackToEvent(...)` expose
 history; and `apply(...)`, `assertAndApply(...)` or `delete()` stage model transitions. Graph creation itself performs
 only the same direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested.
+An `@InterceptApply` method may return a graph after `delete()`—including a child found through graph traversal—to
+delete that independent model atomically with the surrounding domain update. The original update remains the one
+stored event shared by every affected model target, and conflict acceptance reapplies the deletion against the fresh
+pinned boundary. Ordinary graph changes remain domain updates rather than opaque graph values.
 Typed ancestor navigation resolves relationship identities first and loads only the selected ancestor value; it does
 not materialize intermediate parent values. `optional()`,
 `map(...)`, `mapIfPresent(...)` and `filterPresent()` provide value/wrapper conveniences without traversing relations;

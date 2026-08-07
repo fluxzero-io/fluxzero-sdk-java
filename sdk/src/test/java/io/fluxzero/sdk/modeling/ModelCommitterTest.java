@@ -73,6 +73,71 @@ class ModelCommitterTest {
             DispatchInterceptor.noOp, "client-1");
 
     @Test
+    void preparesHandlerlessGraphDeletionUsingModelPublicationPolicy() {
+        StoredOnlyId id = new StoredOnlyId("graph-delete");
+        StoredOnly before = new StoredOnly(id);
+        RemoveStoredOnly event = new RemoveStoredOnly(id);
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(
+                        event,
+                        new ModelCommitEngine.Transition(
+                                id.toString(), StoredOnly.class, 0L,
+                                before, null, null)),
+                Map.of());
+
+        CommitModels commit = committer.prepare(
+                "graph-delete", evaluation).commit();
+
+        assertEquals(1, commit.getSubsteps().size());
+        assertEquals(
+                RemoveStoredOnly.class.getName(),
+                commit.getSubsteps().getFirst().getEvent().getType());
+        assertFalse(commit.getSubsteps().getFirst().isPublishEvent());
+        assertTrue(commit.getSubsteps().getFirst()
+                           .getTargets().getFirst().isStoreEvent());
+    }
+
+    @Test
+    void sharesOneDomainEventAcrossOrdinaryAndGraphDeletionTargets()
+            throws Exception {
+        StoredOnlyId storedId = new StoredOnlyId("delete");
+        PublishedOnlyId publishedId = new PublishedOnlyId("retain");
+        StoredOnly stored = new StoredOnly(storedId);
+        PublishedOnly published = new PublishedOnly(publishedId);
+        MixedUpdate event = new MixedUpdate(storedId, publishedId);
+        var evaluation = evaluation(
+                List.of(storedId.toString(), publishedId.toString()),
+                substep(
+                        event,
+                        transition(
+                                publishedId, PublishedOnly.class,
+                                published, published,
+                                MixedUpdate.class, "apply", PublishedOnly.class),
+                        new ModelCommitEngine.Transition(
+                                storedId.toString(), StoredOnly.class, 0L,
+                                stored, null, null)),
+                Map.of(publishedId.toString(), published));
+
+        ModelCommitter.PreparedCommit prepared =
+                committer.prepare("shared-event-delete", evaluation);
+
+        assertEquals(1, prepared.commit().getSubsteps().size());
+        assertEquals(2, prepared.commit().getSubsteps().getFirst()
+                .getTargets().size());
+        assertEquals(MixedUpdate.class.getName(), prepared.commit()
+                .getSubsteps().getFirst().getEvent().getType());
+        List<DeserializingMessage> rebaseMessages =
+                prepared.rebaseMessages();
+        assertEquals(2, rebaseMessages.size());
+        assertSame(event, rebaseMessages.getFirst().getPayload());
+        assertSame(event, rebaseMessages.getLast().getPayload());
+        assertEquals(
+                rebaseMessages.getFirst().getMessageId(),
+                rebaseMessages.getLast().getMessageId());
+    }
+
+    @Test
     void includesCompleteModelAliasesOnlyForAliasAwareTypes() throws Exception {
         AliasedId id = new AliasedId("1");
         AliasedModel value = new AliasedModel(
@@ -1259,6 +1324,9 @@ class ModelCommitterTest {
         PublishedOnly apply(PublishedOnly current) {
             return current;
         }
+    }
+
+    private record RemoveStoredOnly(StoredOnlyId id) {
     }
 
     private static class MockSearchFailure extends RuntimeException {

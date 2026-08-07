@@ -154,11 +154,20 @@ final class ModelCommitEngine {
                             "Model commit exceeded %d interceptor substeps".formatted(MAX_SUBSTEPS));
                 }
                 PendingSubstep current = pending.removeFirst();
+                GraphDeletionMessage graphDeletionMessage =
+                        current.message() instanceof GraphDeletionMessage deletionMessage
+                                ? deletionMessage : null;
                 ResolvedSubstep resolved = Objects.requireNonNull(
-                        resolver.resolve(
-                                current.message(),
-                                stateIndexPinned ? readStateIndex : null,
-                                stagedValues),
+                        graphDeletionMessage == null
+                                ? resolver.resolve(
+                                        current.message(),
+                                        stateIndexPinned ? readStateIndex : null,
+                                        stagedValues)
+                                : resolver.resolveGraph(
+                                        graphDeletionMessage.deletion.modelId(),
+                                        graphDeletionMessage.deletion.modelType(),
+                                        stateIndexPinned ? readStateIndex : null,
+                                        stagedValues),
                         "Substep resolver returned null");
                 if (!stateIndexPinned) {
                     readStateIndex = resolved.context().readStateIndex();
@@ -176,6 +185,15 @@ final class ModelCommitEngine {
                             entry.target().modelId(),
                             entry.target().modelType());
                 });
+                if (graphDeletionMessage != null) {
+                    AppliedSubstep deletion = evaluateGraphDeletion(
+                            graphDeletionMessage.deletion,
+                            resolved.context(), readStateIndex);
+                    stagedValues.put(
+                            deletion.transitions().getFirst().modelId(), null);
+                    mergeAppliedSubstep(appliedSubsteps, deletion);
+                    continue;
+                }
                 List<ModelMetadata.HandlerMethod> interceptors =
                         handlerPlan(resolved.handlers()).interceptors();
                 if (current.interceptionAllowed() && !interceptors.isEmpty()) {
@@ -237,6 +255,57 @@ final class ModelCommitEngine {
         }
     }
 
+    private static AppliedSubstep evaluateGraphDeletion(
+            StagedGraphDeletion deletion,
+            ModelCommitContext context,
+            long readStateIndex) {
+        String modelId = deletion.modelId();
+        Class<?> modelType = deletion.modelType();
+        if (deletion.expectedStateIndex() != null
+            && deletion.expectedStateIndex() != readStateIndex) {
+            throw new IllegalStateException(
+                    "Staged graph '%s' was loaded at state index %d while the commit is pinned at %d"
+                            .formatted(modelId, deletion.expectedStateIndex(), readStateIndex));
+        }
+        ModelCommitContext.Entry target = context.entry(modelId);
+        if (target == null || !context.mayWrite(modelId, modelType, null)) {
+            throw new IllegalStateException(
+                    "Staged graph '%s' of type %s is not a resolved write target"
+                            .formatted(modelId, modelType.getName()));
+        }
+        Transition transition = new Transition(
+                modelId, modelType,
+                target.entity() instanceof ModelRoot<?> modelRoot
+                        ? modelRoot.sequenceNumber() : -1L,
+                target.entity() instanceof ModelRoot<?> modelRoot
+                        ? modelRoot.lastEventIndex() : null,
+                target.entity().get(), null, null);
+        return new AppliedSubstep(
+                deletion.eventMessage(), List.of(transition));
+    }
+
+    private static void mergeAppliedSubstep(
+            List<AppliedSubstep> appliedSubsteps,
+            AppliedSubstep addition) {
+        String eventMessageId = addition.message().getMessageId();
+        for (int i = appliedSubsteps.size() - 1; i >= 0; i--) {
+            AppliedSubstep existing = appliedSubsteps.get(i);
+            if (!Objects.equals(
+                    existing.message().getMessageId(), eventMessageId)) {
+                continue;
+            }
+            List<Transition> transitions = new ArrayList<>(
+                    existing.transitions().size()
+                    + addition.transitions().size());
+            transitions.addAll(existing.transitions());
+            transitions.addAll(addition.transitions());
+            appliedSubsteps.set(i, new AppliedSubstep(
+                    existing.message(), transitions));
+            return;
+        }
+        appliedSubsteps.add(addition);
+    }
+
     /**
      * Re-applies already produced commit events against a new pinned model boundary.
      * <p>
@@ -252,7 +321,16 @@ final class ModelCommitEngine {
                     "A model commit rebase requires at least one applied message");
         }
         Deque<PendingSubstep> pending = new ArrayDeque<>(appliedMessages.size());
-        appliedMessages.forEach(message -> pending.add(new PendingSubstep(message, false)));
+        appliedMessages.forEach(message -> {
+            if (message instanceof GraphDeletionMessage deletionMessage) {
+                pending.add(new PendingSubstep(
+                        new GraphDeletionMessage(
+                                deletionMessage.deletion.forRebase()),
+                        false));
+            } else {
+                pending.add(new PendingSubstep(message, false));
+            }
+        });
         return evaluate(pending, resolver, null, true);
     }
 
@@ -707,11 +785,40 @@ final class ModelCommitEngine {
             throw new IllegalStateException(
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
         }
+        if (output instanceof Graph<?> graph) {
+            StagedGraphDeletion deletion = stagedDeletion(graph, source);
+            pending.addFirst(new PendingSubstep(
+                    new GraphDeletionMessage(deletion), false));
+            return;
+        }
         DeserializingMessage emitted = emittedMessage(
                 source, output, preserveSourceIdentity);
         boolean reintercept =
                 !emitted.getPayloadClass().equals(source.getPayloadClass());
         pending.addFirst(new PendingSubstep(emitted, reintercept));
+    }
+
+    private static StagedGraphDeletion stagedDeletion(
+            Graph<?> graph,
+            DeserializingMessage eventMessage) {
+        Objects.requireNonNull(graph, "graph");
+        if (graph.get() != null) {
+            throw new IllegalStateException(
+                    "@InterceptApply may return a Graph only after delete(); "
+                    + "return domain updates for ordinary model changes");
+        }
+        String modelId = Objects.requireNonNull(
+                graph.id(), "A staged graph deletion must have a model ID").toString();
+        Class<?> modelType = Objects.requireNonNull(
+                graph.type(), "A staged graph deletion must have a model type");
+        if (!ModelMetadata.of(modelType).isModel()) {
+            throw new IllegalStateException(
+                    "Staged graph deletion target %s is not an independent @Model"
+                            .formatted(modelType.getName()));
+        }
+        return new StagedGraphDeletion(
+                modelId, modelType, graph.stateIndex(),
+                Objects.requireNonNull(eventMessage, "eventMessage"));
     }
 
     @FunctionalInterface
@@ -720,6 +827,15 @@ final class ModelCommitEngine {
                 DeserializingMessage message,
                 Long readStateIndex,
                 Map<String, Object> stagedValues);
+
+        default ResolvedSubstep resolveGraph(
+                String modelId,
+                Class<?> modelType,
+                Long readStateIndex,
+                Map<String, Object> stagedValues) {
+            throw new IllegalStateException(
+                    "Staged Graph results are not supported by this model commit resolver");
+        }
 
         default void prefetch(
                 List<DeserializingMessage> messages,
@@ -795,6 +911,31 @@ final class ModelCommitEngine {
         }
     }
 
+    record StagedGraphDeletion(
+            String modelId,
+            Class<?> modelType,
+            Long expectedStateIndex,
+            DeserializingMessage eventMessage) {
+        StagedGraphDeletion {
+            Objects.requireNonNull(modelId, "modelId");
+            Objects.requireNonNull(modelType, "modelType");
+            Objects.requireNonNull(eventMessage, "eventMessage");
+        }
+
+        StagedGraphDeletion forRebase() {
+            return new StagedGraphDeletion(
+                    modelId, modelType, null, eventMessage);
+        }
+    }
+
+    static DeserializingMessage graphDeletionReplay(
+            DeserializingMessage eventMessage,
+            String modelId,
+            Class<?> modelType) {
+        return new GraphDeletionMessage(new StagedGraphDeletion(
+                modelId, modelType, null, eventMessage));
+    }
+
     record Evaluation(
             ModelCommitContext beginState,
             ModelCommitContext resultingState,
@@ -844,6 +985,15 @@ final class ModelCommitEngine {
             this(
                     modelId, modelType, beforeSequenceNumber,
                     null, before, after, handler, false);
+        }
+    }
+
+    private static final class GraphDeletionMessage extends DeserializingMessage {
+        private final StagedGraphDeletion deletion;
+
+        private GraphDeletionMessage(StagedGraphDeletion deletion) {
+            super(deletion.eventMessage());
+            this.deletion = deletion;
         }
     }
 

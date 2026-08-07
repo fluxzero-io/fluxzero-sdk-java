@@ -98,7 +98,7 @@ final class ModelCommitter {
     private final Registration resultBatchRegistration;
     private final ConcurrentHashMap<Executable, ConcurrentHashMap<Class<?>, TransitionPlan>> transitionPlans =
             new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Class<?>, TransitionPlan> cascadeTransitionPlans =
+    private final ConcurrentHashMap<Class<?>, TransitionPlan> handlerlessTransitionPlans =
             new ConcurrentHashMap<>();
     private volatile CachedTransitionPlan recentTransitionPlan;
 
@@ -225,7 +225,7 @@ final class ModelCommitter {
                     return invokeAsync(
                             context,
                             () -> rebaseEvaluator.rebase(
-                                    original.messages(),
+                                    original.rebaseMessages(),
                                     boundary),
                             "Model commit rebase returned null")
                             .thenCompose(next -> {
@@ -1047,8 +1047,8 @@ final class ModelCommitter {
 
     private TransitionPlan transitionPlan(
             ModelCommitEngine.Transition transition) {
-        if (transition.cascadedDeletion()) {
-            return cascadeTransitionPlans.computeIfAbsent(
+        if (transition.cascadedDeletion() || transition.handler() == null) {
+            return handlerlessTransitionPlans.computeIfAbsent(
                     transition.modelType(),
                     modelType -> createTransitionPlan(null, modelType));
         }
@@ -1276,6 +1276,45 @@ final class ModelCommitter {
             List<List<EffectiveTransition>> transitionGroups,
             List<DeserializingMessage> messages,
             String singleEventMessageId) {
+        List<DeserializingMessage> rebaseMessages() {
+            boolean hasGraphDeletion = transitionGroups.stream()
+                    .flatMap(List::stream)
+                    .map(EffectiveTransition::transition)
+                    .anyMatch(transition ->
+                            transition.handler() == null
+                            && !transition.cascadedDeletion());
+            if (!hasGraphDeletion) {
+                return messages;
+            }
+            List<DeserializingMessage> result = new ArrayList<>(
+                    messages.size() + 1);
+            for (int i = 0; i < transitionGroups.size(); i++) {
+                List<EffectiveTransition> group = transitionGroups.get(i);
+                boolean graphDeletion = group.stream()
+                        .map(EffectiveTransition::transition)
+                        .anyMatch(transition ->
+                                transition.handler() == null
+                                && !transition.cascadedDeletion());
+                if (!graphDeletion) {
+                    result.add(messages.get(i));
+                    continue;
+                }
+                DeserializingMessage eventMessage = messages.get(i);
+                if (group.stream().map(EffectiveTransition::transition)
+                        .anyMatch(transition -> transition.handler() != null)) {
+                    result.add(eventMessage);
+                }
+                group.stream().map(EffectiveTransition::transition)
+                        .filter(transition -> transition.handler() == null)
+                        .filter(transition -> !transition.cascadedDeletion())
+                        .map(transition -> ModelCommitEngine.graphDeletionReplay(
+                                eventMessage,
+                                transition.modelId(), transition.modelType()))
+                        .forEach(result::add);
+            }
+            return List.copyOf(result);
+        }
+
         boolean hasCascadedDeletion() {
             return transitionGroups.stream().flatMap(List::stream)
                     .anyMatch(transition -> transition.transition().cascadedDeletion());

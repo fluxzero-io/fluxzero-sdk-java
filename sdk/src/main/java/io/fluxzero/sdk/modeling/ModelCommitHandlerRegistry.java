@@ -2000,6 +2000,30 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
 
         @Override
+        public ModelCommitEngine.ResolvedSubstep resolveGraph(
+                String modelId,
+                Class<?> modelType,
+                Long requestedStateIndex,
+                Map<String, Object> stagedValues) {
+            Objects.requireNonNull(modelId, "modelId");
+            Objects.requireNonNull(modelType, "modelType");
+            ModelTargetResolver.Resolution resolution =
+                    new ModelTargetResolver.Resolution(
+                            List.of(new ModelTargetResolver.ResolvedModel(
+                                    modelId, modelType,
+                                    ModelTargetResolver.Access.READ_WRITE,
+                                    List.of())),
+                            List.of());
+            ModelCommitContext loaded = load(
+                    resolution,
+                    requestedStateIndex == null
+                            ? pinnedStateIndex : requestedStateIndex,
+                    stagedValues);
+            return new ModelCommitEngine.ResolvedSubstep(
+                    loaded, List.of());
+        }
+
+        @Override
         public void prefetch(
                 List<DeserializingMessage> messages,
                 long readStateIndex,

@@ -2445,3 +2445,67 @@ No throughput run was started for this checkpoint. At qualification time `mediaa
 the already excluded E759-E768 regime and cannot replace the clean P5 **425,606/s** pin. The quiet-host alternating
 4,194,304-command performance gate therefore remains open; this checkpoint makes no absolute or matched throughput
 claim.
+
+### S57 — atomic interceptor `Graph.delete()` targets
+
+The final candidate lets an `@InterceptApply` result combine its ordinary domain update with one or more deleted
+graphs. Every graph target is re-resolved at the commit's pinned state boundary, participates in the same atomic
+`CommitModels` request and follows its own model publication policy. The original domain message is serialized once:
+one commit substep and one event ID are shared by the ordinary model transition and all graph-deletion targets. An
+`ACCEPT` conflict internally replays the ordinary apply and deletions separately against the fresh boundary, then
+fuses them back into the same one-event commit step.
+
+The first two internal representations were deliberately rejected. They inspected or enlarged each ordinary pending
+substep merely to recognize the rare deletion route. The final representation restores the original two-field
+`PendingSubstep`; only an actual deletion uses a private message subtype. The ordinary accepted route retains its
+original event and transition representation.
+
+The laptop was not suitable for an absolute repin. Mail, a virtualization VM, `searchpartyd`, IntelliJ, dev servers and
+Codex/ChatGPT renderers changed CPU pressure during and even within processes. Full-route observations ranged from
+127,075/s to 232,365/s; warmup and measured throughput frequently moved in opposite directions. Every completed E2E
+run nevertheless verified its exact result count, both event kinds and all 65,536 final model states. The clean-host P5
+pin therefore remains **425,606/s** and none of E769-E784 changes the live scoreboard.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E769 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | first graph-delete preflight | 4,194,304 | 262,144 | none | n/a | n/a | false | invalid: obsolete classpath file; JVM failed before Runtime startup | diagnostic-only |
+| E770 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | first payload-backed deletion | 4,194,304 | 262,144 | none | 179,537/s following parent | 135,763/s | false | exclude: media analysis and host state changed | reverted |
+| E771 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | parent control | 4,194,304 | 262,144 | none | 179,537/s | n/a | false | loaded-host control | diagnostic-only |
+| E772 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | first payload-backed deletion | 4,194,304 | 262,144 | none | 179,537/s preceding parent | 146,364/s | false | exclude and remove normal-route payload inspection | reverted |
+| E773 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | parent control | 4,194,304 | 262,144 | none | 167,300/s | n/a | false | loaded-host control | diagnostic-only |
+| E774 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | split pending-substep deletion | 4,194,304 | 262,144 | none | 167,300/s preceding parent | 127,075/s | false | exclude; host warmup fell to 91,794/s | reverted |
+| E775 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | parent control | 4,194,304 | 262,144 | none | 212,796/s | n/a | false | abrupt parent rebound proves host instability | diagnostic-only |
+| E776 | canonical | full command -> model -> event + result | SDK `d5e30ad8b49` | split pending-substep deletion | 4,194,304 | 262,144 | none | 212,796/s preceding parent | 163,591/s | false | exclude; replace polymorphic pending layout | reverted |
+| E777 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | parent control | 1,048,576 | 262,144 | none | 175,173/s | n/a | false | short loaded-host control | diagnostic-only |
+| E778 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | original pending layout + deletion subtype | 1,048,576 | 262,144 | none | 175,173/s preceding parent | 147,261/s | false | host warmup fell by 18.5% between processes | reverted |
+| E779 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | parent control | 1,048,576 | 262,144 | none | 186,745/s | n/a | false | reverse short control | diagnostic-only |
+| E780 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | original pending layout + deletion subtype | 1,048,576 | 262,144 | none | 186,745/s preceding parent | 151,141/s | false | measured throughput fell while warmup rose; extract cold logic | reverted |
+| E781 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | cold deletion evaluation | 1,048,576 | 262,144 | none | 178,114/s following parent | 161,443/s | false | first half of order-reversed host screen | diagnostic-only |
+| E782 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | parent control | 1,048,576 | 262,144 | none | 178,114/s | n/a | false | order-reversed control | diagnostic-only |
+| E783 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | cold deletion evaluation | 1,048,576 | 262,144 | none | 178,114/s preceding parent | 232,365/s | false | +30.5% reversal disproves a stable candidate cap | diagnostic-only |
+| E784 | smoke | full command -> model -> event + result | SDK `d5e30ad8b49` | final one-event graph deletion | 1,048,576 | 262,144 | none | n/a | 153,667/s | false | exact final-source correctness; absolute throughput excluded | accepted |
+
+E785-E788 isolate the actual `ModelCommitEngine.evaluate(message, resolver)` route without Runtime, PostgreSQL or
+transport feedback. Each process performs 300,000 warmups and 2,000,000 measured evaluations using the same real
+model metadata, resolver, `@Apply` and commit-evaluation construction. Parent observations were 2,174,844 and
+1,989,167 evaluations/s; final candidate observations were 2,250,159 and 2,142,056/s. Their geometric means are
+2,079,935/s and 2,195,442/s respectively (**+5.55% candidate**). This supporting diagnostic rules out a material
+engine-service regression; it is not a substitute for the full E2E acceptance route.
+
+Evidence SHA-256: E769 `fd88c6886346b93c810b9b2225007380f56e507d05753d9411d9c4e7e87efc0a`, E770
+`ccd994c600cd4c57666b677e5aaf9d937d69208ca702fe4a6451ab4bdbd4f137`, E771
+`891952301c9f435da970b4813590a613178da52908e4e4e4613816f3cbd203e7`, E772
+`1758d4b92909b40d7930151ca044de6a36a0dc729cf143fa22a1838db97cc5ac`, E773
+`c298ecb25e48be5fe662ff23cd1fb4c841501ee9ad4a54d63ca9f4a67cb424c8`, E774
+`550726096fac4d913bc1eb5103caf711626c6fd3aa8530294004e6b87b15b068`, E775
+`84bd63ba4d091056df3f0f2c85bb085943356bd5bf11788743118b044d3bae78`, E776
+`172b6a649b6171934a36093aa7bd7b35ee91eb733912a69668a705e63f4e6528`, E777
+`f2a404a856ad4c4b6f0f6d9c378af015be8c5ca3aaa418695ff4e7b38e2baa7a`, E778
+`21495c092c28931f741aa69e2f061ab6bd3e106c4f76822a30789b43c6f191a7`, E779
+`87202ab2489342e9f8cae7f3580c01306cb8650dcf4e23113259315a83f306db`, E780
+`020f9e755bfcabb9faf4b93a7b1c5f4f05d10b777e43ca7c50c41bc11752e5e4`, E781
+`2e634e1adfaa1c03e6fad3dc47b5dada2d5acfbcb6b1fb63269b7af9e01427b3`, E782
+`1076d2b54d43d45b7f51647d246f6bd16a7dbf23d7323f331f987e2d0f45bb62`, E783
+`782e5e7ea4374624d1b207897d6026b48f44c5d387248be7863faed02aae502a`, E784
+`bbc24760e694b1bae34010dc53eabd731f272c992af7c1f2b4f47d968fbb69d2`, E785-E788
+`bf20737c4bb234c31731b2a00f839cf40abdbd4a9039f6a0da040c68361068d9`.

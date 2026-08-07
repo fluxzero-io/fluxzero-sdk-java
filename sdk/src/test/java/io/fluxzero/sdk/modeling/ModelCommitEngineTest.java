@@ -21,6 +21,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import org.junit.jupiter.api.Test;
 
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class ModelCommitEngineTest {
 
@@ -354,6 +356,84 @@ class ModelCommitEngineTest {
         assertEquals(12, result.readStateIndex());
         assertTrue(result.substeps().isEmpty());
         assertTrue(result.finalValues().isEmpty());
+    }
+
+    @Test
+    void interceptorMayStageGraphDeletionInTheSameCommitAndRebaseIt() {
+        OrderId orderId = new OrderId("one");
+        InventoryId inventoryId = new InventoryId("one");
+        Entity<Order> order = entity(
+                orderId, new Order(orderId, "pending"));
+        Entity<Inventory> inventory = entity(
+                inventoryId, new Inventory(inventoryId, 5));
+        Graph<Inventory> inventoryGraph = Graphs.lazy(
+                inventory, 77L, mock(ModelRepository.class));
+        RemoveInventory command = new RemoveInventory(
+                orderId, inventoryGraph);
+        Map<String, Entity<?>> stored = Map.of(
+                orderId.toString(), order,
+                inventoryId.toString(), inventory);
+        ModelCommitEngine.SubstepResolver resolver =
+                new ModelCommitEngine.SubstepResolver() {
+                    @Override
+                    public ModelCommitEngine.ResolvedSubstep resolve(
+                            DeserializingMessage substep,
+                            Long requestedStateIndex,
+                            Map<String, Object> stagedValues) {
+                        return resolveSubstep(
+                                substep,
+                                requestedStateIndex == null
+                                        ? 77L : requestedStateIndex,
+                                stored);
+                    }
+
+                    @Override
+                    public ModelCommitEngine.ResolvedSubstep resolveGraph(
+                            String modelId,
+                            Class<?> modelType,
+                            Long requestedStateIndex,
+                            Map<String, Object> stagedValues) {
+                        ModelTargetResolver.Resolution resolution =
+                                new ModelTargetResolver.Resolution(
+                                        List.of(new ModelTargetResolver.ResolvedModel(
+                                                modelId, modelType,
+                                                ModelTargetResolver.Access.READ_WRITE,
+                                                List.of())),
+                                        List.of());
+                        return new ModelCommitEngine.ResolvedSubstep(
+                                ModelCommitContext.create(
+                                        requestedStateIndex == null
+                                                ? 77L : requestedStateIndex,
+                                        resolution,
+                                        Map.of(modelId, stored.get(modelId))),
+                                List.of());
+                    }
+                };
+
+        ModelCommitEngine.CommitEvaluation result = engine.evaluate(
+                message(command), resolver);
+
+        assertEquals(
+                List.of(orderId.toString(), inventoryId.toString()),
+                result.readModelIds());
+        assertEquals(1, result.substeps().size());
+        assertEquals(2, result.substeps().getFirst().transitions().size());
+        assertSame(command, result.substeps().getFirst().message().getPayload());
+        assertNull(result.finalValues().get(inventoryId.toString()));
+
+        DeserializingMessage deletionEvent =
+                result.substeps().getFirst().message();
+        ModelCommitEngine.CommitEvaluation rebased = engine.rebase(
+                List.of(
+                        result.substeps().getFirst().message(),
+                        ModelCommitEngine.graphDeletionReplay(
+                                deletionEvent,
+                                inventoryId.toString(), Inventory.class)),
+                resolver);
+
+        assertEquals(1, rebased.substeps().size());
+        assertEquals(2, rebased.substeps().getFirst().transitions().size());
+        assertNull(rebased.finalValues().get(inventoryId.toString()));
     }
 
     @Test
@@ -746,6 +826,20 @@ class ModelCommitEngineTest {
         @InterceptApply
         Object suppress() {
             return null;
+        }
+    }
+
+    private record RemoveInventory(
+            OrderId orderId,
+            Graph<Inventory> inventory) {
+        @InterceptApply
+        List<?> expand() {
+            return List.of(this, inventory.delete());
+        }
+
+        @Apply
+        Order retain(Order order) {
+            return order;
         }
     }
 
