@@ -30,11 +30,13 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class MaterializedGraphFactoryTest {
 
@@ -80,6 +82,42 @@ class MaterializedGraphFactoryTest {
         assertEquals("child", child.get().id());
         assertEquals("child", child.get().id());
         assertEquals(1, CountingChild.constructions.get());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void resolvesParentsOutsideTheMaterializedDocumentLazily() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ObjectNode json = serializer.getObjectMapper().createObjectNode()
+                .put("id", "child").put("rootId", "root");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L, List.of(CountingChild.class.getName()), List.of(),
+                List.of(new ModelGraphDocumentManifest.Node(
+                        "child", 0, -1, -1, 0)));
+        SerializedDocument document = serializer.toDocument(
+                json, "child", "child-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+        ModelRepository repository = mock(ModelRepository.class);
+        Graph<CountingChild> durable = mock(Graph.class);
+        Graph<CountingRoot> parent = mock(Graph.class);
+        when(repository.loadGraphAt(
+                "child", CountingChild.class, 41L, Graph.Options.DEFAULT))
+                .thenReturn(durable);
+        when(durable.parent()).thenReturn(Optional.of(parent));
+        when(durable.parents()).thenReturn(List.of(parent));
+        when(durable.parent(CountingRoot.class)).thenReturn(Optional.of(parent));
+        when(durable.ancestor(CountingRoot.class)).thenReturn(Optional.of(parent));
+
+        Graph<CountingChild> graph = MaterializedGraphFactory.create(
+                document, CountingChild.class, serializer,
+                () -> repository,
+                List.of(CountingRoot.class, CountingChild.class), Map.of());
+
+        assertEquals(Optional.of(parent), graph.parent());
+        assertEquals(List.of(parent), graph.parents());
+        assertEquals(Optional.of(parent), graph.parent(CountingRoot.class));
+        assertEquals(Optional.of(parent), graph.ancestor(CountingRoot.class));
     }
 
     @Test

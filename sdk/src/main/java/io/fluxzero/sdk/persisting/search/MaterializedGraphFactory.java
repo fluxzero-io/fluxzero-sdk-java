@@ -401,13 +401,29 @@ final class MaterializedGraphFactory {
             return context.view(current.index);
         }
         @Override public Optional<Graph<?>> parent() {
-            return node.manifest.parent() < 0 ? Optional.empty()
+            return node.manifest.parent() < 0
+                    ? durable().parent()
                     : Optional.of(context.view(node.manifest.parent()));
         }
+        @Override public List<Graph<?>> parents() {
+            if (node.manifest.parent() < 0) {
+                return durable().parents();
+            }
+            Graph<?> placedParent = context.view(node.manifest.parent());
+            LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
+            result.put(placedParent.type().getName() + ':' + placedParent.id(), placedParent);
+            durable().parents().forEach(parent -> result.putIfAbsent(
+                    parent.type().getName() + ':' + parent.id(), parent));
+            return List.copyOf(result.values());
+        }
         @Override public <P> Optional<Graph<P>> parent(Class<P> parentType) {
-            return parent().filter(parent ->
-                            parentType.isAssignableFrom(parent.type()))
-                    .map(MaterializedGraphFactory::<P>cast);
+            if (node.manifest.parent() >= 0) {
+                Graph<?> placedParent = context.view(node.manifest.parent());
+                if (parentType.isAssignableFrom(placedParent.type())) {
+                    return Optional.of(cast(placedParent));
+                }
+            }
+            return durable().parent(parentType);
         }
         @Override public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
             Graph<?> candidate = this;
@@ -415,9 +431,10 @@ final class MaterializedGraphFactory {
                 if (ancestorType.isAssignableFrom(candidate.type())) {
                     return Optional.of(cast(candidate));
                 }
-                candidate = candidate.parent().orElse(null);
+                int parent = ((MaterializedGraph<?>) candidate).node.manifest.parent();
+                candidate = parent < 0 ? null : context.view(parent);
             }
-            return Optional.empty();
+            return durable().ancestor(ancestorType);
         }
         @Override public List<Graph<?>> children() {
             return node.children.stream().<Graph<?>>map(context::view).toList();
