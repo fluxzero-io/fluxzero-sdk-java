@@ -129,20 +129,33 @@ public final class ModelTargetResolver {
      */
     static Optional<String> resolveDirectModelId(
             Object payload, Class<?> modelType, String associationProperty) {
+        return Optional.ofNullable(resolveDirectModelReference(
+                payload, modelType, associationProperty).modelId());
+    }
+
+    static DirectModelReference resolveDirectModelReference(
+            Object payload, Class<?> modelType, String associationProperty) {
         Object value = payloadValue(payload);
         if (value == null) {
-            return Optional.empty();
+            return DirectModelReference.missing();
         }
         PayloadProperty property = PayloadMetadata.of(value.getClass())
                 .resolveIfDirect(modelType, associationProperty);
         if (property == null) {
-            return Optional.empty();
+            return DirectModelReference.missing();
         }
         Object idValue = property.read(value);
         if (idValue == null) {
-            return Optional.empty();
+            return new DirectModelReference(true, null);
         }
-        return Optional.of(repositoryId(idValue, modelType, property.name, null, value));
+        return new DirectModelReference(
+                true, repositoryId(idValue, modelType, property.name, null, value));
+    }
+
+    record DirectModelReference(boolean present, String modelId) {
+        private static DirectModelReference missing() {
+            return new DirectModelReference(false, null);
+        }
     }
 
     /**

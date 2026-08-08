@@ -42,6 +42,7 @@ import io.fluxzero.sdk.tracking.handling.HandleResult;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.HandleWebResponse;
+import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -210,6 +211,22 @@ class ModelEntityParameterResolverTest {
                                                                      handler.getParameters()[1])))
                 .expectResult(
                         new Account(accountId, 20));
+    }
+
+    @Test
+    void injectsNullForPresentNullableAssociationWithoutTreatingItAsAnAncestor()
+            throws Exception {
+        Method handler = Handler.class.getDeclaredMethod(
+                "onOptional", InspectOptional.class, Account.class);
+
+        TestFixture.create()
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage message = new DeserializingMessage(
+                            new Message(new InspectOptional(null)), MessageType.COMMAND,
+                            fluxzero.serializer());
+                    return resolve(message, handler, handler.getParameters()[1]);
+                })
+                .expectResult((Object) null);
     }
 
     @Test
@@ -995,6 +1012,9 @@ class ModelEntityParameterResolverTest {
             AccountId selectedId) {
     }
 
+    private record InspectOptional(AccountId selectedId) {
+    }
+
     private record Transfer(
             AccountId sourceId,
             AccountId destinationId) {
@@ -1262,6 +1282,12 @@ class ModelEntityParameterResolverTest {
                         value = "selectedId",
                         excludeMetadata = true)
                 Account account) {
+        }
+
+        @HandleCommand
+        void onOptional(
+                InspectOptional command,
+                @Association("selectedId") @Nullable Account account) {
         }
 
         @HandleCommand

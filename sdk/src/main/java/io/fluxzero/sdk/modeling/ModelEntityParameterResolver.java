@@ -33,7 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -77,11 +76,11 @@ public class ModelEntityParameterResolver
                 plan(parameter.getDeclaringExecutable());
         ModelMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
-        return modelParameter == null
-                ? null
-                : input -> value(parameter, modelParameter,
-                                 resolveEntity(input, plan, modelParameter),
-                                 input, plan);
+        return modelParameter == null ? null : input ->
+                nullDirectReference(input, modelParameter) && isNullable(parameter)
+                        ? null
+                        : value(parameter, modelParameter,
+                                resolveEntity(input, plan, modelParameter), input, plan);
     }
 
     @Override
@@ -95,6 +94,9 @@ public class ModelEntityParameterResolver
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
             return false;
+        }
+        if (nullDirectReference(input, modelParameter)) {
+            return isNullable(parameter);
         }
         Optional<ModelCommitContext> context =
                 commitContext(input);
@@ -124,6 +126,9 @@ public class ModelEntityParameterResolver
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
             return null;
+        }
+        if (nullDirectReference(input, modelParameter)) {
+            return isNullable(parameter) ? ignored -> null : null;
         }
         Optional<ModelCommitContext> context =
                 commitContext(input);
@@ -212,6 +217,19 @@ public class ModelEntityParameterResolver
                         parameter.modelType(),
                         parameter.associationProperty())
                 : null;
+    }
+
+    private static boolean nullDirectReference(
+            Object input,
+            ModelMetadata.ModelParameter parameter) {
+        DeserializingMessage message = input instanceof DeserializingMessage direct
+                ? direct : DeserializingMessage.getOptionally().orElse(null);
+        if (message == null) {
+            return false;
+        }
+        ModelTargetResolver.DirectModelReference reference =
+                directReference(message, parameter);
+        return reference.present() && reference.modelId() == null;
     }
 
     private static Optional<ModelCommitContext>
@@ -326,13 +344,12 @@ public class ModelEntityParameterResolver
             LinkedHashSet<ModelTargetResolver
                     .AncestorDependency> ancestors =
                     new LinkedHashSet<>();
-            for (ModelMetadata.ModelParameter parameter :
-                    parameters.values()) {
+            for (ModelMetadata.ModelParameter parameter : parameters.values()) {
                 String association =
                         parameter.associationProperty();
-                String modelId = directId(
-                        message, parameter);
-                if (modelId == null) {
+                ModelTargetResolver.DirectModelReference direct =
+                        directReference(message, parameter);
+                if (!direct.present()) {
                     ancestors.add(
                             new ModelTargetResolver
                                     .AncestorDependency(
@@ -343,10 +360,13 @@ public class ModelEntityParameterResolver
                                                     .toGenericString()));
                     continue;
                 }
+                if (direct.modelId() == null) {
+                    continue;
+                }
                 ModelTargetResolver.merge(
                         targets,
                         new ModelTargetResolver.ResolvedModel(
-                                modelId, parameter.modelType(),
+                                direct.modelId(), parameter.modelType(),
                                 ModelTargetResolver.Access.READ_ONLY,
                                 List.of(association == null
                                                 ? ModelMetadata.validate(parameter.modelType())
@@ -370,34 +390,22 @@ public class ModelEntityParameterResolver
                                                     ancestors))));
         }
 
-        private static String directId(
-                DeserializingMessage message,
-                ModelMetadata.ModelParameter parameter) {
-            String association =
-                    parameter.associationProperty();
-            if (association != null
-                && !parameter
-                        .associationExcludeMetadata()
-                && message.getMetadata() != null) {
-                Object metadataValue =
-                        message.getMetadata().get(
-                                association);
-                if (metadataValue != null) {
-                    return Objects.requireNonNull(
-                            metadataValue.toString(),
-                            () ->
-                                    "Metadata property '"
-                                    + association
-                                    + "' returned a null model ID");
-                }
-            }
-            return ModelTargetResolver
-                    .resolveDirectModelId(
-                            message.getPayload(),
-                            parameter.modelType(),
-                            association)
-                    .orElse(null);
+    }
+
+    private static ModelTargetResolver.DirectModelReference directReference(
+            DeserializingMessage message,
+            ModelMetadata.ModelParameter parameter) {
+        String association = parameter.associationProperty();
+        if (association != null
+            && !parameter.associationExcludeMetadata()
+            && message.getMetadata() != null
+            && message.getMetadata().containsKey(association)) {
+            Object metadataValue = message.getMetadata().get(association);
+            return new ModelTargetResolver.DirectModelReference(
+                    true, metadataValue == null ? null : metadataValue.toString());
         }
+        return ModelTargetResolver.resolveDirectModelReference(
+                message.getPayload(), parameter.modelType(), association);
     }
 
     private static final class ResolvedHandlerPlan {
