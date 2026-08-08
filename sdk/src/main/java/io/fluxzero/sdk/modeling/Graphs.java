@@ -616,8 +616,9 @@ public final class Graphs {
             Objects.requireNonNull(parentType, "parentType");
             if (placement.parent != null) {
                 Graph<?> parent = context.view(placement.parent);
-                return parentType.isAssignableFrom(parent.type())
-                        ? Optional.of(cast(parent)) : Optional.empty();
+                if (parentType.isAssignableFrom(parent.type())) {
+                    return Optional.of(cast(parent));
+                }
             }
             List<Graph<?>> matches = directParents(parentType);
             if (matches.size() > 1) {
@@ -740,9 +741,15 @@ public final class Graphs {
         }
 
         private List<Graph<?>> allDirectParents() {
-            return placement.parent == null
-                    ? directParents(null)
-                    : List.of(context.view(placement.parent));
+            if (placement.parent == null) {
+                return directParents(null);
+            }
+            LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
+            Graph<?> placementParent = context.view(placement.parent);
+            result.put(placementParent.type().getName() + ':' + placementParent.id(), placementParent);
+            directParents(null).forEach(parent -> result.putIfAbsent(
+                    parent.type().getName() + ':' + parent.id(), parent));
+            return List.copyOf(result.values());
         }
 
         @Override

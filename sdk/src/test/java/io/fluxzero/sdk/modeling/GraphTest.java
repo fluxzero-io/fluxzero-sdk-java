@@ -479,6 +479,31 @@ class GraphTest {
     }
 
     @Test
+    void placedGraphRetainsEveryDirectParent() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("placed-multi"), "root");
+        OtherRoot otherValue = new OtherRoot("placed-other", "other");
+        MultiChild childValue = new MultiChild("placed-child", rootValue.id(), otherValue.id());
+        Graph<Root> graph = Graphs.compose(
+                rootValue.id().toString(), 12L,
+                Map.of(rootValue.id().toString(), entity(rootValue.id(), Root.class, rootValue),
+                       otherValue.id(), entity(otherValue.id(), OtherRoot.class, otherValue),
+                       childValue.id(), entity(childValue.id(), MultiChild.class, childValue)),
+                List.of(new ModelGraphEdge(
+                        childValue.id(), rootValue.id().toString(),
+                        Root.class.getName(), "rootChildren", 0L, null)),
+                repository, false);
+
+        Graph<MultiChild> child = graph.children(MultiChild.class).getFirst();
+
+        assertEquals(rootValue, child.parent().orElseThrow().get());
+        assertEquals(rootValue, child.parent(Root.class).orElseThrow().get());
+        assertEquals(otherValue, child.parent(OtherRoot.class).orElseThrow().get());
+        assertEquals(List.of(rootValue, otherValue), child.parents().stream().map(Graph::get).toList());
+        verifyNoInteractions(repository);
+    }
+
+    @Test
     void detachedAncestorNavigationUsesIdentityResolverWithoutLoadingIntermediateValues() {
         @SuppressWarnings("unchecked")
         Entity<Grandchild> source = mock(Entity.class);
