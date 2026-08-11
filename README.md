@@ -5078,7 +5078,7 @@ fluxzero.defaults.version=2026.05.21
 This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
 explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
 `fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
 
 ### Encrypted Values
 
@@ -5627,6 +5627,43 @@ Key options include:
 | `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                     | 10s / 5s                         |
 | `disableMetrics`            | Whether to suppress all outgoing metrics                     | `false`                          |
 | `typeFilter`                | Optional message type restriction                            | `null`                           |
+
+---
+
+### Runtime Data Dispatch Isolation
+
+SDK clients route complete runtime messages through a bounded dispatcher. With the default `JdkWebsocketConnector`, its
+executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress remains ordered, while up to
+three complete messages from one session may be processed concurrently. Slow decode or result handling therefore does
+not occupy the default callback executor that acknowledges an already delivered pong, and independent runtime results
+can again complete in parallel. Applications must not rely on WebSocket arrival order or single-threaded result
+completion; request/result correlation remains based on request IDs.
+
+The dispatcher retains at most 19 runtime messages or 16 MiB per session: up to three executor-submitted messages and
+up to 16 pending or being assembled. Submitted, running, and pending messages remain in that accounting until their
+processing fully completes. A single larger message may proceed when it is the only retained message, but no later
+message is accepted alongside it. WebSocket demand remains open at the bound so a subsequent pong can still reach the
+protocol handler. If the next frame starts another data message instead, the SDK fails that session with a
+runtime-ingress overflow before copying its payload; reconnect then occurs rather than buffering beyond the bound.
+Fragment reassembly reserves one of the retained message slots and its accumulated compressed bytes count toward the
+same bound.
+As with a complete message, a single fragmented message may exceed 16 MiB only while it is the sole retained message.
+The byte bound applies to compressed wire payloads and does not cap the size of decompressed object graphs; up to three
+runtime-message decodes may be active per session.
+
+The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
+explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
+single-thread executor therefore does not promise the same isolation.
+
+Transport anomaly metrics remain disabled by default. Set
+`fluxzero.websocket.transportMetrics.enabled=true` to emit a metric only for ping timeout, runtime-ingress overflow, or
+runtime-data executor rejection. They contain the client type, runtime and Java versions, actual executor
+isolation/ownership and worker mode, retained, executor-submitted, active, and dispatcher-pending message/byte counts,
+the active-concurrency and retained message/byte limits, and last inbound age, but no session or ping IDs. Enabling
+this diagnostic also records the last native inbound activity using monotonic time; the default listener performs no
+corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched. Transport
+metrics follow
+`disableMetrics` and are suppressed on the metrics WebSocket itself to avoid recursive publication.
 
 ---
 
