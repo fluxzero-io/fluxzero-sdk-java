@@ -4,12 +4,7 @@
   "packageName" : "io.fluxzero.sdk.configuration.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.RequiredArgsConstructor",
-    "values" : {
-      "access" : "PROTECTED"
-    }
-  } ],
+  "annotations" : [ ],
   "documentation" : " A {@link Client} implementation that connects to the Fluxzero Runtime using WebSocket connections.\n <p>\n This client enables full integration with the Fluxzero Runtime by delegating all gateway, tracking, and subsystem\n communication to remote endpoints defined by the {@link ClientConfig}. It is typically used in production and testing\n environments where communication with the Fluxzero Runtime is required.\n\n <h2>Usage</h2>\n <pre>{@code\n WebSocketClient client = WebSocketClient.newInstance(\n     WebSocketClient.ClientConfig.builder()\n         .runtimeBaseUrl(\"wss://my.fluxzero.host\")\n         .name(\"my-service\")\n         .build());\n Fluxzero fluxzero = Fluxzero.builder().build(client);\n }</pre>\n\n @see io.fluxzero.sdk.configuration.DefaultFluxzero#builder()\n @see Client\n @see LocalClient for an in-memory alternative\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.configuration.client.AbstractClient",
@@ -42,10 +37,20 @@
   "constructors" : [ {
     "name" : "WebSocketClient",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#WebSocketClient",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applicationClient",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

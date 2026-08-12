@@ -18,6 +18,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 3
+  }, {
     "name" : "DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES",
     "type" : "int",
@@ -26,6 +34,30 @@
     "documentation" : null,
     "constantValue" : 16777216
   }, {
+    "name" : "DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES",
+    "type" : "long",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16777216
+  }, {
+    "name" : "DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 19
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY"
+  }, {
     "name" : "MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY",
     "type" : "java.lang.String",
@@ -33,6 +65,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES"
   }, {
     "name" : "applicationId",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.applicationId",
@@ -111,6 +159,17 @@
     "documentation" : " Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.\n",
     "constantValue" : null
   }, {
+    "name" : "maxConcurrentRuntimeWebSocketMessages",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxConcurrentRuntimeWebSocketMessages",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of complete SDK runtime messages decoded or handled concurrently per WebSocket session.\n Defaults to {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY}, or {@code 3} when unset. Use {@code 1} for\n serial application callbacks while retaining protocol-liveness isolation.\n",
+    "constantValue" : null
+  }, {
     "name" : "maxInFlightWebSocketBytes",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxInFlightWebSocketBytes",
     "type" : "int",
@@ -120,6 +179,28 @@
       "values" : {}
     } ],
     "documentation" : " Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.\n Defaults to {@code FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES}, or 16 MiB when unset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxRetainedRuntimeWebSocketBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxRetainedRuntimeWebSocketBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single\n larger message may proceed while it is the only retained message. Defaults to\n {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES}, or 16 MiB when unset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxRetainedRuntimeWebSocketMessages",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxRetainedRuntimeWebSocketMessages",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, executor\n submission, pending work and active processing. The pending capacity is this value minus\n {@link #maxConcurrentRuntimeWebSocketMessages}. Defaults to\n {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES}, or {@code 19} when unset.\n",
     "constantValue" : null
   }, {
     "name" : "maxWebSocketFragmentBytes",
@@ -304,6 +385,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the most preferred compression algorithm supported by the client.\n"
+  }, {
+    "name" : "validateRuntimeWebSocketCapacity",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#validateRuntimeWebSocketCapacity",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "withGatewaySessions",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#withGatewaySessions",

@@ -26,6 +26,22 @@
     "documentation" : null,
     "constantValue" : "fluxzero-websocket-jdk-"
   }, {
+    "name" : "SDK_RUNTIME_DATA_EXECUTOR",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.SDK_RUNTIME_DATA_EXECUTOR",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "SDK_RUNTIME_DATA_EXECUTOR_THREAD_PREFIX",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.SDK_RUNTIME_DATA_EXECUTOR_THREAD_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero-websocket-runtime-data-"
+  }, {
     "name" : "SEC_WEBSOCKET_ACCEPT",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.SEC_WEBSOCKET_ACCEPT",
     "type" : "java.lang.String",
@@ -81,6 +97,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "runtimeDataExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.runtimeDataExecutor",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "JdkWebsocketConnector",
@@ -91,7 +115,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a connector backed by a default HTTP/1.1 {@link HttpClient}.\n"
+    "documentation" : " Creates a connector backed by a default HTTP/1.1 {@link HttpClient}.\n SDK runtime messages use a separate shared executor from native WebSocket callbacks.\n"
   }, {
     "name" : "JdkWebsocketConnector",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
@@ -106,7 +130,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a connector backed by the supplied HTTP client.\n\n <p>A single internal client is derived from this client so the connector can install its handshake-header\n capturing cookie handler without mutating the original client.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused\n"
+    "documentation" : " Creates a connector backed by the supplied HTTP client.\n\n <p>A single internal client is derived from this client so the connector can install its handshake-header\n capturing cookie handler without mutating the original client. Its resolved executor is retained for both native\n callbacks and SDK runtime messages.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused\n"
   }, {
     "name" : "JdkWebsocketConnector",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
@@ -126,7 +150,32 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for the internal HTTP client derived from the supplied client and for dispatching native\n JDK websocket listener callbacks.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
+    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for the internal HTTP client derived from the supplied client, native JDK WebSocket\n listener callbacks, and SDK runtime messages.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
+  }, {
+    "name" : "JdkWebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executor",
+      "type" : "java.util.concurrent.Executor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "runtimeDataExecutor",
+      "type" : "java.util.concurrent.Executor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "abortConnectingSession",
@@ -263,6 +312,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "defaultWorkerMode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#defaultWorkerMode",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "firstHeader",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#firstHeader",
     "returnType" : "java.lang.String",
@@ -320,6 +380,27 @@
     "parameters" : [ {
       "name" : "httpClient",
       "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runtimeDataWorkerMode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#runtimeDataWorkerMode",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callbackExecutor",
+      "type" : "java.util.concurrent.Executor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selectedRuntimeDataExecutor",
+      "type" : "java.util.concurrent.Executor",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

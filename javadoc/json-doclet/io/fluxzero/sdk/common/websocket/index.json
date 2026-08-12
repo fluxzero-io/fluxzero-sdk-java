@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration",
     "kind" : "class"
   }, {
+    "file" : "AbstractWebsocketClient.PingSchedulerFactory.json",
+    "name" : "AbstractWebsocketClient.PingSchedulerFactory",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingSchedulerFactory",
+    "kind" : "interface"
+  }, {
     "file" : "AbstractWebsocketClient.WebSocketRequest.json",
     "name" : "AbstractWebsocketClient.WebSocketRequest",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest",
