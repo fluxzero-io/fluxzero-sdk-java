@@ -5078,7 +5078,7 @@ fluxzero.defaults.version=2026.05.21
 This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
 explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
 `fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
 
 ### Encrypted Values
 
@@ -5598,7 +5598,7 @@ To configure and instantiate a WebSocket-backed client:
 ```java
 WebSocketClient client = WebSocketClient.newInstance(
         WebSocketClient.ClientConfig.builder()
-                .serviceBaseUrl("wss://my.flux.host")
+                .runtimeBaseUrl("wss://my.flux.host")
                 .name("my-service")
                 .build());
 
@@ -5606,7 +5606,7 @@ Fluxzero flux = Fluxzero.builder().build(client);
 ```
 
 This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
-service base URL, which must point to the desired deployment.
+runtime base URL, which must point to the desired deployment.
 
 ---
 
@@ -5617,16 +5617,76 @@ and can be created or extended using the `toBuilder()` pattern.
 
 Key options include:
 
-| Setting                     | Description                                                  | Default                          |
-|-----------------------------|--------------------------------------------------------------|----------------------------------|
-| `serviceBaseUrl`            | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`) | `FLUX_BASE_URL` property         |
-| `name`                      | Name of the application                                      | `FLUX_APPLICATION_NAME` property |
-| `applicationId`             | Optional app ID                                              | `FLUX_APPLICATION_ID` property   |
-| `id`                        | Unique client instance ID                                    | `FLUX_TASK_ID` property or UUID  |
-| `compression`               | Compression algorithm                                        | `LZ4`                            |
-| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                     | 10s / 5s                         |
-| `disableMetrics`            | Whether to suppress all outgoing metrics                     | `false`                          |
-| `typeFilter`                | Optional message type restriction                            | `null`                           |
+| Setting | Description | Default |
+|---|---|---|
+| `runtimeBaseUrl` | Base URL for all subsystems, e.g. `wss://my.flux.host` | `FLUXZERO_BASE_URL` or `FLUX_BASE_URL` |
+| `name` | Name of the application | `FLUXZERO_APPLICATION_NAME` or `FLUX_APPLICATION_NAME` |
+| `applicationId` | Optional application ID | `FLUXZERO_APPLICATION_ID` or `FLUX_APPLICATION_ID` |
+| `id` | Unique client instance ID | `FLUXZERO_TASK_ID`, `FLUX_TASK_ID`, or UUID |
+| `supportedCompressionAlgorithms` | Preferred and fallback compression algorithms | ZSTD, then LZ4 |
+| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
+| `maxConcurrentRuntimeWebSocketMessages` | Complete runtime messages processed concurrently per session | `FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY` or `3` |
+| `maxRetainedRuntimeWebSocketMessages` | Total assembling, pending, submitted, and active runtime messages per session | `FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES` or `19` |
+| `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES` or 16 MiB |
+| `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
+| `typeFilter` | Optional message type restriction | `null` |
+
+---
+
+### Runtime Data Dispatch Isolation
+
+SDK clients route complete runtime messages through a bounded dispatcher. With the default `JdkWebsocketConnector`, its
+executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress remains ordered, while up to
+three complete messages from one session may be processed concurrently. Slow decode or result handling therefore does
+not occupy the default callback executor that acknowledges an already delivered pong, and independent runtime results
+can again complete in parallel. Applications must not rely on WebSocket arrival order or single-threaded result
+completion; request/result correlation remains based on request IDs.
+
+By default, the dispatcher retains at most 19 runtime messages or 16 MiB per session: up to three executor-submitted
+messages and up to 16 pending or being assembled. Pending capacity is always derived as
+`maxRetainedRuntimeWebSocketMessages - maxConcurrentRuntimeWebSocketMessages`; it is not a separate setting.
+Submitted, running, and pending messages remain in that accounting until their processing fully completes. A single
+larger message may proceed when it is the only retained message, but no later message is accepted alongside it.
+WebSocket demand remains open at the bound so a subsequent pong can still reach the protocol handler. If the next
+frame starts another data message instead, the SDK fails that session with a runtime-ingress overflow before copying
+its payload; reconnect then occurs rather than buffering beyond the bound. Fragment reassembly reserves one retained
+message slot and its accumulated compressed bytes count toward the same bound. The byte bound applies to compressed
+wire payloads and does not cap the size of decompressed object graphs.
+
+The limits can be tuned without disabling protocol isolation:
+
+```java
+WebSocketClient.ClientConfig.builder()
+        .maxConcurrentRuntimeWebSocketMessages(3)
+        .maxRetainedRuntimeWebSocketMessages(19)
+        .maxRetainedRuntimeWebSocketBytes(16L * 1024 * 1024)
+        .build();
+```
+
+An explicit builder value takes precedence over the corresponding environment variable or system/application
+property, which in turn takes precedence over the SDK default. Concurrency must be at least one, retained messages
+must be at least concurrency, and retained bytes must be positive; invalid combinations are rejected when the
+`WebSocketClient` is constructed. There is no disable or unbounded mode. Set concurrency to one for serial runtime
+message callbacks while retaining the liveness isolation.
+
+Increase retained messages for bursts of small responses and retained bytes for larger compressed responses. Increase
+concurrency only when decode or handling is the bottleneck and the process has CPU and heap headroom. These limits are
+per physical WebSocket session, so account for the configured number of subsystem sessions. For tracking workloads,
+consider lowering fetch size or byte limits before substantially increasing the WebSocket retention envelope.
+
+The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
+explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
+single-thread executor therefore does not promise the same isolation.
+
+Transport anomaly metrics remain disabled by default. Set
+`fluxzero.websocket.transportMetrics.enabled=true` to emit a metric only for ping timeout, runtime-ingress overflow, or
+runtime-data executor rejection. They contain the client type, runtime and Java versions, actual executor
+isolation/ownership and worker mode, retained, executor-submitted, active, and dispatcher-pending message/byte counts,
+the active-concurrency and retained message/byte limits, and last inbound age, but no session or ping IDs. Enabling
+this diagnostic also records the last native inbound activity using monotonic time; the default listener performs no
+corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched. Transport
+metrics follow
+`disableMetrics` and are suppressed on the metrics WebSocket itself to avoid recursive publication.
 
 ---
 

@@ -16,22 +16,25 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.Backlog;
-import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.RetryStatus;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.publishing.Append;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.SdkVersion;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +44,9 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -80,6 +85,73 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AbstractWebsocketClientTest {
+
+    @Test
+    void transportMetricsAreOptIn() {
+        assertFalse(AbstractWebsocketClient.transportMetricsEnabled(new SimplePropertySource(Map.of())));
+        assertFalse(AbstractWebsocketClient.transportMetricsEnabled(new SimplePropertySource(Map.of(
+                AbstractWebsocketClient.TRANSPORT_METRICS_ENABLED_PROPERTY, "false"))));
+        assertTrue(AbstractWebsocketClient.transportMetricsEnabled(new SimplePropertySource(Map.of(
+                AbstractWebsocketClient.TRANSPORT_METRICS_ENABLED_PROPERTY, "true"))));
+    }
+
+    @Test
+    void transportMetricsAreDisabledByDefault() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(clientConfig, true);
+        WebsocketSession session = mockSession("client123_runtime456");
+
+        try {
+            client.handleError(session, JdkWebSocketSession.RuntimeDataDispatchException.overflow(
+                    runtimeDataState(2, 4_096L, 2, 0)));
+
+            assertNull(client.transportMetric.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void connectionSetupAlwaysMarksSdkRuntimeDataDispatch() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+
+        AbstractWebsocketClient.ConnectionSetup defaults =
+                AbstractWebsocketClient.createConnectionSetup(clientConfig);
+        AbstractWebsocketClient.ConnectionSetup metricsEnabled =
+                AbstractWebsocketClient.createConnectionSetup(clientConfig, null, true);
+
+        assertEquals(true, defaults.options().userProperties().get(
+                JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY));
+        assertEquals(true, metricsEnabled.options().userProperties().get(
+                JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY));
+        assertFalse(defaults.options().userProperties().containsKey(
+                JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY));
+    }
+
+    @Test
+    void connectionSetupPropagatesEffectiveRuntimeWebSocketCapacity() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .maxConcurrentRuntimeWebSocketMessages(2)
+                .maxRetainedRuntimeWebSocketMessages(11)
+                .maxRetainedRuntimeWebSocketBytes(8L * 1024 * 1024)
+                .build();
+
+        Map<String, Object> userProperties = AbstractWebsocketClient.createConnectionSetup(clientConfig)
+                .options().userProperties();
+
+        assertEquals(2, userProperties.get(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY));
+        assertEquals(11, userProperties.get(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY));
+        assertEquals(8L * 1024 * 1024,
+                     userProperties.get(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY));
+    }
 
     @Test
     void supportedCompressionAlgorithmsDefaultToConfiguredCompressionFirst() {
@@ -432,12 +504,17 @@ class AbstractWebsocketClientTest {
     @Test
     void clientResultTimingMetadataIncludesClientTimestamps() {
         Metadata metadata = AbstractWebsocketClient.clientResultTimingMetadata(
-                new WebsocketResultDiagnostics.ResultTiming(1_000L, 1_005L, 1_008L, 1_010L, 1_020L, 1_030L));
+                new WebsocketResultDiagnostics.ResultTiming(
+                        1_000L, 1_005L, 1_008L, 1_010L, 1_012L, 2L, 1_015L, 3L, 1_020L, 1_030L));
 
         assertEquals("1000", metadata.get("clientFrameReceivedTimestamp"));
         assertEquals("1005", metadata.get("clientFrameDispatchQueuedTimestamp"));
         assertEquals("1008", metadata.get("clientFrameDispatchStartedTimestamp"));
-        assertEquals("1010", metadata.get("clientDecodedTimestamp"));
+        assertEquals("1010", metadata.get("clientRuntimeDispatchQueuedTimestamp"));
+        assertEquals("1012", metadata.get("clientRuntimeDispatchStartedTimestamp"));
+        assertEquals("2", metadata.get("clientRuntimeQueueDuration"));
+        assertEquals("1015", metadata.get("clientDecodedTimestamp"));
+        assertEquals("3", metadata.get("clientDecodeDuration"));
         assertEquals("1020", metadata.get("clientCallbackQueuedTimestamp"));
         assertEquals("1030", metadata.get("clientCallbackStartedTimestamp"));
     }
@@ -489,16 +566,21 @@ class AbstractWebsocketClientTest {
         result.setResponseQueuedTimestamp(2_260L);
         result.setResponseSendStartTimestamp(2_275L);
         WebsocketResultDiagnostics.FrameTiming frameTiming = WebsocketResultDiagnostics.HEAVY.frameTiming(
-                new WebsocketEndpoint.ReceiveTiming(1_000L, 1_005L, 1_008L));
+                new WebsocketEndpoint.ReceiveTiming(1_000L, 1_005L, 1_008L),
+                new SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming(1_009L, 1_011L, 2L));
         WebsocketResultDiagnostics.ResultTiming resultTiming = WebsocketResultDiagnostics.HEAVY.resultTiming(
-                frameTiming, 1_010L, 1_020L, 1_030L);
+                frameTiming, 1_015L, 4L, 1_020L, 1_030L);
 
         Metadata metadata = WebsocketResultDiagnostics.HEAVY.metadata(result, resultTiming);
 
         assertEquals("2260", metadata.get("responseQueuedTimestamp"));
         assertEquals("2275", metadata.get("responseSendStartTimestamp"));
         assertEquals("1000", metadata.get("clientFrameReceivedTimestamp"));
-        assertEquals("1010", metadata.get("clientDecodedTimestamp"));
+        assertEquals("1009", metadata.get("clientRuntimeDispatchQueuedTimestamp"));
+        assertEquals("1011", metadata.get("clientRuntimeDispatchStartedTimestamp"));
+        assertEquals("2", metadata.get("clientRuntimeQueueDuration"));
+        assertEquals("1015", metadata.get("clientDecodedTimestamp"));
+        assertEquals("4", metadata.get("clientDecodeDuration"));
         assertEquals("1030", metadata.get("clientCallbackStartedTimestamp"));
     }
 
@@ -538,15 +620,26 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void pingSchedulerUsesDedicatedWorkerPool() throws Exception {
+    void pingTimeoutRunsOnDedicatedWorkerInsteadOfSchedulerThread() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
+                .pingTimeout(Duration.ZERO)
                 .build();
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, 2);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+        AtomicReference<String> closeThread = new AtomicReference<>();
+        when(session.closeAsync(any())).thenAnswer(invocation -> {
+            closeThread.set(Thread.currentThread().getName());
+            return CompletableFuture.completedFuture(null);
+        });
 
         try {
-            assertFalse(pingSchedulerWorkerPool(client) instanceof DirectExecutorService);
+            client.sendPing(session);
+
+            verify(session, org.mockito.Mockito.timeout(1_000)).closeAsync(any());
+            assertFalse(closeThread.get().contains("pingScheduler"));
         } finally {
             client.close();
         }
@@ -707,6 +800,344 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void pongCancelsDeadlineBeforeResultExecutorCallbackRuns() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        CallbackObservingClient client = new CallbackObservingClient(
+                mock(WebsocketConnector.class), clientConfig, taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+
+        try {
+            client.sendPing(session);
+            ThrowingRunnable staleTimeout = taskScheduler.dequeue();
+            client.onPong(ByteBuffer.allocate(0), session);
+            assertTrue(client.pongHandled.await(1, TimeUnit.SECONDS));
+            staleTimeout.run();
+
+            verify(session, never()).closeAsync(any());
+            assertEquals(1, taskScheduler.pendingTaskCount(),
+                         "Receiving a pong should replace its deadline before result callbacks can finish");
+        } finally {
+            client.allowPongToFinish.countDown();
+            client.close();
+        }
+    }
+
+    @Test
+    void pongDoesNotScheduleAnotherPingForClosedSession() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true, false);
+
+        try {
+            client.sendPing(session);
+            client.onPong(ByteBuffer.allocate(0), session);
+
+            assertEquals(0, taskScheduler.pendingTaskCount());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void pingIsNotSentWhenSessionClosesBeforeDeadlineRegistration() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true, false);
+
+        try {
+            assertDoesNotThrow(() -> client.sendPing(session));
+
+            verify(session, never()).sendPing(any());
+            assertEquals(0, taskScheduler.pendingTaskCount());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void stalePingTimeoutDoesNotAbortSessionAfterPongWasHandled() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        PongSchedulingClient client = new PongSchedulingClient(
+                mock(WebsocketConnector.class), clientConfig, taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+
+        try {
+            client.sendPing(session);
+            ThrowingRunnable staleTimeout = taskScheduler.dequeue();
+
+            client.onPong(ByteBuffer.allocate(0), session);
+            assertTrue(client.pongHandled.await(1, TimeUnit.SECONDS));
+            assertEquals(1, taskScheduler.pendingTaskCount(),
+                         "Pong handling should schedule the next ping before the stale timeout runs");
+            staleTimeout.run();
+
+            verify(session, never()).closeAsync(any());
+            assertEquals(1, taskScheduler.pendingTaskCount(),
+                         "A stale timeout must not remove the next ping registration");
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void activePingTimeoutStillAbortsSession() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+
+        try {
+            client.sendPing(session);
+            ThrowingRunnable activeTimeout = taskScheduler.dequeue();
+
+            activeTimeout.run();
+
+            verify(session).closeAsync(any());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void runtimeIngressOverflowPublishesSparseTransportMetric() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .maxConcurrentRuntimeWebSocketMessages(2)
+                .maxRetainedRuntimeWebSocketMessages(11)
+                .maxRetainedRuntimeWebSocketBytes(8L * 1024 * 1024)
+                .build();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), new ManuallyTriggeredTaskScheduler());
+        WebsocketSession session = mockSession("client123_runtime456");
+        session.getUserProperties().put(AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY, "9.8.7");
+        JdkWebSocketSession.RuntimeDataDispatchException overflow =
+                JdkWebSocketSession.RuntimeDataDispatchException.overflow(
+                        runtimeDataState(2, 4_096L, 2, 0, 2, 11, 8L * 1024 * 1024));
+
+        try {
+            client.handleError(session, overflow);
+
+            WebsocketTransportMetric metric = client.transportMetric.get();
+            assertEquals(WebsocketTransportMetric.Event.RUNTIME_INGRESS_OVERFLOW, metric.event());
+            assertEquals(2, metric.retainedMessages());
+            assertEquals(4_096L, metric.retainedBytes());
+            assertEquals(2, metric.inFlightMessages());
+            assertEquals(4_096L, metric.inFlightBytes());
+            assertEquals(2, metric.activeMessages());
+            assertEquals(4_096L, metric.activeBytes());
+            assertEquals(0, metric.pendingMessages());
+            assertEquals(0L, metric.pendingBytes());
+            assertEquals(clientConfig.getMaxConcurrentRuntimeWebSocketMessages(), metric.maxConcurrency());
+            assertEquals(clientConfig.getMaxRetainedRuntimeWebSocketMessages(), metric.maxRetainedMessages());
+            assertEquals(clientConfig.getMaxRetainedRuntimeWebSocketBytes(), metric.maxRetainedBytes());
+            assertEquals(Runtime.version().feature(), metric.javaFeatureVersion());
+            assertEquals("custom-connector", metric.workerMode());
+            assertEquals("9.8.7", metric.runtimeVersion());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void runtimeExecutorRejectionPublishesSparseTransportMetric() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), new ManuallyTriggeredTaskScheduler());
+        WebsocketSession session = mockSession("client123_runtime456");
+        JdkWebSocketSession.RuntimeDataDispatchException rejection =
+                JdkWebSocketSession.RuntimeDataDispatchException.executorRejected(
+                        runtimeDataState(1, 1_024L, 0, 1),
+                        new IllegalStateException("executor unavailable"));
+
+        try {
+            client.handleError(session, rejection);
+
+            WebsocketTransportMetric metric = client.transportMetric.get();
+            assertEquals(WebsocketTransportMetric.Event.RUNTIME_EXECUTOR_REJECTED, metric.event());
+            assertEquals(1, metric.retainedMessages());
+            assertEquals(1_024L, metric.retainedBytes());
+            assertEquals(0, metric.inFlightMessages());
+            assertEquals(0L, metric.inFlightBytes());
+            assertEquals(0, metric.activeMessages());
+            assertEquals(0L, metric.activeBytes());
+            assertEquals(1, metric.pendingMessages());
+            assertEquals(1_024L, metric.pendingBytes());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void transportMetricsAreSuppressedForMetricsWebsocket() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("metrics-client")
+                .build();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, false, transportMetricsProperties(), new ManuallyTriggeredTaskScheduler());
+        WebsocketSession session = mockSession("client123_runtime456");
+
+        try {
+            client.handleError(session, JdkWebSocketSession.RuntimeDataDispatchException.overflow(
+                    runtimeDataState(2, 4_096L, 2, 0)));
+
+            assertNull(client.transportMetric.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void pingTimeoutPublishesSparseTransportMetricAfterStartingSessionClose() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+
+        try {
+            client.sendPing(session);
+            taskScheduler.dequeue().run();
+
+            assertTrue(client.transportMetricPublished.await(1, TimeUnit.SECONDS));
+            assertEquals(WebsocketTransportMetric.Event.PING_TIMEOUT,
+                         client.transportMetric.get().event());
+            verify(session).closeAsync(any());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void transportMetricsAreSuppressedWhenMetricsAreDisabled() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .disableMetrics(true)
+                .build();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), new ManuallyTriggeredTaskScheduler());
+        WebsocketSession session = mockSession("client123_runtime456");
+
+        try {
+            client.handleError(session, JdkWebSocketSession.RuntimeDataDispatchException.overflow(
+                    runtimeDataState(2, 4_096L, 2, 0)));
+
+            assertNull(client.transportMetric.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void transportMetricFailureDoesNotPreventPingTimeoutClose() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        CountDownLatch metricPublicationAttempted = new CountDownLatch(1);
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler) {
+            @Override
+            void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+                metricPublicationAttempted.countDown();
+                throw new IllegalStateException("metrics unavailable");
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+
+        try {
+            client.sendPing(session);
+
+            assertDoesNotThrow(() -> taskScheduler.dequeue().run());
+            verify(session).closeAsync(any());
+            assertTrue(metricPublicationAttempted.await(1, TimeUnit.SECONDS));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void transportMetricPublicationCannotDelayPingTimeoutClose() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        CountDownLatch metricStarted = new CountDownLatch(1);
+        CountDownLatch releaseMetric = new CountDownLatch(1);
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler) {
+            @Override
+            void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+                metricStarted.countDown();
+                try {
+                    releaseMetric.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+        when(session.isOpen()).thenReturn(true);
+        ExecutorService timeoutExecutor = Executors.newSingleThreadExecutor();
+
+        try {
+            client.sendPing(session);
+            Future<?> timeout = timeoutExecutor.submit(() -> {
+                try {
+                    taskScheduler.dequeue().run();
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+
+            assertTrue(metricStarted.await(1, TimeUnit.SECONDS));
+            verify(session, org.mockito.Mockito.timeout(250)).closeAsync(any());
+            releaseMetric.countDown();
+            timeout.get(1, TimeUnit.SECONDS);
+        } finally {
+            releaseMetric.countDown();
+            timeoutExecutor.shutdownNow();
+            client.close();
+        }
+    }
+
+    @Test
     void onPongIsHandledAsynchronously() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -760,17 +1191,28 @@ class AbstractWebsocketClientTest {
                 .build();
     }
 
-    private static TaskScheduler pingScheduler(AbstractWebsocketClient client) throws Exception {
-        Field field = AbstractWebsocketClient.class.getDeclaredField("pingScheduler");
-        field.setAccessible(true);
-        return (TaskScheduler) field.get(client);
+    private static SimplePropertySource transportMetricsProperties() {
+        return new SimplePropertySource(Map.of(
+                AbstractWebsocketClient.TRANSPORT_METRICS_ENABLED_PROPERTY, "true"));
     }
 
-    private static Object pingSchedulerWorkerPool(AbstractWebsocketClient client) throws Exception {
-        Object scheduler = pingScheduler(client);
-        Field field = scheduler.getClass().getDeclaredField("workerPool");
-        field.setAccessible(true);
-        return field.get(scheduler);
+    private static JdkWebSocketSession.RuntimeDataState runtimeDataState(
+            int retainedMessages, long retainedBytes, int inFlightMessages, int pendingMessages) {
+        return runtimeDataState(retainedMessages, retainedBytes, inFlightMessages, pendingMessages,
+                                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES);
+    }
+
+    private static JdkWebSocketSession.RuntimeDataState runtimeDataState(
+            int retainedMessages, long retainedBytes, int inFlightMessages, int pendingMessages,
+            int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes) {
+        return new JdkWebSocketSession.RuntimeDataState(
+                retainedMessages, retainedBytes, inFlightMessages,
+                inFlightMessages == 0 ? 0L : retainedBytes,
+                inFlightMessages, inFlightMessages == 0 ? 0L : retainedBytes,
+                pendingMessages, pendingMessages == 0 ? 0L : retainedBytes,
+                maxConcurrency, maxRetainedMessages, maxRetainedBytes, 0L);
     }
 
     private static WebSocketClient websocketClient(AbstractWebsocketClient client) throws Exception {
@@ -789,8 +1231,20 @@ class AbstractWebsocketClientTest {
                   true, Duration.ofSeconds(1), defaultObjectMapper, numberOfSessions);
         }
 
+        TestClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig,
+                   TaskScheduler pingScheduler) {
+            super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
+                  true, Duration.ofSeconds(1), defaultObjectMapper, 1,
+                  new SimplePropertySource(Map.of()), (client, numberOfSessions) -> pingScheduler);
+        }
+
         void publishTestMetric(Append append) {
             tryPublishMetrics(append, Metadata.empty());
+        }
+
+        @Override
+        void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+            // Transport metric publication is tested independently by TransportMetricObservingClient.
         }
     }
 
@@ -873,6 +1327,11 @@ class AbstractWebsocketClientTest {
             super(container, clientConfig);
         }
 
+        CallbackObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig,
+                                TaskScheduler pingScheduler) {
+            super(container, clientConfig, pingScheduler);
+        }
+
         @Override
         protected void handlePong(WebsocketSession session) {
             pongThread.set(Thread.currentThread().getName());
@@ -882,6 +1341,92 @@ class AbstractWebsocketClientTest {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    private static class PongSchedulingClient extends TestClient {
+        private final CountDownLatch pongHandled = new CountDownLatch(1);
+
+        PongSchedulingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        PongSchedulingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig,
+                             TaskScheduler pingScheduler) {
+            super(container, clientConfig, pingScheduler);
+        }
+
+        @Override
+        protected void handlePong(WebsocketSession session) {
+            try {
+                super.handlePong(session);
+            } finally {
+                pongHandled.countDown();
+            }
+        }
+    }
+
+    private static class TransportMetricObservingClient extends AbstractWebsocketClient {
+        private final AtomicReference<WebsocketTransportMetric> transportMetric = new AtomicReference<>();
+        private final CountDownLatch transportMetricPublished = new CountDownLatch(1);
+
+        TransportMetricObservingClient(WebSocketClient.ClientConfig clientConfig, boolean allowMetrics) {
+            this(clientConfig, allowMetrics, new SimplePropertySource(Map.of()),
+                 new ManuallyTriggeredTaskScheduler());
+        }
+
+        TransportMetricObservingClient(WebSocketClient.ClientConfig clientConfig, boolean allowMetrics,
+                                       SimplePropertySource propertySource, TaskScheduler pingScheduler) {
+            super(mock(WebsocketConnector.class), URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
+                  allowMetrics, Duration.ofSeconds(1), defaultObjectMapper, 1, propertySource,
+                  (client, numberOfSessions) -> pingScheduler);
+        }
+
+        @Override
+        void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+            transportMetric.set(metric);
+            transportMetricPublished.countDown();
+        }
+    }
+
+    private static class ManuallyTriggeredTaskScheduler implements TaskScheduler {
+        private final ArrayDeque<ScheduledTask> scheduledTasks = new ArrayDeque<>();
+
+        @Override
+        public synchronized Registration schedule(long deadline, ThrowingRunnable task) {
+            ScheduledTask scheduledTask = new ScheduledTask(task);
+            scheduledTasks.add(scheduledTask);
+            return () -> {
+                synchronized (ManuallyTriggeredTaskScheduler.this) {
+                    scheduledTasks.remove(scheduledTask);
+                }
+            };
+        }
+
+        synchronized ThrowingRunnable dequeue() {
+            return scheduledTasks.remove().task();
+        }
+
+        synchronized int pendingTaskCount() {
+            return scheduledTasks.size();
+        }
+
+        @Override
+        public Clock clock() {
+            return Clock.fixed(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC);
+        }
+
+        @Override
+        public void executeExpiredTasks() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public synchronized void shutdown() {
+            scheduledTasks.clear();
+        }
+
+        private record ScheduledTask(ThrowingRunnable task) {
         }
     }
 
