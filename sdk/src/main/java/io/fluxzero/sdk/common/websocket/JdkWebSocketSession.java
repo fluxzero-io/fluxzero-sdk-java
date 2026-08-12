@@ -42,14 +42,17 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 class JdkWebSocketSession implements WebsocketSession {
     static final String SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY =
             JdkWebSocketSession.class.getName() + ".sdkRuntimeDataDispatch";
+    static final String SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY =
+            JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxConcurrency";
+    static final String SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY =
+            JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxRetainedMessages";
+    static final String SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY =
+            JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxRetainedBytes";
     static final String SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY =
             JdkWebSocketSession.class.getName() + ".sdkTransportMetricsEnabled";
-    static final int MAX_CONCURRENT_RUNTIME_MESSAGES = 3;
-    // The production dispatcher retains these in addition to its three submitted messages.
-    static final int MAX_PENDING_RUNTIME_MESSAGES = 16;
-    static final int MAX_RETAINED_RUNTIME_MESSAGES =
-            MAX_CONCURRENT_RUNTIME_MESSAGES + MAX_PENDING_RUNTIME_MESSAGES;
-    static final long MAX_RETAINED_RUNTIME_BYTES = 16L * 1024 * 1024;
+    static final int DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES = 3;
+    static final int DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES = 19;
+    static final long DEFAULT_MAX_RETAINED_RUNTIME_BYTES = 16L * 1024 * 1024;
 
     private final JdkWebsocketConnector connector;
     private final WebsocketEndpoint endpoint;
@@ -91,27 +94,67 @@ class JdkWebSocketSession implements WebsocketSession {
                         JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse,
                         Executor callbackExecutor, Executor runtimeDataExecutor) {
         this(connector, endpoint, options, requestUri, handshakeResponse, callbackExecutor, runtimeDataExecutor,
-             MAX_CONCURRENT_RUNTIME_MESSAGES);
+             runtimeDataMaxConcurrency(options), runtimeDataMaxRetainedMessages(options),
+             runtimeDataMaxRetainedBytes(options));
     }
 
-    JdkWebSocketSession(JdkWebsocketConnector connector, WebsocketEndpoint endpoint,
-                        WebsocketConnectionOptions options, URI requestUri,
-                        JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse,
-                        Executor callbackExecutor, Executor runtimeDataExecutor, int maxConcurrentRuntimeMessages) {
+    private JdkWebSocketSession(JdkWebsocketConnector connector, WebsocketEndpoint endpoint,
+                                WebsocketConnectionOptions options, URI requestUri,
+                                JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse,
+                                Executor callbackExecutor, Executor runtimeDataExecutor,
+                                int maxConcurrentRuntimeMessages, int maxRetainedRuntimeMessages,
+                                long maxRetainedRuntimeBytes) {
         this.connector = connector;
         this.endpoint = endpoint;
         this.handshakeResponse = handshakeResponse;
         this.callbackExecutor = callbackExecutor;
         this.requestUri = requestUri;
         this.userProperties.putAll(options.userProperties());
+        this.userProperties.remove(SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY);
+        this.userProperties.remove(SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY);
+        this.userProperties.remove(SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY);
         this.runtimeDataWorkerMode = JdkWebsocketConnector.runtimeDataWorkerMode(
                 callbackExecutor, runtimeDataExecutor);
         this.runtimeDataDispatcher = Boolean.TRUE.equals(
                 options.userProperties().get(SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY))
-                ? new RuntimeDataDispatcher(runtimeDataExecutor, maxConcurrentRuntimeMessages) : null;
+                ? new RuntimeDataDispatcher(runtimeDataExecutor, maxConcurrentRuntimeMessages,
+                                            maxRetainedRuntimeMessages, maxRetainedRuntimeBytes) : null;
         this.trackInboundActivity = Boolean.TRUE.equals(
                 options.userProperties().get(SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY));
         this.lastInboundNanos = trackInboundActivity ? System.nanoTime() : 0L;
+    }
+
+    private static int runtimeDataMaxConcurrency(WebsocketConnectionOptions options) {
+        return integerUserProperty(options, SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
+                                   DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+    }
+
+    private static int runtimeDataMaxRetainedMessages(WebsocketConnectionOptions options) {
+        return integerUserProperty(options, SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY,
+                                   DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
+    }
+
+    private static long runtimeDataMaxRetainedBytes(WebsocketConnectionOptions options) {
+        Object value = options.userProperties().get(SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY);
+        if (value == null) {
+            return DEFAULT_MAX_RETAINED_RUNTIME_BYTES;
+        }
+        if (value instanceof Long result) {
+            return result;
+        }
+        throw new IllegalArgumentException(
+                SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY + " must be a long");
+    }
+
+    private static int integerUserProperty(WebsocketConnectionOptions options, String name, int defaultValue) {
+        Object value = options.userProperties().get(name);
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Integer result) {
+            return result;
+        }
+        throw new IllegalArgumentException(name + " must be an integer");
     }
 
     WebSocket.Listener createListener() {
@@ -611,6 +654,8 @@ class JdkWebSocketSession implements WebsocketSession {
     private class RuntimeDataDispatcher {
         private final Executor executor;
         private final int maxConcurrency;
+        private final int maxRetainedMessages;
+        private final long maxRetainedBytes;
         private final ArrayDeque<Object> pendingMessages = new ArrayDeque<>();
         private final ArrayDeque<RuntimeTask> availableTasks = new ArrayDeque<>();
         private int createdTaskCount;
@@ -627,13 +672,22 @@ class JdkWebSocketSession implements WebsocketSession {
         private boolean stopping;
         private Runnable terminalCallback;
 
-        private RuntimeDataDispatcher(Executor executor, int maxConcurrency) {
-            if (maxConcurrency < 1 || maxConcurrency > MAX_CONCURRENT_RUNTIME_MESSAGES) {
+        private RuntimeDataDispatcher(Executor executor, int maxConcurrency, int maxRetainedMessages,
+                                      long maxRetainedBytes) {
+            if (maxConcurrency < 1) {
+                throw new IllegalArgumentException("Runtime message concurrency must be at least 1");
+            }
+            if (maxRetainedMessages < maxConcurrency) {
                 throw new IllegalArgumentException(
-                        "Runtime message concurrency must be between 1 and " + MAX_CONCURRENT_RUNTIME_MESSAGES);
+                        "Retained runtime messages must be at least runtime message concurrency");
+            }
+            if (maxRetainedBytes < 1) {
+                throw new IllegalArgumentException("Retained runtime bytes must be positive");
             }
             this.executor = executor;
             this.maxConcurrency = maxConcurrency;
+            this.maxRetainedMessages = maxRetainedMessages;
+            this.maxRetainedBytes = maxRetainedBytes;
         }
 
         synchronized DispatchStatus beginMessage(int firstFrameBytes) {
@@ -660,11 +714,17 @@ class JdkWebSocketSession implements WebsocketSession {
             if (!messageAssemblyRetained) {
                 throw new IllegalStateException("No runtime message is being assembled");
             }
-            if (retainedMessages > 1 && retainedBytes + nextFragmentBytes > MAX_RETAINED_RUNTIME_BYTES) {
+            if (retainedMessages > 1 && exceedsByteCapacity(nextFragmentBytes)) {
                 return DispatchStatus.OVERFLOW;
             }
-            messageAssemblyBytes += nextFragmentBytes;
-            retainedBytes += nextFragmentBytes;
+            try {
+                long updatedMessageAssemblyBytes = Math.addExact(messageAssemblyBytes, nextFragmentBytes);
+                long updatedRetainedBytes = Math.addExact(retainedBytes, nextFragmentBytes);
+                messageAssemblyBytes = updatedMessageAssemblyBytes;
+                retainedBytes = updatedRetainedBytes;
+            } catch (ArithmeticException e) {
+                return DispatchStatus.OVERFLOW;
+            }
             return DispatchStatus.ACCEPTED;
         }
 
@@ -687,9 +747,12 @@ class JdkWebSocketSession implements WebsocketSession {
         }
 
         private boolean hasCapacity(int nextMessageBytes) {
-            return retainedMessages < MAX_RETAINED_RUNTIME_MESSAGES
-                    && (retainedMessages == 0
-                    || retainedBytes + nextMessageBytes <= MAX_RETAINED_RUNTIME_BYTES);
+            return retainedMessages < maxRetainedMessages
+                    && (retainedMessages == 0 || !exceedsByteCapacity(nextMessageBytes));
+        }
+
+        private boolean exceedsByteCapacity(int additionalBytes) {
+            return additionalBytes > maxRetainedBytes || retainedBytes > maxRetainedBytes - additionalBytes;
         }
 
         private void scheduleAvailable() {
@@ -843,7 +906,7 @@ class JdkWebSocketSession implements WebsocketSession {
             return new RuntimeDataState(
                     retainedMessages, retainedBytes, inFlightMessages, inFlightBytes, activeMessages, activeBytes,
                     pendingMessageCount, retainedBytes - inFlightBytes, maxConcurrency,
-                    MAX_RETAINED_RUNTIME_MESSAGES, MAX_RETAINED_RUNTIME_BYTES, 0L);
+                    maxRetainedMessages, maxRetainedBytes, 0L);
         }
 
         void closeAfterDrain(Runnable closeCallback) {
@@ -1019,8 +1082,8 @@ class JdkWebSocketSession implements WebsocketSession {
                             long lastInboundAgeMillis) {
         static RuntimeDataState empty() {
             return new RuntimeDataState(
-                    0, 0L, 0, 0L, 0, 0L, 0, 0L, MAX_CONCURRENT_RUNTIME_MESSAGES,
-                    MAX_RETAINED_RUNTIME_MESSAGES, MAX_RETAINED_RUNTIME_BYTES, 0L);
+                    0, 0L, 0, 0L, 0, 0L, 0, 0L, DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                    DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L);
         }
 
         RuntimeDataState withLastInboundAgeMillis(long lastInboundAgeMillis) {

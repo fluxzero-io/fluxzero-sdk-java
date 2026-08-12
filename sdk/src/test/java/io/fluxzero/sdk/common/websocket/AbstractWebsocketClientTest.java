@@ -135,6 +135,25 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void connectionSetupPropagatesEffectiveRuntimeWebSocketCapacity() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .maxConcurrentRuntimeWebSocketMessages(2)
+                .maxRetainedRuntimeWebSocketMessages(11)
+                .maxRetainedRuntimeWebSocketBytes(8L * 1024 * 1024)
+                .build();
+
+        Map<String, Object> userProperties = AbstractWebsocketClient.createConnectionSetup(clientConfig)
+                .options().userProperties();
+
+        assertEquals(2, userProperties.get(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY));
+        assertEquals(11, userProperties.get(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY));
+        assertEquals(8L * 1024 * 1024,
+                     userProperties.get(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY));
+    }
+
+    @Test
     void supportedCompressionAlgorithmsDefaultToConfiguredCompressionFirst() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -908,6 +927,9 @@ class AbstractWebsocketClientTest {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
+                .maxConcurrentRuntimeWebSocketMessages(2)
+                .maxRetainedRuntimeWebSocketMessages(11)
+                .maxRetainedRuntimeWebSocketBytes(8L * 1024 * 1024)
                 .build();
         TransportMetricObservingClient client = new TransportMetricObservingClient(
                 clientConfig, true, transportMetricsProperties(), new ManuallyTriggeredTaskScheduler());
@@ -915,7 +937,7 @@ class AbstractWebsocketClientTest {
         session.getUserProperties().put(AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY, "9.8.7");
         JdkWebSocketSession.RuntimeDataDispatchException overflow =
                 JdkWebSocketSession.RuntimeDataDispatchException.overflow(
-                        runtimeDataState(2, 4_096L, 2, 0));
+                        runtimeDataState(2, 4_096L, 2, 0, 2, 11, 8L * 1024 * 1024));
 
         try {
             client.handleError(session, overflow);
@@ -930,9 +952,9 @@ class AbstractWebsocketClientTest {
             assertEquals(4_096L, metric.activeBytes());
             assertEquals(0, metric.pendingMessages());
             assertEquals(0L, metric.pendingBytes());
-            assertEquals(JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES, metric.maxConcurrency());
-            assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES, metric.maxRetainedMessages());
-            assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES, metric.maxRetainedBytes());
+            assertEquals(clientConfig.getMaxConcurrentRuntimeWebSocketMessages(), metric.maxConcurrency());
+            assertEquals(clientConfig.getMaxRetainedRuntimeWebSocketMessages(), metric.maxRetainedMessages());
+            assertEquals(clientConfig.getMaxRetainedRuntimeWebSocketBytes(), metric.maxRetainedBytes());
             assertEquals(Runtime.version().feature(), metric.javaFeatureVersion());
             assertEquals("custom-connector", metric.workerMode());
             assertEquals("9.8.7", metric.runtimeVersion());
@@ -1176,14 +1198,21 @@ class AbstractWebsocketClientTest {
 
     private static JdkWebSocketSession.RuntimeDataState runtimeDataState(
             int retainedMessages, long retainedBytes, int inFlightMessages, int pendingMessages) {
+        return runtimeDataState(retainedMessages, retainedBytes, inFlightMessages, pendingMessages,
+                                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES);
+    }
+
+    private static JdkWebSocketSession.RuntimeDataState runtimeDataState(
+            int retainedMessages, long retainedBytes, int inFlightMessages, int pendingMessages,
+            int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes) {
         return new JdkWebSocketSession.RuntimeDataState(
                 retainedMessages, retainedBytes, inFlightMessages,
                 inFlightMessages == 0 ? 0L : retainedBytes,
                 inFlightMessages, inFlightMessages == 0 ? 0L : retainedBytes,
                 pendingMessages, pendingMessages == 0 ? 0L : retainedBytes,
-                JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES,
-                JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES,
-                JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES, 0L);
+                maxConcurrency, maxRetainedMessages, maxRetainedBytes, 0L);
     }
 
     private static WebSocketClient websocketClient(AbstractWebsocketClient client) throws Exception {

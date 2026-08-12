@@ -1050,6 +1050,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         Map<String, Object> userProperties = new java.util.LinkedHashMap<>();
         userProperties.put(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
         userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true);
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
+                           clientConfig.getMaxConcurrentRuntimeWebSocketMessages());
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY,
+                           clientConfig.getMaxRetainedRuntimeWebSocketMessages());
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
+                           clientConfig.getMaxRetainedRuntimeWebSocketBytes());
         if (transportMetricsEnabled) {
             userProperties.put(JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY, true);
         }

@@ -37,7 +37,6 @@ import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.Value;
 
 import java.time.Duration;
@@ -62,6 +61,7 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -85,7 +85,6 @@ import static java.util.stream.Collectors.toMap;
  * @see Client
  * @see LocalClient for an in-memory alternative
  */
-@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public class WebSocketClient extends AbstractClient {
 
     @Getter
@@ -93,6 +92,12 @@ public class WebSocketClient extends AbstractClient {
 
     @Getter(AccessLevel.PRIVATE)
     private final WebSocketClient applicationClient;
+
+    protected WebSocketClient(ClientConfig clientConfig, WebSocketClient applicationClient) {
+        this.clientConfig = Objects.requireNonNull(clientConfig, "clientConfig");
+        this.clientConfig.validateRuntimeWebSocketCapacity();
+        this.applicationClient = applicationClient;
+    }
 
     public static WebSocketClient newInstance(ClientConfig clientConfig) {
         return new WebSocketClient(clientConfig, null);
@@ -179,6 +184,15 @@ public class WebSocketClient extends AbstractClient {
     public static class ClientConfig {
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
+        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
+        static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 19;
+        static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 16L * 1024 * 1024;
+        static final String MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY =
+                "FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY";
+        static final String MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY =
+                "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES";
+        static final String MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY =
+                "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES";
 
         /**
          * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property
@@ -233,6 +247,37 @@ public class WebSocketClient extends AbstractClient {
         @Default
         int maxInFlightWebSocketBytes = getIntegerProperty(MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY,
                                                            DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
+
+        /**
+         * Maximum number of complete SDK runtime messages decoded or handled concurrently per WebSocket session.
+         * Defaults to {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY}, or {@code 3} when unset. Use {@code 1} for
+         * serial application callbacks while retaining protocol-liveness isolation.
+         */
+        @Default
+        int maxConcurrentRuntimeWebSocketMessages = getIntegerProperty(
+                MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY,
+                DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES);
+
+        /**
+         * Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, executor
+         * submission, pending work and active processing. The pending capacity is this value minus
+         * {@link #maxConcurrentRuntimeWebSocketMessages}. Defaults to
+         * {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES}, or {@code 19} when unset.
+         */
+        @Default
+        int maxRetainedRuntimeWebSocketMessages = getIntegerProperty(
+                MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY,
+                DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES);
+
+        /**
+         * Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single
+         * larger message may proceed while it is the only retained message. Defaults to
+         * {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES}, or 16 MiB when unset.
+         */
+        @Default
+        long maxRetainedRuntimeWebSocketBytes = getLongProperty(
+                MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY,
+                DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES);
 
         /**
          * Maximum payload bytes per physical WebSocket binary frame. Larger logical Fluxzero messages are sent with
@@ -340,6 +385,19 @@ public class WebSocketClient extends AbstractClient {
             HashMap<MessageType, TrackingClientConfig> config = new HashMap<>(trackingConfigs);
             config.put(messageType, trackingConfig);
             return toBuilder().trackingConfigs(config).build();
+        }
+
+        private void validateRuntimeWebSocketCapacity() {
+            if (maxConcurrentRuntimeWebSocketMessages < 1) {
+                throw new IllegalArgumentException("maxConcurrentRuntimeWebSocketMessages must be at least 1");
+            }
+            if (maxRetainedRuntimeWebSocketMessages < maxConcurrentRuntimeWebSocketMessages) {
+                throw new IllegalArgumentException(
+                        "maxRetainedRuntimeWebSocketMessages must be at least maxConcurrentRuntimeWebSocketMessages");
+            }
+            if (maxRetainedRuntimeWebSocketBytes < 1) {
+                throw new IllegalArgumentException("maxRetainedRuntimeWebSocketBytes must be positive");
+            }
         }
 
         private static Map<MessageType, Integer> defaultGatewaySessions() {

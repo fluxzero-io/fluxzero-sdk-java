@@ -145,7 +145,7 @@ public class WebsocketRuntimeDispatchBenchmark {
             for (int sessions : List.of(1, LOAD_SESSION_COUNT)) {
                 double singleWorkerElapsed = 0d;
                 for (int concurrency = 1;
-                     concurrency <= JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES; concurrency++) {
+                     concurrency <= JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES; concurrency++) {
                     try (BoundedLoadScenario scenario = new BoundedLoadScenario(
                             concurrency, sessions, compression, false)) {
                         for (int i = 0; i < WARMUPS; i++) {
@@ -165,17 +165,26 @@ public class WebsocketRuntimeDispatchBenchmark {
             }
         }
         runMetricsEnabledBoundedLoad();
+        runConfiguredCapacitySmoke();
     }
 
     private static void runMetricsEnabledBoundedLoad() {
         for (int sessions : List.of(1, LOAD_SESSION_COUNT)) {
             try (BoundedLoadScenario scenario = new BoundedLoadScenario(
-                    JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES, sessions, CompressionAlgorithm.LZ4, true)) {
+                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessions, CompressionAlgorithm.LZ4, true)) {
                 for (int i = 0; i < WARMUPS; i++) {
                     scenario.run(LOAD_ITERATIONS);
                 }
                 measureBoundedLoad(scenario, LOAD_ITERATIONS);
             }
+        }
+    }
+
+    private static void runConfiguredCapacitySmoke() {
+        try (BoundedLoadScenario scenario = new BoundedLoadScenario(
+                2, 1, CompressionAlgorithm.LZ4, false, 7, 256L * 1024)) {
+            scenario.run(LOAD_ITERATIONS);
+            measureBoundedLoad(scenario, LOAD_ITERATIONS);
         }
     }
 
@@ -185,12 +194,14 @@ public class WebsocketRuntimeDispatchBenchmark {
         long[] latencies = measurement.batchDrainLatencies();
         Arrays.sort(latencies);
         System.out.printf("runtime-bounded-load compression=%s sessions=%d concurrency=%d metrics=%s "
-                                  + "compressedBytes=%d retainedMessagesPerSession=%d retainedUpperBoundBytes=%d "
+                                  + "maxRetainedMessages=%d maxRetainedBytes=%d compressedBytes=%d "
+                                  + "retainedMessagesPerSession=%d retainedUpperBoundBytes=%d "
                                   + "iterations=%d: "
                                   + "%.2f ns/op, %.1f ops/s, batchDrainP50=%dns, batchDrainP95=%dns, "
                                   + "batchDrainP99=%dns%n",
                           scenario.compression, scenario.sessions.size(), scenario.maxConcurrency,
-                          scenario.transportMetrics, scenario.payload.length,
+                          scenario.transportMetrics, scenario.maxRetainedMessages, scenario.maxRetainedBytes,
+                          scenario.payload.length,
                           scenario.messagesPerSession,
                           (long) scenario.sessions.size() * scenario.messagesPerSession * scenario.payload.length,
                           measurement.iterations(),
@@ -347,6 +358,8 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final int maxConcurrency;
         private final CompressionAlgorithm compression;
         private final boolean transportMetrics;
+        private final int maxRetainedMessages;
+        private final long maxRetainedBytes;
         private final byte[] payload;
         private final int messagesPerSession;
         private final ExecutorService executor;
@@ -358,28 +371,48 @@ public class WebsocketRuntimeDispatchBenchmark {
 
         private BoundedLoadScenario(int maxConcurrency, int sessionCount, CompressionAlgorithm compression,
                                     boolean transportMetrics) {
+            this(maxConcurrency, sessionCount, compression, transportMetrics,
+                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES);
+        }
+
+        private BoundedLoadScenario(int maxConcurrency, int sessionCount, CompressionAlgorithm compression,
+                                    boolean transportMetrics, int maxRetainedMessages, long maxRetainedBytes) {
             this.maxConcurrency = maxConcurrency;
             this.compression = compression;
             this.transportMetrics = transportMetrics;
+            this.maxRetainedMessages = maxRetainedMessages;
+            this.maxRetainedBytes = maxRetainedBytes;
             this.payload = compressedLoadPayload(compression);
             this.messagesPerSession = Math.max(1, Math.min(
-                    JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES,
-                    Math.toIntExact(JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES / payload.length)));
+                    maxRetainedMessages, Math.toIntExact(maxRetainedBytes / payload.length)));
             this.executor = Executors.newFixedThreadPool(
-                    sessionCount * JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES);
+                    sessionCount * JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
             this.sessions = new java.util.ArrayList<>(sessionCount);
             this.listeners = new java.util.ArrayList<>(sessionCount);
             this.webSockets = new java.util.ArrayList<>(sessionCount);
             LoadEndpoint endpoint = new LoadEndpoint(compression, processed, failure);
-            Map<String, Object> userProperties = userProperties(true, transportMetrics);
+            Map<String, Object> userProperties = new java.util.HashMap<>(
+                    userProperties(true, transportMetrics));
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
+                               maxConcurrency);
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY,
+                               maxRetainedMessages);
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
+                               maxRetainedBytes);
             for (int i = 0; i < sessionCount; i++) {
                 JdkWebSocketSession session = new JdkWebSocketSession(
                         new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(endpoint),
                         new WebsocketConnectionOptions(
                                 Map.of(), userProperties, Duration.ofSeconds(1), List.of()),
                         URI.create("ws://localhost/benchmark-load/" + i),
-                        new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, executor,
-                        maxConcurrency);
+                        new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, executor);
+                JdkWebSocketSession.RuntimeDataState initialState = session.runtimeDataState();
+                if (initialState.maxConcurrency() != maxConcurrency
+                        || initialState.maxRetainedMessages() != maxRetainedMessages
+                        || initialState.maxRetainedBytes() != maxRetainedBytes) {
+                    throw new IllegalStateException("Runtime dispatcher did not apply the benchmark capacity");
+                }
                 BenchmarkWebSocket webSocket = new BenchmarkWebSocket();
                 WebSocket.Listener listener = session.createListener();
                 listener.onOpen(webSocket);
@@ -505,9 +538,9 @@ public class WebsocketRuntimeDispatchBenchmark {
                 JdkWebSocketSession.RuntimeDataDispatchException.overflow(
                         new JdkWebSocketSession.RuntimeDataState(
                                 2, 4_096L, 2, 4_096L, 2, 4_096L, 0, 0L,
-                                JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES,
-                                JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES,
-                                JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES, 0L));
+                                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L));
 
         private final TransportMetricBenchmarkClient client;
         private final JdkWebSocketSession session;

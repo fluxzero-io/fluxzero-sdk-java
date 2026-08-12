@@ -504,7 +504,7 @@ class JdkWebsocketConnectorTest {
         Semaphore processedPermits = new Semaphore(0);
         try (ExecutorService callbackExecutor = Executors.newFixedThreadPool(4);
              ExecutorService runtimeDataExecutor = Executors.newFixedThreadPool(
-                     JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES);
+                     JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
              TestWebSocketServer server = TestWebSocketServer.start()) {
             JdkWebsocketConnector connector = new JdkWebsocketConnector(
                     HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build(),
@@ -540,7 +540,7 @@ class JdkWebsocketConnectorTest {
                     if ((i + 1) % pongInterval == 0) {
                         server.sendFrame(true, 0xA, new byte[]{(byte) i});
                     }
-                    if (messagesInBatch == JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES) {
+                    if (messagesInBatch == JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES) {
                         int expectedCompletedMessages = i + 1;
                         assertTrue(awaitProcessedBatch(processedPermits, messagesInBatch, session),
                                    () -> burstFailureDiagnostics(
@@ -609,9 +609,9 @@ class JdkWebsocketConnectorTest {
     @Test
     void boundedBurstFailureDiagnosticsIncludeProgressAndRuntimeState() {
         JdkWebSocketSession.RuntimeDataState state = new JdkWebSocketSession.RuntimeDataState(
-                1, 4L, 1, 4L, 0, 0L, 0, 0L, JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES,
-                JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES,
-                JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES, 12L);
+                1, 4L, 1, 4L, 0, 0L, 0, 0L, JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 12L);
 
         String diagnostics = burstFailureDiagnostics(
                 3, 2, 1_024, 4, 64, state, new IllegalStateException("transport failed"));
@@ -625,7 +625,7 @@ class JdkWebsocketConnectorTest {
 
     @Test
     void smallBurstBeyondWorkerConcurrencyQueuesWithinRetainedBound() throws Exception {
-        int expectedConcurrency = JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES;
+        int expectedConcurrency = JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES;
         ExecutorService runtimeDataExecutor = Executors.newFixedThreadPool(
                 expectedConcurrency);
         CountDownLatch processingStarted = new CountDownLatch(expectedConcurrency);
@@ -673,8 +673,8 @@ class JdkWebsocketConnectorTest {
             assertEquals(expectedConcurrency, state.inFlightMessages());
             assertEquals(expectedConcurrency, state.activeMessages());
             assertEquals(1, state.pendingMessages());
-            assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES, state.maxRetainedMessages());
-            assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES, state.maxRetainedBytes());
+            assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, state.maxRetainedMessages());
+            assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, state.maxRetainedBytes());
             allowProcessingToFinish.countDown();
             assertTrue(processingFinished.await(5, TimeUnit.SECONDS));
         } finally {
@@ -684,8 +684,88 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
+    void configuredRetainedMessagesDerivePendingCapacity() {
+        int maxConcurrency = 2;
+        int maxRetainedMessages = 5;
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        RecordingEndpoint endpoint = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), endpoint,
+                sdkRuntimeOptions(maxConcurrency, maxRetainedMessages, 1_024L),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run, runtimeDataExecutor);
+        WebSocket webSocket = mock(WebSocket.class);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        assertFalse(session.getUserProperties().containsKey(
+                JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY));
+        assertFalse(session.getUserProperties().containsKey(
+                JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY));
+        assertFalse(session.getUserProperties().containsKey(
+                JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY));
+
+        for (int i = 0; i < maxRetainedMessages; i++) {
+            listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
+        }
+
+        JdkWebSocketSession.RuntimeDataState fullState = session.runtimeDataState();
+        assertEquals(maxRetainedMessages, fullState.retainedMessages());
+        assertEquals(maxConcurrency, fullState.inFlightMessages());
+        assertEquals(maxRetainedMessages - maxConcurrency, fullState.pendingMessages());
+        assertEquals(maxConcurrency, fullState.maxConcurrency());
+        assertEquals(maxRetainedMessages, fullState.maxRetainedMessages());
+        assertEquals(1_024L, fullState.maxRetainedBytes());
+
+        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{99}), true);
+
+        assertInstanceOf(JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
+        assertEquals(JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW,
+                     ((JdkWebSocketSession.RuntimeDataDispatchException) reportedError.get()).reason());
+        verify(webSocket).abort();
+    }
+
+    @Test
+    void configuredByteLimitStillAllowsOneSoleOversizedMessage() {
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        RecordingEndpoint endpoint = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), endpoint, sdkRuntimeOptions(1, 4, 2L),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run, runtimeDataExecutor);
+        WebSocket webSocket = mock(WebSocket.class);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[3]), true);
+
+        JdkWebSocketSession.RuntimeDataState retainedState = session.runtimeDataState();
+        assertEquals(1, retainedState.retainedMessages());
+        assertEquals(3L, retainedState.retainedBytes());
+        assertEquals(2L, retainedState.maxRetainedBytes());
+        assertNull(reportedError.get());
+
+        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{1}), true);
+
+        assertInstanceOf(JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
+        verify(webSocket).abort();
+    }
+
+    @Test
     void binaryDispatchOverflowFailsSessionInsteadOfBufferingWithoutBound() {
-        int expectedDispatchCapacity = JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES;
+        int expectedDispatchCapacity = JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES;
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AtomicReference<Throwable> reportedError = new AtomicReference<>();
         RecordingEndpoint endpoint = new RecordingEndpoint() {
@@ -714,9 +794,11 @@ class JdkWebsocketConnectorTest {
     void retainedAccountingIncludesSubmittedAndPendingRuntimeMessages() {
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         JdkWebSocketSession session = new JdkWebSocketSession(
-                new JdkWebsocketConnector(), new RecordingEndpoint(), sdkRuntimeOptions(),
+                new JdkWebsocketConnector(), new RecordingEndpoint(), sdkRuntimeOptions(
+                1, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES),
                 URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
-                Runnable::run, runtimeDataExecutor, 1);
+                Runnable::run, runtimeDataExecutor);
         WebSocket webSocket = mock(WebSocket.class);
         WebSocket.Listener listener = session.createListener();
         listener.onOpen(webSocket);
@@ -791,18 +873,18 @@ class JdkWebsocketConnectorTest {
         WebSocket.Listener listener = session.createListener();
         listener.onOpen(webSocket);
 
-        for (int i = 0; i < JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES; i++) {
+        for (int i = 0; i < JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES; i++) {
             listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
         }
 
-        verify(webSocket, times(JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES + 1)).request(1);
+        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES + 1)).request(1);
         JdkWebSocketSession.RuntimeDataState fullState = session.runtimeDataState();
-        assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES, fullState.retainedMessages());
-        assertEquals(JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES, fullState.inFlightMessages());
-        assertEquals(JdkWebSocketSession.MAX_PENDING_RUNTIME_MESSAGES, fullState.pendingMessages());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, fullState.retainedMessages());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, fullState.inFlightMessages());
+        assertEquals((JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES - JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES), fullState.pendingMessages());
         listener.onPong(webSocket, ByteBuffer.wrap(new byte[]{9}));
         runtimeDataExecutor.runAll();
-        verify(webSocket, times(JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES + 2)).request(1);
+        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES + 2)).request(1);
     }
 
     @Test
@@ -839,7 +921,7 @@ class JdkWebsocketConnectorTest {
         WebSocket webSocket = mock(WebSocket.class);
         WebSocket.Listener listener = session.createListener();
         listener.onOpen(webSocket);
-        for (int i = 0; i < JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES; i++) {
+        for (int i = 0; i < JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES; i++) {
             listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
         }
 
@@ -869,7 +951,7 @@ class JdkWebsocketConnectorTest {
         WebSocket webSocket = mock(WebSocket.class);
         WebSocket.Listener listener = session.createListener();
         listener.onOpen(webSocket);
-        for (int i = 0; i < JdkWebSocketSession.MAX_RETAINED_RUNTIME_MESSAGES; i++) {
+        for (int i = 0; i < JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES; i++) {
             listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
         }
         ByteBuffer rejectedPayload = ByteBuffer.allocate(4 * 1024 * 1024);
@@ -912,9 +994,9 @@ class JdkWebsocketConnectorTest {
         listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{1}), true);
         listener.onBinary(webSocket,
                           ByteBuffer.wrap(new byte[Math.toIntExact(
-                                  JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES - 1)]), false);
+                                  JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES - 1)]), false);
 
-        assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES,
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES,
                      session.runtimeDataState().retainedBytes());
         listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{2}), false);
 
@@ -922,7 +1004,7 @@ class JdkWebsocketConnectorTest {
                 JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
         assertEquals(JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW, error.reason());
         assertEquals(2, error.state().retainedMessages());
-        assertEquals(JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES, error.state().retainedBytes());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, error.state().retainedBytes());
         assertEquals(1, error.state().pendingMessages());
         assertFalse(session.isOpen());
         verify(webSocket).abort();
@@ -934,12 +1016,12 @@ class JdkWebsocketConnectorTest {
     @Test
     void peerCloseWaitsForAllParallelRuntimeMessagesDespiteReverseCompletion() throws Exception {
         ExecutorService runtimeDataExecutor = Executors.newFixedThreadPool(
-                JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES);
-        CountDownLatch processingStarted = new CountDownLatch(JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES);
+                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+        CountDownLatch processingStarted = new CountDownLatch(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
         CountDownLatch allowFirstToFinish = new CountDownLatch(1);
         CountDownLatch allowLaterMessagesToFinish = new CountDownLatch(1);
         CountDownLatch laterMessagesFinished = new CountDownLatch(2);
-        CountDownLatch processingFinished = new CountDownLatch(JdkWebSocketSession.MAX_CONCURRENT_RUNTIME_MESSAGES);
+        CountDownLatch processingFinished = new CountDownLatch(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
         List<String> callbacks = Collections.synchronizedList(new ArrayList<>());
         RecordingEndpoint endpoint = new RecordingEndpoint() {
             @Override
@@ -1237,7 +1319,7 @@ class JdkWebsocketConnectorTest {
         listener.onOpen(webSocket);
 
         listener.onBinary(webSocket,
-                          ByteBuffer.wrap(new byte[Math.toIntExact(JdkWebSocketSession.MAX_RETAINED_RUNTIME_BYTES + 1)]),
+                          ByteBuffer.wrap(new byte[Math.toIntExact(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES + 1)]),
                           true);
         listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{2}), true);
 
@@ -1425,6 +1507,16 @@ class JdkWebsocketConnectorTest {
     private static WebsocketConnectionOptions sdkRuntimeOptions() {
         return new WebsocketConnectionOptions(
                 Map.of(), Map.of(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true), null, List.of());
+    }
+
+    private static WebsocketConnectionOptions sdkRuntimeOptions(
+            int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes) {
+        return new WebsocketConnectionOptions(Map.of(), Map.of(
+                JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true,
+                JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY, maxConcurrency,
+                JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY, maxRetainedMessages,
+                JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY, maxRetainedBytes),
+                                              null, List.of());
     }
 
     private static byte[] closePayload(int code, String reason) {
