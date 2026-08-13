@@ -37,6 +37,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  * transport adapter must re-check admission and make its own resume operation idempotent.</p>
  */
 final class RuntimeIngressController<C> {
+    private static final int MAX_SYNCHRONOUS_MESSAGES_PER_TASK = 32;
     private final Executor executor;
     private final int maxConcurrency;
     private final int maxRetainedMessages;
@@ -44,7 +45,7 @@ final class RuntimeIngressController<C> {
     private final MessageHandler<C> messageHandler;
     private final Consumer<Throwable> failureHandler;
     private final Runnable capacityAvailableHandler;
-    private final Consumer<Progress> progressHandler;
+    private final ProgressHandler progressHandler;
     private final boolean captureDispatchTiming;
     private final ArrayDeque<RuntimeMessage<C>> pendingMessages = new ArrayDeque<>();
     private final ArrayDeque<RuntimeTask> availableTasks = new ArrayDeque<>();
@@ -56,21 +57,23 @@ final class RuntimeIngressController<C> {
     private long inFlightBytes;
     private int activeMessages;
     private long activeBytes;
+    private long progressSequence;
     private boolean accepting = true;
+    private boolean capacityNotificationPending;
     private boolean discardPending;
     private boolean stopping;
     private Runnable terminalCallback;
 
     RuntimeIngressController(Executor executor, int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes,
                              MessageHandler<C> messageHandler, Consumer<Throwable> failureHandler,
-                             Runnable capacityAvailableHandler, Consumer<Progress> progressHandler) {
+                             Runnable capacityAvailableHandler, ProgressHandler progressHandler) {
         this(executor, maxConcurrency, maxRetainedMessages, maxRetainedBytes, messageHandler, failureHandler,
              capacityAvailableHandler, progressHandler, true);
     }
 
     RuntimeIngressController(Executor executor, int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes,
                              MessageHandler<C> messageHandler, Consumer<Throwable> failureHandler,
-                             Runnable capacityAvailableHandler, Consumer<Progress> progressHandler,
+                             Runnable capacityAvailableHandler, ProgressHandler progressHandler,
                              boolean captureDispatchTiming) {
         if (maxConcurrency < 1) {
             throw new IllegalArgumentException("Runtime message concurrency must be at least 1");
@@ -99,6 +102,8 @@ final class RuntimeIngressController<C> {
             throw new IllegalArgumentException("Runtime message frame bytes must not be negative");
         }
         Progress progress;
+        int progressRetainedMessages;
+        long currentProgressSequence;
         synchronized (this) {
             if (!accepting) {
                 return Admission.CLOSED;
@@ -107,17 +112,19 @@ final class RuntimeIngressController<C> {
                 throw new IllegalStateException("A runtime message is already being assembled for " + assemblyKey);
             }
             if (!hasCapacity(firstFrameBytes)) {
+                capacityNotificationPending = true;
                 return Admission.BACKPRESSURED;
             }
             boolean firstRetainedMessage = retainedMessages == 0;
             assemblies.put(assemblyKey, new Assembly(firstFrameBytes));
             retainedMessages++;
             retainedBytes += firstFrameBytes;
-            progress = firstRetainedMessage && progressHandler != null
-                    ? new Progress(Progress.Type.RETAINED_WORK_STARTED, state()) : null;
+            progress = firstRetainedMessage && progressHandler != null ? Progress.RETAINED_WORK_STARTED : null;
+            progressRetainedMessages = retainedMessages;
+            currentProgressSequence = progress == null ? 0L : ++progressSequence;
         }
         if (progress != null) {
-            progressHandler.accept(progress);
+            progressHandler.accept(progress, progressRetainedMessages, currentProgressSequence);
         }
         return Admission.ACCEPTED;
     }
@@ -134,6 +141,7 @@ final class RuntimeIngressController<C> {
             throw new IllegalStateException("No runtime message is being assembled for " + assemblyKey);
         }
         if (retainedMessages > 1 && exceedsByteCapacity(nextFragmentBytes)) {
+            capacityNotificationPending = true;
             return Admission.BACKPRESSURED;
         }
         try {
@@ -168,8 +176,12 @@ final class RuntimeIngressController<C> {
     }
 
     synchronized boolean canBeginMessage() {
-        return accepting && retainedMessages < maxRetainedMessages
-               && (retainedMessages == 0 || retainedBytes < maxRetainedBytes);
+        boolean result = accepting && retainedMessages < maxRetainedMessages
+                         && (retainedMessages == 0 || retainedBytes < maxRetainedBytes);
+        if (accepting && !result) {
+            capacityNotificationPending = true;
+        }
+        return result;
     }
 
     private boolean hasCapacity(int nextMessageBytes) {
@@ -212,10 +224,10 @@ final class RuntimeIngressController<C> {
         }
     }
 
-    private void process(RuntimeTask task, RuntimeMessage<C> message) {
+    private RuntimeMessage<C> process(
+            RuntimeTask task, RuntimeMessage<C> message, boolean allowWorkerReuse) {
         if (!markActive(message)) {
-            complete(task, message, false, null);
-            return;
+            return complete(task, message, false, null, allowWorkerReuse);
         }
         CompletableFuture<Void> future;
         try {
@@ -230,8 +242,7 @@ final class RuntimeIngressController<C> {
             future = Objects.requireNonNull(
                     completion.toCompletableFuture(), "Runtime message completion future");
         } catch (Throwable e) {
-            complete(task, message, true, unwrap(e));
-            return;
+            return complete(task, message, true, unwrap(e), allowWorkerReuse);
         }
         if (future.isDone()) {
             Throwable failure = null;
@@ -240,9 +251,11 @@ final class RuntimeIngressController<C> {
             } catch (Throwable e) {
                 failure = unwrap(e);
             }
-            complete(task, message, true, failure);
+            return complete(task, message, true, failure, allowWorkerReuse);
         } else {
-            future.whenComplete((ignored, failure) -> complete(task, message, true, unwrap(failure)));
+            future.whenComplete(
+                    (ignored, failure) -> complete(task, message, true, unwrap(failure), false));
+            return null;
         }
     }
 
@@ -259,11 +272,16 @@ final class RuntimeIngressController<C> {
         return true;
     }
 
-    private void complete(RuntimeTask task, RuntimeMessage<C> message, boolean active, Throwable failure) {
+    private RuntimeMessage<C> complete(
+            RuntimeTask task, RuntimeMessage<C> message, boolean active, Throwable failure,
+            boolean reuseWorker) {
         Runnable terminal;
         boolean scheduleMore;
         boolean capacityAvailable;
         Progress progress;
+        int progressRetainedMessages;
+        long currentProgressSequence;
+        RuntimeMessage<C> nextMessage;
         synchronized (this) {
             boolean publishProgress = !discardPending;
             inFlightMessages--;
@@ -274,8 +292,6 @@ final class RuntimeIngressController<C> {
             }
             retainedMessages--;
             retainedBytes -= message.bytes.length;
-            task.message = null;
-            availableTasks.addLast(task);
             if (failure != null) {
                 accepting = false;
                 stopping = true;
@@ -287,17 +303,33 @@ final class RuntimeIngressController<C> {
             } else {
                 terminal = null;
             }
-            scheduleMore = failure == null && !discardPending && !pendingMessages.isEmpty();
-            capacityAvailable = failure == null && accepting && !discardPending;
+            nextMessage = reuseWorker && failure == null && !discardPending && !stopping
+                    ? pendingMessages.pollFirst() : null;
+            if (nextMessage == null) {
+                task.message = null;
+                availableTasks.addLast(task);
+            } else {
+                inFlightMessages++;
+                inFlightBytes += nextMessage.bytes.length;
+                task.message = nextMessage;
+            }
+            scheduleMore = failure == null && !discardPending && !pendingMessages.isEmpty()
+                           && inFlightMessages < maxConcurrency;
+            capacityAvailable = failure == null && accepting && !discardPending && capacityNotificationPending;
+            if (capacityAvailable) {
+                capacityNotificationPending = false;
+            }
             progress = failure == null && publishProgress && progressHandler != null
-                    ? new Progress(Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED, state()) : null;
+                    ? Progress.FUNCTIONAL_MESSAGE_COMPLETED : null;
+            progressRetainedMessages = retainedMessages;
+            currentProgressSequence = progress == null ? 0L : ++progressSequence;
         }
         if (failure != null) {
             failureHandler.accept(failure);
-            return;
+            return null;
         }
         if (progress != null) {
-            progressHandler.accept(progress);
+            progressHandler.accept(progress, progressRetainedMessages, currentProgressSequence);
         }
         if (scheduleMore) {
             scheduleAvailable();
@@ -308,6 +340,7 @@ final class RuntimeIngressController<C> {
         if (terminal != null) {
             terminal.run();
         }
+        return nextMessage;
     }
 
     private synchronized State discardRejected(RuntimeTask task, RuntimeMessage<C> rejectedMessage) {
@@ -391,10 +424,8 @@ final class RuntimeIngressController<C> {
         ACCEPTED, BACKPRESSURED, CLOSED, OVERFLOW
     }
 
-    record Progress(Type type, State state) {
-        enum Type {
-            RETAINED_WORK_STARTED, FUNCTIONAL_MESSAGE_COMPLETED
-        }
+    enum Progress {
+        RETAINED_WORK_STARTED, FUNCTIONAL_MESSAGE_COMPLETED
     }
 
     record State(int retainedMessages, long retainedBytes, int inFlightMessages, long inFlightBytes,
@@ -445,6 +476,11 @@ final class RuntimeIngressController<C> {
         CompletionStage<Void> handle(byte[] bytes, C messageContext, DispatchTiming dispatchTiming);
     }
 
+    @FunctionalInterface
+    interface ProgressHandler {
+        void accept(Progress progress, int retainedMessages, long sequence);
+    }
+
     record DispatchTiming(long queuedTimestamp, long startedTimestamp, long queueDurationMillis) {
     }
 
@@ -468,7 +504,10 @@ final class RuntimeIngressController<C> {
             if (currentMessage == null) {
                 throw new IllegalStateException("Runtime dispatch task has no message");
             }
-            process(this, currentMessage);
+            for (int processed = 1; currentMessage != null; processed++) {
+                currentMessage = process(
+                        this, currentMessage, processed < MAX_SYNCHRONOUS_MESSAGES_PER_TASK);
+            }
         }
     }
 }

@@ -35,14 +35,13 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
 
     CompletionStage<Void> onRuntimeMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
                                            RuntimeDispatchTiming dispatchTiming) {
+        if (dispatchTiming == null) {
+            return dispatchRuntimeMessage(bytes, session, receiveTiming);
+        }
         RuntimeDispatchTiming previousTiming = runtimeDispatchTiming.get();
         runtimeDispatchTiming.set(dispatchTiming);
         try {
-            if (delegate instanceof AbstractWebsocketClient client) {
-                return client.dispatchRuntimeMessage(() -> delegate.onMessage(bytes, session, receiveTiming));
-            }
-            delegate.onMessage(bytes, session, receiveTiming);
-            return COMPLETED;
+            return dispatchRuntimeMessage(bytes, session, receiveTiming);
         } finally {
             if (previousTiming == null) {
                 runtimeDispatchTiming.remove();
@@ -50,6 +49,15 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
                 runtimeDispatchTiming.set(previousTiming);
             }
         }
+    }
+
+    private CompletionStage<Void> dispatchRuntimeMessage(
+            byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+        if (delegate instanceof AbstractWebsocketClient client) {
+            return client.dispatchRuntimeMessage(() -> delegate.onMessage(bytes, session, receiveTiming));
+        }
+        delegate.onMessage(bytes, session, receiveTiming);
+        return COMPLETED;
     }
 
     RuntimeDispatchTiming currentDispatchTiming() {
@@ -63,9 +71,11 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
         }
     }
 
-    void onRuntimeIngressProgress(WebsocketSession session, RuntimeIngressController.Progress progress) {
+    void onRuntimeIngressProgress(
+            WebsocketSession session, RuntimeIngressController.Progress progress, int retainedMessages,
+            long sequence) {
         if (delegate instanceof AbstractWebsocketClient client) {
-            client.onRuntimeIngressProgress(session, progress);
+            client.onRuntimeIngressProgress(session, progress, retainedMessages, sequence);
         }
     }
 

@@ -116,6 +116,43 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void nestedRuntimeDispatchRestoresOuterCompletionContext() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        AtomicInteger handledResults = new AtomicInteger();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig) {
+            @Override
+            protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                        WebsocketResultDiagnostics.ResultTiming timing) {
+                handledResults.incrementAndGet();
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+        session.getUserProperties().put(
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE);
+        session.getUserProperties().put(
+                AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
+        byte[] result = io.fluxzero.common.websocket.WebSocketTransportCodecs.json(
+                        AbstractWebsocketClient.defaultObjectMapper)
+                .encode(new VoidResult(1L));
+
+        try {
+            CompletableFuture<Void> outerCompletion = client.dispatchRuntimeMessage(() -> {
+                client.dispatchRuntimeMessage(() -> client.handleMessage(result, session, null))
+                        .toCompletableFuture().join();
+                client.handleMessage(result, session, null);
+            }).toCompletableFuture();
+
+            outerCompletion.get(1, TimeUnit.SECONDS);
+            assertEquals(2, handledResults.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
     void singleAndBatchedResponsesUseTheSameDedicatedCompletionPath() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -1145,14 +1182,14 @@ class AbstractWebsocketClientTest {
         when(session.isOpen()).thenReturn(true);
 
         try {
-            client.onRuntimeIngressProgress(session, runtimeIngressProgress(
-                    RuntimeIngressController.Progress.Type.RETAINED_WORK_STARTED, 2));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 2, 1L);
             assertEquals(1, taskScheduler.pendingTaskCount());
 
             taskScheduler.advance(clientConfig.getPingTimeout());
             taskScheduler.dequeue().run();
-            client.onRuntimeIngressProgress(session, runtimeIngressProgress(
-                    RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED, 1));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 1, 2L);
 
             assertTrue(metricsPublished.await(1, TimeUnit.SECONDS));
             assertEquals(List.of(WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED,
@@ -1177,11 +1214,65 @@ class AbstractWebsocketClientTest {
         WebsocketSession session = mockSession("client123_runtime456");
 
         try {
-            client.onRuntimeIngressProgress(session, runtimeIngressProgress(
-                    RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED, 0));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 0, 1L);
 
             assertEquals(0, taskScheduler.pendingTaskCount());
             assertNull(client.transportMetric.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void olderParallelCompletionCannotRestartStallMonitoringAfterIngressDrained() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+
+        try {
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 2, 1L);
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 0, 3L);
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 1, 2L);
+
+            assertEquals(0, taskScheduler.pendingTaskCount(),
+                         "A stale completion snapshot must not re-arm a drained ingress watchdog");
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void newIngressBurstGetsFreshStallDeadlineAfterPreviousBurstDrained() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .pingTimeout(Duration.ofSeconds(10))
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler);
+        WebsocketSession session = mockSession("client123_runtime456");
+
+        try {
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 1, 1L);
+            taskScheduler.advance(Duration.ofSeconds(4));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 0, 2L);
+            taskScheduler.advance(Duration.ofSeconds(4));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 1, 3L);
+
+            assertEquals(18_000L, taskScheduler.nextDeadline());
         } finally {
             client.close();
         }
@@ -1200,11 +1291,11 @@ class AbstractWebsocketClientTest {
         WebsocketSession session = mockSession("client123_runtime456");
 
         try {
-            client.onRuntimeIngressProgress(session, runtimeIngressProgress(
-                    RuntimeIngressController.Progress.Type.RETAINED_WORK_STARTED, 2));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 2, 1L);
             taskScheduler.advance(Duration.ofSeconds(4));
-            client.onRuntimeIngressProgress(session, runtimeIngressProgress(
-                    RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED, 1));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED, 1, 2L);
 
             assertEquals(1, taskScheduler.pendingTaskCount(),
                          "A completion should update the rolling watchdog instead of replacing its task");
@@ -1241,8 +1332,8 @@ class AbstractWebsocketClientTest {
         when(session.isOpen()).thenReturn(true);
 
         try {
-            client.onRuntimeIngressProgress(session, runtimeIngressProgress(
-                    RuntimeIngressController.Progress.Type.RETAINED_WORK_STARTED, 1));
+            client.onRuntimeIngressProgress(
+                    session, RuntimeIngressController.Progress.RETAINED_WORK_STARTED, 1, 1L);
 
             taskScheduler.advance(clientConfig.getPingTimeout());
             taskScheduler.dequeue().run();
@@ -1298,12 +1389,6 @@ class AbstractWebsocketClientTest {
             assertEquals(0, metric.pendingResultCompletions());
             assertEquals(clientConfig.getMaxConcurrentRuntimeResultCompletions(),
                          metric.maxCompletionConcurrency());
-            assertEquals(0L, metric.oldestCompletionWorkGroupAgeMillis());
-            assertEquals(0L, metric.maxCompletionQueueDwellMillis());
-            assertEquals(0L, metric.maxResultCompletionDurationMillis());
-            assertEquals(0, metric.maxObservedCompletionWorkGroups());
-            assertEquals(0, metric.maxObservedActiveResultCompletions());
-            assertEquals(0, metric.maxObservedPendingResultCompletions());
             assertEquals(0L, metric.stallCloseTimeoutMillis());
             assertEquals(Runtime.version().feature(), metric.javaFeatureVersion());
             assertEquals("custom-connector", metric.workerMode());
@@ -1589,11 +1674,6 @@ class AbstractWebsocketClientTest {
                 inFlightMessages, inFlightMessages == 0 ? 0L : retainedBytes,
                 pendingMessages, pendingMessages == 0 ? 0L : retainedBytes,
                 maxConcurrency, maxRetainedMessages, maxRetainedBytes, 0L, 0L);
-    }
-
-    private static RuntimeIngressController.Progress runtimeIngressProgress(
-            RuntimeIngressController.Progress.Type type, int retainedMessages) {
-        return new RuntimeIngressController.Progress(type, runtimeIngressState(retainedMessages));
     }
 
     private static RuntimeIngressController.State runtimeIngressState(int retainedMessages) {

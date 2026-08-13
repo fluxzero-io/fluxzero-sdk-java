@@ -126,22 +126,17 @@ class RuntimeResultDispatcherTest {
     }
 
     @Test
-    void inlineCompletionParticipatesInOptionalDiagnostics() {
-        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(Runnable::run, 1, true);
+    void inlineCompletionParticipatesInCurrentState() {
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(Runnable::run, 1);
         AtomicReference<RuntimeResultDispatcher.State> activeState = new AtomicReference<>();
 
         dispatcher.submitFromRuntimeWorker("session", () -> activeState.set(dispatcher.state()));
 
         assertEquals(1, activeState.get().workGroups());
         assertEquals(1, activeState.get().activeResults());
-        assertEquals(1, activeState.get().maxObservedWorkGroups());
-        assertEquals(1, activeState.get().maxObservedActiveResults());
         RuntimeResultDispatcher.State completed = dispatcher.state();
         assertEquals(0, completed.workGroups());
         assertEquals(0, completed.activeResults());
-        assertEquals(1, completed.maxObservedWorkGroups());
-        assertEquals(1, completed.maxObservedActiveResults());
-        assertTrue(completed.maxCompletionDurationMillis() >= 0L);
     }
 
     @Test
@@ -277,29 +272,6 @@ class RuntimeResultDispatcherTest {
         executor.runAll();
         assertThrows(Exception.class, completion::get);
         assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
-    }
-
-    @Test
-    void optionalDiagnosticsCaptureSparseHighWatermarks() {
-        ManualExecutor executor = new ManualExecutor();
-        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 2, true);
-
-        dispatcher.submit("a", List.of(1, 2, 3), ignored -> {});
-
-        RuntimeResultDispatcher.State queued = dispatcher.state();
-        assertEquals(1, queued.maxObservedWorkGroups());
-        assertEquals(2, queued.maxObservedActiveResults());
-        assertEquals(1, queued.maxObservedPendingResults());
-
-        executor.runAll();
-
-        RuntimeResultDispatcher.State completed = dispatcher.state();
-        assertEquals(0, completed.workGroups());
-        assertEquals(1, completed.maxObservedWorkGroups());
-        assertEquals(2, completed.maxObservedActiveResults());
-        assertEquals(1, completed.maxObservedPendingResults());
-        assertTrue(completed.maxQueueDwellMillis() >= 0L);
-        assertTrue(completed.maxCompletionDurationMillis() >= 0L);
     }
 
     private static final class ManualExecutor implements Executor {

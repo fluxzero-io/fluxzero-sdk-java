@@ -536,9 +536,10 @@ class JdkWebSocketSession implements WebsocketSession {
         }
     }
 
-    private void handleRuntimeIngressProgress(RuntimeIngressController.Progress progress) {
+    private void handleRuntimeIngressProgress(
+            RuntimeIngressController.Progress progress, int retainedMessages, long sequence) {
         if (endpoint instanceof SdkRuntimeWebsocketEndpoint runtimeEndpoint) {
-            runtimeEndpoint.onRuntimeIngressProgress(this, progress);
+            runtimeEndpoint.onRuntimeIngressProgress(this, progress, retainedMessages, sequence);
         }
     }
 

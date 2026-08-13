@@ -305,17 +305,14 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static void runResultCompletionComparison() {
         for (int batchSize : List.of(1, 32, 1_024)) {
             int iterations = Math.max(128, COMPLETION_TARGET_RESULTS / batchSize);
-            try (ResultCompletionScenario legacy = new ResultCompletionScenario(batchSize, true, false);
-                 ResultCompletionScenario bounded = new ResultCompletionScenario(batchSize, false, false);
-                 ResultCompletionScenario boundedMetrics = new ResultCompletionScenario(batchSize, false, true)) {
+            try (ResultCompletionScenario legacy = new ResultCompletionScenario(batchSize, true);
+                 ResultCompletionScenario bounded = new ResultCompletionScenario(batchSize, false)) {
                 for (int i = 0; i < WARMUPS; i++) {
                     legacy.run(iterations);
                     bounded.run(iterations);
-                    boundedMetrics.run(iterations);
                 }
                 measureResultCompletion("legacy-result-completion", legacy, iterations);
                 measureResultCompletion("bounded-result-completion", bounded, iterations);
-                measureResultCompletion("bounded-result-completion-metrics-on", boundedMetrics, iterations);
             }
         }
     }
@@ -431,10 +428,10 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final List<Integer> batchResults;
         private final Consumer<Integer> resultHandler = this::consumeResult;
 
-        private ResultCompletionScenario(int batchSize, boolean legacy, boolean diagnosticsEnabled) {
+        private ResultCompletionScenario(int batchSize, boolean legacy) {
             this.batchSize = batchSize;
             this.legacy = legacy;
-            this.dispatcher = legacy ? null : new RuntimeResultDispatcher(executor, 8, diagnosticsEnabled);
+            this.dispatcher = legacy ? null : new RuntimeResultDispatcher(executor, 8);
             this.batchResults = java.util.stream.IntStream.range(0, batchSize).boxed().toList();
         }
 
@@ -459,7 +456,7 @@ public class WebsocketRuntimeDispatchBenchmark {
                 return;
             }
             if (batchSize == 1) {
-                CompletableFuture<Void> completion = dispatcher.submit(
+                CompletableFuture<Void> completion = dispatcher.submitFromRuntimeWorker(
                         "benchmark-session", () -> consumeResult(0));
                 executor.runAll();
                 completion.join();

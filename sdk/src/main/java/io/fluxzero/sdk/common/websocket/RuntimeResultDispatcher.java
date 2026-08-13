@@ -30,8 +30,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
 /**
  * Bounded client-wide dispatcher for completing runtime results.
  *
@@ -44,9 +42,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
     private final Executor executor;
     private final int maxConcurrency;
-    private final boolean diagnosticsEnabled;
-    private final long[] inlineStartedNanos;
-    private final boolean[] inlineSlotsUsed;
     private final Map<Object, SessionQueue> sessionQueues = new HashMap<>();
     private final ArrayDeque<Object> readySessions = new ArrayDeque<>();
     private final ArrayDeque<ResultTask> availableTasks = new ArrayDeque<>();
@@ -56,26 +51,14 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     private int activeTasks;
     private int activeInlineWorkGroups;
     private int pendingResults;
-    private int maxObservedWorkGroups;
-    private int maxObservedActiveResults;
-    private int maxObservedPendingResults;
-    private long maxQueueDwellMillis;
-    private long maxCompletionDurationMillis;
     private boolean closed;
 
     RuntimeResultDispatcher(Executor executor, int maxConcurrency) {
-        this(executor, maxConcurrency, false);
-    }
-
-    RuntimeResultDispatcher(Executor executor, int maxConcurrency, boolean diagnosticsEnabled) {
         if (maxConcurrency < 1) {
             throw new IllegalArgumentException("Runtime result completion concurrency must be at least 1");
         }
         this.executor = Objects.requireNonNull(executor, "executor");
         this.maxConcurrency = maxConcurrency;
-        this.diagnosticsEnabled = diagnosticsEnabled;
-        this.inlineStartedNanos = diagnosticsEnabled ? new long[maxConcurrency] : null;
-        this.inlineSlotsUsed = diagnosticsEnabled ? new boolean[maxConcurrency] : null;
     }
 
     CompletableFuture<Void> submit(Object sessionKey, Runnable result) {
@@ -91,7 +74,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         Objects.requireNonNull(sessionKey, "sessionKey");
         Objects.requireNonNull(result, "result");
         WorkGroup queuedWork = null;
-        int inlineSlot = -1;
         boolean scheduleQueuedWork = false;
         synchronized (this) {
             if (closed) {
@@ -104,10 +86,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             } else {
                 activeTasks++;
                 activeInlineWorkGroups++;
-                if (diagnosticsEnabled) {
-                    inlineSlot = reserveInlineSlot(System.nanoTime());
-                }
-                updateHighWatermarks();
             }
         }
         if (queuedWork != null) {
@@ -123,7 +101,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         } catch (Throwable e) {
             failure = e;
         }
-        return completeInline(inlineSlot, failure);
+        return completeInline(failure);
     }
 
     <T> CompletableFuture<Void> submit(Object sessionKey, List<T> results, Consumer<? super T> resultHandler) {
@@ -151,41 +129,17 @@ final class RuntimeResultDispatcher implements AutoCloseable {
                 workGroup.sessionKey, ignored -> new SessionQueue());
         sessionQueue.workGroups.addLast(workGroup);
         markReady(workGroup.sessionKey, sessionQueue);
-        if (diagnosticsEnabled) {
-            maxObservedWorkGroups = Math.max(
-                    maxObservedWorkGroups, workGroups.size() + activeInlineWorkGroups);
-        }
     }
 
-    private int reserveInlineSlot(long startedNanos) {
-        for (int i = 0; i < inlineStartedNanos.length; i++) {
-            if (!inlineSlotsUsed[i]) {
-                inlineSlotsUsed[i] = true;
-                inlineStartedNanos[i] = startedNanos;
-                return i;
-            }
-        }
-        throw new IllegalStateException("Missing runtime result inline slot");
-    }
-
-    private CompletableFuture<Void> completeInline(int inlineSlot, Throwable callbackFailure) {
+    private CompletableFuture<Void> completeInline(Throwable callbackFailure) {
         Throwable completionFailure = callbackFailure;
         boolean scheduleQueuedWork;
         synchronized (this) {
             activeTasks--;
             activeInlineWorkGroups--;
-            if (diagnosticsEnabled) {
-                long startedNanos = inlineStartedNanos[inlineSlot];
-                inlineSlotsUsed[inlineSlot] = false;
-                inlineStartedNanos[inlineSlot] = 0L;
-                maxCompletionDurationMillis = Math.max(
-                        maxCompletionDurationMillis,
-                        NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
-            }
             if (completionFailure == null && closed) {
                 completionFailure = new ClosedChannelException();
             }
-            updateHighWatermarks();
             scheduleQueuedWork = !readySessions.isEmpty();
         }
         if (scheduleQueuedWork) {
@@ -262,9 +216,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             while (true) {
                 synchronized (this) {
                     task = takeAvailable();
-                    if (task == null) {
-                        updateHighWatermarks();
-                    }
                 }
                 if (task == null) {
                     break;
@@ -289,13 +240,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         Object item = task.item;
         Consumer<Object> itemHandler = task.itemHandler;
         Throwable failure = null;
-        long startedNanos = diagnosticsEnabled ? System.nanoTime() : 0L;
-        if (diagnosticsEnabled) {
-            synchronized (this) {
-                maxQueueDwellMillis = Math.max(
-                        maxQueueDwellMillis, NANOSECONDS.toMillis(startedNanos - workGroup.createdNanos));
-            }
-        }
         try {
             if (shouldRun(workGroup)) {
                 if (callback == null) {
@@ -306,13 +250,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             }
         } catch (Throwable e) {
             failure = e;
-        }
-        if (diagnosticsEnabled) {
-            synchronized (this) {
-                maxCompletionDurationMillis = Math.max(
-                        maxCompletionDurationMillis,
-                        NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
-            }
         }
         complete(task, failure);
     }
@@ -345,7 +282,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
                 workGroups.remove(workGroup);
                 completed = workGroup.completion;
             }
-            updateHighWatermarks();
         }
         if (completed != null) {
             if (workGroup.failure == null) {
@@ -358,34 +294,8 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     }
 
     synchronized State state() {
-        long oldestWorkGroupAgeMillis = oldestWorkGroupAgeMillis();
         return new State(workGroups.size() + (closed ? 0 : activeInlineWorkGroups),
-                         activeTasks, pendingResults, maxConcurrency,
-                         oldestWorkGroupAgeMillis, maxQueueDwellMillis, maxCompletionDurationMillis,
-                         maxObservedWorkGroups, maxObservedActiveResults, maxObservedPendingResults);
-    }
-
-    private long oldestWorkGroupAgeMillis() {
-        if (!diagnosticsEnabled || closed || workGroups.isEmpty() && activeInlineWorkGroups == 0) {
-            return 0L;
-        }
-        long oldestNanos = workGroups.stream().mapToLong(workGroup -> workGroup.createdNanos).min()
-                .orElse(Long.MAX_VALUE);
-        for (int i = 0; i < inlineStartedNanos.length; i++) {
-            if (inlineSlotsUsed[i]) {
-                oldestNanos = Math.min(oldestNanos, inlineStartedNanos[i]);
-            }
-        }
-        return NANOSECONDS.toMillis(Math.max(0L, System.nanoTime() - oldestNanos));
-    }
-
-    private void updateHighWatermarks() {
-        if (diagnosticsEnabled) {
-            maxObservedWorkGroups = Math.max(
-                    maxObservedWorkGroups, workGroups.size() + activeInlineWorkGroups);
-            maxObservedActiveResults = Math.max(maxObservedActiveResults, activeTasks);
-            maxObservedPendingResults = Math.max(maxObservedPendingResults, pendingResults);
-        }
+                         activeTasks, pendingResults, maxConcurrency);
     }
 
     @Override
@@ -407,13 +317,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         completions.forEach(completion -> completion.completeExceptionally(new ClosedChannelException()));
     }
 
-    record State(int workGroups, int activeResults, int pendingResults, int maxConcurrency,
-                 long oldestWorkGroupAgeMillis, long maxQueueDwellMillis, long maxCompletionDurationMillis,
-                 int maxObservedWorkGroups, int maxObservedActiveResults, int maxObservedPendingResults) {
-        State(int workGroups, int activeResults, int pendingResults, int maxConcurrency) {
-            this(workGroups, activeResults, pendingResults, maxConcurrency,
-                 0L, 0L, 0L, 0, 0, 0);
-        }
+    record State(int workGroups, int activeResults, int pendingResults, int maxConcurrency) {
     }
 
     private final class SessionQueue {
@@ -431,14 +335,12 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         private int nextIndex;
         private int activeTasks;
         private Throwable failure;
-        private final long createdNanos;
 
         private WorkGroup(Object sessionKey, Runnable callback) {
             this.sessionKey = Objects.requireNonNull(sessionKey, "sessionKey");
             this.singleCallback = Objects.requireNonNull(callback, "callback");
             this.items = null;
             this.itemHandler = null;
-            this.createdNanos = diagnosticsEnabled ? System.nanoTime() : 0L;
         }
 
         @SuppressWarnings("unchecked")
@@ -447,7 +349,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             this.singleCallback = null;
             this.items = Objects.requireNonNull(items, "items");
             this.itemHandler = (Consumer<Object>) Objects.requireNonNull(itemHandler, "itemHandler");
-            this.createdNanos = diagnosticsEnabled ? System.nanoTime() : 0L;
         }
 
         private void assignNext(ResultTask task) {

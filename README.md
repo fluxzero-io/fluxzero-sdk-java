@@ -5716,10 +5716,8 @@ Transport anomaly metrics remain disabled by default. Set
 backpressure/stall/recovery, an unrecoverable accounting overflow, or runtime-data executor rejection. They contain the
 client type, runtime and Java versions, actual executor isolation/ownership and worker mode, retained,
 executor-submitted, active, pending and one deferred-frame byte counts, all effective ingress and result-completion
-limits, result-completion queue state, the opt-in stall-close timeout and last inbound age, but no session or ping IDs.
-Result-completion diagnostics also include the oldest work-group age, observed queue dwell and completion duration, and
-work-group/active/pending high-watermarks; these clocks and high-watermarks are collected only while transport metrics
-are enabled.
+limits, current result-completion queue state, the opt-in stall-close timeout and last inbound age, but no session or
+ping IDs. Transport metrics do not add per-message completion clocks or historical high-watermark bookkeeping.
 Enabling this diagnostic also records the last native inbound activity using monotonic time; the default listener
 performs no corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched.
 Transport metrics follow

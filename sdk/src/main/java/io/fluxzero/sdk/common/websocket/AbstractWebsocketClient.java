@@ -81,7 +81,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
@@ -264,7 +263,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         this.resultExecutor = newWorkerPool(
                 this + "-onMessage", clientConfig.getMaxConcurrentRuntimeResultCompletions());
         this.runtimeResultDispatcher = new RuntimeResultDispatcher(
-                resultExecutor, clientConfig.getMaxConcurrentRuntimeResultCompletions(), transportMetricsEnabled);
+                resultExecutor, clientConfig.getMaxConcurrentRuntimeResultCompletions());
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, previousSession -> retryOnFailure(
                 () -> connectToServer(connector, endpointUri, previousSession),
@@ -551,7 +550,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     protected void handleMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
         WebsocketResultDiagnostics.FrameTiming frameTiming =
-                resultDiagnostics.frameTiming(receiveTiming, sdkRuntimeEndpoint.currentDispatchTiming());
+                resultDiagnostics.frameTiming(
+                        receiveTiming, resultDiagnostics.captureReceiveTiming()
+                                ? sdkRuntimeEndpoint.currentDispatchTiming() : null);
         long decodeStartedNanos = resultDiagnostics.monotonicTimestamp();
         JsonType value;
         try {
@@ -615,12 +616,15 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     CompletionStage<Void> dispatchRuntimeMessage(Runnable messageCallback) {
+        CompletionStage<Void> previousCompletion = runtimeMessageCompletion.get();
         runtimeMessageCompletion.set(COMPLETED_RUNTIME_MESSAGE);
         try {
             messageCallback.run();
             return runtimeMessageCompletion.get();
         } finally {
-            runtimeMessageCompletion.remove();
+            // Retain the empty ThreadLocal slot on reusable SDK workers to avoid allocating a new map entry per
+            // message. Restoring also keeps nested dispatches from losing their outer completion context.
+            runtimeMessageCompletion.set(previousCompletion);
         }
     }
 
@@ -648,57 +652,58 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
-    void onRuntimeIngressProgress(WebsocketSession session, RuntimeIngressController.Progress progress) {
+    void onRuntimeIngressProgress(
+            WebsocketSession session, RuntimeIngressController.Progress progress, int retainedMessages,
+            long sequence) {
         if (!monitorRuntimeIngressProgress) {
             return;
         }
         String sessionId = getNegotiatedSessionId(session);
-        AtomicBoolean recovered = new AtomicBoolean();
-        AtomicReference<CompletableFuture<Void>> stalledMetricPublication = new AtomicReference<>();
-        runtimeIngressLiveness.compute(sessionId, (key, current) -> {
-            int retainedMessages = progress.state().retainedMessages();
-            if (current == null) {
-                return retainedMessages == 0 ? null
-                        : scheduleRuntimeIngressStall(session, sessionId, progress.state());
+        RuntimeIngressLiveness current = runtimeIngressLiveness.get(sessionId);
+        if (current == null) {
+            if (retainedMessages == 0) {
+                return;
             }
-            current.state = progress.state();
-            if (progress.type() == RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED) {
+            RuntimeIngressLiveness candidate = new RuntimeIngressLiveness();
+            RuntimeIngressLiveness existing = runtimeIngressLiveness.putIfAbsent(sessionId, candidate);
+            current = existing == null ? candidate : existing;
+        }
+        CompletableFuture<Void> stalledMetricPublication = null;
+        boolean recovered;
+        synchronized (current) {
+            if (sequence <= current.progressSequence) {
+                return;
+            }
+            current.progressSequence = sequence;
+            boolean newBurst = current.retainedMessages == 0 && retainedMessages > 0;
+            current.retainedMessages = retainedMessages;
+            if (newBurst || progress == RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED) {
                 current.progressDeadline = nextRuntimeIngressProgressDeadline();
             }
-            recovered.set(current.stalled);
-            if (current.stalled) {
-                stalledMetricPublication.set(current.stallMetricPublication);
+            recovered = current.stalled;
+            if (recovered) {
+                stalledMetricPublication = current.stallMetricPublication;
             }
             if (retainedMessages == 0) {
                 current.cancel();
-                return null;
-            }
-            if (current.stalled) {
+                current.stalled = false;
+            } else if (current.stallDeadline == null || recovered) {
                 current.cancel();
                 current.registrationId = Fluxzero.generateId();
                 current.stalled = false;
+                if (current.progressDeadline == 0L) {
+                    current.progressDeadline = nextRuntimeIngressProgressDeadline();
+                }
                 current.stallDeadline = scheduleRuntimeIngressStallDeadline(
                         session, sessionId, current.registrationId, current.progressDeadline);
-                current.closeDeadline = null;
                 current.stallMetricPublication = CompletableFuture.completedFuture(null);
             }
-            return current;
-        });
-        if (recovered.get()) {
-            stalledMetricPublication.get().whenComplete((ignored, failure) -> emitTransportMetricAsync(
-                    WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED, session,
-                    transportMetricState(
-                            session, JdkWebSocketSession.runtimeDataState(progress.state()))));
         }
-    }
-
-    private RuntimeIngressLiveness scheduleRuntimeIngressStall(
-            WebsocketSession session, String sessionId, RuntimeIngressController.State state) {
-        String registrationId = Fluxzero.generateId();
-        long progressDeadline = nextRuntimeIngressProgressDeadline();
-        Registration deadline = scheduleRuntimeIngressStallDeadline(
-                session, sessionId, registrationId, progressDeadline);
-        return new RuntimeIngressLiveness(registrationId, deadline, state, progressDeadline);
+        if (recovered) {
+            JdkWebSocketSession.RuntimeDataState recoveredState = transportMetricState(session, null);
+            stalledMetricPublication.whenComplete((ignored, failure) -> emitTransportMetricAsync(
+                    WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED, session, recoveredState));
+        }
     }
 
     private Registration scheduleRuntimeIngressStallDeadline(
@@ -713,20 +718,24 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private void handleRuntimeIngressStall(WebsocketSession session, String sessionId, String registrationId) {
-        AtomicBoolean stalled = new AtomicBoolean();
-        AtomicReference<JdkWebSocketSession.RuntimeDataState> metricState = new AtomicReference<>();
-        AtomicReference<CompletableFuture<Void>> metricPublicationGate = new AtomicReference<>();
-        runtimeIngressLiveness.computeIfPresent(sessionId, (key, current) -> {
-            if (!current.registrationId.equals(registrationId)) {
-                return current;
+        RuntimeIngressLiveness current = runtimeIngressLiveness.get(sessionId);
+        if (current == null) {
+            return;
+        }
+        JdkWebSocketSession.RuntimeDataState metricState;
+        CompletableFuture<Void> metricPublicationGate;
+        synchronized (current) {
+            if (!registrationId.equals(current.registrationId)) {
+                return;
             }
-            if (current.state.retainedMessages() == 0) {
-                return null;
+            if (current.retainedMessages == 0) {
+                current.cancel();
+                return;
             }
             if (current.progressDeadline > pingScheduler.clock().millis()) {
                 current.stallDeadline = scheduleRuntimeIngressStallDeadline(
                         session, sessionId, registrationId, current.progressDeadline);
-                return current;
+                return;
             }
             current.stallDeadline = null;
             current.closeDeadline = clientConfig.getRuntimeIngressStallCloseTimeout().isZero()
@@ -735,32 +744,31 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     () -> handleRuntimeIngressStallClose(session, sessionId, registrationId));
             current.stalled = true;
             current.stallMetricPublication = new CompletableFuture<>();
-            metricPublicationGate.set(current.stallMetricPublication);
-            stalled.set(true);
-            metricState.set(JdkWebSocketSession.runtimeDataState(current.state));
-            return current;
-        });
-        if (stalled.get()) {
-            CompletableFuture<Void> publication = emitTransportMetricAsync(
-                    WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED, session,
-                    transportMetricState(session, metricState.get()));
-            publication.whenComplete(
-                    (ignored, failure) -> metricPublicationGate.get().complete(null));
+            metricPublicationGate = current.stallMetricPublication;
+            metricState = transportMetricState(session, null);
         }
+        CompletableFuture<Void> publication = emitTransportMetricAsync(
+                WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED, session, metricState);
+        publication.whenComplete((ignored, failure) -> metricPublicationGate.complete(null));
     }
 
     private void handleRuntimeIngressStallClose(
             WebsocketSession session, String sessionId, String registrationId) {
-        AtomicBoolean close = new AtomicBoolean();
-        runtimeIngressLiveness.computeIfPresent(sessionId, (key, current) -> {
-            if (current.stalled && current.registrationId.equals(registrationId)
-                && current.state.retainedMessages() > 0) {
-                close.set(true);
-                return null;
+        RuntimeIngressLiveness current = runtimeIngressLiveness.get(sessionId);
+        if (current == null) {
+            return;
+        }
+        boolean close;
+        synchronized (current) {
+            if (current.stalled && registrationId.equals(current.registrationId)
+                && current.retainedMessages > 0) {
+                current.cancel();
+                close = true;
+            } else {
+                close = false;
             }
-            return current;
-        });
-        if (close.get()) {
+        }
+        if (close && runtimeIngressLiveness.remove(sessionId, current)) {
             abort(session, "Runtime ingress made no functional progress");
         }
     }
@@ -921,25 +929,20 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         private Registration stallDeadline;
         private Registration closeDeadline;
         private boolean stalled;
-        private RuntimeIngressController.State state;
         private CompletableFuture<Void> stallMetricPublication = CompletableFuture.completedFuture(null);
         private long progressDeadline;
+        private long progressSequence;
+        private int retainedMessages;
 
-        private RuntimeIngressLiveness(
-                String registrationId, Registration stallDeadline, RuntimeIngressController.State state,
-                long progressDeadline) {
-            this.registrationId = registrationId;
-            this.stallDeadline = stallDeadline;
-            this.state = state;
-            this.progressDeadline = progressDeadline;
-        }
-
-        void cancel() {
+        synchronized void cancel() {
+            registrationId = null;
             if (stallDeadline != null) {
                 stallDeadline.cancel();
+                stallDeadline = null;
             }
             if (closeDeadline != null) {
                 closeDeadline.cancel();
+                closeDeadline = null;
             }
         }
     }
@@ -1162,10 +1165,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     state.deferredFrameBytes(),
                     runtimeIngressBackpressured.contains(getNegotiatedSessionId(session)),
                     completionState.workGroups(), completionState.activeResults(), completionState.pendingResults(),
-                    completionState.maxConcurrency(), completionState.oldestWorkGroupAgeMillis(),
-                    completionState.maxQueueDwellMillis(), completionState.maxCompletionDurationMillis(),
-                    completionState.maxObservedWorkGroups(), completionState.maxObservedActiveResults(),
-                    completionState.maxObservedPendingResults(),
+                    completionState.maxConcurrency(),
                     clientConfig.getRuntimeIngressStallCloseTimeout().toMillis(),
                     state.lastInboundAgeMillis());
             publishTransportMetric(metric, metricsMetadata().with(

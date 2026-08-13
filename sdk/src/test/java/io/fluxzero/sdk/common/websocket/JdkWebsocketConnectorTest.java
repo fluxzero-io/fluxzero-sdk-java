@@ -832,7 +832,7 @@ class JdkWebsocketConnectorTest {
         runtimeDataExecutor.runNext();
 
         assertTrue(deferred.isDone());
-        assertEquals(maxRetainedMessages, session.runtimeDataState().retainedMessages());
+        assertEquals(maxConcurrency - 1, session.runtimeDataState().retainedMessages());
         assertNull(reportedError.get());
     }
 
@@ -1129,7 +1129,10 @@ class JdkWebsocketConnectorTest {
         runtimeDataExecutor.runNext();
 
         assertTrue(deferred.isDone());
-        assertEquals(expectedDispatchCapacity, session.runtimeDataState().retainedMessages());
+        assertTrue(session.runtimeDataState().retainedMessages() < expectedDispatchCapacity);
+        runtimeDataExecutor.runAll();
+        assertEquals(0, session.runtimeDataState().retainedMessages());
+        assertNull(reportedError.get());
     }
 
     @Test
@@ -1313,9 +1316,12 @@ class JdkWebsocketConnectorTest {
         runtimeDataExecutor.runNext();
 
         assertTrue(deferred.isDone());
-        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
-                     session.runtimeDataState().retainedMessages());
-        assertEquals(fullState.retainedBytes(), session.runtimeDataState().retainedBytes());
+        assertTrue(session.runtimeDataState().retainedMessages()
+                   < JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
+        runtimeDataExecutor.runAll();
+        assertEquals(1, session.runtimeDataState().retainedMessages());
+        assertEquals(1L, session.runtimeDataState().retainedBytes());
+        assertNull(reportedError.get());
     }
 
     @Test
@@ -1360,8 +1366,11 @@ class JdkWebsocketConnectorTest {
         runtimeDataExecutor.runNext();
 
         assertTrue(deferred.isDone());
-        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
-                     session.runtimeDataState().retainedMessages());
+        assertTrue(session.runtimeDataState().retainedMessages()
+                   < JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
+        runtimeDataExecutor.runAll();
+        assertEquals(0, session.runtimeDataState().retainedMessages());
+        assertNull(reportedError.get());
     }
 
     @Test
@@ -2119,9 +2128,11 @@ class JdkWebsocketConnectorTest {
         }
 
         @Override
-        void onRuntimeIngressProgress(WebsocketSession session, RuntimeIngressController.Progress progress) {
-            super.onRuntimeIngressProgress(session, progress);
-            if (progress.type() == RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED) {
+        void onRuntimeIngressProgress(
+                WebsocketSession session, RuntimeIngressController.Progress progress, int retainedMessages,
+                long sequence) {
+            super.onRuntimeIngressProgress(session, progress, retainedMessages, sequence);
+            if (progress == RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED) {
                 runtimeMessageCompleted.countDown();
             }
         }

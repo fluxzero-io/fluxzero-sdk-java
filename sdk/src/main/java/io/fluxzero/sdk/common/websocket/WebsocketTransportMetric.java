@@ -44,12 +44,6 @@ record WebsocketTransportMetric(
         int activeResultCompletions,
         int pendingResultCompletions,
         int maxCompletionConcurrency,
-        long oldestCompletionWorkGroupAgeMillis,
-        long maxCompletionQueueDwellMillis,
-        long maxResultCompletionDurationMillis,
-        int maxObservedCompletionWorkGroups,
-        int maxObservedActiveResultCompletions,
-        int maxObservedPendingResultCompletions,
         long stallCloseTimeoutMillis,
         long lastInboundAgeMillis
 ) implements JsonType {

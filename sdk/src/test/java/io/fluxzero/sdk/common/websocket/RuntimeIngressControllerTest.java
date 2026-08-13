@@ -34,15 +34,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RuntimeIngressControllerTest {
 
     @Test
-    void retainsMessageUntilFunctionalCompletionAndThenRestoresCapacity() {
+    void retainsMessageUntilFunctionalCompletionWithoutSpuriousCapacityNotification() {
         ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
         CompletableFuture<Void> functionalCompletion = new CompletableFuture<>();
         AtomicInteger capacityNotifications = new AtomicInteger();
-        List<RuntimeIngressController.Progress.Type> progressEvents = new ArrayList<>();
+        List<RuntimeIngressController.Progress> progressEvents = new ArrayList<>();
+        List<Long> progressSequences = new ArrayList<>();
         RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
                 executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> functionalCompletion,
                 failure -> {}, capacityNotifications::incrementAndGet,
-                progress -> progressEvents.add(progress.type()));
+                (progress, retainedMessages, sequence) -> {
+                    progressEvents.add(progress);
+                    progressSequences.add(sequence);
+                });
 
         assertEquals(RuntimeIngressController.Admission.ACCEPTED, controller.beginMessage("stream", 4));
         assertEquals(RuntimeIngressController.Admission.ACCEPTED,
@@ -58,9 +62,40 @@ class RuntimeIngressControllerTest {
         functionalCompletion.complete(null);
 
         assertEquals(0, controller.state().retainedMessages());
+        assertEquals(0, capacityNotifications.get());
+        assertEquals(List.of(RuntimeIngressController.Progress.RETAINED_WORK_STARTED,
+                             RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED), progressEvents);
+        assertEquals(List.of(1L, 2L), progressSequences);
+    }
+
+    @Test
+    void coalescesCapacityNotificationAfterAdmissionActuallyWaited() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        CompletableFuture<Void> firstCompletion = new CompletableFuture<>();
+        AtomicInteger handled = new AtomicInteger();
+        AtomicInteger capacityNotifications = new AtomicInteger();
+        RuntimeIngressController<Object> controller = controller(
+                executor, 1, 2, 16,
+                (bytes, receiveTiming, dispatchTiming) -> handled.getAndIncrement() == 0
+                        ? firstCompletion : CompletableFuture.completedFuture(null),
+                failure -> {}, capacityNotifications::incrementAndGet);
+        controller.beginMessage("first", 2);
+        controller.dispatchAssembledMessage("first", new byte[2], null);
+        controller.beginMessage("second", 2);
+        controller.dispatchAssembledMessage("second", new byte[2], null);
+        executor.runNext();
+
+        assertFalse(controller.canBeginMessage());
+        assertFalse(controller.canBeginMessage());
+
+        firstCompletion.complete(null);
+
         assertEquals(1, capacityNotifications.get());
-        assertEquals(List.of(RuntimeIngressController.Progress.Type.RETAINED_WORK_STARTED,
-                             RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED), progressEvents);
+        assertEquals(1, handled.get(), "Async completion must not run pending work on the completing thread");
+        assertEquals(1, executor.pendingTaskCount());
+        executor.runAll();
+        assertEquals(2, handled.get());
+        assertEquals(1, capacityNotifications.get());
     }
 
     @Test
@@ -87,6 +122,52 @@ class RuntimeIngressControllerTest {
         assertEquals(List.of(3, 4), handledSizes);
         assertEquals(0, controller.state().retainedMessages());
         assertEquals(0L, controller.state().retainedBytes());
+    }
+
+    @Test
+    void synchronousCompletionsReuseRuntimeWorkerForPendingMessages() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        AtomicInteger handled = new AtomicInteger();
+        RuntimeIngressController<Object> controller = controller(
+                executor, 1, 3, 16, (bytes, receiveTiming, dispatchTiming) -> {
+                    handled.incrementAndGet();
+                    return CompletableFuture.completedFuture(null);
+                }, failure -> {}, () -> {});
+        for (int i = 0; i < 3; i++) {
+            controller.beginMessage("stream-" + i, 2);
+            controller.dispatchAssembledMessage("stream-" + i, new byte[2], null);
+        }
+
+        assertEquals(1, executor.pendingTaskCount());
+        executor.runNext();
+
+        assertEquals(3, handled.get());
+        assertEquals(0, executor.pendingTaskCount());
+        assertEquals(0, controller.state().retainedMessages());
+    }
+
+    @Test
+    void synchronousWorkerBatchEventuallyYieldsToTheExecutor() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        AtomicInteger handled = new AtomicInteger();
+        RuntimeIngressController<Object> controller = controller(
+                executor, 1, 64, 256, (bytes, receiveTiming, dispatchTiming) -> {
+                    handled.incrementAndGet();
+                    return CompletableFuture.completedFuture(null);
+                }, failure -> {}, () -> {});
+        for (int i = 0; i < 64; i++) {
+            controller.beginMessage("stream-" + i, 2);
+            controller.dispatchAssembledMessage("stream-" + i, new byte[2], null);
+        }
+
+        executor.runNext();
+
+        assertTrue(handled.get() > 1, "The common synchronous path should still reuse its worker");
+        assertTrue(handled.get() < 64, "A large synchronous burst must eventually yield to shared executor work");
+        assertEquals(1, executor.pendingTaskCount());
+        executor.runAll();
+        assertEquals(64, handled.get());
+        assertEquals(0, controller.state().retainedMessages());
     }
 
     @Test
@@ -149,11 +230,11 @@ class RuntimeIngressControllerTest {
         CompletableFuture<Void> functionalCompletion = new CompletableFuture<>();
         AtomicInteger closes = new AtomicInteger();
         AtomicInteger capacityNotifications = new AtomicInteger();
-        List<RuntimeIngressController.Progress.Type> progressEvents = new ArrayList<>();
+        List<RuntimeIngressController.Progress> progressEvents = new ArrayList<>();
         RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
                 executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> functionalCompletion,
                 failure -> {}, capacityNotifications::incrementAndGet,
-                progress -> progressEvents.add(progress.type()));
+                (progress, retainedMessages, sequence) -> progressEvents.add(progress));
         controller.beginMessage("stream", 2);
         controller.dispatchAssembledMessage("stream", new byte[2], null);
         executor.runNext();
@@ -167,18 +248,19 @@ class RuntimeIngressControllerTest {
 
         assertEquals(1, closes.get());
         assertEquals(0, capacityNotifications.get());
-        assertEquals(List.of(RuntimeIngressController.Progress.Type.RETAINED_WORK_STARTED,
-                             RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED), progressEvents);
+        assertEquals(List.of(RuntimeIngressController.Progress.RETAINED_WORK_STARTED,
+                             RuntimeIngressController.Progress.FUNCTIONAL_MESSAGE_COMPLETED), progressEvents);
     }
 
     @Test
     void localCloseSuppressesLaterProgressFromAlreadyActiveMessages() {
         ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
         CompletableFuture<Void> functionalCompletion = new CompletableFuture<>();
-        List<RuntimeIngressController.Progress.Type> progressEvents = new ArrayList<>();
+        List<RuntimeIngressController.Progress> progressEvents = new ArrayList<>();
         RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
                 executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> functionalCompletion,
-                failure -> {}, () -> {}, progress -> progressEvents.add(progress.type()));
+                failure -> {}, () -> {},
+                (progress, retainedMessages, sequence) -> progressEvents.add(progress));
         controller.beginMessage("stream", 2);
         controller.dispatchAssembledMessage("stream", new byte[2], null);
         executor.runNext();
@@ -196,7 +278,8 @@ class RuntimeIngressControllerTest {
             java.util.function.Consumer<Throwable> failureHandler,
             Runnable capacityHandler) {
         return new RuntimeIngressController<>(executor, maxConcurrency, maxRetainedMessages, maxRetainedBytes,
-                                              handler, failureHandler, capacityHandler, progress -> {});
+                                              handler, failureHandler, capacityHandler,
+                                              (progress, retainedMessages, sequence) -> {});
     }
 
     private static class ManuallyTriggeredExecutor implements Executor {
@@ -215,6 +298,10 @@ class RuntimeIngressControllerTest {
             while (!tasks.isEmpty()) {
                 runNext();
             }
+        }
+
+        int pendingTaskCount() {
+            return tasks.size();
         }
     }
 }
