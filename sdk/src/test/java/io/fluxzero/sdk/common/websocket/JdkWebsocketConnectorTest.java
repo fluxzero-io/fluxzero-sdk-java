@@ -17,6 +17,10 @@ package io.fluxzero.sdk.common.websocket;
 import com.sun.management.ThreadMXBean;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.websocket.WebSocketTransportCodecs;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.junit.jupiter.api.Test;
 
@@ -66,6 +70,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -73,9 +78,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class JdkWebsocketConnectorTest {
 
@@ -606,12 +616,20 @@ class JdkWebsocketConnectorTest {
                            state, error);
     }
 
+    private static void assertRetainedStateUnchanged(
+            JdkWebSocketSession.RuntimeDataState expected, JdkWebSocketSession.RuntimeDataState actual,
+            long expectedDeferredFrameBytes) {
+        assertEquals(expected, actual.withTransportState(
+                expected.deferredFrameBytes(), expected.lastInboundAgeMillis()));
+        assertEquals(expectedDeferredFrameBytes, actual.deferredFrameBytes());
+    }
+
     @Test
     void boundedBurstFailureDiagnosticsIncludeProgressAndRuntimeState() {
         JdkWebSocketSession.RuntimeDataState state = new JdkWebSocketSession.RuntimeDataState(
                 1, 4L, 1, 4L, 0, 0L, 0, 0L, JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
-                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 12L);
+                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L, 12L);
 
         String diagnostics = burstFailureDiagnostics(
                 3, 2, 1_024, 4, 64, state, new IllegalStateException("transport failed"));
@@ -684,7 +702,7 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void configuredRetainedMessagesDerivePendingCapacity() {
+    void configuredRetainedMessagesDerivePendingCapacityAndPauseAdditionalIngress() {
         int maxConcurrency = 2;
         int maxRetainedMessages = 5;
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
@@ -723,12 +741,236 @@ class JdkWebsocketConnectorTest {
         assertEquals(maxRetainedMessages, fullState.maxRetainedMessages());
         assertEquals(1_024L, fullState.maxRetainedBytes());
 
-        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{99}), true);
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{99}), true).toCompletableFuture();
 
-        assertInstanceOf(JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
-        assertEquals(JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW,
-                     ((JdkWebSocketSession.RuntimeDataDispatchException) reportedError.get()).reason());
+        assertFalse(deferred.isDone());
+        assertRetainedStateUnchanged(fullState, session.runtimeDataState(), 1L);
+        assertNull(reportedError.get());
+        assertTrue(session.isOpen());
+        verify(webSocket, never()).abort();
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(maxRetainedMessages, session.runtimeDataState().retainedMessages());
+        assertNull(reportedError.get());
+    }
+
+    @Test
+    void runtimeIngressPausesDemandAtCapacityAndResumesAfterCompletion() {
+        int maxConcurrency = 2;
+        int maxRetainedMessages = 5;
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        RecordingEndpoint endpoint = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), endpoint,
+                sdkRuntimeOptions(maxConcurrency, maxRetainedMessages, 1_024L),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run, runtimeDataExecutor);
+        WebSocket webSocket = mock(WebSocket.class);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        for (int i = 0; i < maxRetainedMessages; i++) {
+            listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
+        }
+
+        assertTrue(session.isOpen());
+        assertNull(reportedError.get());
+        verify(webSocket, times(maxRetainedMessages)).request(1);
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(session.isOpen());
+        assertNull(reportedError.get());
+        verify(webSocket, times(maxRetainedMessages + 1)).request(1);
+    }
+
+    @Test
+    void runtimeIngressCapacityTransitionIsReportedOnceToTheSdkClient() {
+        int maxRetainedMessages = 5;
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        AbstractWebsocketClient client = mock(AbstractWebsocketClient.class);
+        when(client.dispatchRuntimeMessage(any())).thenReturn(CompletableFuture.completedFuture(null));
+        SdkRuntimeWebsocketEndpoint endpoint = new SdkRuntimeWebsocketEndpoint(client);
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), endpoint, sdkRuntimeOptions(2, maxRetainedMessages, 1_024L),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run, runtimeDataExecutor);
+        WebSocket webSocket = mock(WebSocket.class);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        for (int i = 0; i < maxRetainedMessages; i++) {
+            listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
+        }
+
+        verify(client, times(1)).onRuntimeIngressBackpressure(eq(session), eq(true), any());
+
+        runtimeDataExecutor.runNext();
+
+        verify(client, times(1)).onRuntimeIngressBackpressure(eq(session), eq(false), any());
+    }
+
+    @Test
+    void sdkRuntimeIoErrorBypassesTheCallbackExecutor() {
+        ManuallyTriggeredExecutor callbackExecutor = new ManuallyTriggeredExecutor();
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        IllegalStateException ioFailure = new IllegalStateException("connection reset");
+        RecordingEndpoint delegate = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(delegate), sdkRuntimeOptions(),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                callbackExecutor, Runnable::run);
+        WebSocket webSocket = mock(WebSocket.class);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        listener.onError(webSocket, ioFailure);
+
+        assertSame(ioFailure, reportedError.get());
+        assertEquals(0, callbackExecutor.pendingTaskCount());
+    }
+
+    @Test
+    void demandRequestFailureAfterRuntimeCallbackFailsSessionWithoutReceiveAccountingUnderflow() {
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        IllegalStateException requestFailure = new IllegalStateException("request failed");
+        RecordingEndpoint delegate = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(delegate), sdkRuntimeOptions(),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run, Runnable::run);
+        WebSocket webSocket = mock(WebSocket.class);
+        AtomicInteger requests = new AtomicInteger();
+        doAnswer(invocation -> {
+            if (requests.incrementAndGet() == 2) {
+                throw requestFailure;
+            }
+            return null;
+        }).when(webSocket).request(1);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        CompletableFuture<?> completion = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{1}), true).toCompletableFuture();
+
+        assertTrue(completion.isCompletedExceptionally());
+        assertSame(requestFailure, reportedError.get());
+        assertFalse(session.isOpen());
+    }
+
+    @Test
+    void demandRequestFailureAfterDirectPongFailsSessionWithoutEscapingTheListener() {
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        IllegalStateException requestFailure = new IllegalStateException("pong request failed");
+        RecordingEndpoint delegate = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(delegate), sdkRuntimeOptions(),
+                URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run, Runnable::run);
+        WebSocket webSocket = mock(WebSocket.class);
+        AtomicInteger requests = new AtomicInteger();
+        doAnswer(invocation -> {
+            if (requests.incrementAndGet() == 2) {
+                throw requestFailure;
+            }
+            return null;
+        }).when(webSocket).request(1);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+
+        CompletableFuture<?> completion = assertDoesNotThrow(
+                () -> listener.onPong(webSocket, ByteBuffer.wrap(new byte[]{1}))).toCompletableFuture();
+
+        assertTrue(completion.isCompletedExceptionally());
+        assertSame(requestFailure, reportedError.get());
+        assertFalse(session.isOpen());
+    }
+
+    @Test
+    void demandRequestFailureWhileResumingCapacityFailsSessionWithoutDoubleCompletion() {
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        IllegalStateException requestFailure = new IllegalStateException("resume request failed");
+        RecordingEndpoint delegate = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.set(error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(delegate),
+                sdkRuntimeOptions(1, 1, 1_024L), URI.create("ws://localhost/test"),
+                new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, runtimeDataExecutor);
+        WebSocket webSocket = mock(WebSocket.class);
+        AtomicInteger requests = new AtomicInteger();
+        doAnswer(invocation -> {
+            if (requests.incrementAndGet() == 2) {
+                throw requestFailure;
+            }
+            return null;
+        }).when(webSocket).request(1);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{1}), true);
+
+        runtimeDataExecutor.runNext();
+
+        assertSame(requestFailure, reportedError.get());
+        assertFalse(session.isOpen());
+        assertEquals(0, session.runtimeDataState().retainedMessages());
         verify(webSocket).abort();
+    }
+
+    @Test
+    void localAbortWithADeferredRuntimeFrameDoesNotReportAnInternalCloseAsTransportError() {
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        RecordingEndpoint delegate = new RecordingEndpoint() {
+            @Override
+            public void onError(WebsocketSession session, Throwable error) {
+                reportedError.compareAndSet(null, error);
+            }
+        };
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(delegate),
+                sdkRuntimeOptions(1, 1, 1_024L), URI.create("ws://localhost/test"),
+                new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, runtimeDataExecutor);
+        WebSocket webSocket = mock(WebSocket.class);
+        WebSocket.Listener listener = session.createListener();
+        listener.onOpen(webSocket);
+        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{1}), true);
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{2}), true).toCompletableFuture();
+
+        session.abort(new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test close"));
+
+        assertTrue(deferred.isCompletedExceptionally());
+        assertNull(reportedError.get());
+        verify(webSocket, times(1)).request(1);
     }
 
     @Test
@@ -757,14 +999,23 @@ class JdkWebsocketConnectorTest {
         assertEquals(2L, retainedState.maxRetainedBytes());
         assertNull(reportedError.get());
 
-        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{1}), true);
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{1}), true).toCompletableFuture();
 
-        assertInstanceOf(JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
-        verify(webSocket).abort();
+        assertFalse(deferred.isDone());
+        assertRetainedStateUnchanged(retainedState, session.runtimeDataState(), 1L);
+        assertNull(reportedError.get());
+        verify(webSocket, never()).abort();
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(1, session.runtimeDataState().retainedMessages());
+        assertEquals(1L, session.runtimeDataState().retainedBytes());
     }
 
     @Test
-    void binaryDispatchOverflowFailsSessionInsteadOfBufferingWithoutBound() {
+    void binaryDispatchPausesAtItsBoundWithoutBufferingOrDisconnecting() {
         int expectedDispatchCapacity = JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES;
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AtomicReference<Throwable> reportedError = new AtomicReference<>();
@@ -781,13 +1032,25 @@ class JdkWebsocketConnectorTest {
         WebSocket.Listener listener = session.createListener();
         listener.onOpen(webSocket);
 
-        for (int i = 0; i <= expectedDispatchCapacity; i++) {
+        for (int i = 0; i < expectedDispatchCapacity; i++) {
             listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
         }
+        JdkWebSocketSession.RuntimeDataState fullState = session.runtimeDataState();
 
-        assertInstanceOf(RejectedExecutionException.class, reportedError.get());
-        assertFalse(session.isOpen());
-        verify(webSocket).abort();
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{99}), true).toCompletableFuture();
+
+        assertFalse(deferred.isDone());
+        assertEquals(expectedDispatchCapacity, fullState.retainedMessages());
+        assertRetainedStateUnchanged(fullState, session.runtimeDataState(), 1L);
+        assertNull(reportedError.get());
+        assertTrue(session.isOpen());
+        verify(webSocket, never()).abort();
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(expectedDispatchCapacity, session.runtimeDataState().retainedMessages());
     }
 
     @Test
@@ -863,7 +1126,7 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void runtimeIngressKeepsDemandOpenAtItsBoundSoProtocolFramesCanProgress() {
+    void runtimeIngressPausesDemandAtItsBoundAndResumesAfterFunctionalCompletion() {
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         JdkWebSocketSession session = new JdkWebSocketSession(
                 new JdkWebsocketConnector(), new RecordingEndpoint(), sdkRuntimeOptions(),
@@ -877,14 +1140,17 @@ class JdkWebsocketConnectorTest {
             listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
         }
 
-        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES + 1)).request(1);
+        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES)).request(1);
         JdkWebSocketSession.RuntimeDataState fullState = session.runtimeDataState();
         assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, fullState.retainedMessages());
         assertEquals(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, fullState.inFlightMessages());
         assertEquals((JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES - JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES), fullState.pendingMessages());
         listener.onPong(webSocket, ByteBuffer.wrap(new byte[]{9}));
-        runtimeDataExecutor.runAll();
-        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES + 2)).request(1);
+        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES)).request(1);
+
+        runtimeDataExecutor.runNext();
+
+        verify(webSocket, times(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES + 1)).request(1);
     }
 
     @Test
@@ -906,7 +1172,36 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void dataFragmentBeyondFullRuntimeBoundFailsFastWithoutReassembly() {
+    void runtimeMessageRemainsRetainedThroughSynchronousCustomerResultContinuation() throws Exception {
+        ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
+        try (BlockingResultCompletionClient client = new BlockingResultCompletionClient()) {
+            JdkWebSocketSession session = new JdkWebSocketSession(
+                    new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(client),
+                    sdkRuntimeOptionsWithProgress(),
+                    URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                    Runnable::run, runtimeDataExecutor);
+            WebSocket webSocket = mock(WebSocket.class);
+            WebSocket.Listener listener = session.createListener();
+            listener.onOpen(webSocket);
+            byte[] response = WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
+                    .encode(new VoidResult(1L));
+
+            listener.onBinary(webSocket, ByteBuffer.wrap(response), true);
+            runtimeDataExecutor.runNext();
+
+            assertTrue(client.resultHandlingStarted.await(1, TimeUnit.SECONDS));
+            assertEquals(1, session.runtimeDataState().retainedMessages());
+            assertEquals(1, session.runtimeDataState().activeMessages());
+
+            client.allowResultHandlingToFinish.countDown();
+
+            assertTrue(client.runtimeMessageCompleted.await(1, TimeUnit.SECONDS));
+            assertEquals(0, session.runtimeDataState().retainedMessages());
+        }
+    }
+
+    @Test
+    void dataFragmentDeliveredAtFullRuntimeBoundIsDeferredWithoutReassembly() {
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AtomicReference<Throwable> reportedError = new AtomicReference<>();
         RecordingEndpoint endpoint = new RecordingEndpoint() {
@@ -925,18 +1220,26 @@ class JdkWebsocketConnectorTest {
             listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{(byte) i}), true);
         }
 
-        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{9}), false);
+        JdkWebSocketSession.RuntimeDataState fullState = session.runtimeDataState();
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{9}), false).toCompletableFuture();
 
-        JdkWebSocketSession.RuntimeDataDispatchException error = assertInstanceOf(
-                JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
-        assertEquals(JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW, error.reason());
-        assertTrue(error.getMessage().contains("reconnect"));
-        assertFalse(session.isOpen());
-        verify(webSocket).abort();
+        assertFalse(deferred.isDone());
+        assertRetainedStateUnchanged(fullState, session.runtimeDataState(), 1L);
+        assertNull(reportedError.get());
+        assertTrue(session.isOpen());
+        verify(webSocket, never()).abort();
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                     session.runtimeDataState().retainedMessages());
+        assertEquals(fullState.retainedBytes(), session.runtimeDataState().retainedBytes());
     }
 
     @Test
-    void completeMessageBeyondFullRuntimeBoundFailsBeforePayloadCopy() {
+    void completeMessageDeliveredAtFullRuntimeBoundIsDeferredWithoutPayloadCopy() {
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AtomicReference<Throwable> reportedError = new AtomicReference<>();
         RecordingEndpoint endpoint = new RecordingEndpoint() {
@@ -963,20 +1266,26 @@ class JdkWebsocketConnectorTest {
         long threadId = Thread.currentThread().threadId();
         long allocatedBefore = allocationBean.getThreadAllocatedBytes(threadId);
 
-        listener.onBinary(webSocket, rejectedPayload, true);
+        CompletableFuture<?> deferred = listener.onBinary(webSocket, rejectedPayload, true).toCompletableFuture();
 
         long allocatedBytes = allocationBean.getThreadAllocatedBytes(threadId) - allocatedBefore;
-        JdkWebSocketSession.RuntimeDataDispatchException error = assertInstanceOf(
-                JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
-        assertEquals(JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW, error.reason());
+        assertFalse(deferred.isDone());
+        assertEquals(rejectedPayload.remaining(), session.runtimeDataState().deferredFrameBytes());
         assertTrue(allocatedBytes < rejectedPayload.capacity() / 2,
-                   () -> "Rejected payload allocated " + allocatedBytes + " bytes before overflow");
-        assertFalse(session.isOpen());
-        verify(webSocket).abort();
+                   () -> "Deferred payload allocated " + allocatedBytes + " bytes before admission");
+        assertNull(reportedError.get());
+        assertTrue(session.isOpen());
+        verify(webSocket, never()).abort();
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                     session.runtimeDataState().retainedMessages());
     }
 
     @Test
-    void fragmentContinuationBeyondRetainedByteBoundFailsBeforeFurtherReassembly() {
+    void fragmentContinuationBeyondRetainedByteBoundWaitsForCapacityBeforeReassembly() {
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AtomicReference<Throwable> reportedError = new AtomicReference<>();
         RecordingEndpoint endpoint = new RecordingEndpoint() {
@@ -998,19 +1307,22 @@ class JdkWebsocketConnectorTest {
 
         assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES,
                      session.runtimeDataState().retainedBytes());
-        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{2}), false);
+        JdkWebSocketSession.RuntimeDataState fullState = session.runtimeDataState();
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{2}), false).toCompletableFuture();
 
-        JdkWebSocketSession.RuntimeDataDispatchException error = assertInstanceOf(
-                JdkWebSocketSession.RuntimeDataDispatchException.class, reportedError.get());
-        assertEquals(JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW, error.reason());
-        assertEquals(2, error.state().retainedMessages());
-        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, error.state().retainedBytes());
-        assertEquals(1, error.state().pendingMessages());
-        assertFalse(session.isOpen());
-        verify(webSocket).abort();
+        assertFalse(deferred.isDone());
+        assertRetainedStateUnchanged(fullState, session.runtimeDataState(), 1L);
+        assertNull(reportedError.get());
+        assertTrue(session.isOpen());
+        verify(webSocket, never()).abort();
 
-        runtimeDataExecutor.runAll();
-        assertEquals(0, session.runtimeDataState().retainedMessages());
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(1, session.runtimeDataState().retainedMessages());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES,
+                     session.runtimeDataState().retainedBytes());
     }
 
     @Test
@@ -1302,7 +1614,7 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void retainedRuntimeDataBytesAreBoundedWhileOneOversizedActiveMessageCanProgress() {
+    void retainedRuntimeDataBytesPauseAfterOneOversizedActiveMessage() {
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AtomicReference<Throwable> reportedError = new AtomicReference<>();
         RecordingEndpoint endpoint = new RecordingEndpoint() {
@@ -1321,11 +1633,22 @@ class JdkWebsocketConnectorTest {
         listener.onBinary(webSocket,
                           ByteBuffer.wrap(new byte[Math.toIntExact(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES + 1)]),
                           true);
-        listener.onBinary(webSocket, ByteBuffer.wrap(new byte[]{2}), true);
+        CompletableFuture<?> deferred = listener.onBinary(
+                webSocket, ByteBuffer.wrap(new byte[]{2}), true).toCompletableFuture();
 
-        assertInstanceOf(RejectedExecutionException.class, reportedError.get());
-        assertFalse(session.isOpen());
-        verify(webSocket).abort();
+        assertFalse(deferred.isDone());
+        assertEquals(1, session.runtimeDataState().retainedMessages());
+        assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES + 1,
+                     session.runtimeDataState().retainedBytes());
+        assertNull(reportedError.get());
+        assertTrue(session.isOpen());
+        verify(webSocket, never()).abort();
+
+        runtimeDataExecutor.runNext();
+
+        assertTrue(deferred.isDone());
+        assertEquals(1, session.runtimeDataState().retainedMessages());
+        assertEquals(1L, session.runtimeDataState().retainedBytes());
     }
 
     @Test
@@ -1509,6 +1832,12 @@ class JdkWebsocketConnectorTest {
                 Map.of(), Map.of(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true), null, List.of());
     }
 
+    private static WebsocketConnectionOptions sdkRuntimeOptionsWithProgress() {
+        return new WebsocketConnectionOptions(Map.of(), Map.of(
+                JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true,
+                JdkWebSocketSession.SDK_RUNTIME_INGRESS_PROGRESS_ENABLED_USER_PROPERTY, true), null, List.of());
+    }
+
     private static WebsocketConnectionOptions sdkRuntimeOptions(
             int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes) {
         return new WebsocketConnectionOptions(Map.of(), Map.of(
@@ -1604,6 +1933,17 @@ class JdkWebsocketConnectorTest {
             }
         }
 
+        void runNext() {
+            Runnable task;
+            synchronized (this) {
+                task = tasks.poll();
+            }
+            if (task == null) {
+                throw new IllegalStateException("No task is pending");
+            }
+            task.run();
+        }
+
         synchronized int pendingTaskCount() {
             return tasks.size();
         }
@@ -1659,6 +1999,57 @@ class JdkWebsocketConnectorTest {
         @Override
         public void onClose(WebsocketSession session, WebsocketCloseReason closeReason) {
             // The directly connected transport session is explicitly aborted by the test.
+        }
+    }
+
+    private static class BlockingResultCompletionClient extends AbstractWebsocketClient {
+        private final CountDownLatch resultHandlingStarted = new CountDownLatch(1);
+        private final CountDownLatch allowResultHandlingToFinish = new CountDownLatch(1);
+        private final CountDownLatch runtimeMessageCompleted = new CountDownLatch(1);
+
+        BlockingResultCompletionClient() {
+            super(mock(WebsocketConnector.class), URI.create("ws://localhost"),
+                  WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                                                      .runtimeBaseUrl("ws://localhost")
+                                                      .name("result-completion-test-client")
+                                                      .build()),
+                  false, Duration.ofSeconds(1), defaultObjectMapper, 1);
+        }
+
+        @Override
+        public void onOpen(WebsocketSession session) {
+            session.getUserProperties().put(CLIENT_SESSION_ID_USER_PROPERTY, "test-client-session");
+            session.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY, "test-runtime-session");
+            session.getUserProperties().put(
+                    NEGOTIATED_SESSION_ID_USER_PROPERTY, "test-client-session_test-runtime-session");
+            session.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE);
+            session.getUserProperties().put(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
+        }
+
+        @Override
+        protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                    WebsocketResultDiagnostics.ResultTiming timing) {
+            resultHandlingStarted.countDown();
+            try {
+                allowResultHandlingToFinish.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while blocking result completion", e);
+            }
+        }
+
+        @Override
+        void onRuntimeIngressProgress(WebsocketSession session, RuntimeIngressController.Progress progress) {
+            super.onRuntimeIngressProgress(session, progress);
+            if (progress.type() == RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED) {
+                runtimeMessageCompleted.countDown();
+            }
+        }
+
+        @Override
+        public void close() {
+            allowResultHandlingToFinish.countDown();
+            super.close();
         }
     }
 

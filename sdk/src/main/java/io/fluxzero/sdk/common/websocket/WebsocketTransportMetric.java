@@ -38,11 +38,27 @@ record WebsocketTransportMetric(
         int maxConcurrency,
         int maxRetainedMessages,
         long maxRetainedBytes,
+        long deferredFrameBytes,
+        boolean ingressBackpressured,
+        int completionWorkGroups,
+        int activeResultCompletions,
+        int pendingResultCompletions,
+        int maxCompletionConcurrency,
+        long oldestCompletionWorkGroupAgeMillis,
+        long maxCompletionQueueDwellMillis,
+        long maxResultCompletionDurationMillis,
+        int maxObservedCompletionWorkGroups,
+        int maxObservedActiveResultCompletions,
+        int maxObservedPendingResultCompletions,
+        long stallCloseTimeoutMillis,
         long lastInboundAgeMillis
 ) implements JsonType {
 
     enum Event {
         PING_TIMEOUT,
+        RUNTIME_INGRESS_BACKPRESSURED,
+        RUNTIME_INGRESS_STALLED,
+        RUNTIME_INGRESS_RECOVERED,
         RUNTIME_INGRESS_OVERFLOW,
         RUNTIME_EXECUTOR_REJECTED
     }

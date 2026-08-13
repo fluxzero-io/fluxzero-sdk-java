@@ -42,6 +42,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -50,8 +52,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 
 /**
  * Opt-in microbenchmark for SDK runtime-message isolation and bounded parallel processing.
@@ -62,7 +65,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * transport metrics disabled and enabled. A separate bounded-load comparison uses a controlled fixed worker pool to
  * measure effective per-session concurrency with one through three runtime workers. Its latency percentiles represent
  * the time to drain one full retained-capacity batch, not an amortized per-message latency. An anomaly comparison
- * measures metric construction, fallback serialization, and hand-off to a local sink without network variance.</p>
+ * measures metric construction, fallback serialization, and hand-off to a local sink without network variance. The
+ * result-completion comparison contrasts the previous single/direct and batch/eager submission behavior with the
+ * bounded incremental dispatcher, using the same deterministic manual executor for both paths.</p>
  */
 public class WebsocketRuntimeDispatchBenchmark {
     private static final int[] MESSAGE_SIZES = {1 << 10, 64 << 10, 1 << 20};
@@ -75,6 +80,8 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static final int LOAD_ITERATIONS = Integer.getInteger("loadIterations", 3_000);
     private static final int LOAD_SESSION_COUNT = Integer.getInteger("loadSessions", 4);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
+    private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
+            "completionTargetResults", 1_000_000);
     private static final long LOAD_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
             Long.getLong("loadWorkMicros", 250L));
     private static final int FRAGMENTS = Integer.getInteger("fragments", 4);
@@ -98,6 +105,9 @@ public class WebsocketRuntimeDispatchBenchmark {
         if (modeEnabled("metrics")) {
             runTransportMetricComparison();
         }
+        if (modeEnabled("completion")) {
+            runResultCompletionComparison();
+        }
         System.out.println("blackhole=" + blackhole);
     }
 
@@ -105,11 +115,11 @@ public class WebsocketRuntimeDispatchBenchmark {
         if ("all".equals(BENCHMARK_MODE) || mode.equals(BENCHMARK_MODE)) {
             return true;
         }
-        if (List.of("receive", "load", "metrics").contains(BENCHMARK_MODE)) {
+        if (List.of("receive", "load", "metrics", "completion").contains(BENCHMARK_MODE)) {
             return false;
         }
         throw new IllegalArgumentException(
-                "benchmarkMode must be one of all, receive, load, or metrics: " + BENCHMARK_MODE);
+                "benchmarkMode must be one of all, receive, load, metrics, or completion: " + BENCHMARK_MODE);
     }
 
     private static void runComparison(int messageSize, int fragments) {
@@ -225,6 +235,44 @@ public class WebsocketRuntimeDispatchBenchmark {
         }
     }
 
+    private static void runResultCompletionComparison() {
+        for (int batchSize : List.of(1, 32, 1_024)) {
+            int iterations = Math.max(128, COMPLETION_TARGET_RESULTS / batchSize);
+            try (ResultCompletionScenario legacy = new ResultCompletionScenario(batchSize, true, false);
+                 ResultCompletionScenario bounded = new ResultCompletionScenario(batchSize, false, false);
+                 ResultCompletionScenario boundedMetrics = new ResultCompletionScenario(batchSize, false, true)) {
+                for (int i = 0; i < WARMUPS; i++) {
+                    legacy.run(iterations);
+                    bounded.run(iterations);
+                    boundedMetrics.run(iterations);
+                }
+                measureResultCompletion("legacy-result-completion", legacy, iterations);
+                measureResultCompletion("bounded-result-completion", bounded, iterations);
+                measureResultCompletion("bounded-result-completion-metrics-on", boundedMetrics, iterations);
+            }
+        }
+    }
+
+    private static void measureResultCompletion(
+            String name, ResultCompletionScenario scenario, int iterations) {
+        stabilizeHeap();
+        long threadId = Thread.currentThread().threadId();
+        long allocatedBefore = ALLOCATION_BEAN == null ? 0L : ALLOCATION_BEAN.getThreadAllocatedBytes(threadId);
+        GcSnapshot gcBefore = GcSnapshot.capture();
+        long started = System.nanoTime();
+        scenario.run(iterations);
+        long elapsed = System.nanoTime() - started;
+        GcSnapshot gcDelta = GcSnapshot.capture().minus(gcBefore);
+        long allocated = ALLOCATION_BEAN == null ? 0L
+                : ALLOCATION_BEAN.getThreadAllocatedBytes(threadId) - allocatedBefore;
+        long results = (long) iterations * scenario.batchSize;
+        System.out.printf("%s batchSize=%d iterations=%d results=%d: %.2f ns/result, %.2f bytes/result, "
+                                  + "maxQueuedTasks=%d, gcCollections=%d, gcMillis=%d%n",
+                          name, scenario.batchSize, iterations, results,
+                          (double) elapsed / results, (double) allocated / results,
+                          scenario.executor.maxQueuedTasks(), gcDelta.collections, gcDelta.millis);
+    }
+
     private static void measure(String name, Scenario scenario, int iterations) {
         stabilizeHeap();
         long threadId = Thread.currentThread().threadId();
@@ -308,6 +356,94 @@ public class WebsocketRuntimeDispatchBenchmark {
         return threadBean;
     }
 
+    private static class ResultCompletionScenario implements AutoCloseable {
+        private final int batchSize;
+        private final boolean legacy;
+        private final MeasuringExecutor executor = new MeasuringExecutor();
+        private final RuntimeResultDispatcher dispatcher;
+        private final List<Integer> batchResults;
+        private final Consumer<Integer> resultHandler = this::consumeResult;
+
+        private ResultCompletionScenario(int batchSize, boolean legacy, boolean diagnosticsEnabled) {
+            this.batchSize = batchSize;
+            this.legacy = legacy;
+            this.dispatcher = legacy ? null : new RuntimeResultDispatcher(executor, 8, diagnosticsEnabled);
+            this.batchResults = java.util.stream.IntStream.range(0, batchSize).boxed().toList();
+        }
+
+        private void run(int iterations) {
+            executor.resetMaximum();
+            for (int i = 0; i < iterations; i++) {
+                runOne();
+            }
+        }
+
+        private void runOne() {
+            if (legacy && batchSize == 1) {
+                consumeResult(0);
+                return;
+            }
+            if (legacy) {
+                for (int i = 0; i < batchSize; i++) {
+                    int result = i;
+                    executor.execute(() -> consumeResult(result));
+                }
+                executor.runAll();
+                return;
+            }
+            if (batchSize == 1) {
+                CompletableFuture<Void> completion = dispatcher.submit(
+                        "benchmark-session", () -> consumeResult(0));
+                executor.runAll();
+                completion.join();
+                return;
+            }
+            CompletableFuture<Void> completion = dispatcher.submit(
+                    "benchmark-session", batchResults, resultHandler);
+            executor.runAll();
+            completion.join();
+        }
+
+        private void consumeResult(int result) {
+            blackhole += result + 1L;
+        }
+
+        @Override
+        public void close() {
+            if (dispatcher != null) {
+                dispatcher.close();
+            }
+        }
+    }
+
+    private static class MeasuringExecutor implements java.util.concurrent.Executor {
+        private final ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        private int maxQueuedTasks;
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.addLast(command);
+            maxQueuedTasks = Math.max(maxQueuedTasks, tasks.size());
+        }
+
+        private void runAll() {
+            while (!tasks.isEmpty()) {
+                tasks.removeFirst().run();
+            }
+        }
+
+        private void resetMaximum() {
+            if (!tasks.isEmpty()) {
+                throw new IllegalStateException("Benchmark executor still has queued work");
+            }
+            maxQueuedTasks = 0;
+        }
+
+        private int maxQueuedTasks() {
+            return maxQueuedTasks;
+        }
+    }
+
     private static class Scenario implements AutoCloseable {
         private final byte[] payload;
         private final int fragments;
@@ -365,6 +501,7 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final ExecutorService executor;
         private final Semaphore processed = new Semaphore(0);
         private final AtomicReference<Throwable> failure = new AtomicReference<>();
+        private final LoadMetricBenchmarkClient metricClient;
         private final List<JdkWebSocketSession> sessions;
         private final List<WebSocket.Listener> listeners;
         private final List<BenchmarkWebSocket> webSockets;
@@ -391,7 +528,9 @@ public class WebsocketRuntimeDispatchBenchmark {
             this.sessions = new java.util.ArrayList<>(sessionCount);
             this.listeners = new java.util.ArrayList<>(sessionCount);
             this.webSockets = new java.util.ArrayList<>(sessionCount);
-            LoadEndpoint endpoint = new LoadEndpoint(compression, processed, failure);
+            LoadEndpoint loadEndpoint = new LoadEndpoint(compression, processed, failure);
+            this.metricClient = transportMetrics ? new LoadMetricBenchmarkClient(loadEndpoint) : null;
+            WebsocketEndpoint endpoint = metricClient == null ? loadEndpoint : metricClient;
             Map<String, Object> userProperties = new java.util.HashMap<>(
                     userProperties(true, transportMetrics));
             userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
@@ -401,10 +540,18 @@ public class WebsocketRuntimeDispatchBenchmark {
             userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
                                maxRetainedBytes);
             for (int i = 0; i < sessionCount; i++) {
+                Map<String, Object> sessionProperties = new java.util.HashMap<>(userProperties);
+                sessionProperties.put(AbstractWebsocketClient.NEGOTIATED_SESSION_ID_USER_PROPERTY,
+                                      "benchmark_runtime_" + i);
+                sessionProperties.put(AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY, "benchmark");
+                sessionProperties.put(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
+                                      compression);
+                sessionProperties.put(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                                      io.fluxzero.common.websocket.WebSocketTransportFormat.JSON);
                 JdkWebSocketSession session = new JdkWebSocketSession(
                         new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(endpoint),
                         new WebsocketConnectionOptions(
-                                Map.of(), userProperties, Duration.ofSeconds(1), List.of()),
+                                Map.of(), sessionProperties, Duration.ofSeconds(1), List.of()),
                         URI.create("ws://localhost/benchmark-load/" + i),
                         new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, executor);
                 JdkWebSocketSession.RuntimeDataState initialState = session.runtimeDataState();
@@ -487,6 +634,9 @@ public class WebsocketRuntimeDispatchBenchmark {
             sessions.forEach(session -> session.abort(
                     new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "benchmark complete")));
             executor.shutdownNow();
+            if (metricClient != null) {
+                metricClient.close();
+            }
         }
     }
 
@@ -522,7 +672,8 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static Map<String, Object> userProperties(boolean isolated, boolean transportMetrics) {
         if (isolated && transportMetrics) {
             return Map.of(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true,
-                          JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY, true);
+                          JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY, true,
+                          JdkWebSocketSession.SDK_RUNTIME_INGRESS_PROGRESS_ENABLED_USER_PROPERTY, true);
         }
         if (isolated) {
             return Map.of(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true);
@@ -540,7 +691,7 @@ public class WebsocketRuntimeDispatchBenchmark {
                                 2, 4_096L, 2, 4_096L, 2, 4_096L, 0, 0L,
                                 JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
-                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L));
+                                JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L, 0L));
 
         private final TransportMetricBenchmarkClient client;
         private final JdkWebSocketSession session;
@@ -603,6 +754,57 @@ public class WebsocketRuntimeDispatchBenchmark {
                   new SimplePropertySource(transportMetrics
                                                    ? Map.of(TRANSPORT_METRICS_ENABLED_PROPERTY, "true") : Map.of()),
                   (client, numberOfSessions) -> NoOpTaskScheduler.INSTANCE);
+        }
+
+        @Override
+        void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+            blackhole += Message.asMessage(metric).addMetadata(metadata)
+                    .serialize(getFallbackSerializer()).getBytes();
+        }
+    }
+
+    private static class LoadMetricBenchmarkClient extends AbstractWebsocketClient {
+        private final LoadEndpoint delegate;
+
+        private LoadMetricBenchmarkClient(LoadEndpoint delegate) {
+            super((endpoint, options, uri) -> {
+                      throw new UnsupportedOperationException("Benchmark connector must not connect");
+                  }, URI.create("ws://localhost"),
+                  WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                                                      .runtimeBaseUrl("ws://localhost")
+                                                      .name("load-metric-benchmark")
+                                                      .build()),
+                  true, Duration.ofSeconds(1), defaultObjectMapper, 1,
+                  new SimplePropertySource(Map.of(TRANSPORT_METRICS_ENABLED_PROPERTY, "true")),
+                  (client, numberOfSessions) -> NoOpTaskScheduler.INSTANCE);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onOpen(WebsocketSession session) {
+        }
+
+        @Override
+        public void onMessage(byte[] bytes, WebsocketSession session) {
+            delegate.onMessage(bytes, session);
+        }
+
+        @Override
+        public void onMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+            delegate.onMessage(bytes, session);
+        }
+
+        @Override
+        public void onPong(ByteBuffer data, WebsocketSession session) {
+        }
+
+        @Override
+        public void onClose(WebsocketSession session, WebsocketCloseReason closeReason) {
+        }
+
+        @Override
+        public void onError(WebsocketSession session, Throwable error) {
+            delegate.onError(session, error);
         }
 
         @Override

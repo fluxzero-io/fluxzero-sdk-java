@@ -61,7 +61,6 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
-import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -185,8 +184,25 @@ public class WebSocketClient extends AbstractClient {
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
+        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS = 8;
         static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 19;
         static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 16L * 1024 * 1024;
+        static final String MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY =
+                "fluxzero.runtime.ingress.maxConcurrency";
+        static final String MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY =
+                "fluxzero.runtime.ingress.maxRetainedMessages";
+        static final String MAX_RETAINED_RUNTIME_BYTES_PROPERTY =
+                "fluxzero.runtime.ingress.maxRetainedBytes";
+        static final String MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY =
+                "fluxzero.runtime.ingress.maxCompletionConcurrency";
+        static final String RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY =
+                "fluxzero.runtime.ingress.stallCloseTimeout";
+        static final String MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS =
+                "fluxzero.websocket.runtime.maxConcurrency";
+        static final String MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS =
+                "fluxzero.websocket.runtime.maxRetainedMessages";
+        static final String MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS =
+                "fluxzero.websocket.runtime.maxRetainedBytes";
         static final String MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY =
                 "FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY";
         static final String MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY =
@@ -250,34 +266,58 @@ public class WebSocketClient extends AbstractClient {
 
         /**
          * Maximum number of complete SDK runtime messages decoded or handled concurrently per WebSocket session.
-         * Defaults to {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY}, or {@code 3} when unset. Use {@code 1} for
-         * serial application callbacks while retaining protocol-liveness isolation.
+         * Defaults to {@code fluxzero.runtime.ingress.maxConcurrency}, its legacy WebSocket aliases, or {@code 3}
+         * when unset. Use {@code 1} for serial application callbacks while retaining protocol-liveness isolation.
          */
         @Default
-        int maxConcurrentRuntimeWebSocketMessages = getIntegerProperty(
-                MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY,
-                DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES);
+        int maxConcurrentRuntimeWebSocketMessages = firstIntegerProperty(
+                DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES, MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY,
+                MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS,
+                MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY);
 
         /**
          * Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, executor
          * submission, pending work and active processing. The pending capacity is this value minus
          * {@link #maxConcurrentRuntimeWebSocketMessages}. Defaults to
-         * {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES}, or {@code 19} when unset.
+         * {@code fluxzero.runtime.ingress.maxRetainedMessages}, its legacy WebSocket aliases, or {@code 19} when
+         * unset.
          */
         @Default
-        int maxRetainedRuntimeWebSocketMessages = getIntegerProperty(
-                MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY,
-                DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES);
+        int maxRetainedRuntimeWebSocketMessages = firstIntegerProperty(
+                DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES, MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY,
+                MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS,
+                MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY);
 
         /**
          * Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single
          * larger message may proceed while it is the only retained message. Defaults to
-         * {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES}, or 16 MiB when unset.
+         * {@code fluxzero.runtime.ingress.maxRetainedBytes}, its legacy WebSocket aliases, or 16 MiB when unset.
          */
         @Default
-        long maxRetainedRuntimeWebSocketBytes = getLongProperty(
-                MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY,
-                DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES);
+        long maxRetainedRuntimeWebSocketBytes = firstLongProperty(
+                DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES, MAX_RETAINED_RUNTIME_BYTES_PROPERTY,
+                MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS,
+                MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY);
+
+        /**
+         * Maximum number of runtime request results whose SDK completion logic and synchronous customer future
+         * continuations may run concurrently per client. Large result batches are submitted incrementally and share
+         * this bound with individual responses. Defaults to
+         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.
+         */
+        @Default
+        int maxConcurrentRuntimeResultCompletions = firstIntegerProperty(
+                DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS,
+                MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY);
+
+        /**
+         * Optional duration without functional runtime-ingress completion after which a locally stalled session is
+         * closed. {@link Duration#ZERO} (the default) disables stall-triggered close; local backpressure itself never
+         * closes a healthy session. The property value uses ISO-8601 duration syntax, for example {@code PT30S}.
+         */
+        @Default
+        Duration runtimeIngressStallCloseTimeout = firstDurationProperty(
+                Duration.ZERO, RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY);
 
         /**
          * Maximum payload bytes per physical WebSocket binary frame. Larger logical Fluxzero messages are sent with
@@ -398,6 +438,27 @@ public class WebSocketClient extends AbstractClient {
             if (maxRetainedRuntimeWebSocketBytes < 1) {
                 throw new IllegalArgumentException("maxRetainedRuntimeWebSocketBytes must be positive");
             }
+            if (maxConcurrentRuntimeResultCompletions < 1) {
+                throw new IllegalArgumentException("maxConcurrentRuntimeResultCompletions must be at least 1");
+            }
+            if (runtimeIngressStallCloseTimeout == null || runtimeIngressStallCloseTimeout.isNegative()) {
+                throw new IllegalArgumentException("runtimeIngressStallCloseTimeout must not be negative");
+            }
+        }
+
+        private static int firstIntegerProperty(int defaultValue, String... names) {
+            String value = getFirstAvailableProperty(names);
+            return value == null ? defaultValue : Integer.parseInt(value.trim());
+        }
+
+        private static long firstLongProperty(long defaultValue, String... names) {
+            String value = getFirstAvailableProperty(names);
+            return value == null ? defaultValue : Long.parseLong(value.trim());
+        }
+
+        private static Duration firstDurationProperty(Duration defaultValue, String... names) {
+            String value = getFirstAvailableProperty(names);
+            return value == null ? defaultValue : Duration.parse(value.trim());
         }
 
         private static Map<MessageType, Integer> defaultGatewaySessions() {

@@ -70,8 +70,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -79,6 +81,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
@@ -134,6 +137,7 @@ import static java.util.Optional.ofNullable;
  * @see ResultBatch
  */
 public abstract class AbstractWebsocketClient implements WebsocketEndpoint, AutoCloseable {
+    private static final CompletionStage<Void> COMPLETED_RUNTIME_MESSAGE = CompletableFuture.completedFuture(null);
     static final String TRANSPORT_METRICS_ENABLED_PROPERTY =
             "fluxzero.websocket.transportMetrics.enabled";
     private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
@@ -176,14 +180,20 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final TaskScheduler pingScheduler;
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
+    private final Set<String> runtimeIngressBackpressured = ConcurrentHashMap.newKeySet();
+    private final Set<String> runtimeIngressBackpressureReported = ConcurrentHashMap.newKeySet();
+    private final Map<String, RuntimeIngressLiveness> runtimeIngressLiveness = new ConcurrentHashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ExecutorService resultExecutor;
+    private final RuntimeResultDispatcher runtimeResultDispatcher;
     private final ExecutorService reconnectExecutor;
     private final Semaphore inFlightWebSocketBytes;
     private final boolean allowMetrics;
     private final boolean transportMetricsEnabled;
+    private final boolean monitorRuntimeIngressProgress;
     private final WebsocketResultDiagnostics resultDiagnostics;
     private final SdkRuntimeWebsocketEndpoint sdkRuntimeEndpoint = new SdkRuntimeWebsocketEndpoint(this);
+    private final ThreadLocal<CompletionStage<Void>> runtimeMessageCompletion = new ThreadLocal<>();
 
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
     private final Serializer fallbackSerializer = new JacksonSerializer();
@@ -247,9 +257,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         this.resultDiagnostics = WebsocketResultDiagnostics.from(propertySource);
         this.transportMetricsEnabled = allowMetrics && !clientConfig.isDisableMetrics()
                                        && transportMetricsEnabled(propertySource);
+        this.monitorRuntimeIngressProgress = transportMetricsEnabled
+                                             || !clientConfig.getRuntimeIngressStallCloseTimeout().isZero();
         this.inFlightWebSocketBytes = new Semaphore(Math.max(1, clientConfig.getMaxInFlightWebSocketBytes()));
         this.pingScheduler = pingSchedulerFactory.create(this, numberOfSessions);
-        this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
+        this.resultExecutor = newWorkerPool(
+                this + "-onMessage", clientConfig.getMaxConcurrentRuntimeResultCompletions());
+        this.runtimeResultDispatcher = new RuntimeResultDispatcher(
+                resultExecutor, clientConfig.getMaxConcurrentRuntimeResultCompletions(), transportMetricsEnabled);
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, previousSession -> retryOnFailure(
                 () -> connectToServer(connector, endpointUri, previousSession),
@@ -544,33 +559,193 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         } catch (Exception e) {
             log().error("Could not parse input. Expected a {} websocket message.",
                         getTransportFormat(session), e);
+            if (runtimeMessageCompletion.get() != null) {
+                runtimeMessageCompletion.set(CompletableFuture.failedFuture(e));
+            }
             return;
         }
         long decodedTimestamp = resultDiagnostics.timestamp();
         long decodeDuration = decodeStartedNanos == 0L ? 0L : TimeUnit.NANOSECONDS.toMillis(
                 Math.max(0L, resultDiagnostics.monotonicTimestamp() - decodeStartedNanos));
         String sessionId = getNegotiatedSessionId(session);
-        if (value instanceof ResultBatch) {
+        CompletionStage<Void> completion;
+        if (value instanceof ResultBatch batch) {
             String batchId = Fluxzero.generateId();
-            ((ResultBatch) value).getResults().forEach(r -> {
-                long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-                executeResultCallback("result", () -> handleResult(
-                        r, batchId, sessionId,
-                        resultDiagnostics.resultTiming(
-                                frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
-                                resultDiagnostics.timestamp())));
-            });
-        } else {
-            WebSocketRequest webSocketRequest = requests.get(((RequestResult) value).getRequestId());
-            if (webSocketRequest == null) {
-                log().warn("Could not find outstanding read request for id {} (session {})",
-                           ((RequestResult) value).getRequestId(), sessionId);
-            }
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-            handleResult((RequestResult) value, null, sessionId,
-                         resultDiagnostics.resultTiming(
-                                 frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
-                                 resultDiagnostics.timestamp()));
+            completion = runtimeResultDispatcher.submit(sessionId, batch.getResults(), result -> handleResult(
+                    result, batchId, sessionId,
+                    resultDiagnostics.resultTiming(
+                            frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
+                            resultDiagnostics.timestamp())));
+        } else {
+            completion = runtimeResultDispatcher.submit(
+                    sessionId, resultCallback((RequestResult) value, null, sessionId,
+                                              frameTiming, decodedTimestamp, decodeDuration));
+        }
+        if (runtimeMessageCompletion.get() != null) {
+            runtimeMessageCompletion.set(completion);
+        }
+    }
+
+    private Runnable resultCallback(RequestResult result, String batchId, String sessionId,
+                                    WebsocketResultDiagnostics.FrameTiming frameTiming,
+                                    long decodedTimestamp, long decodeDuration) {
+        long callbackQueuedTimestamp = resultDiagnostics.timestamp();
+        return () -> handleResult(
+                result, batchId, sessionId,
+                resultDiagnostics.resultTiming(
+                        frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
+                        resultDiagnostics.timestamp()));
+    }
+
+    CompletionStage<Void> dispatchRuntimeMessage(Runnable messageCallback) {
+        runtimeMessageCompletion.set(COMPLETED_RUNTIME_MESSAGE);
+        try {
+            messageCallback.run();
+            return runtimeMessageCompletion.get();
+        } finally {
+            runtimeMessageCompletion.remove();
+        }
+    }
+
+    void onRuntimeIngressBackpressure(WebsocketSession session, boolean backpressured,
+                                      RuntimeIngressController.State state) {
+        String sessionId = getNegotiatedSessionId(session);
+        if (backpressured) {
+            if (runtimeIngressBackpressured.add(sessionId)) {
+                pingDeadlines.computeIfPresent(sessionId, (key, current) -> {
+                    if (!current.isAwaitingPong()) {
+                        return current;
+                    }
+                    current.cancel();
+                    return null;
+                });
+                if (shouldEmitTransportMetrics() && state != null
+                    && runtimeIngressBackpressureReported.add(sessionId)) {
+                    emitTransportMetricAsync(
+                            WebsocketTransportMetric.Event.RUNTIME_INGRESS_BACKPRESSURED, session,
+                            transportMetricState(session, JdkWebSocketSession.runtimeDataState(state)));
+                }
+            }
+        } else if (runtimeIngressBackpressured.remove(sessionId)) {
+            pingDeadlines.computeIfAbsent(sessionId, ignored -> newScheduledPing(session));
+        }
+    }
+
+    void onRuntimeIngressProgress(WebsocketSession session, RuntimeIngressController.Progress progress) {
+        if (!monitorRuntimeIngressProgress) {
+            return;
+        }
+        String sessionId = getNegotiatedSessionId(session);
+        AtomicBoolean recovered = new AtomicBoolean();
+        AtomicReference<CompletableFuture<Void>> stalledMetricPublication = new AtomicReference<>();
+        runtimeIngressLiveness.compute(sessionId, (key, current) -> {
+            int retainedMessages = progress.state().retainedMessages();
+            if (current == null) {
+                return retainedMessages == 0 ? null
+                        : scheduleRuntimeIngressStall(session, sessionId, progress.state());
+            }
+            current.state = progress.state();
+            if (progress.type() == RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED) {
+                current.progressDeadline = nextRuntimeIngressProgressDeadline();
+            }
+            recovered.set(current.stalled);
+            if (current.stalled) {
+                stalledMetricPublication.set(current.stallMetricPublication);
+            }
+            if (retainedMessages == 0) {
+                current.cancel();
+                return null;
+            }
+            if (current.stalled) {
+                current.cancel();
+                current.registrationId = Fluxzero.generateId();
+                current.stalled = false;
+                current.stallDeadline = scheduleRuntimeIngressStallDeadline(
+                        session, sessionId, current.registrationId, current.progressDeadline);
+                current.closeDeadline = null;
+                current.stallMetricPublication = CompletableFuture.completedFuture(null);
+            }
+            return current;
+        });
+        if (recovered.get()) {
+            stalledMetricPublication.get().whenComplete((ignored, failure) -> emitTransportMetricAsync(
+                    WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED, session,
+                    transportMetricState(
+                            session, JdkWebSocketSession.runtimeDataState(progress.state()))));
+        }
+    }
+
+    private RuntimeIngressLiveness scheduleRuntimeIngressStall(
+            WebsocketSession session, String sessionId, RuntimeIngressController.State state) {
+        String registrationId = Fluxzero.generateId();
+        long progressDeadline = nextRuntimeIngressProgressDeadline();
+        Registration deadline = scheduleRuntimeIngressStallDeadline(
+                session, sessionId, registrationId, progressDeadline);
+        return new RuntimeIngressLiveness(registrationId, deadline, state, progressDeadline);
+    }
+
+    private Registration scheduleRuntimeIngressStallDeadline(
+            WebsocketSession session, String sessionId, String registrationId, long deadline) {
+        return pingScheduler.schedule(
+                deadline,
+                () -> handleRuntimeIngressStall(session, sessionId, registrationId));
+    }
+
+    private long nextRuntimeIngressProgressDeadline() {
+        return Math.addExact(pingScheduler.clock().millis(), clientConfig.getPingTimeout().toMillis());
+    }
+
+    private void handleRuntimeIngressStall(WebsocketSession session, String sessionId, String registrationId) {
+        AtomicBoolean stalled = new AtomicBoolean();
+        AtomicReference<JdkWebSocketSession.RuntimeDataState> metricState = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> metricPublicationGate = new AtomicReference<>();
+        runtimeIngressLiveness.computeIfPresent(sessionId, (key, current) -> {
+            if (!current.registrationId.equals(registrationId)) {
+                return current;
+            }
+            if (current.state.retainedMessages() == 0) {
+                return null;
+            }
+            if (current.progressDeadline > pingScheduler.clock().millis()) {
+                current.stallDeadline = scheduleRuntimeIngressStallDeadline(
+                        session, sessionId, registrationId, current.progressDeadline);
+                return current;
+            }
+            current.stallDeadline = null;
+            current.closeDeadline = clientConfig.getRuntimeIngressStallCloseTimeout().isZero()
+                    ? null : pingScheduler.schedule(
+                    clientConfig.getRuntimeIngressStallCloseTimeout(),
+                    () -> handleRuntimeIngressStallClose(session, sessionId, registrationId));
+            current.stalled = true;
+            current.stallMetricPublication = new CompletableFuture<>();
+            metricPublicationGate.set(current.stallMetricPublication);
+            stalled.set(true);
+            metricState.set(JdkWebSocketSession.runtimeDataState(current.state));
+            return current;
+        });
+        if (stalled.get()) {
+            CompletableFuture<Void> publication = emitTransportMetricAsync(
+                    WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED, session,
+                    transportMetricState(session, metricState.get()));
+            publication.whenComplete(
+                    (ignored, failure) -> metricPublicationGate.get().complete(null));
+        }
+    }
+
+    private void handleRuntimeIngressStallClose(
+            WebsocketSession session, String sessionId, String registrationId) {
+        AtomicBoolean close = new AtomicBoolean();
+        runtimeIngressLiveness.computeIfPresent(sessionId, (key, current) -> {
+            if (current.stalled && current.registrationId.equals(registrationId)
+                && current.state.retainedMessages() > 0) {
+                close.set(true);
+                return null;
+            }
+            return current;
+        });
+        if (close.get()) {
+            abort(session, "Runtime ingress made no functional progress");
         }
     }
 
@@ -643,32 +818,32 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private PingRegistration newScheduledPing(WebsocketSession session) {
-        return !closed.get() && session.isOpen() ? new PingRegistration(
+        return !closed.get() && session.isOpen()
+               && !runtimeIngressBackpressured.contains(getNegotiatedSessionId(session)) ? new PingRegistration(
                 pingScheduler.schedule(clientConfig.getPingDelay(), () -> sendPing(session))) : null;
     }
 
     @SneakyThrows
     protected void sendPing(WebsocketSession session) {
-        if (!closed.get()) {
-            if (session.isOpen()) {
-                String sessionId = getNegotiatedSessionId(session);
-                var registration = pingDeadlines.compute(sessionId, (k, v) -> {
-                    if (v != null) {
-                        v.cancel();
-                    }
-                    if (closed.get() || !session.isOpen()) {
-                        return null;
-                    }
-                    String pingId = Fluxzero.generateId();
-                    return new PingRegistration(pingId, pingScheduler.schedule(
-                            clientConfig.getPingTimeout(), () -> handlePingTimeout(session, sessionId, pingId)));
-                });
-                if (registration != null) {
-                    try {
-                        session.sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
-                    } catch (Exception e) {
-                        log().warn("Failed to send ping message", e);
-                    }
+        String sessionId = getNegotiatedSessionId(session);
+        if (!closed.get() && session.isOpen()) {
+            var registration = pingDeadlines.compute(sessionId, (k, v) -> {
+                if (v != null) {
+                    v.cancel();
+                }
+                if (closed.get() || !session.isOpen()
+                    || runtimeIngressBackpressured.contains(sessionId)) {
+                    return null;
+                }
+                String pingId = Fluxzero.generateId();
+                return new PingRegistration(pingId, pingScheduler.schedule(
+                        clientConfig.getPingTimeout(), () -> handlePingTimeout(session, sessionId, pingId)), true);
+            });
+            if (registration != null) {
+                try {
+                    session.sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
+                } catch (Exception e) {
+                    log().warn("Failed to send ping message", e);
                 }
             }
         }
@@ -712,14 +887,44 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         String id;
         @Delegate
         Registration delegate;
+        boolean awaitingPong;
 
         public PingRegistration(Registration delegate) {
-            this(Fluxzero.generateId(), delegate);
+            this(Fluxzero.generateId(), delegate, false);
         }
 
-        PingRegistration(String id, Registration delegate) {
+        PingRegistration(String id, Registration delegate, boolean awaitingPong) {
             this.id = id;
             this.delegate = delegate;
+            this.awaitingPong = awaitingPong;
+        }
+    }
+
+    private static final class RuntimeIngressLiveness {
+        private String registrationId;
+        private Registration stallDeadline;
+        private Registration closeDeadline;
+        private boolean stalled;
+        private RuntimeIngressController.State state;
+        private CompletableFuture<Void> stallMetricPublication = CompletableFuture.completedFuture(null);
+        private long progressDeadline;
+
+        private RuntimeIngressLiveness(
+                String registrationId, Registration stallDeadline, RuntimeIngressController.State state,
+                long progressDeadline) {
+            this.registrationId = registrationId;
+            this.stallDeadline = stallDeadline;
+            this.state = state;
+            this.progressDeadline = progressDeadline;
+        }
+
+        void cancel() {
+            if (stallDeadline != null) {
+                stallDeadline.cancel();
+            }
+            if (closeDeadline != null) {
+                closeDeadline.cancel();
+            }
         }
     }
 
@@ -771,6 +976,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         Backlog<Request> backlog = sessionBacklogs.remove(sessionId);
         ofNullable(backlog).ifPresent(Backlog::shutDown);
         ofNullable(pingDeadlines.remove(sessionId)).ifPresent(PingRegistration::cancel);
+        runtimeIngressBackpressured.remove(sessionId);
+        runtimeIngressBackpressureReported.remove(sessionId);
+        ofNullable(runtimeIngressLiveness.remove(sessionId)).ifPresent(RuntimeIngressLiveness::cancel);
+        runtimeResultDispatcher.releaseSession(sessionId);
         if (backlog != null && !closed.get()) {
             retryOutstandingRequestsAsync(sessionId);
         }
@@ -860,9 +1069,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 sessionPool.close();
                 sessionBacklogs.values().forEach(Backlog::shutDown);
                 sessionBacklogs.clear();
+                runtimeResultDispatcher.close();
                 shutdownExecutor(resultExecutor, "websocket result executor");
                 shutdownExecutor(reconnectExecutor, "websocket reconnect executor");
                 pingDeadlines.clear();
+                runtimeIngressBackpressured.clear();
+                runtimeIngressBackpressureReported.clear();
+                runtimeIngressLiveness.values().forEach(RuntimeIngressLiveness::cancel);
+                runtimeIngressLiveness.clear();
                 if (!requests.isEmpty()) {
                     log().warn("{}: Closed websocket session to endpoint with {} outstanding requests",
                                getClass().getSimpleName(), requests.size());
@@ -921,6 +1135,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             return;
         }
         try {
+            RuntimeResultDispatcher.State completionState = runtimeResultDispatcher.state();
             WebsocketTransportMetric metric = new WebsocketTransportMetric(
                     event, getClass().getSimpleName(), getRuntimeVersion(session).orElse(null),
                     Runtime.version().feature(), transportWorkerMode(session),
@@ -928,6 +1143,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     state.inFlightBytes(), state.activeMessages(), state.activeBytes(),
                     state.pendingMessages(), state.pendingBytes(), state.maxConcurrency(),
                     state.maxRetainedMessages(), state.maxRetainedBytes(),
+                    state.deferredFrameBytes(),
+                    runtimeIngressBackpressured.contains(getNegotiatedSessionId(session)),
+                    completionState.workGroups(), completionState.activeResults(), completionState.pendingResults(),
+                    completionState.maxConcurrency(), completionState.oldestWorkGroupAgeMillis(),
+                    completionState.maxQueueDwellMillis(), completionState.maxCompletionDurationMillis(),
+                    completionState.maxObservedWorkGroups(), completionState.maxObservedActiveResults(),
+                    completionState.maxObservedPendingResults(),
+                    clientConfig.getRuntimeIngressStallCloseTimeout().toMillis(),
                     state.lastInboundAgeMillis());
             publishTransportMetric(metric, metricsMetadata().with(
                     "transportFormat", getTransportFormat(session),
@@ -939,18 +1162,30 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
-    private void emitTransportMetricAsync(WebsocketTransportMetric.Event event, WebsocketSession session,
-                                          JdkWebSocketSession.RuntimeDataState state) {
+    private CompletableFuture<Void> emitTransportMetricAsync(
+            WebsocketTransportMetric.Event event, WebsocketSession session,
+            JdkWebSocketSession.RuntimeDataState state) {
+        CompletableFuture<Void> publication = new CompletableFuture<>();
         if (state == null || !shouldEmitTransportMetrics()) {
-            return;
+            publication.complete(null);
+            return publication;
         }
         try {
-            resultExecutor.execute(() -> emitTransportMetricSnapshot(event, session, state));
+            resultExecutor.execute(() -> {
+                try {
+                    emitTransportMetricSnapshot(event, session, state);
+                    publication.complete(null);
+                } catch (Throwable e) {
+                    publication.completeExceptionally(e);
+                }
+            });
         } catch (RejectedExecutionException e) {
+            publication.completeExceptionally(e);
             if (!closed.get()) {
                 log().warn("Failed to schedule websocket transport metric publication", e);
             }
         }
+        return publication;
     }
 
     private JdkWebSocketSession.RuntimeDataState transportMetricState(
@@ -1056,6 +1291,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                            clientConfig.getMaxRetainedRuntimeWebSocketMessages());
         userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
                            clientConfig.getMaxRetainedRuntimeWebSocketBytes());
+        if (transportMetricsEnabled || !clientConfig.getRuntimeIngressStallCloseTimeout().isZero()) {
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_INGRESS_PROGRESS_ENABLED_USER_PROPERTY, true);
+        }
         if (transportMetricsEnabled) {
             userProperties.put(JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY, true);
         }

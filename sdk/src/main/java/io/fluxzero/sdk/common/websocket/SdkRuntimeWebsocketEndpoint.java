@@ -17,12 +17,15 @@
 package io.fluxzero.sdk.common.websocket;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * Internal adapter that marks SDK runtime endpoints and exposes runtime-dispatch timing while delegating the public
  * low-level endpoint contract.
  */
 final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
+    private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
     private final WebsocketEndpoint delegate;
     private final ThreadLocal<RuntimeDispatchTiming> runtimeDispatchTiming = new ThreadLocal<>();
 
@@ -30,12 +33,16 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
         this.delegate = delegate;
     }
 
-    void onRuntimeMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
-                          RuntimeDispatchTiming dispatchTiming) {
+    CompletionStage<Void> onRuntimeMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
+                                           RuntimeDispatchTiming dispatchTiming) {
         RuntimeDispatchTiming previousTiming = runtimeDispatchTiming.get();
         runtimeDispatchTiming.set(dispatchTiming);
         try {
+            if (delegate instanceof AbstractWebsocketClient client) {
+                return client.dispatchRuntimeMessage(() -> delegate.onMessage(bytes, session, receiveTiming));
+            }
             delegate.onMessage(bytes, session, receiveTiming);
+            return COMPLETED;
         } finally {
             if (previousTiming == null) {
                 runtimeDispatchTiming.remove();
@@ -47,6 +54,19 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
 
     RuntimeDispatchTiming currentDispatchTiming() {
         return runtimeDispatchTiming.get();
+    }
+
+    void onRuntimeIngressBackpressure(WebsocketSession session, boolean backpressured,
+                                      RuntimeIngressController.State state) {
+        if (delegate instanceof AbstractWebsocketClient client) {
+            client.onRuntimeIngressBackpressure(session, backpressured, state);
+        }
+    }
+
+    void onRuntimeIngressProgress(WebsocketSession session, RuntimeIngressController.Progress progress) {
+        if (delegate instanceof AbstractWebsocketClient client) {
+            client.onRuntimeIngressProgress(session, progress);
+        }
     }
 
     @Override

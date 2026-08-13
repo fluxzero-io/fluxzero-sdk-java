@@ -21,11 +21,13 @@ import java.net.URI;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -33,6 +35,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
@@ -40,6 +43,10 @@ import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 class JdkWebSocketSession implements WebsocketSession {
+    private static final Object WEBSOCKET_ASSEMBLY_KEY = new Object();
+    private static final CompletableFuture<Void> COMPLETED_RECEIVE = CompletableFuture.completedFuture(null);
+    private static final int RECEIVE_DEMAND_OUTSTANDING = 1 << 30;
+    private static final int ACTIVE_RECEIVE_INVOCATIONS_MASK = RECEIVE_DEMAND_OUTSTANDING - 1;
     static final String SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY =
             JdkWebSocketSession.class.getName() + ".sdkRuntimeDataDispatch";
     static final String SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY =
@@ -50,6 +57,8 @@ class JdkWebSocketSession implements WebsocketSession {
             JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxRetainedBytes";
     static final String SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY =
             JdkWebSocketSession.class.getName() + ".sdkTransportMetricsEnabled";
+    static final String SDK_RUNTIME_INGRESS_PROGRESS_ENABLED_USER_PROPERTY =
+            JdkWebSocketSession.class.getName() + ".sdkRuntimeIngressProgressEnabled";
     static final int DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES = 3;
     static final int DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES = 19;
     static final long DEFAULT_MAX_RETAINED_RUNTIME_BYTES = 16L * 1024 * 1024;
@@ -58,13 +67,16 @@ class JdkWebSocketSession implements WebsocketSession {
     private final WebsocketEndpoint endpoint;
     private final JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse;
     private final Executor callbackExecutor;
-    private final RuntimeDataDispatcher runtimeDataDispatcher;
+    private final RuntimeIngressController<WebsocketEndpoint.ReceiveTiming> runtimeDataDispatcher;
     private final String runtimeDataWorkerMode;
     private final boolean trackInboundActivity;
     private final URI requestUri;
     private final Map<String, Object> userProperties = new ConcurrentHashMap<>();
     private final CompletableFuture<Void> openFuture = new CompletableFuture<>();
     private final AtomicBoolean open = new AtomicBoolean();
+    private final AtomicInteger receiveState = new AtomicInteger();
+    private final AtomicBoolean runtimeIngressBackpressured = new AtomicBoolean();
+    private final AtomicBoolean runtimeDataStopping = new AtomicBoolean();
     private final AtomicBoolean closeNotified = new AtomicBoolean();
     private final AtomicBoolean runtimeDataFailureNotified = new AtomicBoolean();
     private final CompletableFuture<Void> closeHandshakeFuture = new CompletableFuture<>();
@@ -79,6 +91,7 @@ class JdkWebSocketSession implements WebsocketSession {
     private volatile CompletableFuture<Void> closeSendFuture;
     private volatile ByteArrayOutputStream binaryMessage = new ByteArrayOutputStream();
     private boolean binaryMessageFragmented;
+    private DeferredBinaryFrame deferredBinaryFrame;
     private volatile WebSocket webSocket;
     private volatile long lastInboundNanos;
 
@@ -117,8 +130,14 @@ class JdkWebSocketSession implements WebsocketSession {
                 callbackExecutor, runtimeDataExecutor);
         this.runtimeDataDispatcher = Boolean.TRUE.equals(
                 options.userProperties().get(SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY))
-                ? new RuntimeDataDispatcher(runtimeDataExecutor, maxConcurrentRuntimeMessages,
-                                            maxRetainedRuntimeMessages, maxRetainedRuntimeBytes) : null;
+                ? new RuntimeIngressController<>(
+                        runtimeDataExecutor, maxConcurrentRuntimeMessages, maxRetainedRuntimeMessages,
+                        maxRetainedRuntimeBytes, this::dispatchBinaryMessage, this::handleRuntimeIngressFailure,
+                        this::resumeRuntimeIngress,
+                        Boolean.TRUE.equals(options.userProperties().get(
+                                SDK_RUNTIME_INGRESS_PROGRESS_ENABLED_USER_PROPERTY))
+                                ? this::handleRuntimeIngressProgress : null,
+                        endpoint.captureReceiveTiming()) : null;
         this.trackInboundActivity = Boolean.TRUE.equals(
                 options.userProperties().get(SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY));
         this.lastInboundNanos = trackInboundActivity ? System.nanoTime() : 0L;
@@ -392,7 +411,7 @@ class JdkWebSocketSession implements WebsocketSession {
         try {
             endpoint.onOpen(this);
             openFuture.complete(null);
-            webSocket.request(1);
+            requestNext(webSocket);
         } catch (Throwable e) {
             open.set(false);
             openFuture.completeExceptionally(e);
@@ -444,57 +463,184 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     private void requestNext(WebSocket webSocket) {
-        if (!closeNotified.get()) {
-            webSocket.request(1);
+        if (closeNotified.get() || runtimeDataStopping.get() || receiveState.get() != 0) {
+            return;
+        }
+        if (!runtimeIngressHasDemandCapacity()) {
+            setRuntimeIngressBackpressured(true);
+            return;
+        }
+        if (receiveState.compareAndSet(0, RECEIVE_DEMAND_OUTSTANDING)) {
+            try {
+                setRuntimeIngressBackpressured(false);
+                webSocket.request(1);
+            } catch (Throwable e) {
+                receiveState.compareAndSet(RECEIVE_DEMAND_OUTSTANDING, 0);
+                throw e;
+            }
         }
     }
 
-    private boolean handleBinary(ByteBuffer message, boolean last) {
-        return handleBinary(message, last, null);
+    private boolean runtimeIngressHasDemandCapacity() {
+        if (runtimeDataDispatcher == null) {
+            return true;
+        }
+        synchronized (binaryMessageLock) {
+            return binaryMessageFragmented || runtimeDataDispatcher.canBeginMessage();
+        }
     }
 
-    private boolean handleBinary(ByteBuffer message, boolean last, WebsocketEndpoint.ReceiveTiming receiveTiming) {
-        if (runtimeDataDispatcher == null) {
-            byte[] bytes = appendBinary(message, last);
-            if (bytes == null) {
+    private void receiveInvocationStarted() {
+        while (true) {
+            int current = receiveState.get();
+            int activeInvocations = current & ACTIVE_RECEIVE_INVOCATIONS_MASK;
+            if (activeInvocations == ACTIVE_RECEIVE_INVOCATIONS_MASK) {
+                throw new IllegalStateException("WebSocket receive invocation accounting overflow");
+            }
+            if (receiveState.compareAndSet(current, activeInvocations + 1)) {
+                return;
+            }
+        }
+    }
+
+    private void receiveInvocationCompleted(WebSocket webSocket) {
+        int activeInvocations;
+        while (true) {
+            int current = receiveState.get();
+            activeInvocations = current & ACTIVE_RECEIVE_INVOCATIONS_MASK;
+            if (activeInvocations == 0) {
+                throw new IllegalStateException("WebSocket receive invocation accounting underflow");
+            }
+            activeInvocations--;
+            if (receiveState.compareAndSet(current, activeInvocations)) {
+                break;
+            }
+        }
+        if (activeInvocations == 0) {
+            requestNext(webSocket);
+        }
+    }
+
+    private void resumeRuntimeIngress() {
+        try {
+            if (processDeferredBinaryFrame()) {
+                return;
+            }
+            WebSocket webSocket = this.webSocket;
+            if (webSocket != null) {
+                requestNext(webSocket);
+            }
+        } catch (Throwable failure) {
+            failRuntimeDataDispatch(failure instanceof CompletionException && failure.getCause() != null
+                                            ? failure.getCause() : failure);
+        }
+    }
+
+    private void handleRuntimeIngressProgress(RuntimeIngressController.Progress progress) {
+        if (endpoint instanceof SdkRuntimeWebsocketEndpoint runtimeEndpoint) {
+            runtimeEndpoint.onRuntimeIngressProgress(this, progress);
+        }
+    }
+
+    private void setRuntimeIngressBackpressured(boolean backpressured) {
+        if (runtimeIngressBackpressured.compareAndSet(!backpressured, backpressured)
+            && endpoint instanceof SdkRuntimeWebsocketEndpoint runtimeEndpoint) {
+            runtimeEndpoint.onRuntimeIngressBackpressure(
+                    this, backpressured, trackInboundActivity ? runtimeDataDispatcher.state() : null);
+        }
+    }
+
+    private CompletionStage<Void> handleRuntimeBinary(
+            ByteBuffer message, boolean last, WebsocketEndpoint.ReceiveTiming receiveTiming) {
+        byte[] bytes;
+        CompletableFuture<Void> deferredCompletion = null;
+        RuntimeIngressController.Admission status;
+        synchronized (binaryMessageLock) {
+            if (deferredBinaryFrame != null) {
+                throw new IllegalStateException("A runtime WebSocket frame is already deferred");
+            }
+            status = binaryMessageFragmented
+                    ? runtimeDataDispatcher.retainMessageFragmentBytes(WEBSOCKET_ASSEMBLY_KEY, message.remaining())
+                    : runtimeDataDispatcher.beginMessage(WEBSOCKET_ASSEMBLY_KEY, message.remaining());
+            if (status == RuntimeIngressController.Admission.BACKPRESSURED) {
+                deferredCompletion = new CompletableFuture<>();
+                deferredBinaryFrame = new DeferredBinaryFrame(
+                        message.slice(), last, receiveTiming, deferredCompletion);
+            }
+            bytes = status == RuntimeIngressController.Admission.ACCEPTED ? appendBinaryLocked(message, last) : null;
+        }
+        if (status == RuntimeIngressController.Admission.BACKPRESSURED) {
+            setRuntimeIngressBackpressured(true);
+            return deferredCompletion;
+        }
+        if (status == RuntimeIngressController.Admission.OVERFLOW) {
+            failRuntimeDataDispatch(RuntimeDataDispatchException.overflow(
+                    runtimeDataState(runtimeDataDispatcher.state())));
+            return CompletableFuture.completedFuture(null);
+        }
+        if (status != RuntimeIngressController.Admission.ACCEPTED) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (bytes != null) {
+            runtimeDataDispatcher.dispatchAssembledMessage(WEBSOCKET_ASSEMBLY_KEY, bytes, receiveTiming);
+            if (!runtimeDataDispatcher.canBeginMessage()) {
+                setRuntimeIngressBackpressured(true);
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    private boolean processDeferredBinaryFrame() {
+        DeferredBinaryFrame deferred;
+        byte[] bytes = null;
+        RuntimeIngressController.Admission status;
+        synchronized (binaryMessageLock) {
+            deferred = deferredBinaryFrame;
+            if (deferred == null) {
+                return false;
+            }
+            status = binaryMessageFragmented
+                    ? runtimeDataDispatcher.retainMessageFragmentBytes(
+                            WEBSOCKET_ASSEMBLY_KEY, deferred.data.remaining())
+                    : runtimeDataDispatcher.beginMessage(WEBSOCKET_ASSEMBLY_KEY, deferred.data.remaining());
+            if (status == RuntimeIngressController.Admission.BACKPRESSURED) {
                 return true;
             }
-            dispatchBinaryMessage(bytes, receiveTiming, null);
-            return true;
+            deferredBinaryFrame = null;
+            if (status == RuntimeIngressController.Admission.ACCEPTED) {
+                bytes = appendBinaryLocked(deferred.data, deferred.last);
+            }
         }
-
-        byte[] bytes;
-        RuntimeDataDispatcher.DispatchStatus status = RuntimeDataDispatcher.DispatchStatus.ACCEPTED;
-        synchronized (binaryMessageLock) {
-            status = binaryMessageFragmented
-                    ? runtimeDataDispatcher.retainMessageFragmentBytes(message.remaining())
-                    : runtimeDataDispatcher.beginMessage(message.remaining());
-            bytes = status == RuntimeDataDispatcher.DispatchStatus.ACCEPTED
-                    ? appendBinaryLocked(message, last) : null;
+        if (status == RuntimeIngressController.Admission.ACCEPTED && bytes != null) {
+            runtimeDataDispatcher.dispatchAssembledMessage(
+                    WEBSOCKET_ASSEMBLY_KEY, bytes, deferred.receiveTiming);
+        } else if (status == RuntimeIngressController.Admission.OVERFLOW) {
+            failRuntimeDataDispatch(RuntimeDataDispatchException.overflow(
+                    runtimeDataState(runtimeDataDispatcher.state())));
         }
-        if (status == RuntimeDataDispatcher.DispatchStatus.OVERFLOW) {
-            failRuntimeDataDispatch(RuntimeDataDispatchException.overflow(runtimeDataDispatcher.state()));
-            return false;
+        if (status == RuntimeIngressController.Admission.ACCEPTED) {
+            deferred.completion.complete(null);
+        } else {
+            deferred.completion.completeExceptionally(new ClosedChannelException());
         }
-        if (status == RuntimeDataDispatcher.DispatchStatus.CLOSED) {
-            return false;
-        }
-        if (bytes == null) {
-            return true;
-        }
-        status = runtimeDataDispatcher.dispatchAssembledMessage(bytes, receiveTiming);
-        return status == RuntimeDataDispatcher.DispatchStatus.ACCEPTED;
+        return true;
     }
 
-    private void dispatchBinaryMessage(byte[] bytes, WebsocketEndpoint.ReceiveTiming receiveTiming,
-                                       SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming runtimeDispatchTiming) {
-        if (runtimeDispatchTiming != null && endpoint instanceof SdkRuntimeWebsocketEndpoint runtimeEndpoint) {
-            runtimeEndpoint.onRuntimeMessage(bytes, this, receiveTiming, runtimeDispatchTiming);
+    private CompletionStage<Void> dispatchBinaryMessage(
+            byte[] bytes, WebsocketEndpoint.ReceiveTiming receiveTiming,
+            RuntimeIngressController.DispatchTiming ingressDispatchTiming) {
+        SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming runtimeDispatchTiming = ingressDispatchTiming == null
+                ? null : new SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming(
+                        ingressDispatchTiming.queuedTimestamp(), ingressDispatchTiming.startedTimestamp(),
+                        ingressDispatchTiming.queueDurationMillis());
+        if (endpoint instanceof SdkRuntimeWebsocketEndpoint runtimeEndpoint) {
+            return runtimeEndpoint.onRuntimeMessage(bytes, this, receiveTiming, runtimeDispatchTiming);
         } else if (receiveTiming == null) {
             endpoint.onMessage(bytes, this);
         } else {
             endpoint.onMessage(bytes, this, receiveTiming);
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     private void failRuntimeDataDispatch(Throwable error) {
@@ -516,13 +662,30 @@ class JdkWebSocketSession implements WebsocketSession {
         }
     }
 
+    private void handleRuntimeIngressFailure(Throwable failure) {
+        if (failure instanceof RuntimeIngressController.IngressException ingressException) {
+            RuntimeDataState state = runtimeDataState(ingressException.state());
+            failRuntimeDataDispatch(ingressException.reason()
+                                            == RuntimeIngressController.IngressException.Reason.EXECUTOR_REJECTED
+                                            ? RuntimeDataDispatchException.executorRejected(state, failure.getCause())
+                                            : RuntimeDataDispatchException.overflow(state));
+            return;
+        }
+        failRuntimeDataDispatch(failure);
+    }
+
     private Runnable closeRuntimeDataDispatcher() {
         if (runtimeDataDispatcher == null) {
             return null;
         }
+        runtimeDataStopping.set(true);
         synchronized (binaryMessageLock) {
             binaryMessage = new ByteArrayOutputStream();
             binaryMessageFragmented = false;
+            if (deferredBinaryFrame != null) {
+                deferredBinaryFrame.completion.completeExceptionally(new ClosedChannelException());
+                deferredBinaryFrame = null;
+            }
             return runtimeDataDispatcher.close();
         }
     }
@@ -534,12 +697,24 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     RuntimeDataState runtimeDataState() {
-        RuntimeDataState state = runtimeDataDispatcher == null
-                ? RuntimeDataState.empty() : runtimeDataDispatcher.state();
+        long deferredFrameBytes;
+        synchronized (binaryMessageLock) {
+            deferredFrameBytes = deferredBinaryFrame == null ? 0L : deferredBinaryFrame.data.remaining();
+        }
+        RuntimeDataState runtimeState = runtimeDataDispatcher == null
+                ? RuntimeDataState.empty() : runtimeDataState(runtimeDataDispatcher.state());
         long inboundNanos = lastInboundNanos;
         long inboundAgeMillis = inboundNanos == 0L ? 0L
                 : NANOSECONDS.toMillis(Math.max(0L, System.nanoTime() - inboundNanos));
-        return state.withLastInboundAgeMillis(inboundAgeMillis);
+        return runtimeState.withTransportState(deferredFrameBytes, inboundAgeMillis);
+    }
+
+    static RuntimeDataState runtimeDataState(RuntimeIngressController.State state) {
+        return new RuntimeDataState(
+                state.retainedMessages(), state.retainedBytes(), state.inFlightMessages(), state.inFlightBytes(),
+                state.activeMessages(), state.activeBytes(), state.pendingMessages(), state.pendingBytes(),
+                state.maxConcurrency(), state.maxRetainedMessages(), state.maxRetainedBytes(),
+                0L, 0L);
     }
 
     String runtimeDataWorkerMode() {
@@ -554,7 +729,11 @@ class JdkWebSocketSession implements WebsocketSession {
         synchronized (binaryMessageLock) {
             binaryMessage = new ByteArrayOutputStream();
             binaryMessageFragmented = false;
-            runtimeDataDispatcher.discardMessageAssembly();
+            if (deferredBinaryFrame != null) {
+                deferredBinaryFrame.completion.completeExceptionally(new ClosedChannelException());
+                deferredBinaryFrame = null;
+            }
+            runtimeDataDispatcher.discardAssembly(WEBSOCKET_ASSEMBLY_KEY);
         }
     }
 
@@ -593,6 +772,11 @@ class JdkWebSocketSession implements WebsocketSession {
         byte[] bytes = new byte[copy.remaining()];
         copy.get(bytes);
         return bytes;
+    }
+
+    private record DeferredBinaryFrame(ByteBuffer data, boolean last,
+                                       WebsocketEndpoint.ReceiveTiming receiveTiming,
+                                       CompletableFuture<Void> completion) {
     }
 
     private static void await(CompletableFuture<?> future, long timeoutMillis) throws IOException {
@@ -651,307 +835,103 @@ class JdkWebSocketSession implements WebsocketSession {
         return result;
     }
 
-    private class RuntimeDataDispatcher {
-        private final Executor executor;
-        private final int maxConcurrency;
-        private final int maxRetainedMessages;
-        private final long maxRetainedBytes;
-        private final ArrayDeque<Object> pendingMessages = new ArrayDeque<>();
-        private final ArrayDeque<RuntimeTask> availableTasks = new ArrayDeque<>();
-        private int createdTaskCount;
-        private long retainedBytes;
-        private int retainedMessages;
-        private int inFlightMessages;
-        private long inFlightBytes;
-        private int activeMessages;
-        private long activeBytes;
-        private boolean messageAssemblyRetained;
-        private long messageAssemblyBytes;
-        private boolean accepting = true;
-        private boolean discardPending;
-        private boolean stopping;
-        private Runnable terminalCallback;
+    private CompletableFuture<Void> dispatchReceiveCallback(WebSocket webSocket, Runnable task) {
+        return dispatchReceiveCallback(webSocket, ignored -> task.run());
+    }
 
-        private RuntimeDataDispatcher(Executor executor, int maxConcurrency, int maxRetainedMessages,
-                                      long maxRetainedBytes) {
-            if (maxConcurrency < 1) {
-                throw new IllegalArgumentException("Runtime message concurrency must be at least 1");
-            }
-            if (maxRetainedMessages < maxConcurrency) {
-                throw new IllegalArgumentException(
-                        "Retained runtime messages must be at least runtime message concurrency");
-            }
-            if (maxRetainedBytes < 1) {
-                throw new IllegalArgumentException("Retained runtime bytes must be positive");
-            }
-            this.executor = executor;
-            this.maxConcurrency = maxConcurrency;
-            this.maxRetainedMessages = maxRetainedMessages;
-            this.maxRetainedBytes = maxRetainedBytes;
-        }
-
-        synchronized DispatchStatus beginMessage(int firstFrameBytes) {
-            if (!accepting) {
-                return DispatchStatus.CLOSED;
-            }
-            if (messageAssemblyRetained) {
-                throw new IllegalStateException("A runtime message is already being assembled");
-            }
-            if (!hasCapacity(firstFrameBytes)) {
-                return DispatchStatus.OVERFLOW;
-            }
-            messageAssemblyRetained = true;
-            messageAssemblyBytes = firstFrameBytes;
-            retainedMessages++;
-            retainedBytes += firstFrameBytes;
-            return DispatchStatus.ACCEPTED;
-        }
-
-        synchronized DispatchStatus retainMessageFragmentBytes(int nextFragmentBytes) {
-            if (!accepting) {
-                return DispatchStatus.CLOSED;
-            }
-            if (!messageAssemblyRetained) {
-                throw new IllegalStateException("No runtime message is being assembled");
-            }
-            if (retainedMessages > 1 && exceedsByteCapacity(nextFragmentBytes)) {
-                return DispatchStatus.OVERFLOW;
-            }
-            try {
-                long updatedMessageAssemblyBytes = Math.addExact(messageAssemblyBytes, nextFragmentBytes);
-                long updatedRetainedBytes = Math.addExact(retainedBytes, nextFragmentBytes);
-                messageAssemblyBytes = updatedMessageAssemblyBytes;
-                retainedBytes = updatedRetainedBytes;
-            } catch (ArithmeticException e) {
-                return DispatchStatus.OVERFLOW;
-            }
-            return DispatchStatus.ACCEPTED;
-        }
-
-        DispatchStatus dispatchAssembledMessage(byte[] bytes, WebsocketEndpoint.ReceiveTiming receiveTiming) {
-            Object message = receiveTiming == null ? bytes : new RuntimeMessage(
-                    bytes, receiveTiming, System.currentTimeMillis(), System.nanoTime());
-            synchronized (this) {
-                if (!accepting || !messageAssemblyRetained) {
-                    return DispatchStatus.CLOSED;
-                }
-                if (messageAssemblyBytes != bytes.length) {
-                    throw new IllegalStateException("Retained bytes do not match the assembled runtime message");
-                }
-                messageAssemblyRetained = false;
-                messageAssemblyBytes = 0L;
-                pendingMessages.add(message);
-            }
-            scheduleAvailable();
-            return DispatchStatus.ACCEPTED;
-        }
-
-        private boolean hasCapacity(int nextMessageBytes) {
-            return retainedMessages < maxRetainedMessages
-                    && (retainedMessages == 0 || !exceedsByteCapacity(nextMessageBytes));
-        }
-
-        private boolean exceedsByteCapacity(int additionalBytes) {
-            return additionalBytes > maxRetainedBytes || retainedBytes > maxRetainedBytes - additionalBytes;
-        }
-
-        private void scheduleAvailable() {
-            Object message;
-            RuntimeTask task;
-            synchronized (this) {
-                if (discardPending || stopping || inFlightMessages >= maxConcurrency) {
-                    return;
-                }
-                message = pendingMessages.poll();
-                if (message == null) {
-                    return;
-                }
-                inFlightMessages++;
-                inFlightBytes += messageBytes(message).length;
-                task = availableTasks.poll();
-                if (task == null) {
-                    if (createdTaskCount >= maxConcurrency) {
-                        throw new IllegalStateException("Missing reusable runtime dispatch task");
-                    }
-                    task = new RuntimeTask();
-                    createdTaskCount++;
-                }
-                task.message = message;
-            }
-            try {
-                executor.execute(task);
-            } catch (RejectedExecutionException e) {
-                RuntimeDataState rejectedState = discardRejected(task, message);
-                failRuntimeDataDispatch(RuntimeDataDispatchException.executorRejected(rejectedState, e));
-            }
-        }
-
-        private void process(RuntimeTask task, Object message) {
-            Throwable failure = null;
-            boolean active = markActive(message);
-            if (active) {
+    private CompletableFuture<Void> dispatchReceiveCallback(WebSocket webSocket, LongConsumer task) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            callbackExecutor.execute(() -> {
                 try {
-                    RuntimeMessage timedMessage = message instanceof RuntimeMessage runtimeMessage
-                            ? runtimeMessage : null;
-                    SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming runtimeDispatchTiming = null;
-                    if (timedMessage != null) {
-                        long startedNanos = System.nanoTime();
-                        runtimeDispatchTiming = new SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming(
-                                timedMessage.queuedTimestamp(), System.currentTimeMillis(),
-                                NANOSECONDS.toMillis(Math.max(0L, startedNanos - timedMessage.queuedNanos())));
-                    }
-                    dispatchBinaryMessage(messageBytes(message),
-                                          timedMessage == null ? null : timedMessage.receiveTiming(),
-                                          runtimeDispatchTiming);
+                    task.accept(System.currentTimeMillis());
+                    completeReceiveSuccess(webSocket, result);
                 } catch (Throwable e) {
-                    failure = e;
+                    completeReceiveFailure(webSocket, result, e);
                 }
-            }
-            complete(task, message, active, failure);
+            });
+        } catch (RejectedExecutionException e) {
+            completeReceiveFailure(webSocket, result, e);
         }
+        return result;
+    }
 
-        private synchronized boolean markActive(Object message) {
-            if (discardPending || stopping) {
-                return false;
-            }
-            activeMessages++;
-            activeBytes += messageBytes(message).length;
-            return true;
-        }
-
-        private void complete(RuntimeTask task, Object message, boolean active, Throwable failure) {
-            Runnable terminal;
-            boolean scheduleMore;
-            synchronized (this) {
-                inFlightMessages--;
-                inFlightBytes -= messageBytes(message).length;
-                if (active) {
-                    activeMessages--;
-                    activeBytes -= messageBytes(message).length;
-                }
-                retainedMessages--;
-                retainedBytes -= messageBytes(message).length;
-                task.message = null;
-                availableTasks.add(task);
-                if (failure != null) {
-                    accepting = false;
-                    stopping = true;
-                }
-                if (failure == null && !stopping && retainedMessages == 0 && terminalCallback != null) {
-                    terminal = terminalCallback;
-                    terminalCallback = null;
-                    discardPending = true;
-                } else {
-                    terminal = null;
-                }
-                scheduleMore = failure == null && !discardPending && !pendingMessages.isEmpty();
-            }
-            if (failure != null) {
-                failRuntimeDataDispatch(failure);
-            } else {
-                if (scheduleMore) {
-                    scheduleAvailable();
-                }
-                if (terminal != null) {
-                    terminal.run();
-                }
-            }
-        }
-
-        private synchronized RuntimeDataState discardRejected(RuntimeTask task, Object rejectedMessage) {
-            RuntimeDataState rejectedState = state();
-            accepting = false;
-            stopping = true;
-            inFlightMessages--;
-            inFlightBytes -= messageBytes(rejectedMessage).length;
-            retainedMessages--;
-            retainedBytes -= messageBytes(rejectedMessage).length;
-            task.message = null;
-            availableTasks.add(task);
-            return rejectedState;
-        }
-
-        synchronized Runnable close() {
-            if (discardPending) {
-                return null;
-            }
-            accepting = false;
-            discardPending = true;
-            Runnable deferredClose = terminalCallback;
-            terminalCallback = null;
-            discardMessageAssembly();
-            Object message;
-            while ((message = pendingMessages.poll()) != null) {
-                retainedMessages--;
-                retainedBytes -= messageBytes(message).length;
-            }
-            return deferredClose;
-        }
-
-        synchronized void discardMessageAssembly() {
-            if (messageAssemblyRetained) {
-                retainedMessages--;
-                retainedBytes -= messageAssemblyBytes;
-                messageAssemblyRetained = false;
-                messageAssemblyBytes = 0L;
-            }
-        }
-
-        private byte[] messageBytes(Object message) {
-            return message instanceof byte[] bytes ? bytes : ((RuntimeMessage) message).bytes();
-        }
-
-        synchronized RuntimeDataState state() {
-            int pendingMessageCount = pendingMessages.size() + (messageAssemblyRetained ? 1 : 0);
-            return new RuntimeDataState(
-                    retainedMessages, retainedBytes, inFlightMessages, inFlightBytes, activeMessages, activeBytes,
-                    pendingMessageCount, retainedBytes - inFlightBytes, maxConcurrency,
-                    maxRetainedMessages, maxRetainedBytes, 0L);
-        }
-
-        void closeAfterDrain(Runnable closeCallback) {
-            boolean runNow;
-            synchronized (this) {
-                if (stopping && !discardPending) {
-                    terminalCallback = closeCallback;
-                    runNow = false;
-                } else if (!accepting) {
-                    runNow = true;
-                } else {
-                    accepting = false;
-                    runNow = retainedMessages == 0;
-                    if (runNow) {
-                        discardPending = true;
+    private CompletableFuture<Void> dispatchReceiveCallbackStage(
+            WebSocket webSocket, Supplier<CompletionStage<Void>> task) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            callbackExecutor.execute(() -> {
+                try {
+                    CompletableFuture<Void> completion = Objects.requireNonNull(
+                            task.get(), "WebSocket receive completion").toCompletableFuture();
+                    if (completion.isDone()) {
+                        completion.join();
+                        completeReceiveSuccess(webSocket, result);
                     } else {
-                        terminalCallback = closeCallback;
+                        completion.whenComplete((ignored, failure) -> {
+                            if (failure == null) {
+                                completeReceiveSuccess(webSocket, result);
+                            } else {
+                                completeReceiveFailure(webSocket, result, failure);
+                            }
+                        });
                     }
+                } catch (Throwable e) {
+                    completeReceiveFailure(webSocket, result, e);
                 }
+            });
+        } catch (RejectedExecutionException e) {
+            completeReceiveFailure(webSocket, result, e);
+        }
+        return result;
+    }
+
+    private void completeReceiveSuccess(WebSocket webSocket, CompletableFuture<Void> completion) {
+        try {
+            receiveInvocationCompleted(webSocket);
+            completion.complete(null);
+        } catch (Throwable failure) {
+            completion.completeExceptionally(reportReceiveError(failure));
+        }
+    }
+
+    private void completeReceiveFailure(
+            WebSocket webSocket, CompletableFuture<Void> completion, Throwable failure) {
+        Throwable reportedFailure = reportReceiveError(failure);
+        try {
+            receiveInvocationCompleted(webSocket);
+        } catch (Throwable receiveCompletionFailure) {
+            if (receiveCompletionFailure != reportedFailure) {
+                reportedFailure.addSuppressed(receiveCompletionFailure);
             }
-            if (runNow) {
-                closeCallback.run();
+        } finally {
+            completion.completeExceptionally(reportedFailure);
+        }
+    }
+
+    private CompletableFuture<Void> completeDirectReceive(WebSocket webSocket) {
+        try {
+            receiveInvocationCompleted(webSocket);
+            return COMPLETED_RECEIVE;
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(reportReceiveError(failure));
+        }
+    }
+
+    private Throwable reportReceiveError(Throwable failure) {
+        Throwable unwrapped = failure instanceof CompletionException && failure.getCause() != null
+                ? failure.getCause() : failure;
+        try {
+            if (!closeNotified.get()
+                && !(runtimeDataStopping.get() && unwrapped instanceof ClosedChannelException)) {
+                notifyError(unwrapped);
+            }
+        } catch (Throwable notificationFailure) {
+            if (notificationFailure != unwrapped) {
+                unwrapped.addSuppressed(notificationFailure);
             }
         }
-
-        private enum DispatchStatus {
-            ACCEPTED, CLOSED, OVERFLOW
-        }
-
-        private record RuntimeMessage(byte[] bytes, WebsocketEndpoint.ReceiveTiming receiveTiming,
-                                      long queuedTimestamp, long queuedNanos) {
-        }
-
-        private class RuntimeTask implements Runnable {
-            private Object message;
-
-            @Override
-            public void run() {
-                Object currentMessage = message;
-                if (currentMessage == null) {
-                    throw new IllegalStateException("Runtime dispatch task has no message");
-                }
-                process(this, currentMessage);
-            }
-        }
+        return unwrapped;
     }
 
     private void handleOpenDispatchFailure(WebSocket webSocket, Throwable error) {
@@ -977,24 +957,38 @@ class JdkWebSocketSession implements WebsocketSession {
 
         @Override
         public CompletableFuture<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+            receiveInvocationStarted();
+            if (runtimeDataDispatcher != null) {
+                boolean captureReceiveTiming = endpoint.captureReceiveTiming();
+                long frameReceivedTimestamp = captureReceiveTiming ? System.currentTimeMillis() : 0L;
+                long frameDispatchQueuedTimestamp = captureReceiveTiming ? System.currentTimeMillis() : 0L;
+                return dispatchReceiveCallbackStage(webSocket, () -> handleRuntimeBinary(
+                        data, last, captureReceiveTiming
+                                ? new WebsocketEndpoint.ReceiveTiming(
+                                        frameReceivedTimestamp, frameDispatchQueuedTimestamp,
+                                        System.currentTimeMillis()) : null));
+            }
             if (endpoint.captureReceiveTiming()) {
                 long frameReceivedTimestamp = System.currentTimeMillis();
                 long frameDispatchQueuedTimestamp = System.currentTimeMillis();
-                return dispatchCallback(frameDispatchStartedTimestamp -> {
+                return dispatchReceiveCallback(webSocket, frameDispatchStartedTimestamp -> {
                     try {
-                        if (handleBinary(data, last, new WebsocketEndpoint.ReceiveTiming(
-                                frameReceivedTimestamp, frameDispatchQueuedTimestamp, frameDispatchStartedTimestamp))) {
-                            requestNext(webSocket);
+                        byte[] bytes = appendBinary(data, last);
+                        if (bytes != null) {
+                            dispatchBinaryMessage(bytes, new WebsocketEndpoint.ReceiveTiming(
+                                    frameReceivedTimestamp, frameDispatchQueuedTimestamp,
+                                    frameDispatchStartedTimestamp), null);
                         }
                     } catch (Throwable e) {
                         notifyError(e);
                     }
                 });
             }
-            return dispatchCallback(() -> {
+            return dispatchReceiveCallback(webSocket, () -> {
                 try {
-                    if (handleBinary(data, last)) {
-                        requestNext(webSocket);
+                    byte[] bytes = appendBinary(data, last);
+                    if (bytes != null) {
+                        dispatchBinaryMessage(bytes, null, null);
                     }
                 } catch (Throwable e) {
                     notifyError(e);
@@ -1004,49 +998,48 @@ class JdkWebSocketSession implements WebsocketSession {
 
         @Override
         public CompletableFuture<?> onPing(WebSocket webSocket, ByteBuffer message) {
-            return dispatchCallback(() -> {
-                try {
+            receiveInvocationStarted();
+            return dispatchReceiveCallback(webSocket, () ->
                     sendPong(copyBuffer(message)).exceptionally(e -> {
                         notifyError(e);
                         return null;
-                    });
-                } finally {
-                    requestNext(webSocket);
-                }
-            });
+                    }));
         }
 
         @Override
         public CompletableFuture<?> onPong(WebSocket webSocket, ByteBuffer message) {
+            receiveInvocationStarted();
             if (runtimeDataDispatcher != null && endpoint instanceof SdkRuntimeWebsocketEndpoint) {
                 try {
                     handlePong(message);
                 } catch (Throwable e) {
                     notifyError(e);
-                } finally {
-                    requestNext(webSocket);
                 }
-                return CompletableFuture.completedFuture(null);
+                return completeDirectReceive(webSocket);
             }
-            return dispatchCallback(() -> {
+            return dispatchReceiveCallback(webSocket, () -> {
                 try {
                     handlePong(message);
                 } catch (Throwable e) {
                     notifyError(e);
-                } finally {
-                    requestNext(webSocket);
                 }
             });
         }
 
         @Override
         public CompletableFuture<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            return dispatchCallback(() -> notifyPeerClose(new WebsocketCloseReason(statusCode, reason)));
+            receiveInvocationStarted();
+            return dispatchReceiveCallback(
+                    webSocket, () -> notifyPeerClose(new WebsocketCloseReason(statusCode, reason)));
         }
 
         @Override
         public void onError(WebSocket webSocket, Throwable error) {
-            dispatchCallback(() -> notifyError(error));
+            if (runtimeDataDispatcher != null && endpoint instanceof SdkRuntimeWebsocketEndpoint) {
+                notifyError(error);
+            } else {
+                dispatchCallback(() -> notifyError(error));
+            }
         }
     }
 
@@ -1079,18 +1072,22 @@ class JdkWebSocketSession implements WebsocketSession {
     record RuntimeDataState(int retainedMessages, long retainedBytes, int inFlightMessages, long inFlightBytes,
                             int activeMessages, long activeBytes, int pendingMessages, long pendingBytes,
                             int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes,
-                            long lastInboundAgeMillis) {
+                            long deferredFrameBytes, long lastInboundAgeMillis) {
         static RuntimeDataState empty() {
             return new RuntimeDataState(
                     0, 0L, 0, 0L, 0, 0L, 0, 0L, DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
-                    DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L);
+                    DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L, 0L);
         }
 
-        RuntimeDataState withLastInboundAgeMillis(long lastInboundAgeMillis) {
+        RuntimeDataState withTransportState(long deferredFrameBytes, long lastInboundAgeMillis) {
             return new RuntimeDataState(
                     retainedMessages, retainedBytes, inFlightMessages, inFlightBytes, activeMessages, activeBytes,
                     pendingMessages, pendingBytes, maxConcurrency, maxRetainedMessages, maxRetainedBytes,
-                    lastInboundAgeMillis);
+                    deferredFrameBytes, lastInboundAgeMillis);
+        }
+
+        RuntimeDataState withLastInboundAgeMillis(long lastInboundAgeMillis) {
+            return withTransportState(deferredFrameBytes, lastInboundAgeMillis);
         }
     }
 
@@ -1100,8 +1097,7 @@ class JdkWebSocketSession implements WebsocketSession {
 
         private RuntimeDataDispatchException(Reason reason, RuntimeDataState state, Throwable cause) {
             super(reason == Reason.OVERFLOW
-                          ? "SDK runtime websocket ingress exceeded its retained message or byte limit; "
-                            + "reconnect is required"
+                          ? "SDK runtime websocket ingress accounting overflowed; the session cannot continue safely"
                           : "SDK runtime websocket data executor rejected dispatch");
             this.reason = reason;
             this.state = state;
