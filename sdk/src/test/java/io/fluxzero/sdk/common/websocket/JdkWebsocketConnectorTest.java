@@ -15,10 +15,11 @@
 package io.fluxzero.sdk.common.websocket;
 
 import com.sun.management.ThreadMXBean;
-import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
-import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -57,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -589,6 +591,83 @@ class JdkWebsocketConnectorTest {
                 session.abort(new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test complete"));
             }
         }
+    }
+
+    @Test
+    void fasterProducerWaitsForTemporarilyBlockedSmallResultConsumerWithoutReconnect() throws Exception {
+        int resultCount = 512;
+        WebSocketTransportCodec codec = WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper);
+        List<byte[]> responses = new ArrayList<>(resultCount);
+        for (int i = 0; i < resultCount; i++) {
+            responses.add(CompressionAlgorithm.LZ4.compress(codec.encode(new VoidResult(i))));
+        }
+        assertTrue(responses.stream().mapToInt(response -> response.length).max().orElseThrow() < 128,
+                   "The overload regression should retain customer-sized compressed responses");
+
+        try (BlockingBurstResultCompletionClient client = new BlockingBurstResultCompletionClient(resultCount);
+             TestWebSocketServer server = TestWebSocketServer.start()) {
+            JdkWebsocketConnector connector = new JdkWebsocketConnector();
+            JdkWebSocketSession session = (JdkWebSocketSession) connector.connect(
+                    new SdkRuntimeWebsocketEndpoint(client), sdkRuntimeOptions(), server.uri());
+            try {
+                for (byte[] response : responses) {
+                    server.sendFrame(true, 0x2, response);
+                }
+                server.sendFrame(true, 0xA, new byte[]{42});
+
+                assertTrue(client.activeResultsBlocked.await(5, TimeUnit.SECONDS),
+                           "All per-session runtime workers should be retained by customer callbacks");
+                assertTrue(awaitRetainedMessages(
+                                   session, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                                   Duration.ofSeconds(5)),
+                           () -> "Ingress did not stop at its retained bound: " + session.runtimeDataState());
+
+                JdkWebSocketSession.RuntimeDataState blockedState = session.runtimeDataState();
+                assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                             blockedState.retainedMessages());
+                assertEquals(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                             blockedState.activeMessages());
+                assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES
+                                     - JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                             blockedState.pendingMessages());
+                assertTrue(blockedState.retainedBytes() < 2_500L, blockedState::toString);
+                assertTrue(session.isOpen());
+                assertNull(client.reportedError.get());
+                assertEquals(0, client.closeCount.get());
+                assertEquals(0, client.resultsHandled.size());
+                assertEquals(1L, client.pongHandled.getCount(),
+                             "The pong should remain at the transport while local ingress demand is paused");
+
+                client.allowResultHandlingToFinish.countDown();
+
+                assertTrue(client.allResultsHandled.await(10, TimeUnit.SECONDS),
+                           () -> "Only handled %d/%d results; state=%s, error=%s"
+                                   .formatted(client.resultsHandled.size(), resultCount,
+                                              session.runtimeDataState(), client.reportedError.get()));
+                assertTrue(client.pongHandled.await(5, TimeUnit.SECONDS));
+                assertTrue(awaitRetainedMessages(session, 0, Duration.ofSeconds(5)),
+                           () -> "Ingress did not fully recover: " + session.runtimeDataState());
+                assertEquals(resultCount, client.resultsHandled.size());
+                assertTrue(session.isOpen());
+                assertNull(client.reportedError.get());
+                assertEquals(0, client.closeCount.get());
+            } finally {
+                client.allowResultHandlingToFinish.countDown();
+                session.abort(new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test complete"));
+            }
+        }
+    }
+
+    private static boolean awaitRetainedMessages(
+            JdkWebSocketSession session, int expected, Duration timeout) throws InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (session.runtimeDataState().retainedMessages() != expected) {
+            if (System.nanoTime() >= deadline) {
+                return false;
+            }
+            TimeUnit.MILLISECONDS.sleep(1);
+        }
+        return true;
     }
 
     private static boolean awaitProcessedBatch(Semaphore processedPermits, int messagesInBatch,
@@ -2044,6 +2123,73 @@ class JdkWebsocketConnectorTest {
             if (progress.type() == RuntimeIngressController.Progress.Type.FUNCTIONAL_MESSAGE_COMPLETED) {
                 runtimeMessageCompleted.countDown();
             }
+        }
+
+        @Override
+        public void close() {
+            allowResultHandlingToFinish.countDown();
+            super.close();
+        }
+    }
+
+    private static class BlockingBurstResultCompletionClient extends AbstractWebsocketClient {
+        private final CountDownLatch activeResultsBlocked = new CountDownLatch(
+                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+        private final CountDownLatch allowResultHandlingToFinish = new CountDownLatch(1);
+        private final CountDownLatch allResultsHandled;
+        private final CountDownLatch pongHandled = new CountDownLatch(1);
+        private final Set<Long> resultsHandled = ConcurrentHashMap.newKeySet();
+        private final AtomicReference<Throwable> reportedError = new AtomicReference<>();
+        private final AtomicInteger closeCount = new AtomicInteger();
+
+        BlockingBurstResultCompletionClient(int resultCount) {
+            super(mock(WebsocketConnector.class), URI.create("ws://localhost"),
+                  WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                                                      .runtimeBaseUrl("ws://localhost")
+                                                      .name("blocked-small-result-client")
+                                                      .build()),
+                  false, Duration.ofSeconds(1), defaultObjectMapper, 1);
+            allResultsHandled = new CountDownLatch(resultCount);
+        }
+
+        @Override
+        public void onOpen(WebsocketSession session) {
+            session.getUserProperties().put(CLIENT_SESSION_ID_USER_PROPERTY, "test-client-session");
+            session.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY, "test-runtime-session");
+            session.getUserProperties().put(
+                    NEGOTIATED_SESSION_ID_USER_PROPERTY, "test-client-session_test-runtime-session");
+            session.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.LZ4);
+            session.getUserProperties().put(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
+        }
+
+        @Override
+        protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                    WebsocketResultDiagnostics.ResultTiming timing) {
+            activeResultsBlocked.countDown();
+            try {
+                allowResultHandlingToFinish.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while blocking result completion", e);
+            }
+            if (resultsHandled.add(result.getRequestId())) {
+                allResultsHandled.countDown();
+            }
+        }
+
+        @Override
+        protected void handlePong(WebsocketSession session) {
+            pongHandled.countDown();
+        }
+
+        @Override
+        public void onError(WebsocketSession session, Throwable error) {
+            reportedError.compareAndSet(null, error);
+        }
+
+        @Override
+        public void onClose(WebsocketSession session, WebsocketCloseReason closeReason) {
+            closeCount.incrementAndGet();
         }
 
         @Override

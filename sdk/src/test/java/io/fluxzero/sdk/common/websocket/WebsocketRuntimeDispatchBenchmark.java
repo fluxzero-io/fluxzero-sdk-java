@@ -24,6 +24,7 @@ import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
@@ -38,6 +39,7 @@ import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -48,6 +50,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -67,10 +70,12 @@ import java.util.function.Consumer;
  * the time to drain one full retained-capacity batch, not an amortized per-message latency. An anomaly comparison
  * measures metric construction, fallback serialization, and hand-off to a local sink without network variance. The
  * result-completion comparison contrasts the previous single/direct and batch/eager submission behavior with the
- * bounded incremental dispatcher, using the same deterministic manual executor for both paths.</p>
+ * bounded incremental dispatcher, using the same deterministic manual executor for both paths. A focused small-result
+ * load drives the full decode and result-completion path with compressed payloads matching observed production bursts,
+ * without artificial callback work.</p>
  */
 public class WebsocketRuntimeDispatchBenchmark {
-    private static final int[] MESSAGE_SIZES = {1 << 10, 64 << 10, 1 << 20};
+    private static final int[] MESSAGE_SIZES = {128, 512, 1 << 10, 64 << 10, 1 << 20};
     private static final long TARGET_BYTES = Long.getLong("targetBytes", 64L << 20);
     private static final int MAX_ITERATIONS = Integer.getInteger("maxIterations", 100_000);
     private static final int MIN_ITERATIONS = Integer.getInteger("minIterations", 128);
@@ -78,8 +83,11 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static final int LATENCY_SAMPLES = Integer.getInteger("latencySamples", 2_000);
     private static final int METRIC_ITERATIONS = Integer.getInteger("metricIterations", 100_000);
     private static final int LOAD_ITERATIONS = Integer.getInteger("loadIterations", 3_000);
+    private static final int SMALL_LOAD_ITERATIONS = Integer.getInteger("smallLoadIterations", 20_000);
     private static final int LOAD_SESSION_COUNT = Integer.getInteger("loadSessions", 4);
+    private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger("resultConcurrency", 8);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
+    private static final int[] SMALL_RESULT_VALUE_BYTES = {0, 320};
     private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
             "completionTargetResults", 1_000_000);
     private static final long LOAD_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
@@ -87,12 +95,14 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static final int FRAGMENTS = Integer.getInteger("fragments", 4);
     private static final String BENCHMARK_MODE = System.getProperty("benchmarkMode", "all");
     private static final ThreadMXBean ALLOCATION_BEAN = allocationBean();
+    private static final Map<LoadPayloadKey, byte[]> LOAD_PAYLOADS = new ConcurrentHashMap<>();
     private static volatile long blackhole;
 
     public static void main(String[] args) {
-        System.out.printf("java=%s feature=%d targetBytes=%d warmups=%d fragments=%d benchmarkMode=%s%n",
+        System.out.printf("java=%s feature=%d targetBytes=%d warmups=%d fragments=%d benchmarkMode=%s "
+                                  + "resultConcurrency=%d%n",
                           Runtime.version(), Runtime.version().feature(), TARGET_BYTES, WARMUPS, FRAGMENTS,
-                          BENCHMARK_MODE);
+                          BENCHMARK_MODE, RESULT_COMPLETION_CONCURRENCY);
         if (modeEnabled("receive")) {
             for (int messageSize : MESSAGE_SIZES) {
                 runComparison(messageSize, 1);
@@ -101,6 +111,9 @@ public class WebsocketRuntimeDispatchBenchmark {
         }
         if (modeEnabled("load")) {
             runBoundedLoadComparison();
+        }
+        if (modeEnabled("small-load")) {
+            runSmallResultLoadComparison();
         }
         if (modeEnabled("metrics")) {
             runTransportMetricComparison();
@@ -115,11 +128,12 @@ public class WebsocketRuntimeDispatchBenchmark {
         if ("all".equals(BENCHMARK_MODE) || mode.equals(BENCHMARK_MODE)) {
             return true;
         }
-        if (List.of("receive", "load", "metrics", "completion").contains(BENCHMARK_MODE)) {
+        if (List.of("receive", "load", "small-load", "metrics", "completion").contains(BENCHMARK_MODE)) {
             return false;
         }
         throw new IllegalArgumentException(
-                "benchmarkMode must be one of all, receive, load, metrics, or completion: " + BENCHMARK_MODE);
+                "benchmarkMode must be one of all, receive, load, small-load, metrics, or completion: "
+                + BENCHMARK_MODE);
     }
 
     private static void runComparison(int messageSize, int fragments) {
@@ -152,7 +166,7 @@ public class WebsocketRuntimeDispatchBenchmark {
 
     private static void runBoundedLoadComparison() {
         for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
-            for (int sessions : List.of(1, LOAD_SESSION_COUNT)) {
+            for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
                 double singleWorkerElapsed = 0d;
                 for (int concurrency = 1;
                      concurrency <= JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES; concurrency++) {
@@ -179,7 +193,7 @@ public class WebsocketRuntimeDispatchBenchmark {
     }
 
     private static void runMetricsEnabledBoundedLoad() {
-        for (int sessions : List.of(1, LOAD_SESSION_COUNT)) {
+        for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
             try (BoundedLoadScenario scenario = new BoundedLoadScenario(
                     JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessions, CompressionAlgorithm.LZ4, true)) {
                 for (int i = 0; i < WARMUPS; i++) {
@@ -188,6 +202,40 @@ public class WebsocketRuntimeDispatchBenchmark {
                 measureBoundedLoad(scenario, LOAD_ITERATIONS);
             }
         }
+    }
+
+    private static void runSmallResultLoadComparison() {
+        for (int valueBytes : SMALL_RESULT_VALUE_BYTES) {
+            for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
+                for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
+                    measureSmallResultLoad(valueBytes, compression, sessions, false, false);
+                    measureSmallResultLoad(valueBytes, compression, sessions, false, true);
+                }
+            }
+            for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
+                measureSmallResultLoad(valueBytes, CompressionAlgorithm.LZ4, sessions, true, true);
+            }
+        }
+    }
+
+    private static void measureSmallResultLoad(
+            int valueBytes, CompressionAlgorithm compression, int sessions, boolean transportMetrics,
+            boolean boundedCompletion) {
+        try (BoundedLoadScenario scenario = boundedCompletion
+                ? BoundedLoadScenario.smallResult(sessions, compression, transportMetrics, valueBytes)
+                : BoundedLoadScenario.smallDirect(sessions, compression, valueBytes)) {
+            for (int i = 0; i < WARMUPS; i++) {
+                scenario.run(SMALL_LOAD_ITERATIONS);
+            }
+            measureBoundedLoad(scenario, SMALL_LOAD_ITERATIONS);
+        }
+    }
+
+    static List<Integer> loadSessionCounts(int configuredSessionCount) {
+        if (configuredSessionCount < 1) {
+            throw new IllegalArgumentException("loadSessions must be at least 1");
+        }
+        return configuredSessionCount == 1 ? List.of(1) : List.of(1, configuredSessionCount);
     }
 
     private static void runConfiguredCapacitySmoke() {
@@ -200,15 +248,20 @@ public class WebsocketRuntimeDispatchBenchmark {
 
     private static BoundedLoadMeasurement measureBoundedLoad(BoundedLoadScenario scenario, int iterations) {
         stabilizeHeap();
+        GcSnapshot gcBefore = GcSnapshot.capture();
         BoundedLoadMeasurement measurement = scenario.measure(iterations);
+        GcSnapshot gcDelta = GcSnapshot.capture().minus(gcBefore);
         long[] latencies = measurement.batchDrainLatencies();
         Arrays.sort(latencies);
-        System.out.printf("runtime-bounded-load compression=%s sessions=%d concurrency=%d metrics=%s "
+        System.out.printf("runtime-bounded-load completion=%s valueBytes=%d workNanos=%d compression=%s "
+                                  + "sessions=%d concurrency=%d metrics=%s "
                                   + "maxRetainedMessages=%d maxRetainedBytes=%d compressedBytes=%d "
                                   + "retainedMessagesPerSession=%d retainedUpperBoundBytes=%d "
                                   + "iterations=%d: "
                                   + "%.2f ns/op, %.1f ops/s, batchDrainP50=%dns, batchDrainP95=%dns, "
-                                  + "batchDrainP99=%dns%n",
+                                  + "batchDrainP99=%dns, gcCollections=%d, gcMillis=%d%n",
+                          scenario.functionalCompletion ? "bounded" : "direct", scenario.valueBytes,
+                          scenario.workNanos,
                           scenario.compression, scenario.sessions.size(), scenario.maxConcurrency,
                           scenario.transportMetrics, scenario.maxRetainedMessages, scenario.maxRetainedBytes,
                           scenario.payload.length,
@@ -217,7 +270,8 @@ public class WebsocketRuntimeDispatchBenchmark {
                           measurement.iterations(),
                           (double) measurement.elapsedNanos() / measurement.iterations(),
                           measurement.iterations() * 1_000_000_000d / measurement.elapsedNanos(),
-                          percentile(latencies, 0.50), percentile(latencies, 0.95), percentile(latencies, 0.99));
+                          percentile(latencies, 0.50), percentile(latencies, 0.95), percentile(latencies, 0.99),
+                          gcDelta.collections, gcDelta.millis);
         return measurement;
     }
 
@@ -494,6 +548,9 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final int maxConcurrency;
         private final CompressionAlgorithm compression;
         private final boolean transportMetrics;
+        private final boolean functionalCompletion;
+        private final int valueBytes;
+        private final long workNanos;
         private final int maxRetainedMessages;
         private final long maxRetainedBytes;
         private final byte[] payload;
@@ -501,7 +558,7 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final ExecutorService executor;
         private final Semaphore processed = new Semaphore(0);
         private final AtomicReference<Throwable> failure = new AtomicReference<>();
-        private final LoadMetricBenchmarkClient metricClient;
+        private final AbstractWebsocketClient benchmarkClient;
         private final List<JdkWebSocketSession> sessions;
         private final List<WebSocket.Listener> listeners;
         private final List<BenchmarkWebSocket> webSockets;
@@ -510,17 +567,45 @@ public class WebsocketRuntimeDispatchBenchmark {
                                     boolean transportMetrics) {
             this(maxConcurrency, sessionCount, compression, transportMetrics,
                  JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
-                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES);
+                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES,
+                 LOAD_PAYLOAD_BYTES, LOAD_WORK_NANOS, false);
         }
 
         private BoundedLoadScenario(int maxConcurrency, int sessionCount, CompressionAlgorithm compression,
                                     boolean transportMetrics, int maxRetainedMessages, long maxRetainedBytes) {
+            this(maxConcurrency, sessionCount, compression, transportMetrics, maxRetainedMessages,
+                 maxRetainedBytes, LOAD_PAYLOAD_BYTES, LOAD_WORK_NANOS, false);
+        }
+
+        private static BoundedLoadScenario smallResult(
+                int sessionCount, CompressionAlgorithm compression, boolean transportMetrics, int valueBytes) {
+            return new BoundedLoadScenario(
+                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessionCount, compression,
+                    transportMetrics, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                    JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, valueBytes, 0L, true);
+        }
+
+        private static BoundedLoadScenario smallDirect(
+                int sessionCount, CompressionAlgorithm compression, int valueBytes) {
+            return new BoundedLoadScenario(
+                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessionCount, compression,
+                    false, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                    JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, valueBytes, 0L, false);
+        }
+
+        private BoundedLoadScenario(
+                int maxConcurrency, int sessionCount, CompressionAlgorithm compression, boolean transportMetrics,
+                int maxRetainedMessages, long maxRetainedBytes, int valueBytes, long workNanos,
+                boolean functionalCompletion) {
             this.maxConcurrency = maxConcurrency;
             this.compression = compression;
             this.transportMetrics = transportMetrics;
+            this.functionalCompletion = functionalCompletion;
+            this.valueBytes = valueBytes;
+            this.workNanos = workNanos;
             this.maxRetainedMessages = maxRetainedMessages;
             this.maxRetainedBytes = maxRetainedBytes;
-            this.payload = compressedLoadPayload(compression);
+            this.payload = compressedLoadPayload(compression, valueBytes);
             this.messagesPerSession = Math.max(1, Math.min(
                     maxRetainedMessages, Math.toIntExact(maxRetainedBytes / payload.length)));
             this.executor = Executors.newFixedThreadPool(
@@ -528,9 +613,11 @@ public class WebsocketRuntimeDispatchBenchmark {
             this.sessions = new java.util.ArrayList<>(sessionCount);
             this.listeners = new java.util.ArrayList<>(sessionCount);
             this.webSockets = new java.util.ArrayList<>(sessionCount);
-            LoadEndpoint loadEndpoint = new LoadEndpoint(compression, processed, failure);
-            this.metricClient = transportMetrics ? new LoadMetricBenchmarkClient(loadEndpoint) : null;
-            WebsocketEndpoint endpoint = metricClient == null ? loadEndpoint : metricClient;
+            LoadEndpoint loadEndpoint = new LoadEndpoint(compression, processed, failure, workNanos);
+            this.benchmarkClient = functionalCompletion
+                    ? new ResultLoadBenchmarkClient(processed, failure, workNanos, transportMetrics)
+                    : transportMetrics ? new LoadMetricBenchmarkClient(loadEndpoint) : null;
+            WebsocketEndpoint endpoint = benchmarkClient == null ? loadEndpoint : benchmarkClient;
             Map<String, Object> userProperties = new java.util.HashMap<>(
                     userProperties(true, transportMetrics));
             userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
@@ -605,10 +692,9 @@ public class WebsocketRuntimeDispatchBenchmark {
         }
 
         private void awaitProcessed(int batchSize) {
+            boolean completed;
             try {
-                if (!processed.tryAcquire(batchSize, 30, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException("Timed out awaiting bounded runtime work");
-                }
+                completed = processed.tryAcquire(batchSize, 30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Interrupted while awaiting bounded runtime work", e);
@@ -616,6 +702,9 @@ public class WebsocketRuntimeDispatchBenchmark {
             Throwable endpointFailure = failure.get();
             if (endpointFailure != null) {
                 throw new IllegalStateException("Bounded runtime work failed", endpointFailure);
+            }
+            if (!completed) {
+                throw new IllegalStateException("Timed out awaiting bounded runtime work");
             }
         }
 
@@ -634,36 +723,37 @@ public class WebsocketRuntimeDispatchBenchmark {
             sessions.forEach(session -> session.abort(
                     new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "benchmark complete")));
             executor.shutdownNow();
-            if (metricClient != null) {
-                metricClient.close();
+            if (benchmarkClient != null) {
+                benchmarkClient.close();
             }
         }
     }
 
-    private static byte[] compressedLoadPayload(CompressionAlgorithm compression) {
-        return LoadPayloads.PAYLOADS.get(compression).clone();
-    }
-
-    private static byte[] createCompressedLoadPayload(CompressionAlgorithm compression) {
+    private static byte[] createCompressedLoadPayload(CompressionAlgorithm compression, int valueBytes) {
         try {
-            StringBuilder value = new StringBuilder(LOAD_PAYLOAD_BYTES);
+            StringBuilder value = new StringBuilder(valueBytes);
             int state = 0x13579bdf;
-            for (int i = 0; i < LOAD_PAYLOAD_BYTES; i++) {
+            for (int i = 0; i < valueBytes; i++) {
                 state = state * 1_103_515_245 + 12_345;
                 value.append((char) (' ' + Math.floorMod(state, 95)));
             }
             WebSocketTransportCodec codec = WebSocketTransportCodecs.json(
                     AbstractWebsocketClient.defaultObjectMapper);
-            return compression.compress(codec.encode(new StringResult(1L, value.toString())));
+            String encoded = new String(codec.encode(new StringResult(1L, value.toString())), StandardCharsets.UTF_8)
+                    .replaceFirst("\"timestamp\":\\d+", "\"timestamp\":1");
+            return compression.compress(encoded.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new IllegalStateException("Could not create bounded-load payload", e);
         }
     }
 
-    private static class LoadPayloads {
-        private static final Map<CompressionAlgorithm, byte[]> PAYLOADS = Map.of(
-                CompressionAlgorithm.LZ4, createCompressedLoadPayload(CompressionAlgorithm.LZ4),
-                CompressionAlgorithm.ZSTD, createCompressedLoadPayload(CompressionAlgorithm.ZSTD));
+    static byte[] compressedLoadPayload(CompressionAlgorithm compression, int valueBytes) {
+        return LOAD_PAYLOADS.computeIfAbsent(
+                new LoadPayloadKey(compression, valueBytes),
+                key -> createCompressedLoadPayload(key.compression(), key.valueBytes())).clone();
+    }
+
+    private record LoadPayloadKey(CompressionAlgorithm compression, int valueBytes) {
     }
 
     private record BoundedLoadMeasurement(int iterations, long elapsedNanos, long[] batchDrainLatencies) {
@@ -814,6 +904,66 @@ public class WebsocketRuntimeDispatchBenchmark {
         }
     }
 
+    private static class ResultLoadBenchmarkClient extends AbstractWebsocketClient {
+        private final Semaphore processed;
+        private final AtomicReference<Throwable> failure;
+        private final long workNanos;
+
+        private ResultLoadBenchmarkClient(
+                Semaphore processed, AtomicReference<Throwable> failure, long workNanos,
+                boolean transportMetrics) {
+            super((endpoint, options, uri) -> {
+                      throw new UnsupportedOperationException("Benchmark connector must not connect");
+                  }, URI.create("ws://localhost"),
+                  WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                                                      .runtimeBaseUrl("ws://localhost")
+                                                      .name("small-result-load-benchmark")
+                                                      .maxConcurrentRuntimeResultCompletions(
+                                                              RESULT_COMPLETION_CONCURRENCY)
+                                                      .build()),
+                  true, Duration.ofSeconds(1), defaultObjectMapper, 1,
+                  new SimplePropertySource(transportMetrics
+                                                   ? Map.of(TRANSPORT_METRICS_ENABLED_PROPERTY, "true") : Map.of()),
+                  (client, numberOfSessions) -> NoOpTaskScheduler.INSTANCE);
+            this.processed = processed;
+            this.failure = failure;
+            this.workNanos = workNanos;
+        }
+
+        @Override
+        public void onOpen(WebsocketSession session) {
+        }
+
+        @Override
+        protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                    WebsocketResultDiagnostics.ResultTiming timing) {
+            try {
+                blackhole += ((StringResult) result).getResult().length();
+                LockSupport.parkNanos(workNanos);
+            } catch (Throwable e) {
+                failure.compareAndSet(null, e);
+                throw e;
+            } finally {
+                processed.release();
+            }
+        }
+
+        @Override
+        public void onClose(WebsocketSession session, WebsocketCloseReason closeReason) {
+        }
+
+        @Override
+        public void onError(WebsocketSession session, Throwable error) {
+            failure.compareAndSet(null, error);
+        }
+
+        @Override
+        void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+            blackhole += Message.asMessage(metric).addMetadata(metadata)
+                    .serialize(getFallbackSerializer()).getBytes();
+        }
+    }
+
     private enum NoOpTaskScheduler implements TaskScheduler {
         INSTANCE;
 
@@ -864,7 +1014,7 @@ public class WebsocketRuntimeDispatchBenchmark {
     }
 
     private record LoadEndpoint(CompressionAlgorithm compression, Semaphore processed,
-                                AtomicReference<Throwable> failure) implements WebsocketEndpoint {
+                                AtomicReference<Throwable> failure, long workNanos) implements WebsocketEndpoint {
         private static final WebSocketTransportCodec CODEC = WebSocketTransportCodecs.json(
                 AbstractWebsocketClient.defaultObjectMapper);
 
@@ -877,7 +1027,7 @@ public class WebsocketRuntimeDispatchBenchmark {
             try {
                 JsonType decoded = CODEC.decode(compression.decompress(bytes));
                 blackhole += ((StringResult) decoded).getResult().length();
-                LockSupport.parkNanos(LOAD_WORK_NANOS);
+                LockSupport.parkNanos(workNanos);
             } catch (Throwable e) {
                 failure.compareAndSet(null, e);
                 throw new IllegalStateException("Could not decode bounded-load payload", e);
