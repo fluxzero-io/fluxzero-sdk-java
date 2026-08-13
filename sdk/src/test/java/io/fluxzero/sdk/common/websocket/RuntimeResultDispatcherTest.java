@@ -18,15 +18,19 @@ package io.fluxzero.sdk.common.websocket;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.AbstractList;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,6 +38,137 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RuntimeResultDispatcherTest {
+
+    @Test
+    void runtimeWorkerCompletesSingleResultWithoutExecutorHop() {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+        AtomicReference<Thread> callbackThread = new AtomicReference<>();
+
+        CompletableFuture<Void> completion = dispatcher.submitFromRuntimeWorker(
+                "session", () -> callbackThread.set(Thread.currentThread()));
+
+        assertTrue(completion.isDone());
+        assertEquals(Thread.currentThread(), callbackThread.get());
+        assertEquals(0, executor.size());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+    }
+
+    @Test
+    void runtimeWorkerQueuesBehindExistingCompletionWork() {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+        List<String> completed = new ArrayList<>();
+        CompletableFuture<Void> first = dispatcher.submit("session", () -> completed.add("first"));
+
+        CompletableFuture<Void> second = dispatcher.submitFromRuntimeWorker(
+                "session", () -> completed.add("second"));
+
+        assertFalse(first.isDone());
+        assertFalse(second.isDone());
+        assertEquals(List.of(), completed);
+        assertEquals(1, executor.size());
+
+        executor.runAll();
+
+        assertTrue(first.isDone());
+        assertTrue(second.isDone());
+        assertEquals(List.of("first", "second"), completed);
+    }
+
+    @Test
+    void blockingRuntimeWorkerCountsAgainstCompletionConcurrency() throws Exception {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+        CountDownLatch callbackStarted = new CountDownLatch(1);
+        CountDownLatch releaseCallback = new CountDownLatch(1);
+        AtomicReference<CompletableFuture<Void>> firstCompletion = new AtomicReference<>();
+        Thread runtimeWorker = Thread.ofPlatform().start(() -> firstCompletion.set(
+                dispatcher.submitFromRuntimeWorker("a", () -> {
+                    callbackStarted.countDown();
+                    try {
+                        assertTrue(releaseCallback.await(1, TimeUnit.SECONDS));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(e);
+                    }
+                })));
+        assertTrue(callbackStarted.await(1, TimeUnit.SECONDS));
+
+        AtomicBoolean secondRan = new AtomicBoolean();
+        CompletableFuture<Void> second = dispatcher.submitFromRuntimeWorker("b", () -> secondRan.set(true));
+
+        assertFalse(second.isDone());
+        assertFalse(secondRan.get());
+        assertEquals(new RuntimeResultDispatcher.State(2, 1, 1, 1), dispatcher.state());
+
+        releaseCallback.countDown();
+        assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));
+        assertTrue(firstCompletion.get().isDone());
+        assertEquals(1, executor.size());
+        executor.runAll();
+        assertTrue(second.isDone());
+        assertTrue(secondRan.get());
+    }
+
+    @Test
+    void failedInlineCompletionReleasesItsPermit() {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+
+        CompletableFuture<Void> failed = dispatcher.submitFromRuntimeWorker(
+                "session", () -> { throw new IllegalStateException("failed"); });
+        CompletableFuture<Void> recovered = dispatcher.submitFromRuntimeWorker("session", () -> {});
+
+        assertTrue(failed.isCompletedExceptionally());
+        assertTrue(recovered.isDone());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+    }
+
+    @Test
+    void inlineCompletionParticipatesInOptionalDiagnostics() {
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(Runnable::run, 1, true);
+        AtomicReference<RuntimeResultDispatcher.State> activeState = new AtomicReference<>();
+
+        dispatcher.submitFromRuntimeWorker("session", () -> activeState.set(dispatcher.state()));
+
+        assertEquals(1, activeState.get().workGroups());
+        assertEquals(1, activeState.get().activeResults());
+        assertEquals(1, activeState.get().maxObservedWorkGroups());
+        assertEquals(1, activeState.get().maxObservedActiveResults());
+        RuntimeResultDispatcher.State completed = dispatcher.state();
+        assertEquals(0, completed.workGroups());
+        assertEquals(0, completed.activeResults());
+        assertEquals(1, completed.maxObservedWorkGroups());
+        assertEquals(1, completed.maxObservedActiveResults());
+        assertTrue(completed.maxCompletionDurationMillis() >= 0L);
+    }
+
+    @Test
+    void closeDuringInlineCompletionFailsItAndReleasesItsPermit() throws Exception {
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(Runnable::run, 1);
+        CountDownLatch callbackStarted = new CountDownLatch(1);
+        CountDownLatch releaseCallback = new CountDownLatch(1);
+        AtomicReference<CompletableFuture<Void>> completion = new AtomicReference<>();
+        Thread runtimeWorker = Thread.ofPlatform().start(() -> completion.set(
+                dispatcher.submitFromRuntimeWorker("session", () -> {
+                    callbackStarted.countDown();
+                    try {
+                        assertTrue(releaseCallback.await(1, TimeUnit.SECONDS));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(e);
+                    }
+                })));
+        assertTrue(callbackStarted.await(1, TimeUnit.SECONDS));
+
+        dispatcher.close();
+        releaseCallback.countDown();
+
+        assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));
+        assertTrue(completion.get().isCompletedExceptionally());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+    }
 
     @Test
     void largeBatchIsSubmittedIncrementallyWithinConcurrencyBound() {

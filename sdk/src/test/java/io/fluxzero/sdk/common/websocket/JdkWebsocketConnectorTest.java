@@ -1266,13 +1266,14 @@ class JdkWebsocketConnectorTest {
                     .encode(new VoidResult(1L));
 
             listener.onBinary(webSocket, ByteBuffer.wrap(response), true);
-            runtimeDataExecutor.runNext();
+            Thread runtimeWorker = Thread.ofPlatform().start(runtimeDataExecutor::runNext);
 
             assertTrue(client.resultHandlingStarted.await(1, TimeUnit.SECONDS));
             assertEquals(1, session.runtimeDataState().retainedMessages());
             assertEquals(1, session.runtimeDataState().activeMessages());
 
             client.allowResultHandlingToFinish.countDown();
+            assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));
 
             assertTrue(client.runtimeMessageCompleted.await(1, TimeUnit.SECONDS));
             assertEquals(0, session.runtimeDataState().retainedMessages());

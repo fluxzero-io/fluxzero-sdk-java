@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -122,7 +123,7 @@ class AbstractWebsocketClientTest {
                 .build();
         CountDownLatch resultsHandled = new CountDownLatch(2);
         AtomicReference<Thread> runtimeDataThread = new AtomicReference<>();
-        Map<Long, Thread> handlingThreads = new java.util.concurrent.ConcurrentHashMap<>();
+        Map<Long, Thread> handlingThreads = new ConcurrentHashMap<>();
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig) {
             @Override
             protected void handleResult(RequestResult result, String batchId, String sessionId,
@@ -155,6 +156,51 @@ class AbstractWebsocketClientTest {
             assertTrue(resultsHandled.await(1, TimeUnit.SECONDS));
             assertNotEquals(runtimeDataThread.get(), handlingThreads.get(1L));
             assertNotEquals(runtimeDataThread.get(), handlingThreads.get(2L));
+        } finally {
+            runtimeDataExecutor.shutdownNow();
+            client.close();
+        }
+    }
+
+    @Test
+    void isolatedRuntimeWorkerCompletesSingleAndOneResultBatchWithoutSecondExecutorHop() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        Map<Long, Thread> handlingThreads = new ConcurrentHashMap<>();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig) {
+            @Override
+            protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                        WebsocketResultDiagnostics.ResultTiming timing) {
+                handlingThreads.put(result.getRequestId(), Thread.currentThread());
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+        session.getUserProperties().put(
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE);
+        session.getUserProperties().put(
+                AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
+        byte[] single = io.fluxzero.common.websocket.WebSocketTransportCodecs.json(
+                        AbstractWebsocketClient.defaultObjectMapper)
+                .encode(new VoidResult(1L));
+        byte[] batch = io.fluxzero.common.websocket.WebSocketTransportCodecs.json(
+                        AbstractWebsocketClient.defaultObjectMapper)
+                .encode(new ResultBatch(List.of(new VoidResult(2L))));
+        ExecutorService runtimeDataExecutor = Executors.newSingleThreadExecutor(
+                Thread.ofPlatform().name("test-runtime-data").factory());
+
+        try {
+            Thread runtimeDataThread = runtimeDataExecutor.submit(() -> {
+                client.dispatchRuntimeMessage(() -> client.handleMessage(single, session, null))
+                        .toCompletableFuture().join();
+                client.dispatchRuntimeMessage(() -> client.handleMessage(batch, session, null))
+                        .toCompletableFuture().join();
+                return Thread.currentThread();
+            }).get(1, TimeUnit.SECONDS);
+
+            assertEquals(runtimeDataThread, handlingThreads.get(1L));
+            assertEquals(runtimeDataThread, handlingThreads.get(2L));
         } finally {
             runtimeDataExecutor.shutdownNow();
             client.close();

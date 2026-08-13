@@ -85,9 +85,13 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static final int LOAD_ITERATIONS = Integer.getInteger("loadIterations", 3_000);
     private static final int SMALL_LOAD_ITERATIONS = Integer.getInteger("smallLoadIterations", 20_000);
     private static final int LOAD_SESSION_COUNT = Integer.getInteger("loadSessions", 4);
+    private static final int SMALL_LOAD_MAX_CONCURRENCY = Integer.getInteger(
+            "smallLoadMaxConcurrency", JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+    private static final int SMALL_LOAD_MAX_RETAINED_MESSAGES = Integer.getInteger(
+            "smallLoadMaxRetainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
     private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger("resultConcurrency", 8);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
-    private static final int[] SMALL_RESULT_VALUE_BYTES = {0, 320};
+    private static final int[] SMALL_RESULT_VALUE_BYTES = {16, 320};
     private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
             "completionTargetResults", 1_000_000);
     private static final long LOAD_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
@@ -100,9 +104,11 @@ public class WebsocketRuntimeDispatchBenchmark {
 
     public static void main(String[] args) {
         System.out.printf("java=%s feature=%d targetBytes=%d warmups=%d fragments=%d benchmarkMode=%s "
-                                  + "resultConcurrency=%d%n",
+                                  + "resultConcurrency=%d smallLoadMaxConcurrency=%d "
+                                  + "smallLoadMaxRetainedMessages=%d%n",
                           Runtime.version(), Runtime.version().feature(), TARGET_BYTES, WARMUPS, FRAGMENTS,
-                          BENCHMARK_MODE, RESULT_COMPLETION_CONCURRENCY);
+                          BENCHMARK_MODE, RESULT_COMPLETION_CONCURRENCY, SMALL_LOAD_MAX_CONCURRENCY,
+                          SMALL_LOAD_MAX_RETAINED_MESSAGES);
         if (modeEnabled("receive")) {
             for (int messageSize : MESSAGE_SIZES) {
                 runComparison(messageSize, 1);
@@ -236,6 +242,13 @@ public class WebsocketRuntimeDispatchBenchmark {
             throw new IllegalArgumentException("loadSessions must be at least 1");
         }
         return configuredSessionCount == 1 ? List.of(1) : List.of(1, configuredSessionCount);
+    }
+
+    static int loadWorkerCount(int sessionCount, int messageConcurrency) {
+        if (sessionCount < 1 || messageConcurrency < 1) {
+            throw new IllegalArgumentException("Load sessions and message concurrency must be at least 1");
+        }
+        return Math.multiplyExact(sessionCount, messageConcurrency);
     }
 
     private static void runConfiguredCapacitySmoke() {
@@ -580,16 +593,16 @@ public class WebsocketRuntimeDispatchBenchmark {
         private static BoundedLoadScenario smallResult(
                 int sessionCount, CompressionAlgorithm compression, boolean transportMetrics, int valueBytes) {
             return new BoundedLoadScenario(
-                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessionCount, compression,
-                    transportMetrics, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                    SMALL_LOAD_MAX_CONCURRENCY, sessionCount, compression,
+                    transportMetrics, SMALL_LOAD_MAX_RETAINED_MESSAGES,
                     JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, valueBytes, 0L, true);
         }
 
         private static BoundedLoadScenario smallDirect(
                 int sessionCount, CompressionAlgorithm compression, int valueBytes) {
             return new BoundedLoadScenario(
-                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessionCount, compression,
-                    false, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                    SMALL_LOAD_MAX_CONCURRENCY, sessionCount, compression,
+                    false, SMALL_LOAD_MAX_RETAINED_MESSAGES,
                     JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, valueBytes, 0L, false);
         }
 
@@ -608,8 +621,7 @@ public class WebsocketRuntimeDispatchBenchmark {
             this.payload = compressedLoadPayload(compression, valueBytes);
             this.messagesPerSession = Math.max(1, Math.min(
                     maxRetainedMessages, Math.toIntExact(maxRetainedBytes / payload.length)));
-            this.executor = Executors.newFixedThreadPool(
-                    sessionCount * JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+            this.executor = Executors.newFixedThreadPool(loadWorkerCount(sessionCount, maxConcurrency));
             this.sessions = new java.util.ArrayList<>(sessionCount);
             this.listeners = new java.util.ArrayList<>(sessionCount);
             this.webSockets = new java.util.ArrayList<>(sessionCount);

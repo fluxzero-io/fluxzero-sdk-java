@@ -5645,6 +5645,12 @@ large batch is submitted incrementally rather than creating one executor task pe
 on WebSocket arrival order or single-threaded result completion; request/result correlation remains based on request
 IDs.
 
+For a single response, including a one-result batch, the dispatcher reuses the already isolated runtime-data worker
+when completion capacity is immediately available. This avoids a second executor hand-off on the common small-result
+path. The callback still reserves client-wide completion capacity and remains part of retained ingress accounting.
+When capacity is occupied or older completion work is queued, the response enters the same fair bounded dispatcher;
+it cannot bypass earlier work or run on the WebSocket protocol callback worker.
+
 By default, the dispatcher retains at most 19 runtime messages or 16 MiB per session: up to three executor-submitted
 messages and up to 16 pending or being assembled. Pending capacity is always derived as
 `maxRetainedRuntimeWebSocketMessages - maxConcurrentRuntimeWebSocketMessages`; it is not a separate setting.

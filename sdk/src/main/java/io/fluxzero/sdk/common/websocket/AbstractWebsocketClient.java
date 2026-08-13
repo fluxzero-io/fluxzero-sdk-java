@@ -572,19 +572,35 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         if (value instanceof ResultBatch batch) {
             String batchId = Fluxzero.generateId();
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-            completion = runtimeResultDispatcher.submit(sessionId, batch.getResults(), result -> handleResult(
-                    result, batchId, sessionId,
-                    resultDiagnostics.resultTiming(
-                            frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
-                            resultDiagnostics.timestamp())));
+            List<RequestResult> results = batch.getResults();
+            if (results.size() == 1) {
+                RequestResult result = results.getFirst();
+                completion = submitRuntimeResult(sessionId, () -> handleResult(
+                        result, batchId, sessionId,
+                        resultDiagnostics.resultTiming(
+                                frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
+                                resultDiagnostics.timestamp())));
+            } else {
+                completion = runtimeResultDispatcher.submit(sessionId, results, result -> handleResult(
+                        result, batchId, sessionId,
+                        resultDiagnostics.resultTiming(
+                                frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
+                                resultDiagnostics.timestamp())));
+            }
         } else {
-            completion = runtimeResultDispatcher.submit(
+            completion = submitRuntimeResult(
                     sessionId, resultCallback((RequestResult) value, null, sessionId,
-                                              frameTiming, decodedTimestamp, decodeDuration));
+                                               frameTiming, decodedTimestamp, decodeDuration));
         }
         if (runtimeMessageCompletion.get() != null) {
             runtimeMessageCompletion.set(completion);
         }
+    }
+
+    private CompletableFuture<Void> submitRuntimeResult(String sessionId, Runnable resultCallback) {
+        return runtimeMessageCompletion.get() == null
+                ? runtimeResultDispatcher.submit(sessionId, resultCallback)
+                : runtimeResultDispatcher.submitFromRuntimeWorker(sessionId, resultCallback);
     }
 
     private Runnable resultCallback(RequestResult result, String batchId, String sessionId,

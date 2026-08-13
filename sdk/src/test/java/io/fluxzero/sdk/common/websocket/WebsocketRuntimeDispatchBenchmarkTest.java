@@ -49,8 +49,17 @@ class WebsocketRuntimeDispatchBenchmarkTest {
     }
 
     @Test
+    void loadWorkerCountTracksConfiguredMessageConcurrency() {
+        assertEquals(32, WebsocketRuntimeDispatchBenchmark.loadWorkerCount(4, 8));
+        assertThrows(IllegalArgumentException.class,
+                     () -> WebsocketRuntimeDispatchBenchmark.loadWorkerCount(4, 0));
+        assertThrows(ArithmeticException.class,
+                     () -> WebsocketRuntimeDispatchBenchmark.loadWorkerCount(Integer.MAX_VALUE, 2));
+    }
+
+    @Test
     void smallLoadPayloadsAreDeterministicDecodableAndIndependentlyOwned() throws Exception {
-        for (int valueBytes : List.of(0, 320)) {
+        for (int valueBytes : List.of(16, 320)) {
             for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
                 byte[] first = WebsocketRuntimeDispatchBenchmark.compressedLoadPayload(compression, valueBytes);
                 byte[] second = WebsocketRuntimeDispatchBenchmark.compressedLoadPayload(compression, valueBytes);
