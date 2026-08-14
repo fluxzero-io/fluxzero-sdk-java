@@ -193,15 +193,6 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         }
     }
 
-    synchronized void releaseSession(Object sessionKey) {
-        if (admissionSessionQueues != null) {
-            SessionQueue sessionQueue = admissionSessionQueues.get(sessionKey);
-            if (sessionQueue != null) {
-                removeSessionIfIdle(sessionQueue);
-            }
-        }
-    }
-
     private void scheduleAvailable() {
         if (schedulingWork.getAndIncrement() != 0) {
             return;
@@ -294,10 +285,10 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             }
         }
         if (completed != null) {
-            if (workGroup.failure == null) {
+            if (completed.failure == null) {
                 completed.complete(null);
             } else {
-                completed.completeExceptionally(workGroup.failure);
+                completed.completeExceptionally(completed.failure);
             }
         }
         if (admitted != null) {

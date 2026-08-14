@@ -1031,7 +1031,6 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         runtimeIngressBackpressured.remove(sessionId);
         runtimeIngressBackpressureReported.remove(sessionId);
         ofNullable(runtimeIngressLiveness.remove(sessionId)).ifPresent(RuntimeIngressLiveness::cancel);
-        runtimeResultDispatcher.releaseSession(sessionId);
         if (backlog != null && !closed.get()) {
             retryOutstandingRequestsAsync(sessionId);
         }

@@ -5672,7 +5672,8 @@ An idle session without retained work is never stalled. The next completed messa
 default. Set a positive `runtimeIngressStallCloseTimeout` only when the application intentionally wants to reconnect
 after an additional period without progress.
 
-The limits can be tuned without disabling protocol isolation:
+The limits can be tuned without disabling protocol isolation. The example below restates the Java 25+ defaults; omit
+`maxConcurrentRuntimeResultCompletions` to retain the runtime-specific default, or use eight on Java 21 through 24:
 
 ```java
 WebSocketClient.ClientConfig.builder()

@@ -92,7 +92,8 @@ The byte envelope is a retained-work credit limit and is not allocated up front.
 therefore exceed the transport envelope; it may still proceed when it is the only retained message, while later
 responses wait for capacity.
 
-The limits can be configured explicitly:
+The limits can be configured explicitly. The examples below restate the Java 25+ defaults; omit
+`maxConcurrentRuntimeResultCompletions` to retain the runtime-specific default, or use eight on Java 21 through 24:
 
 <Tabs>
   <TabItem label="Java">
