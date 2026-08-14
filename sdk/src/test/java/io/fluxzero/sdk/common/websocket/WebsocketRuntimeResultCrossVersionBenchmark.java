@@ -54,15 +54,21 @@ import java.util.concurrent.locks.LockSupport;
  * internal JDK session constructor, so the exact same source can be compiled and run against 1.212.3, 1.239.0 and a
  * proposed replacement. Feed work in retained-capacity batches to avoid measuring a different producer-side queue in
  * either version. {@code -DbatchSize=0} measures individual responses, while positive values encode an actual
- * {@link ResultBatch}; the measured result count stays constant across batch sizes. Metrics are explicitly disabled;
- * their current-version overhead is measured by the dedicated runtime-dispatch benchmark. The default virtual-thread
- * worker mode matches the SDK default on supported Java versions, and the default two sessions match the normal
- * event-sourcing, search, and key-value client configuration. Use {@code -Dsessions=4} to exercise the client-wide
- * result-completion bound and
+ * {@link ResultBatch}; the measured result count stays constant across batch sizes. Use
+ * {@code -DtransportMetrics=true} to enable the sparse transport diagnostics and their progress tracking. A
+ * demand-aware fake peer delivers only frames requested by the SDK. Dedicated runtime workers follow the SDK's
+ * Java-version policy, and the default two sessions match the normal event-sourcing, search, and key-value client
+ * configuration. Use {@code -Dsessions=4} to exercise the client-wide result-completion bound and
  * {@code -DcallbackWorkMicros=250} to model temporarily slower functional processing.</p>
  */
 public class WebsocketRuntimeResultCrossVersionBenchmark {
+    private static final String TRANSPORT_METRICS_PROPERTY = "fluxzero.websocket.transportMetrics.enabled";
+    private static final int DEFAULT_RETAINED_MESSAGES = 128;
+    private static final long DEFAULT_RETAINED_BYTES = 64L << 20;
+    private static final boolean TRANSPORT_METRICS = Boolean.getBoolean("transportMetrics");
+
     private static final Method RUNTIME_STATE_METHOD = declaredMethod(JdkWebSocketSession.class, "runtimeDataState");
+    private static final boolean DEDICATED_RUNTIME_EXECUTOR = hasDedicatedRuntimeExecutor();
     private static final Method RETAINED_MESSAGES_METHOD = RUNTIME_STATE_METHOD == null ? null
             : declaredMethod(RUNTIME_STATE_METHOD.getReturnType(), "retainedMessages");
     private static final int TARGET_RESULTS = Integer.getInteger(
@@ -70,8 +76,8 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
     private static final int WARMUPS = Integer.getInteger("warmups", 5);
     private static final int SESSION_COUNT = Integer.getInteger("sessions", 2);
     private static final int RETAINED_MESSAGES = Integer.getInteger(
-            "retainedMessages", 128);
-    private static final long RETAINED_BYTES = Long.getLong("retainedBytes", 16L << 20);
+            "retainedMessages", DEFAULT_RETAINED_MESSAGES);
+    private static final long RETAINED_BYTES = Long.getLong("retainedBytes", DEFAULT_RETAINED_BYTES);
     private static final int VALUE_BYTES = Integer.getInteger("valueBytes", 320);
     private static final int BATCH_SIZE = Integer.getInteger("batchSize", 0);
     private static final int RESULTS_PER_MESSAGE = Math.max(1, BATCH_SIZE);
@@ -83,17 +89,15 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             "fixedWorkers", Math.min(8, SESSION_COUNT * 3));
     private static final CompressionAlgorithm COMPRESSION = CompressionAlgorithm.valueOf(
             System.getProperty("compression", "LZ4"));
-    private static final WebSocketClient.ClientConfig CLIENT_CONFIG = WebSocketClient.ClientConfig.builder()
-            .runtimeBaseUrl("ws://localhost")
-            .name("cross-version-result-benchmark")
-            .disableMetrics(true)
-            .build();
+    private static final WebSocketClient.ClientConfig CLIENT_CONFIG = clientConfig(TRANSPORT_METRICS);
+    private static final String COMPLETION_LIMIT = completionLimit(CLIENT_CONFIG, Runtime.version().feature());
     private static volatile long blackhole;
 
     public static void main(String[] args) {
         if (BATCH_SIZE < 0) {
             throw new IllegalArgumentException("batchSize must not be negative");
         }
+        System.setProperty(TRANSPORT_METRICS_PROPERTY, Boolean.toString(TRANSPORT_METRICS));
         try (Scenario scenario = new Scenario()) {
             for (int i = 0; i < WARMUPS; i++) {
                 scenario.run(TARGET_RESULTS);
@@ -105,12 +109,17 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             int measuredMessages = measuredResults / RESULTS_PER_MESSAGE;
             System.out.printf(
                     "runtime-result-cross-version java=%d valueBytes=%d compression=%s sessions=%d "
-                            + "workers=%s fixedWorkers=%d "
+                            + "ingressMode=%s runtimeWorkers=%s fixedRuntimeWorkersSetting=%d completionLimit=%s "
+                            + "demandAware=true transportMetrics=%s maxConcurrencySetting=3 "
+                            + "retainedMessagesSetting=%d retainedBytesSetting=%d warmups=%d "
                             + "resultBatchSize=%d resultsPerMessage=%d compressedBytes=%d "
                             + "callbackWorkNanos=%d wireMessages=%d results=%d: "
                             + "%.2f ns/result, %.1f results/s, %.1f messages/s%n",
                     Runtime.version().feature(), VALUE_BYTES, COMPRESSION, SESSION_COUNT,
-                    WORKER_MODE, FIXED_WORKERS, BATCH_SIZE, RESULTS_PER_MESSAGE,
+                    RUNTIME_STATE_METHOD == null ? "legacy-request-demand" : "bounded",
+                    runtimeWorkerMode(DEDICATED_RUNTIME_EXECUTOR, WORKER_MODE), FIXED_WORKERS,
+                    COMPLETION_LIMIT, TRANSPORT_METRICS, RETAINED_MESSAGES, RETAINED_BYTES, WARMUPS,
+                    BATCH_SIZE, RESULTS_PER_MESSAGE,
                     scenario.payload.length, CALLBACK_WORK_NANOS, measuredMessages, measuredResults,
                     (double) elapsed / measuredResults, measuredResults * 1_000_000_000d / elapsed,
                     measuredMessages * 1_000_000_000d / elapsed);
@@ -137,6 +146,10 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
                                RETAINED_MESSAGES);
                 properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxRetainedBytes",
                                RETAINED_BYTES);
+                properties.put(JdkWebSocketSession.class.getName() + ".sdkTransportMetricsEnabled",
+                               TRANSPORT_METRICS);
+                properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeIngressProgressEnabled",
+                               TRANSPORT_METRICS);
                 properties.put(AbstractWebsocketClient.NEGOTIATED_SESSION_ID_USER_PROPERTY, "benchmark_" + i);
                 properties.put(AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY, "benchmark");
                 properties.put(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, COMPRESSION);
@@ -167,20 +180,16 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             int messages = messageIterations(requestedResults, RESULTS_PER_MESSAGE);
             int remainingMessages = messages;
             while (remainingMessages > 0) {
-                int offeredMessages = 0;
-                for (int sessionIndex = 0; sessionIndex < SESSION_COUNT; sessionIndex++) {
+                int offeredMessages = Math.min(
+                        remainingMessages, Math.multiplyExact(maxMessagesPerSession, SESSION_COUNT));
+                for (int i = 0; i < offeredMessages; i++) {
+                    int sessionIndex = i % SESSION_COUNT;
                     WebSocket.Listener listener = listeners.get(sessionIndex);
-                    WebSocket webSocket = webSockets.get(sessionIndex);
-                    int sessionMessages = Math.min(maxMessagesPerSession, remainingMessages);
-                    for (int i = 0; i < sessionMessages; i++) {
-                        listener.onBinary(webSocket, ByteBuffer.wrap(payload), true);
-                    }
-                    offeredMessages += sessionMessages;
-                    remainingMessages -= sessionMessages;
-                    if (remainingMessages == 0) {
-                        break;
-                    }
+                    BenchmarkWebSocket webSocket = webSockets.get(sessionIndex);
+                    webSocket.awaitDemand();
+                    listener.onBinary(webSocket, ByteBuffer.wrap(payload), true);
                 }
+                remainingMessages -= offeredMessages;
                 awaitProcessed(Math.multiplyExact(offeredMessages, RESULTS_PER_MESSAGE));
                 awaitDrain();
             }
@@ -307,6 +316,15 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
         }
     }
 
+    private static boolean hasDedicatedRuntimeExecutor() {
+        for (Constructor<?> constructor : JdkWebSocketSession.class.getDeclaredConstructors()) {
+            if (constructor.getParameterCount() == 7) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static int messageIterations(int requestedResults, int resultsPerMessage) {
         if (requestedResults < 1 || resultsPerMessage < 1) {
             throw new IllegalArgumentException("Benchmark result values must be positive");
@@ -315,6 +333,37 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             throw new IllegalArgumentException("Benchmark results must be divisible by results per message");
         }
         return requestedResults / resultsPerMessage;
+    }
+
+    static WebSocketClient.ClientConfig clientConfig(boolean transportMetrics) {
+        return WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("cross-version-result-benchmark")
+                .disableMetrics(!transportMetrics)
+                .build();
+    }
+
+    static String completionLimit(WebSocketClient.ClientConfig clientConfig, int javaFeatureVersion) {
+        try {
+            return Integer.toString((int) clientConfig.getClass()
+                    .getMethod("getMaxConcurrentRuntimeResultCompletions").invoke(clientConfig));
+        } catch (NoSuchMethodException ignored) {
+            return javaFeatureVersion >= 25 ? "unbounded-virtual" : "8-fixed";
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not inspect SDK result-completion limit", e);
+        }
+    }
+
+    static String runtimeWorkerMode(boolean dedicatedRuntimeExecutor, String configuredWorkerMode) {
+        return dedicatedRuntimeExecutor ? configuredWorkerMode : "inline-benchmark-callback";
+    }
+
+    static int defaultRetainedMessages() {
+        return DEFAULT_RETAINED_MESSAGES;
+    }
+
+    static long defaultRetainedBytes() {
+        return DEFAULT_RETAINED_BYTES;
     }
 
     static int messagesPerSession(int retainedMessages, long retainedBytes, int payloadBytes) {
@@ -420,7 +469,19 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
     }
 
     private static final class BenchmarkWebSocket implements WebSocket {
+        private final ReceiveDemand receiveDemand = new ReceiveDemand();
         private boolean aborted;
+
+        private void awaitDemand() {
+            try {
+                if (!receiveDemand.tryAcquire(30, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Timed out awaiting SDK WebSocket receive demand");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted awaiting SDK WebSocket receive demand", e);
+            }
+        }
 
         @Override
         public CompletableFuture<WebSocket> sendText(CharSequence data, boolean last) {
@@ -449,6 +510,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
 
         @Override
         public void request(long n) {
+            receiveDemand.request(n);
         }
 
         @Override
@@ -469,6 +531,21 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
         @Override
         public void abort() {
             aborted = true;
+        }
+    }
+
+    static final class ReceiveDemand {
+        private final Semaphore permits = new Semaphore(0);
+
+        void request(long n) {
+            if (n <= 0 || n > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Benchmark WebSocket demand must be between 1 and Integer.MAX_VALUE");
+            }
+            permits.release((int) n);
+        }
+
+        boolean tryAcquire(long timeout, TimeUnit unit) throws InterruptedException {
+            return permits.tryAcquire(timeout, unit);
         }
     }
 }

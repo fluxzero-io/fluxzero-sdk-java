@@ -20,11 +20,14 @@ import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebsocketRuntimeResultCrossVersionBenchmarkTest {
 
@@ -58,6 +61,41 @@ class WebsocketRuntimeResultCrossVersionBenchmarkTest {
                 128, 16L << 20, 2 << 20));
         assertEquals(1, WebsocketRuntimeResultCrossVersionBenchmark.messagesPerSession(
                 128, 16L << 20, 20 << 20));
+    }
+
+    @Test
+    void configuresTransportMetricsWithoutChangingOtherBenchmarkCapacity() {
+        String transportMetricsProperty = System.getProperty("fluxzero.websocket.transportMetrics.enabled");
+        WebSocketClient.ClientConfig metricsDisabled =
+                WebsocketRuntimeResultCrossVersionBenchmark.clientConfig(false);
+        WebSocketClient.ClientConfig metricsEnabled =
+                WebsocketRuntimeResultCrossVersionBenchmark.clientConfig(true);
+
+        assertTrue(metricsDisabled.isDisableMetrics());
+        assertFalse(metricsEnabled.isDisableMetrics());
+        assertEquals(transportMetricsProperty,
+                     System.getProperty("fluxzero.websocket.transportMetrics.enabled"));
+        assertEquals(128, WebsocketRuntimeResultCrossVersionBenchmark.defaultRetainedMessages());
+        assertEquals(64L << 20, WebsocketRuntimeResultCrossVersionBenchmark.defaultRetainedBytes());
+        assertEquals(Integer.toString(metricsDisabled.getMaxConcurrentRuntimeResultCompletions()),
+                     WebsocketRuntimeResultCrossVersionBenchmark.completionLimit(
+                             metricsDisabled, Runtime.version().feature()));
+        assertEquals("inline-benchmark-callback",
+                     WebsocketRuntimeResultCrossVersionBenchmark.runtimeWorkerMode(false, "virtual"));
+        assertEquals("virtual", WebsocketRuntimeResultCrossVersionBenchmark.runtimeWorkerMode(true, "virtual"));
+    }
+
+    @Test
+    void benchmarkProducerHonorsWebSocketDemand() throws Exception {
+        WebsocketRuntimeResultCrossVersionBenchmark.ReceiveDemand demand =
+                new WebsocketRuntimeResultCrossVersionBenchmark.ReceiveDemand();
+
+        assertFalse(demand.tryAcquire(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+        demand.request(2);
+        assertTrue(demand.tryAcquire(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+        assertTrue(demand.tryAcquire(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+        assertFalse(demand.tryAcquire(0, java.util.concurrent.TimeUnit.MILLISECONDS));
+        assertThrows(IllegalArgumentException.class, () -> demand.request(0));
     }
 
     @Test
