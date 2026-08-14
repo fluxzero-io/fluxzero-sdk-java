@@ -44,6 +44,38 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "errorCauseDescription",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#errorCauseDescription",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cause",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "errorMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#errorMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cause",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "interceptHandling",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#interceptHandling",
     "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",

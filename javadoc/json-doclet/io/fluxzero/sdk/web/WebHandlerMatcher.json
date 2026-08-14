@@ -242,6 +242,11 @@
       "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "safeRequestPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -318,22 +323,6 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "context",
-      "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "requestTarget",
-    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#requestTarget",
-    "returnType" : "java.lang.String",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
       "name" : "context",
       "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
       "varArgs" : false,

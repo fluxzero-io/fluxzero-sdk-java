@@ -23,6 +23,14 @@
   "superClass" : "io.fluxzero.sdk.common.Message",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "MAX_LOGGED_PATH_LENGTH",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest.MAX_LOGGED_PATH_LENGTH",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 512
+  }, {
     "name" : "cookies",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest.cookies",
     "type" : "java.util.List<java.net.HttpCookie>",
@@ -525,6 +533,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " The request path including query parameters (e.g. {@code \"/api/users?id=123\"}). May contain the full URL for\n outbound web requests.\n"
+  }, {
+    "name" : "getPathForLogging",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#getPathForLogging",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts a bounded request path that is safe to include in logs, metrics and error reports.\n <p>\n The origin, query string and fragment are intentionally omitted because they may contain credentials or\n ceremony state. Use {@link #getUrl(Metadata)} when the complete request target is required for request handling.\n\n @param metadata the request metadata\n @return the path without origin, query string or fragment, limited to 512 characters\n"
   }, {
     "name" : "getPayloadAs",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest#getPayloadAs",
