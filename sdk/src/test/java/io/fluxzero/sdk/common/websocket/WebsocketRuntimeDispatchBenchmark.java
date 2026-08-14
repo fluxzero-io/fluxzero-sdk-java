@@ -89,7 +89,7 @@ public class WebsocketRuntimeDispatchBenchmark {
             "smallLoadMaxConcurrency", JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
     private static final int SMALL_LOAD_MAX_RETAINED_MESSAGES = Integer.getInteger(
             "smallLoadMaxRetainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
-    private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger("resultConcurrency", 8);
+    private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger("resultConcurrency", 32);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
     private static final int[] SMALL_RESULT_VALUE_BYTES = {16, 320};
     private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
@@ -305,8 +305,10 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static void runResultCompletionComparison() {
         for (int batchSize : List.of(1, 32, 1_024)) {
             int iterations = Math.max(128, COMPLETION_TARGET_RESULTS / batchSize);
-            try (ResultCompletionScenario legacy = new ResultCompletionScenario(batchSize, true);
-                 ResultCompletionScenario bounded = new ResultCompletionScenario(batchSize, false)) {
+            try (ResultCompletionScenario legacy = new ResultCompletionScenario(
+                    batchSize, true, RESULT_COMPLETION_CONCURRENCY);
+                 ResultCompletionScenario bounded = new ResultCompletionScenario(
+                         batchSize, false, RESULT_COMPLETION_CONCURRENCY)) {
                 for (int i = 0; i < WARMUPS; i++) {
                     legacy.run(iterations);
                     bounded.run(iterations);
@@ -334,7 +336,7 @@ public class WebsocketRuntimeDispatchBenchmark {
                                   + "maxQueuedTasks=%d, gcCollections=%d, gcMillis=%d%n",
                           name, scenario.batchSize, iterations, results,
                           (double) elapsed / results, (double) allocated / results,
-                          scenario.executor.maxQueuedTasks(), gcDelta.collections, gcDelta.millis);
+                          scenario.maxQueuedTasks(), gcDelta.collections, gcDelta.millis);
     }
 
     private static void measure(String name, Scenario scenario, int iterations) {
@@ -420,7 +422,7 @@ public class WebsocketRuntimeDispatchBenchmark {
         return threadBean;
     }
 
-    private static class ResultCompletionScenario implements AutoCloseable {
+    static class ResultCompletionScenario implements AutoCloseable {
         private final int batchSize;
         private final boolean legacy;
         private final MeasuringExecutor executor = new MeasuringExecutor();
@@ -428,18 +430,22 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final List<Integer> batchResults;
         private final Consumer<Integer> resultHandler = this::consumeResult;
 
-        private ResultCompletionScenario(int batchSize, boolean legacy) {
+        ResultCompletionScenario(int batchSize, boolean legacy, int concurrency) {
             this.batchSize = batchSize;
             this.legacy = legacy;
-            this.dispatcher = legacy ? null : new RuntimeResultDispatcher(executor, 8);
+            this.dispatcher = legacy ? null : new RuntimeResultDispatcher(executor, concurrency);
             this.batchResults = java.util.stream.IntStream.range(0, batchSize).boxed().toList();
         }
 
-        private void run(int iterations) {
+        void run(int iterations) {
             executor.resetMaximum();
             for (int i = 0; i < iterations; i++) {
                 runOne();
             }
+        }
+
+        int maxQueuedTasks() {
+            return executor.maxQueuedTasks();
         }
 
         private void runOne() {

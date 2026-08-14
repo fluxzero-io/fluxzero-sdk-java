@@ -58,6 +58,15 @@ class WebsocketRuntimeDispatchBenchmarkTest {
     }
 
     @Test
+    void completionBenchmarkUsesConfiguredConcurrency() {
+        try (var scenario = new WebsocketRuntimeDispatchBenchmark.ResultCompletionScenario(32, false, 7)) {
+            scenario.run(1);
+
+            assertEquals(7, scenario.maxQueuedTasks());
+        }
+    }
+
+    @Test
     void smallLoadPayloadsAreDeterministicDecodableAndIndependentlyOwned() throws Exception {
         for (int valueBytes : List.of(16, 320)) {
             for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {

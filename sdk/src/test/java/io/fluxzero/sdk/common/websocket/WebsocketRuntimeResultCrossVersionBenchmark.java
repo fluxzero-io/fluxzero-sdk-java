@@ -56,19 +56,23 @@ import java.util.concurrent.atomic.LongAdder;
  * against that release and a proposed replacement. Feed work in retained-capacity batches to avoid measuring a
  * different producer-side queue in either version. The default virtual-thread worker mode matches the SDK default on
  * supported Java versions, and the default two sessions match the normal event-sourcing, search, and key-value client
- * configuration. Use {@code -DworkerMode=fixed} to isolate administration from virtual-thread startup and
- * {@code -Dsessions=4} to exercise the client-wide result-completion bound.</p>
+ * configuration. The default worker mode follows the SDK's Java 25 virtual-worker boundary; override it explicitly
+ * to isolate executor effects. Use {@code -Dsessions=4} to exercise the client-wide result-completion bound.</p>
  */
 public class WebsocketRuntimeResultCrossVersionBenchmark {
     private static final int ITERATIONS = Integer.getInteger("iterations", 500_000);
     private static final int WARMUPS = Integer.getInteger("warmups", 5);
     private static final int SESSION_COUNT = Integer.getInteger("sessions", 2);
-    private static final int RETAINED_MESSAGES = Integer.getInteger("retainedMessages", 19);
+    private static final int RETAINED_MESSAGES = Integer.getInteger(
+            "retainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
     private static final int VALUE_BYTES = Integer.getInteger("valueBytes", 320);
     private static final boolean TRANSPORT_METRICS = Boolean.getBoolean("transportMetrics");
     private static final boolean RUNTIME_PROGRESS = Boolean.parseBoolean(
             System.getProperty("runtimeProgress", Boolean.toString(TRANSPORT_METRICS)));
-    private static final String WORKER_MODE = System.getProperty("workerMode", "virtual");
+    private static final String WORKER_MODE = System.getProperty(
+            "workerMode", Runtime.version().feature() >= 25 ? "virtual" : "fixed");
+    private static final int FIXED_WORKERS = Integer.getInteger(
+            "fixedWorkers", Math.min(8, SESSION_COUNT * 3));
     private static final CompressionAlgorithm COMPRESSION = CompressionAlgorithm.valueOf(
             System.getProperty("compression", "LZ4"));
     private static volatile long blackhole;
@@ -84,10 +88,10 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             long elapsed = System.nanoTime() - started;
             System.out.printf(
                     "runtime-result-cross-version java=%d valueBytes=%d compression=%s sessions=%d "
-                            + "metrics=%s runtimeProgress=%s workers=%s compressedBytes=%d "
+                            + "metrics=%s runtimeProgress=%s workers=%s fixedWorkers=%d compressedBytes=%d "
                             + "iterations=%d: %.2f ns/op, %.1f ops/s%n",
                     Runtime.version().feature(), VALUE_BYTES, COMPRESSION, SESSION_COUNT, TRANSPORT_METRICS,
-                    RUNTIME_PROGRESS, WORKER_MODE, scenario.payload.length,
+                    RUNTIME_PROGRESS, WORKER_MODE, FIXED_WORKERS, scenario.payload.length,
                     measuredIterations, (double) elapsed / measuredIterations,
                     measuredIterations * 1_000_000_000d / elapsed);
         }
@@ -141,7 +145,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
         private static ExecutorService runtimeExecutor() {
             return switch (WORKER_MODE) {
                 case "virtual" -> Executors.newVirtualThreadPerTaskExecutor();
-                case "fixed" -> Executors.newFixedThreadPool(SESSION_COUNT * 3);
+                case "fixed" -> Executors.newFixedThreadPool(FIXED_WORKERS);
                 default -> throw new IllegalArgumentException(
                         "workerMode must be either virtual or fixed: " + WORKER_MODE);
             };
