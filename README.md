@@ -5627,7 +5627,7 @@ Key options include:
 | `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
 | `maxConcurrentRuntimeWebSocketMessages` | Runtime messages decoded or waiting for completion-dispatcher admission per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |
 | `maxRetainedRuntimeWebSocketMessages` | Total assembling, compressed-pending, decode/admission, and functionally active messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `128` |
-| `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `fluxzero.runtime.ingress.maxRetainedBytes` or 16 MiB |
+| `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `fluxzero.runtime.ingress.maxRetainedBytes` or 64 MiB |
 | `maxConcurrentRuntimeResultCompletions` | Admitted runtime-message groups and result completions, including synchronous customer continuations, per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `32` on Java 25+, `8` on Java 21–24 |
 | `runtimeIngressStallCloseTimeout` | Opt-in close delay after ingress has been diagnosed as stalled | `fluxzero.runtime.ingress.stallCloseTimeout` or disabled |
 | `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
@@ -5648,7 +5648,7 @@ runtime-data decode worker. A large batch is submitted incrementally rather than
 Applications must not rely on WebSocket arrival order or single-threaded result completion; request/result correlation
 remains based on request IDs.
 
-By default, the dispatcher retains at most 128 runtime messages or 16 MiB per session. This envelope includes messages
+By default, the dispatcher retains at most 128 runtime messages or 64 MiB per session. This envelope includes messages
 being assembled, compressed pending messages, up to three messages decoding or waiting for completion-dispatcher
 admission, and admitted messages whose functional work is still incomplete. The admitted group bound is client-wide
 and shared across that client's sessions. Messages and compressed wire bytes remain retained until their functional
@@ -5678,11 +5678,16 @@ The limits can be tuned without disabling protocol isolation:
 WebSocketClient.ClientConfig.builder()
         .maxConcurrentRuntimeWebSocketMessages(3)
         .maxRetainedRuntimeWebSocketMessages(128)
-        .maxRetainedRuntimeWebSocketBytes(16L * 1024 * 1024)
+        .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
         .maxConcurrentRuntimeResultCompletions(32)
         .runtimeIngressStallCloseTimeout(Duration.ZERO)
         .build();
 ```
+
+The 64 MiB byte envelope is not allocated up front; it is a retained-work credit limit. Tracking's default
+`maxFetchBytes` is 100 MiB of serialized message payload before WebSocket compression and envelope overhead, so one
+tracking response can legitimately exceed the transport envelope. The sole-oversized-message rule preserves progress
+in that case, while later responses wait until retained work completes.
 
 An explicit builder value takes precedence over the corresponding environment variable or system/application
 property, which in turn takes precedence over the SDK default. Concurrency must be at least one, retained messages

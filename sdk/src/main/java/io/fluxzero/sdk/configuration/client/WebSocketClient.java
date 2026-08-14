@@ -187,7 +187,7 @@ public class WebSocketClient extends AbstractClient {
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS =
                 defaultMaxConcurrentRuntimeResultCompletions(Runtime.version().feature());
         static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 128;
-        static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 16L * 1024 * 1024;
+        static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 64L * 1024 * 1024;
         static final String MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY =
                 "fluxzero.runtime.ingress.maxConcurrency";
         static final String MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY =
@@ -293,7 +293,7 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single
          * larger message may proceed while it is the only retained message. Defaults to
-         * {@code fluxzero.runtime.ingress.maxRetainedBytes}, its legacy WebSocket aliases, or 16 MiB when unset.
+         * {@code fluxzero.runtime.ingress.maxRetainedBytes}, its legacy WebSocket aliases, or 64 MiB when unset.
          */
         @Default
         long maxRetainedRuntimeWebSocketBytes = firstLongProperty(

@@ -45,7 +45,7 @@ class WebSocketClientConfigTest {
 
             assertEquals(3, config.getMaxConcurrentRuntimeWebSocketMessages());
             assertEquals(128, config.getMaxRetainedRuntimeWebSocketMessages());
-            assertEquals(16L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
+            assertEquals(64L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
             assertEquals(WebSocketClient.ClientConfig.defaultMaxConcurrentRuntimeResultCompletions(
                                  Runtime.version().feature()),
                          config.getMaxConcurrentRuntimeResultCompletions());

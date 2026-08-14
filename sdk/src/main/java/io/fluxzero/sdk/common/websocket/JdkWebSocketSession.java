@@ -61,7 +61,7 @@ class JdkWebSocketSession implements WebsocketSession {
             JdkWebSocketSession.class.getName() + ".sdkRuntimeIngressProgressEnabled";
     static final int DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES = 3;
     static final int DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES = 128;
-    static final long DEFAULT_MAX_RETAINED_RUNTIME_BYTES = 16L * 1024 * 1024;
+    static final long DEFAULT_MAX_RETAINED_RUNTIME_BYTES = 64L * 1024 * 1024;
 
     private final JdkWebsocketConnector connector;
     private final WebsocketEndpoint endpoint;

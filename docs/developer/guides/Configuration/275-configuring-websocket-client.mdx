@@ -65,7 +65,7 @@ Key options include:
 | `pingDelay` / `pingTimeout`                  | Heartbeat intervals for WebSocket health                                         | 10s / 15s                                |
 | `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
 | `maxRetainedRuntimeWebSocketMessages`        | Total assembling, compressed-pending, decode/admission, and active messages     | `128`                                    |
-| `maxRetainedRuntimeWebSocketBytes`           | Total compressed runtime wire bytes retained per session                        | 16 MiB                                   |
+| `maxRetainedRuntimeWebSocketBytes`           | Total compressed runtime wire bytes retained per session                        | 64 MiB                                   |
 | `maxConcurrentRuntimeResultCompletions`      | Admitted groups and result completions/continuations per client                  | `32` on Java 25+, `8` on Java 21–24      |
 | `runtimeIngressStallCloseTimeout`            | Optional close delay after ingress is diagnosed as stalled                      | Disabled                                 |
 | `disableMetrics`                             | Whether to suppress all outgoing metrics                                         | `false`                                  |
@@ -82,10 +82,15 @@ and actively completes at most 32 message groups/results on Java 25 and newer or
 default. Customer callbacks never run on a decode worker. This keeps pong and decode progress independent from slow
 functional continuations while preserving bounded resource use.
 
-The SDK retains at most 128 runtime messages or 16 MiB of compressed wire data per physical session by default. Messages
+The SDK retains at most 128 runtime messages or 64 MiB of compressed wire data per physical session by default. Messages
 remain retained until functional processing completes, including synchronous code triggered by completing a request
 future. When a retained bound is reached, the JDK WebSocket adapter pauses receive demand and resumes it after capacity
 is released. Normal capacity pressure does not close or reconnect an otherwise healthy session.
+
+The byte envelope is a retained-work credit limit and is not allocated up front. Tracking's default `maxFetchBytes` is
+100 MiB of serialized message payload before WebSocket compression and envelope overhead. A single response can
+therefore exceed the transport envelope; it may still proceed when it is the only retained message, while later
+responses wait for capacity.
 
 The limits can be configured explicitly:
 
@@ -96,7 +101,7 @@ The limits can be configured explicitly:
   ClientConfig config = ClientConfig.builder()
           .maxConcurrentRuntimeWebSocketMessages(3)
           .maxRetainedRuntimeWebSocketMessages(128)
-          .maxRetainedRuntimeWebSocketBytes(16L * 1024 * 1024)
+          .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
           .maxConcurrentRuntimeResultCompletions(32)
           .runtimeIngressStallCloseTimeout(Duration.ZERO)
           .build();
@@ -108,7 +113,7 @@ The limits can be configured explicitly:
   val config = ClientConfig.builder()
       .maxConcurrentRuntimeWebSocketMessages(3)
       .maxRetainedRuntimeWebSocketMessages(128)
-      .maxRetainedRuntimeWebSocketBytes(16L * 1024 * 1024)
+      .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
       .maxConcurrentRuntimeResultCompletions(32)
       .runtimeIngressStallCloseTimeout(Duration.ZERO)
       .build()
